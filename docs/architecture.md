@@ -1,6 +1,6 @@
 # Decoder architecture
 
-SparseLab uses a causal decoder that predicts the next packed token. Milestone 0.1 uses a dense SwiGLU feed-forward path. Milestone 0.2 can replace only that path with local top-1 MoE. Milestone 0.3 optionally adds a causal token n-gram memory adapter after final RMSNorm; embeddings, attention, and output-head behavior remain unchanged.
+SparseLab is a causal decoder laboratory. Its dense baseline uses RMSNorm, RoPE causal attention, SwiGLU, residual connections, and a tied or untied language-model head. Configurations can independently select local Top-K MoE, token/byte/portable Engram memory, block-sparse attention, or latent attention; each reference path is deliberately small rather than kernel-optimized.
 
 ```mermaid
 flowchart LR
@@ -8,7 +8,7 @@ flowchart LR
   emb --> attention[RMSNorm → RoPE causal attention → residual]
   attention --> choice{FFN configuration}
   choice -->|dense| dense[SwiGLU]
-  choice -->|moe| router[Router → top-1 expert SwiGLU]
+  choice -->|moe| router[Router → normalized Top-K SwiGLU experts]
   dense --> residual[Residual]
   router --> residual
   residual --> norm[Final RMSNorm]
@@ -17,11 +17,11 @@ flowchart LR
 
 RMSNorm rescales a vector by its reciprocal RMS without centering it. RoPE rotates adjacent query/key pairs by position; relative phase represents distance. The upper-triangular attention mask prevents future-token access. Dense SwiGLU computes `down(silu(gate(x)) * up(x))`. Tied embeddings reuse input-embedding storage for output logits.
 
-## Local top-1 MoE
+## Local Top-K MoE
 
-For each normalized token representation `x`, the router computes `softmax(W_router x)`, selects its greatest-probability expert, runs that token through one SwiGLU expert, then scatters the output back to the original token position. The selected top-1 mixing weight is one; router probabilities remain available only for detached diagnostics: counts, fractions, entropy, and maximum fraction.
+For each normalized token representation `x`, the router computes `softmax(W_router x)`, selects `experts_per_token` experts, renormalizes the selected weights, and sums their SwiGLU outputs. An optional shared expert runs for every token. The trainer records router entropy, maximum expert fraction, mean selected probability, and auxiliary load-balancing loss.
 
-This is **compute sparsity**, not sparse attention or external memory. The implementation is local: there is no capacity constraint, dropped-token fallback, auxiliary load-balancing objective, expert parallelism, or distributed communication. Every token runs exactly one expert. It therefore does not establish a production MoE throughput claim.
+This is **compute sparsity**, not sparse attention or external memory. The implementation is local: there is no capacity constraint, dropped-token fallback, expert parallelism, or distributed communication. It is a correctness/inspection reference, not a production MoE throughput claim.
 
 ## Sliding-window attention
 
@@ -59,7 +59,7 @@ Each target is the following packed token. Documents end in EOS; a fixed block c
 
 ```mermaid
 flowchart TB
-  compute[Compute sparsity: local selected experts — implemented]
-  attention[Attention sparsity: selected context — future]
-  memory[Memory sparsity: causal token n-gram table — implemented]
+  compute[Compute sparsity: local Top-K experts — implemented]
+  attention[Attention sparsity: block-selected causal K/V — implemented]
+  memory[Memory sparsity: token and byte/portable Engram tables — implemented]
 ```
