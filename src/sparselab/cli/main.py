@@ -34,6 +34,7 @@ from sparselab.model.transformer import DenseLM
 from sparselab.runtime import discover_runtimes, select_device
 from sparselab.staging import stage
 from sparselab.training.checkpoints import CheckpointManager, load_checkpoint
+from sparselab.training.mlx_checkpoints import inspect as inspect_mlx_checkpoint
 from sparselab.training.trainer import train
 
 
@@ -156,6 +157,16 @@ def _config_migrate(args: argparse.Namespace) -> None:
 
 def _checkpoint_inspect(args: argparse.Namespace) -> None:
     path = Path(args.path)
+    if (path / "state.json").is_file() or path.name == "state.json":
+        report = inspect_mlx_checkpoint(path)
+        payload = {
+            "valid": report.valid,
+            "metadata": report.metadata,
+            "files": list(report.files),
+            "errors": list(report.errors),
+        }
+        print(json.dumps(payload, sort_keys=True) if args.json else payload)
+        return
     directory = (
         path.parent / json.loads(path.read_text())["relative_path"]
         if path.name in {"latest.json", "best.json"}
@@ -171,6 +182,18 @@ def _checkpoint_inspect(args: argparse.Namespace) -> None:
 
 def _checkpoint_verify(args: argparse.Namespace) -> None:
     path = Path(args.path)
+    if (path / "state.json").is_file() or path.name == "state.json":
+        report = inspect_mlx_checkpoint(path)
+        payload = {
+            "valid": report.valid,
+            "metadata": report.metadata,
+            "files": list(report.files),
+            "errors": list(report.errors),
+        }
+        print(json.dumps(payload, sort_keys=True) if args.json else payload)
+        if not report.valid:
+            raise SystemExit(1)
+        return
     root = path.parent.parent
     report = CheckpointManager(root).verify(
         path, require_training_state=not args.weights_only

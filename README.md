@@ -6,6 +6,7 @@ Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory** f
 
 ```sh
 uv sync --locked --dev
+
 uv run sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run sparselab data prepare configs/smoke_cpu.yaml
 uv run sparselab inspect configs/micro_dense.yaml --json
@@ -24,6 +25,16 @@ uv run sparselab facts verify artifacts/withheld-facts-seed-0.json
 uv run sparselab facts audit artifacts/withheld-facts-seed-0.json
 uv run sparselab facts transfer-evaluate withheld-bytes withheld-bpe artifacts/withheld-facts-seed-0.json
 ```
+
+On Apple Silicon, install the optional local MLX engine and run its smoke configuration:
+
+```sh
+uv sync --locked --dev --extra mlx
+uv run sparselab train configs/smoke_mlx.yaml --run-id mlx-smoke
+uv run sparselab checkpoint verify runs/mlx-smoke/mlx_checkpoints/step_00000040 --json
+```
+
+MLX checkpoints are native local Metal state: `checkpoint inspect` and `checkpoint verify` validate their metadata and state files, while resume takes the checkpoint directory.
 
 Use `--stop-after-step N` to make a durable interrupted checkpoint, then resume into a new child run:
 

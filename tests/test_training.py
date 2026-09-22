@@ -116,6 +116,43 @@ def test_interrupted_resume_matches_uninterrupted(tmp_path: Path) -> None:
     equal(left.model, right.model)
 
 
+@pytest.mark.skipif(
+    not torch.backends.mps.is_available(), reason="MPS is unavailable"
+)
+def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
+    original = config(tmp_path)
+    mps = original.model_copy(
+        update={"runtime": original.runtime.model_copy(update={"backend": "mps"})}
+    )
+    train(mps, run_id="part", stop_after_step=2)
+    train(
+        mps,
+        run_id="resumed",
+        resume=mps.logging.root_dir / "part/checkpoints/latest.json",
+    )
+
+    resumed = CheckpointManager(mps.logging.root_dir / "resumed").load(
+        mps.logging.root_dir / "resumed/checkpoints/latest.json"
+    )
+    assert resumed.step == mps.training.max_steps
+    assert resumed.backend == "mps"
+
+
+
+def test_adafactor_state_offload_is_rejected(tmp_path: Path) -> None:
+    payload = config(tmp_path).model_dump(mode="json")
+    payload["optimizer"] = {
+        "name": "adafactor",
+        "peak": 0.003,
+        "floor": 0.0003,
+        "warmup_steps": 2,
+        "weight_decay": 0.1,
+        "state_offload": True,
+    }
+
+    with pytest.raises(ValueError, match="state_offload is deferred"):
+        RunConfig.model_validate(payload)
+
 def test_resume_rejects_model_configuration_mismatch(tmp_path: Path) -> None:
     original = config(tmp_path / "original")
     train(original, run_id="part", stop_after_step=5)
