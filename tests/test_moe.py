@@ -56,3 +56,13 @@ def test_moe_decoder_runs_backward_and_reports_active_expert() -> None:
         assert isinstance(block.ffn, TopKMoE)
         assert block.ffn.last_diagnostics is not None
         assert int(block.ffn.last_diagnostics.counts.sum()) == 32
+
+
+def test_selected_probability_mass_is_measured_before_renormalization() -> None:
+    moe = TopKMoE(2, 4, 3, experts_per_token=2)
+    with torch.no_grad():
+        moe.router.weight.zero_()
+        moe(torch.ones(1, 2, 2))
+    assert torch.isclose(
+        moe.last_diagnostics.mean_topk_probability, torch.tensor(2 / 3)
+    )

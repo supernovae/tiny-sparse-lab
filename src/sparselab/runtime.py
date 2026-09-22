@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import platform
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -54,7 +54,9 @@ def _backend_available(backend: str) -> bool:
     if backend == "mps":
         return bool(torch.backends.mps.is_available())
     if backend in {"cuda", "rocm"}:
-        return bool(torch.cuda.is_available()) and ((backend == "rocm") == bool(torch.version.hip))
+        return bool(torch.cuda.is_available()) and (
+            (backend == "rocm") == bool(torch.version.hip)
+        )
     if backend == "xpu":
         xpu = getattr(torch, "xpu", None)
         return bool(xpu and xpu.is_available())
@@ -89,7 +91,9 @@ def discover_runtimes() -> list[RuntimeInfo]:
     infos: list[RuntimeInfo] = []
     for backend in ("cpu", "mps", "cuda", "rocm", "xpu"):
         supported = _backend_available(backend)
-        if backend in {"cuda", "rocm"} and ((backend == "rocm") != bool(torch.version.hip)):
+        if backend in {"cuda", "rocm"} and (
+            (backend == "rocm") != bool(torch.version.hip)
+        ):
             reason = "PyTorch build targets the other CUDA/HIP API"
         elif not supported:
             reason = "runtime unavailable"
@@ -110,15 +114,86 @@ def discover_runtimes() -> list[RuntimeInfo]:
                 recommended = int(mps.recommended_max_memory())
         elif supported and backend == "xpu":
             xpu = torch.xpu
-            name = xpu.get_device_name(0) if hasattr(xpu, "get_device_name") else "Intel XPU"
+            name = (
+                xpu.get_device_name(0)
+                if hasattr(xpu, "get_device_name")
+                else "Intel XPU"
+            )
             if hasattr(xpu, "get_device_properties"):
                 device_total = int(xpu.get_device_properties(0).total_memory)
-        infos.append(RuntimeInfo("pytorch", backend, str(torch_device_for(backend)) if supported else None, 0, name, None, torch.__version__, torch.version.hip or torch.version.cuda, None, platform.platform(), total, available, device_total, device_free, recommended, source, _now(), ("fp32",) if backend == "cpu" else ("fp32", "bf16", "fp16"), (reason,) if reason else ()))
+        infos.append(
+            RuntimeInfo(
+                "pytorch",
+                backend,
+                str(torch_device_for(backend)) if supported else None,
+                0,
+                name,
+                None,
+                torch.__version__,
+                torch.version.hip or torch.version.cuda,
+                None,
+                platform.platform(),
+                total,
+                available,
+                device_total,
+                device_free,
+                recommended,
+                source,
+                _now(),
+                ("fp32",) if backend == "cpu" else ("fp32", "bf16", "fp16"),
+                (reason,) if reason else (),
+            )
+        )
     try:
         import mlx.core as mx  # type: ignore[import-not-found]
-        infos.append(RuntimeInfo("mlx", "metal", None, 0, "Apple Metal", None, None, getattr(mx, "__version__", None), None, platform.platform(), total, available, None, None, None, "mlx", _now(), ("fp32",), ()))
+
+        infos.append(
+            RuntimeInfo(
+                "mlx",
+                "metal",
+                None,
+                0,
+                "Apple Metal",
+                None,
+                None,
+                getattr(mx, "__version__", None),
+                None,
+                platform.platform(),
+                total,
+                available,
+                None,
+                None,
+                None,
+                "mlx",
+                _now(),
+                ("fp32",),
+                (),
+            )
+        )
     except ImportError:
-        infos.append(RuntimeInfo("mlx", "metal", None, 0, None, None, None, None, None, platform.platform(), total, available, None, None, None, None, _now(), (), ("MLX package unavailable",)))
+        infos.append(
+            RuntimeInfo(
+                "mlx",
+                "metal",
+                None,
+                0,
+                None,
+                None,
+                None,
+                None,
+                None,
+                platform.platform(),
+                total,
+                available,
+                None,
+                None,
+                None,
+                None,
+                _now(),
+                (),
+                ("MLX package unavailable",),
+            )
+        )
     return infos
 
 
@@ -130,8 +205,12 @@ def validate_runtime(config: Any) -> RuntimeInfo:
     backend = _auto_backend() if runtime.backend == "auto" else runtime.backend
     if not _backend_available(backend):
         raise ValueError(f"requested backend unavailable: {backend}")
-    if runtime.precision == "fp16" and backend == "cpu":
-        raise ValueError("CPU fp16 is unsupported")
+    if runtime.precision not in {"fp32", "auto"}:
+        raise ValueError(
+            "PyTorch training currently executes FP32 only; mixed precision is not implemented"
+        )
+    if backend in {"cpu", "mps"} and runtime.device_index != 0:
+        raise ValueError(f"{backend} supports only device_index=0")
     device = torch_device_for(backend, runtime.device_index)
     # Probe includes a real backward/update and does not silently retry elsewhere.
     parameter = torch.nn.Parameter(torch.ones((2, 2), device=device))
@@ -140,13 +219,33 @@ def validate_runtime(config: Any) -> RuntimeInfo:
     optimizer.step()
     for info in discover_runtimes():
         if info.engine == "pytorch" and info.backend == backend:
+            if backend in {"cuda", "rocm"}:
+                properties = torch.cuda.get_device_properties(runtime.device_index)
+                free, total = torch.cuda.mem_get_info(runtime.device_index)
+                return replace(
+                    info,
+                    device_index=runtime.device_index,
+                    torch_device=str(device),
+                    device_name=properties.name,
+                    device_total_bytes=int(total),
+                    device_free_bytes=int(free),
+                )
+            if backend == "xpu":
+                return replace(
+                    info,
+                    device_index=runtime.device_index,
+                    torch_device=str(device),
+                    device_name=torch.xpu.get_device_name(runtime.device_index),
+                )
             return info
     raise RuntimeError("validated runtime disappeared from inventory")
 
 
 def select_device(requested: str) -> torch.device:
     backend = _auto_backend() if requested == "auto" else requested
-    if backend not in {"cpu", "mps", "cuda", "rocm", "xpu"} or not _backend_available(backend):
+    if backend not in {"cpu", "mps", "cuda", "rocm", "xpu"} or not _backend_available(
+        backend
+    ):
         raise ValueError(f"requested device unavailable: {requested}")
     return torch_device_for(backend)
 
@@ -186,7 +285,11 @@ def seed_everything(seed: int, *, deterministic_cpu: bool = False) -> None:
 
 
 def capture_rng_state() -> dict[str, Any]:
-    state: dict[str, Any] = {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
+    state: dict[str, Any] = {
+        "python": random.getstate(),
+        "numpy": np.random.get_state(),
+        "torch": torch.get_rng_state(),
+    }
     if torch.cuda.is_available():
         state["cuda"] = torch.cuda.get_rng_state_all()
     if torch.backends.mps.is_available() and hasattr(torch.mps, "get_rng_state"):
@@ -200,5 +303,9 @@ def restore_rng_state(state: dict[str, Any]) -> None:
     torch.set_rng_state(state["torch"])
     if "cuda" in state and torch.cuda.is_available():
         torch.cuda.set_rng_state_all(state["cuda"])
-    if "mps" in state and torch.backends.mps.is_available() and hasattr(torch.mps, "set_rng_state"):
+    if (
+        "mps" in state
+        and torch.backends.mps.is_available()
+        and hasattr(torch.mps, "set_rng_state")
+    ):
         torch.mps.set_rng_state(state["mps"])

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -136,9 +137,7 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
     assert [item["step"] for item in observations] == [0, 2, 4, 6, 8, 10, 12]
 
 
-@pytest.mark.skipif(
-    not torch.backends.mps.is_available(), reason="MPS is unavailable"
-)
+@pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS is unavailable")
 def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
     original = config(tmp_path)
     mps = original.model_copy(
@@ -158,7 +157,6 @@ def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
     assert resumed.backend == "mps"
 
 
-
 def test_adafactor_state_offload_is_rejected(tmp_path: Path) -> None:
     payload = config(tmp_path).model_dump(mode="json")
     payload["optimizer"] = {
@@ -173,6 +171,7 @@ def test_adafactor_state_offload_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="state_offload is deferred"):
         RunConfig.model_validate(payload)
 
+
 def test_resume_rejects_model_configuration_mismatch(tmp_path: Path) -> None:
     original = config(tmp_path / "original")
     train(original, run_id="part", stop_after_step=5)
@@ -185,3 +184,68 @@ def test_resume_rejects_model_configuration_mismatch(tmp_path: Path) -> None:
             run_id="rejected",
             resume=original.logging.root_dir / "part/checkpoints/latest.json",
         )
+
+
+def test_non_multiple_token_budget_commits_exactly_77_targets(tmp_path: Path) -> None:
+    original = config(tmp_path)
+    bounded = original.model_copy(
+        update={"training": original.training.model_copy(update={"max_tokens": 77})}
+    )
+    run_id = train(bounded, run_id="bounded")
+    snapshot = CheckpointManager(bounded.logging.root_dir / run_id).load(
+        bounded.logging.root_dir / run_id / "checkpoints/latest.json"
+    )
+    assert snapshot.tokens_seen == 77
+
+
+def test_allow_runtime_drift_does_not_allow_dataset_change(tmp_path: Path) -> None:
+    original = config(tmp_path / "original")
+    train(original, run_id="part", stop_after_step=5)
+    changed = original.model_copy(
+        update={"dataset": original.dataset.model_copy(update={"synthetic_seed": 99})}
+    )
+    with pytest.raises(ValueError, match="configuration differs"):
+        train(
+            changed,
+            run_id="rejected",
+            resume=original.logging.root_dir / "part/checkpoints/latest.json",
+            allow_runtime_drift=True,
+        )
+
+
+def test_promotion_prepares_destination_dataset(tmp_path: Path) -> None:
+    source = config(tmp_path / "source")
+    train(source, run_id="source", stop_after_step=2)
+    destination = config(tmp_path / "destination").model_copy(
+        update={"dataset": source.dataset.model_copy(update={"synthetic_seed": 91})}
+    )
+    train(
+        destination,
+        run_id="promoted",
+        promote=source.logging.root_dir / "source/checkpoints/latest.json",
+        stop_after_step=1,
+    )
+    source_manifest = (
+        source.logging.root_dir / "source/data/manifest.json"
+    ).read_text()
+    destination_manifest = (
+        destination.logging.root_dir / "promoted/data/manifest.json"
+    ).read_text()
+    assert source_manifest != destination_manifest
+
+
+def test_tampered_validation_report_is_not_held_out_evidence(tmp_path: Path) -> None:
+    original = config(tmp_path)
+    run_id = train(original, run_id="measured")
+    report = next((original.logging.root_dir / run_id / "evaluations").glob("*.json"))
+    payload = json.loads(report.read_text())
+    payload["loss"] = 999
+    report.write_text(json.dumps(payload))
+    evidence = experiment_evidence(original.logging.root_dir / run_id)
+    assert evidence["evidence_level"] != "checkpointed_held_out"
+    assert report.name in {item["path"] for item in evidence["rejected_reports"]}
+    assert payload["checkpoint"] in evidence["missing_reports"]
+    assert all(
+        item["checkpoint"] != payload["checkpoint"]
+        for item in evidence["quality_observations"]
+    )

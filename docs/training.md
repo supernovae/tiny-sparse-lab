@@ -31,9 +31,13 @@ uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-resumed \
   --resume runs/moe-part/checkpoints/latest.json
 ```
 
-Resume creates a child run and retains parent telemetry. It rejects changed model, optimizer, data, tokenizer, or training configuration. Dense and MoE configurations are incompatible for resume. Promotion is the deliberate route for reusing compatible weights with a fresh optimizer/cursor when changing an incompatible architecture or backend.
+Resume creates a child run and retains parent telemetry. It rejects changed model, optimizer, data, tokenizer, budget, engine, or backend configuration; `--allow-runtime-drift` never bypasses scientific compatibility. Recovery applies the same checks. Completed budgets cannot be resumed. Run-owned data, tokenizer, and memory-package artifacts are verified before continuation.
+
+Promotion reuses compatible weights with a fresh optimizer/cursor, using the **destination** dataset and budgets. Source architecture semantics and tokenizer contents must match. It is useful for continuing a model on a new domain/chat corpus, not for automatically resizing a backbone or converting dense weights into MoE.
 
 MLX checkpoints are native local checkpoint directories under `mlx_checkpoints/`. They support the same inspect/verify commands, while resume names the directory directly.
+
+PyTorch validation runs at step zero, each configured cadence, and the terminal update. Exact target counts, finite loss, protocol settings, and artifact identities accompany each checkpoint-bound report. Non-multiple token budgets mask only the remaining valid targets, including partially or fully masked microbatches. Training and validation modes are restored correctly; diagnostics are captured before validation can replace them.
 
 ## Mechanism-specific diagnostics
 

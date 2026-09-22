@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted; comparison and chat protocols refined by [ADR 0018](0018-chat-native-experiments.md).
 
 ## Context
 
@@ -10,7 +10,7 @@ Small models are useful research instruments when a result can be repeated, fals
 
 ## Decision
 
-Use versioned capability cards for narrow, explicit hypotheses. Each card has fixed held-out cases, a deterministic scorer, a digest, a declared baseline, and an allowed set of variant differences. The first card, `engram-recall-v1`, evaluates exact associative recall from held-out record wording. The paired comparison command rejects runs whose backbone, attention, dataset, tokenizer, training budget, optimizer, or runtime controls differ; only Engram memory settings may differ.
+Use versioned capability cards for narrow, explicit hypotheses. Each card has fixed cases, a deterministic scorer, a digest, a declared baseline, and an allowed set of variant differences. The initial `engram-recall-v1` surface is now classified as a wiring diagnostic: the prompt contains the answer and changing record IDs does not establish held-out wording. It is retained for historical comparison, not a generalization claim. The newer chat-native cards use disjoint train/validation/test query combinations and full-answer scoring.
 
 Persist a card result with its run. Treat its score delta as evidence for that card only. Reuse the same card across scale configurations to build a cumulative evidence series, and add a new card rather than silently expanding a claim.
 

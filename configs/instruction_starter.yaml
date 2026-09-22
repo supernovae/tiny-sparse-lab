@@ -1,0 +1,43 @@
+schema_version: 2
+name: instruction-starter
+seed: 42
+model:
+  vocab_size: 8192
+  hidden_dim: 192
+  num_layers: 4
+  num_heads: 4
+  ffn_dim: 512
+  max_seq_len: 256
+tokenizer:
+  path: ../artifacts/tokenizer_instruction_8k/tokenizer.json
+dataset:
+  source: instruction_reference
+  cache_dir: ../artifacts/data
+  train_max_documents: 20000
+  validation_max_documents: 1000
+  train_max_tokens: 1000000
+  validation_max_tokens: 65536
+training:
+  micro_batch_size: 2
+  gradient_accumulation: 1
+  seq_len: 128
+  max_steps: 1000
+  max_tokens: 256000
+  deterministic: true
+optimizer:
+  name: adamw
+  peak: 0.001
+  floor: 0.0001
+  warmup_steps: 50
+runtime:
+  engine: pytorch
+  backend: cpu
+  precision: fp32
+evaluation:
+  every_steps: 100
+  max_batches: 8
+checkpoint:
+  every_steps: 250
+logging:
+  root_dir: ../runs
+  every_steps: 10

@@ -21,3 +21,4 @@ These ADRs preserve the design context for implemented mechanisms. They are not 
 | [0015](0015-single-host-extension-boundaries.md) | Current local execution and extension boundaries |
 | [0016](0016-evidence-before-claims.md) | Verified checkpoint and held-out evidence before claims |
 | [0017](0017-versioned-capability-cards.md) | Versioned capability cards for cumulative claims |
+| [0018](0018-chat-native-experiments.md) | Chat-native, artifact-bound small-model experiments |

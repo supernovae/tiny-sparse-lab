@@ -13,10 +13,11 @@ import torch
 from tokenizers import Tokenizer
 
 from sparselab.config.models import DatasetConfig, RunConfig
-from sparselab.data.byte_hash import table_address
+from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.datasets import iter_documents
+from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 
-PACKING_VERSION = "contiguous-eos-v2"
+PACKING_VERSION = "contiguous-eos-v3"
 
 
 @dataclass(frozen=True)
@@ -30,11 +31,89 @@ class PreparedData:
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return sha256_file(path)
+
+
+def _tokenizer_sha256(tokenizer: Tokenizer) -> str:
+    """Hash the complete tokenizer, not merely its vocabulary."""
+    return hashlib.sha256(tokenizer.to_str().encode("utf-8")).hexdigest()
+
+
+def _cache_is_valid(
+    manifest: dict[str, object],
+    train_path: Path,
+    validation_path: Path,
+    train_byte_path: Path,
+    validation_byte_path: Path,
+    *,
+    byte_enabled: bool,
+) -> bool:
+    try:
+        train = manifest["train"]
+        validation = manifest["validation"]
+        if not isinstance(train, dict) or not isinstance(validation, dict):
+            return False
+        if (
+            manifest.get("packing_version") != PACKING_VERSION
+            or _sha256(train_path) != train.get("sha256")
+            or _sha256(validation_path) != validation.get("sha256")
+        ):
+            return False
+        if byte_enabled:
+            byte = manifest.get("byte_addressing")
+            return (
+                isinstance(byte, dict)
+                and _sha256(train_byte_path) == byte.get("train_sha256")
+                and _sha256(validation_byte_path) == byte.get("validation_sha256")
+            )
+        return manifest.get("byte_addressing") is None
+    except (OSError, KeyError, TypeError):
+        return False
+
+
+def _encoded_token_bytes(
+    tokenizer: Tokenizer, ids: list[int], document: str
+) -> list[bytes]:
+    pieces = [token_bytes(tokenizer, token_id) for token_id in ids]
+    if b"".join(pieces) != document.encode("utf-8"):
+        raise ValueError("tokenizer token bytes do not reconstruct the source document")
+    return pieces
+
+
+def _local_chat_identity(config: DatasetConfig) -> dict[str, str] | None:
+    if config.source != "local_chat":
+        return None
+    paths = (
+        getattr(config, "train_path", None),
+        getattr(config, "validation_path", None),
+    )
+    if not all(isinstance(path, Path) and path.is_file() for path in paths):
+        raise ValueError("local_chat requires readable train_path and validation_path")
+    return {
+        "train_sha256": sha256_file(paths[0]),
+        "validation_sha256": sha256_file(paths[1]),
+    }
+
+
+def _assert_local_chat_disjoint(config: DatasetConfig) -> None:
+    if config.source != "local_chat":
+        return
+    train = {
+        hashlib.sha256(document.encode("utf-8")).digest()
+        for document in iter_documents(config, "train")
+    }
+    overlap = next(
+        (
+            document
+            for document in iter_documents(config, "validation")
+            if hashlib.sha256(document.encode("utf-8")).digest() in train
+        ),
+        None,
+    )
+    if overlap is not None:
+        raise ValueError(
+            "local_chat train and validation contain an overlapping conversation"
+        )
 
 
 def _collect(
@@ -84,10 +163,13 @@ def _collect(
             stats["truncated_documents"] += 1
         if byte_addresses is not None:
             assert byte_ngram_size is not None
-            for _, end in encoding.offsets[:selected_count]:
-                prefix = document[:end].encode("utf-8")
+            prefix = bytearray()
+            for token_bytes in _encoded_token_bytes(tokenizer, encoding.ids, document)[
+                :selected_count
+            ]:
+                prefix.extend(token_bytes)
                 byte_addresses.append(
-                    table_address(prefix[-byte_ngram_size:], byte_table_size)
+                    table_address(bytes(prefix[-byte_ngram_size:]), byte_table_size)
                 )
             byte_addresses.append(0)
         values.extend(selected)
@@ -109,13 +191,19 @@ def _atomic_array(path: Path, values: np.ndarray) -> None:
 
 def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     """Prepare immutable IDs and, for byte memory, causal raw-UTF-8 suffix addresses."""
+    local_chat = _local_chat_identity(config.dataset)
+    cache_identity = {
+        "dataset": config.dataset.model_dump(mode="json"),
+        "local_chat_source": local_chat,
+        "model": config.model.model_dump(mode="json"),
+        "packing_version": PACKING_VERSION,
+        "source_identity_sha256": source_identity()["sha256"],
+        "tokenizer_sha256": _tokenizer_sha256(tokenizer),
+    }
+    _assert_local_chat_disjoint(config.dataset)
     root = (
         config.dataset.cache_dir
-        / hashlib.sha256(
-            json.dumps(config.dataset.model_dump(mode="json"), sort_keys=True).encode()
-            + json.dumps(config.model.model_dump(mode="json"), sort_keys=True).encode()
-            + json.dumps(tokenizer.get_vocab(), sort_keys=True).encode()
-        ).hexdigest()[:16]
+        / hashlib.sha256(canonical_json(cache_identity)).hexdigest()[:16]
     )
     manifest_path = root / "manifest.json"
     train_path, validation_path = root / "train.npy", root / "validation.npy"
@@ -134,14 +222,23 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         )
     ):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return PreparedData(
-            root,
-            np.load(train_path, mmap_mode="r"),
-            np.load(validation_path, mmap_mode="r"),
-            np.load(train_byte_path, mmap_mode="r") if byte_enabled else None,
-            np.load(validation_byte_path, mmap_mode="r") if byte_enabled else None,
+        if _cache_is_valid(
             manifest,
-        )
+            train_path,
+            validation_path,
+            train_byte_path,
+            validation_byte_path,
+            byte_enabled=byte_enabled,
+        ):
+            return PreparedData(
+                root,
+                np.load(train_path, mmap_mode="r"),
+                np.load(validation_path, mmap_mode="r"),
+                np.load(train_byte_path, mmap_mode="r") if byte_enabled else None,
+                np.load(validation_byte_path, mmap_mode="r") if byte_enabled else None,
+                manifest,
+            )
+        raise ValueError(f"prepared-data cache integrity check failed: {root}")
     temporary_root = root.with_name(root.name + ".tmp")
     if temporary_root.exists():
         raise RuntimeError(f"incomplete prepared-data sibling exists: {temporary_root}")
@@ -176,20 +273,21 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "source": config.dataset.source,
         "revision": config.dataset.revision,
         "license": (
-            "CDLA-Sharing-1.0"
+            getattr(config.dataset, "license", None)
+            if config.dataset.source == "local_chat"
+            else "CDLA-Sharing-1.0"
             if config.dataset.source == "tinystories"
+            else "MIT synthetic chat recall fixture"
+            if config.dataset.source == "chat_recall"
             else "synthetic instruction reference"
             if config.dataset.source == "instruction_reference"
             else "synthetic associative recall reference"
             if config.dataset.source == "engram_recall"
-            else "synthetic fixture"
+            else "dataset-specific license/source metadata unavailable"
         ),
-        "tokenizer_sha256": hashlib.sha256(
-            json.dumps(tokenizer.get_vocab(), sort_keys=True).encode()
-        ).hexdigest(),
-        "settings_sha256": hashlib.sha256(
-            json.dumps(config.dataset.model_dump(mode="json"), sort_keys=True).encode()
-        ).hexdigest(),
+        "tokenizer_sha256": _tokenizer_sha256(tokenizer),
+        "settings_sha256": hashlib.sha256(canonical_json(cache_identity)).hexdigest(),
+        "source_identity_sha256": cache_identity["source_identity_sha256"],
         "train": {
             **train_stats,
             "tokens": len(train),

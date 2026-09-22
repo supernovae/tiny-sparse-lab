@@ -10,7 +10,15 @@ from pydantic import BaseModel, ValidationError
 
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 
-_PATH_KEYS = {"path", "cache_dir", "root_dir", "output_dir", "memory_package_path"}
+_PATH_KEYS = {
+    "path",
+    "cache_dir",
+    "root_dir",
+    "output_dir",
+    "memory_package_path",
+    "train_path",
+    "validation_path",
+}
 
 
 def _resolve_paths(value: Any, base: Path, key: str | None = None) -> Any:

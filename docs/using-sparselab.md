@@ -1,6 +1,8 @@
 # Using Tiny Sparse Lab
 
-SparseLab is a local architecture-learning laboratory. Commands train small causal models, inspect declared model structure, query saved checkpoints, and view recorded telemetry. It does not provide a hosted model, a general-purpose chat API, or distributed training.
+SparseLab is a local small-model experimentation workbench. Train causal models, chat with verified checkpoints, compare versioned task capabilities, and retain evidence across architectural changes and scales. It does not provide a hosted service or distributed training.
+
+If the example tasks or terminology are unfamiliar, start with [From flashcards to a useful local assistant](from-toy-to-useful.md). It explains the invented aliases, offers a runnable instruction learner, and shows how data, prompts, evaluation, and scale work together.
 
 ## Prepare, inspect, and train
 
@@ -14,17 +16,23 @@ uv run sparselab eval combined-smoke
 uv run sparselab generate combined-smoke --prompt "Once upon a time" --max-new-tokens 24
 ```
 
-`inspect` reports the configured architecture before training. `train` writes run-local artifacts and checkpoints. `eval` reports next-token loss and perplexity on the configured validation data. `generate` prints the prompt followed by greedy decoded tokens. A smoke run proves that path works; it is too small and short to promise coherent prose.
+`inspect` reports configured architecture and parameter counts. `train` writes run-local artifacts and checkpoints. `eval` measures next-token loss on the **run-owned** validation data and saves the exact checkpoint identity. `generate` prints prompt plus continuation (greedy by default). A smoke run proves wiring, not useful language ability; the [chat-native capability pair](capabilities.md) targets a measured narrow learned task.
 
 ## Chat with a saved run
 
 ```sh
-uv run sparselab chat combined-smoke
-uv run sparselab chat combined-smoke --message "What does local MoE mean?"
-uv run sparselab chat combined-smoke --system "Answer in one sentence."
+uv run sparselab chat combined-smoke --max-new-tokens 12
+uv run sparselab chat chat-engram --checkpoint best.json --message "What value belongs to the alias amber?" --system "Answer the requested alias with only its value." --max-new-tokens 12 --json
+uv run sparselab chat chat-engram --temperature 0.6 --top-k 20 --seed 42 --transcript /tmp/conversation.json
 ```
 
-Interactive chat accepts one local turn at a time; type `/exit` or `/quit` to finish. `--message` performs one non-interactive turn for scripts. The conversation is a plain-text `User:`/`Assistant:` prompt passed to ordinary greedy generation. It works for saved PyTorch runs of any configured size, but it is not an instruction-tuning layer or a quality guarantee. Train a chat-oriented dataset only as an explicit experiment with separately recorded data provenance and held-out conversational evaluation.
+Commands accepting `--runs-dir` default to `runs/` beside the nearest `pyproject.toml` found by walking upward from the current directory. Chat, evaluation, generation, and other run consumers therefore work from repository subdirectories such as `src/`. Outside a project, the default is `./runs`; the installed package location is never used as a data root. An explicit `--runs-dir` is used as supplied, with relative paths anchored to the current directory and no fallback search. For a custom or relocated run store, pass `--runs-dir /absolute/path/to/runs`.
+
+Interactive chat accepts one turn at a time; `/exit` or `/quit` finishes, `/reset` clears context. `--message` performs one scripted turn; `--json` emits structured responses. `--transcript` saves actual model prompts/replies, dropped-turn counts, generation settings, and a frozen checkpoint digest; existing files are never overwritten. Sampling is opt-in and locally seeded. EOS and generated role boundaries stop the assistant turn.
+
+Chat reserves the requested response budget within the model context. It drops only complete oldest user/assistant turns; the system and current user message are never silently truncated. Oversized current turns fail with an actionable error. The default response allowance is 16 tokens; adjust it to the task and available context.
+
+Inference resolves `latest.json` or `best.json` once, verifies the selected generation and run artifacts, and uses the run-owned tokenizer/package. Moving the run directory or removing the original training cache does not change the model's vocabulary. `--checkpoint` can select a generation explicitly for chat, generation, evaluation, and capabilities. Current chat supports PyTorch architectures that fit one host, not native MLX checkpoints. A base model still needs chat-oriented training to follow these transcripts.
 
 ## Choose a mechanism deliberately
 
@@ -41,7 +49,7 @@ uv run sparselab checkpoint inspect runs/combined-smoke/checkpoints/latest.json 
 uv run sparselab checkpoint verify runs/combined-smoke/checkpoints/latest.json --json
 ```
 
-A verified PyTorch checkpoint is a local immutable generation. Resume into a child run only with compatible contracts; use promotion for an intentional incompatible change. Optional MLX runs use native checkpoint directories and the same inspect/verify commands.
+A verified PyTorch checkpoint is a local immutable generation. Resume into a child run only with compatible scientific contracts; promotion reuses the same architecture/tokenizer weights with a fresh optimizer/cursor and the destination dataset. It is not an automatic conversion between incompatible architectures. Optional MLX checkpoints have structural inspect/verify commands, but not the full PyTorch integrity/evidence contract.
 
 ## Verify withheld-fact fixture evidence
 

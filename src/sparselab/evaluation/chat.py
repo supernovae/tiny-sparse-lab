@@ -1,4 +1,5 @@
-"""A lightweight conversational wrapper around local greedy generation."""
+"""Plain-transcript chat over local generation."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -9,11 +10,14 @@ from tokenizers import Tokenizer
 
 from sparselab.evaluation.generation import generate
 
+_ROLE_BOUNDARIES = ("\nUser:", "\nSystem:", "\nAssistant:")
+
 
 @dataclass(frozen=True)
 class ChatMessage:
     role: str
     content: str
+
     def __post_init__(self) -> None:
         if self.role not in {"user", "assistant"}:
             raise ValueError(f"unsupported chat role: {self.role}")
@@ -36,12 +40,57 @@ def format_chat_prompt(
     return "\n".join(lines)
 
 
+def _validate_complete_turns(history: Sequence[ChatMessage]) -> None:
+    if len(history) % 2:
+        raise ValueError("chat history must contain complete user/assistant turns")
+    for index in range(0, len(history), 2):
+        if history[index].role != "user" or history[index + 1].role != "assistant":
+            raise ValueError("chat history must alternate user and assistant turns")
+
+
+def prepare_chat_prompt(
+    history: Sequence[ChatMessage],
+    message: str,
+    tokenizer: Tokenizer,
+    max_seq_len: int,
+    max_new_tokens: int,
+    *,
+    system: str | None = None,
+) -> tuple[str, int]:
+    """Return a completion-reserved chat prompt and dropped complete-turn count.
+
+    History is removed only as whole oldest user/assistant pairs.  The system and
+    current user message are never cropped: if those cannot fit, callers receive a
+    clear error rather than an altered question.
+    """
+    if max_seq_len <= 0:
+        raise ValueError("max_seq_len must be positive")
+    if max_new_tokens < 0:
+        raise ValueError("max_new_tokens must not be negative")
+    budget = max_seq_len - max_new_tokens
+    if budget < 0:
+        raise ValueError("max_new_tokens exceeds max_seq_len")
+
+    turns = list(history)
+    _validate_complete_turns(turns)
+    dropped = 0
+    while True:
+        prompt = format_chat_prompt(turns[dropped * 2 :], message, system=system)
+        if len(tokenizer.encode(prompt, add_special_tokens=False).ids) <= budget:
+            return prompt, dropped
+        if dropped == len(turns) // 2:
+            raise ValueError(
+                "current chat turn and completion budget exceed max_seq_len"
+            )
+        dropped += 1
+
+
 def assistant_reply(completion: str, prompt: str) -> str:
     """Extract one assistant turn and stop if the model starts another role."""
     if not completion.startswith(prompt):
         raise ValueError("completion does not begin with its chat prompt")
     reply = completion.removeprefix(prompt)
-    for marker in ("\nUser:", "\nSystem:", "\nAssistant:"):
+    for marker in _ROLE_BOUNDARIES:
         reply = reply.split(marker, 1)[0]
     return reply.strip()
 
@@ -56,10 +105,25 @@ def chat_turn(
     device: torch.device,
     *,
     system: str | None = None,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    seed: int = 0,
 ) -> tuple[str, str]:
-    """Generate one local greedy assistant turn and return its prompt and reply."""
-    prompt = format_chat_prompt(history, message, system=system)
+    """Generate one bounded assistant turn and return its prompt and reply."""
+    prompt, _ = prepare_chat_prompt(
+        history, message, tokenizer, max_seq_len, max_new_tokens, system=system
+    )
     completion = generate(
-        model, tokenizer, prompt, max_seq_len, max_new_tokens, device
+        model,
+        tokenizer,
+        prompt,
+        max_seq_len,
+        max_new_tokens,
+        device,
+        temperature=temperature,
+        top_k=top_k,
+        seed=seed,
+        stop_sequences=_ROLE_BOUNDARIES,
+        strict_context=True,
     )
     return prompt, assistant_reply(completion, prompt)

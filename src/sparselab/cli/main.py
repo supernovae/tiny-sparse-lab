@@ -6,13 +6,12 @@ import argparse
 import json
 import subprocess
 import sys
-import uuid
+from dataclasses import asdict
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
-from sparselab.config.migrate import migrate_file, migrate_v1
-from sparselab.config.models import RunConfig
-from sparselab.data.packing import TokenBlockDataset, prepare_data
+from sparselab.config.migrate import migrate_file
+from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
 from sparselab.data.withheld_facts import (
     audit_manifest,
@@ -22,13 +21,16 @@ from sparselab.data.withheld_facts import (
 from sparselab.evaluation.byte_memory_transfer import transfer_byte_memory
 from sparselab.evaluation.capabilities import (
     capability_card,
-    control_differences,
+    compare_results,
+    describe_capability_card,
     evaluate_capability,
+    list_capability_cards,
     write_capability_result,
 )
-from sparselab.evaluation.chat import ChatMessage, chat_turn
+from sparselab.evaluation.chat import ChatMessage, assistant_reply, prepare_chat_prompt
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
+from sparselab.evaluation.inference import load_run, write_inference_result
 from sparselab.evaluation.language_model import evaluate
 from sparselab.evaluation.withheld_facts import (
     evaluate_withheld_facts,
@@ -39,9 +41,9 @@ from sparselab.model.inspection import inspect_model
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
 from sparselab.model.transformer import DenseLM
-from sparselab.runtime import discover_runtimes, select_device
+from sparselab.runtime import discover_runtimes
 from sparselab.staging import stage
-from sparselab.training.checkpoints import CheckpointManager, load_checkpoint
+from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.mlx_checkpoints import inspect as inspect_mlx_checkpoint
 from sparselab.training.trainer import train
 
@@ -86,17 +88,16 @@ def _facts_audit(args: argparse.Namespace) -> None:
 
 
 def _facts_evaluate(args: argparse.Namespace) -> None:
-    config, model, device = _run_model(
-        args.run_id, Path(args.runs_dir), args.checkpoint, args.backend
-    )
+    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     result = evaluate_withheld_facts(
-        model,
-        load_tokenizer(config.tokenizer.path),
+        loaded.model,
+        loaded.tokenizer,
         Path(args.manifest),
-        max_seq_len=config.model.max_seq_len,
+        max_seq_len=loaded.config.model.max_seq_len,
         max_new_tokens=args.max_new_tokens,
-        device=device,
+        device=loaded.device,
     )
+    result["identity"] = loaded.identity
     output = (
         Path(args.output)
         if args.output
@@ -110,23 +111,25 @@ def _facts_evaluate(args: argparse.Namespace) -> None:
 
 
 def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
-    _, source, _ = _run_model(
+    source = load_run(
         args.source_run_id, Path(args.runs_dir), args.source_checkpoint, args.backend
     )
-    config, target, device = _run_model(
+    target = load_run(
         args.target_run_id, Path(args.runs_dir), args.target_checkpoint, args.backend
     )
-    transfer_byte_memory(source.state_dict(), target)
+    transfer_byte_memory(source.model.state_dict(), target.model)
     result = evaluate_withheld_facts(
-        target,
-        load_tokenizer(config.tokenizer.path),
+        target.model,
+        target.tokenizer,
         Path(args.manifest),
-        max_seq_len=config.model.max_seq_len,
+        max_seq_len=target.config.model.max_seq_len,
         max_new_tokens=args.max_new_tokens,
-        device=device,
+        device=target.device,
     )
     result["source_run_id"] = args.source_run_id
     result["target_run_id"] = args.target_run_id
+    result["source_identity"] = source.identity
+    result["target_identity"] = target.identity
     output = (
         Path(args.output)
         if args.output
@@ -140,15 +143,13 @@ def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
 
 
 def _engram_export(args: argparse.Namespace) -> None:
-    config, model, _ = _run_model(
-        args.run_id, Path(args.runs_dir), args.checkpoint, args.backend
-    )
-    if not isinstance(model.memory, ByteAddressMemory):
+    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    if not isinstance(loaded.model.memory, ByteAddressMemory):
         raise TypeError("Engram export requires a byte-memory run")
     manifest = export_portable_engram(
-        model.memory.table.weight,
+        loaded.model.memory.table.weight,
         Path(args.output),
-        ngram_size=config.model.memory_ngram_size,
+        ngram_size=loaded.config.model.memory_ngram_size,
     )
     print(json.dumps(manifest.as_dict(), sort_keys=True))
 
@@ -254,8 +255,6 @@ def _stage(args: argparse.Namespace) -> None:
     print(stage(load_config(Path(args.config)), Path(args.output), args.through))
 
 
-
-
 def _train(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     if args.backend:
@@ -277,73 +276,33 @@ def _train(args: argparse.Namespace) -> None:
     )
 
 
-def _run_model(
-    run_id: str, runs_dir: Path, checkpoint: str | None, backend: str | None
-) -> tuple[RunConfig, DenseLM, object]:
-    run = runs_dir / run_id
-    raw_config = json.loads((run / "resolved_config.yaml").read_text())
-    config = RunConfig.model_validate(
-        migrate_v1(raw_config)
-        if raw_config.get("schema_version") == 1
-        else raw_config
-    )
-    chosen_backend = backend or config.runtime.backend
-    device = select_device(chosen_backend)
-    path = Path(checkpoint) if checkpoint else run / "checkpoints" / "latest.json"
-    if path.name in {"latest.json", "best.json"}:
-        pointer = json.loads(path.read_text())
-        if "filename" in pointer:
-            path = path.parent / str(pointer["filename"])
-        else:
-            weights = CheckpointManager(run).load(path, "promote").model
-            model = DenseLM(config.model, config.attention).to(device)
-            model.load_state_dict(weights)
-            return config, model, device
-    if path.is_dir():
-        weights = CheckpointManager(run).load(path, "promote").model
-    else:
-        weights = load_checkpoint(path)["model"]
-    model = DenseLM(config.model, config.attention).to(device)
-    model.load_state_dict(weights)
-    return config, model, device
-
-
 def _eval(args: argparse.Namespace) -> None:
-    config, model, device = _run_model(
-        args.run_id, Path(args.runs_dir), args.checkpoint, args.backend
-    )
-    data = prepare_data(config, load_tokenizer(config.tokenizer.path))
+    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     result = evaluate(
-        model,
-        TokenBlockDataset(
-            data.validation,
-            config.training.seq_len,
-            data.validation_byte_addresses,
-        ),
-        batch_size=config.training.micro_batch_size,
-        max_batches=config.evaluation.max_batches,
-        device=device,
+        loaded.model,
+        loaded.validation_dataset(),
+        batch_size=loaded.config.training.micro_batch_size,
+        max_batches=loaded.config.evaluation.max_batches,
+        device=loaded.device,
     )
-    result.update({"source": "standalone_eval", "device": str(device)})
-    evaluations = Path(args.runs_dir) / args.run_id / "evaluations"
-    evaluations.mkdir(parents=True, exist_ok=True)
-    output = evaluations / f"eval_{uuid.uuid4().hex}.json"
-    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    print(json.dumps({**result, "output": str(output)}, indent=2))
+    result.update({"source": "standalone_eval", "identity": loaded.identity})
+    path = write_inference_result(loaded.run, "eval", result)
+    print(json.dumps({**result, "output": str(path)}, indent=2))
 
 
 def _generate(args: argparse.Namespace) -> None:
-    config, model, device = _run_model(
-        args.run_id, Path(args.runs_dir), None, args.backend
-    )
+    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     print(
         generate(
-            model,
-            load_tokenizer(config.tokenizer.path),
+            loaded.model,
+            loaded.tokenizer,
             args.prompt,
-            config.model.max_seq_len,
+            loaded.config.model.max_seq_len,
             args.max_new_tokens,
-            device,
+            loaded.device,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            seed=args.seed,
         )
     )
 
@@ -353,138 +312,159 @@ def _evidence(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2, sort_keys=True) if args.json else result)
 
 
+def _capability_list(args: argparse.Namespace) -> None:
+    print(json.dumps(list_capability_cards(), indent=2, sort_keys=True))
 
-def _attach_capability_identity(
-    run_id: str, run: Path, result: dict[str, object]
-) -> dict[str, object]:
-    pointer = json.loads((run / "checkpoints" / "latest.json").read_text())
-    return {
-        **result,
-        "run_id": run_id,
-        "checkpoint": pointer.get("relative_path", pointer.get("filename")),
-        "checkpoint_sha256": pointer.get("manifest_sha256", pointer.get("sha256")),
-    }
+
+def _capability_describe(args: argparse.Namespace) -> None:
+    print(json.dumps(describe_capability_card(args.card), indent=2, sort_keys=True))
+
+
+def _capability_result(args: argparse.Namespace, run_id: str, checkpoint: str | None):
+    loaded = load_run(run_id, Path(args.runs_dir), checkpoint, args.backend)
+    result = evaluate_capability(
+        capability_card(args.card),
+        loaded.model,
+        loaded.tokenizer,
+        loaded.config.model.max_seq_len,
+        loaded.device,
+    )
+    result["identity"] = loaded.identity
+    return result, write_capability_result(loaded.run, result)
 
 
 def _capability_evaluate(args: argparse.Namespace) -> None:
-    config, model, device = _run_model(
-        args.run_id, Path(args.runs_dir), None, args.backend
-    )
-    result = evaluate_capability(
-        capability_card(args.card),
-        model,
-        load_tokenizer(config.tokenizer.path),
-        config.model.max_seq_len,
-        device,
-    )
-    run = Path(args.runs_dir) / args.run_id
-    result = _attach_capability_identity(args.run_id, run, result)
-    path = write_capability_result(run, result)
+    result, path = _capability_result(args, args.run_id, args.checkpoint)
     print(json.dumps({**result, "output": str(path)}, indent=2, sort_keys=True))
 
 
 def _capability_compare(args: argparse.Namespace) -> None:
-    base_config, base_model, base_device = _run_model(
-        args.base_run_id, Path(args.runs_dir), None, args.backend
+    # One model resident at a time, including at user-selected larger scales.
+    base, base_path = _capability_result(args, args.base_run_id, args.base_checkpoint)
+    variant, variant_path = _capability_result(
+        args, args.variant_run_id, args.variant_checkpoint
     )
-    variant_config, variant_model, variant_device = _run_model(
-        args.variant_run_id, Path(args.runs_dir), None, args.backend
+    result = compare_results(base, variant, vary=args.vary)
+    result.update({"base_output": str(base_path), "variant_output": str(variant_path)})
+    path = write_inference_result(
+        Path(args.runs_dir) / args.variant_run_id, "comparison", result
     )
-    differences = control_differences(base_config, variant_config)
-    if differences:
-        raise ValueError(
-            "capability comparison requires matched controls; differing sections: "
-            + ", ".join(differences)
-        )
-    card = capability_card(args.card)
-    base_result = evaluate_capability(
-        card,
-        base_model,
-        load_tokenizer(base_config.tokenizer.path),
-        base_config.model.max_seq_len,
-        base_device,
-    )
-    variant_result = evaluate_capability(
-        card,
-        variant_model,
-        load_tokenizer(variant_config.tokenizer.path),
-        variant_config.model.max_seq_len,
-        variant_device,
-    )
-    base_result = _attach_capability_identity(
-        args.base_run_id, Path(args.runs_dir) / args.base_run_id, base_result
-    )
-    variant_result = _attach_capability_identity(
-        args.variant_run_id, Path(args.runs_dir) / args.variant_run_id, variant_result
-    )
-    base_path = write_capability_result(
-        Path(args.runs_dir) / args.base_run_id, base_result
-    )
-    variant_path = write_capability_result(
-        Path(args.runs_dir) / args.variant_run_id, variant_result
-    )
-    print(
-        json.dumps(
-            {
-                "format": "capability_comparison_v1",
-                "card": card.name,
-                "card_digest": card.digest,
-                "base_run_id": args.base_run_id,
-                "variant_run_id": args.variant_run_id,
-                "base_score": base_result["score"],
-                "variant_score": variant_result["score"],
-                "score_delta": variant_result["score"] - base_result["score"],
-                "base_output": str(base_path),
-                "variant_output": str(variant_path),
-                "interpretation": (
-                    "A positive delta supports this card's narrow hypothesis only; "
-                    "it is not a general Engram or model-quality claim."
-                ),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    )
+    print(json.dumps({**result, "output": str(path)}, indent=2, sort_keys=True))
 
 
 def _chat(args: argparse.Namespace) -> None:
-    config, model, device = _run_model(
-        args.run_id, Path(args.runs_dir), None, args.backend
-    )
-    tokenizer = load_tokenizer(config.tokenizer.path)
+    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     history: list[ChatMessage] = []
+    turns = []
+    settings = {
+        "max_new_tokens": args.max_new_tokens,
+        "temperature": args.temperature,
+        "top_k": args.top_k,
+        "seed": args.seed,
+    }
+    if args.transcript and Path(args.transcript).exists():
+        raise FileExistsError(f"transcript already exists: {args.transcript}")
 
     def respond(message: str) -> None:
-        _, reply = chat_turn(
-            model,
-            tokenizer,
+        prompt, dropped = prepare_chat_prompt(
             history,
             message,
-            config.model.max_seq_len,
+            loaded.tokenizer,
+            loaded.config.model.max_seq_len,
             args.max_new_tokens,
-            device,
             system=args.system,
         )
-        print(f"Assistant: {reply}")
+        completion = generate(
+            loaded.model,
+            loaded.tokenizer,
+            prompt,
+            loaded.config.model.max_seq_len,
+            args.max_new_tokens,
+            loaded.device,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            seed=args.seed,
+            strict_context=True,
+            stop_sequences=("\nUser:", "\nSystem:", "\nAssistant:"),
+        )
+        reply = assistant_reply(completion, prompt)
+        turn = {
+            "user": message,
+            "prompt": prompt,
+            "response": reply,
+            "dropped_history_turns": dropped,
+            "prompt_tokens": len(
+                loaded.tokenizer.encode(prompt, add_special_tokens=False).ids
+            ),
+        }
+        turns.append(turn)
+        if args.json:
+            print(
+                json.dumps(
+                    {"identity": loaded.identity, "generation": settings, **turn},
+                    sort_keys=True,
+                )
+            )
+        else:
+            if dropped:
+                print(
+                    f"[Context: dropped {dropped} oldest complete turn(s)]",
+                    file=sys.stderr,
+                )
+            print(f"Assistant: {reply}")
         history.extend((ChatMessage("user", message), ChatMessage("assistant", reply)))
 
-    if args.message is not None:
-        respond(args.message)
-        return
-    print("Local greedy chat. Type /exit to end the conversation.")
-    while True:
-        try:
-            message = input("You: ")
-        except EOFError:
-            print()
+    try:
+        if args.message is not None:
+            respond(args.message)
             return
-        if message.strip().lower() in {"/exit", "/quit"}:
-            return
-        if not message.strip():
-            continue
-        respond(message)
+        if not args.json:
+            print(
+                "Local chat. /exit ends; /reset clears context. Greedy unless --temperature is set."
+            )
+        while True:
+            try:
+                message = input("" if args.json else "You: ")
+            except EOFError:
+                return
+            if message.strip().lower() in {"/exit", "/quit"}:
+                return
+            if message.strip().lower() == "/reset":
+                history.clear()
+                continue
+            if not message.strip():
+                continue
+            try:
+                respond(message)
+            except ValueError as error:
+                print(f"Chat input rejected: {error}", file=sys.stderr)
+    finally:
+        if args.transcript:
+            path = Path(args.transcript)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("x") as handle:
+                json.dump(
+                    {
+                        "format": "chat_transcript_v1",
+                        "identity": loaded.identity,
+                        "system": args.system,
+                        "generation": settings,
+                        "turns": turns,
+                        "history": [asdict(item) for item in history],
+                    },
+                    handle,
+                    indent=2,
+                )
+                handle.write("\n")
+
 
 def build_parser() -> argparse.ArgumentParser:
+    cwd = Path.cwd()
+    project_root = next(
+        (path for path in (cwd, *cwd.parents) if (path / "pyproject.toml").is_file()),
+        cwd,
+    )
+    runs_dir_default = str(project_root / "runs")
     parser = argparse.ArgumentParser(
         prog="sparselab", description="Tiny Sparse Lab educational transformer tools."
     )
@@ -539,7 +519,11 @@ def build_parser() -> argparse.ArgumentParser:
     facts_evaluate = fact_commands.add_parser("evaluate")
     facts_evaluate.add_argument("run_id")
     facts_evaluate.add_argument("manifest")
-    facts_evaluate.add_argument("--runs-dir", default="runs")
+    facts_evaluate.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
     facts_evaluate.add_argument("--checkpoint")
     facts_evaluate.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
@@ -551,7 +535,11 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_evaluate.add_argument("source_run_id")
     transfer_evaluate.add_argument("target_run_id")
     transfer_evaluate.add_argument("manifest")
-    transfer_evaluate.add_argument("--runs-dir", default="runs")
+    transfer_evaluate.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
     transfer_evaluate.add_argument("--source-checkpoint")
     transfer_evaluate.add_argument("--target-checkpoint")
     transfer_evaluate.add_argument(
@@ -566,7 +554,11 @@ def build_parser() -> argparse.ArgumentParser:
     engram_export = engram_commands.add_parser("export")
     engram_export.add_argument("run_id")
     engram_export.add_argument("--output", required=True)
-    engram_export.add_argument("--runs-dir", default="runs")
+    engram_export.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
     engram_export.add_argument("--checkpoint")
     engram_export.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
@@ -596,7 +588,11 @@ def build_parser() -> argparse.ArgumentParser:
     training.set_defaults(handler=_train)
     evaluation = commands.add_parser("eval")
     evaluation.add_argument("run_id")
-    evaluation.add_argument("--runs-dir", default="runs")
+    evaluation.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
     evaluation.add_argument("--checkpoint")
     evaluation.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
@@ -607,7 +603,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Summarize verified checkpoints and held-out observations for a local run.",
     )
     evidence.add_argument("run_id")
-    evidence.add_argument("--runs-dir", default="runs")
+    evidence.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
     evidence.add_argument("--json", action="store_true")
     evidence.set_defaults(handler=_evidence)
     capability = commands.add_parser(
@@ -617,10 +617,24 @@ def build_parser() -> argparse.ArgumentParser:
     capability_commands = capability.add_subparsers(
         dest="capability_command", required=True
     )
+    capability_list = capability_commands.add_parser("list")
+    capability_list.set_defaults(handler=_capability_list)
+    capability_describe = capability_commands.add_parser("describe")
+    capability_describe.add_argument(
+        "card", help="Built-in card name or declarative JSON file"
+    )
+    capability_describe.set_defaults(handler=_capability_describe)
     capability_evaluate = capability_commands.add_parser("evaluate")
     capability_evaluate.add_argument("run_id")
     capability_evaluate.add_argument("card")
-    capability_evaluate.add_argument("--runs-dir", default="runs")
+    capability_evaluate.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
+    capability_evaluate.add_argument(
+        "--checkpoint", help="latest.json, best.json, or a generation path"
+    )
     capability_evaluate.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
@@ -629,7 +643,18 @@ def build_parser() -> argparse.ArgumentParser:
     capability_compare.add_argument("base_run_id")
     capability_compare.add_argument("variant_run_id")
     capability_compare.add_argument("card")
-    capability_compare.add_argument("--runs-dir", default="runs")
+    capability_compare.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
+    capability_compare.add_argument("--base-checkpoint")
+    capability_compare.add_argument("--variant-checkpoint")
+    capability_compare.add_argument(
+        "--vary",
+        choices=("memory", "attention", "ffn", "scale", "none"),
+        default="memory",
+    )
     capability_compare.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
@@ -638,25 +663,54 @@ def build_parser() -> argparse.ArgumentParser:
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)
     generation.add_argument("--max-new-tokens", type=int, default=64)
-    generation.add_argument("--runs-dir", default="runs")
+    generation.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
+    generation.add_argument("--checkpoint")
+    generation.add_argument("--temperature", type=float, default=0.0)
+    generation.add_argument("--top-k", type=int, default=0)
+    generation.add_argument("--seed", type=int, default=0)
     generation.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     generation.set_defaults(handler=_generate)
     chat = commands.add_parser(
-        "chat", help="Chat locally with a saved PyTorch run using greedy decoding."
+        "chat", help="Chat with a verified local PyTorch checkpoint."
     )
     chat.add_argument("run_id")
     chat.add_argument("--message")
     chat.add_argument("--system")
-    chat.add_argument("--max-new-tokens", type=int, default=64)
-    chat.add_argument("--runs-dir", default="runs")
+    chat.add_argument("--max-new-tokens", type=int, default=16)
+    chat.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
+    chat.add_argument(
+        "--checkpoint", help="latest.json, best.json, or a generation path"
+    )
+    chat.add_argument("--temperature", type=float, default=0.0)
+    chat.add_argument("--top-k", type=int, default=0)
+    chat.add_argument("--seed", type=int, default=0)
+    chat.add_argument(
+        "--transcript",
+        help="Save a checkpoint-bound JSON transcript without overwriting",
+    )
+    chat.add_argument(
+        "--json", action="store_true", help="Emit one JSON object per response"
+    )
     chat.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     chat.set_defaults(handler=_chat)
     dashboard = commands.add_parser("dashboard")
-    dashboard.add_argument("--runs-dir", default="runs")
+    dashboard.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.set_defaults(handler=_dashboard)
     return parser

@@ -61,6 +61,16 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     active = total if tied else total - embedding + model.config.hidden_dim
     if model.config.ffn == "moe":
         active = active - expert + active_expert
+    memory_parameters = 0
+    memory_tables = 0
+    active_memory_rows = 0
+    if model.memory is not None:
+        memory_parameters = _unique_numel(model.memory.parameters())
+        for module in model.memory.modules():
+            if isinstance(module, nn.Embedding):
+                memory_tables += module.weight.numel()
+                active_memory_rows += module.embedding_dim
+        active = active - memory_tables + active_memory_rows
     weight_bytes = sum(
         parameter.numel() * parameter.element_size() for parameter in model.parameters()
     )
@@ -75,14 +85,64 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
         "norm": norm,
         "output_head": output_head,
         "expert": expert,
-        "engram": 0,
+        "engram": memory_parameters,
+        "engram_table": memory_tables,
+        "engram_adapter": memory_parameters - memory_tables,
         "expert_note": (
             "not present in dense model"
             if model.config.ffn == "dense"
             else "all local expert storage"
         ),
-        "engram_note": "not present in dense model",
+        "engram_note": (
+            "not present"
+            if model.memory is None
+            else "all tables and adapters counted in total; one row per table in active_per_token"
+        ),
         "model_weight_bytes": weight_bytes,
         "optimizer_state_bytes": optimizer_state_bytes,
         "estimated_checkpoint_bytes": weight_bytes + optimizer_state_bytes,
     }
+
+
+def architecture_metrics(model: DenseLM) -> dict[str, float]:
+    """Scalar diagnostics from the last training microbatch, not update averages."""
+    result: dict[str, float] = {}
+    if model.memory is not None and model.memory.last_diagnostics is not None:
+        diagnostic = model.memory.last_diagnostics
+        for name in (
+            "lookup_count",
+            "unique_addresses",
+            "collision_count",
+            "bucket_reuse_rate",
+            "table_utilization",
+            "maximum_address_fraction",
+            "gate_mean",
+            "value_norm",
+            "hidden_norm",
+        ):
+            result[f"engram/{name}"] = float(getattr(diagnostic, name).detach())
+    for index, block in enumerate(model.blocks):
+        if isinstance(block.ffn, TopKMoE) and block.ffn.last_diagnostics is not None:
+            diagnostic = block.ffn.last_diagnostics
+            for metric, field in (
+                ("router_entropy", "entropy"),
+                ("maximum_expert_fraction", "maximum_fraction"),
+                ("mean_topk_probability", "mean_topk_probability"),
+            ):
+                result[f"moe/layer_{index}/{metric}"] = float(
+                    getattr(diagnostic, field).detach()
+                )
+        diagnostic = getattr(block.attention, "last_diagnostics", None)
+        if diagnostic is not None:
+            for metric, field in (
+                ("available_tokens", "available_tokens"),
+                ("selected_tokens", "selected_tokens"),
+                ("selection_ratio", "selection_ratio"),
+                ("estimated_flops", "estimated_attention_flops"),
+                ("dense_teacher_mass", "dense_teacher_mass"),
+                ("dense_teacher_topk_recall", "dense_teacher_topk_recall"),
+            ):
+                result[f"attention/layer_{index}/{metric}"] = float(
+                    getattr(diagnostic, field).detach()
+                )
+    return result

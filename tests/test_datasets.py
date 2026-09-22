@@ -55,7 +55,6 @@ def test_train_only_remote_sources_use_disjoint_validation_prefix(
     assert all(call["streaming"] is True for call in calls)
 
 
-
 def test_instruction_reference_uses_plain_chat_transcripts() -> None:
     first_train = next(iter_instruction_reference(7, "train"))
     first_validation = next(iter_instruction_reference(7, "validation"))
@@ -65,12 +64,12 @@ def test_instruction_reference_uses_plain_chat_transcripts() -> None:
     }
     validation_documents = {
         document
-        for _, document in zip(
-            range(12), iter_instruction_reference(7, "validation")
-        )
+        for _, document in zip(range(12), iter_instruction_reference(7, "validation"))
     }
 
-    assert first_train.startswith("System: You are a concise local assistant.\n\nUser: ")
+    assert first_train.startswith(
+        "System: You are a concise local assistant.\n\nUser: "
+    )
     assert "\n\nAssistant: " in first_train
     assert first_train != first_validation
     assert train_documents.isdisjoint(validation_documents)
@@ -87,6 +86,71 @@ def test_instruction_reference_is_available_as_a_dataset_source(tmp_path: Path) 
     )
 
     assert next(datasets.iter_documents(config, "train")).startswith("System: ")
+
+
+def test_chat_recall_has_finite_held_out_validation_and_cyclic_train(
+    tmp_path: Path,
+) -> None:
+    config = DatasetConfig(
+        source="chat_recall",
+        cache_dir=tmp_path,
+        train_max_documents=1,
+        validation_max_documents=1,
+        train_max_tokens=64,
+        validation_max_tokens=64,
+    )
+
+    train = datasets.iter_documents(config, "train")
+    validation = list(datasets.iter_documents(config, "validation"))
+
+    assert next(train).endswith(
+        (
+            "lumen",
+            "orbit",
+            "quartz",
+            "ripple",
+            "saffron",
+            "thistle",
+            "velvet",
+            "yarrow",
+            "zephyr",
+            "apricot",
+            "bronze",
+            "cinder",
+            "dahlia",
+            "fable",
+            "garnet",
+            "helium",
+            "indigo",
+            "jasper",
+            "kelp",
+            "lilac",
+            "mango",
+            "nectar",
+            "onyx",
+            "pearl",
+        )
+    )
+    assert validation
+    assert all(
+        document.endswith(
+            (
+                "lumen",
+                "quartz",
+                "saffron",
+                "velvet",
+                "zephyr",
+                "bronze",
+                "dahlia",
+                "garnet",
+                "indigo",
+                "kelp",
+                "mango",
+                "onyx",
+            )
+        )
+        for document in validation
+    )
 
 
 def test_engram_recall_source_has_held_out_prompt_wording(tmp_path: Path) -> None:
@@ -106,6 +170,7 @@ def test_engram_recall_source_has_held_out_prompt_wording(tmp_path: Path) -> Non
     assert next(datasets.iter_documents(config, "validation")).startswith(
         "Memory record 1000000."
     )
+
 
 def test_remote_sources_require_subset_and_revision(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="revision"):

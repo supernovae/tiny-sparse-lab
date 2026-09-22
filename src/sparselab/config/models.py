@@ -36,7 +36,14 @@ class ModelConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_dimensions(self) -> ModelConfig:
-        values = (self.vocab_size, self.hidden_dim, self.num_layers, self.num_heads, self.ffn_dim, self.max_seq_len)
+        values = (
+            self.vocab_size,
+            self.hidden_dim,
+            self.num_layers,
+            self.num_heads,
+            self.ffn_dim,
+            self.max_seq_len,
+        )
         if any(value <= 0 for value in values):
             raise ValueError("model dimensions must be positive")
         if self.vocab_size < 260:
@@ -45,17 +52,40 @@ class ModelConfig(StrictModel):
             raise ValueError("model head dimension must be even and divide hidden_dim")
         if self.rms_norm_eps <= 0:
             raise ValueError("model.rms_norm_eps must be positive")
-        if self.ffn == "dense" and (self.num_experts != 1 or self.experts_per_token != 1 or self.shared_expert or self.router_aux_loss_coefficient):
+        if self.ffn == "dense" and (
+            self.num_experts != 1
+            or self.experts_per_token != 1
+            or self.shared_expert
+            or self.router_aux_loss_coefficient
+        ):
             raise ValueError("dense model.ffn does not accept MoE settings")
-        if self.ffn == "moe" and (self.num_experts < 2 or not 1 <= self.experts_per_token <= self.num_experts):
+        if self.ffn == "moe" and (
+            self.num_experts < 2 or not 1 <= self.experts_per_token <= self.num_experts
+        ):
             raise ValueError("invalid MoE expert configuration")
         settings = (self.memory_table_size, self.memory_ngram_size, self.memory_dim)
-        if self.memory == "none" and (any(settings) or self.memory_package_path is not None or self.memory_ngram_orders or self.memory_hash_heads != 1):
+        if self.memory == "none" and (
+            any(settings)
+            or self.memory_package_path is not None
+            or self.memory_ngram_orders
+            or self.memory_hash_heads != 1
+        ):
             raise ValueError("disabled model.memory requires zero memory settings")
-        if self.memory != "none" and (self.memory_table_size <= 0 or self.memory_ngram_size < 2 or self.memory_dim <= 0):
-            raise ValueError("enabled model.memory requires table, dimension, and ngram size")
-        if self.memory_ngram_orders and (any(order < 2 for order in self.memory_ngram_orders) or tuple(sorted(set(self.memory_ngram_orders))) != self.memory_ngram_orders):
-            raise ValueError("model.memory_ngram_orders must be sorted unique values >= 2")
+        if self.memory != "none" and (
+            self.memory_table_size <= 0
+            or self.memory_ngram_size < 2
+            or self.memory_dim <= 0
+        ):
+            raise ValueError(
+                "enabled model.memory requires table, dimension, and ngram size"
+            )
+        if self.memory_ngram_orders and (
+            any(order < 2 for order in self.memory_ngram_orders)
+            or tuple(sorted(set(self.memory_ngram_orders))) != self.memory_ngram_orders
+        ):
+            raise ValueError(
+                "model.memory_ngram_orders must be sorted unique values >= 2"
+            )
         if self.memory == "byte" and self.memory_ngram_orders:
             raise ValueError("byte memory uses its configured raw-byte ngram size")
         if (self.memory == "portable") != (self.memory_package_path is not None):
@@ -72,6 +102,8 @@ class DatasetConfig(StrictModel):
         "tinystories",
         "synthetic",
         "instruction_reference",
+        "chat_recall",
+        "local_chat",
         "withheld_facts",
         "engram_recall",
         "fineweb_edu",
@@ -85,13 +117,37 @@ class DatasetConfig(StrictModel):
     train_max_tokens: int = Field(gt=0)
     validation_max_tokens: int = Field(gt=0)
     synthetic_seed: int = 42
+    train_path: Path | None = None
+    validation_path: Path | None = None
+    license: str | None = None
 
     @model_validator(mode="after")
     def validate_source(self) -> DatasetConfig:
-        if self.source in {"tinystories", "fineweb_edu", "cosmopedia"} and not self.revision:
+        if (
+            self.source in {"tinystories", "fineweb_edu", "cosmopedia"}
+            and not self.revision
+        ):
             raise ValueError("dataset.revision is required for remote datasets")
         if self.source in {"fineweb_edu", "cosmopedia"} and not self.dataset_config:
             raise ValueError("dataset.dataset_config is required for this source")
+        if self.source == "local_chat":
+            if self.train_path is None or self.validation_path is None:
+                raise ValueError("local_chat requires train_path and validation_path")
+            if self.train_path.resolve() == self.validation_path.resolve():
+                raise ValueError(
+                    "local_chat training and validation must be separate files"
+                )
+            if not self.license or not self.license.strip():
+                raise ValueError(
+                    "local_chat requires explicit dataset.license provenance"
+                )
+        elif any(
+            value is not None
+            for value in (self.train_path, self.validation_path, self.license)
+        ):
+            raise ValueError(
+                "train_path, validation_path and license are only for local_chat"
+            )
         return self
 
 
@@ -108,7 +164,9 @@ class MemoryConfig(StrictModel):
     policy: Literal["fast", "balanced", "low_memory", "max_fit"] = "balanced"
     max_device_memory_fraction: float = Field(default=0.90, gt=0, le=1)
     budget_bytes: int | None = Field(default=None, gt=0)
-    activation_checkpointing: ActivationCheckpointingConfig = ActivationCheckpointingConfig()
+    activation_checkpointing: ActivationCheckpointingConfig = (
+        ActivationCheckpointingConfig()
+    )
     activation_offload: ActivationOffloadConfig = ActivationOffloadConfig()
     allowed_sequence_lengths: tuple[int, ...] = ()
     allowed_optimizers: tuple[Literal["adamw", "adafactor"], ...] = ()
@@ -174,15 +232,34 @@ class AttentionConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_kind(self) -> AttentionConfig:
-        sparse = (self.window_size, self.latent_dim, self.block_size, self.selected_blocks)
+        sparse = (
+            self.window_size,
+            self.latent_dim,
+            self.block_size,
+            self.selected_blocks,
+        )
         if self.kind == "dense" and any(value is not None for value in sparse):
             raise ValueError("dense attention does not accept sparse settings")
-        if self.kind == "sliding_window" and (self.window_size is None or any(value is not None for value in sparse[1:])):
+        if self.kind == "sliding_window" and (
+            self.window_size is None or any(value is not None for value in sparse[1:])
+        ):
             raise ValueError("sliding_window attention requires only window_size")
-        if self.kind == "mla" and (self.latent_dim is None or self.window_size is not None or self.block_size is not None or self.selected_blocks is not None):
+        if self.kind == "mla" and (
+            self.latent_dim is None
+            or self.window_size is not None
+            or self.block_size is not None
+            or self.selected_blocks is not None
+        ):
             raise ValueError("mla attention requires only latent_dim")
-        if self.kind == "block_sparse" and (self.block_size is None or self.selected_blocks is None or self.window_size is not None or self.latent_dim is not None):
-            raise ValueError("block_sparse attention requires block_size and selected_blocks")
+        if self.kind == "block_sparse" and (
+            self.block_size is None
+            or self.selected_blocks is None
+            or self.window_size is not None
+            or self.latent_dim is not None
+        ):
+            raise ValueError(
+                "block_sparse attention requires block_size and selected_blocks"
+            )
         return self
 
 
@@ -199,7 +276,11 @@ class CheckpointConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_cadence(self) -> CheckpointConfig:
-        if self.every_steps is None and self.every_tokens is None and self.every_minutes is None:
+        if (
+            self.every_steps is None
+            and self.every_tokens is None
+            and self.every_minutes is None
+        ):
             raise ValueError("at least one checkpoint cadence is required")
         return self
 
@@ -235,13 +316,20 @@ class RunConfig(StrictModel):
     def validate_cross_section(self) -> RunConfig:
         if self.training.seq_len > self.model.max_seq_len:
             raise ValueError("training.seq_len cannot exceed model.max_seq_len")
-        if self.attention.kind == "mla" and self.attention.latent_dim % self.model.num_heads:
+        if (
+            self.attention.kind == "mla"
+            and self.attention.latent_dim % self.model.num_heads
+        ):
             raise ValueError("attention.latent_dim must divide evenly across heads")
         if self.optimizer.warmup_steps >= self.training.max_steps:
-            raise ValueError("optimizer.warmup_steps must be smaller than training.max_steps")
+            raise ValueError(
+                "optimizer.warmup_steps must be smaller than training.max_steps"
+            )
         if self.optimizer.floor > self.optimizer.peak:
             raise ValueError("optimizer.floor cannot exceed optimizer.peak")
-        if isinstance(self.optimizer, AdamWConfig) and any(not 0 <= beta < 1 for beta in self.optimizer.betas):
+        if isinstance(self.optimizer, AdamWConfig) and any(
+            not 0 <= beta < 1 for beta in self.optimizer.betas
+        ):
             raise ValueError("optimizer.betas entries must be in [0, 1)")
         if self.optimizer.state_offload:
             raise ValueError("optimizer.state_offload is deferred and unsupported")

@@ -1,0 +1,70 @@
+schema_version: 2
+name: chat-recall-engram-cpu
+seed: 42
+model:
+  vocab_size: 512
+  hidden_dim: 64
+  num_layers: 2
+  num_heads: 4
+  ffn_dim: 192
+  max_seq_len: 256
+  memory: ngram
+  memory_table_size: 1021
+  memory_ngram_size: 3
+  memory_dim: 32
+tokenizer:
+  path: ../artifacts/tokenizer_chat_recall/tokenizer.json
+dataset:
+  source: chat_recall
+  cache_dir: ../artifacts/data
+  train_max_documents: 768
+  validation_max_documents: 12
+  train_max_tokens: 131072
+  validation_max_tokens: 4096
+  synthetic_seed: 42
+training:
+  seq_len: 128
+  max_steps: 1536
+  max_tokens: 393216
+  deterministic: true
+  micro_batch_size: 2
+  gradient_accumulation: 1
+optimizer:
+  name: adamw
+  peak: 0.003
+  floor: 0.0003
+  warmup_steps: 16
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-08
+  state_offload: false
+evaluation:
+  every_steps: 48
+  max_batches: 6
+logging:
+  root_dir: ../runs
+  every_steps: 8
+runtime:
+  engine: pytorch
+  backend: cpu
+  device_index: 0
+  precision: fp32
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.9
+    budget_bytes: null
+    activation_checkpointing:
+      enabled: false
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_sequence_lengths: []
+    allowed_optimizers: []
+checkpoint:
+  every_steps: 48
+  every_tokens: null
+  every_minutes: null
+  keep_periodic: true
+staging:
+  smoke_steps: 2
+  warmup_steps: 5

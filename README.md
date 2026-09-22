@@ -1,33 +1,37 @@
 # Tiny Sparse Lab
 
-**A small, inspectable laboratory for learning how modern decoder mechanisms change a language model.**
+**A small-model workbench for learning, training usable narrow capabilities, and testing architectural ideas.**
 
-Tiny Sparse Lab is for builders who want to move beyond diagrams: change one architectural boundary, train a controlled local run, inspect the resulting artifacts, and explain what the evidence does—and does not—show. It is deliberately a reference implementation rather than a production training stack.
+Tiny Sparse Lab is for builders who want to move beyond diagrams: change one architectural boundary, train a controlled local run, chat with the resulting checkpoint, and measure what actually improved. Keep the task and evidence as models grow rather than discard each experiment. It is a single-host reference workbench, not a production training service or a claim that a tiny model can do everything.
 
 The supported runtime is one process on one host using one correctly detected CPU or accelerator. PyTorch is the canonical engine; the optional MLX engine provides a dense local Metal path on Apple Silicon. Distributed process groups, remote workers, and multi-host scheduling are intentionally deferred.
+
+**New to training models? Start with [From flashcards to a useful local assistant](docs/from-toy-to-useful.md).** It explains why `amber → lumen` is an invented recall exercise, provides a small instruction-training recipe and a normal chat prompt, and follows a concrete path toward useful domain tasks. Parameter count is capacity, not a certificate of intelligence.
 
 ## Why try it?
 
 - **Learn mechanisms in context.** Follow RMSNorm, RoPE, causal attention, SwiGLU, local MoE routing, latent attention, and addressed memory through runnable code rather than isolated snippets.
-- **Run meaningful ablations.** Each smoke configuration makes a narrow behavior testable; the larger presets preserve explicit budgets and provenance.
+- **Train something testable.** The chat-native recall curriculum supplies learned-association and context-override cards; bring licensed JSONL conversations and declarative cards for your own tasks.
 - **Keep evidence with the run.** Configurations, prepared data, tokenizer artifacts, checkpoints, evaluation reports, metrics, and lineage remain local and inspectable.
-- **Make honest claims.** Dense reference paths and Python-level selectors are not advertised as custom-kernel speedups. Small synthetic runs are wiring evidence, not benchmark results.
+- **Make honest claims.** Measure trained versus untrained behavior and matched architecture pairs. Synthetic task success is narrow evidence; zero deltas and failures remain results, not marketing.
 - **Extend carefully.** New Engram variants, attention paths, and scale experiments can reuse the existing causal data, checkpoint, metric, and comparison boundaries instead of introducing hidden semantics.
 
 ## What is implemented
 
 | Area | Explore | Boundary |
 |---|---|---|
-| Decoder baseline | RMSNorm, RoPE causal attention, SwiGLU, tied or untied output embeddings | Small dense decoder; no hosted model or chat API. |
+| Decoder and chat | RMSNorm, RoPE causal attention, SwiGLU; interactive/single-turn chat, seeded sampling, saved transcripts | Verified PyTorch checkpoint and run-owned tokenizer; no hosted service or general conversation guarantee. |
 | Attention | Dense, sliding-window, block-sparse selection, and multi-head latent attention (MLA) | Reference implementations; no native sparse kernels or KV-cache performance claim. |
 | Feed-forward sparsity | Local Top-K MoE with an optional shared expert and routing diagnostics | No expert sharding, capacity clipping, token dropping, or all-to-all exchange. |
 | Engram memory | Causal token n-gram, raw UTF-8 byte-addressed, and portable frozen-table adapters | Addressing diagnostics are not retrieval-quality or transfer proof. |
-| Training evidence | Deterministic local training, child-run resume, validated checkpoints, evaluation, and a read-only dashboard | Cross-backend continuation is promotion, not a distributed resume path. |
+| Training evidence | Deterministic local training, validated checkpoints, held-out reports, versioned cards and controlled comparisons | Artifact integrity and task scores are distinct from broad quality. |
 | Accelerators | Local CPU, MPS, CUDA/ROCm, and XPU discovery for PyTorch; optional MLX Metal training | Hardware-specific acceptance remains pending where target hardware is unavailable. |
 
 ## Start here
 
 Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/).
+
+Run these configuration-based commands from the repository root. Run consumers such as `chat` and `eval` also work from subdirectories: their default run store is `runs/` at the nearest `pyproject.toml`. Use an explicit `--runs-dir /path/to/runs` for another store; see [path resolution](docs/using-sparselab.md#chat-with-a-saved-run).
 
 ```sh
 uv sync --locked --dev
@@ -37,7 +41,7 @@ uv run sparselab inspect configs/smoke_cpu.yaml --json
 uv run sparselab train configs/smoke_cpu.yaml --run-id dense-smoke
 uv run sparselab eval dense-smoke
 uv run sparselab generate dense-smoke --prompt "Once upon a time" --max-new-tokens 24
-uv run sparselab chat dense-smoke
+uv run sparselab chat dense-smoke --max-new-tokens 12
 uv run sparselab dashboard --runs-dir runs
 ```
 
@@ -46,11 +50,22 @@ The smoke run is intentionally small. It proves the local tokenizer → prepared
 ### Chat with a trained local run
 
 ```sh
-uv run sparselab chat dense-smoke
-uv run sparselab chat dense-smoke --message "Explain causal attention in one sentence."
+uv run sparselab tokenizer train configs/tokenizer_chat_recall.yaml
+uv run sparselab train configs/chat_recall_dense_cpu.yaml --run-id chat-dense
+uv run sparselab train configs/chat_recall_engram_cpu.yaml --run-id chat-engram
+uv run sparselab chat chat-engram --system "Answer the requested alias with only its value." --max-new-tokens 12 --transcript /tmp/chat-engram.json
+uv run sparselab capability compare chat-dense chat-engram chat-alias-retention-v1
+uv run sparselab capability compare chat-dense chat-engram chat-alias-recall-v1
+uv run sparselab capability compare chat-dense chat-engram chat-context-override-v1
 ```
 
-`chat` keeps an in-process plain-text `User:`/`Assistant:` transcript and applies the selected run's ordinary greedy decoder. It works with any saved PyTorch architecture run, including the scale presets. It does **not** make a base model instruction-tuned: the response quality is limited by its training corpus and budget. The optional [instruction reference curriculum](docs/instruction-training.md) trains the transcript format and a small set of deterministic tasks; it is not a general chat dataset or a broad instruction-following claim.
+Here “alias” means the front of a flashcard and “value” means its arbitrary answer. `amber → lumen` has no intended real-world meaning. For a more familiar conversation experiment, use the [3.3M instruction starter](docs/from-toy-to-useful.md#5-a-smaller-instruction-learner-before-the-100m-run), not a new system prompt on the alias model.
+
+Chat is a first-class test surface, not a promise of commercial-model behavior. Training, interactive chat, and the new capability cards share the same transcript format and decoder. Chat preserves the current user/system turn, drops only complete old turns when needed, and can save the exact prompt, settings, checkpoint identity, and reply. Use `--checkpoint best.json`, `--message`, `--json`, or seeded sampling as needed.
+
+The [capability workflow](docs/capabilities.md) explains learned versus in-context recall, exact-answer scoring, matched controls, negative results, and scaling. The [instruction guide](docs/instruction-training.md) supports your own licensed local conversation corpus. A trained model must earn a task claim through held-out evidence; architectural complexity alone does not make it useful.
+
+The [repository review and measured example](docs/project-review.md) records what this path demonstrates, what it failed to demonstrate, and the next evidence gaps.
 
 ### Resume a local run
 
@@ -63,7 +78,7 @@ uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-resumed \
   --resume runs/moe-part/checkpoints/latest.json
 ```
 
-Resume requires compatible local model, optimizer, data, tokenizer, and training contracts. Use promotion—not resume—when deliberately changing an incompatible architecture or backend.
+Resume requires compatible local model, optimizer, data, tokenizer, and training contracts. Promotion can reuse the same architecture/tokenizer weights with a new backend, corpus, or training schedule. Neither operation grows a small backbone into a larger one.
 
 ### Apple Silicon: optional MLX engine
 
@@ -73,7 +88,7 @@ uv run sparselab train configs/smoke_mlx.yaml --run-id mlx-smoke
 uv run sparselab checkpoint verify runs/mlx-smoke/mlx_checkpoints/step_00000040 --json
 ```
 
-MLX checkpoints retain local native Metal state. `checkpoint inspect` and `checkpoint verify` validate their metadata and required state files; MLX resume takes the checkpoint directory.
+MLX checkpoints retain local native Metal state. `checkpoint inspect` checks their metadata and required state files; MLX resume takes the checkpoint directory. This experimental training path does not yet have the PyTorch chat/capability evidence contract. It must not be presented as feature-parity or tamper-proof checkpoint verification.
 
 ## Suggested learning path
 
@@ -99,6 +114,8 @@ The architectural options are explicit configuration choices, not automatic opti
 
 ## Documentation map
 
+- [From flashcards to a useful local assistant](docs/from-toy-to-useful.md) — beginner concepts, normal chat prompts, a runnable instruction starter, domain adaptation, evaluation, and scale limits.
+
 - [Using SparseLab](docs/using-sparselab.md) — commands, local artifacts, and dashboard.
 - [Architecture](docs/architecture.md) — decoder and mechanism boundaries.
 - [Training and resume](docs/training.md) — local run lifecycle and checkpoint semantics.
@@ -108,7 +125,7 @@ The architectural options are explicit configuration choices, not automatic opti
 - [Experiments](docs/experiments.md), [model scaling](docs/model-scaling.md), and [metrics](docs/metrics.md) — controlled comparison practice.
 - [Experiment evidence](docs/evidence.md) — verified checkpoints, held-out observations, controlled comparisons, and hardware-reference discipline.
 - [Capability experiments](docs/capabilities.md) — versioned narrow hypotheses, matched baselines, and scale-series evidence.
-- [Instruction reference training](docs/instruction-training.md) — optional synthetic curriculum, 100M reference configuration, and evaluation boundary.
+- [Instruction and local conversation training](docs/instruction-training.md) — licensed JSONL corpus input, shared chat format, and the synthetic 100M reference.
 - [Withheld facts](docs/withheld-facts.md) — deterministic data-separation evidence.
 - [Architecture decisions](docs/decisions/README.md) — durable design context and current scope decisions.
 - [Deferred roadmap](TODO.md) — native kernels, target-hardware acceptance, and distributed work intentionally outside the core.

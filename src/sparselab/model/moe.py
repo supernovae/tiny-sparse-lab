@@ -80,19 +80,27 @@ class TopKMoE(nn.Module):
                 raise ValueError("valid_target_mask must align with routed tokens")
         valid_probabilities = probabilities[valid]
         valid_selected = selected[valid]
-        counts = torch.bincount(valid_selected.flatten(), minlength=self.num_experts).detach()
+        counts = torch.bincount(
+            valid_selected.flatten(), minlength=self.num_experts
+        ).detach()
         fractions = counts.float() / max(1, valid_selected.numel())
         entropy = (
             -(
                 valid_probabilities
-                * valid_probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log()
+                * valid_probabilities.clamp_min(
+                    torch.finfo(probabilities.dtype).tiny
+                ).log()
             )
             .sum(dim=-1)
             .mean()
             if valid_probabilities.numel()
             else probabilities.new_zeros(())
         )
-        importance = valid_probabilities.mean(dim=0) if valid_probabilities.numel() else probabilities.new_zeros(self.num_experts)
+        importance = (
+            valid_probabilities.mean(dim=0)
+            if valid_probabilities.numel()
+            else probabilities.new_zeros(self.num_experts)
+        )
         load = fractions.detach()
         auxiliary_loss = (
             self.auxiliary_loss_coefficient
@@ -105,7 +113,14 @@ class TopKMoE(nn.Module):
             fractions=fractions,
             entropy=entropy.detach(),
             maximum_fraction=fractions.max(),
-            mean_topk_probability=weights.mean().detach(),
+            mean_topk_probability=(
+                valid_probabilities.gather(1, valid_selected)
+                .sum(dim=-1)
+                .mean()
+                .detach()
+                if valid_probabilities.numel()
+                else probabilities.new_zeros(())
+            ),
             auxiliary_loss=auxiliary_loss.detach(),
             router_logits=router_logits.detach(),
             selected_experts=selected.detach(),

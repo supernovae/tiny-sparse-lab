@@ -41,14 +41,6 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
     output = config.output_dir
     json_path = output / "tokenizer.json"
     manifest_path = output / "tokenizer_manifest.json"
-    if json_path.exists() or manifest_path.exists():
-        if json_path.exists() and manifest_path.exists():
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if manifest.get("requested_vocab_size") == config.vocab_size:
-                return json_path
-        raise FileExistsError(
-            f"conflicting tokenizer output already exists at {output}"
-        )
 
     selected: list[str] = []
     digest = hashlib.sha256()
@@ -62,6 +54,26 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         digest.update(b"\0")
     if not selected:
         raise ValueError("tokenizer training selected no non-empty documents")
+    training_contract = {
+        "vocab_size": config.vocab_size,
+        "min_frequency": config.min_frequency,
+        "source": config.dataset.source,
+        "revision": config.dataset.revision,
+        "content_digest_sha256": digest.hexdigest(),
+    }
+    if json_path.exists() or manifest_path.exists():
+        if json_path.is_file() and manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest.get(
+                "training_contract"
+            ) == training_contract and hashlib.sha256(
+                json_path.read_bytes()
+            ).hexdigest() == manifest.get("sha256"):
+                return json_path
+        raise FileExistsError(
+            f"tokenizer output at {output} has different or unverifiable training provenance; "
+            "use a new output directory, or reference the existing tokenizer explicitly"
+        )
 
     tokenizer = Tokenizer(BPE(unk_token="<unk>"))
     tokenizer.pre_tokenizer = ByteLevel(add_prefix_space=False)
@@ -90,6 +102,10 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         manifest_path,
         {
             "sha256": hashlib.sha256(content).hexdigest(),
+            "training_contract": training_contract,
+            "license": config.dataset.license
+            if config.dataset.source == "local_chat"
+            else None,
             "requested_vocab_size": config.vocab_size,
             "vocab_size": actual,
             "special_ids": {

@@ -26,9 +26,14 @@ from sparselab.data.packing import (
 )
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.evaluation.language_model import evaluate
-from sparselab.model.inspection import inspect_model
+from sparselab.model.inspection import architecture_metrics, inspect_model
 from sparselab.model.transformer import DenseLM
-from sparselab.runtime import seed_everything, torch_device_for, validate_runtime
+from sparselab.runtime import (
+    seed_everything,
+    synchronize,
+    torch_device_for,
+    validate_runtime,
+)
 from sparselab.training.checkpoints import (
     CheckpointManager,
     CheckpointRecord,
@@ -37,6 +42,8 @@ from sparselab.training.checkpoints import (
 from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
+    canonical_json,
+    read_manifest,
     sha256_file,
     source_identity,
     write_manifest,
@@ -92,6 +99,37 @@ def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
         for name in ("train_byte_addresses.npy", "validation_byte_addresses.npy")
     ):
         raise ValueError("resume run lacks byte-address artifacts")
+    manifest = json.loads(manifest_path.read_text())
+    expected = (
+        (
+            "train.npy",
+            manifest.get("train", {}).get("sha256")
+            if isinstance(manifest.get("train"), dict)
+            else None,
+        ),
+        (
+            "validation.npy",
+            manifest.get("validation", {}).get("sha256")
+            if isinstance(manifest.get("validation"), dict)
+            else None,
+        ),
+    )
+    for name, digest in expected:
+        if not isinstance(digest, str) or sha256_file(root / name) != digest:
+            raise ValueError(f"resume data artifact hash mismatch: {name}")
+    if byte_enabled:
+        byte = manifest.get("byte_addressing")
+        if not isinstance(byte, dict):
+            raise ValueError("resume data manifest lacks byte-address identity")
+        for name, key in (
+            ("train_byte_addresses.npy", "train_sha256"),
+            ("validation_byte_addresses.npy", "validation_sha256"),
+        ):
+            if (
+                not isinstance(byte.get(key), str)
+                or sha256_file(root / name) != byte[key]
+            ):
+                raise ValueError(f"resume data artifact hash mismatch: {name}")
     return PreparedData(
         root,
         np.load(paths[0], mmap_mode="r"),
@@ -102,26 +140,41 @@ def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
         np.load(root / "validation_byte_addresses.npy", mmap_mode="r")
         if byte_enabled
         else None,
-        json.loads(manifest_path.read_text()),
+        manifest,
     )
 
 
 def _copy_artifacts(
-    run: Path, config: RunConfig, data: PreparedData
+    run: Path, config: RunConfig, data: PreparedData, source_run: Path | None = None
 ) -> tuple[ArtifactIdentity, ...]:
     artifacts: list[ArtifactIdentity] = []
+    tokenizer_source = (
+        source_run / "tokenizer.json"
+        if source_run is not None
+        else config.tokenizer.path
+    )
     tokenizer = run / "tokenizer.json"
-    shutil.copy2(config.tokenizer.path, tokenizer)
-    for source in (config.tokenizer.path.with_name("tokenizer_manifest.json"),):
-        if source.is_file():
-            shutil.copy2(source, run / source.name)
+    shutil.copy2(tokenizer_source, tokenizer)
+    if source_run is None:
+        for source in (config.tokenizer.path.with_name("tokenizer_manifest.json"),):
+            if source.is_file():
+                shutil.copy2(source, run / source.name)
+    elif (source_run / "tokenizer_manifest.json").is_file():
+        shutil.copy2(
+            source_run / "tokenizer_manifest.json", run / "tokenizer_manifest.json"
+        )
     shutil.copytree(data.root, run / "data")
-    if config.model.memory_package_path is not None:
+    package_source = (
+        source_run / "portable_package"
+        if source_run is not None
+        else config.model.memory_package_path
+    )
+    if package_source is not None and package_source.exists():
         destination = run / "portable_package"
-        if config.model.memory_package_path.is_dir():
-            shutil.copytree(config.model.memory_package_path, destination)
+        if package_source.is_dir():
+            shutil.copytree(package_source, destination)
         else:
-            shutil.copy2(config.model.memory_package_path, destination)
+            shutil.copy2(package_source, destination)
     for path in sorted(
         item
         for item in run.rglob("*")
@@ -192,28 +245,47 @@ def _save(
 
 
 def _write_validation_report(
-    run: Path, record: CheckpointRecord, result: dict[str, float]
+    run: Path, record: CheckpointRecord, result: dict[str, object], config: RunConfig
 ) -> Path:
     evaluations = run / "evaluations"
     evaluations.mkdir(parents=True, exist_ok=True)
-    report = evaluations / (
-        f"validation_step_{record.step:08d}_gen_{record.generation_id:06d}.json"
+    report = (
+        evaluations
+        / f"validation_step_{record.step:08d}_gen_{record.generation_id:06d}.json"
     )
-    report.write_text(
-        json.dumps(
-            {
-                "kind": "held_out_validation_v1",
-                "checkpoint": record.relative_path,
-                "checkpoint_sha256": record.manifest_sha256,
-                "step": record.step,
-                "tokens_seen": record.tokens_seen,
-                **result,
-            },
-            sort_keys=True,
-            indent=2,
-        )
-        + "\n"
+    payload: dict[str, object] = {
+        "kind": "held_out_validation_v2",
+        "checkpoint": record.relative_path,
+        "checkpoint_sha256": record.manifest_sha256,
+        "step": record.step,
+        "tokens_seen": record.tokens_seen,
+        "identities": {
+            "data/validation.npy": sha256_file(run / "data" / "validation.npy"),
+            "tokenizer.json": sha256_file(run / "tokenizer.json"),
+            "source_identity_sha256": source_identity()["sha256"],
+            "protocol": "next-token-cross-entropy-v1",
+        },
+        "batch_size": config.training.micro_batch_size,
+        "max_batches": config.evaluation.max_batches,
+        "seq_len": config.training.seq_len,
+        **result,
+    }
+    payload["sha256"] = (
+        __import__("hashlib").sha256(canonical_json(payload)).hexdigest()
     )
+    content = canonical_json(payload) + b"\n"
+    if report.exists():
+        if report.read_bytes() != content:
+            raise FileExistsError(
+                f"immutable validation report already exists: {report}"
+            )
+        return report
+    temporary = report.with_name(report.name + f".{uuid.uuid4().hex}.tmp")
+    with temporary.open("wb") as handle:
+        handle.write(content)
+        handle.flush()
+        __import__("os").fsync(handle.fileno())
+    temporary.replace(report)
     return report
 
 
@@ -265,6 +337,21 @@ def train(
         source_manager = CheckpointManager(source_run)
         snapshot = source_manager.load(selected, "resume" if resume else "promote")
         continuation = "RESUMED" if resume else "PROMOTED"
+        if promote:
+            source_manifest = read_manifest(source_run / "manifest.json")
+            requested = source_manifest.get("effective_config")
+            if not isinstance(requested, dict):
+                raise ValueError("promotion source manifest lacks effective config")
+            if requested.get("model") != config.model.model_dump(
+                mode="json"
+            ) or requested.get("attention") != config.attention.model_dump(mode="json"):
+                raise ValueError(
+                    "promotion requires matching source architecture semantics"
+                )
+            if sha256_file(source_run / "tokenizer.json") != sha256_file(
+                config.tokenizer.path
+            ):
+                raise ValueError("promotion requires matching tokenizer identity")
         if resume:
             expected = RunConfig.model_validate(snapshot.config)
             current = config.model_dump(mode="json")
@@ -272,10 +359,15 @@ def train(
             for key in ("logging", "checkpoint"):
                 current.pop(key, None)
                 saved.pop(key, None)
-            if current != saved and not allow_runtime_drift:
+            if current != saved:
                 raise ValueError(
                     "resume configuration differs from checkpoint; use promotion for changed scientific settings"
                 )
+            if (
+                config.runtime.engine != snapshot.engine
+                or runtime.backend != snapshot.backend
+            ):
+                raise ValueError("full resume requires the same engine and backend")
     if recover is not None:
         source_run = recover
         recovery = CheckpointManager(source_run).latest_valid()
@@ -285,19 +377,63 @@ def train(
             source_run / "checkpoints" / recovery.record.relative_path
         )
         continuation = "RESUMED"
+        expected = RunConfig.model_validate(snapshot.config)
+        current = config.model_dump(mode="json")
+        saved = expected.model_dump(mode="json")
+        for key in ("logging", "checkpoint"):
+            current.pop(key, None)
+            saved.pop(key, None)
+        if (
+            current != saved
+            or config.runtime.engine != snapshot.engine
+            or runtime.backend != snapshot.backend
+        ):
+            raise ValueError(
+                "recovery requires matching resume configuration and backend"
+            )
+    if continuation == "RESUMED":
+        assert source_run is not None
+        source_manifest = read_manifest(source_run / "manifest.json")
+        inventory = {
+            item["relative_path"]: item["sha256"]
+            for item in source_manifest.get("artifacts", [])
+            if isinstance(item, dict)
+            and isinstance(item.get("relative_path"), str)
+            and isinstance(item.get("sha256"), str)
+        }
+        for relative in ("tokenizer.json", "data/train.npy", "data/validation.npy"):
+            path = source_run / relative
+            if inventory.get(relative) != sha256_file(path):
+                raise ValueError(f"resume artifact hash mismatch: {relative}")
+        if config.model.memory_package_path is not None:
+            for path in (source_run / "portable_package").rglob("*"):
+                if path.is_file():
+                    relative = str(path.relative_to(source_run))
+                    if inventory.get(relative) != sha256_file(path):
+                        raise ValueError(f"resume artifact hash mismatch: {relative}")
     seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
-    if source_run is None:
+    if continuation == "RESUMED":
+        assert source_run is not None
+        data = _load_run_data(source_run, config)
+    else:
         tokenizer = load_tokenizer(config.tokenizer.path)
         data = prepare_data(config, tokenizer)
-    else:
-        data = _load_run_data(source_run, config)
     dataset = TokenBlockDataset(
         data.train, config.training.seq_len, data.train_byte_addresses
     )
     validation_dataset = TokenBlockDataset(
         data.validation, config.training.seq_len, data.validation_byte_addresses
     )
-    model = DenseLM(config.model, config.attention).to(device)
+    model_config = config.model
+    if continuation == "RESUMED" and config.model.memory_package_path is not None:
+        assert source_run is not None
+        owned_package = source_run / "portable_package"
+        if not owned_package.exists():
+            raise ValueError("resume run lacks immutable portable package")
+        model_config = config.model.model_copy(
+            update={"memory_package_path": owned_package}
+        )
+    model = DenseLM(model_config, config.attention).to(device)
     offload = (
         ActivationOffload(device)
         if config.runtime.memory.activation_offload.enabled
@@ -333,6 +469,10 @@ def train(
         parent_run_id = snapshot.run_id
     elif snapshot is not None:
         model.load_state_dict(snapshot.model)
+    if continuation == "RESUMED" and (
+        step >= config.training.max_steps or tokens >= config.training.max_tokens
+    ):
+        raise ValueError("cannot resume a completed training budget")
     if stop_after_step is not None and stop_after_step <= step:
         raise ValueError("stop-after-step must exceed current step")
     run_id = run_id or uuid.uuid4().hex
@@ -340,7 +480,9 @@ def train(
     if run.exists():
         raise FileExistsError(f"run exists: {run_id}")
     run.mkdir(parents=True)
-    artifacts = _copy_artifacts(run, config, data)
+    artifacts = _copy_artifacts(
+        run, config, data, source_run if continuation == "RESUMED" else None
+    )
     (run / "resolved_config.yaml").write_text(
         json.dumps(config.model_dump(mode="json"), sort_keys=True, indent=2) + "\n"
     )
@@ -378,7 +520,7 @@ def train(
     started = time.perf_counter()
     interrupted = False
 
-    def evaluate_and_record(elapsed: float) -> dict[str, float]:
+    def evaluate_and_record(elapsed: float) -> dict[str, object]:
         result = evaluate(
             model,
             validation_dataset,
@@ -386,16 +528,10 @@ def train(
             max_batches=config.evaluation.max_batches,
             device=device,
         )
-        store.log_metrics(
-            run_id,
-            step,
-            tokens,
-            elapsed,
-            {
-                "validation/loss": result["loss"],
-                "validation/perplexity": result["perplexity"],
-            },
-        )
+        metrics: dict[str, float] = {"validation/loss": float(result["loss"])}
+        if isinstance(result.get("perplexity"), (int, float)):
+            metrics["validation/perplexity"] = float(result["perplexity"])
+        store.log_metrics(run_id, step, tokens, elapsed, metrics)
         store.log_event(run_id, step, tokens, elapsed, "validation_completed", result)
         return result
 
@@ -421,7 +557,7 @@ def train(
             watermarks,
             initial_validation["loss"],
         )
-        _write_validation_report(run, record, initial_validation)
+        _write_validation_report(run, record, initial_validation, config)
         store.log_event(
             run_id,
             step,
@@ -446,14 +582,17 @@ def train(
             labels: list[torch.Tensor] = []
             for record in records:
                 label = record[1].clone()
-                if remaining < label.numel():
-                    label.flatten()[remaining:] = -100
-                remaining -= int((label != -100).sum())
+                allowed = max(0, min(remaining, label.numel()))
+                if allowed < label.numel():
+                    label.flatten()[allowed:] = -100
+                remaining -= allowed
                 labels.append(label)
             valid_targets = sum(int((label != -100).sum()) for label in labels)
             if valid_targets == 0:
                 break
             optimizer.zero_grad(set_to_none=True)
+            synchronize(device)
+            update_started = time.perf_counter()
             language_sum = 0.0
             aux_sum = 0.0
             for offset in range(0, len(records), config.training.micro_batch_size):
@@ -461,6 +600,9 @@ def train(
                 chunk_labels = labels[
                     offset : offset + config.training.micro_batch_size
                 ]
+                chunk_valid = sum(int((label != -100).sum()) for label in chunk_labels)
+                if chunk_valid == 0:
+                    continue
                 x = torch.stack([record[0] for record in chunk]).to(device)
                 y = torch.stack(chunk_labels).to(device)
                 addresses = (
@@ -482,9 +624,9 @@ def train(
                     ignore_index=-100,
                     reduction="sum",
                 )
-                chunk_valid = int((y != -100).sum())
-                loss = (ce_sum + auxiliary * chunk_valid) / valid_targets
-                loss.backward()
+                if not torch.isfinite(ce_sum) or not torch.isfinite(auxiliary):
+                    raise FloatingPointError("nonfinite training loss")
+                ((ce_sum + auxiliary * chunk_valid) / valid_targets).backward()
                 language_sum += float(ce_sum.detach())
                 aux_sum += float(auxiliary.detach()) * chunk_valid
             norm = torch.nn.utils.clip_grad_norm_(
@@ -504,6 +646,8 @@ def train(
             for group in optimizer.param_groups:
                 group["lr"] = lr
             optimizer.step()
+            synchronize(device)
+            update_seconds = time.perf_counter() - update_started
             step, tokens = next_step, tokens + valid_targets
             cursor = BatchCursor(cursor.epoch, cursor.next_block + len(indices))
             elapsed = time.perf_counter() - started
@@ -512,12 +656,17 @@ def train(
                 "moe/router_auxiliary_loss": aux_sum / valid_targets,
                 "optimizer/learning_rate": lr,
                 "optimizer/grad_norm": float(norm),
-                "performance/tokens_per_second": valid_targets / max(elapsed, 1e-9),
+                "performance/step_seconds": update_seconds,
+                "performance/tokens_per_second": valid_targets
+                / max(update_seconds, 1e-9),
                 "batch/micro_batch_size": float(config.training.micro_batch_size),
-                "batch/accumulation_steps": float(config.training.gradient_accumulation),
+                "batch/accumulation_steps": float(
+                    config.training.gradient_accumulation
+                ),
                 "batch/effective_batch_size": float(len(indices)),
                 "batch/effective_tokens_per_update": float(valid_targets),
             }
+            metric_values.update(architecture_metrics(model))
             if offload is not None:
                 metrics = offload.metrics
                 metric_values.update(
@@ -559,7 +708,7 @@ def train(
                     validation["loss"] if validation is not None else None,
                 )
                 if validation is not None:
-                    _write_validation_report(run, record, validation)
+                    _write_validation_report(run, record, validation, config)
                 store.log_event(
                     run_id,
                     step,
@@ -579,6 +728,13 @@ def train(
                 store.log_event(run_id, step, tokens, elapsed, f"run_{status}", {})
                 return run_id
         return run_id
+    except BaseException as error:
+        elapsed = time.perf_counter() - started
+        store.finish_run(run_id, "failed", str(manager.root / "latest.json"))
+        store.log_event(
+            run_id, step, tokens, elapsed, "run_failed", {"reason": str(error)}
+        )
+        raise
     finally:
         signal.signal(signal.SIGINT, old_int)
         signal.signal(signal.SIGTERM, old_term)
