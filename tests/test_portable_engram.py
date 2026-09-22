@@ -55,6 +55,22 @@ def test_portable_memory_is_selectable_and_frozen(tmp_path) -> None:
     assert model.memory.output.weight.grad is not None
 
 
+def test_portable_package_path_requires_portable_memory(tmp_path) -> None:
+    path = tmp_path / "memory.engram"
+    export_portable_engram(torch.zeros(4, 2), path, ngram_size=2)
+    settings = {
+        "vocab_size": 512,
+        "hidden_dim": 8,
+        "num_layers": 1,
+        "num_heads": 2,
+        "ffn_dim": 16,
+        "max_seq_len": 8,
+        "memory_package_path": path,
+    }
+    with pytest.raises(ValueError):
+        ModelConfig(**settings)
+
+
 def test_portable_package_rejects_conflicting_rewrite(tmp_path) -> None:
     path = tmp_path / "memory.engram"
     export_portable_engram(torch.zeros(4, 2), path, ngram_size=2)
