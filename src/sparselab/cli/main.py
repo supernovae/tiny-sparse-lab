@@ -19,7 +19,10 @@ from sparselab.data.withheld_facts import (
 )
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.language_model import evaluate
-from sparselab.evaluation.withheld_facts import evaluate_withheld_facts
+from sparselab.evaluation.withheld_facts import (
+    evaluate_withheld_facts,
+    write_withheld_evaluation,
+)
 from sparselab.model.inspection import inspect_model
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import select_device
@@ -78,7 +81,16 @@ def _facts_evaluate(args: argparse.Namespace) -> None:
         max_new_tokens=args.max_new_tokens,
         device=device,
     )
-    print(json.dumps(result, indent=2, sort_keys=True))
+    output = (
+        Path(args.output)
+        if args.output
+        else Path(args.runs_dir)
+        / args.run_id
+        / "evaluations"
+        / f"withheld-{result['manifest_sha256']}.json"
+    )
+    write_withheld_evaluation(output, result)
+    print(output)
 
 
 def _inspect(args: argparse.Namespace) -> None:
@@ -210,6 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
     facts_evaluate.add_argument("--checkpoint")
     facts_evaluate.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))
     facts_evaluate.add_argument("--max-new-tokens", type=int, default=16)
+    facts_evaluate.add_argument("--output")
     facts_evaluate.set_defaults(handler=_facts_evaluate)
     data_prepare.set_defaults(handler=_data_prepare)
     training = commands.add_parser("train")

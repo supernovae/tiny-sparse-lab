@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import torch
@@ -52,3 +53,16 @@ def evaluate_withheld_facts(
         "exact_match_rate": exact_match_count / len(cases),
         "manifest_sha256": manifest["sha256"],
     }
+
+
+def write_withheld_evaluation(path: Path, report: dict[str, object]) -> None:
+    """Atomically retain immutable held-out completion evidence."""
+    content = json.dumps(report, indent=2, sort_keys=True) + "\n"
+    if path.exists():
+        if path.read_text(encoding="utf-8") == content:
+            return
+        raise FileExistsError(f"conflicting withheld-fact evaluation exists: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(content, encoding="utf-8")
+    temporary.replace(path)
