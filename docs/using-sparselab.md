@@ -16,6 +16,16 @@ uv run sparselab generate combined-smoke --prompt "Once upon a time" --max-new-t
 
 `inspect` reports the configured architecture before training. `train` writes run-local artifacts and checkpoints. `eval` reports next-token loss and perplexity on the configured validation data. `generate` prints the prompt followed by greedy decoded tokens. A smoke run proves that path works; it is too small and short to promise coherent prose.
 
+## Chat with a saved run
+
+```sh
+uv run sparselab chat combined-smoke
+uv run sparselab chat combined-smoke --message "What does local MoE mean?"
+uv run sparselab chat combined-smoke --system "Answer in one sentence."
+```
+
+Interactive chat accepts one local turn at a time; type `/exit` or `/quit` to finish. `--message` performs one non-interactive turn for scripts. The conversation is a plain-text `User:`/`Assistant:` prompt passed to ordinary greedy generation. It works for saved PyTorch runs of any configured size, but it is not an instruction-tuning layer or a quality guarantee. Train a chat-oriented dataset only as an explicit experiment with separately recorded data provenance and held-out conversational evaluation.
+
 ## Choose a mechanism deliberately
 
 - `model.ffn: dense|moe` selects dense SwiGLU or local Top-K MoE.

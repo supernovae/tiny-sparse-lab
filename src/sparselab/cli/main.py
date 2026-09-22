@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
-from sparselab.config.migrate import migrate_file
+from sparselab.config.migrate import migrate_file, migrate_v1
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
@@ -20,6 +20,7 @@ from sparselab.data.withheld_facts import (
     write_manifest,
 )
 from sparselab.evaluation.byte_memory_transfer import transfer_byte_memory
+from sparselab.evaluation.chat import ChatMessage, chat_turn
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.language_model import evaluate
 from sparselab.evaluation.withheld_facts import (
@@ -273,15 +274,26 @@ def _run_model(
     run_id: str, runs_dir: Path, checkpoint: str | None, backend: str | None
 ) -> tuple[RunConfig, DenseLM, object]:
     run = runs_dir / run_id
+    raw_config = json.loads((run / "resolved_config.yaml").read_text())
     config = RunConfig.model_validate(
-        json.loads((run / "resolved_config.yaml").read_text())
+        migrate_v1(raw_config)
+        if raw_config.get("schema_version") == 1
+        else raw_config
     )
     chosen_backend = backend or config.runtime.backend
     device = select_device(chosen_backend)
     path = Path(checkpoint) if checkpoint else run / "checkpoints" / "latest.json"
-    if path.name in {"latest.json", "best.json"} or path.is_dir():
-        state = CheckpointManager(run).load(path, "promote")
-        weights = state.model
+    if path.name in {"latest.json", "best.json"}:
+        pointer = json.loads(path.read_text())
+        if "filename" in pointer:
+            path = path.parent / str(pointer["filename"])
+        else:
+            weights = CheckpointManager(run).load(path, "promote").model
+            model = DenseLM(config.model, config.attention).to(device)
+            model.load_state_dict(weights)
+            return config, model, device
+    if path.is_dir():
+        weights = CheckpointManager(run).load(path, "promote").model
     else:
         weights = load_checkpoint(path)["model"]
     model = DenseLM(config.model, config.attention).to(device)
@@ -328,6 +340,44 @@ def _generate(args: argparse.Namespace) -> None:
         )
     )
 
+
+
+def _chat(args: argparse.Namespace) -> None:
+    config, model, device = _run_model(
+        args.run_id, Path(args.runs_dir), None, args.backend
+    )
+    tokenizer = load_tokenizer(config.tokenizer.path)
+    history: list[ChatMessage] = []
+
+    def respond(message: str) -> None:
+        _, reply = chat_turn(
+            model,
+            tokenizer,
+            history,
+            message,
+            config.model.max_seq_len,
+            args.max_new_tokens,
+            device,
+            system=args.system,
+        )
+        print(f"Assistant: {reply}")
+        history.extend((ChatMessage("user", message), ChatMessage("assistant", reply)))
+
+    if args.message is not None:
+        respond(args.message)
+        return
+    print("Local greedy chat. Type /exit to end the conversation.")
+    while True:
+        try:
+            message = input("You: ")
+        except EOFError:
+            print()
+            return
+        if message.strip().lower() in {"/exit", "/quit"}:
+            return
+        if not message.strip():
+            continue
+        respond(message)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -456,6 +506,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     generation.set_defaults(handler=_generate)
+    chat = commands.add_parser(
+        "chat", help="Chat locally with a saved PyTorch run using greedy decoding."
+    )
+    chat.add_argument("run_id")
+    chat.add_argument("--message")
+    chat.add_argument("--system")
+    chat.add_argument("--max-new-tokens", type=int, default=64)
+    chat.add_argument("--runs-dir", default="runs")
+    chat.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    chat.set_defaults(handler=_chat)
     dashboard = commands.add_parser("dashboard")
     dashboard.add_argument("--runs-dir", default="runs")
     dashboard.add_argument("--port", type=int, default=8501)

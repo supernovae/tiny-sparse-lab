@@ -37,10 +37,20 @@ uv run sparselab inspect configs/smoke_cpu.yaml --json
 uv run sparselab train configs/smoke_cpu.yaml --run-id dense-smoke
 uv run sparselab eval dense-smoke
 uv run sparselab generate dense-smoke --prompt "Once upon a time" --max-new-tokens 24
+uv run sparselab chat dense-smoke
 uv run sparselab dashboard --runs-dir runs
 ```
 
 The smoke run is intentionally small. It proves the local tokenizer → prepared data → training → checkpoint → evaluation → generation path; it does not promise fluent generation or comparative model quality.
+
+### Chat with a trained local run
+
+```sh
+uv run sparselab chat dense-smoke
+uv run sparselab chat dense-smoke --message "Explain causal attention in one sentence."
+```
+
+`chat` keeps an in-process plain-text `User:`/`Assistant:` transcript and applies the selected run's ordinary greedy decoder. It works with any saved PyTorch architecture run, including the scale presets. It does **not** make a base model instruction-tuned: the response quality is limited by its training corpus and budget. No chat-only dataset is added implicitly; add one only as an explicit, documented experiment with a held-out evaluation protocol.
 
 ### Resume a local run
 
