@@ -32,6 +32,7 @@ from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import discover_runtimes, select_device
+from sparselab.staging import stage
 from sparselab.training.checkpoints import CheckpointManager, load_checkpoint
 from sparselab.training.trainer import train
 
@@ -171,8 +172,15 @@ def _checkpoint_inspect(args: argparse.Namespace) -> None:
 def _checkpoint_verify(args: argparse.Namespace) -> None:
     path = Path(args.path)
     root = path.parent.parent
-    report = CheckpointManager(root).verify(path, require_training_state=not args.weights_only)
-    payload = {"valid": report.valid, "errors": list(report.errors), "files": list(report.verified_files), "resume_level": report.resume_level}
+    report = CheckpointManager(root).verify(
+        path, require_training_state=not args.weights_only
+    )
+    payload = {
+        "valid": report.valid,
+        "errors": list(report.errors),
+        "files": list(report.verified_files),
+        "resume_level": report.resume_level,
+    }
     print(json.dumps(payload, sort_keys=True) if args.json else payload)
     if not report.valid:
         raise SystemExit(1)
@@ -189,27 +197,39 @@ def _inspect(args: argparse.Namespace) -> None:
         == (config.runtime.backend if config.runtime.backend != "auto" else "cpu")
     )
     estimate = estimate_memory(config, runtime, inventory)
-    values = {**inspect_model(DenseLM(config.model, config.attention)), "parameter_inventory": inventory.__dict__, "memory_estimate": estimate.__dict__, "runtime": runtime.as_dict()}
+    values = {
+        **inspect_model(DenseLM(config.model, config.attention)),
+        "parameter_inventory": inventory.__dict__,
+        "memory_estimate": estimate.__dict__,
+        "runtime": runtime.as_dict(),
+    }
     print(
         json.dumps(values, indent=2, sort_keys=True)
         if args.json
         else "\n".join(f"{k}: {v}" for k, v in values.items())
     )
+
+
 def _data_prepare(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     print(prepare_data(config, load_tokenizer(config.tokenizer.path)).root)
 
 
-
-
 def _tokenizer_train(args: argparse.Namespace) -> None:
     print(train_tokenizer(load_tokenizer_config(Path(args.config))))
+
+
+def _stage(args: argparse.Namespace) -> None:
+    print(stage(load_config(Path(args.config)), Path(args.output), args.through))
+
 
 def _train(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     if args.backend:
         config = config.model_copy(
-            update={"runtime": config.runtime.model_copy(update={"backend": args.backend})}
+            update={
+                "runtime": config.runtime.model_copy(update={"backend": args.backend})
+            }
         )
     print(
         train(
@@ -222,11 +242,15 @@ def _train(args: argparse.Namespace) -> None:
             allow_runtime_drift=args.allow_runtime_drift,
         )
     )
+
+
 def _run_model(
     run_id: str, runs_dir: Path, checkpoint: str | None, backend: str | None
 ) -> tuple[RunConfig, DenseLM, object]:
     run = runs_dir / run_id
-    config = RunConfig.model_validate(json.loads((run / "resolved_config.yaml").read_text()))
+    config = RunConfig.model_validate(
+        json.loads((run / "resolved_config.yaml").read_text())
+    )
     chosen_backend = backend or config.runtime.backend
     device = select_device(chosen_backend)
     path = Path(checkpoint) if checkpoint else run / "checkpoints" / "latest.json"
@@ -337,7 +361,9 @@ def build_parser() -> argparse.ArgumentParser:
     facts_evaluate.add_argument("manifest")
     facts_evaluate.add_argument("--runs-dir", default="runs")
     facts_evaluate.add_argument("--checkpoint")
-    facts_evaluate.add_argument("--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"))
+    facts_evaluate.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
     facts_evaluate.add_argument("--max-new-tokens", type=int, default=16)
     facts_evaluate.add_argument("--output")
     facts_evaluate.set_defaults(handler=_facts_evaluate)
@@ -348,7 +374,9 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_evaluate.add_argument("--runs-dir", default="runs")
     transfer_evaluate.add_argument("--source-checkpoint")
     transfer_evaluate.add_argument("--target-checkpoint")
-    transfer_evaluate.add_argument("--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"))
+    transfer_evaluate.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
     transfer_evaluate.add_argument("--max-new-tokens", type=int, default=16)
     transfer_evaluate.add_argument("--output")
     transfer_evaluate.set_defaults(handler=_facts_transfer_evaluate)
@@ -360,14 +388,25 @@ def build_parser() -> argparse.ArgumentParser:
     engram_export.add_argument("--output", required=True)
     engram_export.add_argument("--runs-dir", default="runs")
     engram_export.add_argument("--checkpoint")
-    engram_export.add_argument("--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"))
+    engram_export.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
     engram_export.set_defaults(handler=_engram_export)
     engram_inspect = engram_commands.add_parser("inspect")
     engram_inspect.add_argument("path")
     engram_inspect.set_defaults(handler=_engram_inspect)
+    staging = commands.add_parser("stage")
+    staging.add_argument("config")
+    staging.add_argument(
+        "--through", default="smoke", choices=("inspect", "validate", "smoke", "warmup")
+    )
+    staging.add_argument("--output", required=True)
+    staging.set_defaults(handler=_stage)
     training = commands.add_parser("train")
     training.add_argument("config")
-    training.add_argument("--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"))
+    training.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
     training.add_argument("--run-id")
     training.add_argument("--resume")
     training.add_argument("--promote")
@@ -379,14 +418,18 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument("run_id")
     evaluation.add_argument("--runs-dir", default="runs")
     evaluation.add_argument("--checkpoint")
-    evaluation.add_argument("--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"))
+    evaluation.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
     evaluation.set_defaults(handler=_eval)
     generation = commands.add_parser("generate")
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)
     generation.add_argument("--max-new-tokens", type=int, default=64)
     generation.add_argument("--runs-dir", default="runs")
-    generation.add_argument("--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"))
+    generation.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
     generation.set_defaults(handler=_generate)
     dashboard = commands.add_parser("dashboard")
     dashboard.add_argument("--runs-dir", default="runs")

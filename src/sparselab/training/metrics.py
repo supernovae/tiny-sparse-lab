@@ -15,9 +15,14 @@ class ExperimentStore:
             con.execute("PRAGMA journal_mode=WAL")
             con.execute("PRAGMA foreign_keys=ON")
             con.executescript(
-                "CREATE TABLE IF NOT EXISTS runs(run_id TEXT PRIMARY KEY,name TEXT NOT NULL,status TEXT NOT NULL,parent_run_id TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,config_json TEXT NOT NULL,metadata_json TEXT NOT NULL,latest_checkpoint TEXT); CREATE TABLE IF NOT EXISTS metrics(run_id TEXT NOT NULL,step INTEGER NOT NULL,tokens_seen INTEGER NOT NULL,wall_time REAL NOT NULL,name TEXT NOT NULL,value REAL NOT NULL,PRIMARY KEY(run_id,step,name)); CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY,run_id TEXT NOT NULL,step INTEGER NOT NULL,tokens_seen INTEGER NOT NULL,wall_time REAL NOT NULL,kind TEXT NOT NULL,payload_json TEXT NOT NULL);"
+                "CREATE TABLE IF NOT EXISTS runs(run_id TEXT PRIMARY KEY,name TEXT NOT NULL,status TEXT NOT NULL,parent_run_id TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,config_json TEXT NOT NULL,metadata_json TEXT NOT NULL,latest_checkpoint TEXT); CREATE TABLE IF NOT EXISTS metrics(run_id TEXT NOT NULL,step INTEGER NOT NULL,tokens_seen INTEGER NOT NULL,wall_time REAL NOT NULL,name TEXT NOT NULL,value REAL NOT NULL,PRIMARY KEY(run_id,step,name)); CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY,run_id TEXT NOT NULL,step INTEGER NOT NULL,tokens_seen INTEGER NOT NULL,wall_time REAL NOT NULL,kind TEXT NOT NULL,payload_json TEXT NOT NULL); CREATE TABLE IF NOT EXISTS stage_history(run_id TEXT NOT NULL,sequence INTEGER NOT NULL,stage TEXT NOT NULL,status TEXT NOT NULL,step INTEGER NOT NULL,tokens_seen INTEGER NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,payload_json TEXT NOT NULL,PRIMARY KEY(run_id,sequence));"
             )
-            con.execute("PRAGMA user_version=1")
+            version = con.execute("PRAGMA user_version").fetchone()[0]
+            if version > 2:
+                raise ValueError(
+                    f"unsupported experiment-store schema version: {version}"
+                )
+            con.execute("PRAGMA user_version=2")
 
     def _connect(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.path, timeout=5)
@@ -78,6 +83,34 @@ class ExperimentStore:
             c.execute(
                 "INSERT INTO events(run_id,step,tokens_seen,wall_time,kind,payload_json) VALUES(?,?,?,?,?,?)",
                 (run_id, step, tokens_seen, wall_time, kind, json.dumps(payload)),
+            )
+
+    def record_stage(
+        self,
+        run_id: str,
+        sequence: int,
+        stage: str,
+        status: str,
+        step: int,
+        tokens_seen: int,
+        started_at: str,
+        finished_at: str | None = None,
+        payload: object | None = None,
+    ) -> None:
+        with self._connect() as c:
+            c.execute(
+                "INSERT INTO stage_history VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    run_id,
+                    sequence,
+                    stage,
+                    status,
+                    step,
+                    tokens_seen,
+                    started_at,
+                    finished_at,
+                    json.dumps(payload or {}, sort_keys=True),
+                ),
             )
 
     def finish_run(
