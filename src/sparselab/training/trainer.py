@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import json
+import time
+import uuid
+from pathlib import Path
+
+import torch
+from torch.nn import functional
+
+from sparselab.config.models import RunConfig
+from sparselab.data.packing import TokenBlockDataset, prepare_data
+from sparselab.data.tokenizer import load_tokenizer
+from sparselab.model.inspection import inspect_model
+from sparselab.model.transformer import DenseLM
+from sparselab.runtime import seed_everything, select_device
+from sparselab.training.checkpoints import load_checkpoint, save_checkpoint
+from sparselab.training.metrics import ExperimentStore
+from sparselab.training.optimizer import learning_rate_for_step, make_optimizer
+
+
+def train(
+    config: RunConfig,
+    *,
+    resume: Path | None = None,
+    run_id: str | None = None,
+    stop_after_step: int | None = None,
+) -> str:
+    device = select_device(config.device)
+    seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
+    tokenizer = load_tokenizer(config.tokenizer.path)
+    data = prepare_data(config, tokenizer)
+    dataset = TokenBlockDataset(data.train, config.training.seq_len)
+    model = DenseLM(config.model, config.attention).to(device)
+    optimizer = make_optimizer(
+        model,
+        config.optimizer.learning_rate,
+        config.optimizer.weight_decay,
+        config.optimizer.betas,
+        config.optimizer.eps,
+    )
+    step = tokens = epoch = next_block = 0
+    parent = None
+    if resume:
+        state = load_checkpoint(resume)
+        model.load_state_dict(state["model"])
+        optimizer.load_state_dict(state["optimizer"])
+        step = int(state["step"])
+        tokens = int(state["tokens_seen"])
+        epoch, next_block = state["cursor"]
+        parent = str(state.get("run_id"))
+    if stop_after_step is not None and stop_after_step <= step:
+        raise ValueError("stop-after-step must exceed current step")
+    run_id = run_id or uuid.uuid4().hex
+    root = config.logging.root_dir
+    run = root / run_id
+    if run.exists():
+        raise FileExistsError(f"run exists: {run_id}")
+    run.mkdir(parents=True)
+    (run / "checkpoints").mkdir()
+    (run / "resolved_config.yaml").write_text(
+        json.dumps(config.model_dump(mode="json"), indent=2, default=str)
+    )
+    store = ExperimentStore(root)
+    store.create_run(
+        run_id,
+        config.model_dump(mode="json"),
+        {"inspection": inspect_model(model), "device": str(device)},
+        parent,
+    )
+    store.log_event(
+        run_id, step, tokens, 0, "run_resumed" if parent else "run_started", {}
+    )
+    started = time.perf_counter()
+    while step < config.training.max_steps and tokens < config.training.max_tokens:
+        order = torch.randperm(
+            len(dataset), generator=torch.Generator().manual_seed(config.seed + epoch)
+        )
+        indices = order[next_block : next_block + config.training.batch_size].tolist()
+        if not indices:
+            epoch, next_block = epoch + 1, 0
+            continue
+        batch = [dataset[i] for i in indices]
+        x = torch.stack([v[0] for v in batch]).to(device)
+        y = torch.stack([v[1] for v in batch]).to(device)
+        remaining = config.training.max_tokens - tokens
+        if remaining < y.numel():
+            y = y.clone()
+            y.flatten()[remaining:] = -100
+        optimizer.zero_grad(set_to_none=True)
+        logits = model(x)
+        loss = functional.cross_entropy(
+            logits.flatten(0, 1), y.flatten(), ignore_index=-100
+        )
+        loss.backward()
+        norm = torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            config.training.grad_clip_norm,
+            error_if_nonfinite=True,
+            foreach=False,
+        )
+        step += 1
+        lr = learning_rate_for_step(
+            step,
+            config.training.max_steps,
+            config.optimizer.warmup_steps,
+            config.optimizer.learning_rate,
+            config.optimizer.min_learning_rate,
+        )
+        for group in optimizer.param_groups:
+            group["lr"] = lr
+        optimizer.step()
+        valid = int((y != -100).sum())
+        tokens += valid
+        next_block += len(indices)
+        elapsed = time.perf_counter() - started
+        store.log_metrics(
+            run_id,
+            step,
+            tokens,
+            elapsed,
+            {
+                "train/loss": float(loss.detach()),
+                "optimizer/learning_rate": lr,
+                "optimizer/grad_norm": float(norm),
+                "performance/tokens_per_second": tokens / max(elapsed, 1e-9),
+            },
+        )
+        terminal = (
+            step >= config.training.max_steps
+            or tokens >= config.training.max_tokens
+            or step == stop_after_step
+        )
+        if step % config.logging.checkpoint_every_steps == 0 or terminal:
+            checkpoint = run / "checkpoints" / f"step_{step:08d}.pt"
+            save_checkpoint(
+                checkpoint,
+                {
+                    "model": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "step": step,
+                    "tokens_seen": tokens,
+                    "cursor": (epoch, next_block),
+                    "config": config.model_dump(mode="json"),
+                    "run_id": run_id,
+                },
+            )
+            store.log_event(run_id, step, tokens, elapsed, "checkpoint_saved", {})
+        if terminal:
+            status = (
+                "completed"
+                if step >= config.training.max_steps
+                or tokens >= config.training.max_tokens
+                else "interrupted"
+            )
+            store.finish_run(run_id, status, str(checkpoint))
+            store.log_event(run_id, step, tokens, elapsed, f"run_{status}", {})
+            break
+    return run_id
