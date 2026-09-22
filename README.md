@@ -1,6 +1,6 @@
 # Tiny Sparse Lab
 
-Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. Milestone 0.1 established a reproducible dense causal-decoder baseline, Milestone 0.2 added local top-1 MoE feed-forward routing, Milestone 0.3 added token n-gram memory, Milestone 0.4 added prepared raw-UTF-8 byte addressing, and Milestone 0.5 makes byte-memory greedy generation available. It remains an educational reference: sparse attention, distributed expert exchange, capacity management, external retrieval, and Engram transfer claims are not implemented.
+Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. Milestones 0.1–0.5 establish the dense baseline, local MoE, token and byte-address memory, and byte-aware greedy generation. Milestone 0.6 adds a deterministic withheld-fact data-separation diagnostic. It remains an educational reference: sparse attention, distributed expert exchange, capacity management, external retrieval, trained transfer claims, and general language-model benchmarking are not implemented.
 
 ## Local workflow
 
@@ -37,4 +37,4 @@ The dashboard is read-only and binds to `127.0.0.1`. It shows stored metric obse
 
 Synthetic data is an offline fixture. TinyStories artifacts retain pinned source/revision and license metadata locally; do not commit downloaded corpus text, prepared arrays, run directories, or checkpoints. Project source is MIT licensed; downloaded datasets retain their own terms.
 
-See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [metrics](docs/metrics.md), [training](docs/training.md), [byte addressing](docs/byte-addressing.md), [dense baseline decision](docs/decisions/0001-dense-first.md), [MoE routing decision](docs/decisions/0002-local-moe-routing.md), [token n-gram memory decision](docs/decisions/0003-token-ngram-memory.md), and [byte addressing decision](docs/decisions/0004-byte-addressing.md).
+See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [metrics](docs/metrics.md), [training](docs/training.md), [byte addressing](docs/byte-addressing.md), [withheld facts](docs/withheld-facts.md), [dense baseline decision](docs/decisions/0001-dense-first.md), [MoE routing decision](docs/decisions/0002-local-moe-routing.md), [token n-gram memory decision](docs/decisions/0003-token-ngram-memory.md), [byte addressing decision](docs/decisions/0004-byte-addressing.md), [byte generation decision](docs/decisions/0005-byte-generation.md), and [withheld-fact decision](docs/decisions/0006-withheld-facts.md).
