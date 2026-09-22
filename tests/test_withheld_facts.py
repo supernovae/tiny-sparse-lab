@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from sparselab.data.withheld_facts import (
+    audit_manifest,
     evaluation_cases,
     split_facts,
     training_documents,
@@ -66,3 +67,18 @@ def test_manifest_verifier_rejects_corruption_and_substitution(tmp_path: Path) -
     path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="does not match fixture"):
         verify_manifest(path)
+
+
+def test_manifest_audit_reports_verified_split_evidence(tmp_path: Path) -> None:
+    path = tmp_path / "facts.json"
+    write_manifest(path, seed=6)
+    audit = audit_manifest(path)
+    assert audit == {
+        "format_version": 1,
+        "held_out_case_count": 2,
+        "held_out_values_absent_from_training": True,
+        "seed": 6,
+        "sha256": verify_manifest(path)["sha256"],
+        "training_statement_count": 6,
+        "valid": True,
+    }

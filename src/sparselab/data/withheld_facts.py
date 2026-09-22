@@ -106,3 +106,28 @@ def verify_manifest(path: Path) -> dict[str, object]:
     if manifest != {key: value for key, value in expected.items() if key != "sha256"}:
         raise ValueError(f"diagnostic manifest does not match fixture: {path}")
     return {**manifest, "sha256": digest}
+
+
+def audit_manifest(path: Path) -> dict[str, object]:
+    """Return a concise, verified report of fixture split evidence."""
+    manifest = verify_manifest(path)
+    statements = manifest["training_statements"]
+    cases = manifest["held_out_cases"]
+    assert isinstance(statements, list)
+    assert isinstance(cases, list)
+    training_text = " ".join(statements)
+    held_out_values_absent = all(
+        isinstance(case, dict)
+        and isinstance(case.get("expected_value"), str)
+        and case["expected_value"] not in training_text
+        for case in cases
+    )
+    return {
+        "format_version": manifest["format_version"],
+        "held_out_case_count": len(cases),
+        "held_out_values_absent_from_training": held_out_values_absent,
+        "seed": manifest["seed"],
+        "sha256": manifest["sha256"],
+        "training_statement_count": len(statements),
+        "valid": True,
+    }

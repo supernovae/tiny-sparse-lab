@@ -12,7 +12,11 @@ from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
-from sparselab.data.withheld_facts import verify_manifest, write_manifest
+from sparselab.data.withheld_facts import (
+    audit_manifest,
+    verify_manifest,
+    write_manifest,
+)
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.language_model import evaluate
 from sparselab.model.inspection import inspect_model
@@ -55,6 +59,10 @@ def _facts_manifest(args: argparse.Namespace) -> None:
 def _facts_verify(args: argparse.Namespace) -> None:
     manifest = verify_manifest(Path(args.path))
     print(json.dumps({"sha256": manifest["sha256"], "valid": True}, sort_keys=True))
+
+
+def _facts_audit(args: argparse.Namespace) -> None:
+    print(json.dumps(audit_manifest(Path(args.path)), indent=2, sort_keys=True))
 
 
 def _inspect(args: argparse.Namespace) -> None:
@@ -176,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
     verify = fact_commands.add_parser("verify")
     verify.add_argument("path")
     verify.set_defaults(handler=_facts_verify)
+    audit = fact_commands.add_parser("audit")
+    audit.add_argument("path")
+    audit.set_defaults(handler=_facts_audit)
     data_prepare.set_defaults(handler=_data_prepare)
     training = commands.add_parser("train")
     training.add_argument("config")

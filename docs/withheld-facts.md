@@ -1,6 +1,6 @@
 # Withheld-fact diagnostic
 
-Milestones 0.6–0.8 provide an offline deterministic fixture, an immutable split manifest, and an offline verifier for testing fact-identity data separation before transfer experiments. `split_facts(seed)` creates six training facts and two held-out facts. The split is by complete `(subject, relation)` identity; held-out values are absent from training documents. Evaluation cases expose a prompt and expected value, with the expected value excluded from the prompt.
+Milestones 0.6–0.9 provide an offline deterministic fixture, an immutable split manifest, an offline verifier, and a compact verified audit for testing fact-identity data separation before transfer experiments. `split_facts(seed)` creates six training facts and two held-out facts. The split is by complete `(subject, relation)` identity; held-out values are absent from training documents. Evaluation cases expose a prompt and expected value, with the expected value excluded from the prompt.
 
 This is not a training source, benchmark score, or evidence of byte-memory transfer. It deliberately does not add held-out facts to backbone training, memory-adapter supervision, or router objectives. Its purpose is to make accidental leakage detectable before a future trained diagnostic is designed.
 
@@ -22,6 +22,14 @@ Verify a retained artifact before using or citing it:
 ```sh
 uv run sparselab facts verify artifacts/withheld-facts-seed-0.json
 ```
+
+For automation, emit a compact verified audit:
+
+```sh
+uv run sparselab facts audit artifacts/withheld-facts-seed-0.json
+```
+
+The JSON report states the fixture seed, manifest digest, statement/case counts, and whether held-out values occur in the training statements. It is fixture evidence only; it contains neither model outputs nor an experimental score.
 
 Verification recomputes its digest and requires every field to match the current fixture for the recorded seed. A self-consistent substituted split is rejected, not merely a damaged JSON file.
 
