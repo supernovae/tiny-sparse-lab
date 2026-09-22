@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import torch
 
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
@@ -108,3 +109,17 @@ def test_interrupted_resume_matches_uninterrupted(tmp_path: Path) -> None:
     assert left["cursor"] == right["cursor"]
     equal(left["optimizer"], right["optimizer"])
     equal(left["model"], right["model"])
+
+
+def test_resume_rejects_model_configuration_mismatch(tmp_path: Path) -> None:
+    original = config(tmp_path / "original")
+    train(original, run_id="part", stop_after_step=5)
+    incompatible = original.model_copy(
+        update={"model": original.model.model_copy(update={"ffn_dim": 48})}
+    )
+    with pytest.raises(ValueError, match="configuration differs"):
+        train(
+            incompatible,
+            run_id="rejected",
+            resume=original.logging.root_dir / "part/checkpoints/step_00000005.pt",
+        )

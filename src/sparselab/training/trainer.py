@@ -26,6 +26,17 @@ def train(
     run_id: str | None = None,
     stop_after_step: int | None = None,
 ) -> str:
+    state: dict[str, object] | None = load_checkpoint(resume) if resume else None
+    if state is not None:
+        checkpoint_config = RunConfig.model_validate(state["config"])
+        comparable = config.model_dump(mode="json")
+        checkpoint_comparable = checkpoint_config.model_dump(mode="json")
+        comparable["device"] = checkpoint_comparable["device"]
+        comparable["logging"] = checkpoint_comparable["logging"]
+        if comparable != checkpoint_comparable:
+            raise ValueError(
+                "resume configuration differs from the checkpoint outside device/logging"
+            )
     device = select_device(config.device)
     seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
     tokenizer = load_tokenizer(config.tokenizer.path)
@@ -41,8 +52,7 @@ def train(
     )
     step = tokens = epoch = next_block = 0
     parent = None
-    if resume:
-        state = load_checkpoint(resume)
+    if state is not None:
         model.load_state_dict(state["model"])
         optimizer.load_state_dict(state["optimizer"])
         step = int(state["step"])
