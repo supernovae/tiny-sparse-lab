@@ -7,10 +7,15 @@ import json
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
-from sparselab.data.packing import prepare_data
+from sparselab.config.models import RunConfig
+from sparselab.data.packing import TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
+from sparselab.evaluation.generation import generate
+from sparselab.evaluation.language_model import evaluate
 from sparselab.model.inspection import inspect_model
 from sparselab.model.transformer import DenseLM
+from sparselab.runtime import select_device
+from sparselab.training.checkpoints import load_checkpoint
 from sparselab.training.trainer import train
 
 
@@ -47,6 +52,58 @@ def _train(args: argparse.Namespace) -> None:
     )
 
 
+def _run_model(
+    run_id: str, runs_dir: Path, checkpoint: str | None, device_name: str | None
+) -> tuple[RunConfig, DenseLM, object]:
+    run = runs_dir / run_id
+    config = RunConfig.model_validate(
+        json.loads((run / "resolved_config.yaml").read_text())
+    )
+    device = select_device(device_name or config.device)
+    path = Path(checkpoint) if checkpoint else run / "checkpoints" / "latest.json"
+    if path.suffix == ".json":
+        path = path.parent / json.loads(path.read_text())["filename"]
+    state = load_checkpoint(path)
+    model = DenseLM(config.model, config.attention).to(device)
+    model.load_state_dict(state["model"])
+    return config, model, device
+
+
+def _eval(args: argparse.Namespace) -> None:
+    config, model, device = _run_model(
+        args.run_id, Path(args.runs_dir), args.checkpoint, args.device
+    )
+    data = prepare_data(config, load_tokenizer(config.tokenizer.path))
+    print(
+        json.dumps(
+            evaluate(
+                model,
+                TokenBlockDataset(data.validation, config.training.seq_len),
+                batch_size=config.training.batch_size,
+                max_batches=config.evaluation.max_batches,
+                device=device,
+            ),
+            indent=2,
+        )
+    )
+
+
+def _generate(args: argparse.Namespace) -> None:
+    config, model, device = _run_model(
+        args.run_id, Path(args.runs_dir), None, args.device
+    )
+    print(
+        generate(
+            model,
+            load_tokenizer(config.tokenizer.path),
+            args.prompt,
+            config.model.max_seq_len,
+            args.max_new_tokens,
+            device,
+        )
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sparselab", description="Tiny Sparse Lab educational transformer tools."
@@ -76,6 +133,19 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument("--resume")
     training.add_argument("--stop-after-step", type=int)
     training.set_defaults(handler=_train)
+    evaluation = commands.add_parser("eval")
+    evaluation.add_argument("run_id")
+    evaluation.add_argument("--runs-dir", default="runs")
+    evaluation.add_argument("--checkpoint")
+    evaluation.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))
+    evaluation.set_defaults(handler=_eval)
+    generation = commands.add_parser("generate")
+    generation.add_argument("run_id")
+    generation.add_argument("--prompt", required=True)
+    generation.add_argument("--max-new-tokens", type=int, default=64)
+    generation.add_argument("--runs-dir", default="runs")
+    generation.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))
+    generation.set_defaults(handler=_generate)
     return parser
 
 
