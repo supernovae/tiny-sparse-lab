@@ -28,4 +28,4 @@ The dashboard is read-only and binds to `127.0.0.1`. It shows actual stored metr
 
 Synthetic data is an offline fixture. TinyStories artifacts retain pinned source/revision and license metadata locally; do not commit downloaded corpus text, prepared arrays, run directories, or checkpoints. Project source is MIT licensed; downloaded datasets retain their own terms.
 
-See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), and the [dense-first decision](docs/decisions/0001-dense-first.md).
+See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [metrics](docs/metrics.md), [training](docs/training.md), and the [dense-first decision](docs/decisions/0001-dense-first.md).
