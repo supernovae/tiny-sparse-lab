@@ -13,6 +13,7 @@ from torch.nn import functional
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import PreparedData, TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer
+from sparselab.model.attention.sparse import BlockSparseAttention
 from sparselab.model.inspection import inspect_model
 from sparselab.model.moe import TopKMoE
 from sparselab.model.transformer import DenseLM
@@ -189,6 +190,23 @@ def train(
                         ),
                         f"{prefix}/mean_topk_probability": float(
                             diagnostics.mean_topk_probability
+                        ),
+                    }
+                )
+            if isinstance(block.attention, BlockSparseAttention) and (
+                block.attention.last_diagnostics is not None
+            ):
+                diagnostics = block.attention.last_diagnostics
+                prefix = f"attention/layer_{layer_index}"
+                metric_values.update(
+                    {
+                        f"{prefix}/available_tokens": float(
+                            diagnostics.available_tokens
+                        ),
+                        f"{prefix}/selected_tokens": float(diagnostics.selected_tokens),
+                        f"{prefix}/selection_ratio": float(diagnostics.selection_ratio),
+                        f"{prefix}/estimated_flops": float(
+                            diagnostics.estimated_attention_flops
                         ),
                     }
                 )
