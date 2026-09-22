@@ -91,7 +91,7 @@ def _facts_evaluate(args: argparse.Namespace) -> None:
         else Path(args.runs_dir)
         / args.run_id
         / "evaluations"
-        / f"withheld-{result['manifest_sha256']}.json"
+        / f"withheld-v2-{result['manifest_sha256']}.json"
     )
     write_withheld_evaluation(output, result)
     print(output)
@@ -121,7 +121,7 @@ def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
         else Path(args.runs_dir)
         / args.target_run_id
         / "evaluations"
-        / f"transferred-{args.source_run_id}-{result['manifest_sha256']}.json"
+        / f"transferred-v2-{args.source_run_id}-{result['manifest_sha256']}.json"
     )
     write_withheld_evaluation(output, result)
     print(output)
