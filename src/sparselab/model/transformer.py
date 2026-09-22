@@ -40,6 +40,10 @@ class DenseLM(nn.Module):
             DecoderBlock(model, attention) for _ in range(model.num_layers)
         )
         self.norm = RMSNorm(model.hidden_dim, model.rms_norm_eps)
+        if model.memory == "byte":
+            raise NotImplementedError(
+                "byte memory requires prepared byte-address artifacts and is not wired into DenseLM yet"
+            )
         self.memory: nn.Module | None = (
             None
             if model.memory == "none"

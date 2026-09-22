@@ -23,7 +23,7 @@ class ModelConfig(StrictModel):
     tie_embeddings: bool = True
     ffn: Literal["dense", "moe"] = "dense"
     num_experts: int = 1
-    memory: Literal["none", "ngram"] = "none"
+    memory: Literal["none", "ngram", "byte"] = "none"
     memory_table_size: int = 0
     memory_ngram_size: int = 0
     memory_dim: int = 0
@@ -61,13 +61,13 @@ class ModelConfig(StrictModel):
             )
         ):
             raise ValueError("disabled model.memory requires zero memory settings")
-        if self.memory == "ngram" and (
+        if self.memory in {"ngram", "byte"} and (
             self.memory_table_size <= 0
             or self.memory_ngram_size < 2
             or self.memory_dim <= 0
         ):
             raise ValueError(
-                "n-gram model.memory requires positive table/dimension and ngram size >= 2"
+                "n-gram/byte model.memory requires positive table/dimension and ngram size >= 2"
             )
         return self
 
