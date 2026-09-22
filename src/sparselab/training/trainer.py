@@ -235,6 +235,13 @@ def train(
                 {
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
+                    "schedule": {
+                        "max_steps": config.training.max_steps,
+                        "max_tokens": config.training.max_tokens,
+                        "warmup_steps": config.optimizer.warmup_steps,
+                        "learning_rate": config.optimizer.learning_rate,
+                        "min_learning_rate": config.optimizer.min_learning_rate,
+                    },
                     "step": step,
                     "tokens_seen": tokens,
                     "cursor": (epoch, next_block),

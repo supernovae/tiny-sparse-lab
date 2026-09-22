@@ -13,6 +13,7 @@ def state() -> dict[str, object]:
     return {
         "model": {"weight": torch.tensor([1.0])},
         "optimizer": {},
+        "schedule": {"max_steps": 2},
         "step": 1,
         "tokens_seen": 4,
         "cursor": (0, 1),
@@ -25,6 +26,7 @@ def test_checkpoint_requires_matching_manifest_hash(tmp_path: Path) -> None:
     save_checkpoint(path, state())
     loaded = load_checkpoint(path)
     assert loaded["step"] == 1
+    assert loaded["schedule"] == {"max_steps": 2}
     record = json.loads(path.with_suffix(".json").read_text())
     latest = json.loads((path.parent / "latest.json").read_text())
     assert record["format_version"] == 1
