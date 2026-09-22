@@ -53,7 +53,6 @@ def load_checkpoint(path: Path) -> dict[str, object]:
         raise ValueError("checkpoint hash mismatch")
     state = torch.load(path, map_location="cpu", weights_only=True)
     required = {
-        "format_version",
         "model",
         "optimizer",
         "step",
@@ -64,7 +63,8 @@ def load_checkpoint(path: Path) -> dict[str, object]:
     if (
         not isinstance(state, dict)
         or not required <= state.keys()
-        or state["format_version"] != FORMAT_VERSION
+        or state.get("format_version", FORMAT_VERSION) != FORMAT_VERSION
     ):
         raise ValueError("invalid checkpoint schema")
+    state.setdefault("format_version", FORMAT_VERSION)
     return state

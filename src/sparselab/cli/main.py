@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
@@ -200,22 +201,23 @@ def _eval(args: argparse.Namespace) -> None:
         args.run_id, Path(args.runs_dir), args.checkpoint, args.device
     )
     data = prepare_data(config, load_tokenizer(config.tokenizer.path))
-    print(
-        json.dumps(
-            evaluate(
-                model,
-                TokenBlockDataset(
-                    data.validation,
-                    config.training.seq_len,
-                    data.validation_byte_addresses,
-                ),
-                batch_size=config.training.batch_size,
-                max_batches=config.evaluation.max_batches,
-                device=device,
-            ),
-            indent=2,
-        )
+    result = evaluate(
+        model,
+        TokenBlockDataset(
+            data.validation,
+            config.training.seq_len,
+            data.validation_byte_addresses,
+        ),
+        batch_size=config.training.batch_size,
+        max_batches=config.evaluation.max_batches,
+        device=device,
     )
+    result.update({"source": "standalone_eval", "device": str(device)})
+    evaluations = Path(args.runs_dir) / args.run_id / "evaluations"
+    evaluations.mkdir(parents=True, exist_ok=True)
+    output = evaluations / f"eval_{uuid.uuid4().hex}.json"
+    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(json.dumps({**result, "output": str(output)}, indent=2))
 
 
 def _generate(args: argparse.Namespace) -> None:
