@@ -4,7 +4,7 @@
 - [ ] Add a native ROCm/HIP sparse-attention kernel: build and benchmark it on an AMD GPU.
 - [ ] Add a native MLX sparse-attention kernel: build and benchmark it on supported Apple hardware.
 
-The current CPU/MPS dispatch selects the verified PyTorch reference path.
+The supported runtime is one local process using the explicitly requested or correctly detected CPU, MPS, CUDA/ROCm, XPU, or optional MLX Metal engine. Sparse-attention paths currently use verified reference implementations.
 
 ## Future distributed and multi-host work
 

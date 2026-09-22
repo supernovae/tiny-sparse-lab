@@ -1,19 +1,44 @@
-# Training and resume
+# Training, checkpoints, and local continuation
 
-SparseLab packs plain token IDs with one EOS per document. A sequence may cross an EOS boundary; EOS is a token separator, not an attention mask. Source acquisition budgets include EOS and are distinct from training target budgets.
+SparseLab packs plain token IDs with one EOS per document. A sequence may cross an EOS boundary: EOS separates records but does not create an attention mask. Source-acquisition budgets include EOS; training budgets count valid next-token targets.
 
-CPU reproducibility uses `device: cpu` and `deterministic: true`. Resume creates a child run, retains parent telemetry, and rejects any model, optimizer, data, tokenizer, or training configuration change. Device and logging-root changes are allowed. A dense checkpoint cannot resume a MoE run, nor can an MoE checkpoint resume a dense run. Checkpoints have a sibling SHA-256 manifest; never resume a `.pt` file without it.
+## Local runtime contract
 
-## Dense, MoE, and sparse-attention smoke runs
+A run uses one local process on one host and one explicitly configured or automatically detected device. Use `runtime.backend: cpu|mps|cuda|rocm|xpu|auto` with the PyTorch engine. `auto` selects only an available local backend; an explicitly unavailable backend fails rather than falling back to CPU. The optional MLX engine requires `runtime.engine: mlx` and `runtime.backend: metal`.
+
+CPU reproducibility uses `runtime.backend: cpu` and `training.deterministic: true`. MPS and other accelerators can exercise the same local lifecycle, but are not claimed to be bitwise-identical to CPU.
+
+## Smoke runs
 
 ```sh
 uv run sparselab train configs/smoke_cpu.yaml --run-id dense-smoke
 uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-smoke
 uv run sparselab train configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
-uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-part --stop-after-step 20
-uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-resumed --resume runs/moe-part/checkpoints/step_00000020.pt
+uv run sparselab train configs/smoke_combined_cpu.yaml --run-id combined-smoke
 ```
 
-The MoE smoke config has three local experts with configurable Top-K selection. It performs no capacity clipping or distributed expert dispatch. Logged routing series include the auxiliary balance loss, entropy, maximum expert fraction, and selected-probability mass. Do not interpret a small synthetic run as expert specialization or architecture-quality evidence.
+A smoke run validates a path through training, checkpointing, evaluation, and metrics. It is not a quality benchmark. Compare runs only when data, tokenizer, device, sequence length, token budget, optimizer, and seed are recorded and intentionally matched.
 
-Block sparse attention logs selected and available causal key positions, their ratio, and a relative selected-key score-product estimate. These are resource diagnostics, not a quality conclusion: compare a sparse run with a matched dense run at observed matching token budgets.
+## Checkpoint and resume workflow
+
+PyTorch checkpoints are immutable local generations under `runs/<run-id>/checkpoints/`; `latest.json` points to the newest validated generation. Verify a checkpoint before continuing it:
+
+```sh
+uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-part --stop-after-step 20
+uv run sparselab checkpoint inspect runs/moe-part/checkpoints/latest.json --json
+uv run sparselab checkpoint verify runs/moe-part/checkpoints/latest.json --json
+uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-resumed \
+  --resume runs/moe-part/checkpoints/latest.json
+```
+
+Resume creates a child run and retains parent telemetry. It rejects changed model, optimizer, data, tokenizer, or training configuration. Dense and MoE configurations are incompatible for resume. Promotion is the deliberate route for reusing compatible weights with a fresh optimizer/cursor when changing an incompatible architecture or backend.
+
+MLX checkpoints are native local checkpoint directories under `mlx_checkpoints/`. They support the same inspect/verify commands, while resume names the directory directly.
+
+## Mechanism-specific diagnostics
+
+The MoE smoke configuration has local Top-K experts with configurable selection. It has no capacity clipping or distributed expert dispatch. Routing metrics include the auxiliary balance loss, entropy, maximum expert fraction, and selected-probability mass; none demonstrates expert specialization by itself.
+
+Block-sparse attention reports selected and available causal key positions, selection ratio, and a relative selected-key score-product estimate. These are resource diagnostics, not a quality conclusion or a custom-kernel speed claim. Use a matched dense run for a controlled ablation.
+
+See [runtime policy](runtime.md), [metrics](metrics.md), and [architecture](architecture.md) for the terms used by run reports.

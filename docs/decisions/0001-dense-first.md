@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for Milestone 0.1.
+Accepted for the baseline; current execution scope is defined by [ADR 0015](0015-single-host-extension-boundaries.md).
 
 ## Decision
 

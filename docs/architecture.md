@@ -68,3 +68,7 @@ flowchart TB
   attention[Attention sparsity: block-selected causal K/V — implemented]
   memory[Memory sparsity: token and byte/portable Engram tables — implemented]
 ```
+
+## Extension boundary
+
+The current architecture is local by design: one process, one host, and one selected device. New attention or Engram variants must remain explicit configuration choices with documented causal inputs, parameter accounting, checkpoint compatibility, and diagnostics. They must not silently reinterpret an existing mode or imply distributed execution. See [ADR 0015](decisions/0015-single-host-extension-boundaries.md) for the current extension boundary.
