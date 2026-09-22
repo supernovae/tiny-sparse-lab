@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+import pandas as pd
 import plotly.express as px
 import streamlit as st
 
@@ -169,6 +170,23 @@ def stage_view(root: Path) -> None:
     st.dataframe(stages(root, selected_ids), use_container_width=True)
 
 
+def memory_view(root: Path) -> None:
+    _, selected_ids = selected(root)
+    values = [
+        value
+        for value in metrics(root, selected_ids)
+        if str(value["name"]).startswith("memory/")
+    ]
+    if not values:
+        st.info("No memory samples are available for the selected runs.")
+        return
+    frame = pd.DataFrame(values)
+    st.plotly_chart(
+        px.line(frame, x="step", y="value", color="run_id", facet_row="name"),
+        use_container_width=True,
+    )
+
+
 def learn() -> None:
     st.header("Learn")
     st.markdown(
@@ -212,6 +230,7 @@ def main() -> None:
                 url_path="architecture",
             ),
             st.Page(lambda: stage_view(root), title="Stages", url_path="stages"),
+            st.Page(lambda: memory_view(root), title="Memory", url_path="memory"),
             st.Page(learn, title="Learn", url_path="learn"),
         ]
     )
