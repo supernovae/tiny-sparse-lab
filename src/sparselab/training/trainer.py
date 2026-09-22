@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import json
+import shutil
 import time
 import uuid
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch.nn import functional
 
 from sparselab.config.models import RunConfig
-from sparselab.data.packing import TokenBlockDataset, prepare_data
+from sparselab.data.packing import PreparedData, TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.model.inspection import inspect_model
 from sparselab.model.moe import TopKMoE
@@ -18,6 +20,30 @@ from sparselab.runtime import seed_everything, select_device
 from sparselab.training.checkpoints import load_checkpoint, save_checkpoint
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.optimizer import learning_rate_for_step, make_optimizer
+
+
+def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
+    root = run / "data"
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"resume run lacks immutable prepared data: {root}")
+    byte_enabled = config.model.memory == "byte"
+    train_byte = root / "train_byte_addresses.npy"
+    validation_byte = root / "validation_byte_addresses.npy"
+    if byte_enabled and (not train_byte.is_file() or not validation_byte.is_file()):
+        raise ValueError("resume run lacks byte-address artifacts")
+    return PreparedData(
+        root=root,
+        train=np.load(root / "train.npy", mmap_mode="r"),
+        validation=np.load(root / "validation.npy", mmap_mode="r"),
+        train_byte_addresses=np.load(train_byte, mmap_mode="r")
+        if byte_enabled
+        else None,
+        validation_byte_addresses=(
+            np.load(validation_byte, mmap_mode="r") if byte_enabled else None
+        ),
+        manifest=json.loads(manifest_path.read_text()),
+    )
 
 
 def train(
@@ -40,8 +66,13 @@ def train(
             )
     device = select_device(config.device)
     seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
-    tokenizer = load_tokenizer(config.tokenizer.path)
-    data = prepare_data(config, tokenizer)
+    if state is None:
+        tokenizer = load_tokenizer(config.tokenizer.path)
+        data = prepare_data(config, tokenizer)
+    else:
+        source_run = resume.parent.parent
+        tokenizer = load_tokenizer(source_run / "tokenizer.json")
+        data = _load_run_data(source_run, config)
     dataset = TokenBlockDataset(
         data.train, config.training.seq_len, data.train_byte_addresses
     )
@@ -71,6 +102,11 @@ def train(
         raise FileExistsError(f"run exists: {run_id}")
     run.mkdir(parents=True)
     (run / "checkpoints").mkdir()
+    shutil.copy2(config.tokenizer.path, run / "tokenizer.json")
+    tokenizer_manifest = config.tokenizer.path.with_name("tokenizer_manifest.json")
+    if tokenizer_manifest.is_file():
+        shutil.copy2(tokenizer_manifest, run / "tokenizer_manifest.json")
+    shutil.copytree(data.root, run / "data")
     (run / "resolved_config.yaml").write_text(
         json.dumps(config.model_dump(mode="json"), indent=2, default=str)
     )
