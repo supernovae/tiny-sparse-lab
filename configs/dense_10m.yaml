@@ -1,0 +1,9 @@
+schema_version: 1
+name: dense-10m
+seed: 42
+device: auto
+model: {vocab_size: 8192, hidden_dim: 320, num_layers: 6, num_heads: 4, ffn_dim: 896, max_seq_len: 256}
+tokenizer: {path: ../artifacts/tokenizer_8k/tokenizer.json}
+dataset: {source: tinystories, revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64, cache_dir: ../artifacts/data, train_max_documents: 20000, validation_max_documents: 500, train_max_tokens: 2000000, validation_max_tokens: 65536}
+training: {batch_size: 8, seq_len: 128, max_steps: 200, max_tokens: 204800}
+logging: {root_dir: ../runs}
