@@ -74,8 +74,17 @@ def overview(root: Path) -> None:
 
 
 def training(root: Path) -> None:
-    st.header("Training")
-    _, selected_ids = selected(root)
+    records, selected_ids = selected(root)
+    comparison = st.selectbox(
+        "Comparison condition",
+        ("descriptive", "equal_tokens", "equal_steps", "equal_wall_time"),
+        help="This changes the comparison claim, not the plotted axis.",
+    )
+    st.caption(
+        "Descriptive comparison only; matching budgets must be observed rather than interpolated."
+        if comparison == "descriptive"
+        else f"Showing observed points for `{comparison}`; no controlled conclusion is inferred."
+    )
     points = metrics(root, selected_ids)
     if not points:
         st.info("Select a run with recorded metrics.")
@@ -94,6 +103,14 @@ def training(root: Path) -> None:
         if spec is not None:
             with st.expander(f"What is {name}?"):
                 st.markdown(metric_help(spec.help_slug))
+    selected_configs = {
+        record.run_id: record.config
+        for record in records
+        if record.run_id in selected_ids
+    }
+    if len(selected_configs) > 1:
+        with st.expander("Resolved configuration"):
+            st.json(selected_configs)
     with st.expander("What is this?"):
         st.markdown(
             "Charts show only stored observations. Loss is mean negative log-probability in nats; perplexity is `exp(loss)`. Throughput counts valid target tokens per timed update second."
