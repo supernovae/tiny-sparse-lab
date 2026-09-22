@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
@@ -17,6 +19,30 @@ from sparselab.model.transformer import DenseLM
 from sparselab.runtime import select_device
 from sparselab.training.checkpoints import load_checkpoint
 from sparselab.training.trainer import train
+
+
+def _dashboard(args: argparse.Namespace) -> None:
+    from sparselab.dashboard import app
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            str(Path(app.__file__)),
+            "--server.address",
+            "127.0.0.1",
+            "--server.port",
+            str(args.port),
+            "--server.headless",
+            "true",
+            "--",
+            "--runs-dir",
+            args.runs_dir,
+        ],
+        check=True,
+    )
 
 
 def _inspect(args: argparse.Namespace) -> None:
@@ -146,6 +172,10 @@ def build_parser() -> argparse.ArgumentParser:
     generation.add_argument("--runs-dir", default="runs")
     generation.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))
     generation.set_defaults(handler=_generate)
+    dashboard = commands.add_parser("dashboard")
+    dashboard.add_argument("--runs-dir", default="runs")
+    dashboard.add_argument("--port", type=int, default=8501)
+    dashboard.set_defaults(handler=_dashboard)
     return parser
 
 
