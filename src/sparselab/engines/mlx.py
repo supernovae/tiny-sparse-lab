@@ -1,10 +1,11 @@
-"""Optional dense MLX engine capability gate."""
+"""Optional Apple MLX dense execution engine."""
 
 from __future__ import annotations
 
 from importlib.util import find_spec
 
 from sparselab.config.models import RunConfig
+from sparselab.model.mlx_dense import MLXDenseLM
 from sparselab.runtime import RuntimeInfo, discover_runtimes
 
 
@@ -21,5 +22,14 @@ def validate(config: RunConfig) -> RuntimeInfo:
         raise ValueError("MLX precision is currently fp32 only")
     if find_spec("mlx.core") is None:
         raise ValueError("MLX runtime is unavailable")
-
     return next(info for info in discover_runtimes() if info.engine == "mlx")
+
+
+class MLXEngine:
+    def __init__(self, config: RunConfig) -> None:
+        validate(config)
+        self.config = config
+        self.model = MLXDenseLM(config.model)
+
+    def logits(self, input_ids):
+        return self.model(input_ids)
