@@ -1,6 +1,6 @@
 # Tiny Sparse Lab
 
-Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. It implements dense and sliding-window causal attention, local MoE, token and byte-address memory, byte-aware greedy generation, and verified withheld-fact diagnostics. It remains an educational reference: distributed expert exchange, capacity management, external retrieval, MLA, combined architectures, and general language-model benchmarking are not implemented.
+Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. It implements dense, sliding-window, and multi-head latent causal attention; local MoE; token and byte-address memory; byte-aware greedy generation; and verified withheld-fact diagnostics. It remains an educational reference: distributed expert exchange, capacity management, external retrieval, combined architectures, and general language-model benchmarking are not implemented.
 
 ## Local workflow
 
@@ -14,6 +14,7 @@ uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-smoke
 uv run sparselab train configs/smoke_memory_cpu.yaml --run-id memory-smoke
 uv run sparselab train configs/smoke_byte_memory_cpu.yaml --run-id byte-memory-smoke
 uv run sparselab train configs/smoke_sliding_cpu.yaml --run-id sliding-smoke
+uv run sparselab train configs/smoke_mla_cpu.yaml --run-id mla-smoke
 uv run sparselab eval moe-smoke
 uv run sparselab generate moe-smoke --prompt "Once upon a time" --max-new-tokens 24
 uv run sparselab dashboard --runs-dir runs

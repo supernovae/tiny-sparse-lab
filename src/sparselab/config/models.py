@@ -112,16 +112,27 @@ class OptimizerConfig(StrictModel):
 
 
 class AttentionConfig(StrictModel):
-    kind: Literal["dense", "sliding_window"] = "dense"
+    kind: Literal["dense", "sliding_window", "mla"] = "dense"
     rope_base: float = Field(default=10000.0, gt=0)
     window_size: int | None = Field(default=None, gt=0)
+    latent_dim: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_kind(self) -> AttentionConfig:
-        if (self.kind == "dense") != (self.window_size is None):
+        if self.kind == "dense" and (
+            self.window_size is not None or self.latent_dim is not None
+        ):
             raise ValueError(
-                "attention.window_size is required only for sliding_window"
+                "dense attention does not accept window_size or latent_dim"
             )
+        if self.kind == "sliding_window" and (
+            self.window_size is None or self.latent_dim is not None
+        ):
+            raise ValueError("sliding_window attention requires only window_size")
+        if self.kind == "mla" and (
+            self.latent_dim is None or self.window_size is not None
+        ):
+            raise ValueError("mla attention requires only latent_dim")
         return self
 
 
@@ -154,6 +165,11 @@ class RunConfig(StrictModel):
     def validate_cross_section(self) -> RunConfig:
         if self.training.seq_len > self.model.max_seq_len:
             raise ValueError("training.seq_len cannot exceed model.max_seq_len")
+        if (
+            self.attention.kind == "mla"
+            and self.attention.latent_dim % self.model.num_heads != 0
+        ):
+            raise ValueError("attention.latent_dim must divide evenly across heads")
         if self.optimizer.warmup_steps >= self.training.max_steps:
             raise ValueError(
                 "optimizer.warmup_steps must be smaller than training.max_steps"

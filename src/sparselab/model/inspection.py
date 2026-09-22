@@ -31,14 +31,7 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     embedding = model.embedding.weight.numel()
     tied = model.output.weight is model.embedding.weight
     attention = sum(
-        projection.weight.numel()
-        for block in model.blocks
-        for projection in (
-            block.attention.q_proj,
-            block.attention.k_proj,
-            block.attention.v_proj,
-            block.attention.out_proj,
-        )
+        _unique_numel(block.attention.parameters()) for block in model.blocks
     )
     dense_ffn = 0
     expert = 0

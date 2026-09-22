@@ -6,6 +6,7 @@ from torch import Tensor, nn
 
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.model.attention.dense import DenseAttention
+from sparselab.model.attention.latent import LatentAttention
 from sparselab.model.ffn import SwiGLU
 from sparselab.model.memory import ByteAddressMemory, TokenNgramMemory
 from sparselab.model.moe import Top1MoE
@@ -16,12 +17,22 @@ class DecoderBlock(nn.Module):
     def __init__(self, model: ModelConfig, attention: AttentionConfig) -> None:
         super().__init__()
         self.norm1 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
-        self.attention = DenseAttention(
-            model.hidden_dim,
-            model.num_heads,
-            model.max_seq_len,
-            attention.rope_base,
-            attention.window_size,
+        self.attention: nn.Module = (
+            LatentAttention(
+                model.hidden_dim,
+                model.num_heads,
+                attention.latent_dim,
+                model.max_seq_len,
+                attention.rope_base,
+            )
+            if attention.kind == "mla"
+            else DenseAttention(
+                model.hidden_dim,
+                model.num_heads,
+                model.max_seq_len,
+                attention.rope_base,
+                attention.window_size,
+            )
         )
         self.norm2 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
         self.ffn: nn.Module = (
