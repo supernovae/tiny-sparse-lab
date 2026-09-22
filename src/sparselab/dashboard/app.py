@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import plotly.express as px
 import streamlit as st
 
-from sparselab.dashboard.queries import events, metrics, runs
+from sparselab.dashboard.queries import RunRecord, events, metrics, runs
 
 
 def arguments() -> argparse.Namespace:
@@ -25,6 +26,22 @@ def selected(root: Path) -> tuple[list[object], list[str]]:
     return records, selected_ids
 
 
+def architecture(record: RunRecord) -> dict[str, str]:
+    config = record.config
+    model = config["model"]
+    attention = config["attention"]
+    dataset = config["dataset"]
+    assert isinstance(model, dict)
+    assert isinstance(attention, dict)
+    assert isinstance(dataset, dict)
+    return {
+        "attention": str(attention.get("kind", "dense")),
+        "dataset": str(dataset.get("source", "unknown")),
+        "ffn": str(model.get("ffn", "dense")),
+        "memory": str(model.get("memory", "none")),
+    }
+
+
 def overview(root: Path) -> None:
     st.header("Overview")
     records, selected_ids = selected(root)
@@ -39,6 +56,7 @@ def overview(root: Path) -> None:
                 "status": item.status,
                 "parent": item.parent_run_id,
                 "updated_at": item.updated_at,
+                **architecture(item),
             }
             for item in records
         ],
@@ -73,14 +91,28 @@ def training(root: Path) -> None:
 
 def evaluation(root: Path) -> None:
     st.header("Evaluation")
-    st.info(
-        "Standalone evaluation results are not yet persisted. Use `sparselab eval RUN_ID` to compute checkpoint metrics."
-    )
+    records, selected_ids = selected(root)
+    reports: list[dict[str, object]] = []
+    for record in records:
+        if record.run_id not in selected_ids:
+            continue
+        for path in (root / record.run_id / "evaluations").glob("*.json"):
+            report = json.loads(path.read_text())
+            if isinstance(report, dict):
+                reports.append({"run_id": record.run_id, "path": str(path), **report})
+    if reports:
+        st.dataframe(reports, use_container_width=True)
+    else:
+        st.info(
+            "No retained evaluations. Use `sparselab facts evaluate RUN_ID MANIFEST` "
+            "or `sparselab facts transfer-evaluate SOURCE TARGET MANIFEST`."
+        )
 
 
 def learn() -> None:
     st.header("Learn")
-    st.markdown("""### Metric guide
+    st.markdown(
+        """### Metric guide
 
 - **Loss:** mean negative log-probability in nats per next-token target. Lower is better only under comparable tokenizer, data, and budget conditions.
 - **Perplexity:** `exp(loss)`; compare only with compatible tokenizers.
@@ -88,7 +120,16 @@ def learn() -> None:
 - **Gradient norm:** global L2 norm before clipping; spikes can indicate instability.
 - **Throughput:** valid next-token targets per timed update second.
 - **Parameter counts:** total/trainable/active-per-token use the dense inspection convention, not FLOPs.
-""")
+
+### Reference guides
+
+- `docs/architecture.md` — dense, sliding-window, MLA, MoE, and memory boundaries.
+- `docs/training.md` — data packing, checkpoints, and resume behavior.
+- `docs/metrics.md` — metric definitions and comparison limits.
+- `docs/experiments.md` — controlled scale-comparison protocol.
+- `docs/withheld-facts.md` — fact manifest, audit, and transfer-evaluation workflow.
+"""
+    )
 
 
 def main() -> None:

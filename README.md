@@ -44,4 +44,4 @@ The dashboard is read-only and binds to `127.0.0.1`. It shows stored metric obse
 
 Synthetic data is an offline fixture. TinyStories artifacts retain pinned source/revision and license metadata locally; do not commit downloaded corpus text, prepared arrays, run directories, or checkpoints. Project source is MIT licensed; downloaded datasets retain their own terms.
 
-See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [experiments](docs/experiments.md), [metrics](docs/metrics.md), [training](docs/training.md), [byte addressing](docs/byte-addressing.md), [withheld facts](docs/withheld-facts.md), and [architecture decisions](docs/decisions/).
+See [using SparseLab](docs/using-sparselab.md), [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [experiments](docs/experiments.md), [metrics](docs/metrics.md), [training](docs/training.md), [byte addressing](docs/byte-addressing.md), [withheld facts](docs/withheld-facts.md), and [architecture decisions](docs/decisions/).
