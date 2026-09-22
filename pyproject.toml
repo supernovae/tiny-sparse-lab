@@ -1,0 +1,45 @@
+[project]
+name = "tiny-sparse-lab"
+version = "0.1.0"
+description = "An educational dense-transformer laboratory"
+readme = "README.md"
+authors = [
+    { name = "Byron Miller (MOBB)", email = "bymiller@redhat.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4,<5",
+    "huggingface-hub>=0.34,<2",
+    "numpy>=2,<3",
+    "plotly>=6,<7",
+    "psutil>=7,<8",
+    "pydantic>=2,<3",
+    "pyyaml>=6,<7",
+    "streamlit>=1.64,<2",
+    "tokenizers==0.22.2",
+    "torch>=2.8,<3",
+]
+
+[project.scripts]
+sparselab = "sparselab.cli.main:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sparselab"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<10",
+    "ruff>=0.12,<1",
+]
