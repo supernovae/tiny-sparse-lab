@@ -17,5 +17,7 @@
 | `attention/layer_*/selected_tokens` | Sparse key positions admitted after block selection. | Compare with available positions for the same run. |
 | `attention/layer_*/selection_ratio` | `selected_tokens / available_tokens`. | Lower means more aggressive key filtering; it does not establish quality. |
 | `attention/layer_*/estimated_flops` | Attention score-product estimate for selected sparse keys. | Relative implementation estimate, not a device benchmark. |
+| `attention/layer_*/dense_teacher_mass` | Dense-attention probability mass over the sparse layer's selected keys. | Higher means the selected set retains more of the frozen forward's dense attention distribution. |
+| `attention/layer_*/dense_teacher_topk_recall` | Recall of the dense score Top-K keys using the sparse selected-key count. | Retrieval-overlap diagnostic, not output equivalence or language-model quality. |
 
 Parameter counts use the direct per-token convention documented in [model scaling](model-scaling.md). Local MoE `expert` is all expert storage; `active_per_token` includes one selected expert per block and router storage. Memory and checkpoint estimates exclude serialization and metadata overhead where stated.
