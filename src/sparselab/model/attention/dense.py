@@ -12,7 +12,12 @@ from sparselab.model.rope import RoPE
 
 class DenseAttention(nn.Module):
     def __init__(
-        self, hidden_dim: int, num_heads: int, max_seq_len: int, rope_base: float
+        self,
+        hidden_dim: int,
+        num_heads: int,
+        max_seq_len: int,
+        rope_base: float,
+        window_size: int | None = None,
     ) -> None:
         super().__init__()
         self.num_heads = num_heads
@@ -22,11 +27,11 @@ class DenseAttention(nn.Module):
         self.v_proj = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.out_proj = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.rope = RoPE(self.head_dim, rope_base)
-        self.register_buffer(
-            "causal_mask",
-            torch.ones(max_seq_len, max_seq_len, dtype=torch.bool).triu(1),
-            persistent=False,
-        )
+        causal_mask = torch.ones(max_seq_len, max_seq_len, dtype=torch.bool).triu(1)
+        if window_size is not None:
+            positions = torch.arange(max_seq_len)
+            causal_mask |= positions[:, None] - positions[None, :] >= window_size
+        self.register_buffer("causal_mask", causal_mask, persistent=False)
 
     def forward(self, x: Tensor) -> Tensor:
         batch, length, hidden = x.shape

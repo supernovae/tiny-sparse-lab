@@ -17,7 +17,11 @@ class DecoderBlock(nn.Module):
         super().__init__()
         self.norm1 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
         self.attention = DenseAttention(
-            model.hidden_dim, model.num_heads, model.max_seq_len, attention.rope_base
+            model.hidden_dim,
+            model.num_heads,
+            model.max_seq_len,
+            attention.rope_base,
+            attention.window_size,
         )
         self.norm2 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
         self.ffn: nn.Module = (

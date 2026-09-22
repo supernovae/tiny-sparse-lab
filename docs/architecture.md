@@ -23,6 +23,15 @@ For each normalized token representation `x`, the router computes `softmax(W_rou
 
 This is **compute sparsity**, not sparse attention or external memory. The implementation is local: there is no capacity constraint, dropped-token fallback, auxiliary load-balancing objective, expert parallelism, or distributed communication. Every token runs exactly one expert. It therefore does not establish a production MoE throughput claim.
 
+## Sliding-window attention
+
+`attention.kind: sliding_window` restricts query position $t$ to keys from
+`max(0, t - window_size + 1)` through $t$. It preserves causal masking and
+does not change the projections, RoPE, values, output width, or residual
+path. The reference implementation applies this boundary as a mask over
+ordinary score tensors; it demonstrates attention sparsity but does not claim
+a sparse-kernel speedup or long-context scaling result.
+
 ## Token n-gram memory
 
 The optional adapter hashes each position's inclusive token-ID suffix into a learnable value table. Its value width is independent of the backbone width; an output projection and sigmoid gate add the value to the final hidden state. At position `t`, the address contains only input IDs through `t`, while the model predicts `t + 1`, so it does not read a future target. It is a local trainable parameter table, not external retrieval or a mutable cache.

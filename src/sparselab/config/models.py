@@ -112,8 +112,17 @@ class OptimizerConfig(StrictModel):
 
 
 class AttentionConfig(StrictModel):
-    kind: Literal["dense"] = "dense"
+    kind: Literal["dense", "sliding_window"] = "dense"
     rope_base: float = Field(default=10000.0, gt=0)
+    window_size: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_kind(self) -> AttentionConfig:
+        if (self.kind == "dense") != (self.window_size is None):
+            raise ValueError(
+                "attention.window_size is required only for sliding_window"
+            )
+        return self
 
 
 class EvaluationConfig(StrictModel):
