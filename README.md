@@ -1,6 +1,6 @@
 # Tiny Sparse Lab
 
-Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. It implements dense, sliding-window, and multi-head latent causal attention; local MoE; token and byte-address memory; a combined MLA/MoE/byte-memory reference configuration; byte-aware greedy generation; and verified withheld-fact diagnostics. It remains an educational reference: distributed expert exchange, capacity management, external retrieval, and general language-model benchmarking are not implemented.
+Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory** for one process on one host using one correctly detected CPU or accelerator. It implements dense, sliding-window, and multi-head latent causal attention; local MoE; token and byte-address memory; a combined MLA/MoE/byte-memory reference configuration; byte-aware greedy generation; and verified withheld-fact diagnostics. It remains an educational reference: distributed expert exchange, multi-host scheduling, capacity management, external retrieval, and general language-model benchmarking are deferred.
 
 ## Local workflow
 
