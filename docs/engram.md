@@ -4,7 +4,7 @@ SparseLab's token Engram is a causal N-gram lookup table with a latent value wid
 
 $$h'_t = h_t + \sigma(g(h_t))\,A\,M[a(x_{\leq t})].$$
 
-Set `model.memory: ngram` with `memory_table_size`, `memory_ngram_size`, and `memory_dim`. The byte-addressed variant (`memory: byte`) receives causal raw UTF-8 suffix addresses prepared alongside tokens; this is an addressing experiment, not evidence of tokenizer-independent knowledge transfer.
+Set `model.memory: ngram` with `memory_table_size`, `memory_ngram_size`, and `memory_dim`. Optional `memory_ngram_orders` and `memory_hash_heads` create independent causal lookup streams whose projected values are averaged before gating. The byte-addressed variant (`memory: byte`) receives causal raw UTF-8 suffix addresses prepared alongside tokens; this is an addressing experiment, not evidence of tokenizer-independent knowledge transfer.
 
 Each forward pass records lookup count, unique buckets, collisions, bucket reuse rate, table utilization, largest-bucket fraction, mean gate activation, retrieved-vector norm, and hidden-state norm. High reuse can arise from a small table or repeated corpus structure; it is not by itself a learned-memory success signal. Inspect language loss and withheld-fact evaluation separately.
 
@@ -13,4 +13,4 @@ uv run sparselab train configs/smoke_memory_cpu.yaml --run-id token-engram-smoke
 uv run sparselab train configs/smoke_byte_memory_cpu.yaml --run-id byte-engram-smoke
 ```
 
-The current implementation has one causal N-gram order and one hash stream per configured memory module. Multi-order/multi-head addressing, a portable package format, and adapter-only transfer training remain future work.
+Multi-order/multi-head streams preserve causal addressing and allocate one table per stream. Per-run metrics persist aggregate lookup count, unique buckets, collisions, reuse rate, table utilization, and gate mean. Per-order dashboard breakdowns remain future work. Portable packages and frozen adapter training are available through `memory: portable`; the withheld-fact control matrix currently yields no transfer success, so it remains a negative experiment result.

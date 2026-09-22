@@ -15,6 +15,27 @@ def test_ngram_address_does_not_read_future_ids() -> None:
     assert torch.equal(memory.addresses(left)[:, :3], memory.addresses(right)[:, :3])
 
 
+def test_multi_order_multi_head_addresses_remain_causal() -> None:
+    memory = TokenNgramMemory(
+        hidden_dim=4,
+        table_size=97,
+        ngram_size=3,
+        value_dim=3,
+        ngram_orders=(2, 3, 4),
+        hash_heads=2,
+    )
+    left = torch.tensor([[4, 8, 15, 16, 23]])
+    right = left.clone()
+    right[:, 3:] = torch.tensor([42, 99])
+    for order in memory.ngram_orders:
+        for head in range(memory.hash_heads):
+            assert torch.equal(
+                memory.addresses(left, order, head)[:, :3],
+                memory.addresses(right, order, head)[:, :3],
+            )
+    assert len(memory.extra_tables) == 5
+
+
 def test_disabled_memory_is_absent_and_enabled_memory_runs_backward() -> None:
     plain = ModelConfig(
         vocab_size=512,
