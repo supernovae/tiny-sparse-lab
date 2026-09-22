@@ -53,3 +53,33 @@ class TokenNgramMemory(nn.Module):
             (counts.max().float() / address.numel()).detach(),
         )
         return hidden + gate * values
+
+
+class ByteAddressMemory(nn.Module):
+    """Apply precomputed causal byte addresses supplied by prepared data."""
+
+    def __init__(self, hidden_dim: int, table_size: int, value_dim: int) -> None:
+        super().__init__()
+        self.table_size = table_size
+        self.table = nn.Embedding(table_size, value_dim)
+        self.output = nn.Linear(value_dim, hidden_dim, bias=False)
+        self.gate = nn.Linear(hidden_dim, 1, bias=False)
+        self.last_diagnostics: MemoryDiagnostics | None = None
+
+    def forward(self, hidden: Tensor, addresses: Tensor) -> Tensor:
+        if addresses.shape != hidden.shape[:2]:
+            raise ValueError("byte addresses must have shape [batch, sequence]")
+        if addresses.dtype != torch.long:
+            raise ValueError("byte addresses must be int64")
+        if addresses.numel() and (
+            addresses.min() < 0 or addresses.max() >= self.table_size
+        ):
+            raise ValueError("byte address is outside configured memory table")
+        values = self.output(self.table(addresses))
+        gate = torch.sigmoid(self.gate(hidden))
+        counts = torch.bincount(addresses.flatten(), minlength=self.table_size)
+        self.last_diagnostics = MemoryDiagnostics(
+            (counts > 0).sum().detach(),
+            (counts.max().float() / addresses.numel()).detach(),
+        )
+        return hidden + gate * values

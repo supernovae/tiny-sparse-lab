@@ -7,7 +7,7 @@ from torch import Tensor, nn
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.ffn import SwiGLU
-from sparselab.model.memory import TokenNgramMemory
+from sparselab.model.memory import ByteAddressMemory, TokenNgramMemory
 from sparselab.model.moe import Top1MoE
 from sparselab.model.norm import RMSNorm
 
@@ -40,18 +40,20 @@ class DenseLM(nn.Module):
             DecoderBlock(model, attention) for _ in range(model.num_layers)
         )
         self.norm = RMSNorm(model.hidden_dim, model.rms_norm_eps)
-        if model.memory == "byte":
-            raise NotImplementedError(
-                "byte memory requires prepared byte-address artifacts and is not wired into DenseLM yet"
-            )
         self.memory: nn.Module | None = (
             None
             if model.memory == "none"
-            else TokenNgramMemory(
-                model.hidden_dim,
-                model.memory_table_size,
-                model.memory_ngram_size,
-                model.memory_dim,
+            else (
+                TokenNgramMemory(
+                    model.hidden_dim,
+                    model.memory_table_size,
+                    model.memory_ngram_size,
+                    model.memory_dim,
+                )
+                if model.memory == "ngram"
+                else ByteAddressMemory(
+                    model.hidden_dim, model.memory_table_size, model.memory_dim
+                )
             )
         )
         self.output = nn.Linear(model.hidden_dim, model.vocab_size, bias=False)
@@ -66,7 +68,9 @@ class DenseLM(nn.Module):
         elif isinstance(module, RMSNorm):
             nn.init.ones_(module.weight)
 
-    def forward(self, input_ids: Tensor) -> Tensor:
+    def forward(
+        self, input_ids: Tensor, *, byte_addresses: Tensor | None = None
+    ) -> Tensor:
         if input_ids.ndim != 2 or input_ids.shape[1] == 0:
             raise ValueError("input_ids must have shape [batch, non-empty sequence]")
         if input_ids.shape[1] > self.config.max_seq_len:
@@ -75,6 +79,10 @@ class DenseLM(nn.Module):
         for block in self.blocks:
             x = block(x)
         x = self.norm(x)
-        if self.memory is not None:
+        if isinstance(self.memory, TokenNgramMemory):
             x = self.memory(x, input_ids)
+        elif isinstance(self.memory, ByteAddressMemory):
+            if byte_addresses is None:
+                raise ValueError("byte memory requires prepared byte addresses")
+            x = self.memory(x, byte_addresses)
         return self.output(x)
