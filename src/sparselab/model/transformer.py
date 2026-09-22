@@ -81,6 +81,8 @@ class DenseLM(nn.Module):
                     model.memory_table_size,
                     model.memory_ngram_size,
                     model.memory_dim,
+                    model.memory_ngram_orders,
+                    model.memory_hash_heads,
                 )
                 if model.memory == "ngram"
                 else ByteAddressMemory(

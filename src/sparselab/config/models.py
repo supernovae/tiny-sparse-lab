@@ -30,6 +30,8 @@ class ModelConfig(StrictModel):
     memory_table_size: int = 0
     memory_ngram_size: int = 0
     memory_dim: int = 0
+    memory_ngram_orders: tuple[int, ...] = ()
+    memory_hash_heads: int = Field(default=1, gt=0)
 
     @model_validator(mode="after")
     def validate_dimensions(self) -> ModelConfig:
@@ -67,13 +69,15 @@ class ModelConfig(StrictModel):
             or self.router_aux_loss_coefficient != 0
         ):
             raise ValueError("dense model.ffn does not accept MoE settings")
-        if self.memory == "none" and any(
-            value != 0
-            for value in (
-                self.memory_table_size,
-                self.memory_ngram_size,
-                self.memory_dim,
-            )
+        memory_settings = (
+            self.memory_table_size,
+            self.memory_ngram_size,
+            self.memory_dim,
+        )
+        if self.memory == "none" and (
+            any(value != 0 for value in memory_settings)
+            or self.memory_ngram_orders
+            or self.memory_hash_heads != 1
         ):
             raise ValueError("disabled model.memory requires zero memory settings")
         if self.memory in {"ngram", "byte"} and (
@@ -84,6 +88,15 @@ class ModelConfig(StrictModel):
             raise ValueError(
                 "n-gram/byte model.memory requires positive table/dimension and ngram size >= 2"
             )
+        if self.memory_ngram_orders and (
+            any(order < 2 for order in self.memory_ngram_orders)
+            or tuple(sorted(set(self.memory_ngram_orders))) != self.memory_ngram_orders
+        ):
+            raise ValueError(
+                "model.memory_ngram_orders must be sorted unique values >= 2"
+            )
+        if self.memory == "byte" and self.memory_ngram_orders:
+            raise ValueError("byte memory uses its configured raw-byte ngram size")
         return self
 
 

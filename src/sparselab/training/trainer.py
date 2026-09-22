@@ -192,6 +192,18 @@ def train(
                         ),
                     }
                 )
+        if getattr(model.memory, "last_diagnostics", None) is not None:
+            diagnostics = model.memory.last_diagnostics
+            metric_values.update(
+                {
+                    "engram/lookups": float(diagnostics.lookup_count),
+                    "engram/unique_buckets": float(diagnostics.unique_addresses),
+                    "engram/collisions": float(diagnostics.collision_count),
+                    "engram/bucket_reuse_rate": float(diagnostics.bucket_reuse_rate),
+                    "engram/table_utilization": float(diagnostics.table_utilization),
+                    "engram/gate_mean": float(diagnostics.gate_mean),
+                }
+            )
         store.log_metrics(run_id, step, tokens, elapsed, metric_values)
         terminal = (
             step >= config.training.max_steps

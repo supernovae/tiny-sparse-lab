@@ -50,37 +50,68 @@ class TokenNgramMemory(nn.Module):
     """Map causal token-ID suffixes into trainable memory values."""
 
     def __init__(
-        self, hidden_dim: int, table_size: int, ngram_size: int, value_dim: int
+        self,
+        hidden_dim: int,
+        table_size: int,
+        ngram_size: int,
+        value_dim: int,
+        ngram_orders: tuple[int, ...] = (),
+        hash_heads: int = 1,
     ) -> None:
         super().__init__()
         self.table_size = table_size
         self.ngram_size = ngram_size
+        self.ngram_orders = ngram_orders or (ngram_size,)
+        self.hash_heads = hash_heads
         self.table = nn.Embedding(table_size, value_dim)
+        self.extra_tables = nn.ModuleList(
+            nn.Embedding(table_size, value_dim)
+            for _ in range(len(self.ngram_orders) * hash_heads - 1)
+        )
         self.output = nn.Linear(value_dim, hidden_dim, bias=False)
         self.gate = nn.Linear(hidden_dim, 1, bias=False)
         self.last_diagnostics: MemoryDiagnostics | None = None
 
-    def addresses(self, input_ids: Tensor) -> Tensor:
-        """Hash only IDs at or before each position, left-padding early suffixes with zero."""
+    def addresses(
+        self, input_ids: Tensor, order: int | None = None, seed: int = 0
+    ) -> Tensor:
+        """Hash only IDs at or before each position for one order/hash head."""
         batch, length = input_ids.shape
-        address = torch.zeros(
-            (batch, length), dtype=torch.long, device=input_ids.device
+        address = torch.full(
+            (batch, length), seed + 1, dtype=torch.long, device=input_ids.device
         )
-        for offset in range(self.ngram_size):
+        order = self.ngram_size if order is None else order
+        for offset in range(order):
             shifted = torch.zeros_like(input_ids)
             if offset == 0:
                 shifted = input_ids
             elif offset < length:
                 shifted[:, offset:] = input_ids[:, :-offset]
-            address = torch.remainder(address * 257 + shifted, self.table_size)
+            address = torch.remainder(
+                address * (257 + seed * 2) + shifted, self.table_size
+            )
         return address
 
     def forward(self, hidden: Tensor, input_ids: Tensor) -> Tensor:
-        address = self.addresses(input_ids)
-        values = self.output(self.table(address))
+        addresses = [
+            self.addresses(input_ids, order, head)
+            for order in self.ngram_orders
+            for head in range(self.hash_heads)
+        ]
+        tables = (self.table, *self.extra_tables)
+        values = torch.stack(
+            [
+                self.output(table(address))
+                for table, address in zip(tables, addresses, strict=True)
+            ]
+        ).mean(dim=0)
         gate = torch.sigmoid(self.gate(hidden))
         self.last_diagnostics = _diagnostics(
-            address, gate, values, hidden, self.table_size
+            torch.cat([address.flatten() for address in addresses]),
+            gate,
+            values,
+            hidden,
+            self.table_size,
         )
         return hidden + gate * values
 
