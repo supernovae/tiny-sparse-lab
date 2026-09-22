@@ -35,6 +35,7 @@ from sparselab.runtime import discover_runtimes, select_device
 from sparselab.staging import stage
 from sparselab.training.checkpoints import CheckpointManager, load_checkpoint
 from sparselab.training.trainer import train
+from sparselab.workers.agent import serve_once
 
 
 def _dashboard(args: argparse.Namespace) -> None:
@@ -223,6 +224,10 @@ def _stage(args: argparse.Namespace) -> None:
     print(stage(load_config(Path(args.config)), Path(args.output), args.through))
 
 
+def _worker_serve_stdio(_: argparse.Namespace) -> None:
+    serve_once()
+
+
 def _train(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     if args.backend:
@@ -316,6 +321,10 @@ def build_parser() -> argparse.ArgumentParser:
     config_migrate.add_argument("input")
     config_migrate.add_argument("--output", required=True)
     config_migrate.set_defaults(handler=_config_migrate)
+    worker = commands.add_parser("worker")
+    worker_commands = worker.add_subparsers(dest="worker_command", required=True)
+    worker_stdio = worker_commands.add_parser("serve-stdio")
+    worker_stdio.set_defaults(handler=_worker_serve_stdio)
     checkpoint = commands.add_parser("checkpoint")
     checkpoint_commands = checkpoint.add_subparsers(
         dest="checkpoint_command", required=True
