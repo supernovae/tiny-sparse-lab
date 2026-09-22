@@ -7,6 +7,7 @@ from torch import Tensor, nn
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.ffn import SwiGLU
+from sparselab.model.memory import TokenNgramMemory
 from sparselab.model.moe import Top1MoE
 from sparselab.model.norm import RMSNorm
 
@@ -39,6 +40,16 @@ class DenseLM(nn.Module):
             DecoderBlock(model, attention) for _ in range(model.num_layers)
         )
         self.norm = RMSNorm(model.hidden_dim, model.rms_norm_eps)
+        self.memory: nn.Module | None = (
+            None
+            if model.memory == "none"
+            else TokenNgramMemory(
+                model.hidden_dim,
+                model.memory_table_size,
+                model.memory_ngram_size,
+                model.memory_dim,
+            )
+        )
         self.output = nn.Linear(model.hidden_dim, model.vocab_size, bias=False)
         self.apply(self._initialize)
         if model.tie_embeddings:
@@ -59,4 +70,7 @@ class DenseLM(nn.Module):
         x = self.embedding(input_ids)
         for block in self.blocks:
             x = block(x)
-        return self.output(self.norm(x))
+        x = self.norm(x)
+        if self.memory is not None:
+            x = self.memory(x, input_ids)
+        return self.output(x)

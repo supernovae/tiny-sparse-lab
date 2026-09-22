@@ -23,6 +23,10 @@ class ModelConfig(StrictModel):
     tie_embeddings: bool = True
     ffn: Literal["dense", "moe"] = "dense"
     num_experts: int = 1
+    memory: Literal["none", "ngram"] = "none"
+    memory_table_size: int = 0
+    memory_ngram_size: int = 0
+    memory_dim: int = 0
 
     @model_validator(mode="after")
     def validate_dimensions(self) -> ModelConfig:
@@ -48,6 +52,23 @@ class ModelConfig(StrictModel):
             raise ValueError("dense model.ffn requires model.num_experts to be 1")
         if self.ffn == "moe" and self.num_experts < 2:
             raise ValueError("MoE model.ffn requires at least two experts")
+        if self.memory == "none" and any(
+            value != 0
+            for value in (
+                self.memory_table_size,
+                self.memory_ngram_size,
+                self.memory_dim,
+            )
+        ):
+            raise ValueError("disabled model.memory requires zero memory settings")
+        if self.memory == "ngram" and (
+            self.memory_table_size <= 0
+            or self.memory_ngram_size < 2
+            or self.memory_dim <= 0
+        ):
+            raise ValueError(
+                "n-gram model.memory requires positive table/dimension and ngram size >= 2"
+            )
         return self
 
 
