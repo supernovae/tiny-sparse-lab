@@ -117,6 +117,32 @@ def training(root: Path) -> None:
         )
 
 
+def architecture_diagnostics(root: Path) -> None:
+    st.header("Architecture diagnostics")
+    _, selected_ids = selected(root)
+    points = metrics(root, selected_ids)
+    groups = {
+        "MoE": "moe/",
+        "Engram": "engram/",
+        "Attention": "attention/",
+    }
+    for title, prefix in groups.items():
+        subset = [point for point in points if str(point["name"]).startswith(prefix)]
+        st.subheader(title)
+        if not subset:
+            st.info(f"No persisted {title} diagnostics for the selected runs.")
+            continue
+        figure = px.line(
+            subset,
+            x="step",
+            y="value",
+            color="run_id",
+            facet_row="name",
+            markers=True,
+        )
+        st.plotly_chart(figure, use_container_width=True)
+
+
 def evaluation(root: Path) -> None:
     st.header("Evaluation")
     records, selected_ids = selected(root)
@@ -173,6 +199,11 @@ def main() -> None:
             st.Page(lambda: training(root), title="Training", url_path="training"),
             st.Page(
                 lambda: evaluation(root), title="Evaluation", url_path="evaluation"
+            ),
+            st.Page(
+                lambda: architecture_diagnostics(root),
+                title="Architecture",
+                url_path="architecture",
             ),
             st.Page(learn, title="Learn", url_path="learn"),
         ]
