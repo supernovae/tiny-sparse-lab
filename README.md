@@ -106,6 +106,7 @@ The architectural options are explicit configuration choices, not automatic opti
 - [Engram](docs/engram.md), [byte addressing](docs/byte-addressing.md), and [portable Engram](docs/portable-engram.md) — memory contracts and diagnostics.
 - [MoE](docs/moe.md), [sparse attention](docs/sparse-attention.md), and [MLA](docs/mla.md) — reference mechanism behavior.
 - [Experiments](docs/experiments.md), [model scaling](docs/model-scaling.md), and [metrics](docs/metrics.md) — controlled comparison practice.
+- [Experiment evidence](docs/evidence.md) — verified checkpoints, held-out observations, controlled comparisons, and hardware-reference discipline.
 - [Instruction reference training](docs/instruction-training.md) — optional synthetic curriculum, 100M reference configuration, and evaluation boundary.
 - [Withheld facts](docs/withheld-facts.md) — deterministic data-separation evidence.
 - [Architecture decisions](docs/decisions/README.md) — durable design context and current scope decisions.

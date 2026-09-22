@@ -8,6 +8,7 @@ import torch
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.data.tokenizer import train_tokenizer
+from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.trainer import train
 
@@ -114,6 +115,25 @@ def test_interrupted_resume_matches_uninterrupted(tmp_path: Path) -> None:
     assert left.cursor == right.cursor
     equal(left.optimizer, right.optimizer)
     equal(left.model, right.model)
+
+
+def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> None:
+    original = config(tmp_path)
+    measured = original.model_copy(
+        update={
+            "evaluation": original.evaluation.model_copy(
+                update={"every_steps": 2, "max_batches": 1}
+            )
+        }
+    )
+    run_id = train(measured, run_id="measured")
+
+    evidence = experiment_evidence(measured.logging.root_dir / run_id)
+    observations = evidence["quality_observations"]
+    assert evidence["evidence_level"] == "checkpointed_held_out"
+    assert evidence["verified_checkpoints"]
+    assert isinstance(observations, list)
+    assert [item["step"] for item in observations] == [0, 2, 4, 6, 8, 10, 12]
 
 
 @pytest.mark.skipif(

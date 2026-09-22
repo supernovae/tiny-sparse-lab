@@ -25,10 +25,15 @@ from sparselab.data.packing import (
     prepare_data,
 )
 from sparselab.data.tokenizer import load_tokenizer
+from sparselab.evaluation.language_model import evaluate
 from sparselab.model.inspection import inspect_model
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import seed_everything, torch_device_for, validate_runtime
-from sparselab.training.checkpoints import CheckpointManager, TrainingSnapshot
+from sparselab.training.checkpoints import (
+    CheckpointManager,
+    CheckpointRecord,
+    TrainingSnapshot,
+)
 from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
@@ -159,7 +164,7 @@ def _save(
     tokens: int,
     watermarks: dict[str, float],
     validation_loss: float | None = None,
-) -> None:
+) -> CheckpointRecord:
     snapshot = TrainingSnapshot(
         {name: tensor.detach().cpu() for name, tensor in model.state_dict().items()},
         optimizer.state_dict(),
@@ -183,7 +188,33 @@ def _save(
         "pytorch",
         config.runtime.backend,
     )
-    manager.save(snapshot, validation_loss)
+    return manager.save(snapshot, validation_loss)
+
+
+def _write_validation_report(
+    run: Path, record: CheckpointRecord, result: dict[str, float]
+) -> Path:
+    evaluations = run / "evaluations"
+    evaluations.mkdir(parents=True, exist_ok=True)
+    report = evaluations / (
+        f"validation_step_{record.step:08d}_gen_{record.generation_id:06d}.json"
+    )
+    report.write_text(
+        json.dumps(
+            {
+                "kind": "held_out_validation_v1",
+                "checkpoint": record.relative_path,
+                "checkpoint_sha256": record.manifest_sha256,
+                "step": record.step,
+                "tokens_seen": record.tokens_seen,
+                **result,
+            },
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n"
+    )
+    return report
 
 
 def _restore_model_state(
@@ -262,6 +293,9 @@ def train(
         data = _load_run_data(source_run, config)
     dataset = TokenBlockDataset(
         data.train, config.training.seq_len, data.train_byte_addresses
+    )
+    validation_dataset = TokenBlockDataset(
+        data.validation, config.training.seq_len, data.validation_byte_addresses
     )
     model = DenseLM(config.model, config.attention).to(device)
     offload = (
@@ -344,6 +378,27 @@ def train(
     started = time.perf_counter()
     interrupted = False
 
+    def evaluate_and_record(elapsed: float) -> dict[str, float]:
+        result = evaluate(
+            model,
+            validation_dataset,
+            batch_size=config.training.micro_batch_size,
+            max_batches=config.evaluation.max_batches,
+            device=device,
+        )
+        store.log_metrics(
+            run_id,
+            step,
+            tokens,
+            elapsed,
+            {
+                "validation/loss": result["loss"],
+                "validation/perplexity": result["perplexity"],
+            },
+        )
+        store.log_event(run_id, step, tokens, elapsed, "validation_completed", result)
+        return result
+
     def request_stop(_signum: int, _frame: object) -> None:
         nonlocal interrupted
         interrupted = True
@@ -353,8 +408,27 @@ def train(
         signal.signal(signal.SIGTERM, request_stop),
     )
     try:
-        _save(
-            manager, model, optimizer, config, run_id, cursor, step, tokens, watermarks
+        initial_validation = evaluate_and_record(0.0)
+        record = _save(
+            manager,
+            model,
+            optimizer,
+            config,
+            run_id,
+            cursor,
+            step,
+            tokens,
+            watermarks,
+            initial_validation["loss"],
+        )
+        _write_validation_report(run, record, initial_validation)
+        store.log_event(
+            run_id,
+            step,
+            tokens,
+            0.0,
+            "checkpoint_saved",
+            {"validation_loss": initial_validation["loss"]},
         )
         while step < config.training.max_steps and tokens < config.training.max_tokens:
             if cancel_path is not None and cancel_path.exists():
@@ -460,13 +534,19 @@ def train(
                 or step == stop_after_step
                 or interrupted
             )
-            if _checkpoint_due(config, step, tokens, elapsed, watermarks) or terminal:
+            evaluation_due = terminal or step % config.evaluation.every_steps == 0
+            validation = evaluate_and_record(elapsed) if evaluation_due else None
+            if (
+                _checkpoint_due(config, step, tokens, elapsed, watermarks)
+                or terminal
+                or evaluation_due
+            ):
                 watermarks = {
                     "step": float(step),
                     "tokens": float(tokens),
                     "minutes": elapsed,
                 }
-                _save(
+                record = _save(
                     manager,
                     model,
                     optimizer,
@@ -476,8 +556,18 @@ def train(
                     step,
                     tokens,
                     watermarks,
+                    validation["loss"] if validation is not None else None,
                 )
-                store.log_event(run_id, step, tokens, elapsed, "checkpoint_saved", {})
+                if validation is not None:
+                    _write_validation_report(run, record, validation)
+                store.log_event(
+                    run_id,
+                    step,
+                    tokens,
+                    elapsed,
+                    "checkpoint_saved",
+                    {"validation_loss": validation["loss"] if validation else None},
+                )
             if terminal:
                 status = (
                     "completed"

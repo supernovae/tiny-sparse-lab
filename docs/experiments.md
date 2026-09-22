@@ -32,3 +32,14 @@ These five observations show lower held-out loss at this fixed budget as dense p
 The smoke configurations prove CPU wiring only. For a meaningful comparison, train separate unique run IDs with matching source, tokenizer, device, token budget, sequence length, optimizer, and seed. Store the resulting run directory and SQLite metrics; compare observed loss or throughput only at matching recorded budgets. Do not convert unmatched runs into an aggregate quality score.
 
 Dense attention, sliding-window attention, MLA, MoE, and byte memory alter different resource boundaries. Attribute an observed difference only after a controlled ablation; a combined run is a compatibility check, not evidence that its mechanisms compound beneficially.
+
+## Evidence before comparison
+
+Every serious local run should have verified checkpoint/held-out evidence before it enters a comparison:
+
+```sh
+uv run sparselab checkpoint verify runs/RUN_ID/checkpoints/latest.json --json
+uv run sparselab evidence RUN_ID --json
+```
+
+Training records held-out validation at the initial, configured periodic, and terminal boundaries; each observation is attached to a verified checkpoint generation. This validates the local experiment path, not a general model-quality claim. See [experiment evidence](evidence.md) for evidence levels, controlled-comparison requirements, and the future hardware/reference-harness protocol.

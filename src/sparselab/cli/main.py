@@ -21,6 +21,7 @@ from sparselab.data.withheld_facts import (
 )
 from sparselab.evaluation.byte_memory_transfer import transfer_byte_memory
 from sparselab.evaluation.chat import ChatMessage, chat_turn
+from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.language_model import evaluate
 from sparselab.evaluation.withheld_facts import (
@@ -341,6 +342,11 @@ def _generate(args: argparse.Namespace) -> None:
     )
 
 
+def _evidence(args: argparse.Namespace) -> None:
+    result = experiment_evidence(Path(args.runs_dir) / args.run_id)
+    print(json.dumps(result, indent=2, sort_keys=True) if args.json else result)
+
+
 
 def _chat(args: argparse.Namespace) -> None:
     config, model, device = _run_model(
@@ -497,6 +503,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     evaluation.set_defaults(handler=_eval)
+    evidence = commands.add_parser(
+        "evidence",
+        help="Summarize verified checkpoints and held-out observations for a local run.",
+    )
+    evidence.add_argument("run_id")
+    evidence.add_argument("--runs-dir", default="runs")
+    evidence.add_argument("--json", action="store_true")
+    evidence.set_defaults(handler=_evidence)
     generation = commands.add_parser("generate")
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)

@@ -19,3 +19,4 @@ These ADRs preserve the design context for implemented mechanisms. They are not 
 | [0013](0013-combined-architecture.md) | Explicit composition of independent mechanisms |
 | [0014](0014-scale-experiments.md) | Recorded, bounded scale comparisons |
 | [0015](0015-single-host-extension-boundaries.md) | Current local execution and extension boundaries |
+| [0016](0016-evidence-before-claims.md) | Verified checkpoint and held-out evidence before claims |
