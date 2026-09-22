@@ -10,7 +10,7 @@ Ship a small, explicit dense causal decoder as the first runnable laboratory. Ke
 
 The implementation uses PyTorch float32 device, RNG, synchronization, memory, serialization, and AdamW APIs. It prefers MPS when available, then CUDA, then CPU. Reproducibility is scoped to a fixed environment; it does not claim cross-device or cross-version bitwise identity.
 
-TinyStories is the sole remote corpus in this milestone, pinned to `f54c09fd23315a6f9c86f9dc80f725de7d8f9c64`, config `default`, with `text`, `train`, and `validation` splits. Prepared artifacts retain source and CDLA-Sharing-1.0 attribution metadata without redistributing corpus text. FineWeb-Edu and Cosmopedia are future opt-in bounded streaming research only.
+TinyStories remains the baseline remote corpus, pinned to `f54c09fd23315a6f9c86f9dc80f725de7d8f9c64`, config `default`, with `text`, `train`, and `validation` splits. Prepared artifacts retain source and CDLA-Sharing-1.0 attribution metadata without redistributing corpus text. Later bounded-streaming support adds opt-in FineWeb-Edu and Cosmopedia train streams: validation deterministically skips the configured train-document prefix. Network smoke exercised FineWeb-Edu `default` at `87f09149ef4734204d70ed1d046ddc9ca3f2b8f9` and Cosmopedia `khanacademy` at `0ae6ec63f91742bd2d1eaef4f02232c55d719385`.
 
 Use Hugging Face Tokenizers BPE with ByteLevel pre-tokenization and its matching decoder. Training and packing provenance are implemented locally. The dashboard uses independently authored Streamlit and Plotly pages; it borrows no MiMo assets, branding, JavaScript, or CSS.
 
