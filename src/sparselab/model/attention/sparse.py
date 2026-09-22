@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
@@ -20,6 +21,18 @@ class SparseAttentionDiagnostics:
     estimated_attention_flops: Tensor
     dense_teacher_mass: Tensor
     dense_teacher_topk_recall: Tensor
+
+
+SparseBackend = Literal["cpu", "mps", "torch"]
+
+
+def select_sparse_backend(device: torch.device) -> SparseBackend:
+    """Choose a verified reference path without claiming an unavailable kernel."""
+    if device.type == "cpu":
+        return "cpu"
+    if device.type == "mps":
+        return "mps"
+    return "torch"
 
 
 class BlockSparseAttention(nn.Module):
@@ -51,6 +64,7 @@ class BlockSparseAttention(nn.Module):
         self.rope = RoPE(self.head_dim, rope_base)
         self.max_seq_len = max_seq_len
         self.last_diagnostics: SparseAttentionDiagnostics | None = None
+        self.last_backend: SparseBackend | None = None
 
     def forward(self, x: Tensor) -> Tensor:
         batch, length, hidden = x.shape
@@ -63,6 +77,8 @@ class BlockSparseAttention(nn.Module):
                 .view(batch, length, self.num_heads, self.head_dim)
                 .transpose(1, 2)
             )
+
+        self.last_backend = select_sparse_backend(x.device)
 
         query, key, value = (
             self.rope(heads(self.q_proj)),
