@@ -1,6 +1,6 @@
 # Tiny Sparse Lab
 
-Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. Milestones 0.1–0.5 establish the dense baseline, local MoE, token and byte-address memory, and byte-aware greedy generation. Milestone 0.6 adds a deterministic withheld-fact data-separation diagnostic. It remains an educational reference: sparse attention, distributed expert exchange, capacity management, external retrieval, trained transfer claims, and general language-model benchmarking are not implemented.
+Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. Milestones 0.1–0.5 establish the dense baseline, local MoE, token and byte-address memory, and byte-aware greedy generation. Milestones 0.6–0.7 add a deterministic withheld-fact data-separation diagnostic and immutable split-manifest export. It remains an educational reference: sparse attention, distributed expert exchange, capacity management, external retrieval, trained transfer claims, and general language-model benchmarking are not implemented.
 
 ## Local workflow
 
@@ -16,6 +16,7 @@ uv run sparselab train configs/smoke_byte_memory_cpu.yaml --run-id byte-memory-s
 uv run sparselab eval moe-smoke
 uv run sparselab generate moe-smoke --prompt "Once upon a time" --max-new-tokens 24
 uv run sparselab dashboard --runs-dir runs
+uv run sparselab facts manifest --seed 0 --output artifacts/withheld-facts-seed-0.json
 ```
 
 Use `--stop-after-step N` to make a durable interrupted checkpoint, then resume into a new child run:
@@ -37,4 +38,4 @@ The dashboard is read-only and binds to `127.0.0.1`. It shows stored metric obse
 
 Synthetic data is an offline fixture. TinyStories artifacts retain pinned source/revision and license metadata locally; do not commit downloaded corpus text, prepared arrays, run directories, or checkpoints. Project source is MIT licensed; downloaded datasets retain their own terms.
 
-See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [metrics](docs/metrics.md), [training](docs/training.md), [byte addressing](docs/byte-addressing.md), [withheld facts](docs/withheld-facts.md), [dense baseline decision](docs/decisions/0001-dense-first.md), [MoE routing decision](docs/decisions/0002-local-moe-routing.md), [token n-gram memory decision](docs/decisions/0003-token-ngram-memory.md), [byte addressing decision](docs/decisions/0004-byte-addressing.md), [byte generation decision](docs/decisions/0005-byte-generation.md), and [withheld-fact decision](docs/decisions/0006-withheld-facts.md).
+See [architecture](docs/architecture.md), [model scaling](docs/model-scaling.md), [metrics](docs/metrics.md), [training](docs/training.md), [byte addressing](docs/byte-addressing.md), [withheld facts](docs/withheld-facts.md), [dense baseline decision](docs/decisions/0001-dense-first.md), [MoE routing decision](docs/decisions/0002-local-moe-routing.md), [token n-gram memory decision](docs/decisions/0003-token-ngram-memory.md), [byte addressing decision](docs/decisions/0004-byte-addressing.md), [byte generation decision](docs/decisions/0005-byte-generation.md), [withheld-fact decision](docs/decisions/0006-withheld-facts.md), and [diagnostic-manifest decision](docs/decisions/0007-diagnostic-manifest.md).

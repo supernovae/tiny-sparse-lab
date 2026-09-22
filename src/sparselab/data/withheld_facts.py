@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -49,3 +52,33 @@ def training_documents(seed: int = 0) -> tuple[str, ...]:
 def evaluation_cases(seed: int = 0) -> tuple[tuple[str, str], ...]:
     _, held_out = split_facts(seed)
     return tuple((fact.prompt(), fact.value) for fact in held_out)
+
+
+def diagnostic_manifest(seed: int = 0) -> dict[str, object]:
+    """Return canonical split evidence without training or model artifacts."""
+    train, held_out = split_facts(seed)
+    payload = {
+        "format_version": 1,
+        "seed": seed,
+        "training_statements": [fact.statement() for fact in train],
+        "held_out_cases": [
+            {"prompt": fact.prompt(), "expected_value": fact.value} for fact in held_out
+        ],
+    }
+    canonical = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    return {**payload, "sha256": hashlib.sha256(canonical).hexdigest()}
+
+
+def write_manifest(path: Path, seed: int = 0) -> None:
+    """Atomically write immutable diagnostic evidence."""
+    target = path
+    manifest = diagnostic_manifest(seed)
+    content = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    if target.exists():
+        if target.read_text(encoding="utf-8") == content:
+            return
+        raise FileExistsError(f"conflicting diagnostic manifest exists: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(content, encoding="utf-8")
+    temporary.replace(target)

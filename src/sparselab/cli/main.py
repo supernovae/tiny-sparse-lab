@@ -12,6 +12,7 @@ from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
+from sparselab.data.withheld_facts import write_manifest
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.language_model import evaluate
 from sparselab.model.inspection import inspect_model
@@ -43,6 +44,12 @@ def _dashboard(args: argparse.Namespace) -> None:
         ],
         check=True,
     )
+
+
+def _facts_manifest(args: argparse.Namespace) -> None:
+    output = Path(args.output)
+    write_manifest(output, args.seed)
+    print(output)
 
 
 def _inspect(args: argparse.Namespace) -> None:
@@ -155,6 +162,12 @@ def build_parser() -> argparse.ArgumentParser:
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_prepare = data_commands.add_parser("prepare")
     data_prepare.add_argument("config")
+    facts = commands.add_parser("facts")
+    fact_commands = facts.add_subparsers(dest="fact_command", required=True)
+    manifest = fact_commands.add_parser("manifest")
+    manifest.add_argument("--seed", type=int, default=0)
+    manifest.add_argument("--output", required=True)
+    manifest.set_defaults(handler=_facts_manifest)
     data_prepare.set_defaults(handler=_data_prepare)
     training = commands.add_parser("train")
     training.add_argument("config")
