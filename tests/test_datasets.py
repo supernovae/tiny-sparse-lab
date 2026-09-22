@@ -7,6 +7,7 @@ import pytest
 
 from sparselab.config.models import DatasetConfig
 from sparselab.data import datasets
+from sparselab.data.instruction_reference import iter_instruction_reference
 
 
 class Stream:
@@ -52,6 +53,39 @@ def test_train_only_remote_sources_use_disjoint_validation_prefix(
     assert all(call["split"] == "train" for call in calls)
     assert all(call["streaming"] is True for call in calls)
 
+
+
+def test_instruction_reference_uses_plain_chat_transcripts() -> None:
+    first_train = next(iter_instruction_reference(7, "train"))
+    first_validation = next(iter_instruction_reference(7, "validation"))
+    train_documents = {
+        document
+        for _, document in zip(range(12), iter_instruction_reference(7, "train"))
+    }
+    validation_documents = {
+        document
+        for _, document in zip(
+            range(12), iter_instruction_reference(7, "validation")
+        )
+    }
+
+    assert first_train.startswith("System: You are a concise local assistant.\n\nUser: ")
+    assert "\n\nAssistant: " in first_train
+    assert first_train != first_validation
+    assert train_documents.isdisjoint(validation_documents)
+
+
+def test_instruction_reference_is_available_as_a_dataset_source(tmp_path: Path) -> None:
+    config = DatasetConfig(
+        source="instruction_reference",
+        cache_dir=tmp_path,
+        train_max_documents=1,
+        validation_max_documents=1,
+        train_max_tokens=64,
+        validation_max_tokens=64,
+    )
+
+    assert next(datasets.iter_documents(config, "train")).startswith("System: ")
 
 def test_remote_sources_require_subset_and_revision(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="revision"):

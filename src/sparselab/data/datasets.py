@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from datasets import load_dataset
 
 from sparselab.config.models import DatasetConfig
+from sparselab.data.instruction_reference import iter_instruction_reference
 from sparselab.data.synthetic import iter_synthetic
 from sparselab.data.withheld_facts import training_documents
 
@@ -22,6 +23,9 @@ def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
         raise ValueError(f"unknown split {split!r}")
     if config.source == "synthetic":
         yield from iter_synthetic(config.synthetic_seed, split)
+        return
+    if config.source == "instruction_reference":
+        yield from iter_instruction_reference(config.synthetic_seed, split)
         return
     if config.source == "withheld_facts":
         yield from training_documents(config.synthetic_seed)

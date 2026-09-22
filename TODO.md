@@ -6,10 +6,9 @@
 
 The supported runtime is one local process using the explicitly requested or correctly detected CPU, MPS, CUDA/ROCm, XPU, or optional MLX Metal engine. Sparse-attention paths currently use verified reference implementations.
 
+## Future conversational evaluation
 
-## Future local chat experiment
-
-- [ ] Define an opt-in conversational training corpus with provenance, a stable plain-text transcript format, and held-out multi-turn evaluation before claiming instruction-following or chat quality.
+- [ ] Add a licensed, provenance-recorded conversational corpus and held-out multi-turn evaluation before making broad instruction-following or chat-quality claims beyond the synthetic instruction reference.
 
 ## Future distributed and multi-host work
 

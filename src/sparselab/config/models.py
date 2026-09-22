@@ -68,7 +68,14 @@ class TokenizerConfig(StrictModel):
 
 
 class DatasetConfig(StrictModel):
-    source: Literal["tinystories", "synthetic", "withheld_facts", "fineweb_edu", "cosmopedia"]
+    source: Literal[
+        "tinystories",
+        "synthetic",
+        "instruction_reference",
+        "withheld_facts",
+        "fineweb_edu",
+        "cosmopedia",
+    ]
     revision: str | None = None
     dataset_config: str | None = None
     cache_dir: Path

@@ -1,0 +1,13 @@
+schema_version: 1
+vocab_size: 8192
+min_frequency: 1
+max_documents: 100000
+output_dir: ../artifacts/tokenizer_instruction_8k
+dataset:
+  source: instruction_reference
+  cache_dir: ../artifacts/data
+  train_max_documents: 100000
+  validation_max_documents: 1000
+  train_max_tokens: 4000000
+  validation_max_tokens: 65536
+  synthetic_seed: 42

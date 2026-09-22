@@ -175,9 +175,13 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "packing_version": PACKING_VERSION,
         "source": config.dataset.source,
         "revision": config.dataset.revision,
-        "license": "CDLA-Sharing-1.0"
-        if config.dataset.source == "tinystories"
-        else "synthetic fixture",
+        "license": (
+            "CDLA-Sharing-1.0"
+            if config.dataset.source == "tinystories"
+            else "synthetic instruction reference"
+            if config.dataset.source == "instruction_reference"
+            else "synthetic fixture"
+        ),
         "tokenizer_sha256": hashlib.sha256(
             json.dumps(tokenizer.get_vocab(), sort_keys=True).encode()
         ).hexdigest(),

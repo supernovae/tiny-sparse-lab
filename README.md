@@ -50,7 +50,7 @@ uv run sparselab chat dense-smoke
 uv run sparselab chat dense-smoke --message "Explain causal attention in one sentence."
 ```
 
-`chat` keeps an in-process plain-text `User:`/`Assistant:` transcript and applies the selected run's ordinary greedy decoder. It works with any saved PyTorch architecture run, including the scale presets. It does **not** make a base model instruction-tuned: the response quality is limited by its training corpus and budget. No chat-only dataset is added implicitly; add one only as an explicit, documented experiment with a held-out evaluation protocol.
+`chat` keeps an in-process plain-text `User:`/`Assistant:` transcript and applies the selected run's ordinary greedy decoder. It works with any saved PyTorch architecture run, including the scale presets. It does **not** make a base model instruction-tuned: the response quality is limited by its training corpus and budget. The optional [instruction reference curriculum](docs/instruction-training.md) trains the transcript format and a small set of deterministic tasks; it is not a general chat dataset or a broad instruction-following claim.
 
 ### Resume a local run
 
@@ -106,6 +106,7 @@ The architectural options are explicit configuration choices, not automatic opti
 - [Engram](docs/engram.md), [byte addressing](docs/byte-addressing.md), and [portable Engram](docs/portable-engram.md) — memory contracts and diagnostics.
 - [MoE](docs/moe.md), [sparse attention](docs/sparse-attention.md), and [MLA](docs/mla.md) — reference mechanism behavior.
 - [Experiments](docs/experiments.md), [model scaling](docs/model-scaling.md), and [metrics](docs/metrics.md) — controlled comparison practice.
+- [Instruction reference training](docs/instruction-training.md) — optional synthetic curriculum, 100M reference configuration, and evaluation boundary.
 - [Withheld facts](docs/withheld-facts.md) — deterministic data-separation evidence.
 - [Architecture decisions](docs/decisions/README.md) — durable design context and current scope decisions.
 - [Deferred roadmap](TODO.md) — native kernels, target-hardware acceptance, and distributed work intentionally outside the core.
