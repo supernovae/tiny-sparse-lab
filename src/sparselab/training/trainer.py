@@ -228,6 +228,18 @@ def train(
                     "engram/gate_mean": float(diagnostics.gate_mean),
                 }
             )
+            for stream_index, stream in enumerate(diagnostics.streams):
+                prefix = f"engram/stream_{stream_index}"
+                metric_values.update(
+                    {
+                        f"{prefix}/lookups": float(stream.lookup_count),
+                        f"{prefix}/unique_buckets": float(stream.unique_addresses),
+                        f"{prefix}/collisions": float(stream.collision_count),
+                        f"{prefix}/bucket_reuse_rate": float(stream.bucket_reuse_rate),
+                        f"{prefix}/table_utilization": float(stream.table_utilization),
+                        f"{prefix}/gate_mean": float(stream.gate_mean),
+                    }
+                )
         store.log_metrics(run_id, step, tokens, elapsed, metric_values)
         terminal = (
             step >= config.training.max_steps

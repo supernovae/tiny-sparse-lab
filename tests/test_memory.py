@@ -50,6 +50,12 @@ def test_multi_stream_collision_diagnostics_aggregate_all_lookups() -> None:
     diagnostics = memory.last_diagnostics
     assert diagnostics is not None
     assert int(diagnostics.lookup_count) == 32
+    assert len(diagnostics.streams) == 4
+    assert all(int(stream.lookup_count) == 8 for stream in diagnostics.streams)
+    assert sum(int(stream.lookup_count) for stream in diagnostics.streams) == int(
+        diagnostics.lookup_count
+    )
+    assert all(int(stream.collision_count) > 0 for stream in diagnostics.streams)
     assert int(diagnostics.collision_count) > 0
     assert float(diagnostics.bucket_reuse_rate) > 0
 

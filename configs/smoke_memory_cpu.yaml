@@ -13,6 +13,8 @@ model:
   memory_table_size: 257
   memory_ngram_size: 3
   memory_dim: 16
+  memory_ngram_orders: [2, 3]
+  memory_hash_heads: 2
 tokenizer: {path: ../artifacts/tokenizer_smoke/tokenizer.json}
 dataset:
   source: synthetic

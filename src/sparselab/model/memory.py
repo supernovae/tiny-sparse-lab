@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import torch
 from torch import Tensor, nn
@@ -19,6 +19,7 @@ class MemoryDiagnostics:
     gate_mean: Tensor
     value_norm: Tensor
     hidden_norm: Tensor
+    streams: tuple[MemoryDiagnostics, ...] = ()
 
 
 def _diagnostics(
@@ -99,19 +100,25 @@ class TokenNgramMemory(nn.Module):
             for head in range(self.hash_heads)
         ]
         tables = (self.table, *self.extra_tables)
-        values = torch.stack(
-            [
-                self.output(table(address))
-                for table, address in zip(tables, addresses, strict=True)
-            ]
-        ).mean(dim=0)
+        stream_values = [
+            self.output(table(address))
+            for table, address in zip(tables, addresses, strict=True)
+        ]
+        values = torch.stack(stream_values).mean(dim=0)
         gate = torch.sigmoid(self.gate(hidden))
-        self.last_diagnostics = _diagnostics(
-            torch.cat([address.flatten() for address in addresses]),
-            gate,
-            values,
-            hidden,
-            self.table_size,
+        stream_diagnostics = tuple(
+            _diagnostics(address, gate, value, hidden, self.table_size)
+            for address, value in zip(addresses, stream_values, strict=True)
+        )
+        self.last_diagnostics = replace(
+            _diagnostics(
+                torch.cat([address.flatten() for address in addresses]),
+                gate,
+                values,
+                hidden,
+                self.table_size,
+            ),
+            streams=stream_diagnostics,
         )
         return hidden + gate * values
 
