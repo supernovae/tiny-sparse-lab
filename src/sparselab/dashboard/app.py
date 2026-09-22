@@ -20,6 +20,11 @@ def arguments() -> argparse.Namespace:
     return args
 
 
+def metric_help(slug: str) -> str:
+    path = Path(__file__).with_name("help") / f"{slug}.md"
+    return path.read_text(encoding="utf-8")
+
+
 def selected(root: Path) -> tuple[list[object], list[str]]:
     records = runs(root)
     ids = [record.run_id for record in records]
@@ -88,11 +93,7 @@ def training(root: Path) -> None:
         spec = metric_spec(name)
         if spec is not None:
             with st.expander(f"What is {name}?"):
-                st.markdown(
-                    f"**{spec.summary}**  \n"
-                    f"Unit: `{spec.unit}`. Produced by `{spec.producer}`. "
-                    f"See `{spec.help_slug}` in the Learn metric guide."
-                )
+                st.markdown(metric_help(spec.help_slug))
     with st.expander("What is this?"):
         st.markdown(
             "Charts show only stored observations. Loss is mean negative log-probability in nats; perplexity is `exp(loss)`. Throughput counts valid target tokens per timed update second."
