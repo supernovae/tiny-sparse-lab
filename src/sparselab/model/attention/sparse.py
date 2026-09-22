@@ -69,6 +69,10 @@ class BlockSparseAttention(nn.Module):
             self.rope(heads(self.k_proj)),
             heads(self.v_proj),
         )
+        key_prefix = torch.cat(
+            (torch.zeros_like(key[:, :, :1]), key.cumsum(dim=2)),
+            dim=2,
+        )
         result = torch.empty_like(query)
         selected_total = 0
         available_total = 0
@@ -76,16 +80,12 @@ class BlockSparseAttention(nn.Module):
         dense_mass_total = torch.zeros((), device=x.device)
         dense_recall_total = torch.zeros((), device=x.device)
         for position in range(length):
-            block_count = (position // self.block_size) + 1
-            summaries = torch.stack(
-                [
-                    key[:, :, start : min(start + self.block_size, position + 1)].mean(
-                        dim=2
-                    )
-                    for start in range(0, position + 1, self.block_size)
-                ],
-                dim=2,
-            )
+            starts = torch.arange(0, position + 1, self.block_size, device=x.device)
+            ends = (starts + self.block_size).clamp_max(position + 1)
+            summaries = (
+                key_prefix.index_select(2, ends) - key_prefix.index_select(2, starts)
+            ) / (ends - starts).view(1, 1, -1, 1)
+            block_count = starts.numel()
             index_scores = (query[:, :, position].unsqueeze(2) * summaries).sum(-1)
             chosen = index_scores.topk(
                 min(self.selected_blocks, block_count), dim=-1
