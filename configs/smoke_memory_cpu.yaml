@@ -1,0 +1,33 @@
+schema_version: 1
+name: smoke-memory-cpu
+seed: 42
+device: cpu
+model:
+  vocab_size: 512
+  hidden_dim: 32
+  num_layers: 2
+  num_heads: 2
+  ffn_dim: 96
+  max_seq_len: 64
+  memory: ngram
+  memory_table_size: 257
+  memory_ngram_size: 3
+  memory_dim: 16
+tokenizer: {path: ../artifacts/tokenizer_smoke/tokenizer.json}
+dataset:
+  source: synthetic
+  cache_dir: ../artifacts/data
+  train_max_documents: 1000
+  validation_max_documents: 100
+  train_max_tokens: 32768
+  validation_max_tokens: 8192
+  synthetic_seed: 42
+training:
+  batch_size: 4
+  seq_len: 32
+  max_steps: 40
+  max_tokens: 5120
+  deterministic: true
+optimizer: {learning_rate: 0.003, min_learning_rate: 0.0003, warmup_steps: 4, weight_decay: 0.1, betas: [0.9, 0.95], eps: 1e-8}
+evaluation: {every_steps: 10, max_batches: 4}
+logging: {root_dir: ../runs, every_steps: 1, checkpoint_every_steps: 20}
