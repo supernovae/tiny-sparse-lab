@@ -10,6 +10,7 @@ import plotly.express as px
 import streamlit as st
 
 from sparselab.dashboard.queries import RunRecord, events, metrics, runs
+from sparselab.training.metric_registry import metric_spec
 
 
 def arguments() -> argparse.Namespace:
@@ -83,6 +84,15 @@ def training(root: Path) -> None:
     )
     figure.update_layout(height=max(350, 220 * len(selected_names)))
     st.plotly_chart(figure, use_container_width=True)
+    for name in selected_names:
+        spec = metric_spec(name)
+        if spec is not None:
+            with st.expander(f"What is {name}?"):
+                st.markdown(
+                    f"**{spec.summary}**  \n"
+                    f"Unit: `{spec.unit}`. Produced by `{spec.producer}`. "
+                    f"See `{spec.help_slug}` in the Learn metric guide."
+                )
     with st.expander("What is this?"):
         st.markdown(
             "Charts show only stored observations. Loss is mean negative log-probability in nats; perplexity is `exp(loss)`. Throughput counts valid target tokens per timed update second."

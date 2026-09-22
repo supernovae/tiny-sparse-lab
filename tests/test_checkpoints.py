@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,10 @@ def test_checkpoint_requires_matching_manifest_hash(tmp_path: Path) -> None:
     save_checkpoint(path, state())
     loaded = load_checkpoint(path)
     assert loaded["step"] == 1
+    record = json.loads(path.with_suffix(".json").read_text())
+    latest = json.loads((path.parent / "latest.json").read_text())
+    assert record["format_version"] == 1
+    assert latest == record
     path.write_bytes(path.read_bytes() + b"corrupt")
     with pytest.raises(ValueError, match="hash mismatch"):
         load_checkpoint(path)

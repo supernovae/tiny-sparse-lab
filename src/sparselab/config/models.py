@@ -23,6 +23,9 @@ class ModelConfig(StrictModel):
     tie_embeddings: bool = True
     ffn: Literal["dense", "moe"] = "dense"
     num_experts: int = 1
+    experts_per_token: int = 1
+    shared_expert: bool = False
+    router_aux_loss_coefficient: float = Field(default=0.0, ge=0)
     memory: Literal["none", "ngram", "byte"] = "none"
     memory_table_size: int = 0
     memory_ngram_size: int = 0
@@ -50,8 +53,20 @@ class ModelConfig(StrictModel):
             raise ValueError("model.rms_norm_eps must be positive")
         if self.ffn == "dense" and self.num_experts != 1:
             raise ValueError("dense model.ffn requires model.num_experts to be 1")
-        if self.ffn == "moe" and self.num_experts < 2:
-            raise ValueError("MoE model.ffn requires at least two experts")
+        if self.ffn == "moe":
+            if self.num_experts < 2:
+                raise ValueError("MoE model.ffn requires at least two experts")
+            if not 1 <= self.experts_per_token <= self.num_experts:
+                raise ValueError(
+                    "model.experts_per_token must be between one and model.num_experts"
+                )
+        elif (
+            self.num_experts != 1
+            or self.experts_per_token != 1
+            or self.shared_expert
+            or self.router_aux_loss_coefficient != 0
+        ):
+            raise ValueError("dense model.ffn does not accept MoE settings")
         if self.memory == "none" and any(
             value != 0
             for value in (
@@ -112,27 +127,44 @@ class OptimizerConfig(StrictModel):
 
 
 class AttentionConfig(StrictModel):
-    kind: Literal["dense", "sliding_window", "mla"] = "dense"
+    kind: Literal["dense", "sliding_window", "mla", "block_sparse"] = "dense"
     rope_base: float = Field(default=10000.0, gt=0)
     window_size: int | None = Field(default=None, gt=0)
     latent_dim: int | None = Field(default=None, gt=0)
+    block_size: int | None = Field(default=None, gt=0)
+    selected_blocks: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_kind(self) -> AttentionConfig:
-        if self.kind == "dense" and (
-            self.window_size is not None or self.latent_dim is not None
-        ):
-            raise ValueError(
-                "dense attention does not accept window_size or latent_dim"
-            )
+        sparse_fields = (
+            self.window_size,
+            self.latent_dim,
+            self.block_size,
+            self.selected_blocks,
+        )
+        if self.kind == "dense" and any(value is not None for value in sparse_fields):
+            raise ValueError("dense attention does not accept sparse settings")
         if self.kind == "sliding_window" and (
-            self.window_size is None or self.latent_dim is not None
+            self.window_size is None
+            or any(value is not None for value in sparse_fields[1:])
         ):
             raise ValueError("sliding_window attention requires only window_size")
         if self.kind == "mla" and (
-            self.latent_dim is None or self.window_size is not None
+            self.latent_dim is None
+            or self.window_size is not None
+            or self.block_size is not None
+            or self.selected_blocks is not None
         ):
             raise ValueError("mla attention requires only latent_dim")
+        if self.kind == "block_sparse" and (
+            self.block_size is None
+            or self.selected_blocks is None
+            or self.window_size is not None
+            or self.latent_dim is not None
+        ):
+            raise ValueError(
+                "block_sparse attention requires block_size and selected_blocks"
+            )
         return self
 
 

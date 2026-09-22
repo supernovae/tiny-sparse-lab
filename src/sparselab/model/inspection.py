@@ -6,7 +6,7 @@ from collections.abc import Iterable
 
 from torch import nn
 
-from sparselab.model.moe import Top1MoE
+from sparselab.model.moe import TopKMoE
 from sparselab.model.transformer import DenseLM
 
 
@@ -37,10 +37,19 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     expert = 0
     active_expert = 0
     for block in model.blocks:
-        if isinstance(block.ffn, Top1MoE):
+        if isinstance(block.ffn, TopKMoE):
             expert_parameters = _unique_numel(block.ffn.experts.parameters())
+            active_parameters = _unique_numel(
+                parameter
+                for expert_module in block.ffn.experts[: block.ffn.experts_per_token]
+                for parameter in expert_module.parameters()
+            )
+            if block.ffn.shared_expert is not None:
+                shared = _unique_numel(block.ffn.shared_expert.parameters())
+                expert_parameters += shared
+                active_parameters += shared
             expert += expert_parameters
-            active_expert += _unique_numel(block.ffn.experts[0].parameters())
+            active_expert += active_parameters
         else:
             dense_ffn += _unique_numel(block.ffn.parameters())
     norm = sum(

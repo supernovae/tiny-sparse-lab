@@ -12,6 +12,7 @@ from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset, prepare_data
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.model.inspection import inspect_model
+from sparselab.model.moe import TopKMoE
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import seed_everything, select_device
 from sparselab.training.checkpoints import load_checkpoint, save_checkpoint
@@ -106,9 +107,11 @@ def train(
             y.flatten()[remaining:] = -100
         optimizer.zero_grad(set_to_none=True)
         logits = model(x, byte_addresses=byte_addresses)
-        loss = functional.cross_entropy(
+        language_loss = functional.cross_entropy(
             logits.flatten(0, 1), y.flatten(), ignore_index=-100
         )
+        auxiliary_loss = model.auxiliary_loss
+        loss = language_loss + auxiliary_loss
         loss.backward()
         norm = torch.nn.utils.clip_grad_norm_(
             model.parameters(),
@@ -131,18 +134,29 @@ def train(
         tokens += valid
         next_block += len(indices)
         elapsed = time.perf_counter() - started
-        store.log_metrics(
-            run_id,
-            step,
-            tokens,
-            elapsed,
-            {
-                "train/loss": float(loss.detach()),
-                "optimizer/learning_rate": lr,
-                "optimizer/grad_norm": float(norm),
-                "performance/tokens_per_second": tokens / max(elapsed, 1e-9),
-            },
-        )
+        metric_values = {
+            "train/loss": float(language_loss.detach()),
+            "moe/router_auxiliary_loss": float(auxiliary_loss.detach()),
+            "optimizer/learning_rate": lr,
+            "optimizer/grad_norm": float(norm),
+            "performance/tokens_per_second": tokens / max(elapsed, 1e-9),
+        }
+        for layer_index, block in enumerate(model.blocks):
+            if isinstance(block.ffn, TopKMoE) and block.ffn.last_diagnostics:
+                diagnostics = block.ffn.last_diagnostics
+                prefix = f"moe/layer_{layer_index}"
+                metric_values.update(
+                    {
+                        f"{prefix}/router_entropy": float(diagnostics.entropy),
+                        f"{prefix}/maximum_expert_fraction": float(
+                            diagnostics.maximum_fraction
+                        ),
+                        f"{prefix}/mean_topk_probability": float(
+                            diagnostics.mean_topk_probability
+                        ),
+                    }
+                )
+        store.log_metrics(run_id, step, tokens, elapsed, metric_values)
         terminal = (
             step >= config.training.max_steps
             or tokens >= config.training.max_tokens

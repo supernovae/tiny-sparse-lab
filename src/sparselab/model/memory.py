@@ -10,8 +10,40 @@ from torch import Tensor, nn
 
 @dataclass(frozen=True)
 class MemoryDiagnostics:
+    lookup_count: Tensor
     unique_addresses: Tensor
+    collision_count: Tensor
+    bucket_reuse_rate: Tensor
+    table_utilization: Tensor
     maximum_address_fraction: Tensor
+    gate_mean: Tensor
+    value_norm: Tensor
+    hidden_norm: Tensor
+
+
+def _diagnostics(
+    addresses: Tensor,
+    gate: Tensor,
+    values: Tensor,
+    hidden: Tensor,
+    table_size: int,
+) -> MemoryDiagnostics:
+    counts = torch.bincount(addresses.flatten(), minlength=table_size)
+    lookup_count = torch.tensor(addresses.numel(), device=addresses.device)
+    unique = (counts > 0).sum()
+    collisions = lookup_count - unique
+    denominator = lookup_count.clamp_min(1)
+    return MemoryDiagnostics(
+        lookup_count=lookup_count.detach(),
+        unique_addresses=unique.detach(),
+        collision_count=collisions.detach(),
+        bucket_reuse_rate=(collisions.float() / denominator).detach(),
+        table_utilization=(unique.float() / table_size).detach(),
+        maximum_address_fraction=(counts.max().float() / denominator).detach(),
+        gate_mean=gate.mean().detach(),
+        value_norm=values.norm(dim=-1).mean().detach(),
+        hidden_norm=hidden.norm(dim=-1).mean().detach(),
+    )
 
 
 class TokenNgramMemory(nn.Module):
@@ -47,10 +79,8 @@ class TokenNgramMemory(nn.Module):
         address = self.addresses(input_ids)
         values = self.output(self.table(address))
         gate = torch.sigmoid(self.gate(hidden))
-        counts = torch.bincount(address.flatten(), minlength=self.table_size)
-        self.last_diagnostics = MemoryDiagnostics(
-            (counts > 0).sum().detach(),
-            (counts.max().float() / address.numel()).detach(),
+        self.last_diagnostics = _diagnostics(
+            address, gate, values, hidden, self.table_size
         )
         return hidden + gate * values
 
@@ -77,9 +107,7 @@ class ByteAddressMemory(nn.Module):
             raise ValueError("byte address is outside configured memory table")
         values = self.output(self.table(addresses))
         gate = torch.sigmoid(self.gate(hidden))
-        counts = torch.bincount(addresses.flatten(), minlength=self.table_size)
-        self.last_diagnostics = MemoryDiagnostics(
-            (counts > 0).sum().detach(),
-            (counts.max().float() / addresses.numel()).detach(),
+        self.last_diagnostics = _diagnostics(
+            addresses, gate, values, hidden, self.table_size
         )
         return hidden + gate * values

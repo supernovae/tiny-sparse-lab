@@ -38,3 +38,10 @@ def test_disabled_memory_is_absent_and_enabled_memory_runs_backward() -> None:
     logits.mean().backward()
     assert model.memory is not None
     assert model.memory.last_diagnostics is not None
+    diagnostics = model.memory.last_diagnostics
+    assert int(diagnostics.lookup_count) == 16
+    assert 0 < int(diagnostics.unique_addresses) <= 16
+    assert int(diagnostics.collision_count) == 16 - int(diagnostics.unique_addresses)
+    assert 0 <= float(diagnostics.bucket_reuse_rate) < 1
+    assert 0 < float(diagnostics.table_utilization) <= 1
+    assert 0 < float(diagnostics.gate_mean) < 1

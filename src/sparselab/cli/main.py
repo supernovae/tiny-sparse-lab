@@ -25,6 +25,8 @@ from sparselab.evaluation.withheld_facts import (
     write_withheld_evaluation,
 )
 from sparselab.model.inspection import inspect_model
+from sparselab.model.memory import ByteAddressMemory
+from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import select_device
 from sparselab.training.checkpoints import load_checkpoint
@@ -122,6 +124,25 @@ def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
     )
     write_withheld_evaluation(output, result)
     print(output)
+
+
+def _engram_export(args: argparse.Namespace) -> None:
+    config, model, _ = _run_model(
+        args.run_id, Path(args.runs_dir), args.checkpoint, args.device
+    )
+    if not isinstance(model.memory, ByteAddressMemory):
+        raise TypeError("Engram export requires a byte-memory run")
+    manifest = export_portable_engram(
+        model.memory.table.weight,
+        Path(args.output),
+        ngram_size=config.model.memory_ngram_size,
+    )
+    print(json.dumps(manifest.as_dict(), sort_keys=True))
+
+
+def _engram_inspect(args: argparse.Namespace) -> None:
+    package = load_portable_engram(Path(args.path))
+    print(json.dumps(package.manifest.as_dict(), sort_keys=True))
 
 
 def _inspect(args: argparse.Namespace) -> None:
@@ -267,6 +288,18 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_evaluate.add_argument("--output")
     transfer_evaluate.set_defaults(handler=_facts_transfer_evaluate)
     data_prepare.set_defaults(handler=_data_prepare)
+    engram = commands.add_parser("engram")
+    engram_commands = engram.add_subparsers(dest="engram_command", required=True)
+    engram_export = engram_commands.add_parser("export")
+    engram_export.add_argument("run_id")
+    engram_export.add_argument("--output", required=True)
+    engram_export.add_argument("--runs-dir", default="runs")
+    engram_export.add_argument("--checkpoint")
+    engram_export.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))
+    engram_export.set_defaults(handler=_engram_export)
+    engram_inspect = engram_commands.add_parser("inspect")
+    engram_inspect.add_argument("path")
+    engram_inspect.set_defaults(handler=_engram_inspect)
     training = commands.add_parser("train")
     training.add_argument("config")
     training.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))

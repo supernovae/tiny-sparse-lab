@@ -11,6 +11,9 @@ model:
   max_seq_len: 64
   ffn: moe
   num_experts: 3
+  experts_per_token: 2
+  shared_expert: true
+  router_aux_loss_coefficient: 0.01
 tokenizer: {path: ../artifacts/tokenizer_smoke/tokenizer.json}
 dataset:
   source: synthetic

@@ -7,9 +7,10 @@ from torch import Tensor, nn
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.attention.latent import LatentAttention
+from sparselab.model.attention.sparse import BlockSparseAttention
 from sparselab.model.ffn import SwiGLU
 from sparselab.model.memory import ByteAddressMemory, TokenNgramMemory
-from sparselab.model.moe import Top1MoE
+from sparselab.model.moe import TopKMoE
 from sparselab.model.norm import RMSNorm
 
 
@@ -26,6 +27,15 @@ class DecoderBlock(nn.Module):
                 attention.rope_base,
             )
             if attention.kind == "mla"
+            else BlockSparseAttention(
+                model.hidden_dim,
+                model.num_heads,
+                model.max_seq_len,
+                attention.rope_base,
+                attention.block_size,
+                attention.selected_blocks,
+            )
+            if attention.kind == "block_sparse"
             else DenseAttention(
                 model.hidden_dim,
                 model.num_heads,
@@ -38,7 +48,14 @@ class DecoderBlock(nn.Module):
         self.ffn: nn.Module = (
             SwiGLU(model.hidden_dim, model.ffn_dim)
             if model.ffn == "dense"
-            else Top1MoE(model.hidden_dim, model.ffn_dim, model.num_experts)
+            else TopKMoE(
+                model.hidden_dim,
+                model.ffn_dim,
+                model.num_experts,
+                model.experts_per_token,
+                model.shared_expert,
+                model.router_aux_loss_coefficient,
+            )
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -91,8 +108,11 @@ class DenseLM(nn.Module):
         if input_ids.shape[1] > self.config.max_seq_len:
             raise ValueError("input sequence exceeds model.max_seq_len")
         x = self.embedding(input_ids)
+        self.auxiliary_loss = x.new_zeros(())
         for block in self.blocks:
             x = block(x)
+            if isinstance(block.ffn, TopKMoE):
+                self.auxiliary_loss = self.auxiliary_loss + block.ffn.auxiliary_loss
         x = self.norm(x)
         if isinstance(self.memory, TokenNgramMemory):
             x = self.memory(x, input_ids)
