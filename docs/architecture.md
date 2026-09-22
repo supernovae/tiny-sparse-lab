@@ -41,6 +41,14 @@ width. `latent_dim` must divide evenly across heads. This is a causal reference
 implementation; it does not provide a fused latent KV cache or a decode-memory
 bandwidth claim.
 
+## Combined reference configuration
+
+`configs/smoke_combined_cpu.yaml` composes MLA attention, local top-1 MoE, and
+byte-address memory. This verifies that each mechanism receives the required
+inputs in the ordinary decoder/training path. It is a compatibility smoke, not
+a joint quality, scaling, or throughput result; compare ablations under matched
+data, tokenizer, budget, and device conditions.
+
 ## Token n-gram memory
 
 The optional adapter hashes each position's inclusive token-ID suffix into a learnable value table. Its value width is independent of the backbone width; an output projection and sigmoid gate add the value to the final hidden state. At position `t`, the address contains only input IDs through `t`, while the model predicts `t + 1`, so it does not read a future target. It is a local trainable parameter table, not external retrieval or a mutable cache.
