@@ -25,10 +25,17 @@ def evaluate(
             batch = [
                 dataset[i] for i in range(start, min(start + batch_size, len(dataset)))
             ]
-            x = torch.stack([p[0] for p in batch]).to(device)
-            y = torch.stack([p[1] for p in batch]).to(device)
+            x = torch.stack([item[0] for item in batch]).to(device)
+            y = torch.stack([item[1] for item in batch]).to(device)
+            byte_addresses = (
+                torch.stack([item[2] for item in batch]).to(device)
+                if len(batch[0]) == 3
+                else None
+            )
             loss = functional.cross_entropy(
-                model(x).flatten(0, 1), y.flatten(), reduction="sum"
+                model(x, byte_addresses=byte_addresses).flatten(0, 1),
+                y.flatten(),
+                reduction="sum",
             )
             total += float(loss)
             count += y.numel()

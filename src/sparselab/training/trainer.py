@@ -41,7 +41,9 @@ def train(
     seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
     tokenizer = load_tokenizer(config.tokenizer.path)
     data = prepare_data(config, tokenizer)
-    dataset = TokenBlockDataset(data.train, config.training.seq_len)
+    dataset = TokenBlockDataset(
+        data.train, config.training.seq_len, data.train_byte_addresses
+    )
     model = DenseLM(config.model, config.attention).to(device)
     optimizer = make_optimizer(
         model,
@@ -91,14 +93,19 @@ def train(
             epoch, next_block = epoch + 1, 0
             continue
         batch = [dataset[i] for i in indices]
-        x = torch.stack([v[0] for v in batch]).to(device)
-        y = torch.stack([v[1] for v in batch]).to(device)
+        x = torch.stack([item[0] for item in batch]).to(device)
+        y = torch.stack([item[1] for item in batch]).to(device)
+        byte_addresses = (
+            torch.stack([item[2] for item in batch]).to(device)
+            if len(batch[0]) == 3
+            else None
+        )
         remaining = config.training.max_tokens - tokens
         if remaining < y.numel():
             y = y.clone()
             y.flatten()[remaining:] = -100
         optimizer.zero_grad(set_to_none=True)
-        logits = model(x)
+        logits = model(x, byte_addresses=byte_addresses)
         loss = functional.cross_entropy(
             logits.flatten(0, 1), y.flatten(), ignore_index=-100
         )

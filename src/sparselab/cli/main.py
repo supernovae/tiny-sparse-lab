@@ -104,7 +104,11 @@ def _eval(args: argparse.Namespace) -> None:
         json.dumps(
             evaluate(
                 model,
-                TokenBlockDataset(data.validation, config.training.seq_len),
+                TokenBlockDataset(
+                    data.validation,
+                    config.training.seq_len,
+                    data.validation_byte_addresses,
+                ),
                 batch_size=config.training.batch_size,
                 max_batches=config.evaluation.max_batches,
                 device=device,
@@ -118,6 +122,10 @@ def _generate(args: argparse.Namespace) -> None:
     config, model, device = _run_model(
         args.run_id, Path(args.runs_dir), None, args.device
     )
+    if config.model.memory == "byte":
+        raise ValueError(
+            "generation with byte memory requires prompt byte-address preparation and is not available yet"
+        )
     print(
         generate(
             model,
