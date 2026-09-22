@@ -31,6 +31,14 @@ uv run sparselab facts audit artifacts/withheld-facts-seed-0.json
 
 The JSON report states the fixture seed, manifest digest, statement/case counts, and whether held-out values occur in the training statements. It is fixture evidence only; it contains neither model outputs nor an experimental score.
 
+To measure a byte-memory adapter transfer between two compatible saved runs:
+
+```sh
+uv run sparselab facts transfer-evaluate SOURCE_RUN TARGET_RUN artifacts/withheld-facts-seed-0.json
+```
+
+Only `memory.table`, `memory.output`, and `memory.gate` transfer. The target keeps its own tokenizer, embedding, attention, output head, and decoder blocks. The result is retained under the target run's `evaluations/` directory with both run IDs and the verified manifest digest. An exact-match count remains an observation, not proof of general cross-tokenizer transfer.
+
 Verification recomputes its digest and requires every field to match the current fixture for the recorded seed. A self-consistent substituted split is rejected, not merely a damaged JSON file.
 
 The manifest records the ordered training statements, held-out prompt/expected-value cases, seed, format version, and a SHA-256 digest of its canonical payload. Re-running with the same seed accepts byte-identical evidence; a different seed cannot overwrite the existing manifest. It contains no model outputs, training examples, or score.

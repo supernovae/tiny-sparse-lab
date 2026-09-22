@@ -17,6 +17,7 @@ from sparselab.data.withheld_facts import (
     verify_manifest,
     write_manifest,
 )
+from sparselab.evaluation.byte_memory_transfer import transfer_byte_memory
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.language_model import evaluate
 from sparselab.evaluation.withheld_facts import (
@@ -88,6 +89,36 @@ def _facts_evaluate(args: argparse.Namespace) -> None:
         / args.run_id
         / "evaluations"
         / f"withheld-{result['manifest_sha256']}.json"
+    )
+    write_withheld_evaluation(output, result)
+    print(output)
+
+
+def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
+    _, source, _ = _run_model(
+        args.source_run_id, Path(args.runs_dir), args.source_checkpoint, args.device
+    )
+    config, target, device = _run_model(
+        args.target_run_id, Path(args.runs_dir), args.target_checkpoint, args.device
+    )
+    transfer_byte_memory(source.state_dict(), target)
+    result = evaluate_withheld_facts(
+        target,
+        load_tokenizer(config.tokenizer.path),
+        Path(args.manifest),
+        max_seq_len=config.model.max_seq_len,
+        max_new_tokens=args.max_new_tokens,
+        device=device,
+    )
+    result["source_run_id"] = args.source_run_id
+    result["target_run_id"] = args.target_run_id
+    output = (
+        Path(args.output)
+        if args.output
+        else Path(args.runs_dir)
+        / args.target_run_id
+        / "evaluations"
+        / f"transferred-{args.source_run_id}-{result['manifest_sha256']}.json"
     )
     write_withheld_evaluation(output, result)
     print(output)
@@ -224,6 +255,17 @@ def build_parser() -> argparse.ArgumentParser:
     facts_evaluate.add_argument("--max-new-tokens", type=int, default=16)
     facts_evaluate.add_argument("--output")
     facts_evaluate.set_defaults(handler=_facts_evaluate)
+    transfer_evaluate = fact_commands.add_parser("transfer-evaluate")
+    transfer_evaluate.add_argument("source_run_id")
+    transfer_evaluate.add_argument("target_run_id")
+    transfer_evaluate.add_argument("manifest")
+    transfer_evaluate.add_argument("--runs-dir", default="runs")
+    transfer_evaluate.add_argument("--source-checkpoint")
+    transfer_evaluate.add_argument("--target-checkpoint")
+    transfer_evaluate.add_argument("--device", choices=("auto", "mps", "cuda", "cpu"))
+    transfer_evaluate.add_argument("--max-new-tokens", type=int, default=16)
+    transfer_evaluate.add_argument("--output")
+    transfer_evaluate.set_defaults(handler=_facts_transfer_evaluate)
     data_prepare.set_defaults(handler=_data_prepare)
     training = commands.add_parser("train")
     training.add_argument("config")

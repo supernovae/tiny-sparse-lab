@@ -19,6 +19,7 @@ uv run sparselab dashboard --runs-dir runs
 uv run sparselab facts manifest --seed 0 --output artifacts/withheld-facts-seed-0.json
 uv run sparselab facts verify artifacts/withheld-facts-seed-0.json
 uv run sparselab facts audit artifacts/withheld-facts-seed-0.json
+uv run sparselab facts transfer-evaluate withheld-bytes withheld-bpe artifacts/withheld-facts-seed-0.json
 ```
 
 Use `--stop-after-step N` to make a durable interrupted checkpoint, then resume into a new child run:
