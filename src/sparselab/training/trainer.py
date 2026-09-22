@@ -61,15 +61,16 @@ def _safe_rng_state() -> dict[str, object]:
 
 def _restore_safe_rng(state: dict[str, object]) -> None:
     __import__("random").setstate(state["python"])  # type: ignore[arg-type]
-    np.random.set_state((
-        str(state["numpy_kind"]),
-        state["numpy_keys"].numpy(),  # type: ignore[union-attr]
-        int(state["numpy_pos"]),
-        int(state["numpy_has_gauss"]),
-        float(state["numpy_cached_gaussian"]),
-    ))
+    np.random.set_state(
+        (
+            str(state["numpy_kind"]),
+            state["numpy_keys"].numpy(),  # type: ignore[union-attr]
+            int(state["numpy_pos"]),
+            int(state["numpy_has_gauss"]),
+            float(state["numpy_cached_gaussian"]),
+        )
+    )
     torch.set_rng_state(state["torch"])  # type: ignore[arg-type]
-
 
 
 def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
@@ -81,12 +82,28 @@ def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
     paths = (root / "train.npy", root / "validation.npy")
     if not all(path.is_file() for path in paths):
         raise ValueError("resume run lacks prepared arrays")
-    if byte_enabled and not all((root / name).is_file() for name in ("train_byte_addresses.npy", "validation_byte_addresses.npy")):
+    if byte_enabled and not all(
+        (root / name).is_file()
+        for name in ("train_byte_addresses.npy", "validation_byte_addresses.npy")
+    ):
         raise ValueError("resume run lacks byte-address artifacts")
-    return PreparedData(root, np.load(paths[0], mmap_mode="r"), np.load(paths[1], mmap_mode="r"), np.load(root / "train_byte_addresses.npy", mmap_mode="r") if byte_enabled else None, np.load(root / "validation_byte_addresses.npy", mmap_mode="r") if byte_enabled else None, json.loads(manifest_path.read_text()))
+    return PreparedData(
+        root,
+        np.load(paths[0], mmap_mode="r"),
+        np.load(paths[1], mmap_mode="r"),
+        np.load(root / "train_byte_addresses.npy", mmap_mode="r")
+        if byte_enabled
+        else None,
+        np.load(root / "validation_byte_addresses.npy", mmap_mode="r")
+        if byte_enabled
+        else None,
+        json.loads(manifest_path.read_text()),
+    )
 
 
-def _copy_artifacts(run: Path, config: RunConfig, data: PreparedData) -> tuple[ArtifactIdentity, ...]:
+def _copy_artifacts(
+    run: Path, config: RunConfig, data: PreparedData
+) -> tuple[ArtifactIdentity, ...]:
     artifacts: list[ArtifactIdentity] = []
     tokenizer = run / "tokenizer.json"
     shutil.copy2(config.tokenizer.path, tokenizer)
@@ -100,32 +117,78 @@ def _copy_artifacts(run: Path, config: RunConfig, data: PreparedData) -> tuple[A
             shutil.copytree(config.model.memory_package_path, destination)
         else:
             shutil.copy2(config.model.memory_package_path, destination)
-    for path in sorted(item for item in run.rglob("*") if item.is_file() and item.name != "manifest.json"):
-        artifacts.append(ArtifactIdentity(str(path.relative_to(run)), sha256_file(path), path.stat().st_size))
+    for path in sorted(
+        item
+        for item in run.rglob("*")
+        if item.is_file() and item.name != "manifest.json"
+    ):
+        artifacts.append(
+            ArtifactIdentity(
+                str(path.relative_to(run)), sha256_file(path), path.stat().st_size
+            )
+        )
     return tuple(artifacts)
 
 
-def _checkpoint_due(config: RunConfig, step: int, tokens: int, elapsed: float, watermarks: dict[str, float]) -> bool:
+def _checkpoint_due(
+    config: RunConfig,
+    step: int,
+    tokens: int,
+    elapsed: float,
+    watermarks: dict[str, float],
+) -> bool:
     checks = (
         (config.checkpoint.every_steps, step - watermarks.get("step", 0)),
         (config.checkpoint.every_tokens, tokens - watermarks.get("tokens", 0)),
-        (config.checkpoint.every_minutes, (elapsed - watermarks.get("minutes", 0)) / 60),
+        (
+            config.checkpoint.every_minutes,
+            (elapsed - watermarks.get("minutes", 0)) / 60,
+        ),
     )
     return any(interval is not None and value >= interval for interval, value in checks)
 
-def _save(manager: CheckpointManager, model: DenseLM, optimizer: torch.optim.Optimizer, config: RunConfig, run_id: str, cursor: BatchCursor, step: int, tokens: int, watermarks: dict[str, float], validation_loss: float | None = None) -> None:
+
+def _save(
+    manager: CheckpointManager,
+    model: DenseLM,
+    optimizer: torch.optim.Optimizer,
+    config: RunConfig,
+    run_id: str,
+    cursor: BatchCursor,
+    step: int,
+    tokens: int,
+    watermarks: dict[str, float],
+    validation_loss: float | None = None,
+) -> None:
     snapshot = TrainingSnapshot(
         {name: tensor.detach().cpu() for name, tensor in model.state_dict().items()},
         optimizer.state_dict(),
-        {"kind": "warmup_cosine_v1", "completed_updates": step, "max_steps": config.training.max_steps, "warmup_steps": config.optimizer.warmup_steps, "peak": config.optimizer.peak, "floor": config.optimizer.floor},
-        step, tokens, (cursor.epoch, cursor.next_block), config.model_dump(mode="json"),
-        run_id, _safe_rng_state(), None, validation_loss, watermarks.copy(), "pytorch",
+        {
+            "kind": "warmup_cosine_v1",
+            "completed_updates": step,
+            "max_steps": config.training.max_steps,
+            "warmup_steps": config.optimizer.warmup_steps,
+            "peak": config.optimizer.peak,
+            "floor": config.optimizer.floor,
+        },
+        step,
+        tokens,
+        (cursor.epoch, cursor.next_block),
+        config.model_dump(mode="json"),
+        run_id,
+        _safe_rng_state(),
+        None,
+        validation_loss,
+        watermarks.copy(),
+        "pytorch",
         config.runtime.backend,
     )
     manager.save(snapshot, validation_loss)
 
 
-def _restore_model_state(model: DenseLM, optimizer: torch.optim.Optimizer, snapshot: TrainingSnapshot) -> None:
+def _restore_model_state(
+    model: DenseLM, optimizer: torch.optim.Optimizer, snapshot: TrainingSnapshot
+) -> None:
     model.load_state_dict(snapshot.model)
     optimizer.load_state_dict(snapshot.optimizer)
     if snapshot.rng is not None:
@@ -148,6 +211,17 @@ def train(
     choices = [path for path in (resume, promote, recover) if path is not None]
     if len(choices) > 1:
         raise ValueError("resume, promote, and recover are mutually exclusive")
+    if config.runtime.engine == "mlx":
+        from sparselab.training.mlx_trainer import train_mlx
+
+        if promote is not None or recover is not None:
+            raise ValueError("MLX promotion/recovery is not yet supported")
+        return train_mlx(
+            config,
+            resume=resume,
+            run_id=run_id,
+            stop_after_step=stop_after_step,
+        )
     runtime = validate_runtime(config)
     device = torch_device_for(runtime.backend, config.runtime.device_index)
     source_run: Path | None = None
@@ -168,13 +242,17 @@ def train(
                 current.pop(key, None)
                 saved.pop(key, None)
             if current != saved and not allow_runtime_drift:
-                raise ValueError("resume configuration differs from checkpoint; use promotion for changed scientific settings")
+                raise ValueError(
+                    "resume configuration differs from checkpoint; use promotion for changed scientific settings"
+                )
     if recover is not None:
         source_run = recover
         recovery = CheckpointManager(source_run).latest_valid()
         if recovery.record is None:
             raise ValueError("no valid checkpoint generation for recovery")
-        snapshot = CheckpointManager(source_run).load(source_run / "checkpoints" / recovery.record.relative_path)
+        snapshot = CheckpointManager(source_run).load(
+            source_run / "checkpoints" / recovery.record.relative_path
+        )
         continuation = "RESUMED"
     seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
     if source_run is None:
@@ -182,7 +260,9 @@ def train(
         data = prepare_data(config, tokenizer)
     else:
         data = _load_run_data(source_run, config)
-    dataset = TokenBlockDataset(data.train, config.training.seq_len, data.train_byte_addresses)
+    dataset = TokenBlockDataset(
+        data.train, config.training.seq_len, data.train_byte_addresses
+    )
     model = DenseLM(config.model, config.attention).to(device)
     offload = (
         ActivationOffload(device)
@@ -227,26 +307,62 @@ def train(
         raise FileExistsError(f"run exists: {run_id}")
     run.mkdir(parents=True)
     artifacts = _copy_artifacts(run, config, data)
-    (run / "resolved_config.yaml").write_text(json.dumps(config.model_dump(mode="json"), sort_keys=True, indent=2) + "\n")
-    architecture = {"model": config.model.model_dump(mode="json"), "attention": config.attention.model_dump(mode="json")}
-    manifest = RunManifest(run_id, config.name, runtime, config.model_dump(mode="json"), config.model_dump(mode="json"), sha256_file(run / "resolved_config.yaml") if architecture else "", source_identity(), worker_id or socket.gethostname(), continuation, parent_run_id=parent_run_id, checkpoint_sha256=None, artifacts=artifacts)
+    (run / "resolved_config.yaml").write_text(
+        json.dumps(config.model_dump(mode="json"), sort_keys=True, indent=2) + "\n"
+    )
+    architecture = {
+        "model": config.model.model_dump(mode="json"),
+        "attention": config.attention.model_dump(mode="json"),
+    }
+    manifest = RunManifest(
+        run_id,
+        config.name,
+        runtime,
+        config.model_dump(mode="json"),
+        config.model_dump(mode="json"),
+        sha256_file(run / "resolved_config.yaml") if architecture else "",
+        source_identity(),
+        worker_id or socket.gethostname(),
+        continuation,
+        parent_run_id=parent_run_id,
+        checkpoint_sha256=None,
+        artifacts=artifacts,
+    )
     manifest_digest = write_manifest(run / "manifest.json", manifest)
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     store = ExperimentStore(config.logging.root_dir)
-    store.create_run(run_id, config.model_dump(mode="json"), {"inspection": inspect_model(model), "runtime": runtime.as_dict(), "manifest_sha256": manifest_digest}, parent_run_id)
+    store.create_run(
+        run_id,
+        config.model_dump(mode="json"),
+        {
+            "inspection": inspect_model(model),
+            "runtime": runtime.as_dict(),
+            "manifest_sha256": manifest_digest,
+        },
+        parent_run_id,
+    )
     started = time.perf_counter()
     interrupted = False
+
     def request_stop(_signum: int, _frame: object) -> None:
         nonlocal interrupted
         interrupted = True
-    old_int, old_term = signal.signal(signal.SIGINT, request_stop), signal.signal(signal.SIGTERM, request_stop)
+
+    old_int, old_term = (
+        signal.signal(signal.SIGINT, request_stop),
+        signal.signal(signal.SIGTERM, request_stop),
+    )
     try:
-        _save(manager, model, optimizer, config, run_id, cursor, step, tokens, watermarks)
+        _save(
+            manager, model, optimizer, config, run_id, cursor, step, tokens, watermarks
+        )
         while step < config.training.max_steps and tokens < config.training.max_tokens:
             if cancel_path is not None and cancel_path.exists():
                 interrupted = True
             order = epoch_order(len(dataset), config.seed, cursor.epoch)
-            count = config.training.micro_batch_size * config.training.gradient_accumulation
+            count = (
+                config.training.micro_batch_size * config.training.gradient_accumulation
+            )
             indices = order[cursor.next_block : cursor.next_block + count].tolist()
             if not indices:
                 cursor = BatchCursor(cursor.epoch + 1, 0)
@@ -268,10 +384,16 @@ def train(
             aux_sum = 0.0
             for offset in range(0, len(records), config.training.micro_batch_size):
                 chunk = records[offset : offset + config.training.micro_batch_size]
-                chunk_labels = labels[offset : offset + config.training.micro_batch_size]
+                chunk_labels = labels[
+                    offset : offset + config.training.micro_batch_size
+                ]
                 x = torch.stack([record[0] for record in chunk]).to(device)
                 y = torch.stack(chunk_labels).to(device)
-                addresses = torch.stack([record[2] for record in chunk]).to(device) if len(chunk[0]) == 3 else None
+                addresses = (
+                    torch.stack([record[2] for record in chunk]).to(device)
+                    if len(chunk[0]) == 3
+                    else None
+                )
                 context = offload.hooks() if offload is not None else nullcontext()
                 with context:
                     logits, auxiliary = model.forward_with_aux(
@@ -280,29 +402,87 @@ def train(
                         valid_target_mask=y != -100,
                         activation_checkpointing=config.runtime.memory.activation_checkpointing.enabled,
                     )
-                ce_sum = functional.cross_entropy(logits.flatten(0, 1), y.flatten(), ignore_index=-100, reduction="sum")
+                ce_sum = functional.cross_entropy(
+                    logits.flatten(0, 1),
+                    y.flatten(),
+                    ignore_index=-100,
+                    reduction="sum",
+                )
                 chunk_valid = int((y != -100).sum())
                 loss = (ce_sum + auxiliary * chunk_valid) / valid_targets
                 loss.backward()
                 language_sum += float(ce_sum.detach())
                 aux_sum += float(auxiliary.detach()) * chunk_valid
-            norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.training.grad_clip_norm, error_if_nonfinite=True, foreach=False)
+            norm = torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                config.training.grad_clip_norm,
+                error_if_nonfinite=True,
+                foreach=False,
+            )
             next_step = step + 1
-            lr = learning_rate_for_step(next_step, config.training.max_steps, config.optimizer.warmup_steps, config.optimizer.peak, config.optimizer.floor)
+            lr = learning_rate_for_step(
+                next_step,
+                config.training.max_steps,
+                config.optimizer.warmup_steps,
+                config.optimizer.peak,
+                config.optimizer.floor,
+            )
             for group in optimizer.param_groups:
                 group["lr"] = lr
             optimizer.step()
             step, tokens = next_step, tokens + valid_targets
             cursor = BatchCursor(cursor.epoch, cursor.next_block + len(indices))
             elapsed = time.perf_counter() - started
-            store.log_metrics(run_id, step, tokens, elapsed, {"train/loss": language_sum / valid_targets, "moe/router_auxiliary_loss": aux_sum / valid_targets, "optimizer/learning_rate": lr, "optimizer/grad_norm": float(norm), "performance/tokens_per_second": valid_targets / max(elapsed, 1e-9), "batch/micro_batch_size": float(config.training.micro_batch_size), "batch/accumulation_steps": float(config.training.gradient_accumulation), "batch/effective_batch_size": float(len(indices)), "batch/effective_tokens_per_update": float(valid_targets)})
-            terminal = step >= config.training.max_steps or tokens >= config.training.max_tokens or step == stop_after_step or interrupted
+            store.log_metrics(
+                run_id,
+                step,
+                tokens,
+                elapsed,
+                {
+                    "train/loss": language_sum / valid_targets,
+                    "moe/router_auxiliary_loss": aux_sum / valid_targets,
+                    "optimizer/learning_rate": lr,
+                    "optimizer/grad_norm": float(norm),
+                    "performance/tokens_per_second": valid_targets / max(elapsed, 1e-9),
+                    "batch/micro_batch_size": float(config.training.micro_batch_size),
+                    "batch/accumulation_steps": float(
+                        config.training.gradient_accumulation
+                    ),
+                    "batch/effective_batch_size": float(len(indices)),
+                    "batch/effective_tokens_per_update": float(valid_targets),
+                },
+            )
+            terminal = (
+                step >= config.training.max_steps
+                or tokens >= config.training.max_tokens
+                or step == stop_after_step
+                or interrupted
+            )
             if _checkpoint_due(config, step, tokens, elapsed, watermarks) or terminal:
-                watermarks = {"step": float(step), "tokens": float(tokens), "minutes": elapsed}
-                _save(manager, model, optimizer, config, run_id, cursor, step, tokens, watermarks)
+                watermarks = {
+                    "step": float(step),
+                    "tokens": float(tokens),
+                    "minutes": elapsed,
+                }
+                _save(
+                    manager,
+                    model,
+                    optimizer,
+                    config,
+                    run_id,
+                    cursor,
+                    step,
+                    tokens,
+                    watermarks,
+                )
                 store.log_event(run_id, step, tokens, elapsed, "checkpoint_saved", {})
             if terminal:
-                status = "completed" if step >= config.training.max_steps or tokens >= config.training.max_tokens else "interrupted"
+                status = (
+                    "completed"
+                    if step >= config.training.max_steps
+                    or tokens >= config.training.max_tokens
+                    else "interrupted"
+                )
                 store.finish_run(run_id, status, str(manager.root / "latest.json"))
                 store.log_event(run_id, step, tokens, elapsed, f"run_{status}", {})
                 return run_id

@@ -94,3 +94,23 @@ class MLXEngine:
         self.optimizer.state = nn.utils.tree_unflatten(
             mx.load(str(source / "optimizer.safetensors"))
         )
+
+    def canonical_weights(self) -> dict[str, object]:
+        from mlx import nn
+
+        return dict(nn.utils.tree_flatten(self.model.parameters()))
+
+    def load_canonical_weights(self, weights: dict[str, object]) -> None:
+        import mlx.core as mx
+        from mlx import nn
+
+        expected = self.canonical_weights()
+        if set(weights) != set(expected):
+            raise ValueError("canonical tensor names differ from MLX model")
+        converted = {}
+        for name, value in weights.items():
+            array = mx.array(value)
+            if array.shape != expected[name].shape:
+                raise ValueError(f"canonical tensor shape differs: {name}")
+            converted[name] = array
+        self.model.update(nn.utils.tree_unflatten(converted))
