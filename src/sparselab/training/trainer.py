@@ -8,6 +8,7 @@ import signal
 import socket
 import time
 import uuid
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Literal
 
@@ -36,7 +37,12 @@ from sparselab.training.manifest import (
     write_manifest,
 )
 from sparselab.training.metrics import ExperimentStore
-from sparselab.training.optimizer import learning_rate_for_step, make_optimizer
+from sparselab.training.offload import ActivationOffload
+from sparselab.training.optimizer import (
+    learning_rate_for_step,
+    make_adafactor,
+    make_optimizer,
+)
 
 
 def _safe_rng_state() -> dict[str, object]:
@@ -178,9 +184,29 @@ def train(
         data = _load_run_data(source_run, config)
     dataset = TokenBlockDataset(data.train, config.training.seq_len, data.train_byte_addresses)
     model = DenseLM(config.model, config.attention).to(device)
-    if config.optimizer.name != "adamw":
-        raise ValueError("Adafactor execution is deferred")
-    optimizer = make_optimizer(model, config.optimizer.peak, config.optimizer.weight_decay, config.optimizer.betas, config.optimizer.eps)
+    offload = (
+        ActivationOffload(device)
+        if config.runtime.memory.activation_offload.enabled
+        else None
+    )
+    optimizer = (
+        make_optimizer(
+            model,
+            config.optimizer.peak,
+            config.optimizer.weight_decay,
+            config.optimizer.betas,
+            config.optimizer.eps,
+        )
+        if config.optimizer.name == "adamw"
+        else make_adafactor(
+            model,
+            config.optimizer.peak,
+            config.optimizer.weight_decay,
+            config.optimizer.beta2_decay,
+            config.optimizer.eps,
+            config.optimizer.d,
+        )
+    )
     step = tokens = 0
     cursor = BatchCursor()
     parent_run_id = None
@@ -246,7 +272,14 @@ def train(
                 x = torch.stack([record[0] for record in chunk]).to(device)
                 y = torch.stack(chunk_labels).to(device)
                 addresses = torch.stack([record[2] for record in chunk]).to(device) if len(chunk[0]) == 3 else None
-                logits, auxiliary = model.forward_with_aux(x, byte_addresses=addresses, valid_target_mask=y != -100, activation_checkpointing=config.runtime.memory.activation_checkpointing.enabled)
+                context = offload.hooks() if offload is not None else nullcontext()
+                with context:
+                    logits, auxiliary = model.forward_with_aux(
+                        x,
+                        byte_addresses=addresses,
+                        valid_target_mask=y != -100,
+                        activation_checkpointing=config.runtime.memory.activation_checkpointing.enabled,
+                    )
                 ce_sum = functional.cross_entropy(logits.flatten(0, 1), y.flatten(), ignore_index=-100, reduction="sum")
                 chunk_valid = int((y != -100).sum())
                 loss = (ce_sum + auxiliary * chunk_valid) / valid_targets

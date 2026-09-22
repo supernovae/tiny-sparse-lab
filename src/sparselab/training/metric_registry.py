@@ -66,6 +66,27 @@ METRICS = {
             "moe",
             "trainer",
         ),
+        MetricSpec(
+            "memory/device_allocated_bytes",
+            "bytes",
+            "Native device allocation at an update boundary.",
+            "memory",
+            "memory-monitor",
+        ),
+        MetricSpec(
+            "memory/process_rss_bytes",
+            "bytes",
+            "Resident host process memory at an update boundary.",
+            "memory",
+            "memory-monitor",
+        ),
+        MetricSpec(
+            "batch/effective_tokens_per_update",
+            "targets",
+            "Committed valid prediction targets in one optimizer update.",
+            "gradient-accumulation",
+            "trainer",
+        ),
     )
 }
 

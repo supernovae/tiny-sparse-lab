@@ -71,3 +71,15 @@ def events(root: Path, run_ids: list[str]) -> list[dict[str, object]]:
         )
         for row in rows
     ]
+
+def stages(root: Path, run_ids: list[str]) -> list[dict[str, object]]:
+    if not run_ids:
+        return []
+    marks = ",".join("?" * len(run_ids))
+    with _connect(root) as connection:
+        rows = connection.execute(
+            f"SELECT run_id,sequence,stage,status,step,tokens_seen,started_at,finished_at,payload_json FROM stage_history WHERE run_id IN ({marks}) ORDER BY run_id,sequence",
+            run_ids,
+        ).fetchall()
+    names = ("run_id", "sequence", "stage", "status", "step", "tokens_seen", "started_at", "finished_at", "payload_json")
+    return [dict(zip(names, row, strict=True)) for row in rows]

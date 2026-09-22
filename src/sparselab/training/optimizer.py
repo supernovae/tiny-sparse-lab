@@ -42,3 +42,23 @@ def make_optimizer(
         eps=eps,
         foreach=False,
     )
+
+
+def make_adafactor(
+    model: nn.Module,
+    learning_rate: float,
+    weight_decay: float,
+    beta2_decay: float,
+    eps: tuple[float | None, float],
+    d: float,
+) -> torch.optim.Adafactor:
+    parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    return torch.optim.Adafactor(
+        parameters,
+        lr=learning_rate,
+        beta2_decay=beta2_decay,
+        eps=eps,
+        d=d,
+        weight_decay=weight_decay,
+        foreach=False,
+    )

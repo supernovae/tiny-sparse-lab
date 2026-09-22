@@ -9,7 +9,7 @@ from pathlib import Path
 import plotly.express as px
 import streamlit as st
 
-from sparselab.dashboard.queries import RunRecord, events, metrics, runs
+from sparselab.dashboard.queries import RunRecord, events, metrics, runs, stages
 from sparselab.training.metric_registry import metric_spec
 
 
@@ -163,6 +163,12 @@ def evaluation(root: Path) -> None:
         )
 
 
+def stage_view(root: Path) -> None:
+    st.header("Stages")
+    _, selected_ids = selected(root)
+    st.dataframe(stages(root, selected_ids), use_container_width=True)
+
+
 def learn() -> None:
     st.header("Learn")
     st.markdown(
@@ -205,6 +211,7 @@ def main() -> None:
                 title="Architecture",
                 url_path="architecture",
             ),
+            st.Page(lambda: stage_view(root), title="Stages", url_path="stages"),
             st.Page(learn, title="Learn", url_path="learn"),
         ]
     )
