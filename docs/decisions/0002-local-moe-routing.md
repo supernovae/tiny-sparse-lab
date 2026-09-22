@@ -1,4 +1,4 @@
-# ADR 0002: Local top-1 MoE feed-forward routing
+# ADR 0002: Local Top-K MoE feed-forward routing
 
 ## Status
 
@@ -10,11 +10,11 @@ The dense decoder isolates its feed-forward boundary at `DecoderBlock.ffn`. Atte
 
 ## Decision
 
-Replace only the dense SwiGLU feed-forward module with a local top-1 routed SwiGLU bank. The router maps each normalized token representation `[B,T,D]` to `num_experts` logits. Selection is `argmax(softmax(logits))`; each token executes exactly one expert. The selected probability is normalized to one for top-1 output mixing, so the forward output is exactly that expert's output. The router still exposes pre-normalization probabilities for diagnostics.
+Replace only the dense SwiGLU feed-forward module with a local Top-K routed SwiGLU bank. The router maps each normalized token representation `[B,T,D]` to `num_experts` logits, selects `experts_per_token` probabilities, renormalizes them, and sums the selected expert outputs. An optional shared expert runs for every token.
 
-Selection, normalized weights, dispatch, and diagnostics are distinct implementation boundaries. Dispatch groups flattened token positions by selected expert and scatters outputs back to their original positions. There is no capacity limit, token dropping, auxiliary balancing loss, all-to-all exchange, or distributed dependency in this milestone. A token always has one local expert.
+Selection, normalized weights, dispatch, and diagnostics are distinct implementation boundaries. Dispatch groups flattened token positions by selected expert and scatters outputs back to their original positions. There is no capacity limit, token dropping, all-to-all exchange, or distributed dependency. The configurable auxiliary balance loss is added to the language loss by the trainer.
 
-Diagnostics are detached aggregates: per-expert token counts, routing fractions, router entropy, and maximum fraction. They are not retained on ordinary dense forwards and cannot affect model output.
+Diagnostics are detached aggregates: per-expert token counts/fractions, router entropy, maximum fraction, selected-probability mass, and auxiliary loss. Persisted metric series expose the scalar diagnostics for the dashboard.
 
 ## Consequences
 
