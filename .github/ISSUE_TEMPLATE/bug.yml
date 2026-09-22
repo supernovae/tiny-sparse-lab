@@ -1,0 +1,17 @@
+name: Bug report
+description: Report a reproducible SparseLab failure.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes: {label: Observed behavior}
+    validations: {required: true}
+  - type: textarea
+    id: reproduction
+    attributes: {label: Command and resolved configuration}
+    validations: {required: true}
+  - type: textarea
+    id: evidence
+    attributes: {label: Run ID, checkpoint, logs, and environment}
+    validations: {required: true}
