@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import mlx.core as mx
+from mlx import nn
+
 from sparselab.config.models import ModelConfig
 
 
-class MLXDenseLM:
+class MLXDenseLM(nn.Module):
     def __init__(self, config: ModelConfig) -> None:
-        from mlx import nn
-
+        super().__init__()
         self.config = config
         self.embedding = nn.Embedding(config.vocab_size, config.hidden_dim)
         self.decoder = nn.TransformerEncoder(
@@ -24,10 +26,7 @@ class MLXDenseLM:
         if config.tie_embeddings:
             self.output.weight = self.embedding.weight
 
-    def __call__(self, input_ids):
-        import mlx.core as mx
-
+    def __call__(self, input_ids: mx.array) -> mx.array:
         length = input_ids.shape[1]
         mask = mx.where(mx.triu(mx.ones((length, length)), k=1), -1e9, 0.0)
-        hidden = self.decoder(self.embedding(input_ids), mask)
-        return self.output(self.norm(hidden))
+        return self.output(self.norm(self.decoder(self.embedding(input_ids), mask)))
