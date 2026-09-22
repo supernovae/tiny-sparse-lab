@@ -6,6 +6,7 @@ from collections.abc import Iterable
 
 from torch import nn
 
+from sparselab.model.moe import Top1MoE
 from sparselab.model.transformer import DenseLM
 
 
@@ -39,11 +40,16 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
             block.attention.out_proj,
         )
     )
-    ffn = sum(
-        projection.weight.numel()
-        for block in model.blocks
-        for projection in (block.ffn.gate, block.ffn.up, block.ffn.down)
-    )
+    dense_ffn = 0
+    expert = 0
+    active_expert = 0
+    for block in model.blocks:
+        if isinstance(block.ffn, Top1MoE):
+            expert_parameters = _unique_numel(block.ffn.experts.parameters())
+            expert += expert_parameters
+            active_expert += _unique_numel(block.ffn.experts[0].parameters())
+        else:
+            dense_ffn += _unique_numel(block.ffn.parameters())
     norm = sum(
         parameter.numel()
         for name, parameter in model.named_parameters()
@@ -51,6 +57,8 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     )
     output_head = 0 if tied else model.output.weight.numel()
     active = total if tied else total - embedding + model.config.hidden_dim
+    if model.config.ffn == "moe":
+        active = active - expert + active_expert
     weight_bytes = sum(
         parameter.numel() * parameter.element_size() for parameter in model.parameters()
     )
@@ -61,12 +69,16 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
         "active_per_token": active,
         "embedding": embedding,
         "attention": attention,
-        "ffn": ffn,
+        "ffn": dense_ffn,
         "norm": norm,
         "output_head": output_head,
-        "expert": 0,
+        "expert": expert,
         "engram": 0,
-        "expert_note": "not present in dense model",
+        "expert_note": (
+            "not present in dense model"
+            if model.config.ffn == "dense"
+            else "all local expert storage"
+        ),
         "engram_note": "not present in dense model",
         "model_weight_bytes": weight_bytes,
         "optimizer_state_bytes": optimizer_state_bytes,

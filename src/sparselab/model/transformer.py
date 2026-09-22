@@ -7,6 +7,7 @@ from torch import Tensor, nn
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.ffn import SwiGLU
+from sparselab.model.moe import Top1MoE
 from sparselab.model.norm import RMSNorm
 
 
@@ -18,7 +19,11 @@ class DecoderBlock(nn.Module):
             model.hidden_dim, model.num_heads, model.max_seq_len, attention.rope_base
         )
         self.norm2 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
-        self.ffn = SwiGLU(model.hidden_dim, model.ffn_dim)
+        self.ffn: nn.Module = (
+            SwiGLU(model.hidden_dim, model.ffn_dim)
+            if model.ffn == "dense"
+            else Top1MoE(model.hidden_dim, model.ffn_dim, model.num_experts)
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         x = x + self.attention(self.norm1(x))

@@ -21,7 +21,8 @@ class ModelConfig(StrictModel):
     max_seq_len: int
     rms_norm_eps: float = 1e-6
     tie_embeddings: bool = True
-    ffn: Literal["dense"] = "dense"
+    ffn: Literal["dense", "moe"] = "dense"
+    num_experts: int = 1
 
     @model_validator(mode="after")
     def validate_dimensions(self) -> ModelConfig:
@@ -43,6 +44,10 @@ class ModelConfig(StrictModel):
             raise ValueError("model head dimension must be even for RoPE")
         if self.rms_norm_eps <= 0:
             raise ValueError("model.rms_norm_eps must be positive")
+        if self.ffn == "dense" and self.num_experts != 1:
+            raise ValueError("dense model.ffn requires model.num_experts to be 1")
+        if self.ffn == "moe" and self.num_experts < 2:
+            raise ValueError("MoE model.ffn requires at least two experts")
         return self
 
 
