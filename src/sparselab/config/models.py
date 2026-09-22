@@ -73,6 +73,7 @@ class DatasetConfig(StrictModel):
         "synthetic",
         "instruction_reference",
         "withheld_facts",
+        "engram_recall",
         "fineweb_edu",
         "cosmopedia",
     ]

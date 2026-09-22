@@ -20,6 +20,12 @@ from sparselab.data.withheld_facts import (
     write_manifest,
 )
 from sparselab.evaluation.byte_memory_transfer import transfer_byte_memory
+from sparselab.evaluation.capabilities import (
+    capability_card,
+    control_differences,
+    evaluate_capability,
+    write_capability_result,
+)
 from sparselab.evaluation.chat import ChatMessage, chat_turn
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
@@ -348,6 +354,99 @@ def _evidence(args: argparse.Namespace) -> None:
 
 
 
+def _attach_capability_identity(
+    run_id: str, run: Path, result: dict[str, object]
+) -> dict[str, object]:
+    pointer = json.loads((run / "checkpoints" / "latest.json").read_text())
+    return {
+        **result,
+        "run_id": run_id,
+        "checkpoint": pointer.get("relative_path", pointer.get("filename")),
+        "checkpoint_sha256": pointer.get("manifest_sha256", pointer.get("sha256")),
+    }
+
+
+def _capability_evaluate(args: argparse.Namespace) -> None:
+    config, model, device = _run_model(
+        args.run_id, Path(args.runs_dir), None, args.backend
+    )
+    result = evaluate_capability(
+        capability_card(args.card),
+        model,
+        load_tokenizer(config.tokenizer.path),
+        config.model.max_seq_len,
+        device,
+    )
+    run = Path(args.runs_dir) / args.run_id
+    result = _attach_capability_identity(args.run_id, run, result)
+    path = write_capability_result(run, result)
+    print(json.dumps({**result, "output": str(path)}, indent=2, sort_keys=True))
+
+
+def _capability_compare(args: argparse.Namespace) -> None:
+    base_config, base_model, base_device = _run_model(
+        args.base_run_id, Path(args.runs_dir), None, args.backend
+    )
+    variant_config, variant_model, variant_device = _run_model(
+        args.variant_run_id, Path(args.runs_dir), None, args.backend
+    )
+    differences = control_differences(base_config, variant_config)
+    if differences:
+        raise ValueError(
+            "capability comparison requires matched controls; differing sections: "
+            + ", ".join(differences)
+        )
+    card = capability_card(args.card)
+    base_result = evaluate_capability(
+        card,
+        base_model,
+        load_tokenizer(base_config.tokenizer.path),
+        base_config.model.max_seq_len,
+        base_device,
+    )
+    variant_result = evaluate_capability(
+        card,
+        variant_model,
+        load_tokenizer(variant_config.tokenizer.path),
+        variant_config.model.max_seq_len,
+        variant_device,
+    )
+    base_result = _attach_capability_identity(
+        args.base_run_id, Path(args.runs_dir) / args.base_run_id, base_result
+    )
+    variant_result = _attach_capability_identity(
+        args.variant_run_id, Path(args.runs_dir) / args.variant_run_id, variant_result
+    )
+    base_path = write_capability_result(
+        Path(args.runs_dir) / args.base_run_id, base_result
+    )
+    variant_path = write_capability_result(
+        Path(args.runs_dir) / args.variant_run_id, variant_result
+    )
+    print(
+        json.dumps(
+            {
+                "format": "capability_comparison_v1",
+                "card": card.name,
+                "card_digest": card.digest,
+                "base_run_id": args.base_run_id,
+                "variant_run_id": args.variant_run_id,
+                "base_score": base_result["score"],
+                "variant_score": variant_result["score"],
+                "score_delta": variant_result["score"] - base_result["score"],
+                "base_output": str(base_path),
+                "variant_output": str(variant_path),
+                "interpretation": (
+                    "A positive delta supports this card's narrow hypothesis only; "
+                    "it is not a general Engram or model-quality claim."
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
 def _chat(args: argparse.Namespace) -> None:
     config, model, device = _run_model(
         args.run_id, Path(args.runs_dir), None, args.backend
@@ -511,6 +610,30 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--runs-dir", default="runs")
     evidence.add_argument("--json", action="store_true")
     evidence.set_defaults(handler=_evidence)
+    capability = commands.add_parser(
+        "capability",
+        help="Evaluate or compare a versioned narrow capability card.",
+    )
+    capability_commands = capability.add_subparsers(
+        dest="capability_command", required=True
+    )
+    capability_evaluate = capability_commands.add_parser("evaluate")
+    capability_evaluate.add_argument("run_id")
+    capability_evaluate.add_argument("card")
+    capability_evaluate.add_argument("--runs-dir", default="runs")
+    capability_evaluate.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    capability_evaluate.set_defaults(handler=_capability_evaluate)
+    capability_compare = capability_commands.add_parser("compare")
+    capability_compare.add_argument("base_run_id")
+    capability_compare.add_argument("variant_run_id")
+    capability_compare.add_argument("card")
+    capability_compare.add_argument("--runs-dir", default="runs")
+    capability_compare.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    capability_compare.set_defaults(handler=_capability_compare)
     generation = commands.add_parser("generate")
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)

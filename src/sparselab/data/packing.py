@@ -180,6 +180,8 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             if config.dataset.source == "tinystories"
             else "synthetic instruction reference"
             if config.dataset.source == "instruction_reference"
+            else "synthetic associative recall reference"
+            if config.dataset.source == "engram_recall"
             else "synthetic fixture"
         ),
         "tokenizer_sha256": hashlib.sha256(

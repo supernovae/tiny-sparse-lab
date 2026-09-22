@@ -7,6 +7,7 @@ import pytest
 
 from sparselab.config.models import DatasetConfig
 from sparselab.data import datasets
+from sparselab.data.engram_recall import recall_case
 from sparselab.data.instruction_reference import iter_instruction_reference
 
 
@@ -86,6 +87,25 @@ def test_instruction_reference_is_available_as_a_dataset_source(tmp_path: Path) 
     )
 
     assert next(datasets.iter_documents(config, "train")).startswith("System: ")
+
+
+def test_engram_recall_source_has_held_out_prompt_wording(tmp_path: Path) -> None:
+    train_prompt, train_answer = recall_case(42, 0)
+    held_out_prompt, held_out_answer = recall_case(42, 2_000_000)
+    config = DatasetConfig(
+        source="engram_recall",
+        cache_dir=tmp_path,
+        train_max_documents=1,
+        validation_max_documents=1,
+        train_max_tokens=64,
+        validation_max_tokens=64,
+    )
+
+    assert train_answer == held_out_answer
+    assert train_prompt != held_out_prompt
+    assert next(datasets.iter_documents(config, "validation")).startswith(
+        "Memory record 1000000."
+    )
 
 def test_remote_sources_require_subset_and_revision(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="revision"):

@@ -43,3 +43,5 @@ uv run sparselab evidence RUN_ID --json
 ```
 
 Training records held-out validation at the initial, configured periodic, and terminal boundaries; each observation is attached to a verified checkpoint generation. This validates the local experiment path, not a general model-quality claim. See [experiment evidence](evidence.md) for evidence levels, controlled-comparison requirements, and the future hardware/reference-harness protocol.
+
+For a named architectural hypothesis rather than aggregate loss alone, use a [capability card](capabilities.md). Cards preserve their own prompt set, scorer, baseline controls, and scope-limited conclusion.
