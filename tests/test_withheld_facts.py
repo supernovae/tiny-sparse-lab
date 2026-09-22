@@ -10,6 +10,7 @@ from sparselab.data.withheld_facts import (
     evaluation_cases,
     split_facts,
     training_documents,
+    verify_manifest,
     write_manifest,
 )
 
@@ -44,3 +45,24 @@ def test_manifest_is_canonical_and_conflict_safe(tmp_path: Path) -> None:
     write_manifest(path, seed=2)
     with pytest.raises(FileExistsError, match="conflicting"):
         write_manifest(path, seed=3)
+
+
+def test_manifest_verifier_rejects_corruption_and_substitution(tmp_path: Path) -> None:
+    path = tmp_path / "facts.json"
+    write_manifest(path, seed=2)
+    assert verify_manifest(path)["seed"] == 2
+    manifest = json.loads(path.read_text())
+    manifest["sha256"] = "0" * 64
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="digest mismatch"):
+        verify_manifest(path)
+
+    manifest = json.loads(path.read_text())
+    manifest["training_statements"][0] = "Altered fact."
+    payload = {key: value for key, value in manifest.items() if key != "sha256"}
+    manifest["sha256"] = hashlib.sha256(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="does not match fixture"):
+        verify_manifest(path)

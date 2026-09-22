@@ -82,3 +82,27 @@ def write_manifest(path: Path, seed: int = 0) -> None:
     temporary = target.with_suffix(target.suffix + ".tmp")
     temporary.write_text(content, encoding="utf-8")
     temporary.replace(target)
+
+
+def verify_manifest(path: Path) -> dict[str, object]:
+    """Read and verify a manifest against its digest and fixture seed."""
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"invalid diagnostic manifest JSON: {path}") from error
+    if not isinstance(manifest, dict):
+        raise TypeError(f"diagnostic manifest must be an object: {path}")
+    digest = manifest.pop("sha256", None)
+    if not isinstance(digest, str):
+        raise TypeError(f"diagnostic manifest has no SHA-256 digest: {path}")
+    canonical = json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode()
+    actual = hashlib.sha256(canonical).hexdigest()
+    if digest != actual:
+        raise ValueError(f"diagnostic manifest digest mismatch: {path}")
+    seed = manifest.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise TypeError(f"diagnostic manifest has invalid seed: {path}")
+    expected = diagnostic_manifest(seed)
+    if manifest != {key: value for key, value in expected.items() if key != "sha256"}:
+        raise ValueError(f"diagnostic manifest does not match fixture: {path}")
+    return {**manifest, "sha256": digest}
