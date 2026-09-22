@@ -16,6 +16,8 @@ def test_block_sparse_attention_is_causal_and_reports_selection() -> None:
     assert diagnostics is not None
     assert 0 < int(diagnostics.selected_tokens) < int(diagnostics.available_tokens)
     assert 0 < float(diagnostics.selection_ratio) < 1
+    assert 0 < float(diagnostics.dense_teacher_mass) <= 1
+    assert 0 < float(diagnostics.dense_teacher_topk_recall) <= 1
 
 
 def test_sparse_matches_dense_when_every_causal_block_is_selected() -> None:
@@ -24,3 +26,7 @@ def test_sparse_matches_dense_when_every_causal_block_is_selected() -> None:
     sparse.load_state_dict(dense.state_dict(), strict=True)
     values = torch.randn(2, 6, 8)
     assert torch.allclose(dense(values), sparse(values), atol=1e-6, rtol=1e-5)
+    diagnostics = sparse.last_diagnostics
+    assert diagnostics is not None
+    assert torch.allclose(diagnostics.dense_teacher_mass, torch.ones(()))
+    assert torch.allclose(diagnostics.dense_teacher_topk_recall, torch.ones(()))

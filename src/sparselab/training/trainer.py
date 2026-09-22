@@ -208,6 +208,12 @@ def train(
                         f"{prefix}/estimated_flops": float(
                             diagnostics.estimated_attention_flops
                         ),
+                        f"{prefix}/dense_teacher_mass": float(
+                            diagnostics.dense_teacher_mass
+                        ),
+                        f"{prefix}/dense_teacher_topk_recall": float(
+                            diagnostics.dense_teacher_topk_recall
+                        ),
                     }
                 )
         if getattr(model.memory, "last_diagnostics", None) is not None:

@@ -18,6 +18,8 @@ class SparseAttentionDiagnostics:
     selection_ratio: Tensor
     selected_blocks: Tensor
     estimated_attention_flops: Tensor
+    dense_teacher_mass: Tensor
+    dense_teacher_topk_recall: Tensor
 
 
 class BlockSparseAttention(nn.Module):
@@ -71,6 +73,8 @@ class BlockSparseAttention(nn.Module):
         selected_total = 0
         available_total = 0
         selected_block_ids: list[Tensor] = []
+        dense_mass_total = torch.zeros((), device=x.device)
+        dense_recall_total = torch.zeros((), device=x.device)
         for position in range(length):
             block_count = (position // self.block_size) + 1
             summaries = torch.stack(
@@ -111,6 +115,16 @@ class BlockSparseAttention(nn.Module):
             result[:, :, position] = (
                 torch.softmax(scores, dim=-1).unsqueeze(-1).mul(chosen_value).sum(dim=2)
             )
+            with torch.no_grad():
+                dense_scores = (
+                    query[:, :, position].unsqueeze(2) * key[:, :, : position + 1]
+                ).sum(-1) / math.sqrt(self.head_dim)
+                dense_probabilities = torch.softmax(dense_scores, dim=-1)
+                dense_mass_total += (
+                    dense_probabilities.index_select(2, indices).sum(dim=-1).mean()
+                )
+                dense_topk = dense_scores.topk(indices.numel(), dim=-1).indices
+                dense_recall_total += torch.isin(dense_topk, indices).float().mean()
             selected_total += indices.numel()
             available_total += position + 1
         self.last_diagnostics = SparseAttentionDiagnostics(
@@ -119,6 +133,8 @@ class BlockSparseAttention(nn.Module):
             torch.tensor(selected_total / available_total),
             torch.cat(selected_block_ids, dim=-1),
             torch.tensor(selected_total * self.head_dim),
+            (dense_mass_total / length).detach(),
+            (dense_recall_total / length).detach(),
         )
         return self.out_proj(
             result.transpose(1, 2).contiguous().view(batch, length, hidden)
