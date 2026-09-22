@@ -1,6 +1,6 @@
 # Tiny Sparse Lab
 
-Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. Milestone 0.1 established a reproducible dense causal-decoder baseline, Milestone 0.2 added local top-1 MoE feed-forward routing, Milestone 0.3 added token n-gram memory, and Milestone 0.4 adds prepared raw-UTF-8 byte addressing for memory. It remains an educational reference: sparse attention, distributed expert exchange, capacity management, external retrieval, byte-memory generation, and Engram transfer claims are not implemented.
+Tiny Sparse Lab is an installable PyTorch **architecture-learning laboratory**. Milestone 0.1 established a reproducible dense causal-decoder baseline, Milestone 0.2 added local top-1 MoE feed-forward routing, Milestone 0.3 added token n-gram memory, Milestone 0.4 added prepared raw-UTF-8 byte addressing, and Milestone 0.5 makes byte-memory greedy generation available. It remains an educational reference: sparse attention, distributed expert exchange, capacity management, external retrieval, and Engram transfer claims are not implemented.
 
 ## Local workflow
 
@@ -29,7 +29,7 @@ A MoE configuration sets `model.ffn: moe` and `model.num_experts: N` where `N >=
 
 Memory configuration sets `model.memory: ngram` with a table size, n-gram size, and independent latent width. Addresses are causal token-ID suffix hashes; they are tokenizer-specific and do not support byte-equivalent or cross-tokenizer matching. The learnable table is checkpointed with the model, so changing memory settings is rejected on resume.
 
-Byte memory uses prepared causal raw-UTF-8 suffix addresses, not tokenizer IDs. Its data artifacts are versioned and hashed; standalone evaluation is supported. Prompt-address preparation is not yet implemented, so greedy generation rejects byte-memory runs.
+Byte memory uses prepared causal raw-UTF-8 suffix addresses, not tokenizer IDs. Its data artifacts are versioned and hashed; standalone evaluation and greedy generation prepare aligned prompt addresses. This does not establish byte-hash retrieval quality or cross-tokenizer transfer.
 
 The dashboard is read-only and binds to `127.0.0.1`. It shows stored metric observations, events, ancestry, and metric explanations; it never launches training. Loss is not an architecture benchmark: compare runs only when data, tokenizer, budget, device, and architecture conditions are known.
 

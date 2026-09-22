@@ -122,10 +122,6 @@ def _generate(args: argparse.Namespace) -> None:
     config, model, device = _run_model(
         args.run_id, Path(args.runs_dir), None, args.device
     )
-    if config.model.memory == "byte":
-        raise ValueError(
-            "generation with byte memory requires prompt byte-address preparation and is not available yet"
-        )
     print(
         generate(
             model,
