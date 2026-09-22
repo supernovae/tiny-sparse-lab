@@ -111,8 +111,11 @@ class TokenizerConfig(StrictModel):
 
 
 class DatasetConfig(StrictModel):
-    source: Literal["tinystories", "synthetic", "withheld_facts"]
+    source: Literal[
+        "tinystories", "synthetic", "withheld_facts", "fineweb_edu", "cosmopedia"
+    ]
     revision: str | None = None
+    dataset_config: str | None = None
     cache_dir: Path
     train_max_documents: int = Field(gt=0)
     validation_max_documents: int = Field(gt=0)
@@ -122,8 +125,13 @@ class DatasetConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_source(self) -> DatasetConfig:
-        if self.source == "tinystories" and not self.revision:
-            raise ValueError("dataset.revision is required for TinyStories")
+        if (
+            self.source in {"tinystories", "fineweb_edu", "cosmopedia"}
+            and not self.revision
+        ):
+            raise ValueError("dataset.revision is required for remote datasets")
+        if self.source in {"fineweb_edu", "cosmopedia"} and not self.dataset_config:
+            raise ValueError("dataset.dataset_config is required for this source")
         return self
 
 
