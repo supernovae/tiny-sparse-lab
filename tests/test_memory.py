@@ -36,6 +36,24 @@ def test_multi_order_multi_head_addresses_remain_causal() -> None:
     assert len(memory.extra_tables) == 5
 
 
+def test_multi_stream_collision_diagnostics_aggregate_all_lookups() -> None:
+    memory = TokenNgramMemory(
+        hidden_dim=4,
+        table_size=2,
+        ngram_size=2,
+        value_dim=3,
+        ngram_orders=(2, 3),
+        hash_heads=2,
+    )
+    hidden = torch.randn(1, 8, 4)
+    memory(hidden, torch.zeros(1, 8, dtype=torch.long))
+    diagnostics = memory.last_diagnostics
+    assert diagnostics is not None
+    assert int(diagnostics.lookup_count) == 32
+    assert int(diagnostics.collision_count) > 0
+    assert float(diagnostics.bucket_reuse_rate) > 0
+
+
 def test_disabled_memory_is_absent_and_enabled_memory_runs_backward() -> None:
     plain = ModelConfig(
         vocab_size=512,
