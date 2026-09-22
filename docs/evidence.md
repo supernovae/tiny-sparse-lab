@@ -14,6 +14,8 @@ PyTorch training evaluates at step 0, every `evaluation.every_steps`, and the te
 
 `checkpointed_held_out` means every validation-bearing verified generation has an accepted report. Missing or rejected reports produce `partial_held_out` when some valid observations remain, or `artifact_only` when none does; inspect `missing_reports` and `rejected_reports`. Historical unbound reports are not silently upgraded. None of these labels establishes arbitrary language usefulness, safety, production quality, or semantic train/test separation.
 
+Quality evidence verifies checkpoint file integrity, weight inventories, and evaluation bindings; it does not certify optimizer-resume readiness. The checkpoint rows expose `verification_scope: weights_only`. Use `checkpoint verify` without `--weights-only` to check the native continuation contract separately. This preserves historical held-out observations when a checkpoint remains usable for inference but lacks the newer full-state envelope. With `checkpoint.keep_periodic: false`, pruned generations leave their old reports unverifiable; retain periodic generations when complete checkpoint-backed learning curves are required.
+
 Task evidence is separate: [capability cards](capabilities.md) retain responses and exact-match scores, actual training budgets, parameter counts, and training/evaluation source identities. A model can reduce loss without learning a named task. Chat transcripts show particular behaviors; controlled cards test whether those behaviors persist across a declared set.
 
 ## What each level validates

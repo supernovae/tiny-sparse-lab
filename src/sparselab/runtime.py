@@ -34,6 +34,7 @@ class RuntimeInfo:
     measured_at: str
     precision_capabilities: tuple[str, ...]
     limitations: tuple[str, ...] = ()
+    device_driver_allocated_bytes: int | None = None
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -74,7 +75,7 @@ def _auto_backend() -> str:
 
 
 def torch_device_for(backend: str, device_index: int = 0) -> torch.device:
-    if backend == "rocm":
+    if backend in {"cuda", "rocm"}:
         return torch.device("cuda", device_index)
     if backend == "xpu":
         return torch.device("xpu", device_index)
@@ -101,6 +102,7 @@ def discover_runtimes() -> list[RuntimeInfo]:
             reason = ""
         name = None
         device_total = device_free = recommended = None
+        driver_allocated = None
         source = None
         if supported and backend in {"cuda", "rocm"}:
             properties = torch.cuda.get_device_properties(0)
@@ -112,6 +114,8 @@ def discover_runtimes() -> list[RuntimeInfo]:
             mps = torch.mps
             if hasattr(mps, "recommended_max_memory"):
                 recommended = int(mps.recommended_max_memory())
+            if hasattr(mps, "driver_allocated_memory"):
+                driver_allocated = int(mps.driver_allocated_memory())
         elif supported and backend == "xpu":
             xpu = torch.xpu
             name = (
@@ -140,8 +144,9 @@ def discover_runtimes() -> list[RuntimeInfo]:
                 recommended,
                 source,
                 _now(),
-                ("fp32",) if backend == "cpu" else ("fp32", "bf16", "fp16"),
+                ("fp32",) if supported else (),
                 (reason,) if reason else (),
+                device_driver_allocated_bytes=driver_allocated,
             )
         )
     try:

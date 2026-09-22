@@ -53,8 +53,26 @@ def _load[T: BaseModel](path: Path, model_type: type[T]) -> T:
 
 
 def load_config(path: Path) -> RunConfig:
-    """Load a fully resolved run configuration without touching runtime artifacts."""
-    return _load(path, RunConfig)
+    """Load a fully resolved v2 run configuration without touching artifacts."""
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise ValueError(
+            f"cannot read config {path}: {error.strerror or error}"
+        ) from error
+    except yaml.YAMLError as error:
+        raise ValueError(f"invalid YAML in {path}: {error}") from error
+    if isinstance(raw, dict) and raw.get("schema_version") == 1:
+        raise ValueError(
+            "schema_version: 1 run configs must be migrated before use; run "
+            f"`sparselab config migrate {path} --output OUTPUT`"
+        )
+    if not isinstance(raw, dict):
+        raise TypeError(f"config {path} must contain a YAML mapping")
+    try:
+        return RunConfig.model_validate(_resolve_paths(raw, path.parent.resolve()))
+    except ValidationError as error:
+        raise ValueError(f"invalid config {path}: {error}") from error
 
 
 def load_tokenizer_config(path: Path) -> TokenizerTrainConfig:

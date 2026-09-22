@@ -28,7 +28,7 @@ def make_optimizer(
 ) -> torch.optim.AdamW:
     decay, no_decay, seen = [], [], set()
     for parameter in model.parameters():
-        if id(parameter) in seen:
+        if not parameter.requires_grad or id(parameter) in seen:
             continue
         seen.add(id(parameter))
         (decay if parameter.ndim >= 2 else no_decay).append(parameter)

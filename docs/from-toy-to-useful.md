@@ -204,7 +204,7 @@ uv run sparselab eval instruction-100m
 uv run sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
 ```
 
-Do not launch the full run solely because an estimate says `LIKELY_TO_FIT`. Inspect the actual configured backend and resource cost; use a short real run first. The current `inspect` command materializes a model, and `backend: auto` inspection reports a CPU estimate even though training may select an accelerator. `stage --through warmup` currently records requested stages without performing a measured model warmup; it is **not** a substitute for the pilot above.
+Do not launch the full run solely because an estimate says `LIKELY_TO_FIT`. Inspect the actual configured backend and resource cost; use a short real run first. The `inspect` command uses tensor shapes without allocating the model, and `backend: auto` uses the same selector as training. Missing physical-capacity readings cannot certify fit. `stage --through warmup` still records requested stages without performing a measured model warmup; it is **not** a substitute for the pilot above.
 
 The starter and 100M recipes differ in size, optimizer settings and budget. Their scores are useful development observations, **not a controlled size comparison**. To isolate model size, copy one recipe, change only the backbone dimensions, and compare at the same observed steps/targets with `--vary scale`. Also study separate score-versus-training-budget curves; equal token budgets may undertrain a larger model.
 
@@ -350,7 +350,7 @@ Use the [scaling/accounting guide](model-scaling.md) and [runtime boundary](runt
 | Local architecture comparisons and saved per-case outputs | Automated multi-seed aggregation, statistically justified selection, open-ended response grading |
 | Context passed in the conversation | Retrieval, tool execution, long-lived user memory, a secure application permission boundary |
 | FP32 training and reference attention implementations | Validated mixed precision, KV-cached decoding, native sparse speedups, production serving/quantization |
-| Estimates and direct short training runs | Shape-only large-model CLI inspection and actually executed isolated smoke/warmup staging |
+| Shape-only CLI estimates and direct short training runs | Actually executed isolated smoke/warmup staging and measured large-model fit |
 | One local process/device | Remote independent-worker orchestration or distributed training |
 | Optional MLX dense training | PyTorch-equivalent MLX chat/checkpoint/evidence support |
 

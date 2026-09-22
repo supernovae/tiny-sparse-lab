@@ -44,9 +44,14 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
 
     selected: list[str] = []
     digest = hashlib.sha256()
-    for document in iter_documents(config.dataset, "train"):
-        if len(selected) >= config.max_documents:
+    documents = iter(iter_documents(config.dataset, "train"))
+    acquired = 0
+    while acquired < config.max_documents:
+        try:
+            document = next(documents)
+        except StopIteration:
             break
+        acquired += 1
         if not document:
             continue
         selected.append(document)

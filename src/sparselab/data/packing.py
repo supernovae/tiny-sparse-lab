@@ -17,7 +17,7 @@ from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.datasets import iter_documents
 from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 
-PACKING_VERSION = "contiguous-eos-v3"
+PACKING_VERSION = "contiguous-eos-v4"
 
 
 @dataclass(frozen=True)
@@ -39,8 +39,21 @@ def _tokenizer_sha256(tokenizer: Tokenizer) -> str:
     return hashlib.sha256(tokenizer.to_str().encode("utf-8")).hexdigest()
 
 
+def _array_metadata(path: Path) -> dict[str, object]:
+    values = np.load(path, mmap_mode="r", allow_pickle=False)
+    if values.ndim != 1 or values.dtype != np.dtype(np.int32):
+        raise ValueError(f"packed array has unexpected shape or dtype: {path}")
+    return {
+        "dtype": values.dtype.name,
+        "shape": list(values.shape),
+        "tokens": int(values.shape[0]),
+        "sha256": _sha256(path),
+    }
+
+
 def _cache_is_valid(
     manifest: dict[str, object],
+    cache_identity: dict[str, object],
     train_path: Path,
     validation_path: Path,
     train_byte_path: Path,
@@ -49,26 +62,96 @@ def _cache_is_valid(
     byte_enabled: bool,
 ) -> bool:
     try:
-        train = manifest["train"]
-        validation = manifest["validation"]
-        if not isinstance(train, dict) or not isinstance(validation, dict):
-            return False
+        payload = dict(manifest)
+        digest = payload.pop("manifest_sha256")
+        train = payload["train"]
+        validation = payload["validation"]
         if (
-            manifest.get("packing_version") != PACKING_VERSION
-            or _sha256(train_path) != train.get("sha256")
-            or _sha256(validation_path) != validation.get("sha256")
+            not isinstance(digest, str)
+            or hashlib.sha256(canonical_json(payload)).hexdigest() != digest
+            or not isinstance(train, dict)
+            or not isinstance(validation, dict)
+            or payload.get("packing_version") != PACKING_VERSION
+            or payload.get("cache_identity") != cache_identity
+            or payload.get("settings_sha256")
+            != hashlib.sha256(canonical_json(cache_identity)).hexdigest()
+            or any(
+                train.get(key) != value
+                for key, value in _array_metadata(train_path).items()
+            )
+            or any(
+                validation.get(key) != value
+                for key, value in _array_metadata(validation_path).items()
+            )
         ):
             return False
         if byte_enabled:
-            byte = manifest.get("byte_addressing")
+            byte = payload.get("byte_addressing")
             return (
                 isinstance(byte, dict)
-                and _sha256(train_byte_path) == byte.get("train_sha256")
-                and _sha256(validation_byte_path) == byte.get("validation_sha256")
+                and byte.get("kind") == "raw-utf8-suffix-v1"
+                and isinstance(byte.get("train"), dict)
+                and isinstance(byte.get("validation"), dict)
+                and byte["train"].get("shape") == train.get("shape")
+                and byte["validation"].get("shape") == validation.get("shape")
+                and byte.get("table_size")
+                == cache_identity["packing"]["memory_table_size"]
+                and byte.get("ngram_size")
+                == cache_identity["packing"]["memory_ngram_size"]
+                and all(
+                    byte["train"].get(key) == value
+                    for key, value in _array_metadata(train_byte_path).items()
+                )
+                and all(
+                    byte["validation"].get(key) == value
+                    for key, value in _array_metadata(validation_byte_path).items()
+                )
             )
-        return manifest.get("byte_addressing") is None
-    except (OSError, KeyError, TypeError):
+        return payload.get("byte_addressing") is None
+    except (AttributeError, OSError, KeyError, TypeError, ValueError):
         return False
+
+
+def load_prepared_data(
+    root: Path,
+    *,
+    byte_enabled: bool,
+    expected_identity: dict[str, object] | None = None,
+) -> PreparedData:
+    """Open a verified immutable cache or run-owned copy without reacquiring data."""
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise TypeError(f"prepared-data manifest must be an object: {root}")
+    identity = (
+        expected_identity
+        if expected_identity is not None
+        else manifest.get("cache_identity")
+    )
+    train, validation = root / "train.npy", root / "validation.npy"
+    train_byte = root / "train_byte_addresses.npy"
+    validation_byte = root / "validation_byte_addresses.npy"
+    if not isinstance(identity, dict) or not _cache_is_valid(
+        manifest,
+        identity,
+        train,
+        validation,
+        train_byte,
+        validation_byte,
+        byte_enabled=byte_enabled,
+    ):
+        raise ValueError(f"prepared-data cache integrity check failed: {root}")
+    return PreparedData(
+        root,
+        np.load(train, mmap_mode="r", allow_pickle=False),
+        np.load(validation, mmap_mode="r", allow_pickle=False),
+        np.load(train_byte, mmap_mode="r", allow_pickle=False)
+        if byte_enabled
+        else None,
+        np.load(validation_byte, mmap_mode="r", allow_pickle=False)
+        if byte_enabled
+        else None,
+        manifest,
+    )
 
 
 def _encoded_token_bytes(
@@ -193,9 +276,17 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     """Prepare immutable IDs and, for byte memory, causal raw-UTF-8 suffix addresses."""
     local_chat = _local_chat_identity(config.dataset)
     cache_identity = {
-        "dataset": config.dataset.model_dump(mode="json"),
+        "dataset": {
+            key: value
+            for key, value in config.dataset.model_dump(mode="json").items()
+            if key not in {"cache_dir", "train_path", "validation_path"}
+        },
         "local_chat_source": local_chat,
-        "model": config.model.model_dump(mode="json"),
+        "packing": {
+            "memory": config.model.memory,
+            "memory_table_size": config.model.memory_table_size,
+            "memory_ngram_size": config.model.memory_ngram_size,
+        },
         "packing_version": PACKING_VERSION,
         "source_identity_sha256": source_identity()["sha256"],
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
@@ -221,24 +312,9 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             or (train_byte_path.is_file() and validation_byte_path.is_file())
         )
     ):
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if _cache_is_valid(
-            manifest,
-            train_path,
-            validation_path,
-            train_byte_path,
-            validation_byte_path,
-            byte_enabled=byte_enabled,
-        ):
-            return PreparedData(
-                root,
-                np.load(train_path, mmap_mode="r"),
-                np.load(validation_path, mmap_mode="r"),
-                np.load(train_byte_path, mmap_mode="r") if byte_enabled else None,
-                np.load(validation_byte_path, mmap_mode="r") if byte_enabled else None,
-                manifest,
-            )
-        raise ValueError(f"prepared-data cache integrity check failed: {root}")
+        return load_prepared_data(
+            root, byte_enabled=byte_enabled, expected_identity=cache_identity
+        )
     temporary_root = root.with_name(root.name + ".tmp")
     if temporary_root.exists():
         raise RuntimeError(f"incomplete prepared-data sibling exists: {temporary_root}")
@@ -268,35 +344,61 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         assert train_byte is not None and validation_byte is not None
         _atomic_array(temporary_root / "train_byte_addresses.npy", train_byte)
         _atomic_array(temporary_root / "validation_byte_addresses.npy", validation_byte)
+    attributions = {
+        "tinystories": {
+            "license": "CDLA-Sharing-1.0",
+            "source_attribution": "roneneldan/TinyStories",
+        },
+        "fineweb_edu": {
+            "license": "ODC-By-1.0; Common Crawl Terms of Use",
+            "source_attribution": "HuggingFaceFW/fineweb-edu",
+        },
+        "cosmopedia": {
+            "license": "Apache-2.0",
+            "source_attribution": "HuggingFaceTB/cosmopedia dataset card",
+        },
+        "local_chat": {
+            "license": config.dataset.license,
+            "source_attribution": "user-provided local_chat",
+        },
+        "synthetic": {
+            "license": "synthetic fixture",
+            "source_attribution": "sparselab synthetic",
+        },
+        "instruction_reference": {
+            "license": "synthetic fixture",
+            "source_attribution": "sparselab instruction_reference",
+        },
+        "chat_recall": {
+            "license": "synthetic fixture",
+            "source_attribution": "sparselab chat_recall",
+        },
+        "engram_recall": {
+            "license": "synthetic fixture",
+            "source_attribution": "sparselab engram_recall",
+        },
+        "withheld_facts": {
+            "license": "project fixture",
+            "source_attribution": "sparselab withheld_facts",
+        },
+    }
     manifest = {
         "packing_version": PACKING_VERSION,
+        "cache_identity": cache_identity,
         "source": config.dataset.source,
         "revision": config.dataset.revision,
-        "license": (
-            getattr(config.dataset, "license", None)
-            if config.dataset.source == "local_chat"
-            else "CDLA-Sharing-1.0"
-            if config.dataset.source == "tinystories"
-            else "MIT synthetic chat recall fixture"
-            if config.dataset.source == "chat_recall"
-            else "synthetic instruction reference"
-            if config.dataset.source == "instruction_reference"
-            else "synthetic associative recall reference"
-            if config.dataset.source == "engram_recall"
-            else "dataset-specific license/source metadata unavailable"
-        ),
+        "dataset_config": config.dataset.dataset_config,
+        **attributions[config.dataset.source],
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
         "settings_sha256": hashlib.sha256(canonical_json(cache_identity)).hexdigest(),
         "source_identity_sha256": cache_identity["source_identity_sha256"],
         "train": {
             **train_stats,
-            "tokens": len(train),
-            "sha256": _sha256(temporary_root / "train.npy"),
+            **_array_metadata(temporary_root / "train.npy"),
         },
         "validation": {
             **validation_stats,
-            "tokens": len(validation),
-            "sha256": _sha256(temporary_root / "validation.npy"),
+            **_array_metadata(temporary_root / "validation.npy"),
         },
         "byte_addressing": None
         if not byte_enabled
@@ -304,23 +406,35 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             "kind": "raw-utf8-suffix-v1",
             "table_size": config.model.memory_table_size,
             "ngram_size": config.model.memory_ngram_size,
-            "train_sha256": _sha256(temporary_root / "train_byte_addresses.npy"),
-            "validation_sha256": _sha256(
+            "train": _array_metadata(temporary_root / "train_byte_addresses.npy"),
+            "validation": _array_metadata(
                 temporary_root / "validation_byte_addresses.npy"
             ),
         },
     }
-    (temporary_root / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    manifest["manifest_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    manifest_path = temporary_root / "manifest.json"
+    with manifest_path.open("xb") as handle:
+        handle.write(canonical_json(manifest) + b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
     root.parent.mkdir(parents=True, exist_ok=True)
     temporary_root.replace(root)
+    directory_fd = os.open(root.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
     return PreparedData(
         root,
-        np.load(train_path, mmap_mode="r"),
-        np.load(validation_path, mmap_mode="r"),
-        np.load(train_byte_path, mmap_mode="r") if byte_enabled else None,
-        np.load(validation_byte_path, mmap_mode="r") if byte_enabled else None,
+        np.load(train_path, mmap_mode="r", allow_pickle=False),
+        np.load(validation_path, mmap_mode="r", allow_pickle=False),
+        np.load(train_byte_path, mmap_mode="r", allow_pickle=False)
+        if byte_enabled
+        else None,
+        np.load(validation_byte_path, mmap_mode="r", allow_pickle=False)
+        if byte_enabled
+        else None,
         manifest,
     )
 

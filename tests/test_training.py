@@ -11,6 +11,7 @@ from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.data.tokenizer import train_tokenizer
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
+from sparselab.training.manifest import read_manifest
 from sparselab.training.trainer import train
 
 
@@ -96,10 +97,45 @@ def config(root: Path) -> RunConfig:
     )
 
 
-def test_interrupted_resume_matches_uninterrupted(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("memory", "optimizer_name"),
+    [("none", "adamw"), ("byte", "adamw"), ("none", "adafactor")],
+)
+def test_interrupted_resume_matches_uninterrupted(
+    tmp_path: Path, memory: str, optimizer_name: str
+) -> None:
+    memory_settings = (
+        {
+            "memory": "byte",
+            "memory_table_size": 64,
+            "memory_dim": 8,
+            "memory_ngram_size": 5,
+        }
+        if memory == "byte"
+        else {"memory": "none"}
+    )
     full = config(tmp_path / "full")
+    full = full.model_copy(
+        update={"model": full.model.model_copy(update=memory_settings)}
+    )
+    if optimizer_name == "adafactor":
+        payload = full.model_dump(mode="json")
+        payload["optimizer"] = {
+            "name": "adafactor",
+            "peak": full.optimizer.peak,
+            "floor": full.optimizer.floor,
+            "warmup_steps": full.optimizer.warmup_steps,
+            "weight_decay": full.optimizer.weight_decay,
+        }
+        full = RunConfig.model_validate(payload)
     train(full, run_id="full")
     split = config(tmp_path / "split")
+    split = split.model_copy(
+        update={
+            "model": split.model.model_copy(update=memory_settings),
+            "optimizer": full.optimizer,
+        }
+    )
     train(split, run_id="part", stop_after_step=5)
     train(
         split,
@@ -116,6 +152,13 @@ def test_interrupted_resume_matches_uninterrupted(tmp_path: Path) -> None:
     assert left.cursor == right.cursor
     equal(left.optimizer, right.optimizer)
     equal(left.model, right.model)
+    equal(left.rng, right.rng)
+    parent = CheckpointManager(split.logging.root_dir / "part").load(
+        split.logging.root_dir / "part/checkpoints/latest.json"
+    )
+    manifest = read_manifest(split.logging.root_dir / "resumed/manifest.json")
+    assert manifest["checkpoint_sha256"] == parent.checkpoint_sha256
+    assert right.parent_checkpoint_sha256 == parent.checkpoint_sha256
 
 
 def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> None:
@@ -141,7 +184,7 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
 def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
     original = config(tmp_path)
     mps = original.model_copy(
-        update={"runtime": original.runtime.model_copy(update={"backend": "mps"})}
+        update={"runtime": original.runtime.model_copy(update={"backend": "auto"})}
     )
     train(mps, run_id="part", stop_after_step=2)
     train(
@@ -155,6 +198,9 @@ def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
     )
     assert resumed.step == mps.training.max_steps
     assert resumed.backend == "mps"
+    manifest = read_manifest(mps.logging.root_dir / "resumed/manifest.json")
+    assert manifest["requested_config"]["runtime"]["backend"] == "auto"
+    assert manifest["effective_config"]["runtime"]["backend"] == "mps"
 
 
 def test_adafactor_state_offload_is_rejected(tmp_path: Path) -> None:
@@ -249,3 +295,47 @@ def test_tampered_validation_report_is_not_held_out_evidence(tmp_path: Path) -> 
         item["checkpoint"] != payload["checkpoint"]
         for item in evidence["quality_observations"]
     )
+
+
+def test_source_drift_requires_explicit_best_effort_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = config(tmp_path)
+    train(original, run_id="part", stop_after_step=1)
+    parent = original.logging.root_dir / "part"
+    previous_source = read_manifest(parent / "manifest.json")["source_identity"]
+    changed_source = {**previous_source, "sha256": "0" * 64}
+    monkeypatch.setattr(
+        "sparselab.training.trainer.source_identity", lambda: changed_source
+    )
+    with pytest.raises(ValueError, match="allow-runtime-drift"):
+        train(original, run_id="rejected", resume=parent / "checkpoints/latest.json")
+    assert not (original.logging.root_dir / "rejected").exists()
+    train(
+        original,
+        run_id="allowed",
+        resume=parent / "checkpoints/latest.json",
+        allow_runtime_drift=True,
+        stop_after_step=2,
+    )
+    manifest = read_manifest(original.logging.root_dir / "allowed/manifest.json")
+    decision = next(
+        item
+        for item in manifest["resource_decisions"]
+        if item["kind"] == "runtime_drift"
+    )
+    assert decision["resume_level"] == "best_effort"
+    assert decision["changes"][0]["requested"] == previous_source["sha256"]
+    assert decision["changes"][0]["effective"] == changed_source["sha256"]
+
+
+def test_preexisting_cancel_marker_commits_no_update(tmp_path: Path) -> None:
+    original = config(tmp_path)
+    cancel = tmp_path / "cancel"
+    cancel.touch()
+    train(original, run_id="cancelled", cancel_path=cancel)
+    snapshot = CheckpointManager(original.logging.root_dir / "cancelled").load(
+        original.logging.root_dir / "cancelled/checkpoints/latest.json"
+    )
+    assert snapshot.step == snapshot.tokens_seen == 0
+    assert snapshot.optimizer["state"] == {}

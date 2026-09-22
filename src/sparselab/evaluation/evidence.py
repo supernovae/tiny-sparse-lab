@@ -146,11 +146,12 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     checkpoints: list[dict[str, object]] = []
     checkpoint_lookup: dict[str, dict[str, object]] = {}
     for path in sorted((run / "checkpoints").glob("step_*_gen_*")):
-        report = manager.verify(path, manifest_digest)
+        report = manager.verify(path, manifest_digest, require_training_state=False)
         item: dict[str, object] = {
             "path": path.name,
             "verified": report.valid,
             "errors": list(report.errors),
+            "verification_scope": report.resume_level,
         }
         if report.valid:
             raw = json.loads((path / "manifest.json").read_text())

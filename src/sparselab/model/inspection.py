@@ -1,13 +1,277 @@
-"""Honest parameter and storage accounting for the dense baseline."""
+"""Truthful parameter accounting and shape-only model inspection."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 
 from torch import nn
 
+from sparselab.config.models import AttentionConfig, ModelConfig, RunConfig
 from sparselab.model.moe import TopKMoE
 from sparselab.model.transformer import DenseLM
+
+
+@dataclass(frozen=True)
+class TensorSpec:
+    """One canonical model tensor, represented without allocating it."""
+
+    shape: tuple[int, ...]
+    dtype: str = "float32"
+    trainable: bool = True
+    alias_of: str | None = None
+
+    @property
+    def numel(self) -> int:
+        result = 1
+        for dimension in self.shape:
+            result *= dimension
+        return result
+
+
+@dataclass(frozen=True)
+class ParameterInventory:
+    """Disjoint parameter categories for a configured decoder."""
+
+    total: int
+    trainable: int
+    active_per_token: int
+    embedding: int
+    output_head: int
+    attention: int
+    dense_ffn: int
+    routed_expert: int
+    shared_expert: int
+    router: int
+    norm: int
+    memory_table: int
+    memory_adapter: int
+    frozen: int
+
+
+def _add(
+    tensors: dict[str, TensorSpec],
+    name: str,
+    shape: tuple[int, ...],
+    *,
+    trainable: bool = True,
+) -> None:
+    tensors[name] = TensorSpec(shape, trainable=trainable)
+
+
+def named_tensor_inventory(
+    model_config: ModelConfig, attention_config: AttentionConfig | None = None
+) -> Mapping[str, TensorSpec]:
+    """Return the canonical parameter schema without constructing a model.
+
+    Alias entries have the same shape as their stored tensor and point at its
+    canonical name.  Portable table dimensions come from the resolved config;
+    package identity and contents are deliberately not opened by inspection.
+    """
+    attention = attention_config or AttentionConfig()
+    m = model_config
+    d, f, l, v = m.hidden_dim, m.ffn_dim, m.num_layers, m.vocab_size
+    tensors: dict[str, TensorSpec] = {}
+    _add(tensors, "embedding.weight", (v, d))
+
+    for index in range(l):
+        prefix = f"blocks.{index}"
+        _add(tensors, f"{prefix}.norm1.weight", (d,))
+        _add(tensors, f"{prefix}.norm2.weight", (d,))
+        attention_prefix = f"{prefix}.attention"
+        if attention.kind == "mla":
+            assert attention.latent_dim is not None
+            latent = attention.latent_dim
+            _add(tensors, f"{attention_prefix}.q_proj.weight", (d, d))
+            _add(tensors, f"{attention_prefix}.kv_down.weight", (latent, d))
+            _add(tensors, f"{attention_prefix}.k_up.weight", (d, latent))
+            _add(tensors, f"{attention_prefix}.out_proj.weight", (d, latent))
+        else:
+            for projection in ("q_proj", "k_proj", "v_proj", "out_proj"):
+                _add(tensors, f"{attention_prefix}.{projection}.weight", (d, d))
+
+        ffn_prefix = f"{prefix}.ffn"
+        if m.ffn == "dense":
+            for projection, shape in (
+                ("gate", (f, d)),
+                ("up", (f, d)),
+                ("down", (d, f)),
+            ):
+                _add(tensors, f"{ffn_prefix}.{projection}.weight", shape)
+        else:
+            _add(tensors, f"{ffn_prefix}.router.weight", (m.num_experts, d))
+            for expert in range(m.num_experts):
+                for projection, shape in (
+                    ("gate", (f, d)),
+                    ("up", (f, d)),
+                    ("down", (d, f)),
+                ):
+                    _add(
+                        tensors,
+                        f"{ffn_prefix}.experts.{expert}.{projection}.weight",
+                        shape,
+                    )
+            if m.shared_expert:
+                for projection, shape in (
+                    ("gate", (f, d)),
+                    ("up", (f, d)),
+                    ("down", (d, f)),
+                ):
+                    _add(
+                        tensors,
+                        f"{ffn_prefix}.shared_expert.{projection}.weight",
+                        shape,
+                    )
+
+    _add(tensors, "norm.weight", (d,))
+    if m.memory != "none":
+        streams = (
+            (len(m.memory_ngram_orders) or 1) * m.memory_hash_heads
+            if m.memory == "ngram"
+            else 1
+        )
+        frozen = m.memory == "portable"
+        _add(
+            tensors,
+            "memory.table.weight"
+            if m.memory != "portable"
+            else "memory.embedding.weight",
+            (m.memory_table_size, m.memory_dim),
+            trainable=not frozen,
+        )
+        if m.memory == "ngram":
+            for stream in range(1, streams):
+                _add(
+                    tensors,
+                    f"memory.extra_tables.{stream - 1}.weight",
+                    (m.memory_table_size, m.memory_dim),
+                )
+        _add(tensors, "memory.output.weight", (d, m.memory_dim))
+        _add(tensors, "memory.gate.weight", (1, d))
+
+    if m.tie_embeddings:
+        tensors["output.weight"] = TensorSpec((v, d), alias_of="embedding.weight")
+    else:
+        _add(tensors, "output.weight", (v, d))
+    return tensors
+
+
+def _sum_specs(tensors: Mapping[str, TensorSpec], predicate: object) -> int:
+    return sum(
+        spec.numel
+        for name, spec in tensors.items()
+        if spec.alias_of is None and predicate(name, spec)  # type: ignore[operator]
+    )
+
+
+def parameter_inventory(config: RunConfig) -> ParameterInventory:
+    """Aggregate the pure canonical tensor schema into disjoint categories."""
+    m = config.model
+    tensors = named_tensor_inventory(m, config.attention)
+    stored = lambda name, spec: spec.alias_of is None
+    embedding = _sum_specs(tensors, lambda name, spec: name == "embedding.weight")
+    output = _sum_specs(tensors, lambda name, spec: name == "output.weight")
+    attention = _sum_specs(tensors, lambda name, spec: ".attention." in name)
+    dense = _sum_specs(
+        tensors,
+        lambda name, spec: (
+            ".ffn." in name
+            and ".experts." not in name
+            and ".shared_expert." not in name
+            and ".router." not in name
+        ),
+    )
+    routed = _sum_specs(tensors, lambda name, spec: ".ffn.experts." in name)
+    shared = _sum_specs(tensors, lambda name, spec: ".ffn.shared_expert." in name)
+    router = _sum_specs(tensors, lambda name, spec: ".ffn.router." in name)
+    norm = _sum_specs(
+        tensors, lambda name, spec: name == "norm.weight" or ".norm" in name
+    )
+    table = _sum_specs(
+        tensors,
+        lambda name, spec: (
+            name.startswith(("memory.table.", "memory.extra_tables.")) or name == "memory.embedding.weight"
+        ),
+    )
+    adapter = _sum_specs(
+        tensors,
+        lambda name, spec: (
+            name.startswith("memory.")
+            and not (
+                name.startswith(("memory.table.", "memory.extra_tables.")) or name == "memory.embedding.weight"
+            )
+        ),
+    )
+    total = _sum_specs(tensors, stored)
+    trainable = _sum_specs(tensors, lambda name, spec: spec.trainable)
+    frozen = total - trainable
+    active = total
+    if not m.tie_embeddings:
+        active -= embedding - m.hidden_dim
+    if m.ffn == "moe":
+        per_expert = 3 * m.hidden_dim * m.ffn_dim
+        active -= routed - m.experts_per_token * per_expert * m.num_layers
+    if m.memory != "none":
+        streams = (
+            (len(m.memory_ngram_orders) or 1) * m.memory_hash_heads
+            if m.memory == "ngram"
+            else 1
+        )
+        active -= table - streams * m.memory_dim
+    return ParameterInventory(
+        total,
+        trainable,
+        active,
+        embedding,
+        output,
+        attention,
+        dense,
+        routed,
+        shared,
+        router,
+        norm,
+        table,
+        adapter,
+        frozen,
+    )
+
+
+def inspection_report(config: RunConfig) -> dict[str, int | str]:
+    """Return ``inspect_model``-compatible accounting from shapes alone."""
+    inventory = parameter_inventory(config)
+    expert = inventory.routed_expert + inventory.shared_expert
+    engram = inventory.memory_table + inventory.memory_adapter
+    weight_bytes = inventory.total * 4
+    optimizer_bytes = inventory.trainable * (
+        8 if config.optimizer.name == "adamw" else 4
+    )
+    return {
+        "total": inventory.total,
+        "trainable": inventory.trainable,
+        "active_per_token": inventory.active_per_token,
+        "embedding": inventory.embedding,
+        "attention": inventory.attention,
+        "ffn": inventory.dense_ffn,
+        "norm": inventory.norm,
+        "output_head": inventory.output_head,
+        "expert": expert,
+        "routed_expert": inventory.routed_expert,
+        "shared_expert": inventory.shared_expert,
+        "router": inventory.router,
+        "engram": engram,
+        "engram_table": inventory.memory_table,
+        "engram_adapter": inventory.memory_adapter,
+        "frozen": inventory.frozen,
+        "expert_note": "not present in dense model"
+        if config.model.ffn == "dense"
+        else "routed and shared expert storage; expert is a non-additive subtotal",
+        "engram_note": "not present"
+        if config.model.memory == "none"
+        else "all tables and adapters counted in total; one row per table stream in active_per_token",
+        "model_weight_bytes": weight_bytes,
+        "optimizer_state_bytes": optimizer_bytes,
+        "estimated_checkpoint_bytes": weight_bytes + optimizer_bytes,
+    }
 
 
 def _unique_numel(parameters: Iterable[nn.Parameter]) -> int:
@@ -21,35 +285,31 @@ def _unique_numel(parameters: Iterable[nn.Parameter]) -> int:
 
 
 def inspect_model(model: nn.Module) -> dict[str, int | str]:
-    """Count unique storage and one-token direct parameter use, not FLOPs."""
+    """Count instantiated storage and direct one-token use, not FLOPs."""
+    if not isinstance(model, DenseLM):
+        raise TypeError("inspection currently supports DenseLM")
     total = _unique_numel(model.parameters())
     trainable = _unique_numel(
         parameter for parameter in model.parameters() if parameter.requires_grad
     )
-    if not isinstance(model, DenseLM):
-        raise TypeError("inspection currently supports DenseLM")
     embedding = model.embedding.weight.numel()
     tied = model.output.weight is model.embedding.weight
     attention = sum(
         _unique_numel(block.attention.parameters()) for block in model.blocks
     )
-    dense_ffn = 0
-    expert = 0
-    active_expert = 0
+    dense_ffn = routed_expert = shared_expert = router = active_expert = 0
     for block in model.blocks:
         if isinstance(block.ffn, TopKMoE):
-            expert_parameters = _unique_numel(block.ffn.experts.parameters())
-            active_parameters = _unique_numel(
+            routed_expert += _unique_numel(block.ffn.experts.parameters())
+            active_expert += _unique_numel(
                 parameter
                 for expert_module in block.ffn.experts[: block.ffn.experts_per_token]
                 for parameter in expert_module.parameters()
             )
+            router += _unique_numel(block.ffn.router.parameters())
             if block.ffn.shared_expert is not None:
-                shared = _unique_numel(block.ffn.shared_expert.parameters())
-                expert_parameters += shared
-                active_parameters += shared
-            expert += expert_parameters
-            active_expert += active_parameters
+                shared_expert += _unique_numel(block.ffn.shared_expert.parameters())
+                active_expert += _unique_numel(block.ffn.shared_expert.parameters())
         else:
             dense_ffn += _unique_numel(block.ffn.parameters())
     norm = sum(
@@ -60,21 +320,26 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     output_head = 0 if tied else model.output.weight.numel()
     active = total if tied else total - embedding + model.config.hidden_dim
     if model.config.ffn == "moe":
-        active = active - expert + active_expert
-    memory_parameters = 0
-    memory_tables = 0
-    active_memory_rows = 0
+        active -= routed_expert + shared_expert
+        active += active_expert
+    memory_parameters = memory_tables = active_memory_rows = frozen = 0
     if model.memory is not None:
         memory_parameters = _unique_numel(model.memory.parameters())
+        frozen = sum(
+            parameter.numel()
+            for parameter in model.memory.parameters()
+            if not parameter.requires_grad
+        )
         for module in model.memory.modules():
             if isinstance(module, nn.Embedding):
                 memory_tables += module.weight.numel()
                 active_memory_rows += module.embedding_dim
-        active = active - memory_tables + active_memory_rows
+        active -= memory_tables - active_memory_rows
     weight_bytes = sum(
         parameter.numel() * parameter.element_size() for parameter in model.parameters()
     )
     optimizer_state_bytes = trainable * 8
+    expert = routed_expert + shared_expert
     return {
         "total": total,
         "trainable": trainable,
@@ -85,18 +350,22 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
         "norm": norm,
         "output_head": output_head,
         "expert": expert,
+        "routed_expert": routed_expert,
+        "shared_expert": shared_expert,
+        "router": router,
         "engram": memory_parameters,
         "engram_table": memory_tables,
         "engram_adapter": memory_parameters - memory_tables,
+        "frozen": frozen,
         "expert_note": (
             "not present in dense model"
             if model.config.ffn == "dense"
-            else "all local expert storage"
+            else "routed and shared expert storage; expert is a non-additive subtotal"
         ),
         "engram_note": (
             "not present"
             if model.memory is None
-            else "all tables and adapters counted in total; one row per table in active_per_token"
+            else "all tables and adapters counted in total; one row per table stream in active_per_token"
         ),
         "model_weight_bytes": weight_bytes,
         "optimizer_state_bytes": optimizer_state_bytes,

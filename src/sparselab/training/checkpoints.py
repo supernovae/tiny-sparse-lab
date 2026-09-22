@@ -2,21 +2,35 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import math
 import os
+import pickle
+import random
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+import numpy as np
 import torch
 from safetensors import SafetensorError
 from safetensors.torch import load_file, save_file
 
-from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.config.models import RunConfig
+from sparselab.model.inspection import named_tensor_inventory
+from sparselab.training.manifest import (
+    architecture_sha256,
+    canonical_json,
+    config_sha256,
+    sha256_file,
+)
+from sparselab.training.optimizer import learning_rate_for_step
 
 FORMAT_VERSION = 2
 SHARD_BYTES = 256 * 1024 * 1024
@@ -120,27 +134,289 @@ class TrainingSnapshot:
     cadence: dict[str, object] | None = None
     engine: str = "pytorch"
     backend: str = "cpu"
+    optimizer_parameter_names: dict[int | str, str] | None = None
+    config_sha256: str | None = None
+    architecture_sha256: str | None = None
+    source_identity_sha256: str | None = None
+    manifest_sha256: str | None = None
+    parent_checkpoint_sha256: str | None = None
+    cumulative_wall_seconds: float | None = None
+    cumulative_update_seconds: float | None = None
+    tensor_trainability: dict[str, bool] | None = None
+    checkpoint_sha256: str | None = None
+
+
+def _check_rng(rng: dict[str, Any], backend: str, device_index: int) -> None:
+    """Validate host RNGs without changing the process's random streams."""
+    random.Random().setstate(rng["python"])
+    keys = rng["numpy_keys"]
+    if (
+        not isinstance(keys, torch.Tensor)
+        or keys.dtype != torch.uint32
+        or keys.shape != (624,)
+    ):
+        raise ValueError("invalid NumPy RNG keys")
+    np.random.RandomState().set_state(
+        (
+            rng["numpy_kind"],
+            keys.numpy(),
+            rng["numpy_pos"],
+            rng["numpy_has_gauss"],
+            rng["numpy_cached_gaussian"],
+        )
+    )
+    if not 0 <= rng["numpy_pos"] <= 624 or rng["numpy_has_gauss"] not in {0, 1}:
+        raise ValueError("invalid NumPy RNG cursor")
+    torch.Generator(device="cpu").set_state(rng["torch"])
+    if rng["device_type"] != backend or rng["device_index"] != device_index:
+        raise ValueError("RNG backend or device index mismatch")
+    device_rng = rng["device_rng"]
+    if backend == "cpu":
+        if device_rng is not None:
+            raise ValueError("CPU RNG envelope contains accelerator state")
+    elif (
+        not isinstance(device_rng, torch.Tensor)
+        or device_rng.dtype != torch.uint8
+        or device_rng.ndim != 1
+        or device_rng.numel() == 0
+    ):
+        raise ValueError("invalid accelerator RNG state")
+
+
+def _check_native_state(
+    native: dict[str, Any],
+    raw: dict[str, Any],
+    tensors: dict[str, Any],
+    aliases: dict[str, str],
+) -> None:
+    config = RunConfig.model_validate(native["config"])
+    payload = config.model_dump(mode="json")
+    for field, digest in (
+        ("config_sha256", config_sha256(payload)),
+        ("architecture_sha256", architecture_sha256(payload)),
+    ):
+        if native.get(field) != digest or raw.get(field) != digest:
+            raise ValueError(f"{field} does not match the saved configuration")
+    for field in (
+        "manifest_sha256",
+        "source_identity_sha256",
+        "parent_checkpoint_sha256",
+    ):
+        if native.get(field) != raw.get(field):
+            raise ValueError(f"{field} differs from checkpoint manifest")
+    if (
+        config.runtime.engine != native["engine"]
+        or config.runtime.backend != native["backend"]
+        or not isinstance(native["run_id"], str)
+        or not native["run_id"]
+    ):
+        raise ValueError("native run or runtime identity mismatch")
+    expected = named_tensor_inventory(config.model, config.attention)
+    if set(expected) != set(tensors) | set(aliases):
+        raise ValueError("configured tensor inventory mismatch")
+    for name, spec in expected.items():
+        if spec.alias_of is not None:
+            if aliases.get(name) != spec.alias_of:
+                raise ValueError(f"configured tensor alias mismatch: {name}")
+        else:
+            declared = tensors[name]
+            if (
+                declared.get("shape") != list(spec.shape)
+                or declared.get("dtype") != f"torch.{spec.dtype}"
+                or declared.get("trainable") is not spec.trainable
+            ):
+                raise ValueError(f"configured tensor metadata mismatch: {name}")
+    step, tokens = native["step"], native["tokens_seen"]
+    if (
+        type(step) is not int
+        or type(tokens) is not int
+        or not 0 <= step <= config.training.max_steps
+        or not 0 <= tokens <= config.training.max_tokens
+        or (step == 0) != (tokens == 0)
+    ):
+        raise ValueError("native update or target counter is out of bounds")
+    cursor = native["cursor"]
+    if (
+        not isinstance(cursor, (tuple, list))
+        or len(cursor) != 2
+        or any(type(value) is not int or value < 0 for value in cursor)
+    ):
+        raise ValueError("invalid native data cursor")
+    schedule = {
+        "kind": "warmup_cosine_v1",
+        "completed_updates": step,
+        "max_steps": config.training.max_steps,
+        "warmup_steps": config.optimizer.warmup_steps,
+        "peak": config.optimizer.peak,
+        "floor": config.optimizer.floor,
+    }
+    if native["schedule"] != schedule:
+        raise ValueError("schedule does not match configuration and completed updates")
+    learning_rate = (
+        learning_rate_for_step(
+            step,
+            config.training.max_steps,
+            config.optimizer.warmup_steps,
+            config.optimizer.peak,
+            config.optimizer.floor,
+        )
+        if step
+        else config.optimizer.peak
+    )
+    optimizer = native["optimizer"]
+    names = native["optimizer_parameter_names"]
+    groups, state = optimizer["param_groups"], optimizer["state"]
+    if (
+        not isinstance(names, dict)
+        or not isinstance(groups, list)
+        or not isinstance(state, dict)
+    ):
+        raise TypeError("invalid named optimizer state")
+    ids = [parameter_id for group in groups for parameter_id in group["params"]]
+    trainable = {
+        name
+        for name, spec in expected.items()
+        if spec.trainable and spec.alias_of is None
+    }
+    if (
+        any(type(parameter_id) is not int for parameter_id in ids)
+        or len(ids) != len(set(ids))
+        or set(ids) != set(names)
+        or len(names.values()) != len(set(names.values()))
+        or set(names.values()) != trainable
+        or not set(state) <= set(ids)
+    ):
+        raise ValueError(
+            "optimizer parameter IDs do not cover canonical trainable tensors"
+        )
+    updated = native["optimizer_updated_parameter_names"]
+    if (
+        not isinstance(updated, list)
+        or len(updated) != len(set(updated))
+        or set(updated) != {names[parameter_id] for parameter_id in state}
+        or (step == 0 and state)
+    ):
+        raise ValueError("optimizer updated-parameter inventory mismatch")
+    for group in groups:
+        if group["lr"] != learning_rate:
+            raise ValueError("optimizer learning rate differs from saved schedule")
+        if config.optimizer.name == "adamw" and (
+            tuple(group["betas"]) != config.optimizer.betas
+            or group["eps"] != config.optimizer.eps
+        ):
+            raise ValueError("AdamW hyperparameters differ from configuration")
+        for parameter_id in group["params"]:
+            shape = expected[names[parameter_id]].shape
+            decay = (
+                config.optimizer.weight_decay
+                if config.optimizer.name != "adamw" or len(shape) >= 2
+                else 0.0
+            )
+            if group["weight_decay"] != decay:
+                raise ValueError("optimizer weight decay differs from configuration")
+    for parameter_id, values in state.items():
+        shape = expected[names[parameter_id]].shape
+        count = values["step"]
+        if isinstance(count, torch.Tensor) and count.numel() == 1:
+            count = count.item()
+        if (
+            not isinstance(count, (int, float))
+            or not math.isfinite(count)
+            or not 1 <= count <= step
+            or int(count) != count
+        ):
+            raise ValueError("optimizer update counter is out of bounds")
+        if config.optimizer.name == "adamw":
+            moments = {"exp_avg": shape, "exp_avg_sq": shape}
+        elif len(shape) >= 2:
+            moments = {
+                "row_var": (*shape[:-1], 1),
+                "col_var": (*shape[:-2], 1, shape[-1]),
+            }
+        else:
+            moments = {"variance": shape}
+        if set(values) != {"step", *moments}:
+            raise ValueError("optimizer moments are missing or unexpected")
+        for name, expected_shape in moments.items():
+            moment = values[name]
+            if (
+                not isinstance(moment, torch.Tensor)
+                or tuple(moment.shape) != expected_shape
+                or moment.dtype != torch.float32
+            ):
+                raise ValueError(f"invalid optimizer moment: {name}")
+    _check_rng(native["rng"], native["backend"], config.runtime.device_index)
+    for field in ("cumulative_wall_seconds", "cumulative_update_seconds"):
+        value = native.get(field)
+        if value is not None and (
+            not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0
+        ):
+            raise ValueError(f"invalid cumulative timing: {field}")
 
 
 class CheckpointManager:
     """Owns immutable v2 generations rooted at a single run directory."""
 
-    def __init__(self, run_dir: Path, *, manifest_sha256: str | None = None) -> None:
+    def __init__(
+        self,
+        run_dir: Path,
+        *,
+        manifest_sha256: str | None = None,
+        keep_periodic: bool = True,
+    ) -> None:
         self.run_dir = run_dir
         self.root = run_dir / "checkpoints"
         self.manifest_sha256 = manifest_sha256
+        self.keep_periodic = keep_periodic
+        self._lease_handle: object | None = None
+        self._lease_depth = 0
+        self._write_records: list[CheckpointRecord] | None = None
+
+    @contextmanager
+    def writer_lease(self) -> Iterator[None]:
+        """Take the per-run nonblocking advisory lock, reentrantly per manager."""
+        if self._lease_depth:
+            self._lease_depth += 1
+            try:
+                yield
+            finally:
+                self._lease_depth -= 1
+            return
         self.root.mkdir(parents=True, exist_ok=True)
+        lock_path = self.root / ".writer.lock"
+        handle = lock_path.open("a+b")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            raise RuntimeError(f"checkpoint writer lease is held: {self.run_dir}")
+        self._lease_handle = handle
+        self._lease_depth = 1
+        self._write_records = None
+        try:
+            yield
+        finally:
+            self._lease_depth -= 1
+            if not self._lease_depth:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                handle.close()
+                self._lease_handle = None
+                self._write_records = None
 
     def _next_generation(self) -> int:
-        generations = [
-            int(part.name.rsplit("_", 1)[-1])
-            for part in self.root.glob("step_*_gen_*")
-            if part.is_dir() and part.name.rsplit("_", 1)[-1].isdigit()
-        ]
+        generations: list[int] = []
+        for candidate in self.root.glob("step_*_gen_*"):
+            if candidate.is_dir():
+                suffix = candidate.name.rsplit("_", 1)[-1]
+                if suffix.isdigit():
+                    generations.append(int(suffix))
         return max(generations, default=0) + 1
 
     def _save_weights(
-        self, destination: Path, tensors: Mapping[str, torch.Tensor]
+        self,
+        destination: Path,
+        tensors: Mapping[str, torch.Tensor],
+        trainability: Mapping[str, bool] | None = None,
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
         aliases: dict[str, str] = {}
         canonical: dict[str, torch.Tensor] = {}
@@ -156,7 +432,7 @@ class CheckpointManager:
                 aliases[name] = seen[key]
             else:
                 seen[key] = name
-                canonical[name] = tensor.detach().cpu().contiguous()
+                canonical[name] = tensor
         shards: list[dict[str, object]] = []
         current: dict[str, torch.Tensor] = {}
         size = 0
@@ -186,14 +462,18 @@ class CheckpointManager:
             tensor_bytes = tensor.numel() * tensor.element_size()
             if current and size + tensor_bytes > SHARD_BYTES:
                 flush()
-            current[name] = tensor
+            current[name] = tensor.detach().to(device="cpu").contiguous()
             size += tensor_bytes
         flush()
         inventory = {
             name: {
                 "shape": list(tensor.shape),
                 "dtype": str(tensor.dtype),
-                "trainable": True,
+                "trainable": (
+                    trainability[name]
+                    if trainability is not None and name in trainability
+                    else bool(tensor.requires_grad)
+                ),
             }
             for name, tensor in canonical.items()
         }
@@ -202,16 +482,48 @@ class CheckpointManager:
     def save(
         self, snapshot: TrainingSnapshot, validation_loss: float | None = None
     ) -> CheckpointRecord:
+        if not self._lease_depth:
+            with self.writer_lease():
+                return self.save(snapshot, validation_loss)
+        if (
+            snapshot.manifest_sha256 is not None
+            and self.manifest_sha256 is not None
+            and snapshot.manifest_sha256 != self.manifest_sha256
+        ):
+            raise ValueError(
+                "snapshot manifest digest does not match checkpoint manager"
+            )
+        if self._write_records is None:
+            self.reconcile()
         generation_id = self._next_generation()
         name = f"step_{snapshot.step:08d}_gen_{generation_id:06d}"
         final = self.root / name
         if final.exists():
             raise FileExistsError(f"checkpoint generation already exists: {final}")
+        resolved = RunConfig.model_validate(snapshot.config)
+        snapshot.config_sha256 = snapshot.config_sha256 or config_sha256(
+            resolved.model_dump(mode="json")
+        )
+        snapshot.architecture_sha256 = (
+            snapshot.architecture_sha256
+            or architecture_sha256(resolved.model_dump(mode="json"))
+        )
         temporary = Path(
             tempfile.mkdtemp(prefix=f".step_{snapshot.step}.", dir=self.root)
         )
+        trainability = snapshot.tensor_trainability
+        if trainability is None:
+            trainability = {
+                name: spec.trainable
+                for name, spec in named_tensor_inventory(
+                    resolved.model, resolved.attention
+                ).items()
+                if spec.alias_of is None
+            }
         try:
-            weight_index, shards = self._save_weights(temporary, snapshot.model)
+            weight_index, shards = self._save_weights(
+                temporary, snapshot.model, trainability
+            )
             native = {
                 "format_version": FORMAT_VERSION,
                 "optimizer": snapshot.optimizer,
@@ -227,7 +539,19 @@ class CheckpointManager:
                 "engine": snapshot.engine,
                 "backend": snapshot.backend,
                 "state_codec": "pytorch_native",
-                "state_codec_version": 1,
+                "state_codec_version": 2,
+                "optimizer_parameter_names": snapshot.optimizer_parameter_names,
+                "optimizer_updated_parameter_names": [
+                    snapshot.optimizer_parameter_names[parameter_id]
+                    for parameter_id in snapshot.optimizer["state"]
+                ],
+                "config_sha256": snapshot.config_sha256,
+                "architecture_sha256": snapshot.architecture_sha256,
+                "source_identity_sha256": snapshot.source_identity_sha256,
+                "manifest_sha256": snapshot.manifest_sha256 or self.manifest_sha256,
+                "parent_checkpoint_sha256": snapshot.parent_checkpoint_sha256,
+                "cumulative_wall_seconds": snapshot.cumulative_wall_seconds,
+                "cumulative_update_seconds": snapshot.cumulative_update_seconds,
             }
             native_path = temporary / "training_state.pt"
             torch.save(native, native_path)
@@ -253,9 +577,13 @@ class CheckpointManager:
                 "backend": snapshot.backend,
                 "resume_level": "full",
                 "state_codec": "pytorch_native",
-                "state_codec_version": 1,
+                "state_codec_version": 2,
                 "files": files,
                 "weights": weight_index,
+                "config_sha256": snapshot.config_sha256,
+                "architecture_sha256": snapshot.architecture_sha256,
+                "source_identity_sha256": snapshot.source_identity_sha256,
+                "parent_checkpoint_sha256": snapshot.parent_checkpoint_sha256,
             }
             digest = hashlib.sha256(_canonical(content)).hexdigest()
             manifest = {**content, "sha256": digest}
@@ -277,16 +605,9 @@ class CheckpointManager:
                 snapshot.engine,
                 snapshot.backend,
             )
-            _atomic_json(
-                self.root / "latest.json", {**asdict(record), "relative_path": name}
-            )
-            if validation_loss is not None and (
-                not (self.root / "best.json").is_file()
-                or self._is_best(validation_loss)
-            ):
-                _atomic_json(
-                    self.root / "best.json", {**asdict(record), "relative_path": name}
-                )
+            assert self._write_records is not None
+            self._write_records.append(record)
+            self._project_records(self._write_records)
             return record
         except BaseException:
             if temporary.exists():
@@ -294,14 +615,6 @@ class CheckpointManager:
                     item.unlink()
                 temporary.rmdir()
             raise
-
-    def _is_best(self, loss: float) -> bool:
-        try:
-            current = json.loads((self.root / "best.json").read_text())
-            old = current.get("validation_loss")
-            return not isinstance(old, (int, float)) or loss < old
-        except (OSError, json.JSONDecodeError):
-            return True
 
     def _resolve(self, path: Path) -> Path:
         if path.name not in {"latest.json", "best.json"}:
@@ -322,6 +635,126 @@ class CheckpointManager:
         if directory.parent != path.parent or directory.is_symlink():
             raise ValueError("unsafe checkpoint pointer")
         return directory
+
+    @staticmethod
+    def _record_from_manifest(
+        directory: Path, raw: Mapping[str, object]
+    ) -> CheckpointRecord:
+        files = raw.get("files", [])
+        return CheckpointRecord(
+            int(raw["generation_id"]),
+            directory.name,
+            str(raw["sha256"]),
+            int(raw["step"]),
+            int(raw["tokens_seen"]),
+            str(raw["created_at"]),
+            sum(int(item["bytes"]) for item in files if isinstance(item, dict)),
+            raw.get("validation_loss")
+            if isinstance(raw.get("validation_loss"), (int, float))
+            else None,
+            str(raw["engine"]),
+            str(raw["backend"]),
+        )
+
+    def _verified_records(
+        self, *, expected_manifest: str | None = None
+    ) -> tuple[list[CheckpointRecord], list[VerificationReport]]:
+        records: list[CheckpointRecord] = []
+        rejected: list[VerificationReport] = []
+        for candidate in self.root.glob("step_*_gen_*"):
+            if not candidate.is_dir() or candidate.is_symlink():
+                continue
+            report = self.verify(candidate, expected_manifest)
+            if not report.valid:
+                rejected.append(
+                    VerificationReport(
+                        False,
+                        (
+                            {"field": "candidate", "reason": candidate.name},
+                            *report.errors,
+                        ),
+                        report.verified_files,
+                        report.resume_level,
+                    )
+                )
+                continue
+            try:
+                raw = json.loads((candidate / "manifest.json").read_text())
+                records.append(self._record_from_manifest(candidate, raw))
+            except (
+                OSError,
+                ValueError,
+                KeyError,
+                TypeError,
+                json.JSONDecodeError,
+            ) as error:
+                rejected.append(
+                    VerificationReport(
+                        False,
+                        (
+                            {"field": "candidate", "reason": candidate.name},
+                            {"field": "manifest", "reason": str(error)},
+                        ),
+                        (),
+                        "full",
+                    )
+                )
+        return records, rejected
+
+    def reconcile(self) -> RecoveryResult:
+        """Repair lookup pointers from verified immutable generations under the lease."""
+        if not self._lease_depth:
+            with self.writer_lease():
+                return self.reconcile()
+        records, rejected = self._verified_records(
+            expected_manifest=self.manifest_sha256
+        )
+        self._write_records = records
+        latest = self._project_records(records)
+        return RecoveryResult(latest, tuple(rejected))
+
+    def _project_records(
+        self, records: list[CheckpointRecord]
+    ) -> CheckpointRecord | None:
+        """Publish pointers only after generation verification and durable rename."""
+        records.sort(key=lambda item: item.generation_id)
+        if not records:
+            for pointer in ("latest.json", "best.json"):
+                (self.root / pointer).unlink(missing_ok=True)
+            _fsync_directory(self.root)
+            return None
+        latest = records[-1]
+        finite = [
+            item
+            for item in records
+            if item.validation_loss is not None and math.isfinite(item.validation_loss)
+        ]
+        best = (
+            min(finite, key=lambda item: (item.validation_loss, item.generation_id))
+            if finite
+            else None
+        )
+        _atomic_json(self.root / "latest.json", asdict(latest))
+        if best is not None:
+            _atomic_json(self.root / "best.json", asdict(best))
+        else:
+            (self.root / "best.json").unlink(missing_ok=True)
+            _fsync_directory(self.root)
+        if not self.keep_periodic:
+            protected = {item.relative_path for item in records[-2:]}
+            if best is not None:
+                protected.add(best.relative_path)
+            for record in records:
+                if record.relative_path not in protected:
+                    directory = self.root / record.relative_path
+                    for member in directory.iterdir():
+                        member.unlink()
+                    directory.rmdir()
+            records[:] = [
+                record for record in records if record.relative_path in protected
+            ]
+            _fsync_directory(self.root)
+        return latest
 
     def verify(
         self,
@@ -398,10 +831,17 @@ class CheckpointManager:
                 errors.append({"field": "training_state.pt", "reason": "missing"})
             if ("state_codec" in raw or "state_codec_version" in raw) and (
                 raw.get("state_codec") != "pytorch_native"
-                or raw.get("state_codec_version") != 1
+                or raw.get("state_codec_version") not in {1, 2}
             ):
                 errors.append(
                     {"field": "state_codec", "reason": "unsupported or unknown codec"}
+                )
+            if require_training_state and raw.get("state_codec_version") != 2:
+                errors.append(
+                    {
+                        "field": "state_codec_version",
+                        "reason": "full continuation requires native codec v2; historical state is weights-only",
+                    }
                 )
             weights = raw.get("weights", {})
             tensors = weights.get("tensors", {}) if isinstance(weights, dict) else {}
@@ -412,7 +852,16 @@ class CheckpointManager:
             for name, member in safe_members.items():
                 if name.endswith(".safetensors"):
                     try:
-                        found.update(load_file(member, device="cpu"))
+                        shard_tensors = load_file(member, device="cpu")
+                        overlap = set(found).intersection(shard_tensors)
+                        if overlap:
+                            errors.append(
+                                {
+                                    "field": name,
+                                    "reason": "duplicate tensor across shards",
+                                }
+                            )
+                        found.update(shard_tensors)
                     except (
                         SafetensorError,
                         OSError,
@@ -451,6 +900,47 @@ class CheckpointManager:
                     or target not in tensors
                 ):
                     errors.append({"field": "aliases", "reason": "invalid alias"})
+            if require_training_state and "training_state.pt" in safe_members:
+                try:
+                    native = torch.load(
+                        safe_members["training_state.pt"],
+                        map_location="cpu",
+                        weights_only=True,
+                        mmap=True,
+                    )
+                    if not isinstance(native, dict):
+                        raise TypeError("native state is not a mapping")
+                    for field, expected in (
+                        ("format_version", FORMAT_VERSION),
+                        ("state_codec", "pytorch_native"),
+                        ("state_codec_version", 2),
+                        ("engine", raw.get("engine")),
+                        ("backend", raw.get("backend")),
+                        ("step", raw.get("step")),
+                        ("tokens_seen", raw.get("tokens_seen")),
+                    ):
+                        if native.get(field) != expected:
+                            errors.append(
+                                {
+                                    "field": f"training_state.{field}",
+                                    "reason": "manifest mismatch",
+                                }
+                            )
+                    _check_native_state(native, raw, tensors, aliases)
+                except (
+                    OSError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                    KeyError,
+                    pickle.UnpicklingError,
+                ) as error:
+                    errors.append(
+                        {
+                            "field": "training_state.pt",
+                            "reason": f"unsafe or invalid native state: {error}",
+                        }
+                    )
         except (
             OSError,
             ValueError,
@@ -486,16 +976,17 @@ class CheckpointManager:
             weights[alias] = weights[target]
         if mode == "promote":
             return TrainingSnapshot(
-                weights,
-                {},
-                {},
-                0,
-                0,
-                (0, 0),
-                {},
-                "",
+                model=weights,
+                optimizer={},
+                schedule={},
+                step=0,
+                tokens_seen=0,
+                cursor=(0, 0),
+                config={},
+                run_id="",
                 engine=raw["engine"],
                 backend=raw["backend"],
+                checkpoint_sha256=raw["sha256"],
             )
         native = torch.load(
             directory / "training_state.pt",
@@ -504,46 +995,33 @@ class CheckpointManager:
             mmap=True,
         )
         return TrainingSnapshot(
-            weights,
-            native["optimizer"],
-            native["schedule"],
-            native["step"],
-            native["tokens_seen"],
-            tuple(native["cursor"]),
-            native["config"],
-            native["run_id"],
-            native.get("rng"),
-            native.get("scaler"),
-            raw.get("validation_loss"),
-            native.get("cadence"),
-            native.get("engine", "pytorch"),
-            native.get("backend", "cpu"),
+            model=weights,
+            optimizer=native["optimizer"],
+            schedule=native["schedule"],
+            step=native["step"],
+            tokens_seen=native["tokens_seen"],
+            cursor=tuple(native["cursor"]),
+            config=native["config"],
+            run_id=native["run_id"],
+            rng=native.get("rng"),
+            scaler=native.get("scaler"),
+            validation_loss=raw.get("validation_loss"),
+            cadence=native.get("cadence"),
+            engine=native.get("engine", "pytorch"),
+            backend=native.get("backend", "cpu"),
+            optimizer_parameter_names=native.get("optimizer_parameter_names"),
+            config_sha256=native.get("config_sha256"),
+            architecture_sha256=native.get("architecture_sha256"),
+            source_identity_sha256=native.get("source_identity_sha256"),
+            manifest_sha256=native.get("manifest_sha256"),
+            parent_checkpoint_sha256=native.get("parent_checkpoint_sha256"),
+            cumulative_wall_seconds=native.get("cumulative_wall_seconds"),
+            cumulative_update_seconds=native.get("cumulative_update_seconds"),
+            checkpoint_sha256=raw["sha256"],
         )
 
     def latest_valid(self) -> RecoveryResult:
-        rejected: list[VerificationReport] = []
-        candidates = sorted(self.root.glob("step_*_gen_*"), reverse=True)
-        for candidate in candidates:
-            report = self.verify(candidate, self.manifest_sha256)
-            if report.valid:
-                raw = json.loads((candidate / "manifest.json").read_text())
-                return RecoveryResult(
-                    CheckpointRecord(
-                        raw["generation_id"],
-                        candidate.name,
-                        raw["sha256"],
-                        raw["step"],
-                        raw["tokens_seen"],
-                        raw["created_at"],
-                        sum(item["bytes"] for item in raw["files"]),
-                        raw.get("validation_loss"),
-                        raw["engine"],
-                        raw["backend"],
-                    ),
-                    tuple(rejected),
-                )
-            rejected.append(report)
-        return RecoveryResult(None, tuple(rejected))
+        return self.reconcile()
 
 
 # Legacy v1 writer/reader stay for historical tests and artifacts. v1 is promotion-only.

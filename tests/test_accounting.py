@@ -4,7 +4,7 @@ import pytest
 
 from sparselab.config.loading import load_config
 from sparselab.memory import parameter_inventory
-from sparselab.model.inspection import inspect_model
+from sparselab.model.inspection import inspect_model, inspection_report
 from sparselab.model.transformer import DenseLM
 
 
@@ -15,6 +15,26 @@ def test_shape_inventory_matches_instantiated_architecture(preset):
     config = load_config(Path(f"configs/{preset}.yaml"))
     actual = inspect_model(DenseLM(config.model, config.attention))
     estimated = parameter_inventory(config)
+    report = inspection_report(config)
+    for key in (
+        "total",
+        "trainable",
+        "active_per_token",
+        "embedding",
+        "attention",
+        "ffn",
+        "norm",
+        "output_head",
+        "expert",
+        "routed_expert",
+        "shared_expert",
+        "router",
+        "engram",
+        "engram_table",
+        "engram_adapter",
+        "frozen",
+    ):
+        assert report[key] == actual[key]
     assert estimated.total == actual["total"]
     assert estimated.trainable == actual["trainable"]
 

@@ -6,7 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
@@ -36,12 +36,11 @@ from sparselab.evaluation.withheld_facts import (
     evaluate_withheld_facts,
     write_withheld_evaluation,
 )
-from sparselab.memory import estimate_memory, parameter_inventory
-from sparselab.model.inspection import inspect_model
+from sparselab.memory import estimate_memory
+from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
-from sparselab.model.transformer import DenseLM
-from sparselab.runtime import discover_runtimes
+from sparselab.runtime import discover_runtimes, select_device
 from sparselab.staging import stage
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.mlx_checkpoints import inspect as inspect_mlx_checkpoint
@@ -221,25 +220,59 @@ def _checkpoint_verify(args: argparse.Namespace) -> None:
 def _inspect(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     inventory = parameter_inventory(config)
+    runtimes = discover_runtimes()
+    backend = config.runtime.backend
+    if backend == "auto":
+        device = select_device("auto")
+        backend = next(
+            info.backend
+            for info in runtimes
+            if info.engine == "pytorch" and info.torch_device == str(device)
+        )
     runtime = next(
         info
-        for info in discover_runtimes()
-        if info.engine == config.runtime.engine
-        and info.backend
-        == (config.runtime.backend if config.runtime.backend != "auto" else "cpu")
+        for info in runtimes
+        if info.engine == config.runtime.engine and info.backend == backend
     )
+    if config.runtime.device_index != runtime.device_index:
+        runtime = replace(
+            runtime,
+            device_index=config.runtime.device_index,
+            torch_device=None,
+            device_name=None,
+            device_total_bytes=None,
+            device_free_bytes=None,
+            device_recommended_bytes=None,
+            device_driver_allocated_bytes=None,
+            limitations=(
+                *runtime.limitations,
+                "passive memory readings for this device index are unavailable",
+            ),
+        )
     estimate = estimate_memory(config, runtime, inventory)
     values = {
-        **inspect_model(DenseLM(config.model, config.attention)),
+        **inspection_report(config),
         "parameter_inventory": inventory.__dict__,
         "memory_estimate": estimate.__dict__,
         "runtime": runtime.as_dict(),
     }
-    print(
-        json.dumps(values, indent=2, sort_keys=True)
-        if args.json
-        else "\n".join(f"{k}: {v}" for k, v in values.items())
-    )
+    if args.json:
+        print(json.dumps(values, indent=2, sort_keys=True))
+        return
+    print("Model")
+    for field in ("total", "trainable", "active_per_token"):
+        print(f"  {field}: {values[field]:,}")
+    print("Estimated training memory")
+    for field, value in asdict(estimate).items():
+        if field.endswith("_bytes") and value is not None:
+            print(f"  {field}: {value:,} bytes ({value / 1024**3:.3f} GiB)")
+    print("Device")
+    print(f"  {runtime.engine}/{runtime.backend}, index {runtime.device_index}")
+    for limitation in runtime.limitations:
+        print(f"  {limitation}")
+    print(f"Result: {estimate.result}")
+    for assumption in estimate.assumptions:
+        print(f"  {assumption}")
 
 
 def _data_prepare(args: argparse.Namespace) -> None:
