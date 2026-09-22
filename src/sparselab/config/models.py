@@ -26,10 +26,11 @@ class ModelConfig(StrictModel):
     experts_per_token: int = 1
     shared_expert: bool = False
     router_aux_loss_coefficient: float = Field(default=0.0, ge=0)
-    memory: Literal["none", "ngram", "byte"] = "none"
+    memory: Literal["none", "ngram", "byte", "portable"] = "none"
     memory_table_size: int = 0
     memory_ngram_size: int = 0
     memory_dim: int = 0
+    memory_package_path: Path | None = None
     memory_ngram_orders: tuple[int, ...] = ()
     memory_hash_heads: int = Field(default=1, gt=0)
 
@@ -76,11 +77,12 @@ class ModelConfig(StrictModel):
         )
         if self.memory == "none" and (
             any(value != 0 for value in memory_settings)
+            or self.memory_package_path is not None
             or self.memory_ngram_orders
             or self.memory_hash_heads != 1
         ):
             raise ValueError("disabled model.memory requires zero memory settings")
-        if self.memory in {"ngram", "byte"} and (
+        if self.memory in {"ngram", "byte", "portable"} and (
             self.memory_table_size <= 0
             or self.memory_ngram_size < 2
             or self.memory_dim <= 0
@@ -97,6 +99,10 @@ class ModelConfig(StrictModel):
             )
         if self.memory == "byte" and self.memory_ngram_orders:
             raise ValueError("byte memory uses its configured raw-byte ngram size")
+        if self.memory == "portable" and self.memory_package_path is None:
+            raise ValueError("portable memory requires model.memory_package_path")
+        if self.memory != "portable" and self.memory_package_path is not None:
+            raise ValueError("model.memory_package_path requires portable memory")
         return self
 
 

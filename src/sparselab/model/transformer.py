@@ -12,6 +12,7 @@ from sparselab.model.ffn import SwiGLU
 from sparselab.model.memory import ByteAddressMemory, TokenNgramMemory
 from sparselab.model.moe import TopKMoE
 from sparselab.model.norm import RMSNorm
+from sparselab.model.portable_engram import PortableEngramAdapter, load_portable_engram
 
 
 class DecoderBlock(nn.Module):
@@ -85,8 +86,15 @@ class DenseLM(nn.Module):
                     model.memory_hash_heads,
                 )
                 if model.memory == "ngram"
-                else ByteAddressMemory(
-                    model.hidden_dim, model.memory_table_size, model.memory_dim
+                else (
+                    ByteAddressMemory(
+                        model.hidden_dim, model.memory_table_size, model.memory_dim
+                    )
+                    if model.memory == "byte"
+                    else PortableEngramAdapter(
+                        load_portable_engram(model.memory_package_path),
+                        model.hidden_dim,
+                    )
                 )
             )
         )
@@ -97,7 +105,10 @@ class DenseLM(nn.Module):
 
     @staticmethod
     def _initialize(module: nn.Module) -> None:
-        if isinstance(module, (nn.Linear, nn.Embedding)):
+        if (
+            isinstance(module, (nn.Linear, nn.Embedding))
+            and module.weight.requires_grad
+        ):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
         elif isinstance(module, RMSNorm):
             nn.init.ones_(module.weight)
@@ -118,8 +129,10 @@ class DenseLM(nn.Module):
         x = self.norm(x)
         if isinstance(self.memory, TokenNgramMemory):
             x = self.memory(x, input_ids)
-        elif isinstance(self.memory, ByteAddressMemory):
+        elif isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
             if byte_addresses is None:
-                raise ValueError("byte memory requires prepared byte addresses")
+                raise ValueError(
+                    "byte-addressed memory requires prepared byte addresses"
+                )
             x = self.memory(x, byte_addresses)
         return self.output(x)

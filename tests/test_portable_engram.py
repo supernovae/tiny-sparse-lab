@@ -3,11 +3,13 @@ from __future__ import annotations
 import pytest
 import torch
 
+from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.model.portable_engram import (
     PortableEngramAdapter,
     export_portable_engram,
     load_portable_engram,
 )
+from sparselab.model.transformer import DenseLM
 
 
 def test_portable_package_freezes_table_and_trains_adapter(tmp_path) -> None:
@@ -24,6 +26,33 @@ def test_portable_package_freezes_table_and_trains_adapter(tmp_path) -> None:
     assert adapter.output.weight.grad is not None
     assert adapter.last_diagnostics is not None
     assert int(adapter.last_diagnostics.lookup_count) == 6
+
+
+def test_portable_memory_is_selectable_and_frozen(tmp_path) -> None:
+    path = tmp_path / "memory.engram"
+    export_portable_engram(torch.zeros(17, 5), path, ngram_size=3)
+    config = ModelConfig(
+        vocab_size=512,
+        hidden_dim=8,
+        num_layers=1,
+        num_heads=2,
+        ffn_dim=16,
+        max_seq_len=8,
+        memory="portable",
+        memory_table_size=17,
+        memory_ngram_size=3,
+        memory_dim=5,
+        memory_package_path=path,
+    )
+    model = DenseLM(config, AttentionConfig())
+    logits = model(
+        torch.randint(0, 512, (2, 4)),
+        byte_addresses=torch.randint(0, 17, (2, 4)),
+    )
+    logits.mean().backward()
+    assert model.memory is not None
+    assert model.memory.embedding.weight.requires_grad is False
+    assert model.memory.output.weight.grad is not None
 
 
 def test_portable_package_rejects_conflicting_rewrite(tmp_path) -> None:

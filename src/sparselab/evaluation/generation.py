@@ -29,7 +29,7 @@ def generate(
     device: torch.device,
 ) -> str:
     ids = tokenizer.encode(prompt, add_special_tokens=False).ids
-    byte_memory = model.config.memory == "byte"
+    byte_memory = model.config.memory in {"byte", "portable"}
     if not ids:
         bos = tokenizer.token_to_id("<bos>")
         if bos is None:

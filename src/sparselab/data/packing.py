@@ -112,7 +112,7 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     )
     manifest_path = root / "manifest.json"
     train_path, validation_path = root / "train.npy", root / "validation.npy"
-    byte_enabled = config.model.memory == "byte"
+    byte_enabled = config.model.memory in {"byte", "portable"}
     train_byte_path, validation_byte_path = (
         root / "train_byte_addresses.npy",
         root / "validation_byte_addresses.npy",
