@@ -433,25 +433,27 @@ def train(
             step, tokens = next_step, tokens + valid_targets
             cursor = BatchCursor(cursor.epoch, cursor.next_block + len(indices))
             elapsed = time.perf_counter() - started
-            store.log_metrics(
-                run_id,
-                step,
-                tokens,
-                elapsed,
-                {
-                    "train/loss": language_sum / valid_targets,
-                    "moe/router_auxiliary_loss": aux_sum / valid_targets,
-                    "optimizer/learning_rate": lr,
-                    "optimizer/grad_norm": float(norm),
-                    "performance/tokens_per_second": valid_targets / max(elapsed, 1e-9),
-                    "batch/micro_batch_size": float(config.training.micro_batch_size),
-                    "batch/accumulation_steps": float(
-                        config.training.gradient_accumulation
-                    ),
-                    "batch/effective_batch_size": float(len(indices)),
-                    "batch/effective_tokens_per_update": float(valid_targets),
-                },
-            )
+            metric_values = {
+                "train/loss": language_sum / valid_targets,
+                "moe/router_auxiliary_loss": aux_sum / valid_targets,
+                "optimizer/learning_rate": lr,
+                "optimizer/grad_norm": float(norm),
+                "performance/tokens_per_second": valid_targets / max(elapsed, 1e-9),
+                "batch/micro_batch_size": float(config.training.micro_batch_size),
+                "batch/accumulation_steps": float(config.training.gradient_accumulation),
+                "batch/effective_batch_size": float(len(indices)),
+                "batch/effective_tokens_per_update": float(valid_targets),
+            }
+            if offload is not None:
+                metrics = offload.metrics
+                metric_values.update(
+                    {
+                        "offload/bytes_to_cpu": float(metrics.bytes_to_cpu),
+                        "offload/bytes_to_device": float(metrics.bytes_to_device),
+                        "offload/peak_host_bytes": float(metrics.peak_host_bytes),
+                    }
+                )
+            store.log_metrics(run_id, step, tokens, elapsed, metric_values)
             terminal = (
                 step >= config.training.max_steps
                 or tokens >= config.training.max_tokens

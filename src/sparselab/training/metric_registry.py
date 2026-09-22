@@ -87,6 +87,27 @@ METRICS = {
             "gradient-accumulation",
             "trainer",
         ),
+        MetricSpec(
+            "offload/bytes_to_cpu",
+            "bytes",
+            "Saved activation bytes copied from device to host.",
+            "offload",
+            "offload",
+        ),
+        MetricSpec(
+            "offload/bytes_to_device",
+            "bytes",
+            "Saved activation bytes restored for backward.",
+            "offload",
+            "offload",
+        ),
+        MetricSpec(
+            "offload/peak_host_bytes",
+            "bytes",
+            "Peak live host activation-offload storage.",
+            "offload",
+            "offload",
+        ),
     )
 }
 
