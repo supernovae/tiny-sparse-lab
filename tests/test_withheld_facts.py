@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from sparselab.config.models import DatasetConfig
+from sparselab.data.datasets import iter_documents
 from sparselab.data.withheld_facts import (
     audit_manifest,
     evaluation_cases,
@@ -82,3 +84,18 @@ def test_manifest_audit_reports_verified_split_evidence(tmp_path: Path) -> None:
         "training_statement_count": 6,
         "valid": True,
     }
+
+
+def test_withheld_fact_source_never_yields_evaluation_values(tmp_path: Path) -> None:
+    config = DatasetConfig(
+        source="withheld_facts",
+        cache_dir=tmp_path,
+        train_max_documents=6,
+        validation_max_documents=6,
+        train_max_tokens=256,
+        validation_max_tokens=256,
+        synthetic_seed=4,
+    )
+    documents = tuple(iter_documents(config, "train"))
+    assert documents == tuple(iter_documents(config, "validation"))
+    assert all(value not in " ".join(documents) for _, value in evaluation_cases(4))

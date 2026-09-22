@@ -77,7 +77,7 @@ class TokenizerConfig(StrictModel):
 
 
 class DatasetConfig(StrictModel):
-    source: Literal["tinystories", "synthetic"]
+    source: Literal["tinystories", "synthetic", "withheld_facts"]
     revision: str | None = None
     cache_dir: Path
     train_max_documents: int = Field(gt=0)
