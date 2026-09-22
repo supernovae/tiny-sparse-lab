@@ -52,7 +52,7 @@ class TopKMoE(nn.Module):
         self.last_diagnostics: RoutingDiagnostics | None = None
         self.auxiliary_loss = torch.zeros(())
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, *, valid_target_mask: Tensor | None = None) -> Tensor:
         original_shape = x.shape
         tokens = x.reshape(-1, original_shape[-1])
         router_logits = self.router(tokens)
@@ -72,17 +72,27 @@ class TopKMoE(nn.Module):
                 output.index_add_(0, token_indices, contribution)
         if self.shared_expert is not None:
             output = output + self.shared_expert(tokens)
-        counts = torch.bincount(selected.flatten(), minlength=self.num_experts).detach()
-        fractions = counts.float() / max(1, selected.numel())
+        if valid_target_mask is None:
+            valid = torch.ones(tokens.shape[0], dtype=torch.bool, device=tokens.device)
+        else:
+            valid = valid_target_mask.reshape(-1).to(dtype=torch.bool)
+            if valid.shape != (tokens.shape[0],):
+                raise ValueError("valid_target_mask must align with routed tokens")
+        valid_probabilities = probabilities[valid]
+        valid_selected = selected[valid]
+        counts = torch.bincount(valid_selected.flatten(), minlength=self.num_experts).detach()
+        fractions = counts.float() / max(1, valid_selected.numel())
         entropy = (
             -(
-                probabilities
-                * probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log()
+                valid_probabilities
+                * valid_probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log()
             )
             .sum(dim=-1)
             .mean()
+            if valid_probabilities.numel()
+            else probabilities.new_zeros(())
         )
-        importance = probabilities.mean(dim=0)
+        importance = valid_probabilities.mean(dim=0) if valid_probabilities.numel() else probabilities.new_zeros(self.num_experts)
         load = fractions.detach()
         auxiliary_loss = (
             self.auxiliary_loss_coefficient

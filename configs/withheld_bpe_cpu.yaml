@@ -1,7 +1,6 @@
-schema_version: 1
+schema_version: 2
 name: withheld-bpe-cpu
 seed: 42
-device: cpu
 model:
   vocab_size: 280
   hidden_dim: 32
@@ -13,7 +12,8 @@ model:
   memory_table_size: 257
   memory_ngram_size: 3
   memory_dim: 16
-tokenizer: {path: ../artifacts/tokenizer_withheld_bpe/tokenizer.json}
+tokenizer:
+  path: ../artifacts/tokenizer_withheld_bpe/tokenizer.json
 dataset:
   source: withheld_facts
   cache_dir: ../artifacts/data
@@ -23,11 +23,50 @@ dataset:
   validation_max_tokens: 256
   synthetic_seed: 0
 training:
-  batch_size: 2
   seq_len: 16
   max_steps: 40
   max_tokens: 512
   deterministic: true
-optimizer: {learning_rate: 0.003, min_learning_rate: 0.0003, warmup_steps: 4, weight_decay: 0.1, betas: [0.9, 0.95], eps: 1e-8}
-evaluation: {every_steps: 10, max_batches: 4}
-logging: {root_dir: ../runs, every_steps: 1, checkpoint_every_steps: 20}
+  micro_batch_size: 2
+  gradient_accumulation: 1
+optimizer:
+  warmup_steps: 4
+  weight_decay: 0.1
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1e-8
+  name: adamw
+  peak: 0.003
+  floor: 0.0003
+  state_offload: false
+evaluation:
+  every_steps: 10
+  max_batches: 4
+logging:
+  root_dir: ../runs
+  every_steps: 1
+runtime:
+  engine: pytorch
+  backend: cpu
+  device_index: 0
+  precision: fp32
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.9
+    budget_bytes: null
+    activation_checkpointing:
+      enabled: false
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_sequence_lengths: []
+    allowed_optimizers: []
+checkpoint:
+  every_steps: 20
+  every_tokens: null
+  every_minutes: null
+  keep_periodic: true
+staging:
+  smoke_steps: 2
+  warmup_steps: 5

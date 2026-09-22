@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import torch
 from torch import Tensor, nn
 
 from sparselab.config.models import AttentionConfig, ModelConfig
@@ -59,9 +60,17 @@ class DecoderBlock(nn.Module):
             )
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward_with_aux(
+        self, x: Tensor, *, valid_target_mask: Tensor | None = None
+    ) -> tuple[Tensor, Tensor]:
         x = x + self.attention(self.norm1(x))
-        return x + self.ffn(self.norm2(x))
+        if isinstance(self.ffn, TopKMoE):
+            x = x + self.ffn(self.norm2(x), valid_target_mask=valid_target_mask)
+            return x, self.ffn.auxiliary_loss
+        return x + self.ffn(self.norm2(x)), x.new_zeros(())
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.forward_with_aux(x)[0]
 
 
 class DenseLM(nn.Module):
@@ -113,26 +122,48 @@ class DenseLM(nn.Module):
         elif isinstance(module, RMSNorm):
             nn.init.ones_(module.weight)
 
-    def forward(
-        self, input_ids: Tensor, *, byte_addresses: Tensor | None = None
-    ) -> Tensor:
+    def forward_with_aux(
+        self,
+        input_ids: Tensor,
+        *,
+        byte_addresses: Tensor | None = None,
+        valid_target_mask: Tensor | None = None,
+        activation_checkpointing: bool = False,
+    ) -> tuple[Tensor, Tensor]:
         if input_ids.ndim != 2 or input_ids.shape[1] == 0:
             raise ValueError("input_ids must have shape [batch, non-empty sequence]")
         if input_ids.shape[1] > self.config.max_seq_len:
             raise ValueError("input sequence exceeds model.max_seq_len")
         x = self.embedding(input_ids)
-        self.auxiliary_loss = x.new_zeros(())
+        auxiliary_loss = x.new_zeros(())
         for block in self.blocks:
-            x = block(x)
-            if isinstance(block.ffn, TopKMoE):
-                self.auxiliary_loss = self.auxiliary_loss + block.ffn.auxiliary_loss
+            if activation_checkpointing and self.training and torch.is_grad_enabled():
+                def run_block(hidden: Tensor, current: DecoderBlock = block) -> tuple[Tensor, Tensor]:
+                    return current.forward_with_aux(
+                        hidden, valid_target_mask=valid_target_mask
+                    )
+
+                x, block_aux = torch.utils.checkpoint.checkpoint(
+                    run_block,
+                    x,
+                    use_reentrant=False,
+                    preserve_rng_state=True,
+                )
+            else:
+                x, block_aux = block.forward_with_aux(
+                    x, valid_target_mask=valid_target_mask
+                )
+            auxiliary_loss = auxiliary_loss + block_aux
         x = self.norm(x)
         if isinstance(self.memory, TokenNgramMemory):
             x = self.memory(x, input_ids)
         elif isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
             if byte_addresses is None:
-                raise ValueError(
-                    "byte-addressed memory requires prepared byte addresses"
-                )
+                raise ValueError("byte-addressed memory requires prepared byte addresses")
             x = self.memory(x, byte_addresses)
-        return self.output(x)
+        return self.output(x), auxiliary_loss
+
+    def forward(
+        self, input_ids: Tensor, *, byte_addresses: Tensor | None = None
+    ) -> Tensor:
+        return self.forward_with_aux(input_ids, byte_addresses=byte_addresses)[0]
