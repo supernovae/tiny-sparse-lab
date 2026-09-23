@@ -10,6 +10,7 @@ from itertools import product
 from pathlib import Path
 
 import yaml
+from pydantic import BaseModel
 
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
@@ -89,6 +90,21 @@ def _scheduling(
     ):
         raise ValueError("matrix scheduling.preferred_worker must be a nonempty string")
     return preferred, _requirements(scheduling.get("requirements"))
+
+
+def _patchable_config(value: object) -> object:
+    if isinstance(value, BaseModel):
+        return {
+            name: _patchable_config(getattr(value, name))
+            for name in type(value).model_fields
+        }
+    if isinstance(value, Mapping):
+        return {key: _patchable_config(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return tuple(_patchable_config(item) for item in value)
+    if isinstance(value, list):
+        return [_patchable_config(item) for item in value]
+    return value
 
 
 def _validate_path(config: Mapping[str, object], dotted: str) -> None:
@@ -175,8 +191,12 @@ def expand(path: Path, max_runs: int = 1000) -> list[ExpandedExperiment]:
     base_path = Path(base_config)
     if not base_path.is_absolute():
         base_path = path.parent / base_path
-    base = load_config(base_path).model_dump(mode="python")
-    names, options = _axis_options(raw, base)
+    resolved_base = load_config(base_path)
+    base = resolved_base.model_dump(mode="python")
+    patchable_base = _patchable_config(resolved_base)
+    if not isinstance(patchable_base, dict):
+        raise TypeError("resolved configuration must project to a mapping")
+    names, options = _axis_options(raw, patchable_base)
     count = 1
     for axis in options:
         count *= len(axis)
@@ -206,7 +226,7 @@ def expand(path: Path, max_runs: int = 1000) -> list[ExpandedExperiment]:
         for axis_name, entry in zip(names, selected, strict=True):
             coordinate[axis_name] = entry["label"]  # validated above
             patch.update(entry["set"])  # conflicts were rejected above
-        concrete = RunConfig.model_validate(apply_patch(base, patch))
+        concrete = RunConfig.model_validate(apply_patch(patchable_base, patch))
         expanded.append(
             ExpandedExperiment(
                 config=concrete,

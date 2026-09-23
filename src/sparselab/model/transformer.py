@@ -169,6 +169,26 @@ class DenseLM(nn.Module):
         elif isinstance(module, RMSNorm):
             nn.init.ones_(module.weight)
 
+    def _apply_memory(
+        self,
+        hidden: Tensor,
+        token_ids: Tensor,
+        byte_addresses: Tensor | None,
+        *,
+        incremental: bool = False,
+    ) -> Tensor:
+        if self.memory is None:
+            return hidden
+        if isinstance(self.memory, TokenNgramMemory):
+            if incremental:
+                return self.memory.forward_last(hidden, token_ids)
+            return self.memory(hidden, token_ids)
+        if isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
+            if byte_addresses is None:
+                raise ValueError("byte-addressed memory requires prepared byte addresses")
+            return self.memory(hidden, byte_addresses)
+        raise TypeError(f"unsupported memory module: {type(self.memory).__name__}")
+
     def forward_with_aux(
         self,
         input_ids: Tensor,
@@ -187,6 +207,8 @@ class DenseLM(nn.Module):
         self._forward_block_calls = 0
         self._recomputed_block_calls = 0
         x = self.embedding(input_ids)
+        if self.config.memory_injection == "embedding":
+            x = self._apply_memory(x, input_ids, byte_addresses)
         auxiliary_loss = x.new_zeros(())
         for block in self.blocks:
             if activation_checkpointing and self.training and torch.is_grad_enabled():
@@ -221,14 +243,8 @@ class DenseLM(nn.Module):
                 )
             auxiliary_loss = auxiliary_loss + block_aux
         x = self.norm(x)
-        if isinstance(self.memory, TokenNgramMemory):
-            x = self.memory(x, input_ids)
-        elif isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
-            if byte_addresses is None:
-                raise ValueError(
-                    "byte-addressed memory requires prepared byte addresses"
-                )
-            x = self.memory(x, byte_addresses)
+        if self.config.memory_injection == "final":
+            x = self._apply_memory(x, input_ids, byte_addresses)
         return self.output(x), auxiliary_loss
 
     def architecture_metric_tensors(self) -> dict[str, Tensor]:
@@ -252,6 +268,9 @@ class DenseLM(nn.Module):
                 "hidden_norm",
             ):
                 result[f"engram/{name}"] = getattr(diagnostic, name).detach()
+            result[
+                f"engram/injection/{self.config.memory_injection}"
+            ] = diagnostic.gate_mean.new_ones(()).detach()
         for index, block in enumerate(self.blocks):
             if (
                 isinstance(block.ffn, TopKMoE)
@@ -453,20 +472,18 @@ class DenseLM(nn.Module):
                 raise ValueError(
                     "byte_addresses must match cached input IDs in shape and device"
                 )
-        x = self.embedding(input_ids)
         cache.append_input_ids(input_ids)
+        full_ids = cache.input_ids[:, : cache.length]
+        x = self.embedding(input_ids)
+        if self.config.memory_injection == "embedding":
+            x = self._apply_memory(
+                x, full_ids, byte_addresses, incremental=True
+            )
         for block, layer_cache in zip(self.blocks, cache.layers, strict=True):
             x, _ = block.forward_cached(x, layer_cache)
         x = self.norm(x)
-        full_ids = cache.input_ids[:, : cache.length]
-        if isinstance(self.memory, TokenNgramMemory):
-            x = self.memory.forward_last(x, full_ids)
-        elif isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
-            if byte_addresses is None:
-                raise ValueError(
-                    "byte-addressed memory requires prepared byte addresses"
-                )
-            x = self.memory(x, byte_addresses)
+        if self.config.memory_injection == "final":
+            x = self._apply_memory(x, full_ids, byte_addresses, incremental=True)
         return self.output(x), cache
 
     @property

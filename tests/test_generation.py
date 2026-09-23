@@ -17,6 +17,7 @@ from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.packing import prepare_data
 from sparselab.evaluation.chat import chat_turn
 from sparselab.evaluation.generation import _prompt_byte_addresses, generate
+from sparselab.model.portable_engram import export_portable_engram
 from sparselab.model.transformer import DenseLM
 
 
@@ -382,7 +383,10 @@ def test_block_sparse_generation_reports_prefix_recompute_capability() -> None:
     assert "prefix" in capability.reason
 
 
-def test_incremental_cache_preserves_unicode_byte_memory_addresses() -> None:
+@pytest.mark.parametrize("injection", ["final", "embedding"])
+def test_incremental_cache_preserves_unicode_byte_memory_addresses(
+    injection: str,
+) -> None:
     tokenizer = _tokenizer()
     prompt = " é"
     prefix = _ids(tokenizer, prompt)
@@ -399,6 +403,7 @@ def test_incremental_cache_preserves_unicode_byte_memory_addresses() -> None:
             memory_table_size=97,
             memory_ngram_size=3,
             memory_dim=8,
+            memory_injection=injection,
         ),
         AttentionConfig(),
     ).eval()
@@ -426,7 +431,8 @@ def test_incremental_cache_preserves_unicode_byte_memory_addresses() -> None:
     )
 
 
-def test_incremental_cache_preserves_ngram_memory_history() -> None:
+@pytest.mark.parametrize("injection", ["final", "embedding"])
+def test_incremental_cache_preserves_ngram_memory_history(injection: str) -> None:
     model = DenseLM(
         ModelConfig(
             vocab_size=260,
@@ -441,14 +447,90 @@ def test_incremental_cache_preserves_ngram_memory_history() -> None:
             memory_dim=8,
             memory_ngram_orders=(2, 3),
             memory_hash_heads=2,
+            memory_injection=injection,
         ),
         AttentionConfig(),
     ).eval()
-    prefix = torch.tensor([[3, 7, 11, 13]])
-    appended = torch.tensor([[17]])
+    prefix = torch.tensor([[3, 7, 11, 13], [5, 9, 15, 19]])
+    appended = torch.tensor([[17, 23], [21, 25]])
 
     _, cache = model.forward_cached(prefix, cache_capacity=8)
     cached_next, _ = model.forward_cached(appended, cache=cache)
-    full_next = model(torch.cat((prefix, appended), dim=1))[:, -1]
+    full_next = model(torch.cat((prefix, appended), dim=1))[:, -2:]
 
-    torch.testing.assert_close(cached_next[:, -1], full_next)
+    torch.testing.assert_close(cached_next, full_next)
+
+
+@pytest.mark.parametrize("injection", ["final", "embedding"])
+def test_incremental_cache_preserves_portable_memory_chunks(
+    injection: str, tmp_path: Path
+) -> None:
+    package = tmp_path / "memory.engram"
+    export_portable_engram(torch.arange(85, dtype=torch.float32).reshape(17, 5), package, ngram_size=3)
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=260,
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=8,
+            memory="portable",
+            memory_table_size=17,
+            memory_ngram_size=3,
+            memory_dim=5,
+            memory_package_path=package,
+            memory_injection=injection,
+        ),
+        AttentionConfig(),
+    ).eval()
+    prefix = torch.tensor([[3, 7, 11], [5, 9, 15]])
+    addresses = torch.tensor([[1, 4, 7], [2, 5, 8]])
+    cached, cache = model.forward_cached(
+        prefix, cache_capacity=8, byte_addresses=addresses
+    )
+    torch.testing.assert_close(cached, model(prefix, byte_addresses=addresses))
+    for chunk, chunk_addresses in (
+        (torch.tensor([[17], [19]]), torch.tensor([[10], [11]])),
+        (torch.tensor([[21, 23], [25, 27]]), torch.tensor([[12, 13], [14, 15]])),
+    ):
+        cached, cache = model.forward_cached(
+            chunk, cache=cache, byte_addresses=chunk_addresses
+        )
+        prefix = torch.cat((prefix, chunk), dim=1)
+        addresses = torch.cat((addresses, chunk_addresses), dim=1)
+        torch.testing.assert_close(
+            cached, model(prefix, byte_addresses=addresses)[:, -chunk.shape[1] :]
+        )
+
+
+@pytest.mark.parametrize("memory_kind", ["ngram", "byte"])
+def test_early_memory_cached_generation_matches_context_rollover(
+    memory_kind: str,
+) -> None:
+    tokenizer = _tokenizer()
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=tokenizer.get_vocab_size(),
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=3,
+            memory=memory_kind,
+            memory_table_size=97,
+            memory_ngram_size=3,
+            memory_dim=8,
+            memory_injection="embedding",
+        ),
+        AttentionConfig(),
+    ).eval()
+
+    cached = generate(
+        model, tokenizer, "hello", 3, 5, torch.device("cpu"), use_cache=True
+    )
+    reference = generate(
+        model, tokenizer, "hello", 3, 5, torch.device("cpu"), use_cache=False
+    )
+
+    assert cached == reference

@@ -270,3 +270,39 @@ def test_results_are_checkpoint_content_addressed_and_coexist(tmp_path: Path) ->
 
     assert first != second
     assert first.exists() and second.exists()
+
+
+def test_memory_comparison_accepts_placement_only_change() -> None:
+    base = _result(score=0.0)
+    variant = _result(score=0.5)
+    for result, placement in ((base, "final"), (variant, "embedding")):
+        identity = result["identity"]
+        assert isinstance(identity, dict)
+        config = identity["config"]
+        assert isinstance(config, dict)
+        model = config["model"]
+        assert isinstance(model, dict)
+        model.update(
+            {
+                "memory": "ngram",
+                "memory_table_size": 31,
+                "memory_ngram_size": 3,
+                "memory_dim": 8,
+                "memory_injection": placement,
+            }
+        )
+
+    comparison = compare_results(base, variant, vary="memory")
+    assert set(comparison["differences"]) == {"model.memory_injection"}
+    assert comparison["parameter_inventory"]["base"] == comparison[
+        "parameter_inventory"
+    ]["variant"]
+
+    custom = compare_results(
+        base,
+        variant,
+        vary="custom",
+        vary_fields=("model.memory_injection",),
+    )
+    assert custom["format"] == "capability_comparison_v3"
+    assert set(custom["differences"]) == {"model.memory_injection"}

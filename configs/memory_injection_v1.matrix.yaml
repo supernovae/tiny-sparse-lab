@@ -1,0 +1,30 @@
+matrix_version: 1
+base_config: context_study_dense_s17_b24k.yaml
+scheduling:
+  requirements:
+    backend: [cpu]
+axes:
+  seed:
+    - label: s17
+      set: {seed: 17}
+    - label: s41
+      set: {seed: 41}
+    - label: s73
+      set: {seed: 73}
+  architecture:
+    - label: none
+      set: {}
+    - label: final
+      set:
+        model.memory: ngram
+        model.memory_table_size: 1021
+        model.memory_ngram_size: 3
+        model.memory_dim: 32
+        model.memory_injection: final
+    - label: embedding
+      set:
+        model.memory: ngram
+        model.memory_table_size: 1021
+        model.memory_ngram_size: 3
+        model.memory_dim: 32
+        model.memory_injection: embedding

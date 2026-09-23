@@ -12,6 +12,7 @@ from sparselab.model.inspection import (
     inspection_report,
 )
 from sparselab.model.transformer import DenseLM
+from sparselab.training.metric_registry import metric_spec
 
 
 @pytest.mark.parametrize(
@@ -97,3 +98,88 @@ def test_scalar_sparse_diagnostics_omit_unavailable_dense_teacher_metrics() -> N
     )
     metrics = architecture_metrics(model)
     assert not any("dense_teacher" in name for name in metrics)
+
+
+def test_memory_injection_diagnostics_and_inspection() -> None:
+    plain = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+    plain_model = DenseLM(plain.model, plain.attention)
+    plain_model(torch.tensor([[3, 7, 11]]))
+    assert not any(
+        name.startswith("engram/injection/")
+        for name in architecture_metrics(plain_model)
+    )
+    assert inspect_model(plain_model)["memory_injection"] == "none"
+    assert inspection_report(plain)["memory_injection"] == "none"
+
+    enabled = load_config(Path("configs/context_study_dense_s17_b24k.yaml"))
+    enabled = enabled.model_copy(
+        update={
+            "model": enabled.model.model_copy(
+                update={
+                    "memory": "ngram",
+                    "memory_table_size": 31,
+                    "memory_ngram_size": 3,
+                    "memory_dim": 8,
+                }
+            )
+        }
+    )
+    models = {
+        placement: DenseLM(
+            enabled.model.model_copy(update={"memory_injection": placement}),
+            enabled.attention,
+        )
+        for placement in ("final", "embedding")
+    }
+
+    reports = {}
+    for placement, model in models.items():
+        config = enabled.model_copy(update={"model": model.config})
+        model(torch.tensor([[3, 7, 11]]))
+        metrics = architecture_metrics(model)
+        indicators = {
+            name: value
+            for name, value in metrics.items()
+            if name.startswith("engram/injection/")
+        }
+        expected = f"engram/injection/{placement}"
+        assert set(indicators) == {expected}
+        indicator = indicators[expected]
+        assert indicator.shape == torch.Size([])
+        assert indicator.device == model.memory.last_diagnostics.gate_mean.device
+        assert not indicator.requires_grad
+        assert indicator.item() == 1
+        assert "engram/lookup_count" in metrics
+        assert inspect_model(model)["memory_injection"] == placement
+        report = inspection_report(config)
+        assert report["memory_injection"] == placement
+
+        reports[placement] = (inspect_model(model), report)
+
+    final, embedding = reports["final"], reports["embedding"]
+    for name in (
+        "total",
+        "trainable",
+        "active_per_token",
+        "engram",
+        "optimizer_state_bytes",
+        "estimated_checkpoint_bytes",
+    ):
+        assert final[0][name] == embedding[0][name]
+        assert final[1][name] == embedding[1][name]
+    final_parameters = models["final"].state_dict()
+    embedding_parameters = models["embedding"].state_dict()
+    assert final_parameters.keys() == embedding_parameters.keys()
+    assert {
+        name: tuple(value.shape) for name, value in final_parameters.items()
+    } == {
+        name: tuple(value.shape) for name, value in embedding_parameters.items()
+    }
+    for placement in ("final", "embedding"):
+        spec = metric_spec(f"engram/injection/{placement}")
+        assert spec is not None
+        assert (spec.unit, spec.producer, spec.help_slug) == (
+            "indicator",
+            "model",
+            "memory",
+        )

@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 
 class StrictModel(BaseModel):
@@ -27,12 +34,22 @@ class ModelConfig(StrictModel):
     shared_expert: bool = False
     router_aux_loss_coefficient: float = Field(default=0.0, ge=0)
     memory: Literal["none", "ngram", "byte", "portable"] = "none"
+    memory_injection: Literal["final", "embedding"] = "final"
     memory_table_size: int = 0
     memory_ngram_size: int = 0
     memory_dim: int = 0
     memory_package_path: Path | None = None
     memory_ngram_orders: tuple[int, ...] = ()
     memory_hash_heads: int = Field(default=1, gt=0)
+
+    @model_serializer(mode="wrap")
+    def _serialize_legacy_final(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        result = handler(self)
+        if self.memory_injection == "final":
+            result.pop("memory_injection", None)
+        return result
 
     @model_validator(mode="after")
     def validate_dimensions(self) -> ModelConfig:
@@ -64,6 +81,8 @@ class ModelConfig(StrictModel):
         ):
             raise ValueError("invalid MoE expert configuration")
         settings = (self.memory_table_size, self.memory_ngram_size, self.memory_dim)
+        if self.memory == "none" and self.memory_injection != "final":
+            raise ValueError("embedding memory injection requires enabled memory")
         if self.memory == "none" and (
             any(settings)
             or self.memory_package_path is not None

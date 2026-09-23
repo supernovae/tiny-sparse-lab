@@ -234,6 +234,20 @@ METRICS = {
             "offload",
             "offload",
         ),
+        MetricSpec(
+            "engram/injection/final",
+            "indicator",
+            "Memory was injected after the final RMSNorm and before the LM head.",
+            "memory",
+            "model",
+        ),
+        MetricSpec(
+            "engram/injection/embedding",
+            "indicator",
+            "Memory was injected after token embedding and before decoder block 0.",
+            "memory",
+            "model",
+        ),
     )
 }
 

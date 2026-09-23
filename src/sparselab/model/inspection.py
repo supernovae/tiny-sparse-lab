@@ -264,6 +264,9 @@ def inspection_report(config: RunConfig) -> dict[str, int | str]:
         "engram_table": inventory.memory_table,
         "engram_adapter": inventory.memory_adapter,
         "frozen": inventory.frozen,
+        "memory_injection": "none"
+        if config.model.memory == "none"
+        else config.model.memory_injection,
         "expert_note": "not present in dense model"
         if config.model.ffn == "dense"
         else "routed and shared expert storage; expert is a non-additive subtotal",
@@ -363,6 +366,9 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
         "engram": memory_parameters,
         "engram_table": memory_tables,
         "engram_adapter": memory_parameters - memory_tables,
+        "memory_injection": "none"
+        if model.memory is None
+        else model.config.memory_injection,
         "frozen": frozen,
         "expert_note": (
             "not present in dense model"

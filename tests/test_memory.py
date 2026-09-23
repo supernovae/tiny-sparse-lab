@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import copy
+
+import pytest
 import torch
 
 from sparselab.config.models import AttentionConfig, ModelConfig
-from sparselab.model.memory import TokenNgramMemory
+from sparselab.model.memory import ByteAddressMemory, TokenNgramMemory
+from sparselab.model.portable_engram import (
+    PortableEngramAdapter,
+    export_portable_engram,
+)
 from sparselab.model.transformer import DenseLM
 
 
@@ -90,3 +97,136 @@ def test_disabled_memory_is_absent_and_enabled_memory_runs_backward() -> None:
     assert 0 <= float(diagnostics.bucket_reuse_rate) < 1
     assert 0 < float(diagnostics.table_utilization) <= 1
     assert 0 < float(diagnostics.gate_mean) < 1
+
+
+def _legacy_final_forward(
+    model: DenseLM,
+    input_ids: torch.Tensor,
+    byte_addresses: torch.Tensor | None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    hidden = model.embedding(input_ids)
+    auxiliary_loss = hidden.new_zeros(())
+    for block in model.blocks:
+        hidden, block_auxiliary = block.forward_with_aux(hidden)
+        auxiliary_loss = auxiliary_loss + block_auxiliary
+    hidden = model.norm(hidden)
+    if isinstance(model.memory, TokenNgramMemory):
+        hidden = model.memory(hidden, input_ids)
+    elif isinstance(model.memory, (ByteAddressMemory, PortableEngramAdapter)):
+        if byte_addresses is None:
+            raise ValueError("test reference requires byte addresses")
+        hidden = model.memory(hidden, byte_addresses)
+    return model.output(hidden), auxiliary_loss
+
+
+@pytest.mark.parametrize("memory_kind", ["none", "ngram", "byte", "portable"])
+def test_final_memory_matches_legacy_forward_outputs_and_gradients(
+    memory_kind: str, tmp_path
+) -> None:
+    package = None
+    if memory_kind == "portable":
+        package = tmp_path / "memory.engram"
+        export_portable_engram(torch.zeros(17, 5), package, ngram_size=3)
+    config = ModelConfig(
+        vocab_size=260,
+        hidden_dim=8,
+        num_layers=2,
+        num_heads=2,
+        ffn_dim=16,
+        max_seq_len=8,
+        memory=memory_kind,
+        memory_table_size=17 if memory_kind != "none" else 0,
+        memory_ngram_size=3 if memory_kind != "none" else 0,
+        memory_dim=5 if memory_kind != "none" else 0,
+        memory_package_path=package,
+    )
+    torch.manual_seed(19)
+    actual = DenseLM(config, AttentionConfig())
+    reference = copy.deepcopy(actual)
+    placement_peer = DenseLM(
+        config.model_copy(update={"memory_injection": "embedding"}),
+        AttentionConfig(),
+    )
+    assert actual.state_dict().keys() == placement_peer.state_dict().keys()
+    assert {
+        name: (tuple(parameter.shape), parameter.requires_grad)
+        for name, parameter in actual.named_parameters()
+    } == {
+        name: (tuple(parameter.shape), parameter.requires_grad)
+        for name, parameter in placement_peer.named_parameters()
+    }
+
+    input_ids = torch.tensor([[3, 7, 11, 13], [5, 9, 15, 17]])
+    addresses = (
+        torch.randint(0, 17, input_ids.shape)
+        if memory_kind in {"byte", "portable"}
+        else None
+    )
+    logits, auxiliary = actual.forward_with_aux(
+        input_ids, byte_addresses=addresses
+    )
+    expected, expected_auxiliary = _legacy_final_forward(
+        reference, input_ids, addresses
+    )
+    torch.testing.assert_close(logits, expected)
+    torch.testing.assert_close(auxiliary, expected_auxiliary)
+    if memory_kind == "portable":
+        assert isinstance(actual.memory, PortableEngramAdapter)
+        assert not actual.memory.embedding.weight.requires_grad
+
+    (logits.square().mean() + auxiliary).backward()
+    (expected.square().mean() + expected_auxiliary).backward()
+    actual_parameters = dict(actual.named_parameters())
+    reference_parameters = dict(reference.named_parameters())
+    assert actual_parameters.keys() == reference_parameters.keys()
+    for name, parameter in actual_parameters.items():
+        reference_parameter = reference_parameters[name]
+        if parameter.grad is None:
+            assert reference_parameter.grad is None
+        else:
+            assert reference_parameter.grad is not None
+            torch.testing.assert_close(parameter.grad, reference_parameter.grad)
+
+
+def test_embedding_injection_carries_prefix_memory_into_later_logits() -> None:
+    torch.manual_seed(23)
+    config = ModelConfig(
+        vocab_size=260,
+        hidden_dim=16,
+        num_layers=2,
+        num_heads=2,
+        ffn_dim=32,
+        max_seq_len=8,
+        memory="ngram",
+        memory_table_size=97,
+        memory_ngram_size=3,
+        memory_dim=8,
+    )
+    final_template = DenseLM(config, AttentionConfig()).eval()
+    input_ids = torch.tensor([[3, 7, 11, 13]])
+    assert isinstance(final_template.memory, TokenNgramMemory)
+    addresses = final_template.memory.addresses(input_ids)
+    start_address = int(addresses[0, 0])
+    assert start_address not in addresses[0, 1:].tolist()
+
+    models = [copy.deepcopy(final_template) for _ in range(4)]
+    models[2].config = config.model_copy(update={"memory_injection": "embedding"})
+    models[3].config = config.model_copy(update={"memory_injection": "embedding"})
+    with torch.no_grad():
+        for model in models:
+            memory = model.memory
+            assert isinstance(memory, TokenNgramMemory)
+            memory.table.weight.zero_()
+            memory.output.weight.zero_()
+            memory.output.weight[:8, :8] = torch.eye(8)
+            memory.gate.weight.zero_()
+        for model in (models[1], models[3]):
+            memory = model.memory
+            assert isinstance(memory, TokenNgramMemory)
+            memory.table.weight[start_address].fill_(1.0)
+
+    final_before, final_after, early_before, early_after = (
+        model(input_ids)[:, -1] for model in models
+    )
+    torch.testing.assert_close(final_before, final_after, rtol=0, atol=0)
+    assert not torch.allclose(early_before, early_after, rtol=0, atol=1e-10)

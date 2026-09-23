@@ -1,0 +1,22 @@
+study_version: 1
+name: memory-injection-v1
+matrix: memory_injection_v1.matrix.yaml
+cards:
+  - ../data/context_override_v2/context_override_acquisition_v1.card.json
+  - ../data/context_override_v2/context_static_retention_v1.card.json
+  - ../data/context_override_v2/context_override_untouched_v1.card.json
+  - ../data/memory_injection_v1/context_two_hop_v1.card.json
+comparisons:
+  - id: final-minus-none
+    vary: memory
+    baseline: {architecture: none}
+    variant: {architecture: final}
+  - id: embedding-minus-none
+    vary: memory
+    baseline: {architecture: none}
+    variant: {architecture: embedding}
+  - id: embedding-minus-final
+    vary: custom
+    vary_fields: [model.memory_injection]
+    baseline: {architecture: final}
+    variant: {architecture: embedding}

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
 import yaml
+from tokenizers import Tokenizer
 
+from sparselab.evaluation.capabilities import load_capability_card
 from sparselab.experiments.study import (
     ArchitectureStudy,
     StudyComparison,
@@ -13,6 +17,7 @@ from sparselab.experiments.study import (
     plan_study,
     study_plan_payload,
 )
+from sparselab.model.inspection import parameter_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "configs" / "runtime_smoke_cpu.yaml"
@@ -234,3 +239,69 @@ def test_validation_loss_requires_matched_run_identity(tmp_path: Path) -> None:
     assert validation["status"] == "inconclusive"
     assert validation["reason"] == "run identity differs at tokens_seen"
     assert "delta_variant_minus_baseline" not in validation
+
+
+def test_memory_injection_campaign_plan_and_composition_card() -> None:
+    study = plan_study(ROOT / "configs/memory_injection_v1.study.yaml")
+
+    assert len(study.expanded) == 9
+    assert len(study.pairs) == 9
+    assert [item.coordinate["seed"] for item in study.expanded] == [
+        seed
+        for seed in ("s17", "s41", "s73")
+        for _ in ("none", "final", "embedding")
+    ]
+    placement_pairs = [
+        pair for pair in study.pairs if pair.comparison.identifier == "embedding-minus-final"
+    ]
+    assert len(placement_pairs) == 3
+    for pair in placement_pairs:
+        assert set(pair.differences) == {"model.memory_injection"}
+        baseline = study.expanded[pair.baseline_index].config
+        variant = study.expanded[pair.variant_index].config
+        assert parameter_inventory(baseline) == parameter_inventory(variant)
+
+    card = load_capability_card(
+        ROOT / "data/memory_injection_v1/context_two_hop_v1.card.json"
+    )
+    assert [case.identifier for case in card.cases] == [
+        f"two-hop-{pair}{side}"
+        for pair in range(1, 5)
+        for side in ("a", "b")
+    ]
+    assert Counter(case.expected for case in card.cases) == Counter(
+        {
+            "amber": 1,
+            "ivory": 1,
+            "onyx": 1,
+            "pearl": 1,
+            "cobalt": 1,
+            "sienna": 1,
+            "topaz": 1,
+            "violet": 1,
+        }
+    )
+    for pair_index in range(0, len(card.cases), 2):
+        left, right = card.cases[pair_index : pair_index + 2]
+        left_edges = re.findall(r"(\w+) maps to (\w+)", left.prompt)
+        right_edges = re.findall(r"(\w+) maps to (\w+)", right.prompt)
+        assert left_edges == right_edges
+        left_start = re.search(r"Follow two links from (\w+)", left.prompt)
+        right_start = re.search(r"Follow two links from (\w+)", right.prompt)
+        assert left_start is not None and right_start is not None
+        assert left_start.group(1) != right_start.group(1)
+        assert left.expected != right.expected
+        graph = dict(left_edges)
+        assert graph[left_start.group(1)] != left.expected
+        assert graph[graph[left_start.group(1)]] == left.expected
+        assert graph[right_start.group(1)] != right.expected
+        assert graph[graph[right_start.group(1)]] == right.expected
+    tokenizer = Tokenizer.from_file(
+        str(ROOT / "artifacts/tokenizer_context_study/tokenizer.json")
+    )
+    lengths = [
+        len(tokenizer.encode(case.prompt, add_special_tokens=False).ids)
+        for case in card.cases
+    ]
+    assert lengths == [71, 71, 81, 82, 101, 103, 89, 86]
+    assert max(lengths) + card.generation["max_new_tokens"] <= 128

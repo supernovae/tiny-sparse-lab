@@ -43,6 +43,7 @@ _MEMORY_FIELDS = frozenset(
         "memory_package_path",
         "memory_ngram_orders",
         "memory_hash_heads",
+        "memory_injection",
     }
 )
 _FFN_FIELDS = frozenset(

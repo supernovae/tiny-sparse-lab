@@ -13,11 +13,15 @@ from sparselab.model.transformer import DenseLM
 
 
 def _model(
-    *, ffn: str = "dense", memory: str = "none", attention: str = "dense"
+    *,
+    ffn: str = "dense",
+    memory: str = "none",
+    attention: str = "dense",
+    memory_injection: str = "final",
 ) -> DenseLM:
     options = (
         {"memory_table_size": 32, "memory_ngram_size": 2, "memory_dim": 8}
-        if memory == "byte"
+        if memory in {"byte", "ngram"}
         else {}
     )
     config = ModelConfig(
@@ -32,6 +36,7 @@ def _model(
         experts_per_token=2 if ffn == "moe" else 1,
         shared_expert=ffn == "moe",
         router_aux_loss_coefficient=0.1 if ffn == "moe" else 0.0,
+        memory_injection=memory_injection,
         memory=memory,
         **options,
     )
@@ -73,14 +78,20 @@ def _loss_and_update(
 
 
 @pytest.mark.parametrize(
-    ("ffn", "memory"),
-    [("dense", "none"), ("moe", "none"), ("moe", "byte")],
+    ("ffn", "memory", "placement"),
+    [
+        ("dense", "none", "final"),
+        ("moe", "none", "final"),
+        ("moe", "byte", "final"),
+        ("dense", "byte", "embedding"),
+        ("dense", "ngram", "embedding"),
+    ],
 )
 def test_nonreentrant_recomputation_matches_uncheckpointed_forward_gradients_and_update(
-    ffn: str, memory: str
+    ffn: str, memory: str, placement: str
 ) -> None:
     torch.manual_seed(17)
-    plain = _model(ffn=ffn, memory=memory)
+    plain = _model(ffn=ffn, memory=memory, memory_injection=placement)
     checkpointed = copy.deepcopy(plain)
     inputs = torch.randint(0, 260, (2, 6))
     labels = torch.randint(0, 260, (2, 6))
@@ -152,3 +163,30 @@ def test_scalar_diagnostics_avoid_full_router_and_dense_teacher_snapshots() -> N
     assert attention.last_diagnostics is not None
     assert attention.last_diagnostics.selected_blocks is None
     assert attention.last_diagnostics.dense_teacher_mass is None
+
+
+def test_embedding_memory_diagnostics_are_not_recomputed() -> None:
+    torch.manual_seed(29)
+    model = _model(memory="ngram", memory_injection="embedding")
+    inputs = torch.randint(0, 260, (2, 6))
+    logits, auxiliary = model.forward_with_aux(
+        inputs,
+        activation_checkpointing=True,
+        diagnostics="full",
+    )
+    assert model.memory is not None and model.memory.last_diagnostics is not None
+    forward_diagnostic = model.memory.last_diagnostics
+    before = model.architecture_metric_tensors()
+    indicator_name = "engram/injection/embedding"
+    assert {name for name in before if name.startswith("engram/injection/")} == {
+        indicator_name
+    }
+    before_indicator = before[indicator_name]
+
+    (logits.square().mean() + auxiliary).backward()
+
+    after = model.architecture_metric_tensors()
+    assert model.memory.last_diagnostics is forward_diagnostic
+    assert model.recomputed_block_call_ratio == 1.0
+    assert after.keys() == before.keys()
+    torch.testing.assert_close(after[indicator_name], before_indicator)

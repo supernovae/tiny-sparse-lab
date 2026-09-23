@@ -8,9 +8,12 @@ import numpy as np
 import pytest
 import torch
 
+from sparselab.config.loading import load_config
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.data.tokenizer import train_tokenizer
+from sparselab.engines.mlx import EngineCapabilityError
+from sparselab.engines.mlx import validate as validate_mlx
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest
@@ -294,6 +297,78 @@ def test_resume_rejects_model_configuration_mismatch(tmp_path: Path) -> None:
             run_id="rejected",
             resume=original.logging.root_dir / "part/checkpoints/latest.json",
         )
+
+
+def test_memory_placement_cannot_resume_or_promote_across_sites(
+    tmp_path: Path,
+) -> None:
+    original = config(tmp_path / "source")
+    memory_config = original.model.model_copy(
+        update={
+            "memory": "ngram",
+            "memory_table_size": 31,
+            "memory_ngram_size": 3,
+            "memory_dim": 8,
+            "memory_injection": "final",
+        }
+    )
+    original = original.model_copy(update={"model": memory_config})
+    train(original, run_id="final", stop_after_step=1)
+    checkpoint = original.logging.root_dir / "final/checkpoints/latest.json"
+    embedding = original.model_copy(
+        update={
+            "model": original.model.model_copy(
+                update={"memory_injection": "embedding"}
+            )
+        }
+    )
+
+    with pytest.raises(ValueError, match="architecture semantics"):
+        train(
+            embedding,
+            run_id="rejected-resume",
+            resume=checkpoint,
+            allow_runtime_drift=True,
+        )
+    with pytest.raises(ValueError, match="architecture semantics"):
+        train(
+            embedding,
+            run_id="rejected-promotion",
+            promote=checkpoint,
+            allow_runtime_drift=True,
+            stop_after_step=1,
+        )
+
+
+@pytest.mark.parametrize("placement", ["final", "embedding"])
+def test_mlx_validation_rejects_enabled_memory_at_every_placement(
+    placement: str,
+) -> None:
+    base = load_config(
+        Path(__file__).resolve().parents[1]
+        / "configs"
+        / "context_study_dense_s17_b24k.yaml"
+    )
+    model = base.model.model_copy(
+        update={
+            "memory": "ngram",
+            "memory_table_size": 31,
+            "memory_ngram_size": 3,
+            "memory_dim": 8,
+            "memory_injection": placement,
+        }
+    )
+    config_value = base.model_copy(
+        update={
+            "model": model,
+            "runtime": base.runtime.model_copy(
+                update={"engine": "mlx", "backend": "metal"}
+            ),
+        }
+    )
+
+    with pytest.raises(EngineCapabilityError, match="does not support memory modules"):
+        validate_mlx(config_value)
 
 
 def test_non_multiple_token_budget_commits_exactly_77_targets(tmp_path: Path) -> None:

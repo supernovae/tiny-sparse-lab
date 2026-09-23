@@ -123,6 +123,33 @@ def test_checked_in_matrix_fixture_expands_three_concrete_cpu_configs() -> None:
         "seed-41",
     ]
     assert [item.config.runtime.backend for item in expanded] == ["cpu", "cpu", "cpu"]
+    assert expanded[0].matrix_sha256 == (
+        "7b4c53bb6578570bc1e2b458293fede87183cd4254efe391e5a0cb25e498c6a8"
+    )
+
+
+def test_matrix_patches_omitted_default_memory_injection(tmp_path: Path) -> None:
+    matrix = _matrix(
+        tmp_path,
+        {
+            "architecture": [
+                {
+                    "label": "embedding",
+                    "set": {
+                        "model.memory": "ngram",
+                        "model.memory_table_size": 31,
+                        "model.memory_ngram_size": 3,
+                        "model.memory_dim": 8,
+                        "model.memory_injection": "embedding",
+                    },
+                }
+            ]
+        },
+    )
+
+    expanded = expand(matrix)
+
+    assert expanded[0].config.model.memory_injection == "embedding"
 
 
 def test_matrix_identity_binds_axis_order_and_base_contents(tmp_path: Path) -> None:

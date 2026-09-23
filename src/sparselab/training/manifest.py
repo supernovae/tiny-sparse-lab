@@ -59,6 +59,16 @@ def _without_machine_local_paths(value: object) -> object:
     return value
 
 
+def _without_legacy_final_injection(config: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = dict(config)
+    model = normalized.get("model")
+    if isinstance(model, Mapping) and model.get("memory_injection") == "final":
+        model_identity = dict(model)
+        model_identity.pop("memory_injection", None)
+        normalized["model"] = model_identity
+    return normalized
+
+
 def architecture_sha256(config: Mapping[str, Any]) -> str:
     """Digest model semantics, excluding the separately inventoried package location."""
     model = config.get("model", config)
@@ -69,6 +79,8 @@ def architecture_sha256(config: Mapping[str, Any]) -> str:
         raise TypeError("architecture identity requires a mapping-valued attention")
     model_identity = dict(model)
     model_identity.pop("memory_package_path", None)
+    if model_identity.get("memory_injection") == "final":
+        model_identity.pop("memory_injection", None)
     return _digest(
         {
             "identity_version": IDENTITY_VERSION,
@@ -86,7 +98,9 @@ def config_sha256(config: Mapping[str, Any]) -> str:
     return _digest(
         {
             "identity_version": IDENTITY_VERSION,
-            "config": _without_machine_local_paths(config),
+            "config": _without_machine_local_paths(
+                _without_legacy_final_injection(config)
+            ),
         }
     )
 

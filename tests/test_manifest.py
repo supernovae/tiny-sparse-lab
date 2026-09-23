@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sparselab.config.loading import load_config
 from sparselab.runtime import RuntimeInfo
 from sparselab.training.manifest import (
     ArtifactIdentity,
@@ -66,6 +67,48 @@ def test_identity_ignores_machine_paths_but_binds_architecture() -> None:
     assert architecture_sha256(left) != architecture_sha256(changed)
     assert config_sha256(left) != config_sha256(changed)
 
+
+
+def test_legacy_final_memory_injection_preserves_hashes_and_embedding_binds() -> None:
+    root = Path(__file__).resolve().parents[1]
+    expected = {
+        "runtime_smoke_cpu.yaml": (
+            "0a2c6cff8756684c12f1ce2743eb392e40a161ce64caa14dbd039aeaa56a4787",
+            "2e382ca276c05f9799be83de6fbdff5871f04a5c7e6605b5388bd4e460ae688b",
+        ),
+        "context_study_dense_s17_b24k.yaml": (
+            "204fc93286d05b3dd5e073698491494659d6c71072d5f93556ffb8f2d61cbfdb",
+            "c0b593f08717cae4189a8b24246155c7b18b6b3d626ee4931ff22f3fc7f54583",
+        ),
+        "context_study_engram_s17_b24k.yaml": (
+            "17f4efe8e0c72e7c6b9bc5c5f6d6ac3b0cec685222b006e092f3a76898b33872",
+            "8ea7e2f56fa3b1902ff72be1656db489ea0191da883e44c8ce2129f026439a02",
+        ),
+    }
+    for filename, digests in expected.items():
+        config = load_config(root / "configs" / filename).model_dump(mode="json")
+        assert (config_sha256(config), architecture_sha256(config)) == digests
+
+    legacy = load_config(
+        root / "configs" / "context_study_engram_s17_b24k.yaml"
+    ).model_dump(mode="json")
+    explicit_final = {
+        **legacy,
+        "model": {**legacy["model"], "memory_injection": "final"},
+    }
+    assert config_sha256(explicit_final) == config_sha256(legacy)
+    assert architecture_sha256(explicit_final) == architecture_sha256(legacy)
+    assert architecture_sha256(explicit_final["model"]) == architecture_sha256(
+        legacy["model"]
+    )
+    assert explicit_final["model"]["memory_injection"] == "final"
+
+    embedded = {
+        **legacy,
+        "model": {**legacy["model"], "memory_injection": "embedding"},
+    }
+    assert config_sha256(embedded) != config_sha256(legacy)
+    assert architecture_sha256(embedded) != architecture_sha256(legacy)
 
 def test_canonical_json_rejects_arbitrary_objects() -> None:
     with pytest.raises(TypeError):
