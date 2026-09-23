@@ -15,3 +15,5 @@ uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-smoke
 ```
 
 Compare it with `configs/smoke_cpu.yaml` only at matching tokenizer, data, and token budget. Total parameters include all routed experts; active-per-token accounting includes only the selected experts and an optional shared expert.
+
+The [`moe` standalone lesson](research/lesson-paths.md) exposes the same router shapes and diagnostics before any training. The [routed-capacity study](research/engram-moe-capacity.md) fixes auxiliary balancing at zero for its controlled recipe and does not establish iso-compute or timing equivalence.

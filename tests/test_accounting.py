@@ -170,9 +170,7 @@ def test_memory_injection_diagnostics_and_inspection() -> None:
     final_parameters = models["final"].state_dict()
     embedding_parameters = models["embedding"].state_dict()
     assert final_parameters.keys() == embedding_parameters.keys()
-    assert {
-        name: tuple(value.shape) for name, value in final_parameters.items()
-    } == {
+    assert {name: tuple(value.shape) for name, value in final_parameters.items()} == {
         name: tuple(value.shape) for name, value in embedding_parameters.items()
     }
     for placement in ("final", "embedding"):

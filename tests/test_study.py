@@ -247,12 +247,12 @@ def test_memory_injection_campaign_plan_and_composition_card() -> None:
     assert len(study.expanded) == 9
     assert len(study.pairs) == 9
     assert [item.coordinate["seed"] for item in study.expanded] == [
-        seed
-        for seed in ("s17", "s41", "s73")
-        for _ in ("none", "final", "embedding")
+        seed for seed in ("s17", "s41", "s73") for _ in ("none", "final", "embedding")
     ]
     placement_pairs = [
-        pair for pair in study.pairs if pair.comparison.identifier == "embedding-minus-final"
+        pair
+        for pair in study.pairs
+        if pair.comparison.identifier == "embedding-minus-final"
     ]
     assert len(placement_pairs) == 3
     for pair in placement_pairs:
@@ -265,9 +265,7 @@ def test_memory_injection_campaign_plan_and_composition_card() -> None:
         ROOT / "data/memory_injection_v1/context_two_hop_v1.card.json"
     )
     assert [case.identifier for case in card.cases] == [
-        f"two-hop-{pair}{side}"
-        for pair in range(1, 5)
-        for side in ("a", "b")
+        f"two-hop-{pair}{side}" for pair in range(1, 5) for side in ("a", "b")
     ]
     assert Counter(case.expected for case in card.cases) == Counter(
         {

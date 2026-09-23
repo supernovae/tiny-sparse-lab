@@ -18,6 +18,7 @@ import plotly.express as px
 import streamlit as st
 
 from sparselab.dashboard.queries import DashboardSnapshot, RunRecord, runs, snapshot
+from sparselab.dashboard.research import learn_page, research_page
 from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.metric_registry import metric_spec
 
@@ -56,6 +57,7 @@ _ESTIMATE_BUCKETS = (
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--runs-dir", default="runs")
+    parser.add_argument("--reports-dir", default="artifacts/research-reports")
     args, _ = parser.parse_known_args()
     return args
 
@@ -759,7 +761,8 @@ def checkpoint_view(view: DashboardSnapshot, root: Path) -> None:
 
 
 def learn() -> None:
-    st.header("Learn")
+    learn_page()
+    st.subheader("Runtime guides")
     guides = {
         "Runtime and precision": "runtime",
         "Training memory": "memory",
@@ -770,7 +773,9 @@ def learn() -> None:
         "Activation offload": "offload",
         "Independent workers boundary": "independent-workers",
     }
-    search = st.text_input("Search guides", key="learn_search").strip().lower()
+    search = (
+        st.text_input("Search runtime guides", key="learn_guide_search").strip().lower()
+    )
     for title, slug in guides.items():
         body = metric_help(slug)
         if search and search not in title.lower() and search not in body.lower():
@@ -811,6 +816,7 @@ def render(root: Path, page: str) -> None:
         st.caption(
             f"Last observed {_observation_age(observed_at)} ago. Refreshes every 2 seconds."
         )
+    _selection_controls(root)
     pages = {
         "overview": overview,
         "training": training,
@@ -820,51 +826,73 @@ def render(root: Path, page: str) -> None:
         "memory": memory_view,
         "checkpoints": lambda value: checkpoint_view(value, root),
         "stages": stage_view,
-        "learn": lambda _: learn(),
     }
     pages[page](view)
+
+
+def _run_page(root: Path, page: str) -> None:
+    """Keep run views unavailable until a read-only projection exists."""
+    key = f"dashboard_snapshot:{root.resolve()}"
+    if not (root / "experiments.sqlite3").is_file() and key not in st.session_state:
+        st.info("No runs yet. Run `sparselab train CONFIG --run-id NAME`.")
+        return
+    render(root, page)
 
 
 def main() -> None:
     st.set_page_config(page_title="SparseLab", layout="wide")
     st.title("Tiny Sparse Lab")
-    root = Path(arguments().runs_dir)
-    if (
-        not (root / "experiments.sqlite3").is_file()
-        and f"dashboard_snapshot:{root.resolve()}" not in st.session_state
-    ):
-        st.info("No runs yet. Run `sparselab train CONFIG --run-id NAME`.")
-        return
-    _selection_controls(root)
+    args = arguments()
+    root = Path(args.runs_dir)
+    reports_dir = Path(args.reports_dir)
     page = st.navigation(
         [
+            st.Page(lambda: learn(), title="Learn", url_path="learn", default=True),
             st.Page(
-                lambda: render(root, "overview"), title="Overview", url_path="overview"
+                lambda: research_page(reports_dir),
+                title="Research",
+                url_path="research",
             ),
             st.Page(
-                lambda: render(root, "training"), title="Training", url_path="training"
+                lambda: _run_page(root, "overview"),
+                title="Overview",
+                url_path="overview",
             ),
             st.Page(
-                lambda: render(root, "evaluation"),
+                lambda: _run_page(root, "training"),
+                title="Training",
+                url_path="training",
+            ),
+            st.Page(
+                lambda: _run_page(root, "evaluation"),
                 title="Evaluation",
                 url_path="evaluation",
             ),
             st.Page(
-                lambda: render(root, "architecture"),
+                lambda: _run_page(root, "architecture"),
                 title="Architecture",
                 url_path="architecture",
             ),
             st.Page(
-                lambda: render(root, "runtime"), title="Runtime", url_path="runtime"
+                lambda: _run_page(root, "runtime"),
+                title="Runtime",
+                url_path="runtime",
             ),
-            st.Page(lambda: render(root, "memory"), title="Memory", url_path="memory"),
             st.Page(
-                lambda: render(root, "checkpoints"),
+                lambda: _run_page(root, "memory"),
+                title="Memory",
+                url_path="memory",
+            ),
+            st.Page(
+                lambda: _run_page(root, "checkpoints"),
                 title="Checkpoints",
                 url_path="checkpoints",
             ),
-            st.Page(lambda: render(root, "stages"), title="Stages", url_path="stages"),
-            st.Page(lambda: render(root, "learn"), title="Learn", url_path="learn"),
+            st.Page(
+                lambda: _run_page(root, "stages"),
+                title="Stages",
+                url_path="stages",
+            ),
         ]
     )
     page.run()

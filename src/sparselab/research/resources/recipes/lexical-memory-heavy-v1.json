@@ -1,0 +1,481 @@
+{
+  "format": "sparselab-research-recipe",
+  "version": 1,
+  "id": "lexical-memory-heavy-v1",
+  "designs": {
+    "default": {
+      "smoke": {
+        "base_set": {
+          "model.hidden_dim": 32,
+          "model.num_layers": 1,
+          "model.num_heads": 4,
+          "model.ffn_dim": 64,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 32,
+          "training.max_tokens": 4096,
+          "evaluation.every_steps": 8,
+          "checkpoint.every_steps": 8,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "small",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 257,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 8,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "large",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 4095,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 8,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "huge",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 65521,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 8,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "small-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "small"
+            }
+          },
+          {
+            "id": "large-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "large"
+            }
+          },
+          {
+            "id": "huge-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "huge"
+            }
+          }
+        ]
+      },
+      "nano": {
+        "base_set": {
+          "model.hidden_dim": 64,
+          "model.num_layers": 3,
+          "model.num_heads": 4,
+          "model.ffn_dim": 128,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 128,
+          "training.max_tokens": 32768,
+          "evaluation.every_steps": 32,
+          "checkpoint.every_steps": 32,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "small",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 8191,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "large",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 65521,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "huge",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 262139,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "small-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "small"
+            }
+          },
+          {
+            "id": "large-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "large"
+            }
+          },
+          {
+            "id": "huge-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "huge"
+            }
+          }
+        ]
+      },
+      "micro": {
+        "base_set": {
+          "model.hidden_dim": 160,
+          "model.num_layers": 3,
+          "model.num_heads": 4,
+          "model.ffn_dim": 320,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 1024,
+          "training.max_tokens": 262144,
+          "evaluation.every_steps": 128,
+          "checkpoint.every_steps": 128,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "small",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 8191,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "large",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 65521,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "huge",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 262139,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "small-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "small"
+            }
+          },
+          {
+            "id": "large-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "large"
+            }
+          },
+          {
+            "id": "huge-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "huge"
+            }
+          }
+        ]
+      },
+      "tiny": {
+        "base_set": {
+          "model.hidden_dim": 256,
+          "model.num_layers": 4,
+          "model.num_heads": 8,
+          "model.ffn_dim": 512,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 4096,
+          "training.max_tokens": 1048576,
+          "evaluation.every_steps": 256,
+          "checkpoint.every_steps": 256,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "small",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 8191,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "large",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 65521,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "huge",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 262139,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "small-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "small"
+            }
+          },
+          {
+            "id": "large-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "large"
+            }
+          },
+          {
+            "id": "huge-minus-none",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "none"
+            },
+            "variant": {
+              "capacity": "huge"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

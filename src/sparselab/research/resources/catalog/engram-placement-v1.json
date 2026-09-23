@@ -1,0 +1,131 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "id": "engram-placement-v1",
+  "title": "Computation after lookup: does placement change learned behavior?",
+  "question": "Does placement change learned behavior when lexical memory capacity is held fixed?",
+  "mechanisms": [
+    "token n-gram memory",
+    "memory injection placement"
+  ],
+  "hypothesis": "Earlier retrieved values may affect later tokens without improving held-out scores.",
+  "failure_interpretation": "Equal memory capacity does not imply useful retrieval.",
+  "controls": [
+    "Fix tokenizer, dataset source and packing within each selected data route.",
+    "Fix seed-matched model width, depth, heads, optimizer, runtime, budget, evaluator, and endpoint policy unless a listed axis changes.",
+    "Report held-out language-model loss separately from each capability card category."
+  ],
+  "independent_variables": [
+    "model.memory",
+    "model.memory_injection"
+  ],
+  "dependent_metrics": [
+    {
+      "name": "held-out validation loss",
+      "unit": "cross-entropy",
+      "kind": "measured",
+      "direction": "lower"
+    },
+    {
+      "name": "capability-card score",
+      "unit": "fraction",
+      "kind": "capability",
+      "direction": "higher"
+    },
+    {
+      "name": "parameter inventory",
+      "unit": "parameters",
+      "kind": "architectural",
+      "direction": "descriptive"
+    }
+  ],
+  "confounders": [
+    "Model-construction RNG changes when module inventories differ.",
+    "Approximate scale classes rather than matched parameter counts.",
+    "Tokenizer-specific lexical addresses.",
+    "Finite, repeated offline curriculum.",
+    "Optimization differences across capacities.",
+    "Educational-kernel overhead is not an architecture-speed measurement."
+  ],
+  "minimum_useful_scale": "smoke",
+  "recommended_scale": "tiny",
+  "hardware_notes": "Run micro before TinyStories when possible; middle and multiple injection sites are unavailable.",
+  "runtime_class": "Qualitative scale-dependent educational PyTorch workload; measure local runtime rather than inferring timing.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {
+      "smoke": 8,
+      "nano": 32,
+      "micro": 128,
+      "tiny": 256
+    },
+    "endpoint_cards": [
+      "chat-alias-retention-v1",
+      "chat-alias-recall-v1",
+      "chat-context-override-v1"
+    ],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [
+    {
+      "reference": "chat-alias-retention-v1",
+      "role": "development",
+      "category": "training-format acquisition",
+      "applicability": {
+        "offline": "same-domain training-format acquisition check",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-alias-recall-v1",
+      "role": "development",
+      "category": "held-out wording",
+      "applicability": {
+        "offline": "held-out wording, not unseen facts",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-context-override-v1",
+      "role": "stress",
+      "category": "instruction/context override",
+      "applicability": {
+        "offline": "instruction/context stress",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    }
+  ],
+  "papers": [
+    {
+      "title": "Engram",
+      "url": "https://arxiv.org/abs/2601.07372",
+      "claim_boundary": "Motivates memory questions; SparseLab lexical memory is a local educational implementation, not a reproduction."
+    }
+  ],
+  "implementation_links": [
+    {
+      "path": "src/sparselab/memory.py",
+      "symbol": "TokenNgramMemory"
+    },
+    {
+      "path": "src/sparselab/transformer.py",
+      "symbol": "DenseLM"
+    }
+  ],
+  "docs": [
+    "docs/architecture.md",
+    "docs/engram.md",
+    "artifacts/studies/memory_injection_v1/study-report.json"
+  ],
+  "can_establish": [
+    "Controlled observed differences between no memory, final memory, and embedding memory at declared endpoints."
+  ],
+  "cannot_establish": [
+    "A speed claim, semantic retrieval result, unseen-fact transfer, or cross-tokenizer equivalence."
+  ],
+  "prerequisites": [
+    "Only final and embedding injection are implemented; middle and multiple sites are unavailable."
+  ],
+  "recipe": "recipes/engram-placement-v1.json"
+}

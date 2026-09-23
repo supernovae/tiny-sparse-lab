@@ -1,0 +1,18 @@
+schema_version: 1
+vocab_size: 512
+min_frequency: 1
+max_documents: 384
+output_dir: artifacts/tokenizer
+dataset:
+  source: chat_recall
+  revision: null
+  dataset_config: null
+  cache_dir: artifacts/data
+  train_max_documents: 384
+  validation_max_documents: 12
+  train_max_tokens: 65536
+  validation_max_tokens: 4096
+  synthetic_seed: 42
+  train_path: null
+  validation_path: null
+  license: null

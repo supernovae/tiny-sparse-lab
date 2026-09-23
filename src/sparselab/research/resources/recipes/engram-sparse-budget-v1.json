@@ -1,0 +1,1435 @@
+{
+  "format": "sparselab-research-recipe",
+  "version": 1,
+  "id": "engram-sparse-budget-v1",
+  "designs": {
+    "default": {
+      "smoke": {
+        "base_set": {
+          "model.hidden_dim": 64,
+          "model.num_layers": 2,
+          "model.num_heads": 4,
+          "model.ffn_dim": 256,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 32,
+          "training.max_tokens": 4096,
+          "evaluation.every_steps": 8,
+          "checkpoint.every_steps": 8,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 257,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 8,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          }
+        ]
+      },
+      "nano": {
+        "base_set": {
+          "model.hidden_dim": 128,
+          "model.num_layers": 6,
+          "model.num_heads": 4,
+          "model.ffn_dim": 512,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 128,
+          "training.max_tokens": 32768,
+          "evaluation.every_steps": 32,
+          "checkpoint.every_steps": 32,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 4095,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 16,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          }
+        ]
+      },
+      "micro": {
+        "base_set": {
+          "model.hidden_dim": 320,
+          "model.num_layers": 6,
+          "model.num_heads": 4,
+          "model.ffn_dim": 1280,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 1024,
+          "training.max_tokens": 262144,
+          "evaluation.every_steps": 128,
+          "checkpoint.every_steps": 128,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 8191,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          }
+        ]
+      },
+      "tiny": {
+        "base_set": {
+          "model.hidden_dim": 512,
+          "model.num_layers": 8,
+          "model.num_heads": 8,
+          "model.ffn_dim": 2048,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 4096,
+          "training.max_tokens": 1048576,
+          "evaluation.every_steps": 256,
+          "checkpoint.every_steps": 256,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 32767,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 64,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          }
+        ]
+      }
+    },
+    "budget-sweep": {
+      "smoke": {
+        "base_set": {
+          "model.hidden_dim": 64,
+          "model.num_layers": 2,
+          "model.num_heads": 4,
+          "model.ffn_dim": 256,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 32,
+          "training.max_tokens": 4096,
+          "evaluation.every_steps": 8,
+          "checkpoint.every_steps": 8,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-1",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 1
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            },
+            {
+              "label": "sparse-4",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 4
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 257,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 8,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-1",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-1",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-4",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-4",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          }
+        ]
+      },
+      "nano": {
+        "base_set": {
+          "model.hidden_dim": 128,
+          "model.num_layers": 6,
+          "model.num_heads": 4,
+          "model.ffn_dim": 512,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 128,
+          "training.max_tokens": 32768,
+          "evaluation.every_steps": 32,
+          "checkpoint.every_steps": 32,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-1",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 1
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            },
+            {
+              "label": "sparse-4",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 4
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 4095,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 16,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-1",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-1",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-4",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-4",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          }
+        ]
+      },
+      "micro": {
+        "base_set": {
+          "model.hidden_dim": 320,
+          "model.num_layers": 6,
+          "model.num_heads": 4,
+          "model.ffn_dim": 1280,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 1024,
+          "training.max_tokens": 262144,
+          "evaluation.every_steps": 128,
+          "checkpoint.every_steps": 128,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-1",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 1
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            },
+            {
+              "label": "sparse-4",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 4
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 8191,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-1",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-1",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-4",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-4",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          }
+        ]
+      },
+      "tiny": {
+        "base_set": {
+          "model.hidden_dim": 512,
+          "model.num_layers": 8,
+          "model.num_heads": 8,
+          "model.ffn_dim": 2048,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 4096,
+          "training.max_tokens": 1048576,
+          "evaluation.every_steps": 256,
+          "checkpoint.every_steps": 256,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "attention": [
+            {
+              "label": "dense",
+              "set": {
+                "attention.kind": "dense",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": null,
+                "attention.selected_blocks": null
+              }
+            },
+            {
+              "label": "sparse-1",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 1
+              }
+            },
+            {
+              "label": "sparse-2",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 2
+              }
+            },
+            {
+              "label": "sparse-4",
+              "set": {
+                "attention.kind": "block_sparse",
+                "attention.window_size": null,
+                "attention.latent_dim": null,
+                "attention.block_size": 16,
+                "attention.selected_blocks": 4
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 32767,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 64,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense",
+            "vary": "memory",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "dense",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-1",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-1",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-2",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-2",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-sparse-4",
+            "vary": "memory",
+            "baseline": {
+              "attention": "sparse-4",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-1-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-1",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-2-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-2",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-none",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "none"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "none"
+            }
+          },
+          {
+            "id": "sparse-4-minus-dense-lexical",
+            "vary": "attention",
+            "baseline": {
+              "attention": "dense",
+              "memory": "lexical"
+            },
+            "variant": {
+              "attention": "sparse-4",
+              "memory": "lexical"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

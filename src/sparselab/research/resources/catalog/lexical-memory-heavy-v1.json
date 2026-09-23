@@ -1,0 +1,133 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "id": "lexical-memory-heavy-v1",
+  "title": "How useful is a lookup-heavy small backbone?",
+  "question": "How useful is a lookup-heavy small backbone across declared lexical table capacities?",
+  "mechanisms": [
+    "token n-gram memory",
+    "reduced dense decoder"
+  ],
+  "hypothesis": "Larger lexical tables may alter endpoint recall while exposing wording, collision, and override failures.",
+  "failure_interpretation": "Lookup may overfit exact wording, collide, or fail chat, paraphrase, and override checks even if it improves a lookup-sensitive score.",
+  "controls": [
+    "Fix tokenizer, dataset source and packing within each selected data route.",
+    "Fix seed-matched model width, depth, heads, optimizer, runtime, budget, evaluator, and endpoint policy unless a listed axis changes.",
+    "Report held-out language-model loss separately from each capability card category."
+  ],
+  "independent_variables": [
+    "model.hidden_dim",
+    "model.num_layers",
+    "model.ffn_dim",
+    "model.memory_table_size",
+    "model.memory_dim"
+  ],
+  "dependent_metrics": [
+    {
+      "name": "held-out validation loss",
+      "unit": "cross-entropy",
+      "kind": "measured",
+      "direction": "lower"
+    },
+    {
+      "name": "capability-card score",
+      "unit": "fraction",
+      "kind": "capability",
+      "direction": "higher"
+    },
+    {
+      "name": "parameter inventory",
+      "unit": "parameters",
+      "kind": "architectural",
+      "direction": "descriptive"
+    }
+  ],
+  "confounders": [
+    "Model-construction RNG changes when module inventories differ.",
+    "Approximate scale classes rather than matched parameter counts.",
+    "Tokenizer-specific lexical addresses.",
+    "Finite, repeated offline curriculum.",
+    "Optimization differences across capacities.",
+    "Educational-kernel overhead is not an architecture-speed measurement."
+  ],
+  "minimum_useful_scale": "smoke",
+  "recommended_scale": "micro",
+  "hardware_notes": "Inspect table bytes before tiny; this fixed-neural table sweep is not an iso-total allocation curve.",
+  "runtime_class": "Qualitative scale-dependent educational PyTorch workload; measure local runtime rather than inferring timing.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {
+      "smoke": 8,
+      "nano": 32,
+      "micro": 128,
+      "tiny": 256
+    },
+    "endpoint_cards": [
+      "chat-alias-retention-v1",
+      "chat-alias-recall-v1",
+      "chat-context-override-v1"
+    ],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [
+    {
+      "reference": "chat-alias-retention-v1",
+      "role": "development",
+      "category": "training-format acquisition",
+      "applicability": {
+        "offline": "same-domain training-format acquisition check",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-alias-recall-v1",
+      "role": "development",
+      "category": "held-out wording",
+      "applicability": {
+        "offline": "held-out wording, not unseen facts",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-context-override-v1",
+      "role": "stress",
+      "category": "instruction/context override",
+      "applicability": {
+        "offline": "instruction/context stress",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    }
+  ],
+  "papers": [
+    {
+      "title": "Engram",
+      "url": "https://arxiv.org/abs/2601.07372",
+      "claim_boundary": "Motivates memory questions; SparseLab lexical memory is a local educational implementation, not a reproduction."
+    }
+  ],
+  "implementation_links": [
+    {
+      "path": "src/sparselab/memory.py",
+      "symbol": "TokenNgramMemory"
+    },
+    {
+      "path": "src/sparselab/model/inspection.py",
+      "symbol": "inspection_report"
+    }
+  ],
+  "docs": [
+    "docs/engram.md",
+    "docs/architecture.md"
+  ],
+  "can_establish": [
+    "Observed table-capacity endpoint contrasts with fixed reduced neural backbone per selected scale."
+  ],
+  "cannot_establish": [
+    "An iso-total allocation curve, semantic retrieval result, code/API/formula/composition evidence, speed claim, or cross-tokenizer equivalence."
+  ],
+  "prerequisites": [
+    "Relevant composition, API, formula, and semantic-memory datasets/cards are unavailable in this slice."
+  ],
+  "recipe": "recipes/lexical-memory-heavy-v1.json"
+}

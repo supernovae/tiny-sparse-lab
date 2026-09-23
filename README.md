@@ -16,7 +16,7 @@ Tiny Sparse Lab is a reference laboratory, not a production training service. On
 | Checkpoints and continuation | Immutable, hash-verified generations; offline verification; explicit recovery; full-state same-engine/backend child resume; compatible weight promotion with fresh training state. Validated legacy and narrow Llama safetensor import are separate from resume. |
 | Runtime and memory | Discovery, disposable precision probes, shape-only capacity estimates, explicit config proposals, isolated smoke/warmup pilots, and measured memory/timing. PyTorch supports capability-checked mixed precision, activation offload, and Adafactor alongside default AdamW. |
 | Independent workers | Local/SSH stdio protocol, capability-filtered durable queues, physical-device leases, sealed inputs, cancellation, explicit child resume, verified artifact/metric ingestion, and explicit Cartesian matrices. |
-| Evidence and dashboard | Checkpoint-bound evaluation/capability cards, recorded comparisons, and read-only live Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, and Learn pages. |
+| Evidence and dashboard | Checkpoint-bound evaluation/capability cards, recorded comparisons, and read-only live Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, Learn, and Research pages. |
 | Boundaries | No distributed backward, expert all-to-all, shared optimizer, optimizer-state/parameter/expert offload, automatic tool execution, or production-serving guarantee. |
 
 ## Verified status and remaining gates
@@ -117,6 +117,13 @@ None of these creates distributed training. Inference KV caches are request-loca
 2. Change one explicit mechanism—attention, MoE, or Engram—while matching data, tokenizer, budget, seed, optimizer, and runtime conditions.
 3. Verify checkpoint-bound evaluation and retain negative results: a zero delta, failed fit, or unavailable capability is evidence.
 4. Scale only after the smaller task learns; a synthetic or narrow score does not certify broad usefulness.
+
+
+## Research workbench
+
+Learn one mechanism or scaffold a declared controlled study without downloading data or starting a run: [research workbench](docs/research/README.md). It distinguishes configuration-only scaffolding from the explicit tokenizer/data/training commands, and explains static reports and read-only dashboard browsing.
+
+Published example: [FFN-substitution smoke report](artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html), with [outcomes and follow-up experiments](docs/research/sample-report.md).
 
 The [project review](docs/project-review.md) preserves the original local learning observations and failed controls. The completed [context/Engram study](docs/context-engram-study.md#execution-results--2026-09-22) and [domain adaptation study](docs/path-domain-corpus.md#2026-09-22-execution-record) add multi-seed outcomes, collision measurements, and retention checks without selecting favorable endpoints. The [capability workflow](docs/capabilities.md) explains held-out narrow claims; [instruction training](docs/instruction-training.md) explains licensed local conversations and assistant-only/tool-transcript supervision.
 

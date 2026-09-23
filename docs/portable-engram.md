@@ -15,6 +15,8 @@ Held-out evaluation records exact greedy completion plus length-normalized expec
 
 The current two-case control remains negative: baseline, random frozen-table, and trained portable-adapter runs each have zero exact matches and reciprocal rank `0.75`. Mean expected-value log probability is `-5.0596`, `-4.9939`, and `-5.1395`, respectively. The trained adapter did not outperform the random-table control under this protocol.
 
+For a configuration-only walkthrough, use the [`portable-engram` lesson](research/lesson-paths.md) with `--memory-package PATH`; it verifies and copies a real package and derives its table fields instead of guessing them. The artifact-only [`engrampack` lesson](research/lesson-paths.md) separately teaches record-pack compilation, inspection, and verification; a records-only pack is not executable model memory.
+
 ## Engram packs
 
 An Engram pack is a separate, versioned knowledge artifact. It canonicalizes local JSONL or Parquet records and may include a copied legacy byte-addressed package, supplied semantic vectors, or both. A records-only pack is valid; it does not imply that any model can retrieve or use its facts. The legacy `engram export` and `engram inspect` commands remain unchanged.

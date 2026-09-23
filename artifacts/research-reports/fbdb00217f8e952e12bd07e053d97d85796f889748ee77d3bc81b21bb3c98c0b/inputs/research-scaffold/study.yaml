@@ -1,0 +1,72 @@
+study_version: 1
+name: engram-ffn-substitution-v1
+matrix: matrix.yaml
+cards:
+- chat-alias-retention-v1
+- chat-alias-recall-v1
+- chat-context-override-v1
+comparisons:
+- id: lexical-minus-none-4x
+  vary: memory
+  baseline:
+    width: 4x
+    memory: none
+  variant:
+    width: 4x
+    memory: lexical
+- id: lexical-minus-none-2x
+  vary: memory
+  baseline:
+    width: 2x
+    memory: none
+  variant:
+    width: 2x
+    memory: lexical
+- id: lexical-minus-none-1x
+  vary: memory
+  baseline:
+    width: 1x
+    memory: none
+  variant:
+    width: 1x
+    memory: lexical
+- id: 2x-minus-4x-none
+  vary: custom
+  baseline:
+    width: 4x
+    memory: none
+  variant:
+    width: 2x
+    memory: none
+  vary_fields:
+  - model.ffn_dim
+- id: 1x-minus-4x-none
+  vary: custom
+  baseline:
+    width: 4x
+    memory: none
+  variant:
+    width: 1x
+    memory: none
+  vary_fields:
+  - model.ffn_dim
+- id: 2x-minus-4x-lexical
+  vary: custom
+  baseline:
+    width: 4x
+    memory: lexical
+  variant:
+    width: 2x
+    memory: lexical
+  vary_fields:
+  - model.ffn_dim
+- id: 1x-minus-4x-lexical
+  vary: custom
+  baseline:
+    width: 4x
+    memory: lexical
+  variant:
+    width: 1x
+    memory: lexical
+  vary_fields:
+  - model.ffn_dim

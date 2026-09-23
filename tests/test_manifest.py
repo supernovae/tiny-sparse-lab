@@ -68,7 +68,6 @@ def test_identity_ignores_machine_paths_but_binds_architecture() -> None:
     assert config_sha256(left) != config_sha256(changed)
 
 
-
 def test_legacy_final_memory_injection_preserves_hashes_and_embedding_binds() -> None:
     root = Path(__file__).resolve().parents[1]
     expected = {
@@ -109,6 +108,7 @@ def test_legacy_final_memory_injection_preserves_hashes_and_embedding_binds() ->
     }
     assert config_sha256(embedded) != config_sha256(legacy)
     assert architecture_sha256(embedded) != architecture_sha256(legacy)
+
 
 def test_canonical_json_rejects_arbitrary_objects() -> None:
     with pytest.raises(TypeError):

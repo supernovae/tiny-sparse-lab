@@ -8,6 +8,9 @@ Packing and generation share the same reversible ByteLevel token-byte conversion
 
 The byte-memory table is local trainable state, checkpointed with the model. Byte addressing is not proof of retrieval quality, withheld-fact learning, or cross-tokenizer semantic transfer. Prepared-data caches bind tokenizer serialization, source-code identity, packing version, source contents where local, and array digests; changing a generator cannot silently reuse old packed data.
 
+The [`byte-engram` lesson](research/lesson-paths.md) makes the prepared UTF-8 address path inspectable with an initialized probe. It does not train data or provide a second hashing scheme: training still requires explicit tokenizer and data preparation. A verified exported table can instead be attached through the [`portable-engram` lesson](research/lesson-paths.md), whose table dimensions come from the supplied package.
+
+
 ```sh
 uv run sparselab data prepare configs/smoke_byte_memory_cpu.yaml
 uv run sparselab train configs/smoke_byte_memory_cpu.yaml --run-id byte-memory

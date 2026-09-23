@@ -1,0 +1,805 @@
+{
+  "format": "sparselab-research-recipe",
+  "version": 1,
+  "id": "engram-moe-capacity-v1",
+  "designs": {
+    "default": {
+      "smoke": {
+        "base_set": {
+          "model.hidden_dim": 64,
+          "model.num_layers": 2,
+          "model.num_heads": 4,
+          "model.ffn_dim": 256,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 32,
+          "training.max_tokens": 4096,
+          "evaluation.every_steps": 8,
+          "checkpoint.every_steps": 8,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "dense-2x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 512,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "dense-4x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 1024,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "moe",
+              "set": {
+                "model.ffn": "moe",
+                "model.ffn_dim": 256,
+                "model.num_experts": 4,
+                "model.experts_per_token": 2,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 257,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 8,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense-2x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-dense-4x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-moe",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          }
+        ]
+      },
+      "nano": {
+        "base_set": {
+          "model.hidden_dim": 128,
+          "model.num_layers": 6,
+          "model.num_heads": 4,
+          "model.ffn_dim": 512,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 128,
+          "training.max_tokens": 32768,
+          "evaluation.every_steps": 32,
+          "checkpoint.every_steps": 32,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "dense-2x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 1024,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "dense-4x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 2048,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "moe",
+              "set": {
+                "model.ffn": "moe",
+                "model.ffn_dim": 512,
+                "model.num_experts": 4,
+                "model.experts_per_token": 2,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 4095,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 16,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense-2x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-dense-4x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-moe",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          }
+        ]
+      },
+      "micro": {
+        "base_set": {
+          "model.hidden_dim": 320,
+          "model.num_layers": 6,
+          "model.num_heads": 4,
+          "model.ffn_dim": 1280,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 1024,
+          "training.max_tokens": 262144,
+          "evaluation.every_steps": 128,
+          "checkpoint.every_steps": 128,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "dense-2x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 2560,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "dense-4x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 5120,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "moe",
+              "set": {
+                "model.ffn": "moe",
+                "model.ffn_dim": 1280,
+                "model.num_experts": 4,
+                "model.experts_per_token": 2,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 8191,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 32,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense-2x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-dense-4x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-moe",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          }
+        ]
+      },
+      "tiny": {
+        "base_set": {
+          "model.hidden_dim": 512,
+          "model.num_layers": 8,
+          "model.num_heads": 8,
+          "model.ffn_dim": 2048,
+          "model.ffn": "dense",
+          "model.num_experts": 1,
+          "model.experts_per_token": 1,
+          "model.shared_expert": false,
+          "model.router_aux_loss_coefficient": 0.0,
+          "training.max_steps": 4096,
+          "training.max_tokens": 1048576,
+          "evaluation.every_steps": 256,
+          "checkpoint.every_steps": 256,
+          "attention.kind": "dense",
+          "attention.window_size": null,
+          "attention.latent_dim": null,
+          "attention.block_size": null,
+          "attention.selected_blocks": null,
+          "model.memory": "none",
+          "model.memory_injection": "final",
+          "model.memory_table_size": 0,
+          "model.memory_ngram_size": 0,
+          "model.memory_dim": 0,
+          "model.memory_package_path": null,
+          "model.memory_ngram_orders": [],
+          "model.memory_hash_heads": 1
+        },
+        "axes": {
+          "capacity": [
+            {
+              "label": "dense-2x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 4096,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "dense-4x",
+              "set": {
+                "model.ffn": "dense",
+                "model.ffn_dim": 8192,
+                "model.num_experts": 1,
+                "model.experts_per_token": 1,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            },
+            {
+              "label": "moe",
+              "set": {
+                "model.ffn": "moe",
+                "model.ffn_dim": 2048,
+                "model.num_experts": 4,
+                "model.experts_per_token": 2,
+                "model.shared_expert": false,
+                "model.router_aux_loss_coefficient": 0.0
+              }
+            }
+          ],
+          "memory": [
+            {
+              "label": "none",
+              "set": {
+                "model.memory": "none",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 0,
+                "model.memory_ngram_size": 0,
+                "model.memory_dim": 0,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            },
+            {
+              "label": "lexical",
+              "set": {
+                "model.memory": "ngram",
+                "model.memory_injection": "final",
+                "model.memory_table_size": 32767,
+                "model.memory_ngram_size": 3,
+                "model.memory_dim": 64,
+                "model.memory_package_path": null,
+                "model.memory_ngram_orders": [],
+                "model.memory_hash_heads": 1
+              }
+            }
+          ]
+        },
+        "comparisons": [
+          {
+            "id": "lexical-minus-none-dense-2x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-dense-4x",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "lexical-minus-none-moe",
+            "vary": "memory",
+            "baseline": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            }
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-none",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "none"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "none"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          },
+          {
+            "id": "dense-4x-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "dense-4x",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn_dim"
+            ]
+          },
+          {
+            "id": "moe-minus-dense-2x-lexical",
+            "vary": "custom",
+            "baseline": {
+              "capacity": "dense-2x",
+              "memory": "lexical"
+            },
+            "variant": {
+              "capacity": "moe",
+              "memory": "lexical"
+            },
+            "vary_fields": [
+              "model.ffn",
+              "model.ffn_dim",
+              "model.num_experts",
+              "model.experts_per_token"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -466,7 +466,9 @@ def test_incremental_cache_preserves_portable_memory_chunks(
     injection: str, tmp_path: Path
 ) -> None:
     package = tmp_path / "memory.engram"
-    export_portable_engram(torch.arange(85, dtype=torch.float32).reshape(17, 5), package, ngram_size=3)
+    export_portable_engram(
+        torch.arange(85, dtype=torch.float32).reshape(17, 5), package, ngram_size=3
+    )
     model = DenseLM(
         ModelConfig(
             vocab_size=260,

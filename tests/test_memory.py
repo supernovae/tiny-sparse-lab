@@ -162,9 +162,7 @@ def test_final_memory_matches_legacy_forward_outputs_and_gradients(
         if memory_kind in {"byte", "portable"}
         else None
     )
-    logits, auxiliary = actual.forward_with_aux(
-        input_ids, byte_addresses=addresses
-    )
+    logits, auxiliary = actual.forward_with_aux(input_ids, byte_addresses=addresses)
     expected, expected_auxiliary = _legacy_final_forward(
         reference, input_ids, addresses
     )

@@ -294,9 +294,10 @@ def test_memory_comparison_accepts_placement_only_change() -> None:
 
     comparison = compare_results(base, variant, vary="memory")
     assert set(comparison["differences"]) == {"model.memory_injection"}
-    assert comparison["parameter_inventory"]["base"] == comparison[
-        "parameter_inventory"
-    ]["variant"]
+    assert (
+        comparison["parameter_inventory"]["base"]
+        == comparison["parameter_inventory"]["variant"]
+    )
 
     custom = compare_results(
         base,

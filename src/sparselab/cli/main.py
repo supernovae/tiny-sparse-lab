@@ -71,6 +71,8 @@ def _dashboard(args: argparse.Namespace) -> None:
             "--",
             "--runs-dir",
             args.runs_dir,
+            "--reports-dir",
+            args.reports_dir,
         ],
         check=True,
     )
@@ -577,6 +579,136 @@ def _study_collect(args: argparse.Namespace) -> None:
     print(json.dumps({**report, "output": str(report_path)}, indent=2, sort_keys=True))
 
 
+def _research_list(args: argparse.Namespace) -> None:
+    from sparselab.research.catalog import list_research
+
+    entries = list_research()
+    if args.json:
+        print(
+            json.dumps(
+                [entry.model_dump(mode="json") for entry in entries],
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        for entry in entries:
+            print(f"{entry.id}\t{entry.title}\n  {entry.question}")
+
+
+def _research_describe(args: argparse.Namespace) -> None:
+    from sparselab.research.catalog import load_recipe, load_research
+
+    entry = load_research(args.reference)
+    payload = entry.model_dump(mode="json")
+    recipe = load_recipe(
+        entry,
+        local_root=Path(args.reference).resolve().parent
+        if str(args.reference).endswith(".json")
+        else None,
+    )
+    payload["available_designs"] = sorted(recipe.designs)
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"{entry.title}\n{entry.question}\n\nHypothesis: {entry.hypothesis}")
+        print(f"Failure interpretation: {entry.failure_interpretation}")
+        print(f"Fixed controls: {'; '.join(entry.controls)}")
+        print(f"Varied fields: {', '.join(entry.independent_variables)}")
+        print(f"Designs: {', '.join(sorted(recipe.designs))}")
+        print(f"Limitations: {'; '.join(entry.cannot_establish)}")
+
+
+def _research_scaffold(args: argparse.Namespace) -> None:
+    from sparselab.research.scaffold import scaffold_research
+
+    path = scaffold_research(
+        args.reference,
+        Path(args.output),
+        scale=args.scale,
+        data=args.data,
+        backend=args.backend,
+        design=args.design,
+    )
+    print(path)
+
+
+def _learn_list(args: argparse.Namespace) -> None:
+    from sparselab.research.catalog import list_lessons
+
+    lessons = list_lessons()
+    if args.json:
+        print(
+            json.dumps(
+                [lesson.model_dump(mode="json") for lesson in lessons],
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        for lesson in lessons:
+            print(f"{lesson.id}\t{lesson.title}\n  {lesson.summary}")
+
+
+def _learn_describe(args: argparse.Namespace) -> None:
+    from sparselab.research.catalog import load_lesson
+
+    lesson = load_lesson(args.identifier)
+    payload = lesson.model_dump(mode="json")
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"{lesson.title}\n{lesson.summary}")
+        for step in lesson.steps:
+            print(f"\n{step.source_path}:{step.source_symbol}")
+            print(step.explanation)
+            print("Shapes: " + "; ".join(step.shapes))
+            print("Observe: " + ", ".join(step.observe))
+        print("Limits: " + "; ".join(lesson.limits))
+
+
+def _learn_scaffold(args: argparse.Namespace) -> None:
+    from sparselab.research.scaffold import scaffold_lesson
+
+    path = scaffold_lesson(
+        args.identifier,
+        Path(args.output),
+        scale=args.scale,
+        data=args.data,
+        backend=args.backend,
+        memory_package=Path(args.memory_package) if args.memory_package else None,
+    )
+    print(path)
+
+
+def _learn_probe(args: argparse.Namespace) -> None:
+    from sparselab.research.probe import probe_model
+
+    payload = probe_model(load_config(Path(args.config)), args.prompt)
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(
+            f"Execution: {payload['execution']} (configured runtime shown separately)"
+        )
+        print(f"Input {payload['input_shape']} -> logits {payload['logits_shape']}")
+        print(f"Evidence scope: {payload['evidence_scope']}")
+        print(json.dumps(payload["diagnostics"], indent=2, sort_keys=True))
+
+
+def _study_report(args: argparse.Namespace) -> None:
+    from sparselab.experiments.reporting import build_study_report, write_study_report
+
+    report = build_study_report(
+        Path(args.path),
+        Path(args.receipt),
+        Path(args.evidence),
+        research_path=Path(args.research) if args.research else None,
+        runs_dir=Path(args.runs_dir) if args.runs_dir else None,
+    )
+    print(write_study_report(report, Path(args.output)))
+
+
 def _chat(args: argparse.Namespace) -> None:
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     history: list[ChatMessage] = []
@@ -970,6 +1102,82 @@ def build_parser() -> argparse.ArgumentParser:
     )
     study_collect.add_argument("--max-runs", type=int, default=1000)
     study_collect.set_defaults(handler=_study_collect)
+    study_report = study_commands.add_parser("report")
+    study_report.add_argument("path", help="Architecture study YAML")
+    study_report.add_argument("receipt")
+    study_report.add_argument(
+        "--evidence", required=True, help="One explicit collected report JSON"
+    )
+    study_report.add_argument("--output", required=True)
+    study_report.add_argument("--research")
+    study_report.add_argument("--runs-dir")
+    study_report.set_defaults(handler=_study_report)
+
+    research = commands.add_parser(
+        "research", help="Discover and scaffold controlled hypothesis studies."
+    )
+    research_commands = research.add_subparsers(dest="research_command", required=True)
+    research_list = research_commands.add_parser("list")
+    research_list.add_argument("--json", action="store_true")
+    research_list.set_defaults(handler=_research_list)
+    research_describe = research_commands.add_parser("describe")
+    research_describe.add_argument(
+        "reference", help="Packaged research ID or explicit JSON fork"
+    )
+    research_describe.add_argument("--json", action="store_true")
+    research_describe.set_defaults(handler=_research_describe)
+    research_scaffold = research_commands.add_parser("scaffold")
+    research_scaffold.add_argument(
+        "reference", help="Packaged research ID or explicit JSON fork"
+    )
+    research_scaffold.add_argument("--output", required=True)
+    research_scaffold.add_argument(
+        "--scale", choices=("smoke", "nano", "micro", "tiny"), default="micro"
+    )
+    research_scaffold.add_argument(
+        "--data", choices=("offline", "tinystories"), default="offline"
+    )
+    research_scaffold.add_argument(
+        "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"
+    )
+    research_scaffold.add_argument(
+        "--design",
+        choices=("default", "latent-sweep", "budget-sweep"),
+        default="default",
+    )
+    research_scaffold.set_defaults(handler=_research_scaffold)
+
+    learn = commands.add_parser(
+        "learn", help="Learn and probe one mechanism without a campaign."
+    )
+    learn_commands = learn.add_subparsers(dest="learn_command", required=True)
+    learn_list = learn_commands.add_parser("list")
+    learn_list.add_argument("--json", action="store_true")
+    learn_list.set_defaults(handler=_learn_list)
+    learn_describe = learn_commands.add_parser("describe")
+    learn_describe.add_argument("identifier")
+    learn_describe.add_argument("--json", action="store_true")
+    learn_describe.set_defaults(handler=_learn_describe)
+    learn_scaffold = learn_commands.add_parser("scaffold")
+    learn_scaffold.add_argument("identifier")
+    learn_scaffold.add_argument("--output", required=True)
+    learn_scaffold.add_argument(
+        "--scale", choices=("smoke", "nano", "micro", "tiny"), default="smoke"
+    )
+    learn_scaffold.add_argument(
+        "--data", choices=("offline", "tinystories"), default="offline"
+    )
+    learn_scaffold.add_argument(
+        "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"
+    )
+    learn_scaffold.add_argument("--memory-package")
+    learn_scaffold.set_defaults(handler=_learn_scaffold)
+    learn_probe = learn_commands.add_parser("probe")
+    learn_probe.add_argument("config")
+    learn_probe.add_argument("--prompt", required=True)
+    learn_probe.add_argument("--json", action="store_true")
+    learn_probe.set_defaults(handler=_learn_probe)
+
     generation = commands.add_parser("generate")
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)
@@ -1023,6 +1231,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
     )
     dashboard.add_argument("--port", type=int, default=8501)
+    dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
     dashboard.set_defaults(handler=_dashboard)
     from sparselab.workers.cli import add_commands
 

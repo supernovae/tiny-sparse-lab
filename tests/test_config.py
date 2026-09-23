@@ -83,9 +83,7 @@ def test_memory_injection_serialization_preserves_legacy_final_config() -> None:
         / "context_study_dense_s17_b24k.yaml"
     )
     explicit_final = config.model_copy(
-        update={
-            "model": config.model.model_copy(update={"memory_injection": "final"})
-        }
+        update={"model": config.model.model_copy(update={"memory_injection": "final"})}
     )
 
     for current in (config, explicit_final):
@@ -93,7 +91,12 @@ def test_memory_injection_serialization_preserves_legacy_final_config() -> None:
         assert "memory_injection" not in current.model_dump(mode="json")["model"]
         assert "memory_hash_heads" in current.model_dump(mode="json")["model"]
         assert "memory_injection" not in current.model_dump_json()
-        assert RunConfig.model_validate(current.model_dump(mode="json")).model.memory_injection == "final"
+        assert (
+            RunConfig.model_validate(
+                current.model_dump(mode="json")
+            ).model.memory_injection
+            == "final"
+        )
 
     assert config.model_dump(mode="python") == explicit_final.model_dump(mode="python")
     assert config.model_dump(mode="json") == explicit_final.model_dump(mode="json")
@@ -108,7 +111,9 @@ def test_memory_injection_serialization_preserves_legacy_final_config() -> None:
         "memory_injection": "embedding",
     }
     embedded = config.model_copy(update={"model": ModelConfig(**enabled)})
-    assert embedded.model_dump(mode="python")["model"]["memory_injection"] == "embedding"
+    assert (
+        embedded.model_dump(mode="python")["model"]["memory_injection"] == "embedding"
+    )
     assert embedded.model_dump(mode="json")["model"]["memory_injection"] == "embedding"
     assert (
         RunConfig.model_validate_json(embedded.model_dump_json()).model.memory_injection

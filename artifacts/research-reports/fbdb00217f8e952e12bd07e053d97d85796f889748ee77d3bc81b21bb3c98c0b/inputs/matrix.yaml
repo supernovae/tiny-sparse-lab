@@ -1,0 +1,63 @@
+matrix_version: 1
+base_config: base.yaml
+scheduling:
+  requirements:
+    backend:
+    - cpu
+axes:
+  seed:
+  - label: s17
+    set:
+      seed: 17
+  - label: s41
+    set:
+      seed: 41
+  - label: s73
+    set:
+      seed: 73
+  width:
+  - label: 4x
+    set:
+      model.ffn: dense
+      model.ffn_dim: 1024
+      model.num_experts: 1
+      model.experts_per_token: 1
+      model.shared_expert: false
+      model.router_aux_loss_coefficient: 0.0
+  - label: 2x
+    set:
+      model.ffn: dense
+      model.ffn_dim: 512
+      model.num_experts: 1
+      model.experts_per_token: 1
+      model.shared_expert: false
+      model.router_aux_loss_coefficient: 0.0
+  - label: 1x
+    set:
+      model.ffn: dense
+      model.ffn_dim: 256
+      model.num_experts: 1
+      model.experts_per_token: 1
+      model.shared_expert: false
+      model.router_aux_loss_coefficient: 0.0
+  memory:
+  - label: none
+    set:
+      model.memory: none
+      model.memory_injection: final
+      model.memory_table_size: 0
+      model.memory_ngram_size: 0
+      model.memory_dim: 0
+      model.memory_package_path: null
+      model.memory_ngram_orders: []
+      model.memory_hash_heads: 1
+  - label: lexical
+    set:
+      model.memory: ngram
+      model.memory_injection: final
+      model.memory_table_size: 257
+      model.memory_ngram_size: 3
+      model.memory_dim: 8
+      model.memory_package_path: null
+      model.memory_ngram_orders: []
+      model.memory_hash_heads: 1

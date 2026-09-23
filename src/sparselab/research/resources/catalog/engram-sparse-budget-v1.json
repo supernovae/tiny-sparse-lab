@@ -1,0 +1,131 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "id": "engram-sparse-budget-v1",
+  "title": "Memory versus context selection: can memory change degradation at smaller selection budgets?",
+  "question": "Does lexical memory change observed degradation with smaller block-selection budgets?",
+  "mechanisms": [
+    "token n-gram memory",
+    "block-sparse attention"
+  ],
+  "hypothesis": "Memory may recover alias recall without recovering information lost through attention selection or compression.",
+  "failure_interpretation": "Context-sensitive behavior may fail despite changed memory or selection settings.",
+  "controls": [
+    "Fix tokenizer, dataset source and packing within each selected data route.",
+    "Fix seed-matched model width, depth, heads, optimizer, runtime, budget, evaluator, and endpoint policy unless a listed axis changes.",
+    "Report held-out language-model loss separately from each capability card category."
+  ],
+  "independent_variables": [
+    "attention.kind",
+    "attention.selected_blocks",
+    "model.memory"
+  ],
+  "dependent_metrics": [
+    {
+      "name": "held-out validation loss",
+      "unit": "cross-entropy",
+      "kind": "measured",
+      "direction": "lower"
+    },
+    {
+      "name": "capability-card score",
+      "unit": "fraction",
+      "kind": "capability",
+      "direction": "higher"
+    },
+    {
+      "name": "parameter inventory",
+      "unit": "parameters",
+      "kind": "architectural",
+      "direction": "descriptive"
+    }
+  ],
+  "confounders": [
+    "Model-construction RNG changes when module inventories differ.",
+    "Approximate scale classes rather than matched parameter counts.",
+    "Tokenizer-specific lexical addresses.",
+    "Finite, repeated offline curriculum.",
+    "Optimization differences across capacities.",
+    "Educational-kernel overhead is not an architecture-speed measurement."
+  ],
+  "minimum_useful_scale": "smoke",
+  "recommended_scale": "tiny",
+  "hardware_notes": "Tiny is the recommended class; Python timing is not an architectural verdict.",
+  "runtime_class": "Qualitative scale-dependent educational PyTorch workload; measure local runtime rather than inferring timing.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {
+      "smoke": 8,
+      "nano": 32,
+      "micro": 128,
+      "tiny": 256
+    },
+    "endpoint_cards": [
+      "chat-alias-retention-v1",
+      "chat-alias-recall-v1",
+      "chat-context-override-v1"
+    ],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [
+    {
+      "reference": "chat-alias-retention-v1",
+      "role": "development",
+      "category": "training-format acquisition",
+      "applicability": {
+        "offline": "same-domain training-format acquisition check",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-alias-recall-v1",
+      "role": "development",
+      "category": "held-out wording",
+      "applicability": {
+        "offline": "held-out wording, not unseen facts",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-context-override-v1",
+      "role": "stress",
+      "category": "instruction/context override",
+      "applicability": {
+        "offline": "instruction/context stress",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    }
+  ],
+  "papers": [
+    {
+      "title": "Engram",
+      "url": "https://arxiv.org/abs/2601.07372",
+      "claim_boundary": "Motivates memory questions; SparseLab lexical memory is a local educational implementation, not a reproduction."
+    }
+  ],
+  "implementation_links": [
+    {
+      "path": "src/sparselab/attention/sparse.py",
+      "symbol": "BlockSparseAttention"
+    },
+    {
+      "path": "src/sparselab/memory.py",
+      "symbol": "TokenNgramMemory"
+    }
+  ],
+  "docs": [
+    "docs/sparse-attention.md",
+    "docs/engram.md"
+  ],
+  "can_establish": [
+    "Controlled endpoint deltas for the declared attention and memory contrasts."
+  ],
+  "cannot_establish": [
+    "An interaction statistic, synergy claim, speed claim, or a claim that current MLA cache matches paper-equivalent compression."
+  ],
+  "prerequisites": [
+    "Block-sparse selection is a local educational design; batch/head unions can exceed a per-head selection budget."
+  ],
+  "recipe": "recipes/engram-sparse-budget-v1.json"
+}

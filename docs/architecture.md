@@ -73,6 +73,11 @@ flowchart TB
   memory[Memory sparsity: token and byte/portable Engram tables — implemented]
 ```
 
+
+## Standalone lessons and controlled studies
+
+The [lesson path](research/lesson-paths.md) scaffolds and probes any one supported mechanism without a campaign; a probe is fresh initialized CPU FP32 mechanism evidence, not training evidence. [Research recipes](research/README.md) declare matched controls before users explicitly prepare data and train. The placement recipe supports final and embedding token-memory injection only; it does not represent middle or multiple sites.
+
 ## Extension boundary
 
 Each experiment remains one process, one host, and one selected device. An independent [worker controller](workers.md) may schedule several such experiments, without exchanging gradients or sharing optimizer state. New attention or Engram variants must remain explicit configuration choices with documented causal inputs, parameter accounting, checkpoint compatibility, and diagnostics; they must not silently reinterpret an existing mode or imply distributed execution. [ADR 0015](decisions/0015-single-host-extension-boundaries.md) retains the historical local-core decision with its later scheduling amendment noted.

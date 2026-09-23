@@ -317,9 +317,7 @@ def test_memory_placement_cannot_resume_or_promote_across_sites(
     checkpoint = original.logging.root_dir / "final/checkpoints/latest.json"
     embedding = original.model_copy(
         update={
-            "model": original.model.model_copy(
-                update={"memory_injection": "embedding"}
-            )
+            "model": original.model.model_copy(update={"memory_injection": "embedding"})
         }
     )
 

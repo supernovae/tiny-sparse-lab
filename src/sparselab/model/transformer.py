@@ -185,7 +185,9 @@ class DenseLM(nn.Module):
             return self.memory(hidden, token_ids)
         if isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
             if byte_addresses is None:
-                raise ValueError("byte-addressed memory requires prepared byte addresses")
+                raise ValueError(
+                    "byte-addressed memory requires prepared byte addresses"
+                )
             return self.memory(hidden, byte_addresses)
         raise TypeError(f"unsupported memory module: {type(self.memory).__name__}")
 
@@ -268,9 +270,9 @@ class DenseLM(nn.Module):
                 "hidden_norm",
             ):
                 result[f"engram/{name}"] = getattr(diagnostic, name).detach()
-            result[
-                f"engram/injection/{self.config.memory_injection}"
-            ] = diagnostic.gate_mean.new_ones(()).detach()
+            result[f"engram/injection/{self.config.memory_injection}"] = (
+                diagnostic.gate_mean.new_ones(()).detach()
+            )
         for index, block in enumerate(self.blocks):
             if (
                 isinstance(block.ffn, TopKMoE)
@@ -476,9 +478,7 @@ class DenseLM(nn.Module):
         full_ids = cache.input_ids[:, : cache.length]
         x = self.embedding(input_ids)
         if self.config.memory_injection == "embedding":
-            x = self._apply_memory(
-                x, full_ids, byte_addresses, incremental=True
-            )
+            x = self._apply_memory(x, full_ids, byte_addresses, incremental=True)
         for block, layer_cache in zip(self.blocks, cache.layers, strict=True):
             x, _ = block.forward_cached(x, layer_cache)
         x = self.norm(x)
