@@ -1,6 +1,6 @@
 # Runtime policy
 
-SparseLab runs one experiment process on one host. A run records its selected engine, backend, precision, device index, available memory readings, framework/runtime versions, and probe result in its manifest. That record describes the machine that ran it; it is not evidence that another machine has the same capability.
+Each SparseLab experiment runs in one process on one host/device. An optional controller schedules multiple whole independent experiments on local or SSH workers; it never shares their optimizer state or gradients. A run records its selected engine, backend, precision, device index, available memory readings, framework/runtime versions, and probe result in its manifest. That record describes the machine that ran it; it is not evidence that another machine has the same capability.
 
 ## Choose an execution target
 
@@ -84,6 +84,10 @@ generations remain unchanged. Native logits differed from canonical PyTorch
 by at most `5.97e-7` on the fixed probe, and a PyTorch-to-MLX promotion committed
 one fresh update. These are bounded implementation checks, not cross-engine
 training equivalence, model-quality results, or foreign-hardware acceptance.
+
+The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
+
+Native CUDA/HIP sparse kernels, actual ROCm/XPU acceptance, and overlapping real Mac/AMD/Intel execution remain hardware-blocked in [the completion ledger](../TODO.md). Provisioned vendor-compatible runtimes and those physical targets are prerequisites; declaring a capability or assigning a CPU worker a platform name does not close a hardware gate.
 
 See [memory accounting](memory.md), [activation recomputation](activation-checkpointing.md),
 and [activation offload](offload.md) for the estimate/measurement boundaries.

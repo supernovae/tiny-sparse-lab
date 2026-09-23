@@ -1,6 +1,6 @@
 # Using Tiny Sparse Lab
 
-SparseLab is a local small-model experimentation workbench. Train causal models, chat with verified checkpoints, compare versioned task capabilities, and retain evidence across architectural changes and scales. It does not provide a hosted service or distributed training.
+SparseLab is a small-model experimentation workbench. Train causal models, chat with verified checkpoints, compare versioned task capabilities, and retain evidence across architectural changes and scales. Each experiment stays on one host/device; a controller can schedule whole independent experiments on local or SSH workers. It does not provide a hosted service or distributed training.
 
 If the example tasks or terminology are unfamiliar, start with [From flashcards to a useful local assistant](from-toy-to-useful.md). It explains the invented aliases, offers a runnable instruction learner, and shows how data, prompts, evaluation, and scale work together.
 
@@ -16,7 +16,7 @@ uv run sparselab eval combined-smoke
 uv run sparselab generate combined-smoke --prompt "Once upon a time" --max-new-tokens 24
 ```
 
-`inspect` reports configured architecture and parameter counts. `train` writes run-local artifacts and checkpoints. `eval` measures next-token loss on the **run-owned** validation data and saves the exact checkpoint identity. `generate` prints prompt plus continuation (greedy by default). A smoke run proves wiring, not useful language ability; the [chat-native capability pair](capabilities.md) targets a measured narrow learned task.
+`inspect` reports a shape-only architecture/parameter inventory, conservative memory estimates, runtime information, and recommendations without constructing the model. `train` writes run-local immutable inputs and checkpoint generations. `eval` measures next-token loss over valid supervised targets in the **run-owned** validation data and saves the exact checkpoint identity. `generate` prints prompt plus continuation (greedy by default). A smoke run proves execution, not useful language ability; the [capability workflow](capabilities.md) defines narrow measured tasks.
 
 ## Chat with a saved run
 
@@ -32,7 +32,7 @@ Interactive chat accepts one turn at a time; `/exit` or `/quit` finishes, `/rese
 
 Chat reserves the requested response budget within the model context. It drops only complete oldest user/assistant turns; the system and current user message are never silently truncated. Oversized current turns fail with an actionable error. The default response allowance is 16 tokens; adjust it to the task and available context.
 
-Inference resolves `latest.json` or `best.json` once, verifies the selected generation and run artifacts, and uses the run-owned tokenizer/package. Moving the run directory or removing the original training cache does not change the model's vocabulary. `--checkpoint` can select a generation explicitly for chat, generation, evaluation, and capabilities. Current chat supports PyTorch architectures that fit one host, not native MLX checkpoints. A base model still needs chat-oriented training to follow these transcripts.
+Inference resolves `latest.json` or `best.json` once, verifies the selected generation and run artifacts, and uses the run-owned tokenizer/package. Moving the run directory or removing the original training cache does not change the model's vocabulary. `--checkpoint` can select a generation explicitly for chat, generation, evaluation, and capabilities. Chat supports the implemented PyTorch architectures and supported native MLX configurations; MLX execution requires its optional runtime and uses full-prefix decoding. A base model still needs chat-oriented training to follow these transcripts.
 
 ## Choose a mechanism deliberately
 
@@ -42,6 +42,10 @@ Inference resolves `latest.json` or `best.json` once, verifies the selected gene
 
 Each configuration is concrete. Do not infer a result from labels or parameter count alone; compare completed runs only when source, tokenizer, device, sequence length, token budget, optimizer, and seed match. See [architecture](architecture.md), [training](training.md), and [experiments](experiments.md).
 
+These architecture choices describe the PyTorch engine. MLX supports dense feed-forward blocks with dense or native block-sparse attention, FP32 AdamW, and optional block recomputation; it rejects the other architecture combinations rather than silently replacing them. See [runtime policy](runtime.md).
+
+Local conversations support explicit v2 `all_tokens` or `assistant_only` supervision and validated inert tool-call transcripts. Historical unversioned records retain whole-transcript loss. See [conversation format and objectives](instruction-training.md#local-conversation-corpora); storing a tool transcript does not execute the tool.
+
 ## Inspect and verify a checkpoint
 
 ```sh
@@ -50,6 +54,20 @@ uv run sparselab checkpoint verify runs/combined-smoke/checkpoints/latest.json -
 ```
 
 PyTorch and MLX share immutable generations, run-owned inference assets, checkpoint-bound evaluation, recovery, and promotion. Native MLX execution requires the optional pinned runtime; offline checkpoint inspection/verification does not. Supported PyTorch generation uses a bounded request-local KV cache; the Python `generate(..., use_cache=False)` API provides the full-prefix reference. MLX and unsupported cache configurations use full-prefix decoding. These execution checks are not model-quality evidence.
+
+## Stage and schedule independent experiments
+
+```sh
+uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output /tmp/sparselab-guide-stage
+uv run sparselab run configs/runtime_smoke_cpu.yaml --store /tmp/sparselab-guide-controller
+uv run sparselab experiment list --json --store /tmp/sparselab-guide-controller
+uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
+  --dry-run --store /tmp/sparselab-guide-controller
+```
+
+The standalone stage command produces isolated pilot evidence; it does not initialize a later experiment from pilot weights. Direct `train` never silently runs pilots. Composed `run` prepares and dispatches through the same worker queue, including worker-side validation/pilots, then waits for terminal ingestion. Without `--worker`, it registers a local endpoint; an existing controller may drive the store while the command waits.
+
+Use a fresh stage directory, or reuse only an identical verified bundle. Matrix dry-run expands all three coordinates without preparation or enqueueing. Actual submission seals every coordinate before the queue transaction. `experiment cancel RUN_ID` requests safe-boundary cancellation; `experiment resume RUN_ID` creates an explicit child from verified local full state. Neither a controller disconnect nor a dead executor authorizes automatic optimizer restart. See [worker operation](workers.md) for registration, foreground controllers, leases, transfer deadlines, and provisioned SSH targets.
 
 ## Verify withheld-fact fixture evidence
 
@@ -66,4 +84,6 @@ The audit proves the deterministic fixture’s data separation only. It is not a
 uv run sparselab dashboard --runs-dir runs
 ```
 
-The read-only, localhost-only viewer shows run status, data source, architecture settings, metrics, events, lineage, and retained evaluation evidence. It never launches or modifies training.
+The read-only, localhost-only viewer includes Overview, Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, and searchable Learn pages. Session-scoped refresh preserves selections and marks stale reads. Runtime shows actual worker/backend/precision/optimizer conditions; memory distinguishes native peaks from sampled lower bounds; checkpoint views separate local best from inherited lineage.
+
+For worker results, use `--runs-dir /tmp/sparselab-guide-controller`. The controller imports telemetry and verified files into that local projection; the dashboard neither schedules training nor mounts a remote database. Compare recorded conditions and observed budgets, not worker labels or normalized curves. See the [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) acceptance records for exercised behavior and verification limits.

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted.
+Accepted for the per-experiment execution boundary; the original exclusion of remote queues was superseded by the runtime/staging/independent-workers amendment. The decision text below is retained as historical context.
+
+**Current scope:** one host/device and private optimizer state per experiment, with implemented local/SSH scheduling of whole independent experiments, explicit matrices, leases, and verified local aggregation. Native MLX sparse kernels are also implemented with bounded measurements. No distributed process group, expert sharding, shared optimizer, or all-to-all training is implemented. Actual CUDA/HIP/ROCm/XPU and real three-host gates remain separately blocked; see [workers](../workers.md), [sparse attention](../sparse-attention.md), and [the completion ledger](../../TODO.md).
 
 ## Context
 

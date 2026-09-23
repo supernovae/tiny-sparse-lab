@@ -232,9 +232,9 @@ Classify the support request. Reply with exactly one label: access, billing, or 
 Use licensed UTF-8 JSONL. Every line is a complete conversation. For example:
 
 ```jsonl
-{"messages":[{"role":"system","content":"Classify the support request. Reply with exactly one label: access, billing, or delivery."},{"role":"user","content":"I forgot my password and cannot log in."},{"role":"assistant","content":"access"}]}
-{"messages":[{"role":"system","content":"Classify the support request. Reply with exactly one label: access, billing, or delivery."},{"role":"user","content":"I was charged twice for the same order."},{"role":"assistant","content":"billing"}]}
-{"messages":[{"role":"system","content":"Classify the support request. Reply with exactly one label: access, billing, or delivery."},{"role":"user","content":"My parcel has not arrived."},{"role":"assistant","content":"delivery"}]}
+{"format_version":2,"loss_mode":"assistant_only","messages":[{"role":"system","content":"Classify the support request. Reply with exactly one label: access, billing, or delivery."},{"role":"user","content":"I forgot my password and cannot log in."},{"role":"assistant","content":"access"}]}
+{"format_version":2,"loss_mode":"assistant_only","messages":[{"role":"system","content":"Classify the support request. Reply with exactly one label: access, billing, or delivery."},{"role":"user","content":"I was charged twice for the same order."},{"role":"assistant","content":"billing"}]}
+{"format_version":2,"loss_mode":"assistant_only","messages":[{"role":"system","content":"Classify the support request. Reply with exactly one label: access, billing, or delivery."},{"role":"user","content":"My parcel has not arrived."},{"role":"assistant","content":"delivery"}]}
 ```
 
 These three lines illustrate the format; they are **not an adequate training corpus**. Collect varied phrasing, spelling errors, short and long requests, and realistic ambiguity. Remove private information. Split by customer/conversation/source and relevant templates before training; changing row IDs or lightly paraphrasing the same request is not an independent test.
@@ -256,7 +256,7 @@ dataset:
 
 Create those files from your corpus and replace the license with your actual rights. Keep the starter's model dimensions and tokenizer for this continuation. The existing tokenizer can encode new text through its byte vocabulary, though its efficiency on a new domain may be poor. If starting a new model from scratch, you may train a domain tokenizer on training data only; changing the tokenizer is **not** a compatible weight continuation.
 
-SparseLab rejects exact cross-split duplicates, but it cannot certify semantic independence. It trains next-token loss over the **whole transcript**, not assistant-only loss. Long conversations are packed into fixed blocks; make sure the facts needed to predict an answer fit the training window. Increasing document count alone does not fix truncated dependencies.
+SparseLab rejects exact cross-split duplicates, but it cannot certify semantic independence. The v2 examples above explicitly use **assistant-only** loss: system/user text supplies context rather than supervised targets. V2 also supports `all_tokens`; historical unversioned records retain whole-transcript loss. Training/evaluation counters count valid supervised prediction targets. Long conversations are packed into fixed blocks, so the facts needed to predict an answer must still fit the training window. See [objective and inert tool-transcript semantics](instruction-training.md#local-conversation-corpora).
 
 ### Adapt a compatible checkpoint, or start fresh
 
@@ -347,12 +347,14 @@ Shape-only inspection estimates parameter, optimizer, activation, and working-me
 | Available now | Not yet a completed capability |
 |---|---|
 | Validated legacy and compatible Llama safetensor weight import | General external architectures, tokenizers, quantization, and chat-template conversion |
-| Local architecture comparisons and saved per-case outputs | Automated multi-seed aggregation, statistically justified selection, open-ended response grading |
+| Explicit experiment matrices, archived multi-seed comparisons, paired deltas, and per-case outputs | General statistically justified model selection and open-ended response grading |
 | Context passed in the conversation | Retrieval, tool execution, long-lived user memory, a secure application permission boundary |
 | Verified bounded PyTorch KV caches and measured native MLX sparse components | Broader hardware validation, fused kernels, and production-serving guarantees |
 | Shape-only CLI estimates and isolated smoke/warmup pilots | Measured large-model fit or a general hardware-capacity guarantee |
-| One local process/device | Remote independent-worker orchestration or distributed training |
+| One host/device per experiment; independent local/SSH worker queues, sealed bundles, device leases, cancellation, and explicit child resume | Actual ROCm/XPU and overlapping real Mac/AMD/Intel acceptance; distributed training remains out of scope |
 | MLX common checkpoints, continuation, promotion, generation/chat, and held-out evidence for FP32 dense/native-sparse models | Blanket PyTorch feature or training-trajectory equivalence |
+
+The completed [context/Engram](context-engram-study.md#execution-results--2026-09-22) and [domain-adaptation](path-domain-corpus.md#2026-09-22-execution-record) studies show why these boundaries matter: untouched override scores stayed 0/8, and adaptation improved acquisition without reliable held-out behavior while sharply damaging retention. The [completion ledger](../TODO.md) separates completed engineering work from unavailable-hardware gates.
 
 Build these in response to measured bottlenecks. For broad assistant quality sooner, adapting a properly licensed pretrained instruction model is a different route from learning every capability from scratch. The current framework has no general Hugging Face weight/tokenizer/chat-template importer; do not point `--promote` at arbitrary downloaded weights and assume compatibility. Use an appropriate existing stack for that route, or implement and validate the exact architecture/tokenizer/checkpoint mapping here.
 

@@ -1,5 +1,7 @@
 # Repository review: from mechanism demos to measured small models
 
+This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records the newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [completion ledger](../TODO.md) for current capabilities and remaining hardware gates.
+
 ## Project contract
 
 A useful experiment trains an actual checkpoint, exercises it through chat, measures a declared task, compares controlled alternatives, and preserves the conditions needed to repeat or falsify the result. "Useful" starts with a narrow, reliable learned behavior; it does not require mimicking a commercial assistant. The same contract should survive increased model size, data, and training budgets within the supported single-host runtime.
@@ -57,7 +59,7 @@ A separate local JSONL fixture completed preparation, training, checkpointing, a
 
 The interactive transcript is preserved at `runs/review-chat-engram-long/evaluations/interactive-chat.json`. The local-corpus run is retained as `runs/review-local-corpus`; standalone evaluation still succeeds after removing its original corpus, configuration and cache directory, using 224 run-owned validation targets.
 
-### Verification
+### Original review verification
 
 ```sh
 uv run ruff check src tests
@@ -68,12 +70,18 @@ uv run sparselab eval review-local-corpus
 
 The local suite includes available MPS/MLX coverage; it is not CUDA, ROCm or XPU acceptance. All local file links in the 40 Markdown documents were checked. Temporary corpus/configuration/card fixtures were removed after retaining the run-owned evidence.
 
-## Next experiments, in order
+## Completed follow-ups — 2026-09-22/23
 
-1. **Broaden the curriculum without erasing the failed control.** Teach varied local-context overrides, then freeze a new card with unseen assignments and independently held-out paraphrases. Keep the current static-lookup and failed-override results.
-2. **Test Engram-specific hypotheses.** Vary address order, table size/collision pressure, and hash heads one at a time; include a dense baseline and matched-total-parameter design where efficiency is the question. Measure quality and real resource cost together.
-3. **Repeat seeds and budgets.** Report per-seed paired deltas and acquisition/generalization curves. Do not select the favorable seed or best test-scoring checkpoint. Automation for statistical aggregation remains future work.
-4. **Move to a licensed domain corpus.** Use local conversation JSONL and a frozen domain card with exact answers where appropriate. Audit semantic leakage, provenance, failure modes, and retention after further training. Whole-transcript next-token training is currently supported; assistant-only loss and tool-call schemas are not.
-5. **Increase scale only after the smaller experiment learns.** Reuse cards, data and tokenizer contracts at larger explicit backbones. Fit within one host; memory estimates are estimates, and native sparse speedups, KV caching, broad mixed-precision hardware acceptance, and distributed execution require separate implementations and evidence.
+| Original next step | Executed work and conclusion |
+|---|---|
+| Broaden context overrides and freeze unseen assignments | The [context/Engram study](context-engram-study.md#execution-results--2026-09-22) executed all 24 planned endpoints. Untouched override results remained 0/8 at every endpoint; the failed control is preserved. |
+| Test address order, collisions, matched capacity, seeds and budgets | Seeds 17/41/73, two exact target budgets, dense-total alternatives, and address-order/table-size diagnostics have archived observations and paired deltas. The dense-total model is 160 parameters larger; diagnostics remain confounded and do not establish an Engram advantage. |
+| Move to a licensed domain corpus and measure retention | The [path-domain study](path-domain-corpus.md#2026-09-22-execution-record) executed three pretraining/adaptation pairs, audited provenance/semantic separation, and retained acquisition/development/frozen-test outcomes. Acquisition improved, held-out reliability remained poor, and static retention worsened sharply. |
+| Add missing training/runtime mechanisms | Assistant-only objectives and versioned inert tool-call transcripts, bounded PyTorch KV caches, native MLX sparse components, block recomputation, accumulation, measured activation offload, and PyTorch Adafactor are implemented within their explicit support boundaries. |
+| Make experiments reproducible and independently schedulable | Immutable native checkpoints, full-state child resume, fresh-state promotion, isolated pilots, explicit matrices, local/SSH worker contracts, device leases, and verified controller-local ingestion passed the recorded local acceptance gates. |
 
-See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), and the [remaining roadmap](../TODO.md).
+The [scientific acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json) independently verifies preserved inputs, native endpoints, responses and comparisons. The [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) gates cover actual execution/recovery/installation scenarios; the final implementation suite passed 335 tests. Passing an engineering gate does not make a negative learning result positive.
+
+Further curriculum or scale experiments need a new explicit hypothesis and frozen evaluation; inspected cases must not become “untouched” again. Generic statistically justified model selection and open-ended response grading are not established by these studies. Native CUDA/HIP work, actual ROCm/XPU acceptance, and overlapping real Mac/AMD/Intel execution remain hardware-blocked. Distributed training remains outside the current scope.
+
+See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), and the [completion ledger](../TODO.md).

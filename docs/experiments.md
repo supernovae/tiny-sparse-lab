@@ -1,6 +1,6 @@
-# Scale experiments
+# Independent experiments and controlled comparisons
 
-Run each configuration with its declared tokenizer, data source, device, sequence length, token budget, and seed. Inspect first; do not infer parameter counts from a filename.
+Run each concrete configuration with its declared tokenizer, data source, engine/backend, precision, optimizer, sequence length, effective batch, token budget, and seed. Inspect first; do not infer parameter counts or scientific equivalence from a filename.
 
 ```sh
 uv run sparselab inspect configs/micro_dense.yaml --json
@@ -15,6 +15,26 @@ uv run sparselab inspect configs/smoke_combined_cpu.yaml --json
 
 
 The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,893,120, and 50,274,752 parameters. They share the pinned TinyStories revision, 8192-token tokenizer, sequence length, token budget, optimizer, and seed. Parameter count alone is not a comparison result: report each completed run's observed validation loss, perplexity, throughput, device, and metric coordinates.
+
+## Explicit matrices and worker execution
+
+The checked-in matrix expands the CPU runtime smoke configuration over seeds 7, 17, and 41:
+
+```sh
+uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
+  --dry-run --store /tmp/sparselab-controller
+```
+
+Dry-run prints all resolved coordinates and hashes without downloading/preparing data, creating the store, or enqueueing. For execution, prepare the tokenizer, register an eligible worker, remove `--dry-run`, and run `sparselab controller run --store /tmp/sparselab-controller`. Every coordinate gets distinct experiment/attempt/run IDs. Preparation must succeed for all coordinates before the enqueue transaction.
+
+Matrix v1 uses an explicit base config and insertion-ordered axes with labeled dotted-path patches. Duplicate labels, conflicting patches, invalid configs, and excessive expansion are rejected. Labels such as “50M” or “MoE” never infer a model. Workers execute independent optimizers, not distributed gradients; unsupported requirements remain queued with a reason. See [worker contracts and matrix format](workers.md#explicit-matrices).
+
+## Completed multi-seed studies
+
+- [Context/Engram study](context-engram-study.md#execution-results--2026-09-22): 24 endpoints spanning seeds 17/41/73, two exact target budgets, dense/backbone and dense-total comparisons, and collision/address-order diagnostics. Every untouched override endpoint remained 0/8. Added memory capacity and observed bucket collisions are not evidence of a generalization advantage.
+- [Domain adaptation](path-domain-corpus.md#2026-09-22-execution-record): three pretraining/adaptation pairs with frozen supervision, provenance, semantic leakage checks, per-case results, and static-retention measurements. Training-case acquisition improved, but held-out reliability remained poor and retention worsened sharply.
+
+[Independent acceptance](../artifacts/acceptance/scientific_studies_2026_09_22.json) binds the input inventories, endpoint identities, stored responses, paired deltas, and retention observations. These studies retain all declared seeds/endpoints and their negative outcomes; they are not a general model-selection or significance framework.
 
 ## Historical controlled dense runs
 
@@ -42,6 +62,6 @@ uv run sparselab checkpoint verify runs/RUN_ID/checkpoints/latest.json --json
 uv run sparselab evidence RUN_ID --json
 ```
 
-Training records held-out validation at the initial, configured periodic, and terminal boundaries; each observation is attached to a verified checkpoint generation. This validates the local experiment path, not a general model-quality claim. See [experiment evidence](evidence.md) for evidence levels, controlled-comparison requirements, and the future hardware/reference-harness protocol.
+Training records held-out validation at initial, configured periodic, and terminal boundaries. A validation metric is not by itself a saved model: checkpoint cadence, a new best loss, or termination triggers a verified generation. Use checkpoint-bound evaluation reports when claiming results for exact weights. See [experiment evidence](evidence.md) for evidence levels, controlled-comparison requirements, and the separately unimplemented hardware/reference-harness protocol.
 
 For a named architectural hypothesis rather than aggregate loss alone, use a [capability card](capabilities.md). Cards preserve their own prompt set, scorer, baseline controls, and scope-limited conclusion.

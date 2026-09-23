@@ -1,6 +1,6 @@
 # Decoder architecture
 
-SparseLab is a causal decoder laboratory. Its dense baseline uses RMSNorm, RoPE causal attention, SwiGLU, residual connections, and a tied or untied language-model head. Configurations can independently select local Top-K MoE, token/byte/portable Engram memory, block-sparse attention, or latent attention; each reference path is deliberately small rather than kernel-optimized.
+SparseLab is a causal decoder laboratory. Its dense baseline uses RMSNorm, RoPE causal attention, SwiGLU, residual connections, and a tied or untied language-model head. PyTorch configurations can independently select local Top-K MoE, token/byte/portable Engram memory, sliding-window/block-sparse attention, or latent attention. These are correctness/inspection reference paths. The separate MLX engine supports FP32 dense feed-forward models with dense or native block-sparse attention, not the full PyTorch architecture set.
 
 ```mermaid
 flowchart LR
@@ -34,9 +34,9 @@ a sparse-kernel speedup or long-context scaling result.
 
 ## Block-sparse attention
 
-`attention.kind: block_sparse` groups causal keys into fixed-size blocks, scores compressed block keys, and gathers original K/V vectors from the selected blocks. The reference keeps the causal mask after gathering. It records the number of available and selected keys, selection ratio, and a relative selected-key attention-work estimate.
+`attention.kind: block_sparse` groups causal keys into fixed-size blocks and scores compressed block keys. The PyTorch reference gathers original K/V vectors from the selected blocks and retains the causal mask. Selection diagnostics distinguish available and selected keys, selection ratio, and an estimated attention-work count.
 
-The current implementation uses a Python loop and is intended to make selection behavior inspectable. Its reference test matches dense attention when every causal block is selected; this does not imply equivalence at a restricted retrieval budget or a kernel-level speedup.
+The PyTorch path uses an inspectable reference loop. MLX additionally implements native Metal forward/dQ/dK-dV kernels over the selected-key union, without gathered K/V copies or token-square softmax intermediates. Both preserve the documented selection semantics; matching dense attention when every causal block is selected does not establish equivalence at a restricted budget or a general speedup. See [kernel measurements and limits](sparse-attention.md).
 
 
 ## Multi-head latent attention
@@ -47,6 +47,10 @@ latent values. Attention output is projected from latent width back to hidden
 width. `latent_dim` must divide evenly across heads. This is a causal reference
 implementation; it does not provide a fused latent KV cache or a decode-memory
 bandwidth claim.
+
+## Inference cache versus training state
+
+Supported PyTorch generation paths use a bounded, request-local KV cache with a full-prefix reference available through `generate(..., use_cache=False)`. Unsupported cache configurations and native MLX decoding use full-prefix evaluation. A decode cache is not an Engram table, a durable checkpoint, or a reduction in training-memory estimates; bounded parity checks are not a long-context serving benchmark.
 
 ## Combined reference configuration
 
@@ -60,7 +64,7 @@ The hashes are tokenizer-specific token-ID addresses. They are not byte hashes a
 
 Byte-addressed and portable variants are documented in [Engram](engram.md) and [portable Engram](portable-engram.md). A portable package preserves frozen source table values and trains only a target-side projection/gate adapter; it is an experiment mechanism, not evidence of knowledge transfer.
 
-Each target is the following packed token. Documents end in EOS; a fixed block can cross an EOS boundary, so EOS separates records but is not an attention barrier. There is no padding branch.
+Each prediction target is the following packed token. Conversation supervision may mask context-only targets while retaining those tokens as causal inputs. Documents end in EOS; a fixed block can cross an EOS boundary, so EOS separates records but is not an attention barrier. There is no padding branch.
 
 ```mermaid
 flowchart TB
@@ -71,4 +75,4 @@ flowchart TB
 
 ## Extension boundary
 
-The current architecture is local by design: one process, one host, and one selected device. New attention or Engram variants must remain explicit configuration choices with documented causal inputs, parameter accounting, checkpoint compatibility, and diagnostics. They must not silently reinterpret an existing mode or imply distributed execution. See [ADR 0015](decisions/0015-single-host-extension-boundaries.md) for the current extension boundary.
+Each experiment remains one process, one host, and one selected device. An independent [worker controller](workers.md) may schedule several such experiments, without exchanging gradients or sharing optimizer state. New attention or Engram variants must remain explicit configuration choices with documented causal inputs, parameter accounting, checkpoint compatibility, and diagnostics; they must not silently reinterpret an existing mode or imply distributed execution. [ADR 0015](decisions/0015-single-host-extension-boundaries.md) retains the historical local-core decision with its later scheduling amendment noted.
