@@ -18,6 +18,7 @@ dependencies = [
     "streamlit>=1.64,<2",
     "tokenizers==0.22.2",
     "torch>=2.8,<3",
+    "pyarrow>=25,<26",
     "safetensors>=0.5,<1",
 ]
 
