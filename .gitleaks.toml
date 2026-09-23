@@ -1,0 +1,12 @@
+[allowlist]
+  description = "Global Allowlist"
+
+  # Ignore based on any subset of the file path
+  paths = [
+  ]
+
+  # Ignore based on any subset of the line
+  regexes = [
+    # Ignore lines containing start_token since this is used in json files for tracking model building, not authorization
+    '''start_token''',
+  ]
