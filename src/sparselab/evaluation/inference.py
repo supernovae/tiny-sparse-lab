@@ -1,4 +1,4 @@
-"""Load one frozen PyTorch checkpoint using only its run-owned artifacts."""
+"""Load one frozen checkpoint through its native engine and run-owned artifacts."""
 
 from __future__ import annotations
 
@@ -15,7 +15,9 @@ from tokenizers import Tokenizer
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import TokenBlockDataset
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.model.inspection import inspect_model
+from sparselab.engines.base import Microbatch
+from sparselab.engines.mlx import MLXEngine, preserve_rng_state
+from sparselab.model.inspection import inspection_report
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import discover_runtimes, select_device, torch_device_for
 from sparselab.training.checkpoints import CheckpointManager
@@ -26,21 +28,58 @@ from sparselab.training.manifest import canonical_json, read_manifest, sha256_fi
 class InferenceRun:
     run: Path
     config: RunConfig
-    model: DenseLM
+    model: Any
     tokenizer: Tokenizer
-    device: torch.device
+    device: torch.device | str
     identity: dict[str, Any]
+    engine: MLXEngine | None = None
 
     def validation_dataset(self) -> TokenBlockDataset:
         root = self.run / "data"
         addresses = root / "validation_byte_addresses.npy"
+        supervision = root / "validation_supervision.npy"
         return TokenBlockDataset(
             np.load(root / "validation.npy", mmap_mode="r", allow_pickle=False),
             self.config.training.seq_len,
             np.load(addresses, mmap_mode="r", allow_pickle=False)
             if self.config.model.memory in {"byte", "portable"}
             else None,
+            np.load(supervision, mmap_mode="r", allow_pickle=False)
+            if supervision.is_file()
+            else None,
         )
+
+    def evaluate(self) -> dict[str, float | int | str | None]:
+        """Evaluate through the run's native engine without changing its RNG or mode."""
+        dataset = self.validation_dataset()
+        if self.engine is None:
+            from sparselab.evaluation.language_model import evaluate
+
+            assert isinstance(self.device, torch.device)
+            return evaluate(
+                self.model,
+                dataset,
+                batch_size=self.config.training.micro_batch_size,
+                max_batches=self.config.evaluation.max_batches,
+                device=self.device,
+            )
+        batch_size = self.config.training.micro_batch_size
+        limit = min(len(dataset), batch_size * self.config.evaluation.max_batches)
+
+        def batches() -> Any:
+            for start in range(0, limit, batch_size):
+                records = [
+                    dataset.numpy_block(index)
+                    for index in range(start, min(start + batch_size, limit))
+                ]
+                inputs, targets, addresses = zip(*records, strict=True)
+                if any(address is not None for address in addresses):
+                    raise ValueError(
+                        "MLX evaluation does not support byte-address memory"
+                    )
+                yield Microbatch(np.stack(inputs), np.stack(targets))
+
+        return self.engine.evaluate(batches()).to_report()
 
 
 def load_run(
@@ -51,11 +90,6 @@ def load_run(
 ) -> InferenceRun:
     run = (runs_dir / run_id).resolve()
     config = RunConfig.model_validate_json((run / "resolved_config.yaml").read_text())
-    if config.runtime.engine != "pytorch":
-        raise ValueError(
-            "chat, generation and capability evaluation currently require a PyTorch run; "
-            "MLX native checkpoints are training-only and are not silently converted"
-        )
     manifest = read_manifest(run / "manifest.json")
     manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
     if RunConfig.model_validate(manifest["effective_config"]) != config:
@@ -75,6 +109,11 @@ def load_run(
             raise ValueError(f"run artifact integrity failure: {relative}")
         artifacts[str(relative)] = entry["sha256"]
     required = {"tokenizer.json", "data/train.npy", "data/validation.npy"}
+    data_manifest = json.loads((run / "data" / "manifest.json").read_text())
+    if data_manifest.get("packing_version") == "contiguous-eos-v5":
+        required.update(
+            {"data/train_supervision.npy", "data/validation_supervision.npy"}
+        )
     if config.model.memory in {"byte", "portable"}:
         required.update(
             {"data/train_byte_addresses.npy", "data/validation_byte_addresses.npy"}
@@ -113,9 +152,74 @@ def load_run(
     )
     if not report.valid:
         raise ValueError(f"invalid checkpoint: {report.errors}")
-    if metadata["engine"] != "pytorch":
-        raise ValueError("checkpoint engine differs from the PyTorch run")
+    if (
+        metadata["engine"] != config.runtime.engine
+        or metadata["backend"] != config.runtime.backend
+    ):
+        raise ValueError(
+            "checkpoint runtime differs from the verified run configuration"
+        )
+    tokenizer = load_tokenizer(run / "tokenizer.json")
+    if tokenizer.get_vocab_size() != config.model.vocab_size:
+        raise ValueError("run tokenizer vocabulary differs from model configuration")
+    weights = manager.load(selected, "promote").model
+    identity = {
+        "run_id": run_id,
+        "checkpoint_sha256": metadata["sha256"],
+        "checkpoint_relative_path": str(selected.relative_to(run)),
+        "step": metadata["step"],
+        "tokens_seen": metadata["tokens_seen"],
+        "config": config.model_dump(mode="json"),
+        "tokenizer_sha256": artifacts["tokenizer.json"],
+        "data_sha256": {
+            key: artifacts[f"data/{key}.npy"] for key in ("train", "validation")
+        },
+        "source_identity_sha256": manifest["source_identity"]["sha256"],
+        "training_runtime": {
+            key: manifest["runtime"][key]
+            for key in (
+                "engine",
+                "backend",
+                "device_index",
+                "device_name",
+                "framework_version",
+                "os",
+            )
+        },
+    }
+    if config.runtime.engine == "mlx":
+        if backend not in {None, "auto", "metal"}:
+            raise ValueError(
+                "MLX inference only supports the stored metal backend; "
+                "backend overrides cannot select a PyTorch device"
+            )
+        # Native construction changes MLX/Python/NumPy state.  Weight loading
+        # does not need caller RNG, and no Torch model is constructed here.
+        with torch.random.fork_rng(devices=[]), preserve_rng_state():
+            engine = MLXEngine()
+            engine.initialize(config, initial_weights=weights)
+            model = engine.model
+            assert model is not None
+            model.eval()
+            runtime = engine.runtime
+        del weights
+        assert model is not None and runtime is not None
+        identity.update(
+            {
+                "runtime": {
+                    **runtime.as_dict(),
+                    "engine": "mlx",
+                    "backend": "metal",
+                    "device_index": 0,
+                    "precision": "fp32",
+                },
+                "parameter_inventory": inspection_report(config),
+            }
+        )
+        return InferenceRun(run, config, model, tokenizer, "metal", identity, engine)
 
+    if config.runtime.engine != "pytorch":
+        raise ValueError(f"unsupported inference engine: {config.runtime.engine}")
     requested = backend or metadata["backend"]
     selected_device = select_device(requested)
     actual_backend = (
@@ -124,9 +228,6 @@ def load_run(
         else selected_device.type
     )
     device = torch_device_for(actual_backend, config.runtime.device_index)
-    tokenizer = load_tokenizer(run / "tokenizer.json")
-    if tokenizer.get_vocab_size() != config.model.vocab_size:
-        raise ValueError("run tokenizer vocabulary differs from model configuration")
     model_config = config.model
     if model_config.memory_package_path is not None:
         if "portable_package" not in artifacts:
@@ -137,7 +238,6 @@ def load_run(
     # Constructor initialization is irrelevant to loaded weights; don't perturb caller RNG.
     with torch.random.fork_rng(devices=[]):
         model = DenseLM(model_config, config.attention)
-    weights = manager.load(selected, "promote").model
     model.load_state_dict(weights)
     del weights
     model.to(device).eval()
@@ -151,40 +251,20 @@ def load_run(
         device_name = torch.cuda.get_device_name(device)
     elif device.type == "xpu":
         device_name = torch.xpu.get_device_name(device)
-    identity = {
-        "run_id": run_id,
-        "checkpoint_sha256": metadata["sha256"],
-        "checkpoint_relative_path": str(selected.relative_to(run)),
-        "step": metadata["step"],
-        "tokens_seen": metadata["tokens_seen"],
-        "config": config.model_dump(mode="json"),
-        "tokenizer_sha256": artifacts["tokenizer.json"],
-        "data_sha256": {
-            key: artifacts[f"data/{key}.npy"] for key in ("train", "validation")
-        },
-        "source_identity_sha256": manifest["source_identity"]["sha256"],
-        "runtime": {
-            "engine": "pytorch",
-            "backend": actual_backend,
-            "device_index": config.runtime.device_index,
-            "device_name": device_name,
-            "framework_version": runtime.framework_version,
-            "os": runtime.os,
-            "precision": "fp32",
-        },
-        "training_runtime": {
-            key: manifest["runtime"][key]
-            for key in (
-                "engine",
-                "backend",
-                "device_index",
-                "device_name",
-                "framework_version",
-                "os",
-            )
-        },
-        "parameter_inventory": inspect_model(model),
-    }
+    identity.update(
+        {
+            "runtime": {
+                "engine": "pytorch",
+                "backend": actual_backend,
+                "device_index": config.runtime.device_index,
+                "device_name": device_name,
+                "framework_version": runtime.framework_version,
+                "os": runtime.os,
+                "precision": "fp32",
+            },
+            "parameter_inventory": inspection_report(config),
+        }
+    )
     return InferenceRun(run, config, model, tokenizer, device, identity)
 
 

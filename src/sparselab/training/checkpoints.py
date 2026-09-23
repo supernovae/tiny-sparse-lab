@@ -10,7 +10,7 @@ import os
 import pickle
 import random
 import tempfile
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -23,12 +23,28 @@ from safetensors import SafetensorError
 from safetensors.torch import load_file, save_file
 
 from sparselab.config.models import RunConfig
-from sparselab.model.inspection import named_tensor_inventory
+from sparselab.engines.base import CanonicalTensor, WeightSource
+from sparselab.model.inspection import TensorSpec, named_tensor_inventory
 from sparselab.training.manifest import (
     architecture_sha256,
     canonical_json,
     config_sha256,
     sha256_file,
+)
+from sparselab.training.mlx_checkpoints import (
+    CODEC as MLX_CODEC,
+)
+from sparselab.training.mlx_checkpoints import (
+    CODEC_VERSION as MLX_CODEC_VERSION,
+)
+from sparselab.training.mlx_checkpoints import (
+    load_native_state as load_mlx_native_state,
+)
+from sparselab.training.mlx_checkpoints import (
+    strict_json,
+)
+from sparselab.training.mlx_checkpoints import (
+    write_native_state as write_mlx_native_state,
 )
 from sparselab.training.optimizer import learning_rate_for_step
 
@@ -105,6 +121,60 @@ class CheckpointRecord:
 
 
 @dataclass(frozen=True)
+class LineageBest:
+    """Best evaluated checkpoint in this run's ancestry, possibly not local."""
+
+    parent_run_id: str
+    checkpoint_digest: str
+    step: int
+    loss: float
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "parent_run_id": self.parent_run_id,
+            "checkpoint_digest": self.checkpoint_digest,
+            "step": self.step,
+            "loss": self.loss,
+        }
+
+
+def _lineage_best(value: object) -> LineageBest | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError("lineage_best must be a mapping or null")
+    required = {"parent_run_id", "checkpoint_digest", "step", "loss"}
+    if set(value) != required:
+        raise ValueError("lineage_best has invalid fields")
+    parent_run_id = value["parent_run_id"]
+    checkpoint_digest = value["checkpoint_digest"]
+    step = value["step"]
+    loss = value["loss"]
+    if (
+        not isinstance(parent_run_id, str)
+        or not parent_run_id
+        or not isinstance(checkpoint_digest, str)
+        or len(checkpoint_digest) != 64
+        or any(character not in "0123456789abcdef" for character in checkpoint_digest)
+        or type(step) is not int
+        or step < 0
+        or not isinstance(loss, (int, float))
+        or not math.isfinite(loss)
+    ):
+        raise ValueError("lineage_best has invalid values")
+    return LineageBest(parent_run_id, checkpoint_digest, step, float(loss))
+
+
+def choose_lineage_best(
+    current: LineageBest | None, candidate: LineageBest | None
+) -> LineageBest | None:
+    """Keep the earliest lineage entry unless a candidate strictly improves loss."""
+    if current is None or (candidate is not None and candidate.loss < current.loss):
+        return candidate
+    return current
+
+
+@dataclass(frozen=True)
 class VerificationReport:
     valid: bool
     errors: tuple[dict[str, str], ...]
@@ -120,7 +190,7 @@ class RecoveryResult:
 
 @dataclass
 class TrainingSnapshot:
-    model: dict[str, torch.Tensor]
+    model: dict[str, torch.Tensor | np.ndarray]
     optimizer: dict[str, object]
     schedule: dict[str, object]
     step: int
@@ -134,7 +204,7 @@ class TrainingSnapshot:
     cadence: dict[str, object] | None = None
     engine: str = "pytorch"
     backend: str = "cpu"
-    optimizer_parameter_names: dict[int | str, str] | None = None
+    optimizer_parameter_names: dict[int | str, str] | list[list[str]] | None = None
     config_sha256: str | None = None
     architecture_sha256: str | None = None
     source_identity_sha256: str | None = None
@@ -143,7 +213,9 @@ class TrainingSnapshot:
     cumulative_wall_seconds: float | None = None
     cumulative_update_seconds: float | None = None
     tensor_trainability: dict[str, bool] | None = None
+    lineage_best: LineageBest | None = None
     checkpoint_sha256: str | None = None
+    weight_source: WeightSource | None = None
 
 
 def _check_rng(rng: dict[str, Any], backend: str, device_index: int) -> None:
@@ -183,34 +255,9 @@ def _check_rng(rng: dict[str, Any], backend: str, device_index: int) -> None:
         raise ValueError("invalid accelerator RNG state")
 
 
-def _check_native_state(
-    native: dict[str, Any],
-    raw: dict[str, Any],
-    tensors: dict[str, Any],
-    aliases: dict[str, str],
-) -> None:
-    config = RunConfig.model_validate(native["config"])
-    payload = config.model_dump(mode="json")
-    for field, digest in (
-        ("config_sha256", config_sha256(payload)),
-        ("architecture_sha256", architecture_sha256(payload)),
-    ):
-        if native.get(field) != digest or raw.get(field) != digest:
-            raise ValueError(f"{field} does not match the saved configuration")
-    for field in (
-        "manifest_sha256",
-        "source_identity_sha256",
-        "parent_checkpoint_sha256",
-    ):
-        if native.get(field) != raw.get(field):
-            raise ValueError(f"{field} differs from checkpoint manifest")
-    if (
-        config.runtime.engine != native["engine"]
-        or config.runtime.backend != native["backend"]
-        or not isinstance(native["run_id"], str)
-        or not native["run_id"]
-    ):
-        raise ValueError("native run or runtime identity mismatch")
+def _check_tensor_inventory(
+    config: RunConfig, tensors: dict[str, Any], aliases: dict[str, str]
+) -> Mapping[str, TensorSpec]:
     expected = named_tensor_inventory(config.model, config.attention)
     if set(expected) != set(tensors) | set(aliases):
         raise ValueError("configured tensor inventory mismatch")
@@ -226,6 +273,51 @@ def _check_native_state(
                 or declared.get("trainable") is not spec.trainable
             ):
                 raise ValueError(f"configured tensor metadata mismatch: {name}")
+    return expected
+
+
+def _check_common_native_state(
+    native: Mapping[str, Any],
+    raw: Mapping[str, Any],
+    tensors: Mapping[str, Any],
+    aliases: Mapping[str, str],
+) -> tuple[RunConfig, dict[str, Any], float]:
+    if (
+        type(native.get("format_version")) is not int
+        or native["format_version"] != FORMAT_VERSION
+    ):
+        raise ValueError("unsupported native checkpoint format")
+    for field in ("format_version", "engine", "backend", "step", "tokens_seen"):
+        if native.get(field) != raw.get(field) or type(native.get(field)) is not type(
+            raw.get(field)
+        ):
+            raise ValueError(f"{field} differs from checkpoint manifest")
+    raw_config = native["config"]
+    if not isinstance(raw_config, dict):
+        raise TypeError("native config must be a mapping")
+    config = RunConfig.model_validate(raw_config)
+    for field, digest in (
+        ("config_sha256", config_sha256(raw_config)),
+        ("architecture_sha256", architecture_sha256(raw_config)),
+    ):
+        if native.get(field) != digest or raw.get(field) != digest:
+            raise ValueError(f"{field} does not match the raw saved configuration")
+    for field in (
+        "manifest_sha256",
+        "source_identity_sha256",
+        "parent_checkpoint_sha256",
+        "lineage_best",
+    ):
+        if native.get(field) != raw.get(field):
+            raise ValueError(f"{field} differs from checkpoint manifest")
+    if (
+        config.runtime.engine != native["engine"]
+        or config.runtime.backend != native["backend"]
+        or not isinstance(native["run_id"], str)
+        or not native["run_id"]
+    ):
+        raise ValueError("native run or runtime identity mismatch")
+    expected = _check_tensor_inventory(config, tensors, aliases)
     step, tokens = native["step"], native["tokens_seen"]
     if (
         type(step) is not int
@@ -263,8 +355,45 @@ def _check_native_state(
         if step
         else config.optimizer.peak
     )
+    cadence = native.get("cadence")
+    if cadence is not None:
+        if not isinstance(cadence, dict) or set(cadence) - {
+            "step",
+            "tokens",
+            "minutes",
+        }:
+            raise ValueError("invalid checkpoint cadence watermarks")
+        for field, value in cadence.items():
+            if (
+                not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise ValueError(f"invalid checkpoint cadence watermark: {field}")
+    _lineage_best(native.get("lineage_best"))
+    for field in ("cumulative_wall_seconds", "cumulative_update_seconds"):
+        value = native.get(field)
+        if value is not None and (
+            not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0
+        ):
+            raise ValueError(f"invalid cumulative timing: {field}")
+    return config, expected, learning_rate
+
+
+def _check_native_state(
+    native: dict[str, Any],
+    raw: dict[str, Any],
+    tensors: dict[str, Any],
+    aliases: dict[str, str],
+) -> None:
+    config, expected, learning_rate = _check_common_native_state(
+        native, raw, tensors, aliases
+    )
+    step = native["step"]
     optimizer = native["optimizer"]
     names = native["optimizer_parameter_names"]
+    if not isinstance(optimizer, dict):
+        raise TypeError("invalid optimizer state")
     groups, state = optimizer["param_groups"], optimizer["state"]
     if (
         not isinstance(names, dict)
@@ -346,12 +475,72 @@ def _check_native_state(
             ):
                 raise ValueError(f"invalid optimizer moment: {name}")
     _check_rng(native["rng"], native["backend"], config.runtime.device_index)
-    for field in ("cumulative_wall_seconds", "cumulative_update_seconds"):
-        value = native.get(field)
-        if value is not None and (
-            not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0
-        ):
-            raise ValueError(f"invalid cumulative timing: {field}")
+    scaler = native.get("scaler")
+    if scaler is not None:
+        if config.runtime.precision != "fp16" or native["engine"] != "pytorch":
+            raise ValueError("a gradient scaler is only valid for PyTorch fp16")
+        if not isinstance(scaler, dict):
+            raise TypeError("invalid gradient scaler state")
+        required_scaler = {
+            "scale",
+            "growth_factor",
+            "backoff_factor",
+            "growth_interval",
+            "_growth_tracker",
+        }
+        if not required_scaler <= set(scaler):
+            raise ValueError("gradient scaler state is incomplete")
+        for field in ("scale", "growth_factor", "backoff_factor"):
+            value = scaler[field]
+            if (
+                not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"invalid gradient scaler {field}")
+        if type(scaler["growth_interval"]) is not int or scaler["growth_interval"] <= 0:
+            raise ValueError("invalid gradient scaler growth interval")
+        tracker = scaler["_growth_tracker"]
+        if isinstance(tracker, torch.Tensor):
+            if tracker.numel() != 1 or tracker.dtype not in {torch.int32, torch.int64}:
+                raise ValueError("invalid gradient scaler growth tracker")
+        elif type(tracker) is not int or tracker < 0:
+            raise ValueError("invalid gradient scaler growth tracker")
+
+
+def _check_mlx_native_semantics(
+    native: Mapping[str, object],
+    raw: Mapping[str, object],
+    tensors: Mapping[str, object],
+    aliases: Mapping[str, str],
+    decoded: Mapping[str, object],
+) -> None:
+    """Check the engine-neutral continuation fields and MLX's two AdamW groups."""
+    from sparselab.training.mlx_checkpoints import validate_optimizer_state
+
+    config, expected, learning_rate = _check_common_native_state(
+        native, raw, tensors, aliases
+    )
+    if (
+        config.runtime.engine != "mlx"
+        or config.runtime.backend != "metal"
+        or config.optimizer.name != "adamw"
+        or config.runtime.precision not in {"auto", "fp32"}
+        or decoded.get("scaler") is not None
+    ):
+        raise ValueError("MLX native runtime, optimizer, or scaler is invalid")
+    shapes = {
+        name: spec.shape
+        for name, spec in expected.items()
+        if spec.trainable and spec.alias_of is None
+    }
+    validate_optimizer_state(
+        decoded.get("optimizer"),
+        decoded.get("optimizer_parameter_names"),
+        shapes,
+        step=native["step"],
+        learning_rate=learning_rate,
+    )
 
 
 class CheckpointManager:
@@ -363,11 +552,14 @@ class CheckpointManager:
         *,
         manifest_sha256: str | None = None,
         keep_periodic: bool = True,
+        fault_injector: Callable[[str], None] | None = None,
     ) -> None:
         self.run_dir = run_dir
         self.root = run_dir / "checkpoints"
         self.manifest_sha256 = manifest_sha256
         self.keep_periodic = keep_periodic
+        # Test-only crash seams: production callers leave this unset.
+        self._fault_injector = fault_injector
         self._lease_handle: object | None = None
         self._lease_depth = 0
         self._write_records: list[CheckpointRecord] | None = None
@@ -412,31 +604,77 @@ class CheckpointManager:
                     generations.append(int(suffix))
         return max(generations, default=0) + 1
 
+    def _fault(self, point: str) -> None:
+        if self._fault_injector is not None:
+            self._fault_injector(point)
+
     def _save_weights(
         self,
         destination: Path,
-        tensors: Mapping[str, torch.Tensor],
+        tensors: Mapping[str, torch.Tensor | np.ndarray],
         trainability: Mapping[str, bool] | None = None,
+        source: WeightSource | None = None,
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
-        aliases: dict[str, str] = {}
-        canonical: dict[str, torch.Tensor] = {}
-        seen: dict[tuple[int, int, tuple[int, ...], str], str] = {}
-        for name, tensor in sorted(tensors.items()):
-            key = (
-                tensor.untyped_storage().data_ptr(),
-                tensor.storage_offset(),
-                tuple(tensor.shape),
-                str(tensor.dtype),
-            )
-            if key in seen:
-                aliases[name] = seen[key]
-            else:
-                seen[key] = name
-                canonical[name] = tensor
+        """Write canonical shards without treating native optimizer arrays as weights."""
+        aliases: dict[str, str] = dict(source.aliases) if source is not None else {}
+        canonical: (
+            Iterator[tuple[str, torch.Tensor, bool]]
+            | list[tuple[str, torch.Tensor, bool]]
+        )
+        if source is not None:
+            if tensors:
+                raise ValueError("snapshot model and weight_source are ambiguous")
+
+            def source_tensors() -> Iterator[tuple[str, torch.Tensor, bool]]:
+                names: set[str] = set()
+                for item in source.tensors():
+                    if not isinstance(item, CanonicalTensor) or item.name in names:
+                        raise ValueError(
+                            "weight source yielded an invalid or duplicate tensor"
+                        )
+                    names.add(item.name)
+                    if (
+                        not isinstance(item.array, np.ndarray)
+                        or not item.array.flags.c_contiguous
+                    ):
+                        raise ValueError(
+                            "weight source tensor must be a contiguous NumPy array"
+                        )
+                    yield item.name, torch.from_numpy(item.array), item.trainable
+                    del item
+
+            canonical = source_tensors()
+        else:
+            canonical = []
+            seen: dict[tuple[int, int, tuple[int, ...], str], str] = {}
+            for name, value in sorted(tensors.items()):
+                tensor = (
+                    value
+                    if isinstance(value, torch.Tensor)
+                    else torch.from_numpy(np.ascontiguousarray(value))
+                )
+                key = (
+                    tensor.untyped_storage().data_ptr(),
+                    tensor.storage_offset(),
+                    tuple(tensor.shape),
+                    str(tensor.dtype),
+                )
+                if key in seen:
+                    aliases[name] = seen[key]
+                else:
+                    seen[key] = name
+                    canonical.append(
+                        (
+                            name,
+                            tensor,
+                            trainability[name]
+                            if trainability is not None and name in trainability
+                            else bool(tensor.requires_grad),
+                        )
+                    )
         shards: list[dict[str, object]] = []
         current: dict[str, torch.Tensor] = {}
-        size = 0
-        shard_number = 1
+        size, shard_number = 0, 1
 
         def flush() -> None:
             nonlocal current, size, shard_number
@@ -455,28 +693,30 @@ class CheckpointManager:
                     "tensors": sorted(current),
                 }
             )
-            current, size = {}, 0
-            shard_number += 1
+            current, size, shard_number = {}, 0, shard_number + 1
 
-        for name, tensor in canonical.items():
+        inventory: dict[str, object] = {}
+        for name, tensor, is_trainable in canonical:
             tensor_bytes = tensor.numel() * tensor.element_size()
             if current and size + tensor_bytes > SHARD_BYTES:
                 flush()
             current[name] = tensor.detach().to(device="cpu").contiguous()
             size += tensor_bytes
-        flush()
-        inventory = {
-            name: {
+            inventory[name] = {
                 "shape": list(tensor.shape),
                 "dtype": str(tensor.dtype),
-                "trainable": (
-                    trainability[name]
-                    if trainability is not None and name in trainability
-                    else bool(tensor.requires_grad)
-                ),
+                "trainable": is_trainable,
             }
-            for name, tensor in canonical.items()
-        }
+            if size >= SHARD_BYTES:
+                flush()
+            del tensor
+        flush()
+        if set(aliases).intersection(inventory) or any(
+            target not in inventory for target in aliases.values()
+        ):
+            raise ValueError(
+                "weight source aliases must reference unique canonical tensors"
+            )
         return {"tensors": inventory, "aliases": aliases}, shards
 
     def save(
@@ -500,14 +740,22 @@ class CheckpointManager:
         final = self.root / name
         if final.exists():
             raise FileExistsError(f"checkpoint generation already exists: {final}")
+        if not isinstance(snapshot.config, dict):
+            raise TypeError("snapshot config must be a mapping")
         resolved = RunConfig.model_validate(snapshot.config)
+        # Checkpoint identities bind the exact serialized config, not defaults
+        # introduced by a later schema reader.
         snapshot.config_sha256 = snapshot.config_sha256 or config_sha256(
-            resolved.model_dump(mode="json")
+            snapshot.config
         )
         snapshot.architecture_sha256 = (
-            snapshot.architecture_sha256
-            or architecture_sha256(resolved.model_dump(mode="json"))
+            snapshot.architecture_sha256 or architecture_sha256(snapshot.config)
         )
+        if validation_loss is not None and (
+            not isinstance(validation_loss, (int, float))
+            or not math.isfinite(validation_loss)
+        ):
+            raise ValueError("checkpoint validation loss must be finite or null")
         temporary = Path(
             tempfile.mkdtemp(prefix=f".step_{snapshot.step}.", dir=self.root)
         )
@@ -522,29 +770,19 @@ class CheckpointManager:
             }
         try:
             weight_index, shards = self._save_weights(
-                temporary, snapshot.model, trainability
+                temporary, snapshot.model, trainability, snapshot.weight_source
             )
-            native = {
+            common_native = {
                 "format_version": FORMAT_VERSION,
-                "optimizer": snapshot.optimizer,
                 "schedule": snapshot.schedule,
                 "step": snapshot.step,
                 "tokens_seen": snapshot.tokens_seen,
                 "cursor": snapshot.cursor,
                 "config": snapshot.config,
                 "run_id": snapshot.run_id,
-                "rng": snapshot.rng,
-                "scaler": snapshot.scaler,
                 "cadence": snapshot.cadence,
                 "engine": snapshot.engine,
                 "backend": snapshot.backend,
-                "state_codec": "pytorch_native",
-                "state_codec_version": 2,
-                "optimizer_parameter_names": snapshot.optimizer_parameter_names,
-                "optimizer_updated_parameter_names": [
-                    snapshot.optimizer_parameter_names[parameter_id]
-                    for parameter_id in snapshot.optimizer["state"]
-                ],
                 "config_sha256": snapshot.config_sha256,
                 "architecture_sha256": snapshot.architecture_sha256,
                 "source_identity_sha256": snapshot.source_identity_sha256,
@@ -552,19 +790,46 @@ class CheckpointManager:
                 "parent_checkpoint_sha256": snapshot.parent_checkpoint_sha256,
                 "cumulative_wall_seconds": snapshot.cumulative_wall_seconds,
                 "cumulative_update_seconds": snapshot.cumulative_update_seconds,
+                "lineage_best": (
+                    snapshot.lineage_best.as_dict()
+                    if snapshot.lineage_best is not None
+                    else None
+                ),
             }
-            native_path = temporary / "training_state.pt"
-            torch.save(native, native_path)
-            with native_path.open("rb") as handle:
-                os.fsync(handle.fileno())
-            files = [
-                {
-                    "name": "training_state.pt",
-                    "sha256": _sha256(native_path),
-                    "bytes": native_path.stat().st_size,
-                },
-                *shards,
-            ]
+            if snapshot.engine == "mlx":
+                codec, codec_version = MLX_CODEC, MLX_CODEC_VERSION
+                native_files = write_mlx_native_state(
+                    snapshot, temporary, common_native
+                )
+            elif snapshot.engine == "pytorch":
+                codec, codec_version = "pytorch_native", 2
+                native = {
+                    **common_native,
+                    "optimizer": snapshot.optimizer,
+                    "rng": snapshot.rng,
+                    "scaler": snapshot.scaler,
+                    "state_codec": codec,
+                    "state_codec_version": codec_version,
+                    "optimizer_parameter_names": snapshot.optimizer_parameter_names,
+                    "optimizer_updated_parameter_names": [
+                        snapshot.optimizer_parameter_names[parameter_id]
+                        for parameter_id in snapshot.optimizer["state"]
+                    ],
+                }
+                native_path = temporary / "training_state.pt"
+                torch.save(native, native_path)
+                with native_path.open("rb") as handle:
+                    os.fsync(handle.fileno())
+                native_files = [
+                    {
+                        "name": "training_state.pt",
+                        "sha256": _sha256(native_path),
+                        "bytes": native_path.stat().st_size,
+                    }
+                ]
+            else:
+                raise ValueError(f"unsupported checkpoint engine: {snapshot.engine}")
+            files = [*native_files, *shards]
             content = {
                 "format_version": FORMAT_VERSION,
                 "generation_id": generation_id,
@@ -576,14 +841,19 @@ class CheckpointManager:
                 "engine": snapshot.engine,
                 "backend": snapshot.backend,
                 "resume_level": "full",
-                "state_codec": "pytorch_native",
-                "state_codec_version": 2,
+                "state_codec": codec,
+                "state_codec_version": codec_version,
                 "files": files,
                 "weights": weight_index,
                 "config_sha256": snapshot.config_sha256,
                 "architecture_sha256": snapshot.architecture_sha256,
                 "source_identity_sha256": snapshot.source_identity_sha256,
                 "parent_checkpoint_sha256": snapshot.parent_checkpoint_sha256,
+                "lineage_best": (
+                    snapshot.lineage_best.as_dict()
+                    if snapshot.lineage_best is not None
+                    else None
+                ),
             }
             digest = hashlib.sha256(_canonical(content)).hexdigest()
             manifest = {**content, "sha256": digest}
@@ -591,8 +861,10 @@ class CheckpointManager:
             report = self.verify(temporary)
             if not report.valid:
                 raise ValueError(f"checkpoint verification failed: {report.errors}")
+            self._fault("before_finalized_rename")
             temporary.replace(final)
             _fsync_directory(self.root)
+            self._fault("after_finalized_rename")
             record = CheckpointRecord(
                 generation_id,
                 name,
@@ -607,6 +879,7 @@ class CheckpointManager:
             )
             assert self._write_records is not None
             self._write_records.append(record)
+            self._fault("before_projection_publication")
             self._project_records(self._write_records)
             return record
         except BaseException:
@@ -621,14 +894,22 @@ class CheckpointManager:
             return path
         if path.is_symlink():
             raise ValueError("unsafe checkpoint pointer")
-        record = json.loads(path.read_text())
-        if not isinstance(record, dict):
-            raise TypeError("invalid checkpoint pointer")
+        record = strict_json(path)
+        version = record.get("format_version")
+        if version is not None and (
+            type(version) is not int or version != FORMAT_VERSION
+        ):
+            raise ValueError("unsupported checkpoint pointer version")
         relative = record.get("relative_path")
+        digest = record.get("manifest_sha256")
         if (
             not isinstance(relative, str)
             or Path(relative).is_absolute()
             or ".." in Path(relative).parts
+            or (
+                version is not None
+                and (not isinstance(digest, str) or len(digest) != 64)
+            )
         ):
             raise ValueError("invalid checkpoint pointer")
         directory = path.parent / relative
@@ -656,15 +937,34 @@ class CheckpointManager:
             str(raw["backend"]),
         )
 
+    @staticmethod
+    def _generation_order(path: Path) -> tuple[int, int]:
+        try:
+            _, step, _, generation = path.name.split("_")
+            return int(step), int(generation)
+        except (TypeError, ValueError):
+            return -1, -1
+
     def _verified_records(
-        self, *, expected_manifest: str | None = None
+        self,
+        *,
+        expected_manifest: str | None = None,
+        require_training_state: bool = True,
     ) -> tuple[list[CheckpointRecord], list[VerificationReport]]:
         records: list[CheckpointRecord] = []
         rejected: list[VerificationReport] = []
-        for candidate in self.root.glob("step_*_gen_*"):
+        for candidate in sorted(
+            self.root.glob("step_*_gen_*"),
+            key=self._generation_order,
+            reverse=True,
+        ):
             if not candidate.is_dir() or candidate.is_symlink():
                 continue
-            report = self.verify(candidate, expected_manifest)
+            report = self.verify(
+                candidate,
+                expected_manifest,
+                require_training_state=require_training_state,
+            )
             if not report.valid:
                 rejected.append(
                     VerificationReport(
@@ -679,7 +979,7 @@ class CheckpointManager:
                 )
                 continue
             try:
-                raw = json.loads((candidate / "manifest.json").read_text())
+                raw = strict_json(candidate / "manifest.json")
                 records.append(self._record_from_manifest(candidate, raw))
             except (
                 OSError,
@@ -701,6 +1001,70 @@ class CheckpointManager:
                 )
         return records, rejected
 
+    def recovery_report(self) -> RecoveryResult:
+        """Read verified candidates without taking a lease or rewriting pointers."""
+        records, rejected = self._verified_records(
+            expected_manifest=self.manifest_sha256
+        )
+        latest = max(
+            records, key=lambda item: (item.step, item.generation_id), default=None
+        )
+        return RecoveryResult(latest, tuple(rejected))
+
+    def lineage_best_for_child(
+        self, parent_run_id: str, selected_checkpoint_digest: str
+    ) -> LineageBest | None:
+        """Derive ancestry only through the explicitly selected parent generation."""
+        records, _ = self._verified_records(
+            expected_manifest=self.manifest_sha256, require_training_state=False
+        )
+        selected = next(
+            (
+                record
+                for record in records
+                if record.manifest_sha256 == selected_checkpoint_digest
+            ),
+            None,
+        )
+        if selected is None:
+            raise ValueError("selected parent is not a verified generation of this run")
+        records = [
+            record
+            for record in records
+            if record.generation_id <= selected.generation_id
+            and record.step <= selected.step
+        ]
+        local_record = min(
+            (
+                record
+                for record in records
+                if record.validation_loss is not None
+                and math.isfinite(record.validation_loss)
+            ),
+            key=lambda record: (float(record.validation_loss), record.generation_id),
+            default=None,
+        )
+        local = (
+            LineageBest(
+                parent_run_id,
+                local_record.manifest_sha256,
+                local_record.step,
+                float(local_record.validation_loss),
+            )
+            if local_record is not None
+            else None
+        )
+        inherited: LineageBest | None = None
+        for record in records:
+            try:
+                raw = strict_json(self.root / record.relative_path / "manifest.json")
+                inherited = choose_lineage_best(
+                    inherited, _lineage_best(raw.get("lineage_best"))
+                )
+            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+        return choose_lineage_best(inherited, local)
+
     def reconcile(self) -> RecoveryResult:
         """Repair lookup pointers from verified immutable generations under the lease."""
         if not self._lease_depth:
@@ -717,7 +1081,7 @@ class CheckpointManager:
         self, records: list[CheckpointRecord]
     ) -> CheckpointRecord | None:
         """Publish pointers only after generation verification and durable rename."""
-        records.sort(key=lambda item: item.generation_id)
+        records.sort(key=lambda item: (item.step, item.generation_id))
         if not records:
             for pointer in ("latest.json", "best.json"):
                 (self.root / pointer).unlink(missing_ok=True)
@@ -734,9 +1098,16 @@ class CheckpointManager:
             if finite
             else None
         )
-        _atomic_json(self.root / "latest.json", asdict(latest))
+        _atomic_json(
+            self.root / "latest.json",
+            {"format_version": FORMAT_VERSION, **asdict(latest)},
+        )
+        self._fault("after_latest_projection_before_best_projection")
         if best is not None:
-            _atomic_json(self.root / "best.json", asdict(best))
+            _atomic_json(
+                self.root / "best.json",
+                {"format_version": FORMAT_VERSION, **asdict(best)},
+            )
         else:
             (self.root / "best.json").unlink(missing_ok=True)
             _fsync_directory(self.root)
@@ -761,25 +1132,22 @@ class CheckpointManager:
         path: Path,
         expected_manifest: str | None = None,
         require_training_state: bool = True,
+        *,
+        expected_config: RunConfig | None = None,
     ) -> VerificationReport:
         errors: list[dict[str, str]] = []
         files: list[dict[str, str]] = []
         try:
             pointer: dict[str, object] | None = None
             if path.name in {"latest.json", "best.json"}:
-                loaded = json.loads(path.read_text())
-                if not isinstance(loaded, dict):
-                    raise ValueError("invalid checkpoint pointer")
-                pointer = loaded
+                pointer = strict_json(path)
             directory = self._resolve(path)
             if not directory.is_dir() or directory.is_symlink():
                 raise ValueError("unsafe checkpoint directory")
             manifest_path = _safe_member(directory, "manifest.json")
             if manifest_path is None:
                 raise ValueError("unsafe checkpoint manifest path")
-            raw = json.loads(manifest_path.read_text())
-            if not isinstance(raw, dict):
-                raise TypeError("invalid checkpoint manifest")
+            raw = strict_json(manifest_path)
             digest = raw.pop("sha256", None)
             if (
                 not isinstance(digest, str)
@@ -790,7 +1158,10 @@ class CheckpointManager:
                 errors.append(
                     {"field": "pointer", "reason": "manifest digest mismatch"}
                 )
-            if raw.get("format_version") != FORMAT_VERSION:
+            if (
+                type(raw.get("format_version")) is not int
+                or raw["format_version"] != FORMAT_VERSION
+            ):
                 errors.append({"field": "format_version", "reason": "unsupported"})
             if (
                 expected_manifest is not None
@@ -811,7 +1182,8 @@ class CheckpointManager:
                     or not isinstance(entry, dict)
                     or name in names
                     or not isinstance(entry.get("sha256"), str)
-                    or not isinstance(entry.get("bytes"), int)
+                    or type(entry.get("bytes")) is not int
+                    or entry["bytes"] < 0
                 ):
                     errors.append(
                         {"field": "files", "reason": "unsafe or invalid member"}
@@ -827,21 +1199,41 @@ class CheckpointManager:
                     errors.append({"field": name, "reason": "hash or size mismatch"})
                 else:
                     files.append({"name": name, "sha256": entry["sha256"]})
-            if require_training_state and "training_state.pt" not in names:
-                errors.append({"field": "training_state.pt", "reason": "missing"})
-            if ("state_codec" in raw or "state_codec_version" in raw) and (
-                raw.get("state_codec") != "pytorch_native"
-                or raw.get("state_codec_version") not in {1, 2}
-            ):
+            codec, codec_version = (
+                raw.get("state_codec"),
+                raw.get("state_codec_version"),
+            )
+            supported_codec = (
+                codec == "pytorch_native"
+                and type(codec_version) is int
+                and codec_version == 2
+            ) or (
+                codec == MLX_CODEC
+                and type(codec_version) is int
+                and codec_version == MLX_CODEC_VERSION
+            )
+            weights_only_codec = (
+                not require_training_state
+                and raw.get("resume_level") == "weights_only"
+                and "state_codec" in raw
+                and "state_codec_version" in raw
+                and codec is None
+                and codec_version is None
+            )
+            if not supported_codec and not weights_only_codec:
                 errors.append(
                     {"field": "state_codec", "reason": "unsupported or unknown codec"}
                 )
-            if require_training_state and raw.get("state_codec_version") != 2:
+            native_files = (
+                {"training_state.pt"}
+                if codec == "pytorch_native"
+                else {"training_state.json", "optimizer.safetensors"}
+                if codec == MLX_CODEC
+                else set()
+            )
+            if require_training_state and not native_files <= names:
                 errors.append(
-                    {
-                        "field": "state_codec_version",
-                        "reason": "full continuation requires native codec v2; historical state is weights-only",
-                    }
+                    {"field": "training_state", "reason": "missing native state"}
                 )
             weights = raw.get("weights", {})
             tensors = weights.get("tensors", {}) if isinstance(weights, dict) else {}
@@ -850,7 +1242,7 @@ class CheckpointManager:
                 tensors = {}
             found: dict[str, torch.Tensor] = {}
             for name, member in safe_members.items():
-                if name.endswith(".safetensors"):
+                if name.startswith("weights-") and name.endswith(".safetensors"):
                     try:
                         shard_tensors = load_file(member, device="cpu")
                         overlap = set(found).intersection(shard_tensors)
@@ -900,7 +1292,20 @@ class CheckpointManager:
                     or target not in tensors
                 ):
                     errors.append({"field": "aliases", "reason": "invalid alias"})
-            if require_training_state and "training_state.pt" in safe_members:
+            if expected_config is not None:
+                if raw.get("architecture_sha256") != architecture_sha256(
+                    expected_config.model_dump(mode="json")
+                ):
+                    raise ValueError(
+                        "requested configuration differs in architecture semantics"
+                    )
+                _check_tensor_inventory(expected_config, tensors, aliases)
+            validated_native: Mapping[str, Any] | None = None
+            if (
+                require_training_state
+                and codec == "pytorch_native"
+                and "training_state.pt" in safe_members
+            ):
                 try:
                     native = torch.load(
                         safe_members["training_state.pt"],
@@ -910,23 +1315,14 @@ class CheckpointManager:
                     )
                     if not isinstance(native, dict):
                         raise TypeError("native state is not a mapping")
-                    for field, expected in (
-                        ("format_version", FORMAT_VERSION),
-                        ("state_codec", "pytorch_native"),
-                        ("state_codec_version", 2),
-                        ("engine", raw.get("engine")),
-                        ("backend", raw.get("backend")),
-                        ("step", raw.get("step")),
-                        ("tokens_seen", raw.get("tokens_seen")),
+                    if (
+                        native.get("state_codec") != "pytorch_native"
+                        or type(native.get("state_codec_version")) is not int
+                        or native["state_codec_version"] != 2
                     ):
-                        if native.get(field) != expected:
-                            errors.append(
-                                {
-                                    "field": f"training_state.{field}",
-                                    "reason": "manifest mismatch",
-                                }
-                            )
+                        raise ValueError("unsupported PyTorch native codec")
                     _check_native_state(native, raw, tensors, aliases)
+                    validated_native = native
                 except (
                     OSError,
                     RuntimeError,
@@ -940,6 +1336,54 @@ class CheckpointManager:
                             "field": "training_state.pt",
                             "reason": f"unsafe or invalid native state: {error}",
                         }
+                    )
+            elif require_training_state and codec == MLX_CODEC:
+                try:
+                    if (
+                        not {
+                            "training_state.json",
+                            "optimizer.safetensors",
+                        }
+                        <= safe_members.keys()
+                    ):
+                        raise ValueError("MLX native file inventory is incomplete")
+                    native_json = strict_json(safe_members["training_state.json"])
+                    decoded = load_mlx_native_state(directory)
+                    _check_mlx_native_semantics(
+                        native_json, raw, tensors, aliases, decoded
+                    )
+                    validated_native = native_json
+                except (
+                    OSError,
+                    TypeError,
+                    ValueError,
+                    KeyError,
+                    SafetensorError,
+                ) as error:
+                    errors.append(
+                        {
+                            "field": "training_state.json",
+                            "reason": f"unsafe or invalid native state: {error}",
+                        }
+                    )
+            if (
+                require_training_state
+                and expected_config is not None
+                and validated_native is not None
+            ):
+                from sparselab.training.continuation import _resume_settings
+
+                saved = RunConfig.model_validate(validated_native["config"])
+                requested = expected_config.model_dump(mode="json")
+                if requested["runtime"]["backend"] == "auto":
+                    requested["runtime"]["backend"] = saved.runtime.backend
+                if requested["runtime"]["precision"] == "auto":
+                    requested["runtime"]["precision"] = "fp32"
+                if _resume_settings(saved) != _resume_settings(
+                    RunConfig.model_validate(requested)
+                ):
+                    errors.append(
+                        {"field": "config", "reason": "full-resume settings mismatch"}
                     )
         except (
             OSError,
@@ -967,10 +1411,12 @@ class CheckpointManager:
         if not report.valid:
             raise ValueError(f"invalid checkpoint: {report.errors}")
         directory = self._resolve(path)
-        raw = json.loads((directory / "manifest.json").read_text())
+        raw = strict_json(directory / "manifest.json")
         weights: dict[str, torch.Tensor] = {}
         for entry in raw["files"]:
-            if entry["name"].endswith(".safetensors"):
+            if entry["name"].startswith("weights-") and entry["name"].endswith(
+                ".safetensors"
+            ):
                 weights.update(load_file(directory / entry["name"], device="cpu"))
         for alias, target in raw["weights"]["aliases"].items():
             weights[alias] = weights[target]
@@ -986,14 +1432,19 @@ class CheckpointManager:
                 run_id="",
                 engine=raw["engine"],
                 backend=raw["backend"],
+                lineage_best=_lineage_best(raw.get("lineage_best")),
                 checkpoint_sha256=raw["sha256"],
             )
-        native = torch.load(
-            directory / "training_state.pt",
-            map_location="cpu",
-            weights_only=True,
-            mmap=True,
-        )
+        if raw["state_codec"] == MLX_CODEC:
+            native = strict_json(directory / "training_state.json")
+            native.update(load_mlx_native_state(directory))
+        else:
+            native = torch.load(
+                directory / "training_state.pt",
+                map_location="cpu",
+                weights_only=True,
+                mmap=True,
+            )
         return TrainingSnapshot(
             model=weights,
             optimizer=native["optimizer"],
@@ -1017,6 +1468,7 @@ class CheckpointManager:
             parent_checkpoint_sha256=native.get("parent_checkpoint_sha256"),
             cumulative_wall_seconds=native.get("cumulative_wall_seconds"),
             cumulative_update_seconds=native.get("cumulative_update_seconds"),
+            lineage_best=_lineage_best(native.get("lineage_best")),
             checkpoint_sha256=raw["sha256"],
         )
 
@@ -1024,36 +1476,66 @@ class CheckpointManager:
         return self.reconcile()
 
 
-# Legacy v1 writer/reader stay for historical tests and artifacts. v1 is promotion-only.
-def save_checkpoint(path: Path, state: dict[str, object]) -> None:
-    state = {**state, "format_version": 1}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    torch.save(state, temporary)
-    temporary.replace(path)
-    record: dict[str, object] = {
-        "filename": path.name,
-        "format_version": 1,
-        "step": state["step"],
-        "sha256": _sha256(path),
-    }
-    _atomic_json(path.with_suffix(".json"), record)
-    _atomic_json(path.parent / "latest.json", record)
+def existing_run_recovery_report(
+    run_dir: Path, *, manifest_sha256: str | None = None
+) -> RecoveryResult:
+    """Read-only report for a pre-existing run; never creates or repairs files."""
+    return CheckpointManager(run_dir, manifest_sha256=manifest_sha256).recovery_report()
 
 
-def load_checkpoint(path: Path) -> dict[str, object]:
-    manifest = path.with_suffix(".json")
-    if not manifest.is_file():
-        raise ValueError(f"checkpoint manifest missing: {manifest}")
-    record = json.loads(manifest.read_text())
-    if _sha256(path) != record.get("sha256"):
-        raise ValueError("checkpoint hash mismatch")
-    state = torch.load(path, map_location="cpu", weights_only=True)
-    required = {"model", "optimizer", "step", "tokens_seen", "cursor", "config"}
-    if (
-        not isinstance(state, dict)
-        or not required <= state.keys()
-        or state.get("format_version") != 1
-    ):
-        raise ValueError("invalid checkpoint schema")
+# Legacy v1 is promotion-only. These readers deliberately never create or publish
+# legacy files; artifact import code can validate an already-existing snapshot.
+def verify_legacy_checkpoint(path: Path) -> VerificationReport:
+    errors: list[dict[str, str]] = []
+    files: list[dict[str, str]] = []
+    try:
+        manifest = path.with_suffix(".json")
+        if not manifest.is_file():
+            raise ValueError(f"checkpoint manifest missing: {manifest}")
+        record = strict_json(manifest)
+        if not isinstance(record, dict) or record.get("format_version") != 1:
+            raise ValueError("invalid legacy checkpoint manifest")
+        if _sha256(path) != record.get("sha256"):
+            raise ValueError("checkpoint hash mismatch")
+        state = torch.load(path, map_location="cpu", weights_only=True, mmap=True)
+        required = {"model", "optimizer", "step", "tokens_seen", "cursor", "config"}
+        if not isinstance(state, dict) or not required <= state.keys():
+            raise ValueError("invalid legacy checkpoint schema")
+        files.append({"name": path.name, "sha256": str(record["sha256"])})
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+        pickle.UnpicklingError,
+    ) as error:
+        errors.append({"field": "legacy_checkpoint", "reason": str(error)})
+    return VerificationReport(not errors, tuple(errors), tuple(files), "weights_only")
+
+
+def load_legacy_checkpoint(path: Path) -> dict[str, object]:
+    report = verify_legacy_checkpoint(path)
+    if not report.valid:
+        raise ValueError(f"invalid legacy checkpoint: {report.errors}")
+    state = torch.load(path, map_location="cpu", weights_only=True, mmap=True)
+    assert isinstance(state, dict)
     return state
+
+
+def restore_optimizer_state(
+    optimizer: torch.optim.Optimizer, state: dict[str, object]
+) -> None:
+    """Restore state onto parameter devices while keeping noncapturable steps on CPU."""
+    optimizer.load_state_dict(state)
+    for group in optimizer.param_groups:
+        if group.get("capturable", False):
+            continue
+        for parameter in group["params"]:
+            values = optimizer.state.get(parameter)
+            if not values:
+                continue
+            step = values.get("step")
+            if isinstance(step, torch.Tensor) and step.device.type != "cpu":
+                values["step"] = step.cpu()

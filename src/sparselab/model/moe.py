@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
@@ -18,9 +22,29 @@ class RoutingDiagnostics:
     maximum_fraction: Tensor
     mean_topk_probability: Tensor
     auxiliary_loss: Tensor
-    router_logits: Tensor
-    selected_experts: Tensor
-    selected_weights: Tensor
+    router_logits: Tensor | None
+    selected_experts: Tensor | None
+    selected_weights: Tensor | None
+
+
+_diagnostic_writes_enabled: ContextVar[bool] = ContextVar(
+    "sparselab_diagnostic_writes_enabled", default=True
+)
+
+
+def diagnostic_writes_enabled() -> bool:
+    """Whether this forward may update diagnostic snapshots."""
+    return _diagnostic_writes_enabled.get()
+
+
+@contextmanager
+def suppress_diagnostic_writes() -> Iterator[None]:
+    """Prevent checkpoint recomputation from replacing forward diagnostics."""
+    token = _diagnostic_writes_enabled.set(False)
+    try:
+        yield
+    finally:
+        _diagnostic_writes_enabled.reset(token)
 
 
 class TopKMoE(nn.Module):
@@ -50,13 +74,20 @@ class TopKMoE(nn.Module):
         )
         self.shared_expert = SwiGLU(hidden_dim, ffn_dim) if shared_expert else None
         self.last_diagnostics: RoutingDiagnostics | None = None
-        self.auxiliary_loss = torch.zeros(())
 
-    def forward(self, x: Tensor, *, valid_target_mask: Tensor | None = None) -> Tensor:
+    def forward_with_aux(
+        self,
+        x: Tensor,
+        *,
+        valid_target_mask: Tensor | None = None,
+        diagnostics: Literal["scalar", "full"] = "scalar",
+    ) -> tuple[Tensor, Tensor]:
+        if diagnostics not in ("scalar", "full"):
+            raise ValueError(f"unknown diagnostics policy: {diagnostics}")
         original_shape = x.shape
         tokens = x.reshape(-1, original_shape[-1])
         router_logits = self.router(tokens)
-        probabilities = torch.softmax(router_logits, dim=-1)
+        probabilities = torch.softmax(router_logits.float(), dim=-1)
         weights, selected = probabilities.topk(self.experts_per_token, dim=-1)
         weights = weights / weights.sum(dim=-1, keepdim=True)
         output = torch.zeros_like(tokens)
@@ -69,7 +100,7 @@ class TopKMoE(nn.Module):
                 contribution = contribution * weights[
                     token_indices, choice_indices
                 ].unsqueeze(-1)
-                output.index_add_(0, token_indices, contribution)
+                output.index_add_(0, token_indices, contribution.to(output.dtype))
         if self.shared_expert is not None:
             output = output + self.shared_expert(tokens)
         if valid_target_mask is None:
@@ -84,18 +115,6 @@ class TopKMoE(nn.Module):
             valid_selected.flatten(), minlength=self.num_experts
         ).detach()
         fractions = counts.float() / max(1, valid_selected.numel())
-        entropy = (
-            -(
-                valid_probabilities
-                * valid_probabilities.clamp_min(
-                    torch.finfo(probabilities.dtype).tiny
-                ).log()
-            )
-            .sum(dim=-1)
-            .mean()
-            if valid_probabilities.numel()
-            else probabilities.new_zeros(())
-        )
         importance = (
             valid_probabilities.mean(dim=0)
             if valid_probabilities.numel()
@@ -107,23 +126,52 @@ class TopKMoE(nn.Module):
             * self.num_experts
             * (importance * load).sum()
         )
-        self.auxiliary_loss = auxiliary_loss
-        self.last_diagnostics = RoutingDiagnostics(
-            counts=counts,
-            fractions=fractions,
-            entropy=entropy.detach(),
-            maximum_fraction=fractions.max(),
-            mean_topk_probability=(
-                valid_probabilities.gather(1, valid_selected)
-                .sum(dim=-1)
-                .mean()
-                .detach()
-                if valid_probabilities.numel()
-                else probabilities.new_zeros(())
-            ),
-            auxiliary_loss=auxiliary_loss.detach(),
-            router_logits=router_logits.detach(),
-            selected_experts=selected.detach(),
-            selected_weights=weights.detach(),
-        )
-        return output.reshape(original_shape)
+        if diagnostic_writes_enabled():
+            # Diagnostic-only operations must not add saved autograd tensors:
+            # this branch is intentionally absent during block recomputation.
+            with torch.no_grad():
+                entropy = (
+                    -(
+                        valid_probabilities
+                        * valid_probabilities.clamp_min(
+                            torch.finfo(probabilities.dtype).tiny
+                        ).log()
+                    )
+                    .sum(dim=-1)
+                    .mean()
+                    if valid_probabilities.numel()
+                    else probabilities.new_zeros(())
+                )
+                self.last_diagnostics = RoutingDiagnostics(
+                    counts=counts,
+                    fractions=fractions,
+                    entropy=entropy,
+                    maximum_fraction=fractions.max(),
+                    mean_topk_probability=(
+                        valid_probabilities.gather(1, valid_selected).sum(dim=-1).mean()
+                        if valid_probabilities.numel()
+                        else probabilities.new_zeros(())
+                    ),
+                    auxiliary_loss=auxiliary_loss.detach(),
+                    router_logits=router_logits.detach()[valid]
+                    if diagnostics == "full"
+                    else None,
+                    selected_experts=valid_selected.detach()
+                    if diagnostics == "full"
+                    else None,
+                    selected_weights=weights.detach()[valid]
+                    if diagnostics == "full"
+                    else None,
+                )
+        return output.reshape(original_shape), auxiliary_loss
+
+    def forward(
+        self,
+        x: Tensor,
+        *,
+        valid_target_mask: Tensor | None = None,
+        diagnostics: Literal["scalar", "full"] = "scalar",
+    ) -> Tensor:
+        return self.forward_with_aux(
+            x, valid_target_mask=valid_target_mask, diagnostics=diagnostics
+        )[0]

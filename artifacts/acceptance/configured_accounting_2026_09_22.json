@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "before": {
+    "adamw_inspection_bytes": 86400,
+    "adamw_actual_bytes": 86444,
+    "adafactor_inference_bytes": 86400,
+    "adafactor_actual_bytes": 3436
+  },
+  "after": {
+    "adafactor-full": 3436,
+    "cpu-full": 86444
+  },
+  "regression_before": "1 failed, 1 passed: inspection omitted AdamW step scalars",
+  "verification_after": "35 passed: tests/test_accounting.py tests/test_inference.py tests/test_memory_planner.py",
+  "scope": "Configured CLI/inference reports use canonical shape-aware optimizer accounting; model-only inspect_model documents FP32 AdamW assumption."
+}

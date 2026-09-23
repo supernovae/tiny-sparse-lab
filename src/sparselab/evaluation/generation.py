@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import Any
 
 import torch
 from tokenizers import Tokenizer
 
 from sparselab.data.byte_hash import table_address, token_bytes
+from sparselab.engines.mlx import MLXEngine, preserve_rng_state
 
 
 def _addresses_from_ids(
@@ -101,26 +103,97 @@ def _next_token(
     return int(torch.multinomial(probabilities, 1, generator=generator).item())
 
 
+def _cache_capability(model: torch.nn.Module) -> tuple[bool, str | None]:
+    """Duck-type the cache API so existing inference-only modules still work."""
+    capability = getattr(model, "incremental_cache_capability", None)
+    cached_forward = getattr(model, "forward_cached", None)
+    if not callable(cached_forward):
+        return False, "model does not expose incremental KV-cache decoding"
+    if capability is None:
+        return True, None
+    return bool(capability.supported), capability.reason
+
+
+def _mlx_next_token(
+    engine: MLXEngine,
+    logits: Any,
+    *,
+    temperature: float,
+    top_k: int,
+    blocked_ids: set[int],
+    key: Any,
+) -> tuple[int, Any]:
+    """Select one native MLX token without materializing a logits vector on CPU."""
+    mx = engine._mx
+    assert mx is not None
+    finite = mx.all(mx.isfinite(logits))
+    mx.eval(finite)
+    if not bool(finite):
+        raise ValueError("generation logits must be finite")
+    scores = logits.astype(mx.float32)
+    for token_id in blocked_ids:
+        if 0 <= token_id < scores.shape[0]:
+            scores = mx.where(
+                mx.arange(scores.shape[0]) == token_id, -float("inf"), scores
+            )
+    permitted = mx.any(mx.isfinite(scores))
+    mx.eval(permitted)
+    if not bool(permitted):
+        raise ValueError("generation has no permitted output tokens")
+    if temperature == 0:
+        token = mx.argmax(scores)
+        mx.eval(token)
+        return int(token), key
+    scores = scores / temperature
+    if top_k:
+        limit = min(top_k, scores.shape[0])
+        cutoff = mx.min(mx.topk(scores, k=limit))
+        scores = mx.where(scores < cutoff, -float("inf"), scores)
+    next_key, sample_key = mx.random.split(key)
+    token = mx.random.categorical(scores[None, :], key=sample_key)[0]
+    mx.eval(token)
+    return int(token), next_key
+
+
 def generate(
-    model: torch.nn.Module,
+    model: Any,
     tokenizer: Tokenizer,
     prompt: str,
     max_seq_len: int,
     max_new_tokens: int,
-    device: torch.device,
+    device: torch.device | str,
     *,
     temperature: float = 0.0,
     top_k: int = 0,
     seed: int = 0,
     stop_sequences: Sequence[str] = (),
     strict_context: bool = False,
+    use_cache: bool = True,
+    engine: MLXEngine | None = None,
 ) -> str:
-    """Continue ``prompt`` using greedy or locally seeded sampled decoding."""
+    """Continue ``prompt`` using locally seeded sampled decoding.
+
+    PyTorch uses its incremental cache when supported. Native MLX has no claimed
+    incremental cache, so it always follows the full-prefix reference path.
+    At a cropped-context rollover the cache is intentionally rebuilt, because
+    reference generation resets RoPE positions for the new active context.
+    """
     _validate_generation_options(
         max_seq_len, max_new_tokens, temperature, top_k, seed, stop_sequences
     )
+    if engine is not None:
+        if device != "metal" or model is not engine.model:
+            raise ValueError(
+                "native MLX generation requires its model and device='metal'"
+            )
+    elif not isinstance(device, torch.device):
+        raise TypeError("PyTorch generation requires a torch.device")
+    mx = engine._mx if engine is not None else None
     ids = tokenizer.encode(prompt, add_special_tokens=False).ids
-    byte_memory = model.config.memory in {"byte", "portable"}
+    byte_memory = engine is None and getattr(model.config, "memory", "none") in {
+        "byte",
+        "portable",
+    }
     if not ids:
         bos = tokenizer.token_to_id("<bos>")
         if bos is None:
@@ -128,6 +201,8 @@ def generate(
         ids = [bos]
     if strict_context and len(ids) + max_new_tokens > max_seq_len:
         raise ValueError("prompt and requested completion exceed max_seq_len")
+    if max_new_tokens == 0:
+        return prompt
 
     source_bytes = bytearray(prompt.encode("utf-8")) if byte_memory else None
     addresses = (
@@ -150,26 +225,69 @@ def generate(
     }
     eos = tokenizer.token_to_id("<eos>")
     generated: list[int] = []
-    generator = torch.Generator(device="cpu")
-    generator.manual_seed(seed)
+    generator = None
+    if engine is None:
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(seed)
+    cache_enabled = engine is None and use_cache and _cache_capability(model)[0]
+    cache: Any = None
+
+    def full_prefix_logits() -> Any:
+        active_ids = ids[-max_seq_len:]
+        if engine is not None:
+            assert mx is not None
+            return engine.logits(mx.array([active_ids], dtype=mx.int32))[0, -1]
+        input_ids = torch.tensor([active_ids], device=device)
+        byte_addresses = (
+            torch.tensor([addresses[-max_seq_len:]], device=device)
+            if addresses is not None
+            else None
+        )
+        return model(input_ids, byte_addresses=byte_addresses)[0, -1]
+
+    def rebuild_cache(remaining_tokens: int) -> torch.Tensor:
+        nonlocal cache
+        active_ids = ids[-max_seq_len:]
+        input_ids = torch.tensor([active_ids], device=device)
+        byte_addresses = (
+            torch.tensor([addresses[-max_seq_len:]], device=device)
+            if addresses is not None
+            else None
+        )
+        logits, cache = model.forward_cached(  # type: ignore[attr-defined]
+            input_ids,
+            cache_capacity=min(max_seq_len, len(active_ids) + remaining_tokens),
+            byte_addresses=byte_addresses,
+        )
+        return logits[0, -1]
+
     was_training = model.training
     model.eval()
     try:
-        with torch.inference_mode():
+        with preserve_rng_state() if engine is not None else torch.inference_mode():
+            key = mx.random.key(seed) if mx is not None else None
+            logits = (
+                rebuild_cache(max_new_tokens) if cache_enabled else full_prefix_logits()
+            )
             for _ in range(max_new_tokens):
-                x = torch.tensor([ids[-max_seq_len:]], device=device)
-                byte_addresses = (
-                    torch.tensor([addresses[-max_seq_len:]], device=device)
-                    if addresses is not None
-                    else None
-                )
-                token = _next_token(
-                    model(x, byte_addresses=byte_addresses)[0, -1],
-                    temperature=temperature,
-                    top_k=top_k,
-                    blocked_ids=blocked_ids,
-                    generator=generator,
-                )
+                if engine is not None:
+                    token, key = _mlx_next_token(
+                        engine,
+                        logits,
+                        temperature=temperature,
+                        top_k=top_k,
+                        blocked_ids=blocked_ids,
+                        key=key,
+                    )
+                else:
+                    assert generator is not None
+                    token = _next_token(
+                        logits,
+                        temperature=temperature,
+                        top_k=top_k,
+                        blocked_ids=blocked_ids,
+                        generator=generator,
+                    )
                 if token == eos:
                     break
                 generated.append(token)
@@ -187,6 +305,23 @@ def generate(
                     decoded = tokenizer.decode(generated, skip_special_tokens=True)
                     if any(stop in decoded for stop in stop_sequences):
                         break
+                if len(generated) == max_new_tokens:
+                    break
+                if not cache_enabled:
+                    logits = full_prefix_logits()
+                elif cache.length >= cache.capacity:
+                    logits = rebuild_cache(max_new_tokens - len(generated))
+                else:
+                    next_ids = torch.tensor([[token]], device=device)
+                    next_addresses = (
+                        torch.tensor([[addresses[-1]]], device=device)
+                        if addresses is not None
+                        else None
+                    )
+                    next_logits, cache = model.forward_cached(  # type: ignore[attr-defined]
+                        next_ids, cache=cache, byte_addresses=next_addresses
+                    )
+                    logits = next_logits[0, -1]
     finally:
         model.train(was_training)
 

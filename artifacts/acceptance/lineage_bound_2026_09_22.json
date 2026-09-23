@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "command": ".venv/bin/python /tmp/sparselab_selected_lineage_repro.py --expect-correct",
+  "returncode": 0,
+  "selected_step": 0,
+  "inherited_best": {
+    "checkpoint_digest": "c82773bcad9461a2e37047b76b45007b8d05700d17e932af6b4941a5e4152abc",
+    "loss": 6.218127369880676,
+    "parent_run_id": "full",
+    "step": 0
+  },
+  "inherits_future_same_run_checkpoint": false
+}

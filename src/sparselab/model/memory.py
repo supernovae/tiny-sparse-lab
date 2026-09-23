@@ -93,12 +93,7 @@ class TokenNgramMemory(nn.Module):
             )
         return address
 
-    def forward(self, hidden: Tensor, input_ids: Tensor) -> Tensor:
-        addresses = [
-            self.addresses(input_ids, order, head)
-            for order in self.ngram_orders
-            for head in range(self.hash_heads)
-        ]
+    def _apply_addresses(self, hidden: Tensor, addresses: list[Tensor]) -> Tensor:
         tables = (self.table, *self.extra_tables)
         stream_values = [
             self.output(table(address))
@@ -121,6 +116,33 @@ class TokenNgramMemory(nn.Module):
             streams=stream_diagnostics,
         )
         return hidden + gate * values
+
+    def forward(self, hidden: Tensor, input_ids: Tensor) -> Tensor:
+        return self._apply_addresses(
+            hidden,
+            [
+                self.addresses(input_ids, order, head)
+                for order in self.ngram_orders
+                for head in range(self.hash_heads)
+            ],
+        )
+
+    def forward_last(self, hidden: Tensor, history_ids: Tensor) -> Tensor:
+        """Apply causal n-gram memory to appended hidden states only.
+
+        The bounded suffix retains exactly the token history each hash order
+        needs, including the leading zero-padding semantics at a fresh context.
+        """
+        if hidden.shape[1] > history_ids.shape[1]:
+            raise ValueError("n-gram history is shorter than appended hidden states")
+        required = max(self.ngram_orders)
+        suffix = history_ids[:, -max(required + hidden.shape[1] - 1, 1) :]
+        addresses = [
+            self.addresses(suffix, order, head)[:, -hidden.shape[1] :]
+            for order in self.ngram_orders
+            for head in range(self.hash_heads)
+        ]
+        return self._apply_addresses(hidden, addresses)
 
 
 class ByteAddressMemory(nn.Module):

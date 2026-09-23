@@ -1,0 +1,1072 @@
+{
+  "calibration_records": {
+    "policy_evidence": {
+      "rule": "Only exact-key observations marked peak_method=native with device_peak_allocated_bytes or device_peak_reserved_bytes can increase the multiplier; correction=max(1, native_peak/(prior_peak-headroom)).",
+      "sampled_mps_limit": "sampled_lower_bound observations are ignored for calibration; sampled MPS peaks remain lower bounds and do not certify allocator high water or fit.",
+      "source": "src/sparselab/memory.py calibration_multiplier/calibrated_estimate; tests/test_memory_planner.py::test_calibration_uses_native_peaks_not_sampled_mps_lower_bounds and ::test_native_calibration_is_additive_stable_and_source_specific",
+      "test_assertions_inspected_not_run": [
+        "native 150 / estimate 100 -> 1.5",
+        "native 50 / estimate 100 -> 1.0",
+        "sampled_lower_bound 10000 -> None",
+        "changed source key receives baseline estimate"
+      ]
+    },
+    "records": [
+      {
+        "estimate_peak_bytes": 77380385,
+        "key_sha256": "cba20193e8ea313f6ff240a929e0b76a0b71871d47299fcdbcc02151cc972c4b",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 399196160.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "adafactor-child"
+      },
+      {
+        "estimate_peak_bytes": 77380385,
+        "key_sha256": "cba20193e8ea313f6ff240a929e0b76a0b71871d47299fcdbcc02151cc972c4b",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 400211968.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "adafactor-full"
+      },
+      {
+        "estimate_peak_bytes": 77380385,
+        "key_sha256": "cba20193e8ea313f6ff240a929e0b76a0b71871d47299fcdbcc02151cc972c4b",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 400277504.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "adafactor-parent"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "a0849b0b88e4a7f7a89e97cc012986faa2ba8493ab5443f3a8219af3be46e218",
+        "observed_memory_fields": {
+          "memory/device_peak_allocated_bytes": 348408.0,
+          "memory/process_peak_rss_bytes": 408879104.0
+        },
+        "peak_method": "native",
+        "run_id": "assistant-mlx"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "1efcc0958df8057b2921e037d6bf28b876891bdf13965418cc9efea3e68558cc",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 401883136.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "assistant-pytorch"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "ef929a116b80219695335050cf2914251fff995b865a9d787da083efc30aa14f",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 399228928.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "bf16-child"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "ef929a116b80219695335050cf2914251fff995b865a9d787da083efc30aa14f",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 400785408.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "bf16-full"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "ef929a116b80219695335050cf2914251fff995b865a9d787da083efc30aa14f",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 400637952.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "bf16-parent"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "1efcc0958df8057b2921e037d6bf28b876891bdf13965418cc9efea3e68558cc",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 398426112.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "cpu-child"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "1efcc0958df8057b2921e037d6bf28b876891bdf13965418cc9efea3e68558cc",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 400588800.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "cpu-full"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "1efcc0958df8057b2921e037d6bf28b876891bdf13965418cc9efea3e68558cc",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 399704064.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "cpu-parent"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "a0849b0b88e4a7f7a89e97cc012986faa2ba8493ab5443f3a8219af3be46e218",
+        "observed_memory_fields": {
+          "memory/device_peak_allocated_bytes": 482516.0,
+          "memory/process_peak_rss_bytes": 408109056.0
+        },
+        "peak_method": "native",
+        "run_id": "mlx-child"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "a0849b0b88e4a7f7a89e97cc012986faa2ba8493ab5443f3a8219af3be46e218",
+        "observed_memory_fields": {
+          "memory/device_peak_allocated_bytes": 482448.0,
+          "memory/process_peak_rss_bytes": 409354240.0
+        },
+        "peak_method": "native",
+        "run_id": "mlx-full"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "a0849b0b88e4a7f7a89e97cc012986faa2ba8493ab5443f3a8219af3be46e218",
+        "observed_memory_fields": {
+          "memory/device_peak_allocated_bytes": 383440.0,
+          "memory/process_peak_rss_bytes": 408338432.0
+        },
+        "peak_method": "native",
+        "run_id": "mlx-parent"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "a0849b0b88e4a7f7a89e97cc012986faa2ba8493ab5443f3a8219af3be46e218",
+        "observed_memory_fields": {
+          "memory/device_peak_allocated_bytes": 396116.0,
+          "memory/process_peak_rss_bytes": 409042944.0
+        },
+        "peak_method": "native",
+        "run_id": "mlx-promoted"
+      },
+      {
+        "estimate_peak_bytes": 77475845,
+        "key_sha256": "d9f2d1dce5f4a6be1493d580d3ba56ed89083cf34b10d9bce037c1cd3d87366e",
+        "observed_memory_fields": {
+          "memory/process_peak_rss_bytes": 402931712.0
+        },
+        "peak_method": "sampled_lower_bound",
+        "run_id": "signal-parent"
+      }
+    ]
+  },
+  "format_version": 1,
+  "generated_at_utc": "2026-09-23T00:48:03.145496+00:00",
+  "limits": [
+    "This artifact measures serialized persistent optimizer tensor storage, not transient gradients, allocator fragmentation, Python object overhead, checkpoint file size, or live process RSS attribution.",
+    "The estimator is reference-v1 and its optimizer component is compared only against the exact final PyTorch checkpoints/configurations named above.",
+    "No MPS, ROCm, CUDA, or XPU hardware capability or fit claim is made from these CPU/MLX host records.",
+    "No calibration record is treated as cross-source, cross-runtime, or cross-configuration evidence."
+  ],
+  "monitoring_records": {
+    "meaning_limits": {
+      "absence": "Missing values are listed as not_recorded_metric_names and are not replaced with zero or another field.",
+      "cpu": "process RSS is host-resident process memory; CPU has no device allocator/reserved/driver metric in these records.",
+      "mlx_metal": "device_allocated_bytes is MLX Metal active memory; device_peak_allocated_bytes is MLX peak memory after reset; device_cache_bytes is MLX framework cache, not reserved allocator or driver allocation."
+    },
+    "runs": {
+      "adafactor-full": {
+        "not_recorded_metric_names": [
+          "memory/device_allocated_bytes",
+          "memory/device_peak_allocated_bytes",
+          "memory/device_cache_bytes",
+          "memory/device_reserved_bytes",
+          "memory/device_peak_reserved_bytes",
+          "memory/driver_allocated_bytes",
+          "memory/device_sampled_peak_bytes"
+        ],
+        "present_metric_names": [
+          "memory/process_peak_rss_bytes",
+          "memory/process_rss_bytes",
+          "memory/system_available_bytes"
+        ],
+        "raw_metrics": [
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 400097280.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 400097280.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 8797831168.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 400179200.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 400179200.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 8797831168.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 3,
+            "tokens_seen": 96,
+            "value": 400211968.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 3,
+            "tokens_seen": 96,
+            "value": 400211968.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 3,
+            "tokens_seen": 96,
+            "value": 8797831168.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 4,
+            "tokens_seen": 128,
+            "value": 400211968.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 4,
+            "tokens_seen": 128,
+            "value": 400211968.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 4,
+            "tokens_seen": 128,
+            "value": 8797831168.0
+          }
+        ]
+      },
+      "cpu-full": {
+        "not_recorded_metric_names": [
+          "memory/device_allocated_bytes",
+          "memory/device_peak_allocated_bytes",
+          "memory/device_cache_bytes",
+          "memory/device_reserved_bytes",
+          "memory/device_peak_reserved_bytes",
+          "memory/driver_allocated_bytes",
+          "memory/device_sampled_peak_bytes"
+        ],
+        "present_metric_names": [
+          "memory/process_peak_rss_bytes",
+          "memory/process_rss_bytes",
+          "memory/system_available_bytes"
+        ],
+        "raw_metrics": [
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 3,
+            "tokens_seen": 96,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 3,
+            "tokens_seen": 96,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 3,
+            "tokens_seen": 96,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 4,
+            "tokens_seen": 128,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 4,
+            "tokens_seen": 128,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 4,
+            "tokens_seen": 128,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 5,
+            "tokens_seen": 160,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 5,
+            "tokens_seen": 160,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 5,
+            "tokens_seen": 160,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 6,
+            "tokens_seen": 192,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 6,
+            "tokens_seen": 192,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 6,
+            "tokens_seen": 192,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 7,
+            "tokens_seen": 224,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 7,
+            "tokens_seen": 224,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 7,
+            "tokens_seen": 224,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 8,
+            "tokens_seen": 256,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 8,
+            "tokens_seen": 256,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 8,
+            "tokens_seen": 256,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 9,
+            "tokens_seen": 288,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 9,
+            "tokens_seen": 288,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 9,
+            "tokens_seen": 288,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 10,
+            "tokens_seen": 320,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 10,
+            "tokens_seen": 320,
+            "value": 400457728.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 10,
+            "tokens_seen": 320,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 11,
+            "tokens_seen": 352,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 11,
+            "tokens_seen": 352,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 11,
+            "tokens_seen": 352,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 12,
+            "tokens_seen": 384,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 12,
+            "tokens_seen": 384,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 12,
+            "tokens_seen": 384,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 13,
+            "tokens_seen": 416,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 13,
+            "tokens_seen": 416,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 13,
+            "tokens_seen": 416,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 14,
+            "tokens_seen": 448,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 14,
+            "tokens_seen": 448,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 14,
+            "tokens_seen": 448,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 15,
+            "tokens_seen": 480,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 15,
+            "tokens_seen": 480,
+            "value": 400572416.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 15,
+            "tokens_seen": 480,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 16,
+            "tokens_seen": 512,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 16,
+            "tokens_seen": 512,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 16,
+            "tokens_seen": 512,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 17,
+            "tokens_seen": 544,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 17,
+            "tokens_seen": 544,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 17,
+            "tokens_seen": 544,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 18,
+            "tokens_seen": 576,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 18,
+            "tokens_seen": 576,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 18,
+            "tokens_seen": 576,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 19,
+            "tokens_seen": 608,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 19,
+            "tokens_seen": 608,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 19,
+            "tokens_seen": 608,
+            "value": 8906833920.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 20,
+            "tokens_seen": 640,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 20,
+            "tokens_seen": 640,
+            "value": 400588800.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 20,
+            "tokens_seen": 640,
+            "value": 8906833920.0
+          }
+        ]
+      },
+      "mlx-full": {
+        "not_recorded_metric_names": [
+          "memory/device_reserved_bytes",
+          "memory/device_peak_reserved_bytes",
+          "memory/driver_allocated_bytes",
+          "memory/device_sampled_peak_bytes"
+        ],
+        "present_metric_names": [
+          "memory/device_allocated_bytes",
+          "memory/device_cache_bytes",
+          "memory/device_peak_allocated_bytes",
+          "memory/process_peak_rss_bytes",
+          "memory/process_rss_bytes",
+          "memory/system_available_bytes"
+        ],
+        "raw_metrics": [
+          {
+            "name": "memory/device_allocated_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 216172.0
+          },
+          {
+            "name": "memory/device_cache_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 218154.0
+          },
+          {
+            "name": "memory/device_peak_allocated_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 348708.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 408748032.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 408748032.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 1,
+            "tokens_seen": 32,
+            "value": 8643035136.0
+          },
+          {
+            "name": "memory/device_allocated_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 216300.0
+          },
+          {
+            "name": "memory/device_cache_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 330742.0
+          },
+          {
+            "name": "memory/device_peak_allocated_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 482448.0
+          },
+          {
+            "name": "memory/process_peak_rss_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 409354240.0
+          },
+          {
+            "name": "memory/process_rss_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 409354240.0
+          },
+          {
+            "name": "memory/system_available_bytes",
+            "step": 2,
+            "tokens_seen": 64,
+            "value": 8643035136.0
+          }
+        ]
+      }
+    },
+    "sqlite_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/experiments.sqlite3",
+    "sqlite_sha256": "c39cdb0452988b536945674f2f0e5984377e3e6d8191c33edadb040999f9a192"
+  },
+  "optimizer_accounting": [
+    {
+      "checkpoint": {
+        "latest_index_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/cpu-full/checkpoints/latest.json",
+        "loaded_with": "torch.load(weights_only=True,map_location=cpu,mmap=True)",
+        "relative_generation": "step_00000020_gen_000003",
+        "saved_step": 20,
+        "saved_tokens_seen": 640,
+        "training_state_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/cpu-full/checkpoints/step_00000020_gen_000003/training_state.pt",
+        "training_state_sha256": "9941c114df6c6b94e64cf835595ba5bd6e65fac3881662d7db34deef9b1dcb50"
+      },
+      "config_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/cpu-full/resolved_config.yaml",
+      "config_sha256": "e453a0a0785cc0c14b1282bbf5c51c58d0193431c699c5f6c715bef44f9a1bdd",
+      "estimate_components_bytes": {
+        "activations_bytes": 79872,
+        "attention_working_bytes": 7168,
+        "gradients_bytes": 43200,
+        "headroom_bytes": 10105545,
+        "optimizer_bytes": 86444,
+        "peak_bytes": 77475845,
+        "resident_weights_bytes": 43200,
+        "runtime_buffers_bytes": 1552,
+        "workspace_bytes": 67108864
+      },
+      "manifest_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/cpu-full/manifest.json",
+      "manifest_sha256": "f02ada7e65f86a7add336ace81ed9de14d98627dd9e0ddf18b386ae0ecb1ce60",
+      "optimizer": {
+        "actual_persistent_tensor_accounting": {
+          "scalar_tensor_count": 11,
+          "shape_histogram": [
+            {
+              "count": 4,
+              "shape_and_dtype": "[16, 16]|torch.float32",
+              "state_field": "exp_avg_sq"
+            },
+            {
+              "count": 1,
+              "shape_and_dtype": "[16, 32]|torch.float32",
+              "state_field": "exp_avg_sq"
+            },
+            {
+              "count": 3,
+              "shape_and_dtype": "[16]|torch.float32",
+              "state_field": "exp_avg_sq"
+            },
+            {
+              "count": 2,
+              "shape_and_dtype": "[32, 16]|torch.float32",
+              "state_field": "exp_avg_sq"
+            },
+            {
+              "count": 1,
+              "shape_and_dtype": "[512, 16]|torch.float32",
+              "state_field": "exp_avg_sq"
+            },
+            {
+              "count": 4,
+              "shape_and_dtype": "[16, 16]|torch.float32",
+              "state_field": "exp_avg"
+            },
+            {
+              "count": 1,
+              "shape_and_dtype": "[16, 32]|torch.float32",
+              "state_field": "exp_avg"
+            },
+            {
+              "count": 3,
+              "shape_and_dtype": "[16]|torch.float32",
+              "state_field": "exp_avg"
+            },
+            {
+              "count": 2,
+              "shape_and_dtype": "[32, 16]|torch.float32",
+              "state_field": "exp_avg"
+            },
+            {
+              "count": 1,
+              "shape_and_dtype": "[512, 16]|torch.float32",
+              "state_field": "exp_avg"
+            },
+            {
+              "count": 11,
+              "shape_and_dtype": "[]|torch.float32",
+              "state_field": "step"
+            }
+          ],
+          "shared_storage_alias_groups": [],
+          "tensor_bytes_by_state_field": {
+            "exp_avg": 43200,
+            "exp_avg_sq": 43200,
+            "step": 44
+          },
+          "tensor_payload_sum_bytes": 86444,
+          "unique_tensor_storage_bytes": 86444
+        },
+        "agreement": {
+          "compared_bytes": 86444,
+          "difference_actual_minus_estimator_bytes": 0,
+          "exact": true
+        },
+        "canonical_trainable_parameter_entries": 11,
+        "configuration": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "estimator_formula": "AdamW: 8 bytes per canonical trainable element (exp_avg + exp_avg_sq) plus 4 bytes per canonical trainable parameter step tensor",
+        "estimator_optimizer_bytes": 86444,
+        "name": "adamw",
+        "saved_parameter_groups": [
+          {
+            "betas": [
+              0.9,
+              0.95
+            ],
+            "eps": 1e-08,
+            "lr": 0.0003,
+            "weight_decay": 0.1
+          },
+          {
+            "betas": [
+              0.9,
+              0.95
+            ],
+            "eps": 1e-08,
+            "lr": 0.0003,
+            "weight_decay": 0.0
+          }
+        ],
+        "state_parameter_entries": 11,
+        "state_parameter_names_equal_canonical_trainable": true,
+        "tied_model_aliases_excluded_from_optimizer": {
+          "output.weight": "embedding.weight"
+        }
+      },
+      "run_id": "cpu-full"
+    },
+    {
+      "checkpoint": {
+        "latest_index_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/adafactor-full/checkpoints/latest.json",
+        "loaded_with": "torch.load(weights_only=True,map_location=cpu,mmap=True)",
+        "relative_generation": "step_00000004_gen_000003",
+        "saved_step": 4,
+        "saved_tokens_seen": 128,
+        "training_state_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/adafactor-full/checkpoints/step_00000004_gen_000003/training_state.pt",
+        "training_state_sha256": "fec9ff5dd7648e66172c324bf475cb4c8df38056191ddc3a3322a13744757790"
+      },
+      "config_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/adafactor-full/resolved_config.yaml",
+      "config_sha256": "bfeac41d32e44385739e7a5ba73e9d0b3cabd36a549a9d7fce945ab2441590c1",
+      "estimate_components_bytes": {
+        "activations_bytes": 79872,
+        "attention_working_bytes": 7168,
+        "gradients_bytes": 43200,
+        "headroom_bytes": 10093093,
+        "optimizer_bytes": 3436,
+        "peak_bytes": 77380385,
+        "resident_weights_bytes": 43200,
+        "runtime_buffers_bytes": 1552,
+        "workspace_bytes": 67108864
+      },
+      "manifest_path": "/tmp/sparselab-cli-accepted-tZOwE3/runs/adafactor-full/manifest.json",
+      "manifest_sha256": "41fb6d5d21102c182f3f1a78fe946134a1c045b53f8a0283140e88b76a0f0c9d",
+      "optimizer": {
+        "actual_persistent_tensor_accounting": {
+          "scalar_tensor_count": 11,
+          "shape_histogram": [
+            {
+              "count": 7,
+              "shape_and_dtype": "[1, 16]|torch.float32",
+              "state_field": "col_var"
+            },
+            {
+              "count": 1,
+              "shape_and_dtype": "[1, 32]|torch.float32",
+              "state_field": "col_var"
+            },
+            {
+              "count": 5,
+              "shape_and_dtype": "[16, 1]|torch.float32",
+              "state_field": "row_var"
+            },
+            {
+              "count": 2,
+              "shape_and_dtype": "[32, 1]|torch.float32",
+              "state_field": "row_var"
+            },
+            {
+              "count": 1,
+              "shape_and_dtype": "[512, 1]|torch.float32",
+              "state_field": "row_var"
+            },
+            {
+              "count": 11,
+              "shape_and_dtype": "[]|torch.float32",
+              "state_field": "step"
+            },
+            {
+              "count": 3,
+              "shape_and_dtype": "[16]|torch.float32",
+              "state_field": "variance"
+            }
+          ],
+          "shared_storage_alias_groups": [],
+          "tensor_bytes_by_state_field": {
+            "col_var": 576,
+            "row_var": 2624,
+            "step": 44,
+            "variance": 192
+          },
+          "tensor_payload_sum_bytes": 3436,
+          "unique_tensor_storage_bytes": 3436
+        },
+        "agreement": {
+          "compared_bytes": 3436,
+          "difference_actual_minus_estimator_bytes": 0,
+          "exact": true
+        },
+        "canonical_trainable_parameter_entries": 11,
+        "configuration": {
+          "beta2_decay": -0.8,
+          "d": 1.0,
+          "eps": [
+            null,
+            0.001
+          ],
+          "floor": 0.0003,
+          "name": "adafactor",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "estimator_formula": "Adafactor: for each canonical trainable matrix, 4*(rows+columns+1); for each vector, 4*(numel+1); final +1 is the step tensor",
+        "estimator_optimizer_bytes": 3436,
+        "name": "adafactor",
+        "saved_parameter_groups": [
+          {
+            "beta2_decay": -0.8,
+            "d": 1.0,
+            "eps": [
+              null,
+              0.001
+            ],
+            "lr": 0.0003,
+            "weight_decay": 0.1
+          }
+        ],
+        "state_parameter_entries": 11,
+        "state_parameter_names_equal_canonical_trainable": true,
+        "tied_model_aliases_excluded_from_optimizer": {
+          "output.weight": "embedding.weight"
+        }
+      },
+      "run_id": "adafactor-full"
+    }
+  ],
+  "optimizer_semantics_and_continuation": {
+    "adafactor": "adafactor-full configuration records beta2_decay=-0.8, eps=[null,0.001], d=1.0 and a warmup/cosine peak/floor schedule. The saved Adafactor group lr=0.0003 is the scheduled cap supplied to torch.optim.Adafactor. The installed torch.optim.Adafactor documentation states that lr is its maximum relative step size rho_t (and is also used for weight decay), unlike the AdamW group lr. Its factor state (row/column for matrices, full variance for vectors) therefore has distinct relative-step semantics even when the recorded cap is numerically equal. Stored checkpoint state does not expose a per-parameter effective relative step size, so none is claimed.",
+    "adamw": "cpu-full saved AdamW group retains betas and eps; its scheduled lr is the AdamW lr applied by the optimizer.",
+    "bitwise_limit": "The existing host artifact reports bitwise equality for model, optimizer, schedule, scaler, cursor, and RNG for each full/parent/child pair; it is continuation evidence, not a measurement of optimizer effective learning rate.",
+    "recorded_continuations": [
+      {
+        "backend": "cpu",
+        "bitwise_fields": [
+          "model",
+          "optimizer",
+          "schedule",
+          "scaler",
+          "cursor",
+          "rng"
+        ],
+        "child_run": "cpu-child",
+        "engine": "pytorch",
+        "fp32_master_weights": true,
+        "full_run": "cpu-full",
+        "optimizer": "adamw",
+        "parent_checkpoint_sha256": "9df8c1f0bc72eac3503e2edb0758846d0e516a9909dd1b88ad7eb93d2f6756ec",
+        "parent_immutable": true,
+        "parent_run": "cpu-parent",
+        "precision": "fp32",
+        "targets": 640,
+        "updates": 20
+      },
+      {
+        "backend": "cpu",
+        "bitwise_fields": [
+          "model",
+          "optimizer",
+          "schedule",
+          "scaler",
+          "cursor",
+          "rng"
+        ],
+        "child_run": "adafactor-child",
+        "engine": "pytorch",
+        "fp32_master_weights": true,
+        "full_run": "adafactor-full",
+        "optimizer": "adafactor",
+        "parent_checkpoint_sha256": "f2b857ce9159b797c4b199af04d3597f6d4e4d82123a2ce1b252ee802a66b8cd",
+        "parent_immutable": true,
+        "parent_run": "adafactor-parent",
+        "precision": "fp32",
+        "targets": 128,
+        "updates": 4
+      }
+    ]
+  },
+  "public_api_evidence": {
+    "alias_rule": "canonical inventory excludes TensorSpec.alias_of; the tied output.weight alias is not an optimizer parameter.",
+    "estimator": "sparselab.memory.optimizer_state_bytes(config, inventory) and estimate_memory(config, runtime, inventory)",
+    "inspection": "sparselab.model.inspection.named_tensor_inventory and parameter_inventory",
+    "state_loader": "torch.load(weights_only=True,map_location=cpu,mmap=True)"
+  },
+  "purpose": "Read-only optimizer, memory-monitor, and calibration evidence for immutable accepted host cohort.",
+  "scope": {
+    "cohort_immutable_input": true,
+    "cohort_root": "/tmp/sparselab-cli-accepted-tZOwE3/runs",
+    "source_modified": false,
+    "temporary_probe": "/tmp/memory_optimizer_evidence.py (removed after artifact publication)",
+    "tests_or_validation_commands_run": false
+  }
+}

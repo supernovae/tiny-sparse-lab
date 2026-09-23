@@ -1,0 +1,66 @@
+{
+  "format_version": 1,
+  "url": "http://127.0.0.1:8517",
+  "runs_root": "/tmp/sparselab-cli-accepted-tZOwE3/runs",
+  "screenshots": [
+    "artifacts/acceptance/screenshots/stages.webp",
+    "artifacts/acceptance/screenshots/optimizer_guide.webp",
+    "artifacts/acceptance/screenshots/evaluation_scales.webp",
+    "artifacts/acceptance/screenshots/mps_memory.webp",
+    "artifacts/acceptance/screenshots/tested_runtime.webp"
+  ],
+  "observations": {
+    "three_run_selection_persisted_through_navigation_and_manual_refresh": true,
+    "requested_and_effective_precision_separate": true,
+    "declared_and_tested_capabilities_separate": true,
+    "mps_native_current_and_sampled_peak_distinguished": true,
+    "mlx_active_peak_cache_distinguished": true,
+    "missing_physical_device_id_not_fabricated": true,
+    "actual_running_updates_observed": [
+      1600,
+      4200
+    ],
+    "signal_interrupted_step": 4642,
+    "utc_naive_store_timestamps_display_age": true,
+    "local_verification": {
+      "checked": 32,
+      "verified": 31,
+      "invalid": 1,
+      "sqlite_data_version_before": 2,
+      "sqlite_data_version_after": 2
+    },
+    "stale_read": {
+      "fault": "temporarily renamed own SQLite database; restored in finally",
+      "warning": "Showing stale data (1s old): unable to open database file",
+      "retained_verification_counts": true,
+      "restored_live_read": true
+    },
+    "parent_identity": {
+      "run": "cpu-child",
+      "parent": "cpu-parent",
+      "sha256": "9df8c1f0bc72eac3503e2edb0758846d0e516a9909dd1b88ad7eb93d2f6756ec"
+    },
+    "optimizer_guide": "Adafactor relative learning-rate cap; not AdamW-equivalent",
+    "mixed_comparison_warning": [
+      "engine",
+      "backend",
+      "optimizer",
+      "optimizer_semantics",
+      "dataset"
+    ],
+    "independent_evaluation_y_ranges": [
+      [
+        302.0314289726887,
+        773.4329251217044
+      ],
+      [
+        5.75253793327608,
+        6.673326387536724
+      ]
+    ],
+    "wheel_packaged_help_rendered": true
+  },
+  "limits": [
+    "Not a hardware concurrency or distributed training claim."
+  ]
+}

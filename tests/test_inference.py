@@ -10,7 +10,6 @@ from test_training import config
 
 from sparselab.cli.main import main
 from sparselab.evaluation.inference import load_run
-from sparselab.runtime import validate_runtime
 from sparselab.training.trainer import train
 
 
@@ -71,14 +70,6 @@ def test_selected_checkpoint_identity_is_not_latest(trained_run, tmp_path):
     # A frozen generation selection remains independently usable.
     again = load_run("history", tmp_path, str(generations[0]))
     assert again.identity == initial.identity
-
-
-def test_unimplemented_precision_is_not_silently_fp32(trained_run):
-    unsupported = trained_run.model_copy(
-        update={"runtime": trained_run.runtime.model_copy(update={"precision": "bf16"})}
-    )
-    with pytest.raises(ValueError, match="FP32 only"):
-        validate_runtime(unsupported)
 
 
 def _chat_cli(monkeypatch, capsys, cwd, *options):

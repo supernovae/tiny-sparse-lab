@@ -1,0 +1,45 @@
+{
+  "root": "/var/folders/19/mjxkm_ms1_1c7ypt_2nbv3gc0000gn/T/sparselab-memory-cli-ows6z54z",
+  "source_input_unchanged": true,
+  "exclusive_publication": true,
+  "hash_bound_loadable_proposals": true,
+  "effective_batch_preserved": 8,
+  "cases": [
+    {
+      "policy": "low_memory",
+      "before_peak_bytes": 78176517,
+      "after_peak_bytes": 77475845,
+      "result": "LIKELY_TO_FIT",
+      "micro_batch_size": 1,
+      "gradient_accumulation": 8,
+      "decisions": [
+        {
+          "after_peak_bytes": 77475845,
+          "before_peak_bytes": 78176517,
+          "effective": 1,
+          "effective_batch_size": 8,
+          "reason": "preserve effective batch while reducing activation dimensions; changed settings require their own warmup",
+          "requested": "micro_batch_size"
+        }
+      ]
+    },
+    {
+      "policy": "balanced",
+      "before_peak_bytes": 78176517,
+      "after_peak_bytes": 77776133,
+      "result": "LIKELY_TO_FIT",
+      "micro_batch_size": 4,
+      "gradient_accumulation": 2,
+      "decisions": [
+        {
+          "after_peak_bytes": 77776133,
+          "before_peak_bytes": 78176517,
+          "effective": 4,
+          "effective_batch_size": 8,
+          "reason": "preserve effective batch while reducing activation dimensions; changed settings require their own warmup",
+          "requested": "micro_batch_size"
+        }
+      ]
+    }
+  ]
+}

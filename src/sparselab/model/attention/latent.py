@@ -7,6 +7,7 @@ import math
 import torch
 from torch import Tensor, nn
 
+from sparselab.model.cache import AttentionKVCache
 from sparselab.model.rope import RoPE
 
 
@@ -36,19 +37,70 @@ class LatentAttention(nn.Module):
             persistent=False,
         )
 
+    def _project(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        batch, length, _ = x.shape
+        query = self.q_proj(x).view(batch, length, self.num_heads, self.head_dim)
+        latent = self.kv_down(x)
+        key = self.k_up(latent).view(batch, length, self.num_heads, self.head_dim)
+        value = latent.view(batch, length, self.num_heads, self.value_dim)
+        return query.transpose(1, 2), key.transpose(1, 2), value.transpose(1, 2)
+
     def forward(self, x: Tensor) -> Tensor:
         batch, length, _ = x.shape
         if length > self.causal_mask.shape[0]:
             raise ValueError("sequence length exceeds configured attention context")
-        query = self.q_proj(x).view(batch, length, self.num_heads, self.head_dim)
-        query = self.rope(query.transpose(1, 2))
-        latent = self.kv_down(x)
-        key = self.k_up(latent).view(batch, length, self.num_heads, self.head_dim)
-        key = self.rope(key.transpose(1, 2))
-        value = latent.view(batch, length, self.num_heads, self.value_dim).transpose(
-            1, 2
-        )
+        query, key, value = self._project(x)
+        query, key = self.rope(query), self.rope(key)
         scores = query @ key.transpose(-2, -1) / math.sqrt(self.head_dim)
         scores.masked_fill_(self.causal_mask[:length, :length], float("-inf"))
-        output = torch.softmax(scores, dim=-1) @ value
+        output = torch.softmax(scores.float(), dim=-1).to(value.dtype) @ value
         return self.out_proj(output.transpose(1, 2).reshape(batch, length, -1))
+
+    def create_cache(
+        self, batch: int, capacity: int, *, device: torch.device, dtype: torch.dtype
+    ) -> AttentionKVCache:
+        """Allocate one bounded inference request's expanded K/V storage."""
+        if capacity <= 0:
+            raise ValueError("KV cache capacity must be positive")
+        return AttentionKVCache(
+            key=torch.empty(
+                (batch, self.num_heads, capacity, self.head_dim),
+                device=device,
+                dtype=dtype,
+            ),
+            value=torch.empty(
+                (batch, self.num_heads, capacity, self.value_dim),
+                device=device,
+                dtype=dtype,
+            ),
+            length=0,
+            position=0,
+        )
+
+    def forward_cached(
+        self, x: Tensor, cache: AttentionKVCache
+    ) -> tuple[Tensor, AttentionKVCache]:
+        """Evaluate appended tokens using bounded latent projected K/V storage."""
+        batch, length, _ = x.shape
+        offset = cache.position
+        prior_length = cache.length
+        query, key, value = self._project(x)
+        query = self.rope(query, position_offset=offset)
+        key = self.rope(key, position_offset=offset)
+        cache.append(key, value, position=offset + length)
+        keys = cache.key[:, :, : cache.length]
+        values = cache.value[:, :, : cache.length]
+        key_positions = torch.arange(
+            offset - prior_length, offset + length, device=x.device
+        )
+        query_positions = torch.arange(offset, offset + length, device=x.device)
+        scores = query @ keys.transpose(-2, -1) / math.sqrt(self.head_dim)
+        scores.masked_fill_(
+            ~(key_positions[None, :] <= query_positions[:, None])[None, None],
+            float("-inf"),
+        )
+        output = torch.softmax(scores.float(), dim=-1).to(values.dtype) @ values
+        return (
+            self.out_proj(output.transpose(1, 2).reshape(batch, length, -1)),
+            cache,
+        )

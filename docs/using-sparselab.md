@@ -49,7 +49,7 @@ uv run sparselab checkpoint inspect runs/combined-smoke/checkpoints/latest.json 
 uv run sparselab checkpoint verify runs/combined-smoke/checkpoints/latest.json --json
 ```
 
-A verified PyTorch checkpoint is a local immutable generation. Resume into a child run only with compatible scientific contracts; promotion reuses the same architecture/tokenizer weights with a fresh optimizer/cursor and the destination dataset. It is not an automatic conversion between incompatible architectures. Optional MLX checkpoints have structural inspect/verify commands, but not the full PyTorch integrity/evidence contract.
+PyTorch and MLX share immutable generations, run-owned inference assets, checkpoint-bound evaluation, recovery, and promotion. Native MLX execution requires the optional pinned runtime; offline checkpoint inspection/verification does not. Supported PyTorch generation uses a bounded request-local KV cache; the Python `generate(..., use_cache=False)` API provides the full-prefix reference. MLX and unsupported cache configurations use full-prefix decoding. These execution checks are not model-quality evidence.
 
 ## Verify withheld-fact fixture evidence
 

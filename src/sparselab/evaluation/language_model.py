@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+import random
 
+import numpy as np
 import torch
 from torch.nn import functional
 
@@ -53,6 +55,8 @@ def evaluate(
     was_training = model.training
     cpu_rng = torch.get_rng_state()
     device_rng = _device_rng_state(device)
+    python_rng = random.getstate()
+    numpy_rng = np.random.get_state()
     total = 0.0
     count = 0
     batches = 0
@@ -74,7 +78,7 @@ def evaluate(
                     else None
                 )
                 loss = functional.cross_entropy(
-                    model(x, byte_addresses=byte_addresses).flatten(0, 1),
+                    model(x, byte_addresses=byte_addresses).float().flatten(0, 1),
                     y.flatten(),
                     ignore_index=-100,
                     reduction="sum",
@@ -107,3 +111,5 @@ def evaluate(
         model.train(was_training)
         torch.set_rng_state(cpu_rng)
         _restore_device_rng_state(device, device_rng)
+        random.setstate(python_rng)
+        np.random.set_state(numpy_rng)

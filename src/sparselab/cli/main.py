@@ -6,7 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 
 from sparselab.config.loading import load_config, load_tokenizer_config
@@ -31,24 +31,28 @@ from sparselab.evaluation.chat import ChatMessage, assistant_reply, prepare_chat
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.inference import load_run, write_inference_result
-from sparselab.evaluation.language_model import evaluate
 from sparselab.evaluation.withheld_facts import (
     evaluate_withheld_facts,
     write_withheld_evaluation,
 )
-from sparselab.memory import estimate_memory
+from sparselab.memory import (
+    calibrated_estimate,
+    calibration_key,
+    plan_memory,
+    write_resource_proposal,
+)
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
-from sparselab.runtime import discover_runtimes, select_device
-from sparselab.staging import stage
-from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.mlx_checkpoints import inspect as inspect_mlx_checkpoint
+from sparselab.staging import inspect_runtime, stage
+from sparselab.training.checkpoints import CheckpointManager, _safe_member
+from sparselab.training.manifest import source_identity
+from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
 
 
 def _dashboard(args: argparse.Namespace) -> None:
-    from sparselab.dashboard import app
+    app_path = Path(__file__).resolve().parents[1] / "dashboard" / "app.py"
 
     subprocess.run(
         [
@@ -56,7 +60,7 @@ def _dashboard(args: argparse.Namespace) -> None:
             "-m",
             "streamlit",
             "run",
-            str(Path(app.__file__)),
+            str(app_path),
             "--server.address",
             "127.0.0.1",
             "--server.port",
@@ -88,6 +92,11 @@ def _facts_audit(args: argparse.Namespace) -> None:
 
 def _facts_evaluate(args: argparse.Namespace) -> None:
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    if loaded.engine is not None:
+        raise ValueError(
+            "withheld-facts evaluation is unsupported for native MLX runs because "
+            "candidate likelihood scoring currently requires the PyTorch evaluator"
+        )
     result = evaluate_withheld_facts(
         loaded.model,
         loaded.tokenizer,
@@ -116,6 +125,11 @@ def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
     target = load_run(
         args.target_run_id, Path(args.runs_dir), args.target_checkpoint, args.backend
     )
+    if source.engine is not None or target.engine is not None:
+        raise ValueError(
+            "withheld-facts transfer evaluation is unsupported for native MLX runs; "
+            "it transfers PyTorch byte-memory tables"
+        )
     transfer_byte_memory(source.model.state_dict(), target.model)
     result = evaluate_withheld_facts(
         target.model,
@@ -143,6 +157,11 @@ def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
 
 def _engram_export(args: argparse.Namespace) -> None:
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    if loaded.engine is not None:
+        raise ValueError(
+            "Engram export is unsupported for native MLX runs; MLX supports dense "
+            "and block-sparse attention only"
+        )
     if not isinstance(loaded.model.memory, ByteAddressMemory):
         raise TypeError("Engram export requires a byte-memory run")
     manifest = export_portable_engram(
@@ -163,24 +182,39 @@ def _config_migrate(args: argparse.Namespace) -> None:
     print("\n".join(changes))
 
 
+def _legacy_checkpoint_inventory(path: Path, expected_config=None) -> dict[str, object]:
+    from sparselab.training.weight_import import load_legacy_weights
+
+    legacy = load_legacy_weights(path, expected_config)
+    return {
+        **legacy.metadata,
+        "engine": "pytorch",
+        "requested_backend": legacy.config.runtime.backend,
+        "resume_level": "weights_only",
+        "source_config_sha256": legacy.source_config_sha256,
+        "tensor_inventory": {
+            name: {"shape": list(tensor.shape), "dtype": str(tensor.dtype)}
+            for name, tensor in legacy.tensors.items()
+        },
+        "full_resume_unavailable_reason": (
+            "Legacy v1 lacks resumable RNG and immutable provenance; "
+            "use weights import, then train --promote."
+        ),
+    }
+
+
 def _checkpoint_inspect(args: argparse.Namespace) -> None:
     path = Path(args.path)
-    if (path / "state.json").is_file() or path.name == "state.json":
-        report = inspect_mlx_checkpoint(path)
-        payload = {
-            "valid": report.valid,
-            "metadata": report.metadata,
-            "files": list(report.files),
-            "errors": list(report.errors),
-        }
-        print(json.dumps(payload, sort_keys=True) if args.json else payload)
-        return
-    directory = (
-        path.parent / json.loads(path.read_text())["relative_path"]
-        if path.name in {"latest.json", "best.json"}
-        else path
-    )
-    manifest = json.loads((directory / "manifest.json").read_text())
+    if path.suffix == ".pt":
+        manifest = _legacy_checkpoint_inventory(path)
+    else:
+        directory = CheckpointManager(path.parent.parent)._resolve(path)
+        if not directory.is_dir() or directory.is_symlink():
+            raise ValueError("unsafe checkpoint directory")
+        manifest_path = _safe_member(directory, "manifest.json")
+        if manifest_path is None:
+            raise ValueError("unsafe checkpoint manifest path")
+        manifest = json.loads(manifest_path.read_text())
     print(
         json.dumps(manifest, sort_keys=True)
         if args.json
@@ -190,72 +224,76 @@ def _checkpoint_inspect(args: argparse.Namespace) -> None:
 
 def _checkpoint_verify(args: argparse.Namespace) -> None:
     path = Path(args.path)
-    if (path / "state.json").is_file() or path.name == "state.json":
-        report = inspect_mlx_checkpoint(path)
+    try:
+        expected_config = load_config(Path(args.config)) if args.config else None
+    except (ValueError, TypeError) as error:
         payload = {
-            "valid": report.valid,
-            "metadata": report.metadata,
-            "files": list(report.files),
-            "errors": list(report.errors),
+            "valid": False,
+            "errors": [{"field": "config", "reason": str(error)}],
+            "files": [],
+            "resume_level": None,
         }
         print(json.dumps(payload, sort_keys=True) if args.json else payload)
-        if not report.valid:
-            raise SystemExit(1)
-        return
-    root = path.parent.parent
-    report = CheckpointManager(root).verify(
-        path, require_training_state=not args.weights_only
-    )
-    payload = {
-        "valid": report.valid,
-        "errors": list(report.errors),
-        "files": list(report.verified_files),
-        "resume_level": report.resume_level,
-    }
+        raise SystemExit(1) from None
+    if path.suffix == ".pt":
+        try:
+            metadata = _legacy_checkpoint_inventory(path, expected_config)
+            payload = {
+                "valid": True,
+                "errors": [],
+                "files": [{"name": path.name, "sha256": metadata["sha256"]}],
+                "resume_level": "weights_only",
+                "full_resume_unavailable_reason": metadata[
+                    "full_resume_unavailable_reason"
+                ],
+            }
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as error:
+            payload = {
+                "valid": False,
+                "errors": [{"field": "legacy_checkpoint", "reason": str(error)}],
+                "files": [],
+                "resume_level": "weights_only",
+            }
+    else:
+        root = path.parent.parent
+        report = CheckpointManager(root).verify(
+            path,
+            require_training_state=not args.weights_only,
+            expected_config=expected_config,
+        )
+        payload = {
+            "valid": report.valid,
+            "errors": list(report.errors),
+            "files": list(report.verified_files),
+            "resume_level": report.resume_level,
+        }
     print(json.dumps(payload, sort_keys=True) if args.json else payload)
-    if not report.valid:
+    if not payload["valid"]:
         raise SystemExit(1)
 
 
 def _inspect(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     inventory = parameter_inventory(config)
-    runtimes = discover_runtimes()
-    backend = config.runtime.backend
-    if backend == "auto":
-        device = select_device("auto")
-        backend = next(
-            info.backend
-            for info in runtimes
-            if info.engine == "pytorch" and info.torch_device == str(device)
-        )
-    runtime = next(
-        info
-        for info in runtimes
-        if info.engine == config.runtime.engine and info.backend == backend
+    runtime = inspect_runtime(config)
+    observations = ExperimentStore.get_calibration(
+        config.logging.root_dir,
+        calibration_key(
+            config, runtime, source_digest=str(source_identity()["sha256"])
+        ),
     )
-    if config.runtime.device_index != runtime.device_index:
-        runtime = replace(
-            runtime,
-            device_index=config.runtime.device_index,
-            torch_device=None,
-            device_name=None,
-            device_total_bytes=None,
-            device_free_bytes=None,
-            device_recommended_bytes=None,
-            device_driver_allocated_bytes=None,
-            limitations=(
-                *runtime.limitations,
-                "passive memory readings for this device index are unavailable",
-            ),
-        )
-    estimate = estimate_memory(config, runtime, inventory)
+    estimate = calibrated_estimate(config, runtime, inventory, observations)
     values = {
         **inspection_report(config),
         "parameter_inventory": inventory.__dict__,
         "memory_estimate": estimate.__dict__,
         "runtime": runtime.as_dict(),
     }
+    proposal = plan_memory(config, runtime, estimate)
+    values["resource_proposal"] = asdict(proposal)
+    if args.write_proposal:
+        paths = write_resource_proposal(proposal, Path(args.write_proposal))
+        values["proposal_paths"] = [str(path) for path in paths]
     if args.json:
         print(json.dumps(values, indent=2, sort_keys=True))
         return
@@ -305,19 +343,14 @@ def _train(args: argparse.Namespace) -> None:
             run_id=args.run_id,
             stop_after_step=args.stop_after_step,
             allow_runtime_drift=args.allow_runtime_drift,
+            stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
         )
     )
 
 
 def _eval(args: argparse.Namespace) -> None:
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
-    result = evaluate(
-        loaded.model,
-        loaded.validation_dataset(),
-        batch_size=loaded.config.training.micro_batch_size,
-        max_batches=loaded.config.evaluation.max_batches,
-        device=loaded.device,
-    )
+    result = loaded.evaluate()
     result.update({"source": "standalone_eval", "identity": loaded.identity})
     path = write_inference_result(loaded.run, "eval", result)
     print(json.dumps({**result, "output": str(path)}, indent=2))
@@ -336,6 +369,7 @@ def _generate(args: argparse.Namespace) -> None:
             temperature=args.temperature,
             top_k=args.top_k,
             seed=args.seed,
+            engine=loaded.engine,
         )
     )
 
@@ -361,6 +395,7 @@ def _capability_result(args: argparse.Namespace, run_id: str, checkpoint: str | 
         loaded.tokenizer,
         loaded.config.model.max_seq_len,
         loaded.device,
+        engine=loaded.engine,
     )
     result["identity"] = loaded.identity
     return result, write_capability_result(loaded.run, result)
@@ -419,6 +454,7 @@ def _chat(args: argparse.Namespace) -> None:
             seed=args.seed,
             strict_context=True,
             stop_sequences=("\nUser:", "\nSystem:", "\nAssistant:"),
+            engine=loaded.engine,
         )
         reply = assistant_reply(completion, prompt)
         turn = {
@@ -491,6 +527,20 @@ def _chat(args: argparse.Namespace) -> None:
                 handle.write("\n")
 
 
+def _weights_import(args: argparse.Namespace) -> None:
+    from sparselab.training.weight_import import import_weights
+
+    result = import_weights(
+        Path(args.source),
+        Path(args.destination),
+        load_config(Path(args.config)),
+        source_format=args.format,
+        source_tokenizer=Path(args.source_tokenizer),
+        provenance=Path(args.provenance),
+    )
+    print(json.dumps(asdict(result), sort_keys=True, default=str))
+
+
 def build_parser() -> argparse.ArgumentParser:
     cwd = Path.cwd()
     project_root = next(
@@ -503,6 +553,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     commands = parser.add_subparsers(dest="command", required=True)
+    weights = commands.add_parser("weights")
+    weight_commands = weights.add_subparsers(dest="weights_command", required=True)
+    weight_import = weight_commands.add_parser("import")
+    weight_import.add_argument("source")
+    weight_import.add_argument("destination")
+    weight_import.add_argument("--config", required=True)
+    weight_import.add_argument(
+        "--format",
+        required=True,
+        choices=("sparselab_legacy_v1", "hf_llama_safetensors"),
+    )
+    weight_import.add_argument("--source-tokenizer", required=True)
+    weight_import.add_argument("--provenance", required=True)
+    weight_import.set_defaults(handler=_weights_import)
     config = commands.add_parser("config")
     config_commands = config.add_subparsers(dest="config_command", required=True)
     config_migrate = config_commands.add_parser("migrate")
@@ -519,12 +583,14 @@ def build_parser() -> argparse.ArgumentParser:
     checkpoint_inspect.set_defaults(handler=_checkpoint_inspect)
     checkpoint_verify = checkpoint_commands.add_parser("verify")
     checkpoint_verify.add_argument("path")
+    checkpoint_verify.add_argument("--config")
     checkpoint_verify.add_argument("--weights-only", action="store_true")
     checkpoint_verify.add_argument("--json", action="store_true")
     checkpoint_verify.set_defaults(handler=_checkpoint_verify)
     inspect = commands.add_parser("inspect")
     inspect.add_argument("config")
     inspect.add_argument("--json", action="store_true")
+    inspect.add_argument("--write-proposal")
     inspect.set_defaults(handler=_inspect)
     tokenizer = commands.add_parser("tokenizer")
     tokenizer_commands = tokenizer.add_subparsers(
@@ -559,7 +625,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     facts_evaluate.add_argument("--checkpoint")
     facts_evaluate.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     facts_evaluate.add_argument("--max-new-tokens", type=int, default=16)
     facts_evaluate.add_argument("--output")
@@ -576,7 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_evaluate.add_argument("--source-checkpoint")
     transfer_evaluate.add_argument("--target-checkpoint")
     transfer_evaluate.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     transfer_evaluate.add_argument("--max-new-tokens", type=int, default=16)
     transfer_evaluate.add_argument("--output")
@@ -594,7 +660,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     engram_export.add_argument("--checkpoint")
     engram_export.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     engram_export.set_defaults(handler=_engram_export)
     engram_inspect = engram_commands.add_parser("inspect")
@@ -618,6 +684,7 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument("--recover")
     training.add_argument("--allow-runtime-drift", action="store_true")
     training.add_argument("--stop-after-step", type=int)
+    training.add_argument("--stage-bundle")
     training.set_defaults(handler=_train)
     evaluation = commands.add_parser("eval")
     evaluation.add_argument("run_id")
@@ -628,7 +695,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluation.add_argument("--checkpoint")
     evaluation.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     evaluation.set_defaults(handler=_eval)
     evidence = commands.add_parser(
@@ -669,7 +736,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--checkpoint", help="latest.json, best.json, or a generation path"
     )
     capability_evaluate.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     capability_evaluate.set_defaults(handler=_capability_evaluate)
     capability_compare = capability_commands.add_parser("compare")
@@ -689,7 +756,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="memory",
     )
     capability_compare.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     capability_compare.set_defaults(handler=_capability_compare)
     generation = commands.add_parser("generate")
@@ -706,11 +773,11 @@ def build_parser() -> argparse.ArgumentParser:
     generation.add_argument("--top-k", type=int, default=0)
     generation.add_argument("--seed", type=int, default=0)
     generation.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     generation.set_defaults(handler=_generate)
     chat = commands.add_parser(
-        "chat", help="Chat with a verified local PyTorch checkpoint."
+        "chat", help="Chat with a verified local PyTorch or native MLX checkpoint."
     )
     chat.add_argument("run_id")
     chat.add_argument("--message")
@@ -735,7 +802,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="Emit one JSON object per response"
     )
     chat.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     chat.set_defaults(handler=_chat)
     dashboard = commands.add_parser("dashboard")
@@ -746,6 +813,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.set_defaults(handler=_dashboard)
+    from sparselab.workers.cli import add_commands
+
+    add_commands(commands, default_store=Path(runs_dir_default))
     return parser
 
 

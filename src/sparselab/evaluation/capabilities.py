@@ -16,6 +16,7 @@ from tokenizers import Tokenizer
 from sparselab.data.chat_recall import cases as chat_recall_cases
 from sparselab.data.chat_recall import context_override_cases
 from sparselab.data.engram_recall import recall_case
+from sparselab.engines.mlx import MLXEngine
 from sparselab.evaluation.chat import assistant_reply
 from sparselab.evaluation.generation import generate
 from sparselab.training.manifest import source_identity
@@ -23,6 +24,7 @@ from sparselab.training.manifest import source_identity
 _CARD_FORMAT = "capability_card_v2"
 _RESULT_FORMAT = "capability_result_v2"
 _EXACT_SCORER = "normalized_full_answer_exact_v1"
+_LITERAL_SCORER = "literal_full_answer_exact_v1"
 _LEGACY_SCORER = "first_normalized_word_exact_v1"
 _GENERATION = {
     "max_new_tokens": 8,
@@ -224,8 +226,8 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
         raise ValueError("capability card name must be a safe nonempty string")
     if not _is_positive_int(data["version"]):
         raise ValueError("capability card version must be a positive integer")
-    if data["scorer"] != _EXACT_SCORER:
-        raise ValueError("user cards may use only normalized_full_answer_exact_v1")
+    if data["scorer"] not in (_EXACT_SCORER, _LITERAL_SCORER):
+        raise ValueError("user cards require a supported full-answer scorer")
     generation = data["generation"]
     if not isinstance(generation, dict) or set(generation) != set(_GENERATION):
         raise ValueError(
@@ -246,7 +248,11 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
             "user card generation must use the fixed deterministic protocol"
         )
     expected_scoring = {
-        "normalization": "unicode_nfc_casefold_trim_collapse_whitespace",
+        "normalization": (
+            "trim_outer_whitespace"
+            if data["scorer"] == _LITERAL_SCORER
+            else "unicode_nfc_casefold_trim_collapse_whitespace"
+        ),
         "match": "full_answer",
     }
     if data["scoring"] != expected_scoring:
@@ -339,15 +345,21 @@ def _normalize_answer(value: str) -> str:
 def _passes(card: CapabilityCard, response: str, expected: str) -> bool:
     if card.scorer == _LEGACY_SCORER:
         return _first_word(response) == _first_word(expected)
-    return _normalize_answer(response) == _normalize_answer(expected)
+    if card.scorer == _LITERAL_SCORER:
+        return response.strip() == expected.strip()
+    if card.scorer == _EXACT_SCORER:
+        return _normalize_answer(response) == _normalize_answer(expected)
+    raise ValueError(f"unsupported capability scorer: {card.scorer}")
 
 
 def evaluate_capability(
     card: CapabilityCard,
-    model: torch.nn.Module,
+    model: Any,
     tokenizer: Tokenizer,
     max_seq_len: int,
-    device: torch.device,
+    device: torch.device | str,
+    *,
+    engine: MLXEngine | None = None,
 ) -> dict[str, Any]:
     failures: list[dict[str, Any]] = []
     for case in card.cases:
@@ -397,6 +409,7 @@ def evaluate_capability(
             seed=card.generation["seed"],
             strict_context=True,
             stop_sequences=card.generation["stop_sequences"],
+            engine=engine,
         )
         response = assistant_reply(completion, case.prompt)
         results.append(

@@ -49,3 +49,13 @@ dev = [
     "pytest>=8,<10",
     "ruff>=0.12,<1",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "mps: requires actual Apple MPS hardware",
+    "cuda: requires actual NVIDIA CUDA hardware",
+    "rocm: requires actual AMD ROCm hardware",
+    "xpu: requires actual Intel XPU hardware",
+    "mlx: requires the optional Apple MLX runtime and Metal hardware",
+    "network: requires external network access",
+]

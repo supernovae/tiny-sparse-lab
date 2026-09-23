@@ -52,7 +52,9 @@ def make_adafactor(
     eps: tuple[float | None, float],
     d: float,
 ) -> torch.optim.Adafactor:
-    parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    parameters = [
+        parameter for parameter in model.parameters() if parameter.requires_grad
+    ]
     return torch.optim.Adafactor(
         parameters,
         lr=learning_rate,

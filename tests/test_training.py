@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
@@ -11,7 +13,7 @@ from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.data.tokenizer import train_tokenizer
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import read_manifest
+from sparselab.training.manifest import canonical_json, read_manifest
 from sparselab.training.trainer import train
 
 
@@ -180,6 +182,68 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
     assert [item["step"] for item in observations] == [0, 2, 4, 6, 8, 10, 12]
 
 
+def test_assistant_only_evidence_counts_and_binds_supervised_targets(
+    tmp_path: Path,
+) -> None:
+    raw = config(tmp_path).model_dump(mode="json")
+    for split in ("train", "validation"):
+        path = tmp_path / f"{split}.jsonl"
+        records = [
+            {
+                "format_version": 2,
+                "loss_mode": "assistant_only",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"{split} {index}: " + "rain falls gently. " * 40,
+                    },
+                    {"role": "assistant", "content": "the quiet river flows"},
+                ],
+            }
+            for index in range(2)
+        ]
+        path.write_text("".join(json.dumps(record) + "\n" for record in records))
+        raw["dataset"][f"{split}_path"] = str(path)
+        raw["dataset"][f"{split}_max_tokens"] = 4096
+    raw["dataset"].update(source="local_chat", license="MIT")
+    raw["training"].update(max_steps=2, max_tokens=8)
+    raw["optimizer"]["warmup_steps"] = 0
+    raw["evaluation"].update(every_steps=1, max_batches=20)
+    measured = RunConfig.model_validate(raw)
+    run_id = train(measured, run_id="assistant-evidence")
+    run = measured.logging.root_dir / run_id
+    supervision = np.load(run / "data/validation_supervision.npy")
+    seq_len = measured.training.seq_len
+    usable = (len(supervision) - 1) // seq_len * seq_len
+    counts = supervision[1 : usable + 1].reshape(-1, seq_len).sum(axis=1)
+    selected = counts[counts > 0][
+        : measured.training.micro_batch_size * measured.evaluation.max_batches
+    ]
+    assert (counts == 0).any()
+    assert 0 < selected.sum() < len(selected) * seq_len
+
+    evidence = experiment_evidence(run)
+    assert evidence["evidence_level"] == "checkpointed_held_out"
+    for observation in evidence["quality_observations"]:
+        assert observation["valid_targets"] == int(selected.sum())
+        assert (
+            observation["batches"]
+            == (len(selected) + measured.training.micro_batch_size - 1)
+            // measured.training.micro_batch_size
+        )
+
+    report = next((run / "evaluations").glob("*.json"))
+    payload = json.loads(report.read_text())
+    payload["identities"]["data/validation_supervision.npy"] = "0" * 64
+    payload.pop("sha256")
+    payload["sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    report.write_text(json.dumps(payload))
+    rejected = experiment_evidence(run)
+    assert report.name in {item["path"] for item in rejected["rejected_reports"]}
+    assert payload["checkpoint"] in rejected["missing_reports"]
+
+
+@pytest.mark.mps
 @pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS is unavailable")
 def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
     original = config(tmp_path)
@@ -242,6 +306,7 @@ def test_non_multiple_token_budget_commits_exactly_77_targets(tmp_path: Path) ->
         bounded.logging.root_dir / run_id / "checkpoints/latest.json"
     )
     assert snapshot.tokens_seen == 77
+    assert snapshot.cursor == (0, 5)
 
 
 def test_allow_runtime_drift_does_not_allow_dataset_change(tmp_path: Path) -> None:
@@ -339,3 +404,34 @@ def test_preexisting_cancel_marker_commits_no_update(tmp_path: Path) -> None:
     )
     assert snapshot.step == snapshot.tokens_seen == 0
     assert snapshot.optimizer["state"] == {}
+
+
+def test_late_cancellation_checkpoints_the_last_committed_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.training import trainer
+
+    original = config(tmp_path)
+    cancel = tmp_path / "late-cancel"
+    checkpoint_due = trainer._checkpoint_due
+
+    def cancel_after_update_check(config, step, *args):
+        due = checkpoint_due(config, step, *args)
+        if step == 1:
+            cancel.touch()
+        return due
+
+    with monkeypatch.context() as patch:
+        patch.setattr(trainer, "_checkpoint_due", cancel_after_update_check)
+        train(original, run_id="cancelled", cancel_path=cancel)
+    train(original, run_id="reference", stop_after_step=1)
+    observed = CheckpointManager(original.logging.root_dir / "cancelled").load(
+        original.logging.root_dir / "cancelled/checkpoints/latest.json"
+    )
+    expected = CheckpointManager(original.logging.root_dir / "reference").load(
+        original.logging.root_dir / "reference/checkpoints/latest.json"
+    )
+    assert (observed.step, observed.tokens_seen) == (1, 32)
+    equal(observed.model, expected.model)
+    equal(observed.optimizer, expected.optimizer)
+    equal(observed.rng, expected.rng)

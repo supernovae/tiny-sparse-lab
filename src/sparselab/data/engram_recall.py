@@ -1,4 +1,5 @@
 """Deterministic associative-recall documents for dense-versus-Engram experiments."""
+
 from __future__ import annotations
 
 import random

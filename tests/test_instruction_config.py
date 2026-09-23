@@ -12,4 +12,6 @@ def test_instruction_reference_config_declares_reproducible_training_contract() 
     assert config.model.vocab_size == 8192
     assert config.model.hidden_dim == 896
     assert config.training.max_tokens == 20_000_000
-    assert config.training.micro_batch_size * config.training.gradient_accumulation == 16
+    assert (
+        config.training.micro_batch_size * config.training.gradient_accumulation == 16
+    )

@@ -91,3 +91,119 @@ def test_iter_conversations_rejects_duplicate_json_keys(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="duplicate JSON key"):
         list(iter_conversations(path))
+
+
+def test_v2_assistant_only_renders_versioned_tool_transcript_and_spans(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "tools.jsonl"
+    _write_jsonl(
+        path,
+        [
+            {
+                "format_version": 2,
+                "loss_mode": "assistant_only",
+                "messages": [
+                    {"role": "user", "content": "Search μ"},
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {"id": "call-1", "name": "lookup", "arguments": {"q": "μ"}}
+                        ],
+                    },
+                    {"role": "tool", "tool_call_id": "call-1", "content": "found"},
+                    {"role": "assistant", "content": "The result is μ."},
+                ],
+            }
+        ],
+    )
+
+    from sparselab.data.conversations import iter_rendered_conversations
+
+    rendered = next(iter_rendered_conversations(path))
+    assert rendered.loss_mode == "assistant_only"
+    assert (
+        'ToolCalls[v1]: [{"arguments":{"q":"μ"},"id":"call-1","name":"lookup"}]'
+        in rendered.text
+    )
+    assert (
+        'ToolResult[v1]: {"content":"found","tool_call_id":"call-1"}' in rendered.text
+    )
+    assert "\n\nAssistant: The result is μ." in rendered.text
+    supervised = {
+        position
+        for start, end in rendered.supervision_spans
+        for position in range(start, end)
+    }
+    for excluded in ("Search μ", "found", "ToolCalls[v1]:"):
+        start = rendered.text.index(excluded)
+        assert supervised.isdisjoint(range(start, start + len(excluded)))
+    start = rendered.text.index("The result is μ.")
+    assert set(range(start, len(rendered.text))) <= supervised
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        [
+            {"role": "user", "content": "q"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "a", "name": "f", "arguments": {}}],
+            },
+            {"role": "tool", "tool_call_id": "wrong", "content": "r"},
+        ],
+        [
+            {"role": "user", "content": "q"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": "a", "name": "f", "arguments": {}}],
+            },
+            {"role": "tool", "tool_call_id": "a", "content": "r"},
+        ],
+        [
+            {"role": "user", "content": "q"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "a", "name": "f", "arguments": {"x": float("nan")}}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "a", "content": "r"},
+            {"role": "assistant", "content": "done"},
+        ],
+    ],
+)
+def test_v2_rejects_incomplete_or_noncanonical_tool_turns(
+    tmp_path: Path, messages: list[object]
+) -> None:
+    path = tmp_path / "invalid-v2.jsonl"
+    _write_jsonl(
+        path,
+        [{"format_version": 2, "loss_mode": "assistant_only", "messages": messages}],
+    )
+    with pytest.raises(ValueError, match=r"invalid-v2\.jsonl:1"):
+        list(iter_conversations(path))
+
+
+def test_v2_rejects_float_format_version(tmp_path):
+    path = tmp_path / "version.jsonl"
+    _write_jsonl(
+        path,
+        [
+            {
+                "format_version": 2.0,
+                "loss_mode": "assistant_only",
+                "messages": [
+                    {"role": "user", "content": "Question"},
+                    {"role": "assistant", "content": "Answer"},
+                ],
+            }
+        ],
+    )
+    with pytest.raises(ValueError):
+        list(iter_conversations(path))

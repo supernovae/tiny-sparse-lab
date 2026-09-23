@@ -17,15 +17,27 @@ class RoPE(nn.Module):
         self.register_buffer("sin", torch.empty(0), persistent=False)
 
     def _cache(self, length: int, device: torch.device) -> tuple[Tensor, Tensor]:
-        if self.cos.shape[0] < length or self.cos.device != device:
-            positions = torch.arange(length, device=device, dtype=torch.float32)
-            angles = torch.outer(positions, self.inverse_frequency.to(device))
-            self.cos = angles.cos()[None, None, :, :]
-            self.sin = angles.sin()[None, None, :, :]
+        if (
+            self.cos.numel() == 0
+            or self.cos.shape[2] < length
+            or self.cos.device != device
+        ):
+            # Evaluation may populate this cache before the next training update.
+            # Persistent caches must be ordinary constants, not inference tensors.
+            with torch.inference_mode(False), torch.no_grad():
+                positions = torch.arange(length, device=device, dtype=torch.float32)
+                angles = torch.outer(positions, self.inverse_frequency.to(device))
+                self.cos = angles.cos()[None, None, :, :]
+                self.sin = angles.sin()[None, None, :, :]
         return self.cos[:, :, :length], self.sin[:, :, :length]
 
-    def forward(self, x: Tensor) -> Tensor:
-        cos, sin = self._cache(x.shape[-2], x.device)
+    def forward(self, x: Tensor, *, position_offset: int = 0) -> Tensor:
+        if position_offset < 0:
+            raise ValueError("position_offset must be non-negative")
+        end = position_offset + x.shape[-2]
+        cos, sin = self._cache(end, x.device)
+        cos = cos[:, :, position_offset:end]
+        sin = sin[:, :, position_offset:end]
         even, odd = x[..., 0::2], x[..., 1::2]
         output = torch.empty_like(x)
         output[..., 0::2] = even * cos + -odd * sin

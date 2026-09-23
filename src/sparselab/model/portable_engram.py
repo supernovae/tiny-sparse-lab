@@ -38,9 +38,11 @@ class PortableEngramManifest:
 
 
 def _digest(table: Tensor) -> str:
-    return hashlib.sha256(
-        table.detach().cpu().contiguous().numpy().tobytes()
-    ).hexdigest()
+    data = memoryview(table.detach().cpu().contiguous().numpy()).cast("B")
+    digest = hashlib.sha256()
+    for offset in range(0, len(data), 8 * 1024 * 1024):
+        digest.update(data[offset : offset + 8 * 1024 * 1024])
+    return digest.hexdigest()
 
 
 def export_portable_engram(
@@ -97,7 +99,12 @@ class PortableEngram:
         self.table = table
 
 
-def load_portable_engram(path: Path) -> PortableEngram:
+def load_portable_engram(
+    path: Path,
+    *,
+    expected_shape: tuple[int, int] | None = None,
+    expected_ngram_size: int | None = None,
+) -> PortableEngram:
     payload = torch.load(path, map_location="cpu", weights_only=True)
     if not isinstance(payload, dict) or set(payload) != {"manifest", "table"}:
         raise ValueError("invalid portable Engram package")
@@ -109,6 +116,25 @@ def load_portable_engram(path: Path) -> PortableEngram:
         raise ValueError(
             f"unsupported portable Engram version: {manifest.format_version}"
         )
+    if (
+        expected_shape is not None
+        and (manifest.table_size, manifest.embedding_dim) != expected_shape
+    ):
+        raise ValueError("portable Engram dimensions conflict with configured memory")
+    if expected_ngram_size is not None and manifest.ngram_size != expected_ngram_size:
+        raise ValueError("portable Engram addressing conflicts with configured memory")
+    if expected_ngram_size is not None and (
+        manifest.normalization != "raw-utf8-v1"
+        or manifest.hashing != "poly257-terminal-v1"
+    ):
+        raise ValueError("portable Engram addressing algorithm is unsupported")
+    if expected_shape is not None:
+        if table.dtype != torch.float32 or not table.is_contiguous():
+            raise ValueError("portable training tables must be contiguous FP32")
+        if any(
+            not torch.isfinite(chunk).all() for chunk in table.view(-1).split(1 << 20)
+        ):
+            raise ValueError("portable training table contains nonfinite weights")
     return PortableEngram(manifest, table)
 
 

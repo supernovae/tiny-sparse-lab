@@ -1,0 +1,135 @@
+{
+  "checks": [
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab --help",
+      "result": "exit 0; installed CLI listed all command groups"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab inspect /Users/bymiller/src/tiny-sparse-lab/configs/runtime_smoke_cpu.yaml --json",
+      "result": "exit 0; shape-only CPU report total=10800 and memory result=LIKELY_TO_FIT"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab checkpoint inspect <copied-runs>/assistant-mlx/checkpoints/latest.json --json",
+      "result": "exit 0; MLX/metal generation step_00000001_gen_000002 inspected without SDK"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab checkpoint verify <copied-runs>/assistant-mlx/checkpoints/latest.json --json",
+      "result": "exit 0; valid=true resume_level=full; training_state.json, optimizer.safetensors and weights-00001.safetensors hashes verified without MLX SDK"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab train <owned-copied-input-config> --run-id wheel-owned-input-run",
+      "result": "exit 0; CPU run committed 1 update and 26 targets, reaching the token budget before the configured 2-step ceiling"
+    },
+    {
+      "command": "remove owned copied tokenizer/data inputs; env -u PYTHONPATH <venv>/bin/sparselab eval wheel-owned-input-run --runs-dir <fresh-runs> --backend cpu",
+      "result": "exit 0; loss=6.191512227058411, perplexity=488.5843983886037, valid_targets=64"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab generate wheel-owned-input-run --prompt The --max-new-tokens 4 --runs-dir <fresh-runs> --backend cpu",
+      "result": "exit 0; TheTheTheTheThe"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab evidence wheel-owned-input-run --runs-dir <fresh-runs> --json",
+      "result": "exit 0; checkpointed_held_out with two verified generations"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab eval assistant-mlx --runs-dir <copied-runs> --backend metal",
+      "result": "exit 1; ModuleNotFoundError: No module named mlx; no PyTorch/CPU fallback"
+    },
+    {
+      "command": "env -u PYTHONPATH <venv>/bin/sparselab dashboard --runs-dir <copied-runs> --port 8518",
+      "result": "supervised wheel-dashboard-8518 ready at http://127.0.0.1:8518"
+    }
+  ],
+  "copied_database": {
+    "destination": "/tmp/sparselab-core-wheel-20260922/runs/experiments.sqlite3",
+    "integrity_check": "ok",
+    "method": "sqlite3.Connection.backup",
+    "source": "/tmp/sparselab-cli-accepted-tZOwE3/runs/experiments.sqlite3"
+  },
+  "date": "2026-09-22",
+  "isolation": {
+    "checkout_on_sys_path": false,
+    "cwd": "/tmp",
+    "mlx_find_spec": null,
+    "pythonpath_removed": true,
+    "sparselab_package_root": "/tmp/sparselab-core-wheel-20260922/venv/lib/python3.12/site-packages/sparselab"
+  },
+  "limitations": [
+    "The core-only venv intentionally lacks MLX. Native MLX evaluation fails explicitly with ModuleNotFoundError rather than falling back."
+  ],
+  "manifest_semantics": {
+    "copied_mlx": {
+      "architecture_version": "sparselab-decoder-v1",
+      "backend": "metal",
+      "continuation_kind": "FRESH",
+      "engine": "mlx",
+      "purpose": "training",
+      "run_id": "assistant-mlx",
+      "worker_id": "bymiller-mac"
+    },
+    "copied_mlx_artifact_paths_are_relative": true,
+    "fresh_cpu": {
+      "architecture_version": "sparselab-decoder-v1",
+      "backend": "cpu",
+      "continuation_kind": "FRESH",
+      "engine": "pytorch",
+      "purpose": "training",
+      "run_id": "wheel-owned-input-run",
+      "worker_id": "bymiller-mac"
+    },
+    "fresh_cpu_artifact_paths_are_relative": true
+  },
+  "packaged_help": {
+    "count": 13,
+    "empty_files": [],
+    "files": [
+      "accumulation.md",
+      "checkpoints.md",
+      "gradient-norm.md",
+      "independent-workers.md",
+      "learning-rate.md",
+      "loss.md",
+      "memory.md",
+      "moe.md",
+      "offload.md",
+      "perplexity.md",
+      "recomputation.md",
+      "runtime.md",
+      "throughput.md"
+    ]
+  },
+  "paths": {
+    "copied_runs_root": "/tmp/sparselab-core-wheel-20260922/runs",
+    "dashboard_process": "wheel-dashboard-8518",
+    "dashboard_url": "http://127.0.0.1:8518",
+    "fresh_owned_runs_root": "/tmp/sparselab-core-wheel-20260922/fresh-runs",
+    "venv": "/tmp/sparselab-core-wheel-20260922/venv",
+    "wheel": "/tmp/sparselab-core-wheel-20260922/final-dist/tiny_sparse_lab-0.1.0-py3-none-any.whl",
+    "workspace": "/tmp/sparselab-core-wheel-20260922"
+  },
+  "runs": {
+    "copied": [
+      "assistant-pytorch",
+      "assistant-mlx"
+    ],
+    "fresh": "wheel-owned-input-run",
+    "fresh_cpu_evidence_level": "checkpointed_held_out",
+    "fresh_cpu_generation": "TheTheTheTheThe",
+    "fresh_cpu_offline_eval": {
+      "checkpoint_sha256": "68d9d9c4ffccda67c924f5c76be1e2f42bd5b1b2cf3fe911eaa6d52df95869d0",
+      "loss": 6.191512227058411,
+      "perplexity": 488.5843983886037,
+      "valid_targets": 64
+    },
+    "owned_input_paths_removed_after_training": true
+  },
+  "schema_version": 1,
+  "scope": "core-only installed-wheel acceptance outside checkout",
+  "wheel": {
+    "build_command": "uv build --wheel --out-dir /tmp/sparselab-core-wheel-20260922/final-dist",
+    "install_command": "uv pip install --reinstall --python /tmp/sparselab-core-wheel-20260922/venv/bin/python <wheel>",
+    "python": "3.12.13",
+    "sha256": "f7764b997d70e8fdfb323090cd921df1d262f43f911fd741be9834119d9c5872"
+  }
+}

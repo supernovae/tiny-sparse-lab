@@ -88,7 +88,7 @@ There are two different larger-model paths:
 - **`micro_dense.yaml` through `dense_50m.yaml`:** approximately 3.3M–50.3M dense parameters, using TinyStories. The supplied scale runs have a deliberately small 204,800-target training ceiling. They are architecture/continuation experiments, not pretrained general assistants.
 - **`instruction_100m.yaml`:** **104,843,648 parameters**, an 8,192-token vocabulary, a 20-million-target training ceiling, and a synthetic instruction corpus. This is a runnable training preset, not a demonstrated 100M chat result. Twenty million repeated/synthetic targets do not establish broad language competence.
 
-The retained `scale-dense-50m` run is a historical schema-v1 story experiment. The current verified chat loader expects schema-v2 run artifacts; do not edit its archived config to pretend it is a new compatible chat model. This guide uses newly trained v2 runs. A supported legacy weight-import path is a separate compatibility task, not a prompt change.
+Historical checkpoint conversion is now available through the validated weights-only import path. It preserves source architecture/tokenizer semantics and records provenance; it does not restore a missing optimizer history or turn an old model into a useful assistant. See [compatible weight import](checkpointing.md#import-compatible-external-weights).
 
 The 100M curriculum includes arithmetic, reversing a few words, simple color questions, a definition, sentence templates, and greetings. It even prefixes requests with `Reference N:`. Different reference numbers do not imply different semantic tasks. Removing that artificial prefix is a useful development probe, but success on the repetitive curriculum is not a broad instruction-following benchmark.
 
@@ -204,7 +204,7 @@ uv run sparselab eval instruction-100m
 uv run sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
 ```
 
-Do not launch the full run solely because an estimate says `LIKELY_TO_FIT`. Inspect the actual configured backend and resource cost; use a short real run first. The `inspect` command uses tensor shapes without allocating the model, and `backend: auto` uses the same selector as training. Missing physical-capacity readings cannot certify fit. `stage --through warmup` still records requested stages without performing a measured model warmup; it is **not** a substitute for the pilot above.
+Do not launch the full run solely because an estimate says `LIKELY_TO_FIT`. Inspect the actual configured backend and resource cost; use a short real run first. The `inspect` command uses tensor shapes without allocating the model, and `backend: auto` uses the same selector as training. Missing physical-capacity readings cannot certify fit. `stage --through warmup` runs an isolated, disposable pilot and records its measured report; it is still not a substitute for the configured full run or a large-model fit guarantee.
 
 The starter and 100M recipes differ in size, optimizer settings and budget. Their scores are useful development observations, **not a controlled size comparison**. To isolate model size, copy one recipe, change only the backbone dimensions, and compare at the same observed steps/targets with `--vary scale`. Also study separate score-versus-training-budget curves; equal token budgets may undertrain a larger model.
 
@@ -340,19 +340,19 @@ That is approximately **16 bytes per parameter before activations, attention, lo
 
 Smaller microbatches with accumulation reduce the per-forward activation load while preserving the configured effective example batch. Block recomputation trades extra compute for lower activation retention. Neither eliminates weights or AdamW state. Longer sequences can increase dense attention working memory quadratically. CPU and Apple GPU unified memory are not two independent pools to add together.
 
-Use the [scaling/accounting guide](model-scaling.md) and [runtime boundary](runtime.md). Inspect explicit manageable configurations, then measure on the actual target backend. Do not use today's allocating `inspect` command as a safe billion-parameter sizing tool.
+Shape-only inspection estimates parameter, optimizer, activation, and working-memory costs without allocating the model. It is not a physical-fit result; use isolated staging and actual measurements before increasing the workload.
 
 ## 9. What must the framework gain for the next stages?
 
 | Available now | Not yet a completed capability |
 |---|---|
-| One-host PyTorch training, accumulation, optional block recomputation, verified v2 artifacts, chat, local JSONL, exact-answer cards | Arbitrary pretrained-model import, supported legacy-to-current chat conversion, automatic backbone growth |
+| Validated legacy and compatible Llama safetensor weight import | General external architectures, tokenizers, quantization, and chat-template conversion |
 | Local architecture comparisons and saved per-case outputs | Automated multi-seed aggregation, statistically justified selection, open-ended response grading |
 | Context passed in the conversation | Retrieval, tool execution, long-lived user memory, a secure application permission boundary |
-| FP32 training and reference attention implementations | Validated mixed precision, KV-cached decoding, native sparse speedups, production serving/quantization |
-| Shape-only CLI estimates and direct short training runs | Actually executed isolated smoke/warmup staging and measured large-model fit |
+| Verified bounded PyTorch KV caches and measured native MLX sparse components | Broader hardware validation, fused kernels, and production-serving guarantees |
+| Shape-only CLI estimates and isolated smoke/warmup pilots | Measured large-model fit or a general hardware-capacity guarantee |
 | One local process/device | Remote independent-worker orchestration or distributed training |
-| Optional MLX dense training | PyTorch-equivalent MLX chat/checkpoint/evidence support |
+| MLX common checkpoints, continuation, promotion, generation/chat, and held-out evidence for FP32 dense/native-sparse models | Blanket PyTorch feature or training-trajectory equivalence |
 
 Build these in response to measured bottlenecks. For broad assistant quality sooner, adapting a properly licensed pretrained instruction model is a different route from learning every capability from scratch. The current framework has no general Hugging Face weight/tokenizer/chat-template importer; do not point `--promote` at arbitrary downloaded weights and assume compatibility. Use an appropriate existing stack for that route, or implement and validate the exact architecture/tokenizer/checkpoint mapping here.
 

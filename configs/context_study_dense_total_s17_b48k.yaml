@@ -1,0 +1,69 @@
+schema_version: 2
+name: context-study-dense-total-s17-b48k
+seed: 17
+model:
+  vocab_size: 512
+  hidden_dim: 64
+  num_layers: 2
+  num_heads: 4
+  ffn_dim: 283
+  max_seq_len: 128
+tokenizer:
+  path: ../artifacts/tokenizer_context_study/tokenizer.json
+dataset:
+  source: local_chat
+  cache_dir: ../artifacts/tokenizer_context_study/prepared_data
+  train_max_documents: 24
+  validation_max_documents: 8
+  train_max_tokens: 49152
+  validation_max_tokens: 12288
+  train_path: ../data/context_override_v2/train.jsonl
+  validation_path: ../data/context_override_v2/validation.jsonl
+  license: MIT; Copyright (c) 2026 Byron Miller (MOBB); original synthetic local_chat curriculum
+training:
+  seq_len: 64
+  max_steps: 398
+  max_tokens: 49152
+  deterministic: true
+  micro_batch_size: 2
+  gradient_accumulation: 1
+optimizer:
+  name: adamw
+  peak: 0.003
+  floor: 0.0003
+  warmup_steps: 24
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-08
+  state_offload: false
+evaluation:
+  every_steps: 24
+  max_batches: 8
+checkpoint:
+  every_steps: 24
+  every_tokens: null
+  every_minutes: null
+  keep_periodic: true
+logging:
+  root_dir: ../runs
+  every_steps: 8
+  architecture_diagnostics: scalar
+runtime:
+  engine: pytorch
+  backend: cpu
+  device_index: 0
+  precision: fp32
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.9
+    budget_bytes: null
+    activation_checkpointing:
+      enabled: false
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_sequence_lengths: []
+    allowed_optimizers: []
+staging:
+  smoke_steps: 2
+  warmup_steps: 5

@@ -1,0 +1,1242 @@
+{
+  "accepted": true,
+  "address_audit_recomputed": [
+    {
+      "distinct_keys": 719,
+      "extra_distinct_key_aliases": 195,
+      "head": 0,
+      "lookups": 1728,
+      "order": 3,
+      "table_size": 1021,
+      "unordered_distinct_key_collision_pairs": 234
+    },
+    {
+      "distinct_keys": 719,
+      "extra_distinct_key_aliases": 592,
+      "head": 0,
+      "lookups": 1728,
+      "order": 3,
+      "table_size": 127,
+      "unordered_distinct_key_collision_pairs": 2009
+    },
+    {
+      "distinct_keys": 552,
+      "extra_distinct_key_aliases": 127,
+      "head": 0,
+      "lookups": 1728,
+      "order": 2,
+      "table_size": 1021,
+      "unordered_distinct_key_collision_pairs": 148
+    },
+    {
+      "distinct_keys": 719,
+      "extra_distinct_key_aliases": 195,
+      "head": 0,
+      "lookups": 1728,
+      "order": 3,
+      "table_size": 1021,
+      "unordered_distinct_key_collision_pairs": 234
+    }
+  ],
+  "card_reports": [
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 1,
+      "path": "runs/context-study-dense-s17-b24k/evaluations/capability-961e24379adf-f97e99bc5d1dd6ad5ca7f4eb55a886eefe71e10ccca7ab3089d259067ac3e7c0.json",
+      "result_digest": "f97e99bc5d1dd6ad5ca7f4eb55a886eefe71e10ccca7ab3089d259067ac3e7c0",
+      "run_id": "context-study-dense-s17-b24k",
+      "sha256": "3af6471b8ad917c2fdba5fca0a28beea1c274f34f8a1a734146e60be372b25fb"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s17-b24k/evaluations/capability-961e24379adf-c2876a292feb45f90909b172072691e5c74284d8a4d8f7dea0af61dfffa54cf5.json",
+      "result_digest": "c2876a292feb45f90909b172072691e5c74284d8a4d8f7dea0af61dfffa54cf5",
+      "run_id": "context-study-dense-s17-b24k",
+      "sha256": "bbc9e0082f7b7289cc1f73d7b03c0feb75de822e4ddfabb69cdfd9a0e28270ec"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s17-b24k/evaluations/capability-961e24379adf-5ce7f18e2778f0ecb53f45810dd0376b4e8b66856984abec2c7f90bd04422494.json",
+      "result_digest": "5ce7f18e2778f0ecb53f45810dd0376b4e8b66856984abec2c7f90bd04422494",
+      "run_id": "context-study-dense-s17-b24k",
+      "sha256": "5c400a986d891d2ed382544e0758e5bcfd01e30df90ebaf3b831390e09e040da"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s17-b24k/evaluations/capability-79c1b10de888-648bc88476d6410ea8f9b94d03985d6034d48bb16ef37f268b14e8d41da2bb7b.json",
+      "result_digest": "648bc88476d6410ea8f9b94d03985d6034d48bb16ef37f268b14e8d41da2bb7b",
+      "run_id": "context-study-engram-s17-b24k",
+      "sha256": "b1a408a5b74d69b140412b4aa85dd6f322c5240d48fef05200e5a8e04a6fa06c"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s17-b24k/evaluations/capability-79c1b10de888-2894d4085072c97a2b63fb9f2539364c3e968ab184286d6e16d3f61f0cdf0f3a.json",
+      "result_digest": "2894d4085072c97a2b63fb9f2539364c3e968ab184286d6e16d3f61f0cdf0f3a",
+      "run_id": "context-study-engram-s17-b24k",
+      "sha256": "6e47693cbc80334b4f90cc9a6e7d10bc0b0a3984a4fca5f18b3a085f1335c553"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s17-b24k/evaluations/capability-79c1b10de888-370eaeaf6fa68dbf89ffce5656ce8e23114557d010e27523f8c34b771245a9b0.json",
+      "result_digest": "370eaeaf6fa68dbf89ffce5656ce8e23114557d010e27523f8c34b771245a9b0",
+      "run_id": "context-study-engram-s17-b24k",
+      "sha256": "c569f47edf346488a186ec0b072381d18f7f342fadd3a91932ff179411a20deb"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s17-b24k/evaluations/capability-0f98e776223e-64b2c71881e000aa4bfb7541ec5eb1acb91c28b136888f4bbde37fe1b5fe8617.json",
+      "result_digest": "64b2c71881e000aa4bfb7541ec5eb1acb91c28b136888f4bbde37fe1b5fe8617",
+      "run_id": "context-study-dense-total-s17-b24k",
+      "sha256": "6d164fd9fe2c7da69033267d72c7918f73ec3c58d24b0a22259bc0230beac917"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s17-b24k/evaluations/capability-0f98e776223e-6ea5147205a051233c00afbcae29db429654579ac60271900832fc3828afdd6c.json",
+      "result_digest": "6ea5147205a051233c00afbcae29db429654579ac60271900832fc3828afdd6c",
+      "run_id": "context-study-dense-total-s17-b24k",
+      "sha256": "cf96fbacfbe4530eba4afd63cee5298610a8c2653863b933fc789e512160672e"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s17-b24k/evaluations/capability-0f98e776223e-94d7a97689fd765a9472902ffa215d5a854bdb3dc75d13b1bbac0cf765eb71ba.json",
+      "result_digest": "94d7a97689fd765a9472902ffa215d5a854bdb3dc75d13b1bbac0cf765eb71ba",
+      "run_id": "context-study-dense-total-s17-b24k",
+      "sha256": "5022864b58695f5c81819b469d6b0920afdce7e38a86fc813d8fc1beb6430164"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 4,
+      "path": "runs/context-study-dense-s17-b48k/evaluations/capability-72a6e5ac70bb-0574282ee4f01e182f5f226e1bb4cc120a01c67fff8f71a39bf10835ce776bf2.json",
+      "result_digest": "0574282ee4f01e182f5f226e1bb4cc120a01c67fff8f71a39bf10835ce776bf2",
+      "run_id": "context-study-dense-s17-b48k",
+      "sha256": "bee6c57e6c06ed4ebb9c412c12f65b1aac8429590ec6d030cbd3a6c8597f2e25"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s17-b48k/evaluations/capability-72a6e5ac70bb-5087ea76dde32a4e898ac31c1855657231cfd4ec606662b3a1e32d9eb8abc4c3.json",
+      "result_digest": "5087ea76dde32a4e898ac31c1855657231cfd4ec606662b3a1e32d9eb8abc4c3",
+      "run_id": "context-study-dense-s17-b48k",
+      "sha256": "9b3900654d8151fe03680382d160067ffa02e228ac09bd16606d31076a7d8e27"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s17-b48k/evaluations/capability-72a6e5ac70bb-f96cb6e73cd7bf93e6b3fca7ebbd1bad16532cf69ef1a102b7c0e7aeeb426582.json",
+      "result_digest": "f96cb6e73cd7bf93e6b3fca7ebbd1bad16532cf69ef1a102b7c0e7aeeb426582",
+      "run_id": "context-study-dense-s17-b48k",
+      "sha256": "7257deef245587543f0a7ee70262559efae76a5eed30b4aee42e54a7f3d18280"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 5,
+      "path": "runs/context-study-engram-s17-b48k/evaluations/capability-46062ef1ec89-a5ba6da2edc0912b2d01a5adbd3b26faae3b507ccdfd6f25510d06b8f72a00ef.json",
+      "result_digest": "a5ba6da2edc0912b2d01a5adbd3b26faae3b507ccdfd6f25510d06b8f72a00ef",
+      "run_id": "context-study-engram-s17-b48k",
+      "sha256": "b7729106a6937117b707fa9a4b5e62b8e2a6d48c53aef715bccac69ffdbb20bf"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 1,
+      "path": "runs/context-study-engram-s17-b48k/evaluations/capability-46062ef1ec89-1ff736d602e5ca9bfe972b3a1437f47cc238eab3c6b2ea57e58a8db98c8b9ea2.json",
+      "result_digest": "1ff736d602e5ca9bfe972b3a1437f47cc238eab3c6b2ea57e58a8db98c8b9ea2",
+      "run_id": "context-study-engram-s17-b48k",
+      "sha256": "63a1d0f82e48cc44382c5e0aefb54d27c0938132d89971df81601b0c2c355ee7"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s17-b48k/evaluations/capability-46062ef1ec89-626722f584a2e4ad99ff8d8d068a51ba0cbe6fd7b46a84e0a35117d9eefc7aa8.json",
+      "result_digest": "626722f584a2e4ad99ff8d8d068a51ba0cbe6fd7b46a84e0a35117d9eefc7aa8",
+      "run_id": "context-study-engram-s17-b48k",
+      "sha256": "3c2a559356083ffba00fa000b7d6ef9fb8ee0b3922caf7d6530bcb81b90fd5ee"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 5,
+      "path": "runs/context-study-dense-total-s17-b48k/evaluations/capability-64b0b758af2f-f98bcd24576186b8973c34f54aa0b38aca029d23f9bd713d1a40f7ff6c3cad8e.json",
+      "result_digest": "f98bcd24576186b8973c34f54aa0b38aca029d23f9bd713d1a40f7ff6c3cad8e",
+      "run_id": "context-study-dense-total-s17-b48k",
+      "sha256": "5e5e54a5eb8c1465f7941c3dc186b642bab337f74e3bcb788619ef7087a6b238"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s17-b48k/evaluations/capability-64b0b758af2f-a552db9dc1eee6815bc0b7eab9cafc41ca76974424347003f1f62f22ca98b4b6.json",
+      "result_digest": "a552db9dc1eee6815bc0b7eab9cafc41ca76974424347003f1f62f22ca98b4b6",
+      "run_id": "context-study-dense-total-s17-b48k",
+      "sha256": "24b622f492e145c39e7fb89c19ab6c7fcc661acdc3dbb1efce94829d7ac666ec"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s17-b48k/evaluations/capability-64b0b758af2f-ce1ad9883a7dbdedbbb0365c80ccbef91f383951376eeea72e27fbe7283ddacd.json",
+      "result_digest": "ce1ad9883a7dbdedbbb0365c80ccbef91f383951376eeea72e27fbe7283ddacd",
+      "run_id": "context-study-dense-total-s17-b48k",
+      "sha256": "d572c5f612c23b00e1703ded577234515b03b2ecec5f21c68c97828969d85b48"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 6,
+      "path": "runs/context-study-engram-collision127-s17-b48k/evaluations/capability-09fc3c92cf3d-b21650da10e438dd4ddd1e8ef4c9eb75a37682a7d9792be81047213145e553f0.json",
+      "result_digest": "b21650da10e438dd4ddd1e8ef4c9eb75a37682a7d9792be81047213145e553f0",
+      "run_id": "context-study-engram-collision127-s17-b48k",
+      "sha256": "9ef9f45ea9825d011ce5d43050bc6c35d83acf97be21299bf90e2bb0f56594f4"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-collision127-s17-b48k/evaluations/capability-09fc3c92cf3d-4732eed8b1f933292e0d61ab230b979a574d6623ec043ba3f4e359560cc0b2f2.json",
+      "result_digest": "4732eed8b1f933292e0d61ab230b979a574d6623ec043ba3f4e359560cc0b2f2",
+      "run_id": "context-study-engram-collision127-s17-b48k",
+      "sha256": "3d5d0f7709186732d61dd432524c525981846a91f17dd06d8d80353669edcb66"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-collision127-s17-b48k/evaluations/capability-09fc3c92cf3d-45921c3debbf0bc59f8b67afa33ae2a95d7b2337f7c53b091428c7bff2064a44.json",
+      "result_digest": "45921c3debbf0bc59f8b67afa33ae2a95d7b2337f7c53b091428c7bff2064a44",
+      "run_id": "context-study-engram-collision127-s17-b48k",
+      "sha256": "3e0eb9209730a9040ab7d5e4f12c88bd5749d9a75314f0908ceb07afc1e8285f"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 4,
+      "path": "runs/context-study-engram-orders23-s17-b48k/evaluations/capability-258d9f16af6f-4c6113a8e27c59b645edcf6b37c2bb102bd2c67a0fa0fd28e022da1b06bc9f8e.json",
+      "result_digest": "4c6113a8e27c59b645edcf6b37c2bb102bd2c67a0fa0fd28e022da1b06bc9f8e",
+      "run_id": "context-study-engram-orders23-s17-b48k",
+      "sha256": "29e28038b9136024119b9fe3ba7437c483f556a305ea02a9ce00e73cdcded544"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-orders23-s17-b48k/evaluations/capability-258d9f16af6f-f8d13fec11872bc16f2a77e81ab7a160b696922c0a9dbfe33e79fdfd4127f7ff.json",
+      "result_digest": "f8d13fec11872bc16f2a77e81ab7a160b696922c0a9dbfe33e79fdfd4127f7ff",
+      "run_id": "context-study-engram-orders23-s17-b48k",
+      "sha256": "7edc1ef3b65b9fa366c2f767d313586a0413fc703123f7523a0e7fc19d1335d7"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-orders23-s17-b48k/evaluations/capability-258d9f16af6f-777e1cac532521d02ab92d559b06b0dde58d4128fd1da9aeb6d2313875c0ad65.json",
+      "result_digest": "777e1cac532521d02ab92d559b06b0dde58d4128fd1da9aeb6d2313875c0ad65",
+      "run_id": "context-study-engram-orders23-s17-b48k",
+      "sha256": "319b4b2637092c81d2090e52d2cf2bf30e9e2c5acf234c5a81b6bc7f0a90e497"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s41-b24k/evaluations/capability-bec926b15955-f3b346e08ed5ec26d9c30f4c90853bbf8e02664bda05a66d02e2b4b6dc34e061.json",
+      "result_digest": "f3b346e08ed5ec26d9c30f4c90853bbf8e02664bda05a66d02e2b4b6dc34e061",
+      "run_id": "context-study-dense-s41-b24k",
+      "sha256": "5a78d5dafb7e87b046f03c10983569769845e1b1380b2aba0256699cffdf87b2"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s41-b24k/evaluations/capability-bec926b15955-8404d3597cff5e10bbadec17304553f30278bde7badd30b00bd15d87ef7f2465.json",
+      "result_digest": "8404d3597cff5e10bbadec17304553f30278bde7badd30b00bd15d87ef7f2465",
+      "run_id": "context-study-dense-s41-b24k",
+      "sha256": "4724df756c55df9d2d78a833989c7c73e74052c461ab38f87a6089ef8f5bdb7c"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s41-b24k/evaluations/capability-bec926b15955-a41764443b2c9ee763438759ea0190d6db7cb2576949b0b8bb83304144109ad0.json",
+      "result_digest": "a41764443b2c9ee763438759ea0190d6db7cb2576949b0b8bb83304144109ad0",
+      "run_id": "context-study-dense-s41-b24k",
+      "sha256": "5f31f2ab48184369a8ca6b4582f9afd3f39595fb338dbf9160005b79ecb3fb54"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s41-b24k/evaluations/capability-69d4880c5a27-7433e184a4844caa36a13508374972c9f4461844ddc2374b50aec4ee0f1645f7.json",
+      "result_digest": "7433e184a4844caa36a13508374972c9f4461844ddc2374b50aec4ee0f1645f7",
+      "run_id": "context-study-engram-s41-b24k",
+      "sha256": "4b61d235c217782884b668a6fc5707f018f3a4b2fd5170a4cd236772c5658c82"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s41-b24k/evaluations/capability-69d4880c5a27-e31a2e5286eb35ec25f33bc77e57c3a34e7035844777c1e623897540442281e6.json",
+      "result_digest": "e31a2e5286eb35ec25f33bc77e57c3a34e7035844777c1e623897540442281e6",
+      "run_id": "context-study-engram-s41-b24k",
+      "sha256": "540e5761ae13b3f048a70c8e3825acd954bee0f9850ef05b97e74e1c9a84897f"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s41-b24k/evaluations/capability-69d4880c5a27-7d42de5dc97c3dedd9a46fe0f71990b40ad2a7096bcf3b2ade2cb428145d3bf3.json",
+      "result_digest": "7d42de5dc97c3dedd9a46fe0f71990b40ad2a7096bcf3b2ade2cb428145d3bf3",
+      "run_id": "context-study-engram-s41-b24k",
+      "sha256": "02a9c08761587da689f8d47cfdc0c35c186701dad12c246e89266bff797bd4b0"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s41-b24k/evaluations/capability-bdf5efe9fb75-bfd913decb5e324813acfb6936fd51bef36f640ff68ca213b4c02f4b1d550465.json",
+      "result_digest": "bfd913decb5e324813acfb6936fd51bef36f640ff68ca213b4c02f4b1d550465",
+      "run_id": "context-study-dense-total-s41-b24k",
+      "sha256": "65301b604a5e423df6bd510cfc162cc139c54bfcf18eb589feed69114dd0b233"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s41-b24k/evaluations/capability-bdf5efe9fb75-b412d541c29e0e4cb32dcc5b0b34b448efa48c5b38585807f23771b4e09219b7.json",
+      "result_digest": "b412d541c29e0e4cb32dcc5b0b34b448efa48c5b38585807f23771b4e09219b7",
+      "run_id": "context-study-dense-total-s41-b24k",
+      "sha256": "8701ff3e23fd22d7fe94f062f5a05d50d751b543c44a35428d56e887ce006bb4"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s41-b24k/evaluations/capability-bdf5efe9fb75-1e5b5a5777f3959655db136d64099df25b3c8f3a428c15d7bac1541f8a4323ea.json",
+      "result_digest": "1e5b5a5777f3959655db136d64099df25b3c8f3a428c15d7bac1541f8a4323ea",
+      "run_id": "context-study-dense-total-s41-b24k",
+      "sha256": "bbf43ba13dbea660d89a60d72b5e9d2c28317532f61f92132d01ba407afdab6a"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 1,
+      "path": "runs/context-study-dense-s41-b48k/evaluations/capability-70fc65fa805f-5c5c9a6e089002baf8037cc824753ec2bb9703fe599107d92958e82fb5bbb9e3.json",
+      "result_digest": "5c5c9a6e089002baf8037cc824753ec2bb9703fe599107d92958e82fb5bbb9e3",
+      "run_id": "context-study-dense-s41-b48k",
+      "sha256": "b508be434a1132010c4e8914f2d41a028fc03105d39a18f345f4f9644c966890"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s41-b48k/evaluations/capability-70fc65fa805f-c4e8b29714f630a8cb552084c20c4f7e2f5c84018f92acc7085e7eaba405f4a0.json",
+      "result_digest": "c4e8b29714f630a8cb552084c20c4f7e2f5c84018f92acc7085e7eaba405f4a0",
+      "run_id": "context-study-dense-s41-b48k",
+      "sha256": "b9748a3ac31d616084f97ce46bd93728f32cd5dee297447d8ba3fb1735c3cdef"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s41-b48k/evaluations/capability-70fc65fa805f-dd5b0ad29f4c52c4ab1fa47810c2f688de943d8b3d1b13a6769234f93c05be11.json",
+      "result_digest": "dd5b0ad29f4c52c4ab1fa47810c2f688de943d8b3d1b13a6769234f93c05be11",
+      "run_id": "context-study-dense-s41-b48k",
+      "sha256": "4f9b86d340ed97f0e7acfe598a2fe97482e78404210b7c125cb6864ce3d81015"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 4,
+      "path": "runs/context-study-engram-s41-b48k/evaluations/capability-e0503d7e5692-03f9ad8d9cf297af89c16246d26dcd0183d59c2e67822a650489f0ea6e133256.json",
+      "result_digest": "03f9ad8d9cf297af89c16246d26dcd0183d59c2e67822a650489f0ea6e133256",
+      "run_id": "context-study-engram-s41-b48k",
+      "sha256": "dbb86f42dcdbca46c3ec0ea5c68ff0510e1ad72beeb0f3e58c16ebf674f4cd50"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s41-b48k/evaluations/capability-e0503d7e5692-4e7bf5cb23e5c55436372c8e1212058c240e10e1a0771b1749fb547b001880be.json",
+      "result_digest": "4e7bf5cb23e5c55436372c8e1212058c240e10e1a0771b1749fb547b001880be",
+      "run_id": "context-study-engram-s41-b48k",
+      "sha256": "d74c1631ea9bed0f230c5f91cb02b86a55a6364732ede6dcbc0081d4d358f019"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s41-b48k/evaluations/capability-e0503d7e5692-9653f48b4e9a1ed0db24fc4b727770e0f303825557dd72199b21654fd69c55c1.json",
+      "result_digest": "9653f48b4e9a1ed0db24fc4b727770e0f303825557dd72199b21654fd69c55c1",
+      "run_id": "context-study-engram-s41-b48k",
+      "sha256": "6fda17e516bde0003d5d0439b115a78f5098727c8f6ff66cc6e97e5b56881812"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 1,
+      "path": "runs/context-study-dense-total-s41-b48k/evaluations/capability-ede7211cae3c-bb40bab46ab7e47b0219d0a8782eb5bd1e5f03beb21f26607d4c392559a0ea83.json",
+      "result_digest": "bb40bab46ab7e47b0219d0a8782eb5bd1e5f03beb21f26607d4c392559a0ea83",
+      "run_id": "context-study-dense-total-s41-b48k",
+      "sha256": "27f767553844328ecdadf97cc8613a489d0e106fd8b0cf66bde459f605da0703"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s41-b48k/evaluations/capability-ede7211cae3c-24caae7b82ca4ea8f10fc81d84873179fcc4fea5d2e3789bb0528a8954351410.json",
+      "result_digest": "24caae7b82ca4ea8f10fc81d84873179fcc4fea5d2e3789bb0528a8954351410",
+      "run_id": "context-study-dense-total-s41-b48k",
+      "sha256": "2149e59066f0e5888c94b6467215948df0695ccca60ca6472d57076344100e64"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s41-b48k/evaluations/capability-ede7211cae3c-7e4bc2c64bebf821adc2f8e1330fd053406e52cd21f66afd18c3de01b67ad180.json",
+      "result_digest": "7e4bc2c64bebf821adc2f8e1330fd053406e52cd21f66afd18c3de01b67ad180",
+      "run_id": "context-study-dense-total-s41-b48k",
+      "sha256": "a1bb814b10871dd7019bc493f0ce614768a56f0ad250d11ecc551cf646d1d4b1"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 3,
+      "path": "runs/context-study-engram-collision127-s41-b48k/evaluations/capability-7af4d4dc79ae-fc0af0a036ac5924c5e34a9726e8ce99a5a100e87af6846e6882ad3cd5f2946a.json",
+      "result_digest": "fc0af0a036ac5924c5e34a9726e8ce99a5a100e87af6846e6882ad3cd5f2946a",
+      "run_id": "context-study-engram-collision127-s41-b48k",
+      "sha256": "2a5f947726f8d00f8ca190f1cfc8febefeda9ae9e1772a481a19769c95d7dd4d"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-collision127-s41-b48k/evaluations/capability-7af4d4dc79ae-ba1ebb4f1cf5a46f86f6edee6ef97f9d984480675bc09b409508de11744a3a59.json",
+      "result_digest": "ba1ebb4f1cf5a46f86f6edee6ef97f9d984480675bc09b409508de11744a3a59",
+      "run_id": "context-study-engram-collision127-s41-b48k",
+      "sha256": "b5e06cea1e58fc273879ce60525ea1eaa9c830e5b983b861bfd2296e91a190b0"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-collision127-s41-b48k/evaluations/capability-7af4d4dc79ae-c2daeba36ac1b209a39058ec96c222c0db2dc5181e7e46692592a61c307efb1e.json",
+      "result_digest": "c2daeba36ac1b209a39058ec96c222c0db2dc5181e7e46692592a61c307efb1e",
+      "run_id": "context-study-engram-collision127-s41-b48k",
+      "sha256": "bdbadcb25eccf25dff9ab53b7fb07dcac37c84631f7b66f8d0d7cfa016439f6d"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 3,
+      "path": "runs/context-study-engram-orders23-s41-b48k/evaluations/capability-70e3e6631559-d3ecb1933744645d9374cecac88672d9cef89079e6a6fbfbbd527993d8784cf8.json",
+      "result_digest": "d3ecb1933744645d9374cecac88672d9cef89079e6a6fbfbbd527993d8784cf8",
+      "run_id": "context-study-engram-orders23-s41-b48k",
+      "sha256": "7aa76dfb1cd4a81a5e95511c7f41aba956d93913ad72437464a91d602eb687cc"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-orders23-s41-b48k/evaluations/capability-70e3e6631559-3b8a941c9878d8389661fd40d127d5da40633e1f2456d515cf1402505138101a.json",
+      "result_digest": "3b8a941c9878d8389661fd40d127d5da40633e1f2456d515cf1402505138101a",
+      "run_id": "context-study-engram-orders23-s41-b48k",
+      "sha256": "cf20d07ec589129ea4c31da50c6fecad775a22b15e4a4d064fc6df43696c180d"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-orders23-s41-b48k/evaluations/capability-70e3e6631559-7d01c885f49a48315db4772b2532faf5e6b1d1745d9fe1f105410e96762b4a83.json",
+      "result_digest": "7d01c885f49a48315db4772b2532faf5e6b1d1745d9fe1f105410e96762b4a83",
+      "run_id": "context-study-engram-orders23-s41-b48k",
+      "sha256": "54ca8b4d8975985028244fdbca0a912a2640159366b8ea487cec46d7c9c737a9"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s73-b24k/evaluations/capability-a164f0580067-f61cd85b9f85023eb374109e4474396d31b9198228c50fbebb8f89e873ca7a02.json",
+      "result_digest": "f61cd85b9f85023eb374109e4474396d31b9198228c50fbebb8f89e873ca7a02",
+      "run_id": "context-study-dense-s73-b24k",
+      "sha256": "92429602d3c922523b14cc1c5c572b1a94fab7b915ce53eab06f2243dd9a9079"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s73-b24k/evaluations/capability-a164f0580067-581b7a1d9b4ac6021492442d755318664a857ce1b1b7a6b297dea366abca711e.json",
+      "result_digest": "581b7a1d9b4ac6021492442d755318664a857ce1b1b7a6b297dea366abca711e",
+      "run_id": "context-study-dense-s73-b24k",
+      "sha256": "b440a8a204d1d86380b6c2eeabae4c8bb8af861dace360b82f52d8898f3d586f"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s73-b24k/evaluations/capability-a164f0580067-6795b5768f1956e7d20d809606ead505094b7ad493cdd75c2108472f0187d641.json",
+      "result_digest": "6795b5768f1956e7d20d809606ead505094b7ad493cdd75c2108472f0187d641",
+      "run_id": "context-study-dense-s73-b24k",
+      "sha256": "b2708c4c92a8bf61c6e793d1b499767730c36f4a25d81867432a0dfd4bad502d"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 2,
+      "path": "runs/context-study-engram-s73-b24k/evaluations/capability-f29d17416457-8e7372f9cba82fb55bdd400f8f2b9c6cf8c9587dcc662b469d1b3b9a1b12dc96.json",
+      "result_digest": "8e7372f9cba82fb55bdd400f8f2b9c6cf8c9587dcc662b469d1b3b9a1b12dc96",
+      "run_id": "context-study-engram-s73-b24k",
+      "sha256": "efa57e75b10b97896bab70065ca85509341b6c35e43a574d0891e46fac8d9840"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s73-b24k/evaluations/capability-f29d17416457-0aebd95a015158a639fe6b78b75822070437c1c77ab5bb3bcdd57798020d2747.json",
+      "result_digest": "0aebd95a015158a639fe6b78b75822070437c1c77ab5bb3bcdd57798020d2747",
+      "run_id": "context-study-engram-s73-b24k",
+      "sha256": "15b4af6c20745aaf1d201b7ae4f16df8ee790c0cbb69616e4b4d48245a7fc4f8"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s73-b24k/evaluations/capability-f29d17416457-3689ac1a5e04e434dd7e80f6f530a59ab6097ecc11f262be3d56c80d64bad6ef.json",
+      "result_digest": "3689ac1a5e04e434dd7e80f6f530a59ab6097ecc11f262be3d56c80d64bad6ef",
+      "run_id": "context-study-engram-s73-b24k",
+      "sha256": "f36ab697d9be91d7f2d1fba881636e49f3f5a3d1421a6bad1e5b472bcbfca30c"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s73-b24k/evaluations/capability-66ffd3ca3e24-94dbbf92b3bf6af00b54bdb22c64d6ae593bca693bb7b0bf12036b0b7af109b2.json",
+      "result_digest": "94dbbf92b3bf6af00b54bdb22c64d6ae593bca693bb7b0bf12036b0b7af109b2",
+      "run_id": "context-study-dense-total-s73-b24k",
+      "sha256": "19e8a7a3670d8077a8120ab68f258067dc20118b4503331f0621a8385ecb8182"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s73-b24k/evaluations/capability-66ffd3ca3e24-c33df4bae3f198f23196461d05388cc28768114210655ac974614aad1cb74810.json",
+      "result_digest": "c33df4bae3f198f23196461d05388cc28768114210655ac974614aad1cb74810",
+      "run_id": "context-study-dense-total-s73-b24k",
+      "sha256": "e2c81167679116dcbb5c7f82bf94e9ffda174a19a74309342b494916f52356b1"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s73-b24k/evaluations/capability-66ffd3ca3e24-2c9db5112803353f8f710a3d643ab96a69a4ba24540517988d25e3deb9c575b4.json",
+      "result_digest": "2c9db5112803353f8f710a3d643ab96a69a4ba24540517988d25e3deb9c575b4",
+      "run_id": "context-study-dense-total-s73-b24k",
+      "sha256": "3c63430b12c57713dcd4d9af35e6ae399d4d74da16ddce4e20afeae81e10ab38"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 3,
+      "path": "runs/context-study-dense-s73-b48k/evaluations/capability-18b361cdeb33-51360eaca932b8a38dcf9f5e84044a62899cb5217ee3397a6936ef2efe45576b.json",
+      "result_digest": "51360eaca932b8a38dcf9f5e84044a62899cb5217ee3397a6936ef2efe45576b",
+      "run_id": "context-study-dense-s73-b48k",
+      "sha256": "a228fec3bef688428841194da621e14202d7fa35c20c7d04c51099921285c34d"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s73-b48k/evaluations/capability-18b361cdeb33-f82fec8df26235e9319d499ae04958abb12fd4ac9258c9263f3fe963f3289535.json",
+      "result_digest": "f82fec8df26235e9319d499ae04958abb12fd4ac9258c9263f3fe963f3289535",
+      "run_id": "context-study-dense-s73-b48k",
+      "sha256": "ea483a5816cdceae034ce16aa8a15db4212d2fa38d96be5b5b17c5b17e4f4cb1"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-s73-b48k/evaluations/capability-18b361cdeb33-414854bb2830b8e8232c7bbe26ea9945a738577cf87da6288d48fadbc6b67562.json",
+      "result_digest": "414854bb2830b8e8232c7bbe26ea9945a738577cf87da6288d48fadbc6b67562",
+      "run_id": "context-study-dense-s73-b48k",
+      "sha256": "01bf7b27de674cca764698e13ce71ee6aee83c0276e823be11cf6a89492fa2dc"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 4,
+      "path": "runs/context-study-engram-s73-b48k/evaluations/capability-b57b93e5d232-a80d4ceff802b1906ea5be6c9c48ff50fe239c073076ec88971cf60e71a73e53.json",
+      "result_digest": "a80d4ceff802b1906ea5be6c9c48ff50fe239c073076ec88971cf60e71a73e53",
+      "run_id": "context-study-engram-s73-b48k",
+      "sha256": "bfa391c2f72bb1d6f084fccaf442bb3dad70ef2b7674615fe0a51fdc42523869"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s73-b48k/evaluations/capability-b57b93e5d232-fff59caadfb86cf1aea3e3bad1ea1a975f868755b8acd4f5341e43295922a056.json",
+      "result_digest": "fff59caadfb86cf1aea3e3bad1ea1a975f868755b8acd4f5341e43295922a056",
+      "run_id": "context-study-engram-s73-b48k",
+      "sha256": "4ac991e942e44f0b99ecfabf9197a5c22016f68330746217efd3ad9e0a60f02c"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-s73-b48k/evaluations/capability-b57b93e5d232-2f40fbc5e7401858e787aff30ccbc7592bf6c89a7e8f75adf550572cd3071f50.json",
+      "result_digest": "2f40fbc5e7401858e787aff30ccbc7592bf6c89a7e8f75adf550572cd3071f50",
+      "run_id": "context-study-engram-s73-b48k",
+      "sha256": "68adce859a7bcf431d14704dbcb8fef0c8b95e2a4f20462375962dc4677d203d"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 3,
+      "path": "runs/context-study-dense-total-s73-b48k/evaluations/capability-65e067cb97e8-2732be3ad4be4bc8182ed41873bf97687cda59d9316681bd565160a9163580a6.json",
+      "result_digest": "2732be3ad4be4bc8182ed41873bf97687cda59d9316681bd565160a9163580a6",
+      "run_id": "context-study-dense-total-s73-b48k",
+      "sha256": "76ffdd7dcf733a8457e0dba7b4cec76f7a4b191ebf344d6d263954a2aa8b72a6"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 1,
+      "path": "runs/context-study-dense-total-s73-b48k/evaluations/capability-65e067cb97e8-b7682adc94a5845906bc9f32118ef4827d5b3adea8bf5717b440e26f24bb9510.json",
+      "result_digest": "b7682adc94a5845906bc9f32118ef4827d5b3adea8bf5717b440e26f24bb9510",
+      "run_id": "context-study-dense-total-s73-b48k",
+      "sha256": "31768cbb511d2d04cf43a9752150c7ddeb670785cd17418e4f7a8a61ce9eb955"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-dense-total-s73-b48k/evaluations/capability-65e067cb97e8-182a47f9f68e135fb00025b83cdc7ae92cf82b313b656776a75d293e97f3c5f9.json",
+      "result_digest": "182a47f9f68e135fb00025b83cdc7ae92cf82b313b656776a75d293e97f3c5f9",
+      "run_id": "context-study-dense-total-s73-b48k",
+      "sha256": "728259ce430b6550d7faba0a7b5924a580798e75a0b4ffa932305c325d22fcae"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 4,
+      "path": "runs/context-study-engram-collision127-s73-b48k/evaluations/capability-f7e3c2b5d760-5674c15ffd4520597f7a70c895864f664902e9cb353dca2a12c8926e028a0cfd.json",
+      "result_digest": "5674c15ffd4520597f7a70c895864f664902e9cb353dca2a12c8926e028a0cfd",
+      "run_id": "context-study-engram-collision127-s73-b48k",
+      "sha256": "b3ca6a5781f707d12c146649bf53b1b6987135e7f30f3602aa44831b8fec611b"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-collision127-s73-b48k/evaluations/capability-f7e3c2b5d760-220e4bf9a8017aecd58ce2df026307e601d3d6247cab2bc41bdc361e0a6f7abe.json",
+      "result_digest": "220e4bf9a8017aecd58ce2df026307e601d3d6247cab2bc41bdc361e0a6f7abe",
+      "run_id": "context-study-engram-collision127-s73-b48k",
+      "sha256": "a8253dedc6d78d6b202b7db8c3e8002cb70ad71292afda50d841b0f647c1e98a"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-collision127-s73-b48k/evaluations/capability-f7e3c2b5d760-c2f4a05e40801575f65f3b34ec287d0a3abe9e09ad4060bef2d104c1fde97758.json",
+      "result_digest": "c2f4a05e40801575f65f3b34ec287d0a3abe9e09ad4060bef2d104c1fde97758",
+      "run_id": "context-study-engram-collision127-s73-b48k",
+      "sha256": "ab0e2cf9f0393a64b73503aed14f06b7f2f8d5f267122be7fc0464589a912e54"
+    },
+    {
+      "card": "context-override-acquisition-v1",
+      "cases": 8,
+      "passed": 1,
+      "path": "runs/context-study-engram-orders23-s73-b48k/evaluations/capability-28dc5e075148-b82eb6f15d2bf332163eab8f70d3554c558f59b6d926724fe5e533bf40d80a28.json",
+      "result_digest": "b82eb6f15d2bf332163eab8f70d3554c558f59b6d926724fe5e533bf40d80a28",
+      "run_id": "context-study-engram-orders23-s73-b48k",
+      "sha256": "3fa4c7da0aeed685839de8f6892c49ba37fe0f305c0838c60485c1d42a84e82e"
+    },
+    {
+      "card": "context-static-retention-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-orders23-s73-b48k/evaluations/capability-28dc5e075148-15d347528d32f4dfa3f1fe7ed4185b0c5e6ef389e999ee4ed203ab0a62db388a.json",
+      "result_digest": "15d347528d32f4dfa3f1fe7ed4185b0c5e6ef389e999ee4ed203ab0a62db388a",
+      "run_id": "context-study-engram-orders23-s73-b48k",
+      "sha256": "cd1f37bd7d70f08a155e2e43f5f3896872802508fe6b55a2e60610ae0d0f394e"
+    },
+    {
+      "card": "context-override-untouched-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/context-study-engram-orders23-s73-b48k/evaluations/capability-28dc5e075148-04b83156157b3de71a1623e713395820e1c12b621718c2e966fa094e630bf5ed.json",
+      "result_digest": "04b83156157b3de71a1623e713395820e1c12b621718c2e966fa094e630bf5ed",
+      "run_id": "context-study-engram-orders23-s73-b48k",
+      "sha256": "8f5d9aea24b73fc4090464ec49628faaafc707e1bd6e36e1c10596bf62929369"
+    },
+    {
+      "card": "path-domain-development-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed17/evaluations/capability-23ae4cc14949-1706af171a3677c5dff703b6e2db8c7239b849204de173f5dcae02e606f64eef.json",
+      "result_digest": "1706af171a3677c5dff703b6e2db8c7239b849204de173f5dcae02e606f64eef",
+      "run_id": "path-domain-pretrain-seed17",
+      "sha256": "227bd1b7e5a1b30afa0f98a8fdfad6e9dbde3a86be6ea25264234b111269f9e0"
+    },
+    {
+      "card": "path-domain-acquisition-v1",
+      "cases": 6,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed17/evaluations/capability-23ae4cc14949-936fe4feacf979cef1c7903b05ce1be7cb2aa1c14cbf1bdc5e8475b8bd9f6041.json",
+      "result_digest": "936fe4feacf979cef1c7903b05ce1be7cb2aa1c14cbf1bdc5e8475b8bd9f6041",
+      "run_id": "path-domain-pretrain-seed17",
+      "sha256": "4e7b212d0ba6a52321dfdc52ba1b5aed40ea648d7ad63cda19b617443d71d19c"
+    },
+    {
+      "card": "path-domain-frozen-v1",
+      "cases": 12,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed17/evaluations/capability-23ae4cc14949-a90c5877ce8f48c6f9adff8c1bcce43e4a59f0a028709cec75e265bfbbd1dafd.json",
+      "result_digest": "a90c5877ce8f48c6f9adff8c1bcce43e4a59f0a028709cec75e265bfbbd1dafd",
+      "run_id": "path-domain-pretrain-seed17",
+      "sha256": "0d6af4411304e97e502bb6acdf87655378e20fff28902d1a918fc53b1d19d01d"
+    },
+    {
+      "card": "path-domain-frozen-v1",
+      "cases": 12,
+      "passed": 0,
+      "path": "runs/path-domain-adapt-seed17/evaluations/capability-118cc83a6562-305bd66251d242e00877b14d28c00c44a562cb6eab923716312f8a82dd4a91c1.json",
+      "result_digest": "305bd66251d242e00877b14d28c00c44a562cb6eab923716312f8a82dd4a91c1",
+      "run_id": "path-domain-adapt-seed17",
+      "sha256": "aa4b86184007d6f1037f91d06071c7ea9b38896cf6498496f25a81842c8aa35c"
+    },
+    {
+      "card": "path-domain-acquisition-v1",
+      "cases": 6,
+      "passed": 3,
+      "path": "runs/path-domain-adapt-seed17/evaluations/capability-118cc83a6562-37ae4cb7910f400fcc34a88d9604112dcab2f0e44930751f3285dd0bb488aae0.json",
+      "result_digest": "37ae4cb7910f400fcc34a88d9604112dcab2f0e44930751f3285dd0bb488aae0",
+      "run_id": "path-domain-adapt-seed17",
+      "sha256": "0297ec862c786587b1dc550ea12f8442907a1a72d020c50d3c67590609f0f1ad"
+    },
+    {
+      "card": "path-domain-development-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/path-domain-adapt-seed17/evaluations/capability-118cc83a6562-8a96688965c881f1eb3f99f10ebf0ed83b0e4f8b9c547c2f6ece63dc02743b64.json",
+      "result_digest": "8a96688965c881f1eb3f99f10ebf0ed83b0e4f8b9c547c2f6ece63dc02743b64",
+      "run_id": "path-domain-adapt-seed17",
+      "sha256": "73a8e0a661b7e935e5d7025a506f3d9c2983250d762533896ba9b2838234dd03"
+    },
+    {
+      "card": "path-domain-acquisition-v1",
+      "cases": 6,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed41/evaluations/capability-0e47013feb7c-ba71ff1d6ae705c8a04516f9541888bab1aaf565d6a262571439dad4ad52e886.json",
+      "result_digest": "ba71ff1d6ae705c8a04516f9541888bab1aaf565d6a262571439dad4ad52e886",
+      "run_id": "path-domain-pretrain-seed41",
+      "sha256": "edf043cb2e2e1be8a6499f2947398260a4078bc34c5636515892ac49caaa1272"
+    },
+    {
+      "card": "path-domain-development-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed41/evaluations/capability-0e47013feb7c-c66392c17ea1d0a15752c97594f72eac9eb4c7ae5b4fcf469e3a9c949a910e78.json",
+      "result_digest": "c66392c17ea1d0a15752c97594f72eac9eb4c7ae5b4fcf469e3a9c949a910e78",
+      "run_id": "path-domain-pretrain-seed41",
+      "sha256": "944aa0eab0cf943dadc3609884fd3d646cdc0bf7bbe0b8a8b5d2c2da394403b1"
+    },
+    {
+      "card": "path-domain-frozen-v1",
+      "cases": 12,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed41/evaluations/capability-0e47013feb7c-fccdfe3ac1fa89901e61fc2c8b8c85d3119a441a7c3e6e15c8a14681802a6ffa.json",
+      "result_digest": "fccdfe3ac1fa89901e61fc2c8b8c85d3119a441a7c3e6e15c8a14681802a6ffa",
+      "run_id": "path-domain-pretrain-seed41",
+      "sha256": "52f72ae9a634d201073bf9009ca0f3c155bbbc540b723332007add082228b419"
+    },
+    {
+      "card": "path-domain-acquisition-v1",
+      "cases": 6,
+      "passed": 2,
+      "path": "runs/path-domain-adapt-seed41/evaluations/capability-a78c9f2d17a0-376f0e22eb297c2b6a62a0d15a8cf44f4a27a2bb887ad9dae99c4870fed6a5d1.json",
+      "result_digest": "376f0e22eb297c2b6a62a0d15a8cf44f4a27a2bb887ad9dae99c4870fed6a5d1",
+      "run_id": "path-domain-adapt-seed41",
+      "sha256": "e144451b8c3ba595f438bff962b6eef57c826c5c2c072a3d4eb6b8ea63f7b053"
+    },
+    {
+      "card": "path-domain-development-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/path-domain-adapt-seed41/evaluations/capability-a78c9f2d17a0-917131a9b6273437fbf963e87203fdcb8496588857e998173b8ad5977c03c70b.json",
+      "result_digest": "917131a9b6273437fbf963e87203fdcb8496588857e998173b8ad5977c03c70b",
+      "run_id": "path-domain-adapt-seed41",
+      "sha256": "e9e24fa2d94dda561d683b8c89a5df02cb6a51ca98c91821f6bd5dfdefc7f77a"
+    },
+    {
+      "card": "path-domain-frozen-v1",
+      "cases": 12,
+      "passed": 0,
+      "path": "runs/path-domain-adapt-seed41/evaluations/capability-a78c9f2d17a0-dbc9d1abf67b236d56c733559926262667b210adc57a30e463b926e75a212aee.json",
+      "result_digest": "dbc9d1abf67b236d56c733559926262667b210adc57a30e463b926e75a212aee",
+      "run_id": "path-domain-adapt-seed41",
+      "sha256": "8e850a48f52d4379fdb463504e77602e30a823198e6cbffd9c4cb7fa3a554c3e"
+    },
+    {
+      "card": "path-domain-acquisition-v1",
+      "cases": 6,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed73/evaluations/capability-ff67675e762b-8e02fec1f477554f42f37b84040e71fc962e26170d6be1b9513bd6229481cce5.json",
+      "result_digest": "8e02fec1f477554f42f37b84040e71fc962e26170d6be1b9513bd6229481cce5",
+      "run_id": "path-domain-pretrain-seed73",
+      "sha256": "77ab309ce962cd069289d4653f22d555011f85de9e08b3baf106dbafa63a8c16"
+    },
+    {
+      "card": "path-domain-frozen-v1",
+      "cases": 12,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed73/evaluations/capability-ff67675e762b-a57173d5ad018e1da7961f6d005c5c93f51455d8c68e84c13c599f070364254f.json",
+      "result_digest": "a57173d5ad018e1da7961f6d005c5c93f51455d8c68e84c13c599f070364254f",
+      "run_id": "path-domain-pretrain-seed73",
+      "sha256": "7f2b8c7f5333423bcc9701163f43052211eb4981a7d7d675b1e77741fd50dfe4"
+    },
+    {
+      "card": "path-domain-development-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/path-domain-pretrain-seed73/evaluations/capability-ff67675e762b-b5b769401c5cdf021ca77717bc9bb0e2f7381efc9e4ea67991abb9d59bf518b2.json",
+      "result_digest": "b5b769401c5cdf021ca77717bc9bb0e2f7381efc9e4ea67991abb9d59bf518b2",
+      "run_id": "path-domain-pretrain-seed73",
+      "sha256": "683f04aa3132a9cb12ae270dd63ce3b3cb47bca0b3b637167c24054ff21c1f26"
+    },
+    {
+      "card": "path-domain-development-v1",
+      "cases": 8,
+      "passed": 0,
+      "path": "runs/path-domain-adapt-seed73/evaluations/capability-20d703325681-31c4681aba65ea05532eddeaaa5770eafa5736dbecf318d6f2325e7e36140ec3.json",
+      "result_digest": "31c4681aba65ea05532eddeaaa5770eafa5736dbecf318d6f2325e7e36140ec3",
+      "run_id": "path-domain-adapt-seed73",
+      "sha256": "5fe9c730355877a8a6daa82010c5aa30298843b7994e4fda84e69f75201af5e2"
+    },
+    {
+      "card": "path-domain-frozen-v1",
+      "cases": 12,
+      "passed": 1,
+      "path": "runs/path-domain-adapt-seed73/evaluations/capability-20d703325681-9249292e0f33eee7118b1791275c4901da2c3b353df110428bd929d38b6299fc.json",
+      "result_digest": "9249292e0f33eee7118b1791275c4901da2c3b353df110428bd929d38b6299fc",
+      "run_id": "path-domain-adapt-seed73",
+      "sha256": "a928c9d6b61888a1e0df573ea933066b7f548793a24592707f96303b192eb092"
+    },
+    {
+      "card": "path-domain-acquisition-v1",
+      "cases": 6,
+      "passed": 4,
+      "path": "runs/path-domain-adapt-seed73/evaluations/capability-20d703325681-c1c34696ec2f848fc0829583d022d5fd78b3b37a7ac609d682ecfb9c6fa1c056.json",
+      "result_digest": "c1c34696ec2f848fc0829583d022d5fd78b3b37a7ac609d682ecfb9c6fa1c056",
+      "run_id": "path-domain-adapt-seed73",
+      "sha256": "111e652f43ee2e28e8d405869d6cea2e8473062cf340610f3e4bb3f0e016ecb8"
+    }
+  ],
+  "context_untouched_outcome": "0/8 at all 24 preregistered endpoints; no held-out context override acquisition",
+  "domain_outcome": "acquisition increases; development 0/8 at all endpoints; adapted frozen 1/36 total; severe same-input synthetic retention degradation",
+  "endpoints": [
+    {
+      "checkpoint_sha256": "c3dae0675f64bef761772f80bd4487dd3d5346d76ba1f52e943248eccca402b9",
+      "files_verified": 2,
+      "run_id": "context-study-dense-s17-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "37dc011872e47bf1f869313b73e8346dae14f5d2db6be484a9d509a8878910c6",
+      "files_verified": 2,
+      "run_id": "context-study-engram-s17-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "1eb3487c88213a1086cb15aa923a31ad13d06e96fa096a27bc4bc16bb529a299",
+      "files_verified": 2,
+      "run_id": "context-study-dense-total-s17-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "d77ec1779c608ececee60d026fc4d07edf77a97fdf5709bfc7c525ac2e7e3dd1",
+      "files_verified": 2,
+      "run_id": "context-study-dense-s17-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "b915714bc5cb65043145f19a8b97c148e7f41a7cac17447f1f1662c2c9c0ba6f",
+      "files_verified": 2,
+      "run_id": "context-study-engram-s17-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "5ecee4cc22c3e56d7093399bfc404851e938b342769558d129ea9c0c16d951d5",
+      "files_verified": 2,
+      "run_id": "context-study-dense-total-s17-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "24555feaa10a8ae6f586dbb33c1d2ed3fcfd10fca991f02dce929753c7431e70",
+      "files_verified": 2,
+      "run_id": "context-study-engram-collision127-s17-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "21c12db7ab9845e52598b04ef53cd87364ea8bd5b6ee47241e7188c7ea7263e7",
+      "files_verified": 2,
+      "run_id": "context-study-engram-orders23-s17-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "1f980ac3db41dc0e568fa040af7ee2c65f7b54c52e26442252cee092c5fa8dbe",
+      "files_verified": 2,
+      "run_id": "context-study-dense-s41-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "708ac5312403053a8ef0765ea6e36e72cb18451cbf4e83bbd944d42ce9e5aa31",
+      "files_verified": 2,
+      "run_id": "context-study-engram-s41-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "aa01e6ff5c83623d72337d3e07be471ac4f808748d20e1dd64e30cfc05216e08",
+      "files_verified": 2,
+      "run_id": "context-study-dense-total-s41-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "b2e567c36e1bf3258e09853e5d2d86a2bfbc4487d19e31086076fd9b3640450f",
+      "files_verified": 2,
+      "run_id": "context-study-dense-s41-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "8cd05915b675a546a576e456eddb1e848e179bf95ddd3df67ac5a97ef29aeb8c",
+      "files_verified": 2,
+      "run_id": "context-study-engram-s41-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "9b27e0b91d46c2b65de8e9ceeb285e2e632dcc0663ec3c96462a034b8e4bce51",
+      "files_verified": 2,
+      "run_id": "context-study-dense-total-s41-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "051409d56ae703a3541bd16acfcce306947a3e8b6f2a340f470abdd7d32785e6",
+      "files_verified": 2,
+      "run_id": "context-study-engram-collision127-s41-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "0a9f55543e7f48aae9fbfe9023be329b335fc8832e1177653f972d574449ba2e",
+      "files_verified": 2,
+      "run_id": "context-study-engram-orders23-s41-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "d6744db5003c780541ae4ca5219193845c4e86bf988e31e8f5afc7ac5e35d343",
+      "files_verified": 2,
+      "run_id": "context-study-dense-s73-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "0631cc5fe98cd27ec04e53d4aba6dabc69e15e42e3451be76e101b99c4a4df17",
+      "files_verified": 2,
+      "run_id": "context-study-engram-s73-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "b818d4c59fecc8ef4ff43d47a33257a0b366f04d3ded990dc4595627b3794fec",
+      "files_verified": 2,
+      "run_id": "context-study-dense-total-s73-b24k",
+      "step": 199,
+      "targets": 24576
+    },
+    {
+      "checkpoint_sha256": "35a0538cb14f4e994c220180f15cb08ed2c9c5287d699e92776f983c4244363b",
+      "files_verified": 2,
+      "run_id": "context-study-dense-s73-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "39aa52e42e70a3d52a54262e6cf18e9b27b03675fccb708ff1778a96ede87a8a",
+      "files_verified": 2,
+      "run_id": "context-study-engram-s73-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "aa0aa1e466531a2b3c1b756d2b2ca0ffe02f024e13635e072dcaccd7ec42ec1c",
+      "files_verified": 2,
+      "run_id": "context-study-dense-total-s73-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "8bf411ff0977f217f8ae7def885503a7f54a1133366b248b9342773795d2b275",
+      "files_verified": 2,
+      "run_id": "context-study-engram-collision127-s73-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "980cec0d93a30bc368d59a4ce6b4e1aabd3f7deac62fbe64bc0c49c2243f4478",
+      "files_verified": 2,
+      "run_id": "context-study-engram-orders23-s73-b48k",
+      "step": 398,
+      "targets": 49152
+    },
+    {
+      "checkpoint_sha256": "8b89529b1e27358c2e2f9d86214b88201e50dd5e538d7cbe2b020f97b528e2ab",
+      "files_verified": 2,
+      "run_id": "path-domain-pretrain-seed17",
+      "step": 161,
+      "targets": 30720
+    },
+    {
+      "checkpoint_sha256": "b14a7257aad790d73b1e2da2e3721cc024bace9c27171a53a7e006b23afc3fe0",
+      "files_verified": 2,
+      "run_id": "path-domain-adapt-seed17",
+      "step": 1920,
+      "targets": 30720
+    },
+    {
+      "checkpoint_sha256": "9f20a18e8629f5794be0b64e81a2da49a276ebe0f05222aebb75d7ce4ebc85de",
+      "files_verified": 2,
+      "run_id": "path-domain-pretrain-seed41",
+      "step": 161,
+      "targets": 30720
+    },
+    {
+      "checkpoint_sha256": "066fc8066a4d5c4ea0ca6c9d9f430da49d01dade6e7300a12f9dc6f0a18c8709",
+      "files_verified": 2,
+      "run_id": "path-domain-adapt-seed41",
+      "step": 1920,
+      "targets": 30720
+    },
+    {
+      "checkpoint_sha256": "d91db0ca0ba75072d5c3e3f7317fb8b4d2270be34d60c4ebc7f418703634ac45",
+      "files_verified": 2,
+      "run_id": "path-domain-pretrain-seed73",
+      "step": 161,
+      "targets": 30720
+    },
+    {
+      "checkpoint_sha256": "21418e61b536e405e84530ee25c1194000b27d8c83253cb93bbf1a23a2141c7e",
+      "files_verified": 2,
+      "run_id": "path-domain-adapt-seed73",
+      "step": 1920,
+      "targets": 30720
+    }
+  ],
+  "format": "astra-scientific-acceptance-v1",
+  "frozen_inputs_verified": 67,
+  "interpreter": "/tmp/sparselab-core-wheel-20260922/venv/bin/python",
+  "limitations": [
+    "Three seeds; descriptive comparisons, no significance claim.",
+    "No model training or capability generation rerun; existing responses were rescored and retention re-evaluated.",
+    "Collision analysis field renamed to extra_aliases without changing counts; independently recomputed unordered pair counts are separate."
+  ],
+  "package": "/tmp/sparselab-core-wheel-20260922/venv/lib/python3.12/site-packages/sparselab/__init__.py",
+  "responses_independently_rescored": 732,
+  "result_files": [
+    {
+      "path": "artifacts/studies/context_engram_2026_09_22.json",
+      "sha256": "1d7515c232362f54c5a32c467425c8009741262b0c587e62e9006c1ee4a7d38e"
+    },
+    {
+      "path": "artifacts/studies/path_domain_2026_09_22.json",
+      "sha256": "17297fce43abebbc31385508ebdc50dc4ec47d83fc9ff22f3568174ea4757919"
+    }
+  ],
+  "retention_recomputed": [
+    {
+      "batches": 30,
+      "input_run_id": "path-domain-pretrain-seed17",
+      "loss": 0.48270738257302176,
+      "perplexity": 1.6204556620632171,
+      "perplexity_unavailable_reason": null,
+      "run_id": "path-domain-pretrain-seed17",
+      "valid_targets": 2880
+    },
+    {
+      "batches": 30,
+      "input_run_id": "path-domain-pretrain-seed17",
+      "loss": 14.720103285047744,
+      "perplexity": 2470925.3771170666,
+      "perplexity_unavailable_reason": null,
+      "run_id": "path-domain-adapt-seed17",
+      "valid_targets": 2880
+    },
+    {
+      "batches": 30,
+      "input_run_id": "path-domain-pretrain-seed41",
+      "loss": 0.46399771240022447,
+      "perplexity": 1.5904193321929705,
+      "perplexity_unavailable_reason": null,
+      "run_id": "path-domain-pretrain-seed41",
+      "valid_targets": 2880
+    },
+    {
+      "batches": 30,
+      "input_run_id": "path-domain-pretrain-seed41",
+      "loss": 14.141955354478624,
+      "perplexity": 1386031.7338681242,
+      "perplexity_unavailable_reason": null,
+      "run_id": "path-domain-adapt-seed41",
+      "valid_targets": 2880
+    },
+    {
+      "batches": 30,
+      "input_run_id": "path-domain-pretrain-seed73",
+      "loss": 0.6024650639957851,
+      "perplexity": 1.826615980482484,
+      "perplexity_unavailable_reason": null,
+      "run_id": "path-domain-pretrain-seed73",
+      "valid_targets": 2880
+    },
+    {
+      "batches": 30,
+      "input_run_id": "path-domain-pretrain-seed73",
+      "loss": 13.33100251091851,
+      "perplexity": 616000.1653361802,
+      "perplexity_unavailable_reason": null,
+      "run_id": "path-domain-adapt-seed73",
+      "valid_targets": 2880
+    }
+  ],
+  "source_identity_sha256": "79c718f934af4418003214c3db213741f48b5a08751577e707e92cdd131f9474",
+  "paired_deltas_verified": [
+    {
+      "left": "context-study-engram-s17-b24k",
+      "right": "context-study-dense-s17-b24k",
+      "verified": true
+    },
+    {
+      "left": "context-study-dense-total-s17-b24k",
+      "right": "context-study-engram-s17-b24k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-s17-b48k",
+      "right": "context-study-dense-s17-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-dense-total-s17-b48k",
+      "right": "context-study-engram-s17-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-collision127-s17-b48k",
+      "right": "context-study-engram-s17-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-orders23-s17-b48k",
+      "right": "context-study-engram-s17-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-s41-b24k",
+      "right": "context-study-dense-s41-b24k",
+      "verified": true
+    },
+    {
+      "left": "context-study-dense-total-s41-b24k",
+      "right": "context-study-engram-s41-b24k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-s41-b48k",
+      "right": "context-study-dense-s41-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-dense-total-s41-b48k",
+      "right": "context-study-engram-s41-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-collision127-s41-b48k",
+      "right": "context-study-engram-s41-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-orders23-s41-b48k",
+      "right": "context-study-engram-s41-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-s73-b24k",
+      "right": "context-study-dense-s73-b24k",
+      "verified": true
+    },
+    {
+      "left": "context-study-dense-total-s73-b24k",
+      "right": "context-study-engram-s73-b24k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-s73-b48k",
+      "right": "context-study-dense-s73-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-dense-total-s73-b48k",
+      "right": "context-study-engram-s73-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-collision127-s73-b48k",
+      "right": "context-study-engram-s73-b48k",
+      "verified": true
+    },
+    {
+      "left": "context-study-engram-orders23-s73-b48k",
+      "right": "context-study-engram-s73-b48k",
+      "verified": true
+    }
+  ],
+  "analysis_metadata_correction": {
+    "field_from": "distinct_key_collision_aliasing_pairs",
+    "field_to": "distinct_key_collision_extra_aliases",
+    "values_unchanged": true,
+    "reason": "Counts excess distinct keys per bucket, not unordered colliding key pairs; actual pair counts independently archived."
+  }
+}

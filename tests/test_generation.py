@@ -13,7 +13,7 @@ from tokenizers.trainers import BpeTrainer
 
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import AttentionConfig, ModelConfig, RunConfig
-from sparselab.data.byte_hash import table_address
+from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.packing import prepare_data
 from sparselab.evaluation.chat import chat_turn
 from sparselab.evaluation.generation import _prompt_byte_addresses, generate
@@ -264,3 +264,191 @@ def test_real_tiny_model_forward_is_usable_for_generation() -> None:
 
     assert completion.startswith("hello")
     assert model.training
+
+
+@pytest.mark.parametrize("autocast", [False, True])
+@pytest.mark.parametrize(
+    "attention",
+    [
+        AttentionConfig(),
+        AttentionConfig(kind="sliding_window", window_size=2),
+        AttentionConfig(kind="mla", latent_dim=8),
+    ],
+)
+def test_incremental_cache_matches_full_prefix_logits(
+    attention: AttentionConfig,
+    autocast: bool,
+) -> None:
+    torch.manual_seed(7)
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=260,
+            hidden_dim=16,
+            num_layers=2,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=6,
+        ),
+        attention,
+    ).eval()
+    prefix = torch.tensor([[3, 7, 11], [5, 9, 15]])
+    appended = torch.tensor([[13], [17]])
+
+    tolerance = {"atol": 0.005, "rtol": 0.01} if autocast else {}
+    with torch.no_grad(), torch.autocast("cpu", dtype=torch.bfloat16, enabled=autocast):
+        full_prefix = model(prefix)
+        cached_prefix, cache = model.forward_cached(prefix, cache_capacity=6)
+        torch.testing.assert_close(cached_prefix, full_prefix, **tolerance)
+
+        full_next = model(torch.cat((prefix, appended), dim=1))[:, -1]
+        cached_next, _ = model.forward_cached(appended, cache=cache)
+        torch.testing.assert_close(cached_next[:, -1], full_next, **tolerance)
+
+
+def test_incremental_cache_is_bounded_owned_and_graph_free() -> None:
+    config = ModelConfig(
+        vocab_size=260,
+        hidden_dim=16,
+        num_layers=1,
+        num_heads=2,
+        ffn_dim=32,
+        max_seq_len=6,
+    )
+    model = DenseLM(config, AttentionConfig()).eval()
+    other = DenseLM(config, AttentionConfig()).eval()
+    prefix = torch.tensor([[3, 7]])
+    with pytest.raises(ValueError, match="explicit cache_capacity"):
+        model.forward_cached(prefix)
+
+    _, cache = model.forward_cached(prefix, cache_capacity=3)
+    key_storage = cache.layers[0].key.untyped_storage().data_ptr()
+    value_storage = cache.layers[0].value.untyped_storage().data_ptr()
+
+    logits, cache = model.forward_cached(torch.tensor([[11]]), cache=cache)
+
+    assert cache.length == 3
+    assert cache.capacity == 3
+    assert cache.allocated_bytes == 3 * (8 + 2 * config.hidden_dim * 4)
+    assert cache.layers[0].key.untyped_storage().data_ptr() == key_storage
+    assert cache.layers[0].value.untyped_storage().data_ptr() == value_storage
+    assert not logits.requires_grad
+    with pytest.raises(ValueError, match="different model"):
+        other.forward_cached(torch.tensor([[13]]), cache=cache)
+    with pytest.raises(ValueError, match="capacity"):
+        model.forward_cached(torch.tensor([[13]]), cache=cache)
+
+
+def test_cached_generation_matches_reference_across_context_rollover() -> None:
+    tokenizer = _tokenizer()
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=tokenizer.get_vocab_size(),
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=3,
+        ),
+        AttentionConfig(),
+    ).eval()
+
+    cached = generate(
+        model, tokenizer, "hello", 3, 5, torch.device("cpu"), use_cache=True
+    )
+    reference = generate(
+        model, tokenizer, "hello", 3, 5, torch.device("cpu"), use_cache=False
+    )
+
+    assert cached == reference
+
+
+def test_block_sparse_generation_reports_prefix_recompute_capability() -> None:
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=260,
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=8,
+        ),
+        AttentionConfig(kind="block_sparse", block_size=2, selected_blocks=1),
+    )
+
+    capability = model.incremental_cache_capability
+
+    assert not capability.supported
+    assert capability.reason is not None
+    assert "prefix" in capability.reason
+
+
+def test_incremental_cache_preserves_unicode_byte_memory_addresses() -> None:
+    tokenizer = _tokenizer()
+    prompt = " é"
+    prefix = _ids(tokenizer, prompt)
+    appended = _ids(tokenizer, "!")[0]
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=tokenizer.get_vocab_size(),
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=8,
+            memory="byte",
+            memory_table_size=97,
+            memory_ngram_size=3,
+            memory_dim=8,
+        ),
+        AttentionConfig(),
+    ).eval()
+    addresses = _prompt_byte_addresses(tokenizer, prompt, prefix, 97, 3)
+    prefix_ids = torch.tensor([prefix])
+    prefix_addresses = torch.tensor([addresses])
+
+    cached_prefix, cache = model.forward_cached(
+        prefix_ids, cache_capacity=8, byte_addresses=prefix_addresses
+    )
+    full_prefix = model(prefix_ids, byte_addresses=prefix_addresses)
+    torch.testing.assert_close(cached_prefix, full_prefix)
+
+    source = prompt.encode("utf-8") + token_bytes(tokenizer, appended)
+    next_address = table_address(source[-3:], 97)
+    cached_next, _ = model.forward_cached(
+        torch.tensor([[appended]]),
+        cache=cache,
+        byte_addresses=torch.tensor([[next_address]]),
+    )
+    full_ids = torch.tensor([prefix + [appended]])
+    full_addresses = torch.tensor([addresses + [next_address]])
+    torch.testing.assert_close(
+        cached_next[:, -1], model(full_ids, byte_addresses=full_addresses)[:, -1]
+    )
+
+
+def test_incremental_cache_preserves_ngram_memory_history() -> None:
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=260,
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=32,
+            max_seq_len=8,
+            memory="ngram",
+            memory_table_size=97,
+            memory_ngram_size=3,
+            memory_dim=8,
+            memory_ngram_orders=(2, 3),
+            memory_hash_heads=2,
+        ),
+        AttentionConfig(),
+    ).eval()
+    prefix = torch.tensor([[3, 7, 11, 13]])
+    appended = torch.tensor([[17]])
+
+    _, cache = model.forward_cached(prefix, cache_capacity=8)
+    cached_next, _ = model.forward_cached(appended, cache=cache)
+    full_next = model(torch.cat((prefix, appended), dim=1))[:, -1]
+
+    torch.testing.assert_close(cached_next[:, -1], full_next)

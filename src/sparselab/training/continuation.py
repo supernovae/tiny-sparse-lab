@@ -9,7 +9,11 @@ from typing import Any, Literal
 
 from sparselab.config.models import RunConfig
 from sparselab.runtime import RuntimeInfo
-from sparselab.training.checkpoints import CheckpointManager, TrainingSnapshot
+from sparselab.training.checkpoints import (
+    CheckpointManager,
+    LineageBest,
+    TrainingSnapshot,
+)
 from sparselab.training.manifest import (
     architecture_sha256,
     canonical_json,
@@ -27,6 +31,7 @@ class Continuation:
     parent_run_id: str | None = None
     parent_checkpoint_sha256: str | None = None
     decisions: tuple[dict[str, object], ...] = ()
+    lineage_best: LineageBest | None = None
 
 
 def _resume_settings(config: RunConfig) -> str:
@@ -133,6 +138,7 @@ def load_continuation(
         snapshot = manager.load(
             selected, "promote" if promote is not None else "resume"
         )
+        assert snapshot.checkpoint_sha256 is not None
         # Promotion verifies the source binding without loading its optimizer state.
         binding = manager.verify(
             selected, expected_manifest=manifest_digest, require_training_state=False
@@ -165,6 +171,9 @@ def load_continuation(
                 manifest["run_id"],
                 snapshot.checkpoint_sha256,
                 tuple(decisions),
+                manager.lineage_best_for_child(
+                    str(manifest["run_id"]), snapshot.checkpoint_sha256
+                ),
             )
         saved_config = RunConfig.model_validate(snapshot.config)
         if config_sha256(snapshot.config) != config_sha256(
@@ -231,4 +240,7 @@ def load_continuation(
             manifest["run_id"],
             snapshot.checkpoint_sha256,
             tuple(decisions),
+            manager.lineage_best_for_child(
+                str(manifest["run_id"]), snapshot.checkpoint_sha256
+            ),
         )

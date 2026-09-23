@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import torch
 from tokenizers import Tokenizer
 
-from sparselab.evaluation.generation import generate
+if TYPE_CHECKING:
+    from sparselab.engines.mlx import MLXEngine
 
 _ROLE_BOUNDARIES = ("\nUser:", "\nSystem:", "\nAssistant:")
 
@@ -96,20 +98,23 @@ def assistant_reply(completion: str, prompt: str) -> str:
 
 
 def chat_turn(
-    model: torch.nn.Module,
+    model: Any,
     tokenizer: Tokenizer,
     history: Sequence[ChatMessage],
     message: str,
     max_seq_len: int,
     max_new_tokens: int,
-    device: torch.device,
+    device: torch.device | str,
     *,
     system: str | None = None,
     temperature: float = 0.0,
     top_k: int = 0,
     seed: int = 0,
+    engine: MLXEngine | None = None,
 ) -> tuple[str, str]:
     """Generate one bounded assistant turn and return its prompt and reply."""
+    from sparselab.evaluation.generation import generate
+
     prompt, _ = prepare_chat_prompt(
         history, message, tokenizer, max_seq_len, max_new_tokens, system=system
     )
@@ -125,5 +130,6 @@ def chat_turn(
         seed=seed,
         stop_sequences=_ROLE_BOUNDARIES,
         strict_context=True,
+        engine=engine,
     )
     return prompt, assistant_reply(completion, prompt)

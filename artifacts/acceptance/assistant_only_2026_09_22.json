@@ -1,0 +1,96 @@
+{
+  "root": "/private/tmp/sparselab-cli-accepted-tZOwE3",
+  "purpose": "disposable assistant-only runtime acceptance; not a scientific model-quality claim",
+  "runs": [
+    {
+      "run_id": "assistant-pytorch",
+      "engine": "pytorch",
+      "backend": "cpu",
+      "committed_targets": 13,
+      "updates": 1,
+      "validation_targets": 33,
+      "raw_validation_tokens": 398,
+      "wholly_masked_blocks": 19,
+      "evidence_level": "checkpointed_held_out",
+      "source_identity_sha256": "756c1ca2b5caa1814f602f7b5c6809d0032834fea761dade1900394a61dc85e5",
+      "checkpoint_sha256": "60505644da1a8898fa76976d8b0efc1b125094c8b92294316976ed060821dda2",
+      "bound_supervision_sha256": "bcfebc98f51071177d4140c40c96404cc33919fe0e61019e726bfc9cdf8ee970"
+    },
+    {
+      "run_id": "assistant-mlx",
+      "engine": "mlx",
+      "backend": "metal",
+      "committed_targets": 13,
+      "updates": 1,
+      "validation_targets": 33,
+      "raw_validation_tokens": 398,
+      "wholly_masked_blocks": 19,
+      "evidence_level": "checkpointed_held_out",
+      "source_identity_sha256": "756c1ca2b5caa1814f602f7b5c6809d0032834fea761dade1900394a61dc85e5",
+      "checkpoint_sha256": "5a489596b276fbcfdccd34422f02a01d2a4762521b8c6b381450cd8cd8b24bbe",
+      "bound_supervision_sha256": "bcfebc98f51071177d4140c40c96404cc33919fe0e61019e726bfc9cdf8ee970"
+    }
+  ],
+  "commands": [
+    {
+      "args": [
+        "train",
+        "/private/tmp/sparselab-cli-accepted-tZOwE3/assistant-pytorch.yaml",
+        "--run-id",
+        "assistant-pytorch"
+      ],
+      "returncode": 0
+    },
+    {
+      "args": [
+        "evidence",
+        "assistant-pytorch",
+        "--runs-dir",
+        "/private/tmp/sparselab-cli-accepted-tZOwE3/runs",
+        "--json"
+      ],
+      "returncode": 0
+    },
+    {
+      "args": [
+        "eval",
+        "assistant-pytorch",
+        "--runs-dir",
+        "/private/tmp/sparselab-cli-accepted-tZOwE3/runs",
+        "--backend",
+        "cpu"
+      ],
+      "returncode": 0
+    },
+    {
+      "args": [
+        "train",
+        "/private/tmp/sparselab-cli-accepted-tZOwE3/assistant-mlx.yaml",
+        "--run-id",
+        "assistant-mlx"
+      ],
+      "returncode": 0
+    },
+    {
+      "args": [
+        "evidence",
+        "assistant-mlx",
+        "--runs-dir",
+        "/private/tmp/sparselab-cli-accepted-tZOwE3/runs",
+        "--json"
+      ],
+      "returncode": 0
+    },
+    {
+      "args": [
+        "eval",
+        "assistant-mlx",
+        "--runs-dir",
+        "/private/tmp/sparselab-cli-accepted-tZOwE3/runs",
+        "--backend",
+        "metal"
+      ],
+      "returncode": 0
+    }
+  ]
+}

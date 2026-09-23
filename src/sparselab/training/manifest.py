@@ -148,6 +148,8 @@ class RunManifest:
     python_version: str = field(default_factory=platform.python_version)
     artifacts: tuple[ArtifactIdentity, ...] = ()
     resource_decisions: tuple[dict[str, object], ...] = ()
+    stage_bundle_sha256: str | None = None
+    pilot_reports: tuple[dict[str, object], ...] = ()
 
     def payload(self) -> dict[str, object]:
         if self.manifest_version != MANIFEST_VERSION:
@@ -201,6 +203,8 @@ def _is_sha256(value: object) -> bool:
 
 
 def _validate_current_identity(data: dict[str, Any]) -> None:
+    if data.get("architecture_version") != ARCHITECTURE_VERSION:
+        raise ValueError("unsupported manifest architecture version")
     requested, effective = data.get("requested_config"), data.get("effective_config")
     if not isinstance(requested, Mapping) or not isinstance(effective, Mapping):
         raise TypeError(
@@ -247,7 +251,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise TypeError("manifest must be a JSON object")
     version = data.get("manifest_version")
-    if version != MANIFEST_VERSION:
+    if type(version) is not int or version != MANIFEST_VERSION:
         raise ValueError(f"unsupported manifest version: {version!r}")
     actual = data.pop("sha256", None)
     if not isinstance(actual, str) or _digest(data) != actual:

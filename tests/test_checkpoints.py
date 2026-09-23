@@ -2,26 +2,49 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
+import weakref
 from pathlib import Path
+from typing import ClassVar
 
+import numpy as np
 import pytest
 import torch
 
 from sparselab.config.loading import load_config
+from sparselab.engines.base import CanonicalTensor
 from sparselab.model.transformer import DenseLM
 from sparselab.training.checkpoints import (
     CheckpointManager,
+    LineageBest,
     TrainingSnapshot,
-    load_checkpoint,
-    save_checkpoint,
+    existing_run_recovery_report,
+    load_legacy_checkpoint,
+    verify_legacy_checkpoint,
 )
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_json, config_sha256
 from sparselab.training.optimizer import learning_rate_for_step, make_optimizer
-from sparselab.training.trainer import _safe_rng_state
+
+
+def _cpu_rng_state() -> dict[str, object]:
+    numpy_state = np.random.get_state()
+    return {
+        "python": random.getstate(),
+        "numpy_kind": numpy_state[0],
+        "numpy_keys": torch.from_numpy(numpy_state[1].copy()),
+        "numpy_pos": int(numpy_state[2]),
+        "numpy_has_gauss": int(numpy_state[3]),
+        "numpy_cached_gaussian": float(numpy_state[4]),
+        "torch": torch.get_rng_state(),
+        "device_type": "cpu",
+        "device_index": 0,
+        "device_rng": None,
+    }
 
 
 def state() -> dict[str, object]:
     return {
+        "format_version": 1,
         "model": {"weight": torch.tensor([1.0])},
         "optimizer": {},
         "schedule": {"max_steps": 2},
@@ -32,26 +55,37 @@ def state() -> dict[str, object]:
     }
 
 
-def test_checkpoint_requires_matching_manifest_hash(tmp_path: Path) -> None:
+def write_legacy_fixture(path: Path) -> None:
+    torch.save(state(), path)
+    path.with_suffix(".json").write_text(
+        json.dumps(
+            {
+                "filename": path.name,
+                "format_version": 1,
+                "step": 1,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+    )
+
+
+def test_legacy_checkpoint_reader_validates_existing_artifact(tmp_path: Path) -> None:
     path = tmp_path / "checkpoint.pt"
-    save_checkpoint(path, state())
-    loaded = load_checkpoint(path)
+    write_legacy_fixture(path)
+    report = verify_legacy_checkpoint(path)
+    assert report.valid
+    loaded = load_legacy_checkpoint(path)
     assert loaded["step"] == 1
-    assert loaded["schedule"] == {"max_steps": 2}
-    record = json.loads(path.with_suffix(".json").read_text())
-    latest = json.loads((path.parent / "latest.json").read_text())
-    assert record["format_version"] == 1
-    assert latest == record
     path.write_bytes(path.read_bytes() + b"corrupt")
-    with pytest.raises(ValueError, match="hash mismatch"):
-        load_checkpoint(path)
+    assert not verify_legacy_checkpoint(path).valid
+    with pytest.raises(ValueError, match="invalid legacy checkpoint"):
+        load_legacy_checkpoint(path)
 
 
-def test_checkpoint_requires_manifest(tmp_path: Path) -> None:
+def test_legacy_checkpoint_requires_manifest(tmp_path: Path) -> None:
     path = tmp_path / "checkpoint.pt"
     torch.save(state(), path)
-    with pytest.raises(ValueError, match="manifest missing"):
-        load_checkpoint(path)
+    assert not verify_legacy_checkpoint(path).valid
 
 
 def test_pointer_digest_must_bind_selected_generation(tmp_path: Path) -> None:
@@ -64,6 +98,36 @@ def test_pointer_digest_must_bind_selected_generation(tmp_path: Path) -> None:
     report = manager.verify(pointer)
     assert not report.valid
     assert any(error["field"] == "pointer" for error in report.errors)
+
+
+def test_config_verification_distinguishes_promotion_and_full_resume(tmp_path):
+    manager = CheckpointManager(tmp_path)
+    snapshot = _snapshot(1)
+    manager.save(snapshot)
+    config = load_config(Path("configs/smoke_cpu.yaml"))
+    pointer = tmp_path / "checkpoints" / "latest.json"
+    assert manager.verify(pointer, expected_config=config).valid
+    different_optimizer = config.model_copy(
+        update={
+            "optimizer": config.optimizer.model_copy(
+                update={"peak": config.optimizer.peak * 2}
+            )
+        }
+    )
+    assert not manager.verify(pointer, expected_config=different_optimizer).valid
+    assert manager.verify(
+        pointer, expected_config=different_optimizer, require_training_state=False
+    ).valid
+    different_attention = config.model_copy(
+        update={
+            "attention": config.attention.model_copy(
+                update={"kind": "sliding", "window_size": 4}
+            )
+        }
+    )
+    assert not manager.verify(
+        pointer, expected_config=different_attention, require_training_state=False
+    ).valid
 
 
 def test_checkpoint_verification_rejects_tampered_weight_file(tmp_path: Path) -> None:
@@ -134,7 +198,7 @@ def _snapshot(step: int, loss: float | None = None) -> TrainingSnapshot:
         config=config.model_dump(mode="json"),
         run_id="tiny",
         validation_loss=loss,
-        rng=_safe_rng_state(torch.device("cpu"), "cpu"),
+        rng=_cpu_rng_state(),
         optimizer_parameter_names={
             stored_id: names[id(parameter)]
             for stored, live in zip(
@@ -145,6 +209,52 @@ def _snapshot(step: int, loss: float | None = None) -> TrainingSnapshot:
             )
         },
     )
+
+
+def test_selected_parent_excludes_later_same_step_and_future_best(tmp_path) -> None:
+    manager = CheckpointManager(tmp_path)
+    selected = manager.save(_snapshot(1), 0.5)
+    manager.save(_snapshot(1), 0.4)
+    manager.save(_snapshot(2), 0.1)
+    lineage = manager.lineage_best_for_child("source-run", selected.manifest_sha256)
+    assert lineage == LineageBest("source-run", selected.manifest_sha256, 1, 0.5)
+
+
+def test_weight_source_saves_with_bounded_host_staging(tmp_path, monkeypatch) -> None:
+    from sparselab.training import checkpoints
+
+    snapshot = _snapshot(1)
+    original = snapshot.model
+    references = []
+
+    class BoundedSource:
+        aliases: ClassVar[dict[str, str]] = {"output.weight": "embedding.weight"}
+
+        def tensors(self):
+            for name, value in sorted(original.items()):
+                if name in self.aliases:
+                    continue
+                array = value.detach().cpu().numpy().copy()
+                references.append(weakref.ref(array))
+                if sum(reference() is not None for reference in references) > 2:
+                    raise MemoryError("bounded CPU staging budget exceeded")
+                yield CanonicalTensor(name=name, array=array, trainable=True)
+                del array
+
+    monkeypatch.setattr(checkpoints, "SHARD_BYTES", 64)
+    snapshot.model = {}
+    snapshot.weight_source = BoundedSource()
+    manager = CheckpointManager(tmp_path)
+    saved = manager.save(snapshot)
+    restored = manager.load(tmp_path / "checkpoints" / saved.relative_path)
+    config = load_config(Path("configs/smoke_cpu.yaml"))
+    expected = DenseLM(config.model, config.attention).eval()
+    observed = DenseLM(config.model, config.attention).eval()
+    expected.load_state_dict(original)
+    observed.load_state_dict(restored.model)
+    inputs = torch.arange(8).reshape(1, 8)
+    with torch.no_grad():
+        torch.testing.assert_close(observed(inputs), expected(inputs), rtol=0, atol=0)
 
 
 def test_reconcile_repairs_pointers_after_finalized_generations(tmp_path: Path) -> None:
@@ -162,6 +272,133 @@ def test_reconcile_repairs_pointers_after_finalized_generations(tmp_path: Path) 
         json.loads((checkpoints / "best.json").read_text())["relative_path"]
         == first.relative_path
     )
+
+
+def test_latest_uses_numeric_step_then_generation_order(tmp_path: Path) -> None:
+    manager = CheckpointManager(tmp_path)
+    higher_step = manager.save(_snapshot(10, 0.8), 0.8)
+    manager.save(_snapshot(2, 0.7), 0.7)
+    report = manager.reconcile()
+    assert report.record is not None
+    assert report.record.relative_path == higher_step.relative_path
+
+
+def test_explicit_corrupt_resume_never_falls_back(tmp_path: Path) -> None:
+    manager = CheckpointManager(tmp_path)
+    first = manager.save(_snapshot(1, 0.8), 0.8)
+    second = manager.save(_snapshot(2, 0.7), 0.7)
+    generation = tmp_path / "checkpoints" / second.relative_path
+    next(generation.glob("*.safetensors")).write_bytes(b"corrupt")
+    with pytest.raises(ValueError, match="invalid checkpoint"):
+        manager.load(generation)
+    recovered = manager.reconcile()
+    assert recovered.record is not None
+    assert recovered.record.relative_path == first.relative_path
+    assert recovered.rejected
+
+
+def test_fault_before_finalized_rename_preserves_published_pointers(
+    tmp_path: Path,
+) -> None:
+    stable = CheckpointManager(tmp_path)
+    first = stable.save(_snapshot(1, 0.5), 0.5)
+
+    def fail_at(point: str) -> None:
+        if point == "before_finalized_rename":
+            raise RuntimeError("injected crash")
+
+    with pytest.raises(RuntimeError, match="injected crash"):
+        CheckpointManager(tmp_path, fault_injector=fail_at).save(_snapshot(2, 0.4), 0.4)
+    latest = json.loads((tmp_path / "checkpoints/latest.json").read_text())
+    assert latest["relative_path"] == first.relative_path
+    assert len(list((tmp_path / "checkpoints").glob("step_*_gen_*"))) == 1
+
+
+def test_fault_after_finalized_rename_is_recoverable(tmp_path: Path) -> None:
+    stable = CheckpointManager(tmp_path)
+    first = stable.save(_snapshot(1, 0.5), 0.5)
+
+    def fail_at(point: str) -> None:
+        if point == "after_finalized_rename":
+            raise RuntimeError("injected crash")
+
+    with pytest.raises(RuntimeError, match="injected crash"):
+        CheckpointManager(tmp_path, fault_injector=fail_at).save(_snapshot(2, 0.4), 0.4)
+    assert (
+        json.loads((tmp_path / "checkpoints/latest.json").read_text())["relative_path"]
+        == first.relative_path
+    )
+    recovered = CheckpointManager(tmp_path).reconcile()
+    assert recovered.record is not None
+    assert recovered.record.step == 2
+
+
+def test_fault_between_pointer_publications_reconciles_best(tmp_path: Path) -> None:
+    stable = CheckpointManager(tmp_path)
+    first = stable.save(_snapshot(1, 0.5), 0.5)
+
+    projection_count = 0
+
+    def fail_at(point: str) -> None:
+        nonlocal projection_count
+        if point == "after_latest_projection_before_best_projection":
+            projection_count += 1
+            if projection_count == 2:
+                raise RuntimeError("injected crash")
+
+    with pytest.raises(RuntimeError, match="injected crash"):
+        CheckpointManager(tmp_path, fault_injector=fail_at).save(_snapshot(2, 0.4), 0.4)
+    checkpoints = tmp_path / "checkpoints"
+    assert json.loads((checkpoints / "latest.json").read_text())["step"] == 2
+    assert json.loads((checkpoints / "best.json").read_text())["relative_path"] == (
+        first.relative_path
+    )
+    CheckpointManager(tmp_path).reconcile()
+    assert json.loads((checkpoints / "best.json").read_text())["step"] == 2
+
+
+def test_lineage_best_is_available_metadata_not_local_best_pointer(
+    tmp_path: Path,
+) -> None:
+    source = CheckpointManager(tmp_path / "source")
+    inherited = LineageBest("unavailable-grandparent", "a" * 64, 3, 0.1)
+    parent = _snapshot(1, 0.2)
+    parent.lineage_best = inherited
+    record = source.save(parent, 0.2)
+    lineage = source.lineage_best_for_child("source-run", record.manifest_sha256)
+    assert lineage == inherited
+
+    child = CheckpointManager(tmp_path / "child")
+    snapshot = _snapshot(1, 0.3)
+    snapshot.lineage_best = lineage
+    child.save(snapshot, 0.3)
+    loaded = child.load(tmp_path / "child/checkpoints/latest.json")
+    assert loaded.lineage_best == inherited
+    assert (
+        json.loads((tmp_path / "child/checkpoints/best.json").read_text())["step"] == 1
+    )
+
+
+def test_existing_run_recovery_report_is_read_only(tmp_path: Path) -> None:
+    manager = CheckpointManager(tmp_path)
+    record = manager.save(_snapshot(1, 0.5), 0.5)
+    pointer = tmp_path / "checkpoints/latest.json"
+    pointer.write_text('{"relative_path":"missing"}')
+    report = existing_run_recovery_report(tmp_path)
+    assert report.record is not None
+    assert report.record.relative_path == record.relative_path
+    assert json.loads(pointer.read_text())["relative_path"] == "missing"
+
+
+def test_native_identity_hashes_the_raw_saved_config(tmp_path: Path) -> None:
+    snapshot = _snapshot(1, 0.5)
+    # A later reader may supply this default, but it must not reinterpret identity.
+    snapshot.config["logging"].pop("architecture_diagnostics")
+    record = CheckpointManager(tmp_path).save(snapshot, 0.5)
+    generation = tmp_path / "checkpoints" / record.relative_path
+    native = torch.load(generation / "training_state.pt", weights_only=True)
+    assert native["config_sha256"] == config_sha256(snapshot.config)
+    assert CheckpointManager(tmp_path).verify(generation).valid
 
 
 @pytest.mark.parametrize(

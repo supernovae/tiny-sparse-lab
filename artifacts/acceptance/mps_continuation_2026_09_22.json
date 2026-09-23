@@ -1,0 +1,2774 @@
+{
+  "commands": [
+    {
+      "args": [
+        "stage",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-gate.yaml",
+        "--through",
+        "warmup",
+        "--output",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-stages"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "/tmp/sparselab-cli-accepted-tZOwE3/mps-stages\n"
+    },
+    {
+      "args": [
+        "train",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-gate.yaml",
+        "--run-id",
+        "mps-full"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "mps-full\n"
+    },
+    {
+      "args": [
+        "train",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-gate.yaml",
+        "--run-id",
+        "mps-parent",
+        "--stop-after-step",
+        "10"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "mps-parent\n"
+    },
+    {
+      "args": [
+        "train",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-gate.yaml",
+        "--run-id",
+        "mps-child",
+        "--resume",
+        "/tmp/sparselab-cli-accepted-tZOwE3/runs/mps-parent/checkpoints/latest.json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "mps-child\n"
+    },
+    {
+      "args": [
+        "train",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-gate.yaml",
+        "--run-id",
+        "mps-rejected-cpu-resume",
+        "--resume",
+        "/tmp/sparselab-cli-accepted-tZOwE3/runs/cpu-full/checkpoints/latest.json",
+        "--allow-runtime-drift"
+      ],
+      "returncode": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"/Users/bymiller/src/tiny-sparse-lab/.venv/bin/sparselab\", line 10, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/Users/bymiller/src/tiny-sparse-lab/src/sparselab/cli/main.py\", line 821, in main\n    args.handler(args)\n  File \"/Users/bymiller/src/tiny-sparse-lab/src/sparselab/cli/main.py\", line 338, in _train\n    train(\n  File \"/Users/bymiller/src/tiny-sparse-lab/src/sparselab/training/trainer.py\", line 252, in train\n    return _train_impl(\n           ^^^^^^^^^^^^\n  File \"/Users/bymiller/src/tiny-sparse-lab/src/sparselab/training/trainer.py\", line 335, in _train_impl\n    continuation_state = load_continuation(\n                         ^^^^^^^^^^^^^^^^^^\n  File \"/Users/bymiller/src/tiny-sparse-lab/src/sparselab/training/continuation.py\", line 188, in load_continuation\n    raise ValueError(\nValueError: resume configuration differs from checkpoint; use promotion for changed scientific settings\n",
+      "stdout": ""
+    },
+    {
+      "args": [
+        "train",
+        "/tmp/sparselab-cli-accepted-tZOwE3/mps-gate.yaml",
+        "--run-id",
+        "mps-promoted",
+        "--promote",
+        "/tmp/sparselab-cli-accepted-tZOwE3/runs/cpu-full/checkpoints/latest.json",
+        "--stop-after-step",
+        "1"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "mps-promoted\n"
+    },
+    {
+      "args": [
+        "checkpoint",
+        "verify",
+        "/tmp/sparselab-cli-accepted-tZOwE3/runs/mps-child/checkpoints/latest.json",
+        "--json"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\"errors\": [], \"files\": [{\"name\": \"training_state.pt\", \"sha256\": \"d04e9bd3cb474b97eb751f7ae0f57a34dd351138d7c68ab76752b170be2240f6\"}, {\"name\": \"weights-00001.safetensors\", \"sha256\": \"30d0d913770e50dca475c340045f0df5b77e2d36f0ffb90e6d26c63856832690\"}], \"resume_level\": \"full\", \"valid\": true}\n"
+    },
+    {
+      "args": [
+        "eval",
+        "mps-child",
+        "--runs-dir",
+        "/tmp/sparselab-cli-accepted-tZOwE3/runs",
+        "--backend",
+        "mps"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "{\n  \"loss\": 5.822308540344238,\n  \"perplexity\": 337.75086582456214,\n  \"perplexity_unavailable_reason\": null,\n  \"valid_targets\": 16,\n  \"batches\": 1,\n  \"source\": \"standalone_eval\",\n  \"identity\": {\n    \"run_id\": \"mps-child\",\n    \"checkpoint_sha256\": \"254c772eebaf69dcc2bc42b2e2879f30e5400c935cca8aad5c3b1fab8afc162e\",\n    \"checkpoint_relative_path\": \"checkpoints/step_00000020_gen_000002\",\n    \"step\": 20,\n    \"tokens_seen\": 640,\n    \"config\": {\n      \"schema_version\": 2,\n      \"name\": \"runtime-smoke-cpu\",\n      \"seed\": 7,\n      \"runtime\": {\n        \"engine\": \"pytorch\",\n        \"backend\": \"mps\",\n        \"device_index\": 0,\n        \"precision\": \"fp32\",\n        \"memory\": {\n          \"policy\": \"balanced\",\n          \"max_device_memory_fraction\": 0.9,\n          \"budget_bytes\": null,\n          \"activation_checkpointing\": {\n            \"enabled\": true,\n            \"strategy\": \"transformer_block\"\n          },\n          \"activation_offload\": {\n            \"enabled\": false\n          },\n          \"allowed_sequence_lengths\": [],\n          \"allowed_optimizers\": []\n        }\n      },\n      \"model\": {\n        \"vocab_size\": 512,\n        \"hidden_dim\": 16,\n        \"num_layers\": 1,\n        \"num_heads\": 2,\n        \"ffn_dim\": 32,\n        \"max_seq_len\": 32,\n        \"rms_norm_eps\": 1e-06,\n        \"tie_embeddings\": true,\n        \"ffn\": \"dense\",\n        \"num_experts\": 1,\n        \"experts_per_token\": 1,\n        \"shared_expert\": false,\n        \"router_aux_loss_coefficient\": 0.0,\n        \"memory\": \"none\",\n        \"memory_table_size\": 0,\n        \"memory_ngram_size\": 0,\n        \"memory_dim\": 0,\n        \"memory_package_path\": null,\n        \"memory_ngram_orders\": [],\n        \"memory_hash_heads\": 1\n      },\n      \"tokenizer\": {\n        \"path\": \"/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json\"\n      },\n      \"dataset\": {\n        \"source\": \"synthetic\",\n        \"revision\": null,\n        \"dataset_config\": null,\n        \"cache_dir\": \"/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache\",\n        \"train_max_documents\": 100,\n        \"validation_max_documents\": 100,\n        \"train_max_tokens\": 129,\n        \"validation_max_tokens\": 81,\n        \"synthetic_seed\": 7,\n        \"train_path\": null,\n        \"validation_path\": null,\n        \"license\": null\n      },\n      \"training\": {\n        \"micro_batch_size\": 1,\n        \"gradient_accumulation\": 2,\n        \"seq_len\": 16,\n        \"max_steps\": 20,\n        \"max_tokens\": 640,\n        \"grad_clip_norm\": 1.0,\n        \"deterministic\": false\n      },\n      \"optimizer\": {\n        \"name\": \"adamw\",\n        \"peak\": 0.003,\n        \"floor\": 0.0003,\n        \"warmup_steps\": 2,\n        \"weight_decay\": 0.1,\n        \"betas\": [\n          0.9,\n          0.95\n        ],\n        \"eps\": 1e-08,\n        \"state_offload\": false\n      },\n      \"attention\": {\n        \"kind\": \"dense\",\n        \"rope_base\": 10000.0,\n        \"window_size\": null,\n        \"latent_dim\": null,\n        \"block_size\": null,\n        \"selected_blocks\": null\n      },\n      \"evaluation\": {\n        \"every_steps\": 10,\n        \"max_batches\": 1\n      },\n      \"checkpoint\": {\n        \"every_steps\": 10,\n        \"every_tokens\": null,\n        \"every_minutes\": null,\n        \"keep_periodic\": true\n      },\n      \"staging\": {\n        \"smoke_steps\": 2,\n        \"warmup_steps\": 5\n      },\n      \"logging\": {\n        \"root_dir\": \"/private/tmp/sparselab-cli-accepted-tZOwE3/runs\",\n        \"every_steps\": 1,\n        \"architecture_diagnostics\": \"scalar\"\n      }\n    },\n    \"tokenizer_sha256\": \"2da328a3ca5939240fb345e386db87fa4ce9c3f79ba0da196ad61cc70c1b32de\",\n    \"data_sha256\": {\n      \"train\": \"b58d3494b89eb0be2f2aadba7afbac1ddafa2838937004182a5ae87d3be40fe0\",\n      \"validation\": \"ac6d13ea15f0e531933b574e0e59f80be668d1fe05e646e6af24477133352270\"\n    },\n    \"source_identity_sha256\": \"3292cdd0cf09545264928cff49327b2e510f0d66a55f966503b714bd64ac9422\",\n    \"training_runtime\": {\n      \"engine\": \"pytorch\",\n      \"backend\": \"mps\",\n      \"device_index\": 0,\n      \"device_name\": \"Apple Metal\",\n      \"framework_version\": \"2.14.0\",\n      \"os\": \"macOS-27.0-arm64-arm-64bit\"\n    },\n    \"runtime\": {\n      \"engine\": \"pytorch\",\n      \"backend\": \"mps\",\n      \"device_index\": 0,\n      \"device_name\": \"Apple Metal\",\n      \"framework_version\": \"2.14.0\",\n      \"os\": \"macOS-27.0-arm64-arm-64bit\",\n      \"precision\": \"fp32\"\n    },\n    \"parameter_inventory\": {\n      \"total\": 10800,\n      \"trainable\": 10800,\n      \"active_per_token\": 10800,\n      \"embedding\": 8192,\n      \"attention\": 1024,\n      \"ffn\": 1536,\n      \"norm\": 48,\n      \"output_head\": 0,\n      \"expert\": 0,\n      \"routed_expert\": 0,\n      \"shared_expert\": 0,\n      \"router\": 0,\n      \"engram\": 0,\n      \"engram_table\": 0,\n      \"engram_adapter\": 0,\n      \"frozen\": 0,\n      \"expert_note\": \"not present in dense model\",\n      \"engram_note\": \"not present\",\n      \"model_weight_bytes\": 43200,\n      \"optimizer_state_bytes\": 86400,\n      \"estimated_checkpoint_bytes\": 129600\n    }\n  },\n  \"output\": \"/private/tmp/sparselab-cli-accepted-tZOwE3/runs/mps-child/evaluations/eval-6e8c0061463aa043b9cc9d931e62e46a4246fc36568f1f1bbf8215f7ec3e7db3.json\"\n}\n"
+    }
+  ],
+  "compared_fields": [
+    "model",
+    "optimizer",
+    "schedule",
+    "scaler",
+    "cursor",
+    "rng"
+  ],
+  "cpu_full_resume_rejected_before_child_creation": true,
+  "cpu_to_mps_logit_max_abs_error": 1.7881393432617188e-07,
+  "cpu_to_mps_logit_tolerance": {
+    "atol": 0.0001,
+    "rtol": 0.001
+  },
+  "floating_tolerance": {
+    "atol": 1e-06,
+    "rtol": 1e-05
+  },
+  "format_version": 1,
+  "full_and_child_targets": 640,
+  "full_and_child_updates": 20,
+  "limits": [
+    "MPS sampled peaks are lower bounds.",
+    "No bitwise MPS or large-model capacity claim."
+  ],
+  "manifests": {
+    "mps-child": {
+      "architecture_sha256": "2e382ca276c05f9799be83de6fbdff5871f04a5c7e6605b5388bd4e460ae688b",
+      "architecture_version": "sparselab-decoder-v1",
+      "artifacts": [
+        {
+          "relative_path": "data/manifest.json",
+          "sha256": "8d28b87b5576503122a5b49eecc7a69f0c85410b0b297a1fdfe4617bb79ed45c",
+          "size_bytes": 1835
+        },
+        {
+          "relative_path": "data/train.npy",
+          "sha256": "b58d3494b89eb0be2f2aadba7afbac1ddafa2838937004182a5ae87d3be40fe0",
+          "size_bytes": 644
+        },
+        {
+          "relative_path": "data/train_supervision.npy",
+          "sha256": "806e46feada4b1a7ae2f59a3261a37bb9a93484235eb8c47e0657c648ba034e1",
+          "size_bytes": 257
+        },
+        {
+          "relative_path": "data/validation.npy",
+          "sha256": "ac6d13ea15f0e531933b574e0e59f80be668d1fe05e646e6af24477133352270",
+          "size_bytes": 452
+        },
+        {
+          "relative_path": "data/validation_supervision.npy",
+          "sha256": "88085a0905db0de2ce817628945ea71e2c40cba5723a7afa8f81d32a2902ef1e",
+          "size_bytes": 209
+        },
+        {
+          "relative_path": "tokenizer.json",
+          "sha256": "2da328a3ca5939240fb345e386db87fa4ce9c3f79ba0da196ad61cc70c1b32de",
+          "size_bytes": 21124
+        },
+        {
+          "relative_path": "tokenizer_manifest.json",
+          "sha256": "7426f549d11e6a0e508a056501b90f33a5192bf7e826ba08de29c260c4d4138a",
+          "size_bytes": 550
+        }
+      ],
+      "attempt_id": null,
+      "checkpoint_sha256": "461eeb8a813b7aea73faaa0858941c11bd9b1c61eb49284a842222a3266490c7",
+      "continuation_kind": "RESUMED",
+      "created_at": "2026-09-23T00:56:24.794124+00:00",
+      "effective_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "effective_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "experiment_id": null,
+      "git_commit": null,
+      "git_dirty": null,
+      "identity_version": "run-identity-v2",
+      "manifest_version": 1,
+      "name": "runtime-smoke-cpu",
+      "package_version": null,
+      "parent_run_id": "mps-parent",
+      "pilot_reports": [],
+      "purpose": "training",
+      "python_version": "3.12.13",
+      "requested_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "requested_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "resource_decisions": [],
+      "run_id": "mps-child",
+      "runtime": {
+        "backend": "mps",
+        "device_driver_allocated_bytes": 17268736,
+        "device_free_bytes": null,
+        "device_index": 0,
+        "device_name": "Apple Metal",
+        "device_recommended_bytes": 30150672384,
+        "device_total_bytes": null,
+        "driver_version": null,
+        "engine": "pytorch",
+        "format_version": 1,
+        "framework_version": "2.14.0",
+        "limitations": [
+          "driver version unavailable through safe PyTorch APIs",
+          "accelerator runtime version unavailable through safe PyTorch APIs",
+          "physical device identity unavailable through safe PyTorch APIs"
+        ],
+        "measured_at": "2026-09-23T00:56:23.352860+00:00",
+        "measurement_source": "torch.mps",
+        "os": "macOS-27.0-arm64-arm-64bit",
+        "physical_device_id": null,
+        "precision_capabilities": [
+          "fp32",
+          "bf16",
+          "fp16"
+        ],
+        "runtime_version": null,
+        "system_available_bytes": 6998622208,
+        "system_total_bytes": 38654705664,
+        "tested_features": [
+          "forward_backward_optimizer",
+          "optimizer:adamw",
+          "activation_checkpointing"
+        ],
+        "tested_precisions": [
+          "fp32"
+        ],
+        "torch_device": "mps",
+        "validated_at": "2026-09-23T00:56:23.354087+00:00"
+      },
+      "sha256": "0a9c02b5b9674c1c79d032a29a6a1698106892bd117c7f4de0699f4709fac95b",
+      "source_identity": {
+        "algorithm": "package-path-sha256-v1",
+        "files": [
+          [
+            "__init__.py",
+            "ca85bacc7f9eae841bc884c2b660fda124f400719b86cda31992e020abb9609f"
+          ],
+          [
+            "__main__.py",
+            "d047f7862ff5c66c741c661780bc68f4f338ab0a3749db374ce1dd499368a88a"
+          ],
+          [
+            "cli/__init__.py",
+            "43f6efaf2af9d4be27de51f5c62be2c152aee0e4951f31aa4042af21846bc2d1"
+          ],
+          [
+            "cli/main.py",
+            "f14b9b002bbccf71640bb855ad504c9ce0155a0ba6b9efb40b9dda36eb7d44fc"
+          ],
+          [
+            "config/__init__.py",
+            "fe3765e5714934391d49696065a2df9a7758d3db1d82c18b4b202320918b6d27"
+          ],
+          [
+            "config/loading.py",
+            "8b0fceaa65c83c19efc097bbbd859b77140afc6cf556afc25fc46eb7e762738e"
+          ],
+          [
+            "config/migrate.py",
+            "5f1c40d6bd6fe5fb5209241fd5692e7f2c3b187ac4ca105cbca08a9d342e5b5d"
+          ],
+          [
+            "config/models.py",
+            "b9bb390f758675b8ece5a2a581cb48fa9c87ac70f46f2f9eacd4cd4ba7b79d8a"
+          ],
+          [
+            "dashboard/app.py",
+            "1879de9ee755bbba3106fbe0f81b1120287944eaa83089a7a5af6d9be2c98eee"
+          ],
+          [
+            "dashboard/help/accumulation.md",
+            "e1dde7b502886749ead7a18b5f82dfa0b9dd3f2064c14734495b7042bf6a39d0"
+          ],
+          [
+            "dashboard/help/checkpoints.md",
+            "421b314cbf75d63109e1801a47c9703d5c07cff99f5c0cb63e61352305b0350c"
+          ],
+          [
+            "dashboard/help/gradient-norm.md",
+            "681911042c78433161c2b09f629b96ee29aed7dced2dd52d571e412d86fe8db8"
+          ],
+          [
+            "dashboard/help/independent-workers.md",
+            "fb38042f8533384ccda1e0c2b62b720d73cfd2183d27cece488af96fcf0f3709"
+          ],
+          [
+            "dashboard/help/learning-rate.md",
+            "263510718dc981a71b885b86236bdd3ab970e9f377a09fac19c9ff835125b3cf"
+          ],
+          [
+            "dashboard/help/loss.md",
+            "fc8a137f21a1597b8c1ec53f4f87c4bb4156a03f8cf479c97dd0f1f5080ff909"
+          ],
+          [
+            "dashboard/help/memory.md",
+            "38e1cc7a843baffdec8fc861a0067232cea701f1df37b1dc4a07fb606e6e74af"
+          ],
+          [
+            "dashboard/help/moe.md",
+            "387f1fc707f2eeccd10bc53b83d6b8e44a9676d2d7b3ec6c6ca18b8761f73066"
+          ],
+          [
+            "dashboard/help/offload.md",
+            "a4debf4aab22264cff682cb3057b02eeb83879779df6c50c3156e8cebf7d0baf"
+          ],
+          [
+            "dashboard/help/perplexity.md",
+            "a1b9f6bc3d578fd3838ec68cfa8797bc889f559f003283d8833f0a9b2db4d05f"
+          ],
+          [
+            "dashboard/help/recomputation.md",
+            "6f2a63a0c39f22786623a9541f91692ddc6a3a66de0c3a4b55c7ee3a97d8f497"
+          ],
+          [
+            "dashboard/help/runtime.md",
+            "2933806985a1afcd9277a3eef210eb7d0da248c637aa9e0b41b541e66d62cfd9"
+          ],
+          [
+            "dashboard/help/throughput.md",
+            "44435dc9a7392b7d0078c3a0cd6fc1a727d89620a712d87674ac6d6970b7f6d2"
+          ],
+          [
+            "dashboard/queries.py",
+            "8850e78a8ae9c37e0ee6bf772a43901e5f0cb7b12cf72eeebf32e5c3daeb4d17"
+          ],
+          [
+            "data/__init__.py",
+            "b441e48342784bc29505065660e1ce53501a29c8273981eac12e4ec075df853e"
+          ],
+          [
+            "data/byte_hash.py",
+            "2954e1fcbd4d70c8504a514fd7dcbf8a5aa4f86b7d3e9093a6d3a37ebe798ba2"
+          ],
+          [
+            "data/chat_recall.py",
+            "00a685afd2324048c7e4ca2e46c42b89868da83f3f5c318f49252a279cdc7500"
+          ],
+          [
+            "data/conversations.py",
+            "9f036f81e7985d354a0af864dfe7ba144a4e5db9fb9b975c25435b830c40a7a2"
+          ],
+          [
+            "data/datasets.py",
+            "1dcc10a7ab653ef094cb3fd866215bc692a0f6dafd0b5d1c319d25488309b1b5"
+          ],
+          [
+            "data/engram_recall.py",
+            "0d9395c3c9b4a972e5e5d28c07b1e83cb4c3a9135a4e9331b539abec72dd7c57"
+          ],
+          [
+            "data/instruction_reference.py",
+            "f26e31271bee2d6531cc3fda11090cc69c8ea4188549cdb669bb9d91af7b6429"
+          ],
+          [
+            "data/packing.py",
+            "793ae170ebe23cd68f20b0537b255b7d64dcbb1a432c3fd7cf4144e33d528488"
+          ],
+          [
+            "data/synthetic.py",
+            "ebfd8f559ed92280afce0ba192aa940342dd57fba2084e295a7db9fcef48e6f8"
+          ],
+          [
+            "data/tokenizer.py",
+            "9f4d39e487545c128f7781c6c8a19dfc5cd4bf5934d893e0e82011bd8a9b47fe"
+          ],
+          [
+            "data/withheld_facts.py",
+            "82863edd4fab8be96cf8c1812b283a911026bea039496165438d58b7882296aa"
+          ],
+          [
+            "engines/__init__.py",
+            "64bff682504a5371f5481fec6b76677c3cf1451cd549d82f4bf345acde3c429b"
+          ],
+          [
+            "engines/base.py",
+            "953d2a2428c5e95764caed8b324f1c278f5c4371f4eee455c1542783732664fc"
+          ],
+          [
+            "engines/mlx.py",
+            "019adb0343d2e1efee95d705294e337da23e7d37ed1b77b2f50bfd9071d36e3a"
+          ],
+          [
+            "engines/pytorch.py",
+            "4836f5caaf88ef5f16b89c3aafd7e4b7c47b339e71d6aca50a77513a96a3f4a6"
+          ],
+          [
+            "evaluation/byte_memory_transfer.py",
+            "02311f644e86b31b2b92e636fff7d957fff382c6d47b8f0dcd79d04d12fbdfdf"
+          ],
+          [
+            "evaluation/capabilities.py",
+            "28f2f0bfde19230062e4d1918c68749754b8b1caca36d73c0219aa9abb2db643"
+          ],
+          [
+            "evaluation/chat.py",
+            "2e3578ff50a0096078d5838c81bbdd2ae17a5be912a997fff5cf069b094535a1"
+          ],
+          [
+            "evaluation/evidence.py",
+            "e9bab1e9e3b1dc7fb3a8253f69ba51ee31672a4596093cc3eabfbb8542f63f0a"
+          ],
+          [
+            "evaluation/generation.py",
+            "6f10880aff8a59c5abf87442f2e0adf829906e1024f400daba6d356af7de85ae"
+          ],
+          [
+            "evaluation/inference.py",
+            "fafa5def92bea3b82f088d49da3383f41e92ac2e8a3661850da6ea97934f14bb"
+          ],
+          [
+            "evaluation/language_model.py",
+            "ba893043a11799bcac41458cfcddbede4cbbc87a4f5f190d9f09be203961dd81"
+          ],
+          [
+            "evaluation/withheld_facts.py",
+            "a094e73a249063776c967f20a20d146613223e4337ae8df773ffa9289610adbc"
+          ],
+          [
+            "experiments/__init__.py",
+            "e182af2d5b01f86784e31503db3bb54bd452f7a30fb4d44cb1a9ecaac2046741"
+          ],
+          [
+            "experiments/matrix.py",
+            "4e6434e43c0dcaacf939502c23b3222455d952af7579b1627a06863630f8950d"
+          ],
+          [
+            "memory.py",
+            "ea062ed8067dd7a1115abbececb3cb189cfaf7b84b3d97b385954685cff6d986"
+          ],
+          [
+            "model/__init__.py",
+            "0815ca767eb754df38ff5ef4c0aa350bf5f00314d1dc14fddefee90c61859775"
+          ],
+          [
+            "model/attention/__init__.py",
+            "c2dfe8fae092968bb590136dfa418dd296c87870f14a3d4b90ec59ff6100fecc"
+          ],
+          [
+            "model/attention/dense.py",
+            "73a0b607495a9838b92ad91d23fa4a110f9004c2bd2b66b1c32b7a680e697d81"
+          ],
+          [
+            "model/attention/latent.py",
+            "9aa2bdeec85f2f007ebde1508f631df92f19565f6a54c143b78b564647106ca4"
+          ],
+          [
+            "model/attention/mlx_sparse.py",
+            "a5e0488680d33204f5530380bc61cd56a4cccf5b5f46e86b28f119c3624ce298"
+          ],
+          [
+            "model/attention/mlx_sparse_kernels.py",
+            "e4f4826e88ee6966f7ac0cbd21f62e261c33139c355bb0d65c786c1a2dbb44e4"
+          ],
+          [
+            "model/attention/sparse.py",
+            "1a39b199c20d3e2fac8a08b3c4be61a1f54dabcfbcd9ab50ac82c12e04de5be1"
+          ],
+          [
+            "model/cache.py",
+            "495cf089a695bd6ff84178c68ce0f24ad5d4f6ae9f9210cceb731b5cd7a91ee0"
+          ],
+          [
+            "model/ffn.py",
+            "6894361c8a9f051973b71c6916f24e018bc7bd29f7ddf295bace8a6161f23130"
+          ],
+          [
+            "model/inspection.py",
+            "c40255a3449088512fec44b2c4d916761f54f462745369a75793134c6622165e"
+          ],
+          [
+            "model/memory.py",
+            "bd48bd62d3a9e622cc31f2c403b8ffa097b3db9afc389fe0172cc5abdbdc6f3b"
+          ],
+          [
+            "model/mlx_dense.py",
+            "032a3c6f2e399b732e776a5d934c9f706b1fe0ae04de5cbcfe155565b7979795"
+          ],
+          [
+            "model/moe.py",
+            "68591cda243f4b8fff3919d3a258d8161f5f8e8fde81810aabbf0f12d36329a1"
+          ],
+          [
+            "model/norm.py",
+            "31d813332e09e7a8770350c70a486ee7086fe779505188a86b759e01d8fa1227"
+          ],
+          [
+            "model/portable_engram.py",
+            "c31148b80a60959a739263cc8cbbd94be4590c9ecf2aab3300a8b79b6d543b79"
+          ],
+          [
+            "model/rope.py",
+            "76fd82b67960926bbe3a2df1f1739e275f8fb08ac44aa800dcb947ccb00a29a3"
+          ],
+          [
+            "model/transformer.py",
+            "d428c7b99c4c1c6fa83bd234951d5b0f34e9907541e9c859cfabb6c1e4b08672"
+          ],
+          [
+            "runtime.py",
+            "45d5b72eb6d49786cd67c7f4ee9d9325cb9605001e22e41bfeab53b93cbb55f0"
+          ],
+          [
+            "runtime_probe.py",
+            "b109488263771e80c6e9354935aed46da616a58cb5edfa51f2872414a99b301c"
+          ],
+          [
+            "staging.py",
+            "6441d4ada22a3e79fe84976aa7cc2a95bd7e8d6eaa72050214687e8de9b1ec95"
+          ],
+          [
+            "training/checkpoints.py",
+            "90b11dc8d1fd00ca81b2d3f9f7d1e9c1f2bb66a4f4d2753235f78a4fa1d96273"
+          ],
+          [
+            "training/continuation.py",
+            "a127a2255b079bcdfa8c4e91524a362653bd753b6bd82685492524de51677ace"
+          ],
+          [
+            "training/manifest.py",
+            "aaee48e694d898401871854890833749b1995ab4c82182b9c81f95a8aae129a0"
+          ],
+          [
+            "training/metric_registry.py",
+            "fb2115e9fdf23ee6889c72fd72b6e583399e72b9be2c484b61a46326b5f21ea5"
+          ],
+          [
+            "training/metrics.py",
+            "cb0418ee94715a466e95395b091272d6e6b06062fe844b1e089884b34e0a6d22"
+          ],
+          [
+            "training/mlx_checkpoints.py",
+            "b4b7760f109e700e723232698957eda5b6961517f80a015425f8dc793c1936c2"
+          ],
+          [
+            "training/offload.py",
+            "1afab57340dbb0a1fecadad4205e27ca6bdcf3329d1e5e0afd652c63a22ac8d3"
+          ],
+          [
+            "training/optimizer.py",
+            "08e482676441924ac80b745a4589fbc49e854264918895ed1bae2d137ee1b7f3"
+          ],
+          [
+            "training/pilot.py",
+            "0ddf78fd695a4be49585c8019d3b2f8930dba948fa51e820ccbcf086ccf38b2f"
+          ],
+          [
+            "training/stages.py",
+            "95bf97a72d1e43dbc1889263d62f5e0d06872541139161680c6df61b3efc0802"
+          ],
+          [
+            "training/trainer.py",
+            "9f5d1b81163a6e3c0981041a377e05d2319becdb36bed0118c7f737ae6414651"
+          ],
+          [
+            "training/weight_import.py",
+            "a1db36fc416999fcdcfe09edffb34c931b9ed7864bb355ef2654c6abd7173932"
+          ]
+        ],
+        "sha256": "3292cdd0cf09545264928cff49327b2e510f0d66a55f966503b714bd64ac9422"
+      },
+      "stage_bundle_sha256": null,
+      "worker_id": "bymiller-mac"
+    },
+    "mps-full": {
+      "architecture_sha256": "2e382ca276c05f9799be83de6fbdff5871f04a5c7e6605b5388bd4e460ae688b",
+      "architecture_version": "sparselab-decoder-v1",
+      "artifacts": [
+        {
+          "relative_path": "data/manifest.json",
+          "sha256": "8d28b87b5576503122a5b49eecc7a69f0c85410b0b297a1fdfe4617bb79ed45c",
+          "size_bytes": 1835
+        },
+        {
+          "relative_path": "data/train.npy",
+          "sha256": "b58d3494b89eb0be2f2aadba7afbac1ddafa2838937004182a5ae87d3be40fe0",
+          "size_bytes": 644
+        },
+        {
+          "relative_path": "data/train_supervision.npy",
+          "sha256": "806e46feada4b1a7ae2f59a3261a37bb9a93484235eb8c47e0657c648ba034e1",
+          "size_bytes": 257
+        },
+        {
+          "relative_path": "data/validation.npy",
+          "sha256": "ac6d13ea15f0e531933b574e0e59f80be668d1fe05e646e6af24477133352270",
+          "size_bytes": 452
+        },
+        {
+          "relative_path": "data/validation_supervision.npy",
+          "sha256": "88085a0905db0de2ce817628945ea71e2c40cba5723a7afa8f81d32a2902ef1e",
+          "size_bytes": 209
+        },
+        {
+          "relative_path": "tokenizer.json",
+          "sha256": "2da328a3ca5939240fb345e386db87fa4ce9c3f79ba0da196ad61cc70c1b32de",
+          "size_bytes": 21124
+        },
+        {
+          "relative_path": "tokenizer_manifest.json",
+          "sha256": "7426f549d11e6a0e508a056501b90f33a5192bf7e826ba08de29c260c4d4138a",
+          "size_bytes": 550
+        }
+      ],
+      "attempt_id": null,
+      "checkpoint_sha256": null,
+      "continuation_kind": "FRESH",
+      "created_at": "2026-09-23T00:56:12.908424+00:00",
+      "effective_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "effective_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "experiment_id": null,
+      "git_commit": null,
+      "git_dirty": null,
+      "identity_version": "run-identity-v2",
+      "manifest_version": 1,
+      "name": "runtime-smoke-cpu",
+      "package_version": null,
+      "parent_run_id": null,
+      "pilot_reports": [],
+      "purpose": "training",
+      "python_version": "3.12.13",
+      "requested_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "requested_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "resource_decisions": [],
+      "run_id": "mps-full",
+      "runtime": {
+        "backend": "mps",
+        "device_driver_allocated_bytes": 17268736,
+        "device_free_bytes": null,
+        "device_index": 0,
+        "device_name": "Apple Metal",
+        "device_recommended_bytes": 30150672384,
+        "device_total_bytes": null,
+        "driver_version": null,
+        "engine": "pytorch",
+        "format_version": 1,
+        "framework_version": "2.14.0",
+        "limitations": [
+          "driver version unavailable through safe PyTorch APIs",
+          "accelerator runtime version unavailable through safe PyTorch APIs",
+          "physical device identity unavailable through safe PyTorch APIs"
+        ],
+        "measured_at": "2026-09-23T00:56:11.524308+00:00",
+        "measurement_source": "torch.mps",
+        "os": "macOS-27.0-arm64-arm-64bit",
+        "physical_device_id": null,
+        "precision_capabilities": [
+          "fp32",
+          "bf16",
+          "fp16"
+        ],
+        "runtime_version": null,
+        "system_available_bytes": 6751469568,
+        "system_total_bytes": 38654705664,
+        "tested_features": [
+          "forward_backward_optimizer",
+          "optimizer:adamw",
+          "activation_checkpointing"
+        ],
+        "tested_precisions": [
+          "fp32"
+        ],
+        "torch_device": "mps",
+        "validated_at": "2026-09-23T00:56:11.525693+00:00"
+      },
+      "sha256": "e116c139e83b2a2022610ea257903e0069af530487ca826f2895159ef257466d",
+      "source_identity": {
+        "algorithm": "package-path-sha256-v1",
+        "files": [
+          [
+            "__init__.py",
+            "ca85bacc7f9eae841bc884c2b660fda124f400719b86cda31992e020abb9609f"
+          ],
+          [
+            "__main__.py",
+            "d047f7862ff5c66c741c661780bc68f4f338ab0a3749db374ce1dd499368a88a"
+          ],
+          [
+            "cli/__init__.py",
+            "43f6efaf2af9d4be27de51f5c62be2c152aee0e4951f31aa4042af21846bc2d1"
+          ],
+          [
+            "cli/main.py",
+            "f14b9b002bbccf71640bb855ad504c9ce0155a0ba6b9efb40b9dda36eb7d44fc"
+          ],
+          [
+            "config/__init__.py",
+            "fe3765e5714934391d49696065a2df9a7758d3db1d82c18b4b202320918b6d27"
+          ],
+          [
+            "config/loading.py",
+            "8b0fceaa65c83c19efc097bbbd859b77140afc6cf556afc25fc46eb7e762738e"
+          ],
+          [
+            "config/migrate.py",
+            "5f1c40d6bd6fe5fb5209241fd5692e7f2c3b187ac4ca105cbca08a9d342e5b5d"
+          ],
+          [
+            "config/models.py",
+            "b9bb390f758675b8ece5a2a581cb48fa9c87ac70f46f2f9eacd4cd4ba7b79d8a"
+          ],
+          [
+            "dashboard/app.py",
+            "1879de9ee755bbba3106fbe0f81b1120287944eaa83089a7a5af6d9be2c98eee"
+          ],
+          [
+            "dashboard/help/accumulation.md",
+            "e1dde7b502886749ead7a18b5f82dfa0b9dd3f2064c14734495b7042bf6a39d0"
+          ],
+          [
+            "dashboard/help/checkpoints.md",
+            "421b314cbf75d63109e1801a47c9703d5c07cff99f5c0cb63e61352305b0350c"
+          ],
+          [
+            "dashboard/help/gradient-norm.md",
+            "681911042c78433161c2b09f629b96ee29aed7dced2dd52d571e412d86fe8db8"
+          ],
+          [
+            "dashboard/help/independent-workers.md",
+            "fb38042f8533384ccda1e0c2b62b720d73cfd2183d27cece488af96fcf0f3709"
+          ],
+          [
+            "dashboard/help/learning-rate.md",
+            "263510718dc981a71b885b86236bdd3ab970e9f377a09fac19c9ff835125b3cf"
+          ],
+          [
+            "dashboard/help/loss.md",
+            "fc8a137f21a1597b8c1ec53f4f87c4bb4156a03f8cf479c97dd0f1f5080ff909"
+          ],
+          [
+            "dashboard/help/memory.md",
+            "38e1cc7a843baffdec8fc861a0067232cea701f1df37b1dc4a07fb606e6e74af"
+          ],
+          [
+            "dashboard/help/moe.md",
+            "387f1fc707f2eeccd10bc53b83d6b8e44a9676d2d7b3ec6c6ca18b8761f73066"
+          ],
+          [
+            "dashboard/help/offload.md",
+            "a4debf4aab22264cff682cb3057b02eeb83879779df6c50c3156e8cebf7d0baf"
+          ],
+          [
+            "dashboard/help/perplexity.md",
+            "a1b9f6bc3d578fd3838ec68cfa8797bc889f559f003283d8833f0a9b2db4d05f"
+          ],
+          [
+            "dashboard/help/recomputation.md",
+            "6f2a63a0c39f22786623a9541f91692ddc6a3a66de0c3a4b55c7ee3a97d8f497"
+          ],
+          [
+            "dashboard/help/runtime.md",
+            "2933806985a1afcd9277a3eef210eb7d0da248c637aa9e0b41b541e66d62cfd9"
+          ],
+          [
+            "dashboard/help/throughput.md",
+            "44435dc9a7392b7d0078c3a0cd6fc1a727d89620a712d87674ac6d6970b7f6d2"
+          ],
+          [
+            "dashboard/queries.py",
+            "8850e78a8ae9c37e0ee6bf772a43901e5f0cb7b12cf72eeebf32e5c3daeb4d17"
+          ],
+          [
+            "data/__init__.py",
+            "b441e48342784bc29505065660e1ce53501a29c8273981eac12e4ec075df853e"
+          ],
+          [
+            "data/byte_hash.py",
+            "2954e1fcbd4d70c8504a514fd7dcbf8a5aa4f86b7d3e9093a6d3a37ebe798ba2"
+          ],
+          [
+            "data/chat_recall.py",
+            "00a685afd2324048c7e4ca2e46c42b89868da83f3f5c318f49252a279cdc7500"
+          ],
+          [
+            "data/conversations.py",
+            "9f036f81e7985d354a0af864dfe7ba144a4e5db9fb9b975c25435b830c40a7a2"
+          ],
+          [
+            "data/datasets.py",
+            "1dcc10a7ab653ef094cb3fd866215bc692a0f6dafd0b5d1c319d25488309b1b5"
+          ],
+          [
+            "data/engram_recall.py",
+            "0d9395c3c9b4a972e5e5d28c07b1e83cb4c3a9135a4e9331b539abec72dd7c57"
+          ],
+          [
+            "data/instruction_reference.py",
+            "f26e31271bee2d6531cc3fda11090cc69c8ea4188549cdb669bb9d91af7b6429"
+          ],
+          [
+            "data/packing.py",
+            "793ae170ebe23cd68f20b0537b255b7d64dcbb1a432c3fd7cf4144e33d528488"
+          ],
+          [
+            "data/synthetic.py",
+            "ebfd8f559ed92280afce0ba192aa940342dd57fba2084e295a7db9fcef48e6f8"
+          ],
+          [
+            "data/tokenizer.py",
+            "9f4d39e487545c128f7781c6c8a19dfc5cd4bf5934d893e0e82011bd8a9b47fe"
+          ],
+          [
+            "data/withheld_facts.py",
+            "82863edd4fab8be96cf8c1812b283a911026bea039496165438d58b7882296aa"
+          ],
+          [
+            "engines/__init__.py",
+            "64bff682504a5371f5481fec6b76677c3cf1451cd549d82f4bf345acde3c429b"
+          ],
+          [
+            "engines/base.py",
+            "953d2a2428c5e95764caed8b324f1c278f5c4371f4eee455c1542783732664fc"
+          ],
+          [
+            "engines/mlx.py",
+            "019adb0343d2e1efee95d705294e337da23e7d37ed1b77b2f50bfd9071d36e3a"
+          ],
+          [
+            "engines/pytorch.py",
+            "4836f5caaf88ef5f16b89c3aafd7e4b7c47b339e71d6aca50a77513a96a3f4a6"
+          ],
+          [
+            "evaluation/byte_memory_transfer.py",
+            "02311f644e86b31b2b92e636fff7d957fff382c6d47b8f0dcd79d04d12fbdfdf"
+          ],
+          [
+            "evaluation/capabilities.py",
+            "28f2f0bfde19230062e4d1918c68749754b8b1caca36d73c0219aa9abb2db643"
+          ],
+          [
+            "evaluation/chat.py",
+            "2e3578ff50a0096078d5838c81bbdd2ae17a5be912a997fff5cf069b094535a1"
+          ],
+          [
+            "evaluation/evidence.py",
+            "e9bab1e9e3b1dc7fb3a8253f69ba51ee31672a4596093cc3eabfbb8542f63f0a"
+          ],
+          [
+            "evaluation/generation.py",
+            "6f10880aff8a59c5abf87442f2e0adf829906e1024f400daba6d356af7de85ae"
+          ],
+          [
+            "evaluation/inference.py",
+            "fafa5def92bea3b82f088d49da3383f41e92ac2e8a3661850da6ea97934f14bb"
+          ],
+          [
+            "evaluation/language_model.py",
+            "ba893043a11799bcac41458cfcddbede4cbbc87a4f5f190d9f09be203961dd81"
+          ],
+          [
+            "evaluation/withheld_facts.py",
+            "a094e73a249063776c967f20a20d146613223e4337ae8df773ffa9289610adbc"
+          ],
+          [
+            "experiments/__init__.py",
+            "e182af2d5b01f86784e31503db3bb54bd452f7a30fb4d44cb1a9ecaac2046741"
+          ],
+          [
+            "experiments/matrix.py",
+            "4e6434e43c0dcaacf939502c23b3222455d952af7579b1627a06863630f8950d"
+          ],
+          [
+            "memory.py",
+            "ea062ed8067dd7a1115abbececb3cb189cfaf7b84b3d97b385954685cff6d986"
+          ],
+          [
+            "model/__init__.py",
+            "0815ca767eb754df38ff5ef4c0aa350bf5f00314d1dc14fddefee90c61859775"
+          ],
+          [
+            "model/attention/__init__.py",
+            "c2dfe8fae092968bb590136dfa418dd296c87870f14a3d4b90ec59ff6100fecc"
+          ],
+          [
+            "model/attention/dense.py",
+            "73a0b607495a9838b92ad91d23fa4a110f9004c2bd2b66b1c32b7a680e697d81"
+          ],
+          [
+            "model/attention/latent.py",
+            "9aa2bdeec85f2f007ebde1508f631df92f19565f6a54c143b78b564647106ca4"
+          ],
+          [
+            "model/attention/mlx_sparse.py",
+            "a5e0488680d33204f5530380bc61cd56a4cccf5b5f46e86b28f119c3624ce298"
+          ],
+          [
+            "model/attention/mlx_sparse_kernels.py",
+            "e4f4826e88ee6966f7ac0cbd21f62e261c33139c355bb0d65c786c1a2dbb44e4"
+          ],
+          [
+            "model/attention/sparse.py",
+            "1a39b199c20d3e2fac8a08b3c4be61a1f54dabcfbcd9ab50ac82c12e04de5be1"
+          ],
+          [
+            "model/cache.py",
+            "495cf089a695bd6ff84178c68ce0f24ad5d4f6ae9f9210cceb731b5cd7a91ee0"
+          ],
+          [
+            "model/ffn.py",
+            "6894361c8a9f051973b71c6916f24e018bc7bd29f7ddf295bace8a6161f23130"
+          ],
+          [
+            "model/inspection.py",
+            "c40255a3449088512fec44b2c4d916761f54f462745369a75793134c6622165e"
+          ],
+          [
+            "model/memory.py",
+            "bd48bd62d3a9e622cc31f2c403b8ffa097b3db9afc389fe0172cc5abdbdc6f3b"
+          ],
+          [
+            "model/mlx_dense.py",
+            "032a3c6f2e399b732e776a5d934c9f706b1fe0ae04de5cbcfe155565b7979795"
+          ],
+          [
+            "model/moe.py",
+            "68591cda243f4b8fff3919d3a258d8161f5f8e8fde81810aabbf0f12d36329a1"
+          ],
+          [
+            "model/norm.py",
+            "31d813332e09e7a8770350c70a486ee7086fe779505188a86b759e01d8fa1227"
+          ],
+          [
+            "model/portable_engram.py",
+            "c31148b80a60959a739263cc8cbbd94be4590c9ecf2aab3300a8b79b6d543b79"
+          ],
+          [
+            "model/rope.py",
+            "76fd82b67960926bbe3a2df1f1739e275f8fb08ac44aa800dcb947ccb00a29a3"
+          ],
+          [
+            "model/transformer.py",
+            "d428c7b99c4c1c6fa83bd234951d5b0f34e9907541e9c859cfabb6c1e4b08672"
+          ],
+          [
+            "runtime.py",
+            "45d5b72eb6d49786cd67c7f4ee9d9325cb9605001e22e41bfeab53b93cbb55f0"
+          ],
+          [
+            "runtime_probe.py",
+            "b109488263771e80c6e9354935aed46da616a58cb5edfa51f2872414a99b301c"
+          ],
+          [
+            "staging.py",
+            "6441d4ada22a3e79fe84976aa7cc2a95bd7e8d6eaa72050214687e8de9b1ec95"
+          ],
+          [
+            "training/checkpoints.py",
+            "90b11dc8d1fd00ca81b2d3f9f7d1e9c1f2bb66a4f4d2753235f78a4fa1d96273"
+          ],
+          [
+            "training/continuation.py",
+            "a127a2255b079bcdfa8c4e91524a362653bd753b6bd82685492524de51677ace"
+          ],
+          [
+            "training/manifest.py",
+            "aaee48e694d898401871854890833749b1995ab4c82182b9c81f95a8aae129a0"
+          ],
+          [
+            "training/metric_registry.py",
+            "fb2115e9fdf23ee6889c72fd72b6e583399e72b9be2c484b61a46326b5f21ea5"
+          ],
+          [
+            "training/metrics.py",
+            "cb0418ee94715a466e95395b091272d6e6b06062fe844b1e089884b34e0a6d22"
+          ],
+          [
+            "training/mlx_checkpoints.py",
+            "b4b7760f109e700e723232698957eda5b6961517f80a015425f8dc793c1936c2"
+          ],
+          [
+            "training/offload.py",
+            "1afab57340dbb0a1fecadad4205e27ca6bdcf3329d1e5e0afd652c63a22ac8d3"
+          ],
+          [
+            "training/optimizer.py",
+            "08e482676441924ac80b745a4589fbc49e854264918895ed1bae2d137ee1b7f3"
+          ],
+          [
+            "training/pilot.py",
+            "0ddf78fd695a4be49585c8019d3b2f8930dba948fa51e820ccbcf086ccf38b2f"
+          ],
+          [
+            "training/stages.py",
+            "95bf97a72d1e43dbc1889263d62f5e0d06872541139161680c6df61b3efc0802"
+          ],
+          [
+            "training/trainer.py",
+            "9f5d1b81163a6e3c0981041a377e05d2319becdb36bed0118c7f737ae6414651"
+          ],
+          [
+            "training/weight_import.py",
+            "a1db36fc416999fcdcfe09edffb34c931b9ed7864bb355ef2654c6abd7173932"
+          ]
+        ],
+        "sha256": "3292cdd0cf09545264928cff49327b2e510f0d66a55f966503b714bd64ac9422"
+      },
+      "stage_bundle_sha256": null,
+      "worker_id": "bymiller-mac"
+    },
+    "mps-parent": {
+      "architecture_sha256": "2e382ca276c05f9799be83de6fbdff5871f04a5c7e6605b5388bd4e460ae688b",
+      "architecture_version": "sparselab-decoder-v1",
+      "artifacts": [
+        {
+          "relative_path": "data/manifest.json",
+          "sha256": "8d28b87b5576503122a5b49eecc7a69f0c85410b0b297a1fdfe4617bb79ed45c",
+          "size_bytes": 1835
+        },
+        {
+          "relative_path": "data/train.npy",
+          "sha256": "b58d3494b89eb0be2f2aadba7afbac1ddafa2838937004182a5ae87d3be40fe0",
+          "size_bytes": 644
+        },
+        {
+          "relative_path": "data/train_supervision.npy",
+          "sha256": "806e46feada4b1a7ae2f59a3261a37bb9a93484235eb8c47e0657c648ba034e1",
+          "size_bytes": 257
+        },
+        {
+          "relative_path": "data/validation.npy",
+          "sha256": "ac6d13ea15f0e531933b574e0e59f80be668d1fe05e646e6af24477133352270",
+          "size_bytes": 452
+        },
+        {
+          "relative_path": "data/validation_supervision.npy",
+          "sha256": "88085a0905db0de2ce817628945ea71e2c40cba5723a7afa8f81d32a2902ef1e",
+          "size_bytes": 209
+        },
+        {
+          "relative_path": "tokenizer.json",
+          "sha256": "2da328a3ca5939240fb345e386db87fa4ce9c3f79ba0da196ad61cc70c1b32de",
+          "size_bytes": 21124
+        },
+        {
+          "relative_path": "tokenizer_manifest.json",
+          "sha256": "7426f549d11e6a0e508a056501b90f33a5192bf7e826ba08de29c260c4d4138a",
+          "size_bytes": 550
+        }
+      ],
+      "attempt_id": null,
+      "checkpoint_sha256": null,
+      "continuation_kind": "FRESH",
+      "created_at": "2026-09-23T00:56:18.927647+00:00",
+      "effective_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "effective_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "experiment_id": null,
+      "git_commit": null,
+      "git_dirty": null,
+      "identity_version": "run-identity-v2",
+      "manifest_version": 1,
+      "name": "runtime-smoke-cpu",
+      "package_version": null,
+      "parent_run_id": null,
+      "pilot_reports": [],
+      "purpose": "training",
+      "python_version": "3.12.13",
+      "requested_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "requested_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "resource_decisions": [],
+      "run_id": "mps-parent",
+      "runtime": {
+        "backend": "mps",
+        "device_driver_allocated_bytes": 17268736,
+        "device_free_bytes": null,
+        "device_index": 0,
+        "device_name": "Apple Metal",
+        "device_recommended_bytes": 30150672384,
+        "device_total_bytes": null,
+        "driver_version": null,
+        "engine": "pytorch",
+        "format_version": 1,
+        "framework_version": "2.14.0",
+        "limitations": [
+          "driver version unavailable through safe PyTorch APIs",
+          "accelerator runtime version unavailable through safe PyTorch APIs",
+          "physical device identity unavailable through safe PyTorch APIs"
+        ],
+        "measured_at": "2026-09-23T00:56:17.661137+00:00",
+        "measurement_source": "torch.mps",
+        "os": "macOS-27.0-arm64-arm-64bit",
+        "physical_device_id": null,
+        "precision_capabilities": [
+          "fp32",
+          "bf16",
+          "fp16"
+        ],
+        "runtime_version": null,
+        "system_available_bytes": 6663110656,
+        "system_total_bytes": 38654705664,
+        "tested_features": [
+          "forward_backward_optimizer",
+          "optimizer:adamw",
+          "activation_checkpointing"
+        ],
+        "tested_precisions": [
+          "fp32"
+        ],
+        "torch_device": "mps",
+        "validated_at": "2026-09-23T00:56:17.662385+00:00"
+      },
+      "sha256": "71ce8f8b48fec88bbef083e4c3461089b18a2946bafa7725ae71e00f352e7691",
+      "source_identity": {
+        "algorithm": "package-path-sha256-v1",
+        "files": [
+          [
+            "__init__.py",
+            "ca85bacc7f9eae841bc884c2b660fda124f400719b86cda31992e020abb9609f"
+          ],
+          [
+            "__main__.py",
+            "d047f7862ff5c66c741c661780bc68f4f338ab0a3749db374ce1dd499368a88a"
+          ],
+          [
+            "cli/__init__.py",
+            "43f6efaf2af9d4be27de51f5c62be2c152aee0e4951f31aa4042af21846bc2d1"
+          ],
+          [
+            "cli/main.py",
+            "f14b9b002bbccf71640bb855ad504c9ce0155a0ba6b9efb40b9dda36eb7d44fc"
+          ],
+          [
+            "config/__init__.py",
+            "fe3765e5714934391d49696065a2df9a7758d3db1d82c18b4b202320918b6d27"
+          ],
+          [
+            "config/loading.py",
+            "8b0fceaa65c83c19efc097bbbd859b77140afc6cf556afc25fc46eb7e762738e"
+          ],
+          [
+            "config/migrate.py",
+            "5f1c40d6bd6fe5fb5209241fd5692e7f2c3b187ac4ca105cbca08a9d342e5b5d"
+          ],
+          [
+            "config/models.py",
+            "b9bb390f758675b8ece5a2a581cb48fa9c87ac70f46f2f9eacd4cd4ba7b79d8a"
+          ],
+          [
+            "dashboard/app.py",
+            "1879de9ee755bbba3106fbe0f81b1120287944eaa83089a7a5af6d9be2c98eee"
+          ],
+          [
+            "dashboard/help/accumulation.md",
+            "e1dde7b502886749ead7a18b5f82dfa0b9dd3f2064c14734495b7042bf6a39d0"
+          ],
+          [
+            "dashboard/help/checkpoints.md",
+            "421b314cbf75d63109e1801a47c9703d5c07cff99f5c0cb63e61352305b0350c"
+          ],
+          [
+            "dashboard/help/gradient-norm.md",
+            "681911042c78433161c2b09f629b96ee29aed7dced2dd52d571e412d86fe8db8"
+          ],
+          [
+            "dashboard/help/independent-workers.md",
+            "fb38042f8533384ccda1e0c2b62b720d73cfd2183d27cece488af96fcf0f3709"
+          ],
+          [
+            "dashboard/help/learning-rate.md",
+            "263510718dc981a71b885b86236bdd3ab970e9f377a09fac19c9ff835125b3cf"
+          ],
+          [
+            "dashboard/help/loss.md",
+            "fc8a137f21a1597b8c1ec53f4f87c4bb4156a03f8cf479c97dd0f1f5080ff909"
+          ],
+          [
+            "dashboard/help/memory.md",
+            "38e1cc7a843baffdec8fc861a0067232cea701f1df37b1dc4a07fb606e6e74af"
+          ],
+          [
+            "dashboard/help/moe.md",
+            "387f1fc707f2eeccd10bc53b83d6b8e44a9676d2d7b3ec6c6ca18b8761f73066"
+          ],
+          [
+            "dashboard/help/offload.md",
+            "a4debf4aab22264cff682cb3057b02eeb83879779df6c50c3156e8cebf7d0baf"
+          ],
+          [
+            "dashboard/help/perplexity.md",
+            "a1b9f6bc3d578fd3838ec68cfa8797bc889f559f003283d8833f0a9b2db4d05f"
+          ],
+          [
+            "dashboard/help/recomputation.md",
+            "6f2a63a0c39f22786623a9541f91692ddc6a3a66de0c3a4b55c7ee3a97d8f497"
+          ],
+          [
+            "dashboard/help/runtime.md",
+            "2933806985a1afcd9277a3eef210eb7d0da248c637aa9e0b41b541e66d62cfd9"
+          ],
+          [
+            "dashboard/help/throughput.md",
+            "44435dc9a7392b7d0078c3a0cd6fc1a727d89620a712d87674ac6d6970b7f6d2"
+          ],
+          [
+            "dashboard/queries.py",
+            "8850e78a8ae9c37e0ee6bf772a43901e5f0cb7b12cf72eeebf32e5c3daeb4d17"
+          ],
+          [
+            "data/__init__.py",
+            "b441e48342784bc29505065660e1ce53501a29c8273981eac12e4ec075df853e"
+          ],
+          [
+            "data/byte_hash.py",
+            "2954e1fcbd4d70c8504a514fd7dcbf8a5aa4f86b7d3e9093a6d3a37ebe798ba2"
+          ],
+          [
+            "data/chat_recall.py",
+            "00a685afd2324048c7e4ca2e46c42b89868da83f3f5c318f49252a279cdc7500"
+          ],
+          [
+            "data/conversations.py",
+            "9f036f81e7985d354a0af864dfe7ba144a4e5db9fb9b975c25435b830c40a7a2"
+          ],
+          [
+            "data/datasets.py",
+            "1dcc10a7ab653ef094cb3fd866215bc692a0f6dafd0b5d1c319d25488309b1b5"
+          ],
+          [
+            "data/engram_recall.py",
+            "0d9395c3c9b4a972e5e5d28c07b1e83cb4c3a9135a4e9331b539abec72dd7c57"
+          ],
+          [
+            "data/instruction_reference.py",
+            "f26e31271bee2d6531cc3fda11090cc69c8ea4188549cdb669bb9d91af7b6429"
+          ],
+          [
+            "data/packing.py",
+            "793ae170ebe23cd68f20b0537b255b7d64dcbb1a432c3fd7cf4144e33d528488"
+          ],
+          [
+            "data/synthetic.py",
+            "ebfd8f559ed92280afce0ba192aa940342dd57fba2084e295a7db9fcef48e6f8"
+          ],
+          [
+            "data/tokenizer.py",
+            "9f4d39e487545c128f7781c6c8a19dfc5cd4bf5934d893e0e82011bd8a9b47fe"
+          ],
+          [
+            "data/withheld_facts.py",
+            "82863edd4fab8be96cf8c1812b283a911026bea039496165438d58b7882296aa"
+          ],
+          [
+            "engines/__init__.py",
+            "64bff682504a5371f5481fec6b76677c3cf1451cd549d82f4bf345acde3c429b"
+          ],
+          [
+            "engines/base.py",
+            "953d2a2428c5e95764caed8b324f1c278f5c4371f4eee455c1542783732664fc"
+          ],
+          [
+            "engines/mlx.py",
+            "019adb0343d2e1efee95d705294e337da23e7d37ed1b77b2f50bfd9071d36e3a"
+          ],
+          [
+            "engines/pytorch.py",
+            "4836f5caaf88ef5f16b89c3aafd7e4b7c47b339e71d6aca50a77513a96a3f4a6"
+          ],
+          [
+            "evaluation/byte_memory_transfer.py",
+            "02311f644e86b31b2b92e636fff7d957fff382c6d47b8f0dcd79d04d12fbdfdf"
+          ],
+          [
+            "evaluation/capabilities.py",
+            "28f2f0bfde19230062e4d1918c68749754b8b1caca36d73c0219aa9abb2db643"
+          ],
+          [
+            "evaluation/chat.py",
+            "2e3578ff50a0096078d5838c81bbdd2ae17a5be912a997fff5cf069b094535a1"
+          ],
+          [
+            "evaluation/evidence.py",
+            "e9bab1e9e3b1dc7fb3a8253f69ba51ee31672a4596093cc3eabfbb8542f63f0a"
+          ],
+          [
+            "evaluation/generation.py",
+            "6f10880aff8a59c5abf87442f2e0adf829906e1024f400daba6d356af7de85ae"
+          ],
+          [
+            "evaluation/inference.py",
+            "fafa5def92bea3b82f088d49da3383f41e92ac2e8a3661850da6ea97934f14bb"
+          ],
+          [
+            "evaluation/language_model.py",
+            "ba893043a11799bcac41458cfcddbede4cbbc87a4f5f190d9f09be203961dd81"
+          ],
+          [
+            "evaluation/withheld_facts.py",
+            "a094e73a249063776c967f20a20d146613223e4337ae8df773ffa9289610adbc"
+          ],
+          [
+            "experiments/__init__.py",
+            "e182af2d5b01f86784e31503db3bb54bd452f7a30fb4d44cb1a9ecaac2046741"
+          ],
+          [
+            "experiments/matrix.py",
+            "4e6434e43c0dcaacf939502c23b3222455d952af7579b1627a06863630f8950d"
+          ],
+          [
+            "memory.py",
+            "ea062ed8067dd7a1115abbececb3cb189cfaf7b84b3d97b385954685cff6d986"
+          ],
+          [
+            "model/__init__.py",
+            "0815ca767eb754df38ff5ef4c0aa350bf5f00314d1dc14fddefee90c61859775"
+          ],
+          [
+            "model/attention/__init__.py",
+            "c2dfe8fae092968bb590136dfa418dd296c87870f14a3d4b90ec59ff6100fecc"
+          ],
+          [
+            "model/attention/dense.py",
+            "73a0b607495a9838b92ad91d23fa4a110f9004c2bd2b66b1c32b7a680e697d81"
+          ],
+          [
+            "model/attention/latent.py",
+            "9aa2bdeec85f2f007ebde1508f631df92f19565f6a54c143b78b564647106ca4"
+          ],
+          [
+            "model/attention/mlx_sparse.py",
+            "a5e0488680d33204f5530380bc61cd56a4cccf5b5f46e86b28f119c3624ce298"
+          ],
+          [
+            "model/attention/mlx_sparse_kernels.py",
+            "e4f4826e88ee6966f7ac0cbd21f62e261c33139c355bb0d65c786c1a2dbb44e4"
+          ],
+          [
+            "model/attention/sparse.py",
+            "1a39b199c20d3e2fac8a08b3c4be61a1f54dabcfbcd9ab50ac82c12e04de5be1"
+          ],
+          [
+            "model/cache.py",
+            "495cf089a695bd6ff84178c68ce0f24ad5d4f6ae9f9210cceb731b5cd7a91ee0"
+          ],
+          [
+            "model/ffn.py",
+            "6894361c8a9f051973b71c6916f24e018bc7bd29f7ddf295bace8a6161f23130"
+          ],
+          [
+            "model/inspection.py",
+            "c40255a3449088512fec44b2c4d916761f54f462745369a75793134c6622165e"
+          ],
+          [
+            "model/memory.py",
+            "bd48bd62d3a9e622cc31f2c403b8ffa097b3db9afc389fe0172cc5abdbdc6f3b"
+          ],
+          [
+            "model/mlx_dense.py",
+            "032a3c6f2e399b732e776a5d934c9f706b1fe0ae04de5cbcfe155565b7979795"
+          ],
+          [
+            "model/moe.py",
+            "68591cda243f4b8fff3919d3a258d8161f5f8e8fde81810aabbf0f12d36329a1"
+          ],
+          [
+            "model/norm.py",
+            "31d813332e09e7a8770350c70a486ee7086fe779505188a86b759e01d8fa1227"
+          ],
+          [
+            "model/portable_engram.py",
+            "c31148b80a60959a739263cc8cbbd94be4590c9ecf2aab3300a8b79b6d543b79"
+          ],
+          [
+            "model/rope.py",
+            "76fd82b67960926bbe3a2df1f1739e275f8fb08ac44aa800dcb947ccb00a29a3"
+          ],
+          [
+            "model/transformer.py",
+            "d428c7b99c4c1c6fa83bd234951d5b0f34e9907541e9c859cfabb6c1e4b08672"
+          ],
+          [
+            "runtime.py",
+            "45d5b72eb6d49786cd67c7f4ee9d9325cb9605001e22e41bfeab53b93cbb55f0"
+          ],
+          [
+            "runtime_probe.py",
+            "b109488263771e80c6e9354935aed46da616a58cb5edfa51f2872414a99b301c"
+          ],
+          [
+            "staging.py",
+            "6441d4ada22a3e79fe84976aa7cc2a95bd7e8d6eaa72050214687e8de9b1ec95"
+          ],
+          [
+            "training/checkpoints.py",
+            "90b11dc8d1fd00ca81b2d3f9f7d1e9c1f2bb66a4f4d2753235f78a4fa1d96273"
+          ],
+          [
+            "training/continuation.py",
+            "a127a2255b079bcdfa8c4e91524a362653bd753b6bd82685492524de51677ace"
+          ],
+          [
+            "training/manifest.py",
+            "aaee48e694d898401871854890833749b1995ab4c82182b9c81f95a8aae129a0"
+          ],
+          [
+            "training/metric_registry.py",
+            "fb2115e9fdf23ee6889c72fd72b6e583399e72b9be2c484b61a46326b5f21ea5"
+          ],
+          [
+            "training/metrics.py",
+            "cb0418ee94715a466e95395b091272d6e6b06062fe844b1e089884b34e0a6d22"
+          ],
+          [
+            "training/mlx_checkpoints.py",
+            "b4b7760f109e700e723232698957eda5b6961517f80a015425f8dc793c1936c2"
+          ],
+          [
+            "training/offload.py",
+            "1afab57340dbb0a1fecadad4205e27ca6bdcf3329d1e5e0afd652c63a22ac8d3"
+          ],
+          [
+            "training/optimizer.py",
+            "08e482676441924ac80b745a4589fbc49e854264918895ed1bae2d137ee1b7f3"
+          ],
+          [
+            "training/pilot.py",
+            "0ddf78fd695a4be49585c8019d3b2f8930dba948fa51e820ccbcf086ccf38b2f"
+          ],
+          [
+            "training/stages.py",
+            "95bf97a72d1e43dbc1889263d62f5e0d06872541139161680c6df61b3efc0802"
+          ],
+          [
+            "training/trainer.py",
+            "9f5d1b81163a6e3c0981041a377e05d2319becdb36bed0118c7f737ae6414651"
+          ],
+          [
+            "training/weight_import.py",
+            "a1db36fc416999fcdcfe09edffb34c931b9ed7864bb355ef2654c6abd7173932"
+          ]
+        ],
+        "sha256": "3292cdd0cf09545264928cff49327b2e510f0d66a55f966503b714bd64ac9422"
+      },
+      "stage_bundle_sha256": null,
+      "worker_id": "bymiller-mac"
+    },
+    "mps-promoted": {
+      "architecture_sha256": "2e382ca276c05f9799be83de6fbdff5871f04a5c7e6605b5388bd4e460ae688b",
+      "architecture_version": "sparselab-decoder-v1",
+      "artifacts": [
+        {
+          "relative_path": "data/manifest.json",
+          "sha256": "8d28b87b5576503122a5b49eecc7a69f0c85410b0b297a1fdfe4617bb79ed45c",
+          "size_bytes": 1835
+        },
+        {
+          "relative_path": "data/train.npy",
+          "sha256": "b58d3494b89eb0be2f2aadba7afbac1ddafa2838937004182a5ae87d3be40fe0",
+          "size_bytes": 644
+        },
+        {
+          "relative_path": "data/train_supervision.npy",
+          "sha256": "806e46feada4b1a7ae2f59a3261a37bb9a93484235eb8c47e0657c648ba034e1",
+          "size_bytes": 257
+        },
+        {
+          "relative_path": "data/validation.npy",
+          "sha256": "ac6d13ea15f0e531933b574e0e59f80be668d1fe05e646e6af24477133352270",
+          "size_bytes": 452
+        },
+        {
+          "relative_path": "data/validation_supervision.npy",
+          "sha256": "88085a0905db0de2ce817628945ea71e2c40cba5723a7afa8f81d32a2902ef1e",
+          "size_bytes": 209
+        },
+        {
+          "relative_path": "tokenizer.json",
+          "sha256": "2da328a3ca5939240fb345e386db87fa4ce9c3f79ba0da196ad61cc70c1b32de",
+          "size_bytes": 21124
+        },
+        {
+          "relative_path": "tokenizer_manifest.json",
+          "sha256": "7426f549d11e6a0e508a056501b90f33a5192bf7e826ba08de29c260c4d4138a",
+          "size_bytes": 550
+        }
+      ],
+      "attempt_id": null,
+      "checkpoint_sha256": "30a1f0b72f03fd5a2f82568dd3ffd1fcffb9f631b4c83c37369626cd3db4aee4",
+      "continuation_kind": "PROMOTED",
+      "created_at": "2026-09-23T00:56:37.252763+00:00",
+      "effective_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "effective_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "experiment_id": null,
+      "git_commit": null,
+      "git_dirty": null,
+      "identity_version": "run-identity-v2",
+      "manifest_version": 1,
+      "name": "runtime-smoke-cpu",
+      "package_version": null,
+      "parent_run_id": "cpu-full",
+      "pilot_reports": [],
+      "purpose": "training",
+      "python_version": "3.12.13",
+      "requested_config": {
+        "attention": {
+          "block_size": null,
+          "kind": "dense",
+          "latent_dim": null,
+          "rope_base": 10000.0,
+          "selected_blocks": null,
+          "window_size": null
+        },
+        "checkpoint": {
+          "every_minutes": null,
+          "every_steps": 10,
+          "every_tokens": null,
+          "keep_periodic": true
+        },
+        "dataset": {
+          "cache_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/data-cache",
+          "dataset_config": null,
+          "license": null,
+          "revision": null,
+          "source": "synthetic",
+          "synthetic_seed": 7,
+          "train_max_documents": 100,
+          "train_max_tokens": 129,
+          "train_path": null,
+          "validation_max_documents": 100,
+          "validation_max_tokens": 81,
+          "validation_path": null
+        },
+        "evaluation": {
+          "every_steps": 10,
+          "max_batches": 1
+        },
+        "logging": {
+          "architecture_diagnostics": "scalar",
+          "every_steps": 1,
+          "root_dir": "/private/tmp/sparselab-cli-accepted-tZOwE3/runs"
+        },
+        "model": {
+          "experts_per_token": 1,
+          "ffn": "dense",
+          "ffn_dim": 32,
+          "hidden_dim": 16,
+          "max_seq_len": 32,
+          "memory": "none",
+          "memory_dim": 0,
+          "memory_hash_heads": 1,
+          "memory_ngram_orders": [],
+          "memory_ngram_size": 0,
+          "memory_package_path": null,
+          "memory_table_size": 0,
+          "num_experts": 1,
+          "num_heads": 2,
+          "num_layers": 1,
+          "rms_norm_eps": 1e-06,
+          "router_aux_loss_coefficient": 0.0,
+          "shared_expert": false,
+          "tie_embeddings": true,
+          "vocab_size": 512
+        },
+        "name": "runtime-smoke-cpu",
+        "optimizer": {
+          "betas": [
+            0.9,
+            0.95
+          ],
+          "eps": 1e-08,
+          "floor": 0.0003,
+          "name": "adamw",
+          "peak": 0.003,
+          "state_offload": false,
+          "warmup_steps": 2,
+          "weight_decay": 0.1
+        },
+        "runtime": {
+          "backend": "mps",
+          "device_index": 0,
+          "engine": "pytorch",
+          "memory": {
+            "activation_checkpointing": {
+              "enabled": true,
+              "strategy": "transformer_block"
+            },
+            "activation_offload": {
+              "enabled": false
+            },
+            "allowed_optimizers": [],
+            "allowed_sequence_lengths": [],
+            "budget_bytes": null,
+            "max_device_memory_fraction": 0.9,
+            "policy": "balanced"
+          },
+          "precision": "fp32"
+        },
+        "schema_version": 2,
+        "seed": 7,
+        "staging": {
+          "smoke_steps": 2,
+          "warmup_steps": 5
+        },
+        "tokenizer": {
+          "path": "/Users/bymiller/src/tiny-sparse-lab/artifacts/tokenizer_smoke/tokenizer.json"
+        },
+        "training": {
+          "deterministic": false,
+          "grad_clip_norm": 1.0,
+          "gradient_accumulation": 2,
+          "max_steps": 20,
+          "max_tokens": 640,
+          "micro_batch_size": 1,
+          "seq_len": 16
+        }
+      },
+      "requested_config_sha256": "b5bf2693137a68d25d25f55a69a7d58386b772755315a7812ec2e026de8f4a73",
+      "resource_decisions": [],
+      "run_id": "mps-promoted",
+      "runtime": {
+        "backend": "mps",
+        "device_driver_allocated_bytes": 17268736,
+        "device_free_bytes": null,
+        "device_index": 0,
+        "device_name": "Apple Metal",
+        "device_recommended_bytes": 30150672384,
+        "device_total_bytes": null,
+        "driver_version": null,
+        "engine": "pytorch",
+        "format_version": 1,
+        "framework_version": "2.14.0",
+        "limitations": [
+          "driver version unavailable through safe PyTorch APIs",
+          "accelerator runtime version unavailable through safe PyTorch APIs",
+          "physical device identity unavailable through safe PyTorch APIs"
+        ],
+        "measured_at": "2026-09-23T00:56:35.831288+00:00",
+        "measurement_source": "torch.mps",
+        "os": "macOS-27.0-arm64-arm-64bit",
+        "physical_device_id": null,
+        "precision_capabilities": [
+          "fp32",
+          "bf16",
+          "fp16"
+        ],
+        "runtime_version": null,
+        "system_available_bytes": 7065698304,
+        "system_total_bytes": 38654705664,
+        "tested_features": [
+          "forward_backward_optimizer",
+          "optimizer:adamw",
+          "activation_checkpointing"
+        ],
+        "tested_precisions": [
+          "fp32"
+        ],
+        "torch_device": "mps",
+        "validated_at": "2026-09-23T00:56:35.832576+00:00"
+      },
+      "sha256": "42715db9260a5ed8f845fc0771190d45d38cc53a47e25f9902336a2eceffe897",
+      "source_identity": {
+        "algorithm": "package-path-sha256-v1",
+        "files": [
+          [
+            "__init__.py",
+            "ca85bacc7f9eae841bc884c2b660fda124f400719b86cda31992e020abb9609f"
+          ],
+          [
+            "__main__.py",
+            "d047f7862ff5c66c741c661780bc68f4f338ab0a3749db374ce1dd499368a88a"
+          ],
+          [
+            "cli/__init__.py",
+            "43f6efaf2af9d4be27de51f5c62be2c152aee0e4951f31aa4042af21846bc2d1"
+          ],
+          [
+            "cli/main.py",
+            "f14b9b002bbccf71640bb855ad504c9ce0155a0ba6b9efb40b9dda36eb7d44fc"
+          ],
+          [
+            "config/__init__.py",
+            "fe3765e5714934391d49696065a2df9a7758d3db1d82c18b4b202320918b6d27"
+          ],
+          [
+            "config/loading.py",
+            "8b0fceaa65c83c19efc097bbbd859b77140afc6cf556afc25fc46eb7e762738e"
+          ],
+          [
+            "config/migrate.py",
+            "5f1c40d6bd6fe5fb5209241fd5692e7f2c3b187ac4ca105cbca08a9d342e5b5d"
+          ],
+          [
+            "config/models.py",
+            "b9bb390f758675b8ece5a2a581cb48fa9c87ac70f46f2f9eacd4cd4ba7b79d8a"
+          ],
+          [
+            "dashboard/app.py",
+            "1879de9ee755bbba3106fbe0f81b1120287944eaa83089a7a5af6d9be2c98eee"
+          ],
+          [
+            "dashboard/help/accumulation.md",
+            "e1dde7b502886749ead7a18b5f82dfa0b9dd3f2064c14734495b7042bf6a39d0"
+          ],
+          [
+            "dashboard/help/checkpoints.md",
+            "421b314cbf75d63109e1801a47c9703d5c07cff99f5c0cb63e61352305b0350c"
+          ],
+          [
+            "dashboard/help/gradient-norm.md",
+            "681911042c78433161c2b09f629b96ee29aed7dced2dd52d571e412d86fe8db8"
+          ],
+          [
+            "dashboard/help/independent-workers.md",
+            "fb38042f8533384ccda1e0c2b62b720d73cfd2183d27cece488af96fcf0f3709"
+          ],
+          [
+            "dashboard/help/learning-rate.md",
+            "263510718dc981a71b885b86236bdd3ab970e9f377a09fac19c9ff835125b3cf"
+          ],
+          [
+            "dashboard/help/loss.md",
+            "fc8a137f21a1597b8c1ec53f4f87c4bb4156a03f8cf479c97dd0f1f5080ff909"
+          ],
+          [
+            "dashboard/help/memory.md",
+            "38e1cc7a843baffdec8fc861a0067232cea701f1df37b1dc4a07fb606e6e74af"
+          ],
+          [
+            "dashboard/help/moe.md",
+            "387f1fc707f2eeccd10bc53b83d6b8e44a9676d2d7b3ec6c6ca18b8761f73066"
+          ],
+          [
+            "dashboard/help/offload.md",
+            "a4debf4aab22264cff682cb3057b02eeb83879779df6c50c3156e8cebf7d0baf"
+          ],
+          [
+            "dashboard/help/perplexity.md",
+            "a1b9f6bc3d578fd3838ec68cfa8797bc889f559f003283d8833f0a9b2db4d05f"
+          ],
+          [
+            "dashboard/help/recomputation.md",
+            "6f2a63a0c39f22786623a9541f91692ddc6a3a66de0c3a4b55c7ee3a97d8f497"
+          ],
+          [
+            "dashboard/help/runtime.md",
+            "2933806985a1afcd9277a3eef210eb7d0da248c637aa9e0b41b541e66d62cfd9"
+          ],
+          [
+            "dashboard/help/throughput.md",
+            "44435dc9a7392b7d0078c3a0cd6fc1a727d89620a712d87674ac6d6970b7f6d2"
+          ],
+          [
+            "dashboard/queries.py",
+            "8850e78a8ae9c37e0ee6bf772a43901e5f0cb7b12cf72eeebf32e5c3daeb4d17"
+          ],
+          [
+            "data/__init__.py",
+            "b441e48342784bc29505065660e1ce53501a29c8273981eac12e4ec075df853e"
+          ],
+          [
+            "data/byte_hash.py",
+            "2954e1fcbd4d70c8504a514fd7dcbf8a5aa4f86b7d3e9093a6d3a37ebe798ba2"
+          ],
+          [
+            "data/chat_recall.py",
+            "00a685afd2324048c7e4ca2e46c42b89868da83f3f5c318f49252a279cdc7500"
+          ],
+          [
+            "data/conversations.py",
+            "9f036f81e7985d354a0af864dfe7ba144a4e5db9fb9b975c25435b830c40a7a2"
+          ],
+          [
+            "data/datasets.py",
+            "1dcc10a7ab653ef094cb3fd866215bc692a0f6dafd0b5d1c319d25488309b1b5"
+          ],
+          [
+            "data/engram_recall.py",
+            "0d9395c3c9b4a972e5e5d28c07b1e83cb4c3a9135a4e9331b539abec72dd7c57"
+          ],
+          [
+            "data/instruction_reference.py",
+            "f26e31271bee2d6531cc3fda11090cc69c8ea4188549cdb669bb9d91af7b6429"
+          ],
+          [
+            "data/packing.py",
+            "793ae170ebe23cd68f20b0537b255b7d64dcbb1a432c3fd7cf4144e33d528488"
+          ],
+          [
+            "data/synthetic.py",
+            "ebfd8f559ed92280afce0ba192aa940342dd57fba2084e295a7db9fcef48e6f8"
+          ],
+          [
+            "data/tokenizer.py",
+            "9f4d39e487545c128f7781c6c8a19dfc5cd4bf5934d893e0e82011bd8a9b47fe"
+          ],
+          [
+            "data/withheld_facts.py",
+            "82863edd4fab8be96cf8c1812b283a911026bea039496165438d58b7882296aa"
+          ],
+          [
+            "engines/__init__.py",
+            "64bff682504a5371f5481fec6b76677c3cf1451cd549d82f4bf345acde3c429b"
+          ],
+          [
+            "engines/base.py",
+            "953d2a2428c5e95764caed8b324f1c278f5c4371f4eee455c1542783732664fc"
+          ],
+          [
+            "engines/mlx.py",
+            "019adb0343d2e1efee95d705294e337da23e7d37ed1b77b2f50bfd9071d36e3a"
+          ],
+          [
+            "engines/pytorch.py",
+            "4836f5caaf88ef5f16b89c3aafd7e4b7c47b339e71d6aca50a77513a96a3f4a6"
+          ],
+          [
+            "evaluation/byte_memory_transfer.py",
+            "02311f644e86b31b2b92e636fff7d957fff382c6d47b8f0dcd79d04d12fbdfdf"
+          ],
+          [
+            "evaluation/capabilities.py",
+            "28f2f0bfde19230062e4d1918c68749754b8b1caca36d73c0219aa9abb2db643"
+          ],
+          [
+            "evaluation/chat.py",
+            "2e3578ff50a0096078d5838c81bbdd2ae17a5be912a997fff5cf069b094535a1"
+          ],
+          [
+            "evaluation/evidence.py",
+            "e9bab1e9e3b1dc7fb3a8253f69ba51ee31672a4596093cc3eabfbb8542f63f0a"
+          ],
+          [
+            "evaluation/generation.py",
+            "6f10880aff8a59c5abf87442f2e0adf829906e1024f400daba6d356af7de85ae"
+          ],
+          [
+            "evaluation/inference.py",
+            "fafa5def92bea3b82f088d49da3383f41e92ac2e8a3661850da6ea97934f14bb"
+          ],
+          [
+            "evaluation/language_model.py",
+            "ba893043a11799bcac41458cfcddbede4cbbc87a4f5f190d9f09be203961dd81"
+          ],
+          [
+            "evaluation/withheld_facts.py",
+            "a094e73a249063776c967f20a20d146613223e4337ae8df773ffa9289610adbc"
+          ],
+          [
+            "experiments/__init__.py",
+            "e182af2d5b01f86784e31503db3bb54bd452f7a30fb4d44cb1a9ecaac2046741"
+          ],
+          [
+            "experiments/matrix.py",
+            "4e6434e43c0dcaacf939502c23b3222455d952af7579b1627a06863630f8950d"
+          ],
+          [
+            "memory.py",
+            "ea062ed8067dd7a1115abbececb3cb189cfaf7b84b3d97b385954685cff6d986"
+          ],
+          [
+            "model/__init__.py",
+            "0815ca767eb754df38ff5ef4c0aa350bf5f00314d1dc14fddefee90c61859775"
+          ],
+          [
+            "model/attention/__init__.py",
+            "c2dfe8fae092968bb590136dfa418dd296c87870f14a3d4b90ec59ff6100fecc"
+          ],
+          [
+            "model/attention/dense.py",
+            "73a0b607495a9838b92ad91d23fa4a110f9004c2bd2b66b1c32b7a680e697d81"
+          ],
+          [
+            "model/attention/latent.py",
+            "9aa2bdeec85f2f007ebde1508f631df92f19565f6a54c143b78b564647106ca4"
+          ],
+          [
+            "model/attention/mlx_sparse.py",
+            "a5e0488680d33204f5530380bc61cd56a4cccf5b5f46e86b28f119c3624ce298"
+          ],
+          [
+            "model/attention/mlx_sparse_kernels.py",
+            "e4f4826e88ee6966f7ac0cbd21f62e261c33139c355bb0d65c786c1a2dbb44e4"
+          ],
+          [
+            "model/attention/sparse.py",
+            "1a39b199c20d3e2fac8a08b3c4be61a1f54dabcfbcd9ab50ac82c12e04de5be1"
+          ],
+          [
+            "model/cache.py",
+            "495cf089a695bd6ff84178c68ce0f24ad5d4f6ae9f9210cceb731b5cd7a91ee0"
+          ],
+          [
+            "model/ffn.py",
+            "6894361c8a9f051973b71c6916f24e018bc7bd29f7ddf295bace8a6161f23130"
+          ],
+          [
+            "model/inspection.py",
+            "c40255a3449088512fec44b2c4d916761f54f462745369a75793134c6622165e"
+          ],
+          [
+            "model/memory.py",
+            "bd48bd62d3a9e622cc31f2c403b8ffa097b3db9afc389fe0172cc5abdbdc6f3b"
+          ],
+          [
+            "model/mlx_dense.py",
+            "032a3c6f2e399b732e776a5d934c9f706b1fe0ae04de5cbcfe155565b7979795"
+          ],
+          [
+            "model/moe.py",
+            "68591cda243f4b8fff3919d3a258d8161f5f8e8fde81810aabbf0f12d36329a1"
+          ],
+          [
+            "model/norm.py",
+            "31d813332e09e7a8770350c70a486ee7086fe779505188a86b759e01d8fa1227"
+          ],
+          [
+            "model/portable_engram.py",
+            "c31148b80a60959a739263cc8cbbd94be4590c9ecf2aab3300a8b79b6d543b79"
+          ],
+          [
+            "model/rope.py",
+            "76fd82b67960926bbe3a2df1f1739e275f8fb08ac44aa800dcb947ccb00a29a3"
+          ],
+          [
+            "model/transformer.py",
+            "d428c7b99c4c1c6fa83bd234951d5b0f34e9907541e9c859cfabb6c1e4b08672"
+          ],
+          [
+            "runtime.py",
+            "45d5b72eb6d49786cd67c7f4ee9d9325cb9605001e22e41bfeab53b93cbb55f0"
+          ],
+          [
+            "runtime_probe.py",
+            "b109488263771e80c6e9354935aed46da616a58cb5edfa51f2872414a99b301c"
+          ],
+          [
+            "staging.py",
+            "6441d4ada22a3e79fe84976aa7cc2a95bd7e8d6eaa72050214687e8de9b1ec95"
+          ],
+          [
+            "training/checkpoints.py",
+            "90b11dc8d1fd00ca81b2d3f9f7d1e9c1f2bb66a4f4d2753235f78a4fa1d96273"
+          ],
+          [
+            "training/continuation.py",
+            "a127a2255b079bcdfa8c4e91524a362653bd753b6bd82685492524de51677ace"
+          ],
+          [
+            "training/manifest.py",
+            "aaee48e694d898401871854890833749b1995ab4c82182b9c81f95a8aae129a0"
+          ],
+          [
+            "training/metric_registry.py",
+            "fb2115e9fdf23ee6889c72fd72b6e583399e72b9be2c484b61a46326b5f21ea5"
+          ],
+          [
+            "training/metrics.py",
+            "cb0418ee94715a466e95395b091272d6e6b06062fe844b1e089884b34e0a6d22"
+          ],
+          [
+            "training/mlx_checkpoints.py",
+            "b4b7760f109e700e723232698957eda5b6961517f80a015425f8dc793c1936c2"
+          ],
+          [
+            "training/offload.py",
+            "1afab57340dbb0a1fecadad4205e27ca6bdcf3329d1e5e0afd652c63a22ac8d3"
+          ],
+          [
+            "training/optimizer.py",
+            "08e482676441924ac80b745a4589fbc49e854264918895ed1bae2d137ee1b7f3"
+          ],
+          [
+            "training/pilot.py",
+            "0ddf78fd695a4be49585c8019d3b2f8930dba948fa51e820ccbcf086ccf38b2f"
+          ],
+          [
+            "training/stages.py",
+            "95bf97a72d1e43dbc1889263d62f5e0d06872541139161680c6df61b3efc0802"
+          ],
+          [
+            "training/trainer.py",
+            "9f5d1b81163a6e3c0981041a377e05d2319becdb36bed0118c7f737ae6414651"
+          ],
+          [
+            "training/weight_import.py",
+            "a1db36fc416999fcdcfe09edffb34c931b9ed7864bb355ef2654c6abd7173932"
+          ]
+        ],
+        "sha256": "3292cdd0cf09545264928cff49327b2e510f0d66a55f966503b714bd64ac9422"
+      },
+      "stage_bundle_sha256": null,
+      "worker_id": "bymiller-mac"
+    }
+  },
+  "parent_pointer_unchanged": true,
+  "promoted_targets": 32,
+  "promoted_updates": 1,
+  "root": "/tmp/sparselab-cli-accepted-tZOwE3"
+}

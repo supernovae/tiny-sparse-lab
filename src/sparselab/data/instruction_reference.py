@@ -1,4 +1,5 @@
 """Deterministic, synthetic instruction-format corpus for local reference training."""
+
 from __future__ import annotations
 
 import random
@@ -27,9 +28,7 @@ def _document(seed: int, index: int) -> str:
         )
     if kind == 1:
         word = rng.choice(_WORDS)
-        return _dialogue(
-            f"Reference {index}: reverse the word {word}.", word[::-1]
-        )
+        return _dialogue(f"Reference {index}: reverse the word {word}.", word[::-1])
     if kind == 2:
         name, color, object_name = (
             rng.choice(_NAMES),

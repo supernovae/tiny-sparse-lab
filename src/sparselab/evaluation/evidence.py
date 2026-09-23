@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
+from sparselab.data.packing import TokenBlockDataset
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
 
@@ -48,7 +49,8 @@ def _report_observation(
     checkpoints: dict[str, dict[str, object]],
     artifacts: dict[str, str],
     manifest: dict[str, object],
-    validation_tokens: int,
+    expected_targets: int,
+    expected_batches: int,
 ) -> tuple[dict[str, object] | None, str | None]:
     try:
         payload = json.loads(path.read_text())
@@ -73,8 +75,20 @@ def _report_observation(
         ):
             return None, "evaluation identity mismatch"
         for required in ("data/validation.npy", "tokenizer.json"):
-            if identities.get(required) != artifacts.get(required):
+            if (
+                required not in artifacts
+                or identities.get(required) != artifacts[required]
+            ):
                 return None, f"{required} identity mismatch"
+        for optional in (
+            "data/validation_supervision.npy",
+            "data/validation_byte_addresses.npy",
+        ):
+            if (
+                optional in artifacts
+                and identities.get(optional) != artifacts[optional]
+            ):
+                return None, f"{optional} identity mismatch"
         if identities.get("source_identity_sha256") != manifest.get(
             "source_identity", {}
         ).get("sha256"):
@@ -121,13 +135,10 @@ def _report_observation(
         }
         if any(payload[key] != value for key, value in expected_protocol.items()):
             return None, "evaluation protocol differs from run config"
-        blocks = min(
-            (validation_tokens - 1) // payload["seq_len"],
-            payload["batch_size"] * payload["max_batches"],
-        )
-        if valid_targets != blocks * payload["seq_len"] or payload.get(
-            "batches"
-        ) != math.ceil(blocks / payload["batch_size"]):
+        if (
+            valid_targets != expected_targets
+            or payload.get("batches") != expected_batches
+        ):
             return None, "validation target or batch count mismatch"
         return payload, None
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
@@ -138,9 +149,29 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     """Return observations only when every referenced immutable artifact verifies."""
     manifest = read_manifest(run / "manifest.json")
     artifacts = _validated_artifacts(run, manifest)
-    validation_tokens = len(
-        np.load(run / "data/validation.npy", mmap_mode="r", allow_pickle=False)
+    config = manifest["effective_config"]
+    seq_len = config["training"]["seq_len"]
+    batch_size = config["training"]["micro_batch_size"]
+    supervision_name = "data/validation_supervision.npy"
+    validation = TokenBlockDataset(
+        np.load(run / "data/validation.npy", mmap_mode="r", allow_pickle=False),
+        seq_len,
+        supervision=(
+            np.load(run / supervision_name, mmap_mode="r", allow_pickle=False)
+            if supervision_name in artifacts
+            else None
+        ),
     )
+    blocks = min(len(validation), batch_size * config["evaluation"]["max_batches"])
+    expected_targets = blocks * seq_len
+    if validation.supervision is not None:
+        expected_targets = 0
+        for block in validation.block_indices[:blocks]:
+            start = int(block) * seq_len + 1
+            expected_targets += int(
+                np.count_nonzero(validation.supervision[start : start + seq_len])
+            )
+    expected_batches = math.ceil(blocks / batch_size)
     manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     checkpoints: list[dict[str, object]] = []
@@ -169,7 +200,12 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     rejected_reports: list[dict[str, str]] = []
     for path in sorted((run / "evaluations").glob("validation_step_*_gen_*.json")):
         result, reason = _report_observation(
-            path, checkpoint_lookup, artifacts, manifest, validation_tokens
+            path,
+            checkpoint_lookup,
+            artifacts,
+            manifest,
+            expected_targets,
+            expected_batches,
         )
         if result is None:
             rejected_reports.append(

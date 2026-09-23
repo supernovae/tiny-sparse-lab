@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,10 +15,15 @@ from tokenizers import Tokenizer
 
 from sparselab.config.models import DatasetConfig, RunConfig
 from sparselab.data.byte_hash import table_address, token_bytes
+from sparselab.data.conversations import (
+    RenderedConversation,
+    iter_rendered_conversations,
+)
 from sparselab.data.datasets import iter_documents
 from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 
-PACKING_VERSION = "contiguous-eos-v4"
+PACKING_VERSION = "contiguous-eos-v5"
+HISTORICAL_PACKING_VERSION = "contiguous-eos-v4"
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,8 @@ class PreparedData:
     root: Path
     train: np.ndarray
     validation: np.ndarray
+    train_supervision: np.ndarray | None
+    validation_supervision: np.ndarray | None
     train_byte_addresses: np.ndarray | None
     validation_byte_addresses: np.ndarray | None
     manifest: dict[str, object]
@@ -39,9 +47,11 @@ def _tokenizer_sha256(tokenizer: Tokenizer) -> str:
     return hashlib.sha256(tokenizer.to_str().encode("utf-8")).hexdigest()
 
 
-def _array_metadata(path: Path) -> dict[str, object]:
+def _array_metadata(
+    path: Path, *, dtype: np.dtype[np.generic] | type[np.generic] = np.int32
+) -> dict[str, object]:
     values = np.load(path, mmap_mode="r", allow_pickle=False)
-    if values.ndim != 1 or values.dtype != np.dtype(np.int32):
+    if values.ndim != 1 or values.dtype != dtype:
         raise ValueError(f"packed array has unexpected shape or dtype: {path}")
     return {
         "dtype": values.dtype.name,
@@ -56,6 +66,8 @@ def _cache_is_valid(
     cache_identity: dict[str, object],
     train_path: Path,
     validation_path: Path,
+    train_supervision_path: Path,
+    validation_supervision_path: Path,
     train_byte_path: Path,
     validation_byte_path: Path,
     *,
@@ -66,12 +78,13 @@ def _cache_is_valid(
         digest = payload.pop("manifest_sha256")
         train = payload["train"]
         validation = payload["validation"]
+        version = payload.get("packing_version")
         if (
             not isinstance(digest, str)
             or hashlib.sha256(canonical_json(payload)).hexdigest() != digest
             or not isinstance(train, dict)
             or not isinstance(validation, dict)
-            or payload.get("packing_version") != PACKING_VERSION
+            or version not in {PACKING_VERSION, HISTORICAL_PACKING_VERSION}
             or payload.get("cache_identity") != cache_identity
             or payload.get("settings_sha256")
             != hashlib.sha256(canonical_json(cache_identity)).hexdigest()
@@ -84,6 +97,31 @@ def _cache_is_valid(
                 for key, value in _array_metadata(validation_path).items()
             )
         ):
+            return False
+        if version == PACKING_VERSION:
+            supervision = payload.get("supervision")
+            if not (
+                isinstance(supervision, dict)
+                and supervision.get("kind") == "token-loss-mask-v1"
+                and isinstance(supervision.get("train"), dict)
+                and isinstance(supervision.get("validation"), dict)
+                and supervision["train"].get("shape") == train.get("shape")
+                and supervision["validation"].get("shape") == validation.get("shape")
+                and all(
+                    supervision["train"].get(key) == value
+                    for key, value in _array_metadata(
+                        train_supervision_path, dtype=np.dtype(bool)
+                    ).items()
+                )
+                and all(
+                    supervision["validation"].get(key) == value
+                    for key, value in _array_metadata(
+                        validation_supervision_path, dtype=np.dtype(bool)
+                    ).items()
+                )
+            ):
+                return False
+        elif payload.get("supervision") is not None:
             return False
         if byte_enabled:
             byte = payload.get("byte_addressing")
@@ -128,6 +166,8 @@ def load_prepared_data(
         else manifest.get("cache_identity")
     )
     train, validation = root / "train.npy", root / "validation.npy"
+    train_supervision = root / "train_supervision.npy"
+    validation_supervision = root / "validation_supervision.npy"
     train_byte = root / "train_byte_addresses.npy"
     validation_byte = root / "validation_byte_addresses.npy"
     if not isinstance(identity, dict) or not _cache_is_valid(
@@ -135,15 +175,24 @@ def load_prepared_data(
         identity,
         train,
         validation,
+        train_supervision,
+        validation_supervision,
         train_byte,
         validation_byte,
         byte_enabled=byte_enabled,
     ):
         raise ValueError(f"prepared-data cache integrity check failed: {root}")
+    has_supervision = manifest.get("packing_version") == PACKING_VERSION
     return PreparedData(
         root,
         np.load(train, mmap_mode="r", allow_pickle=False),
         np.load(validation, mmap_mode="r", allow_pickle=False),
+        np.load(train_supervision, mmap_mode="r", allow_pickle=False)
+        if has_supervision
+        else None,
+        np.load(validation_supervision, mmap_mode="r", allow_pickle=False)
+        if has_supervision
+        else None,
         np.load(train_byte, mmap_mode="r", allow_pickle=False)
         if byte_enabled
         else None,
@@ -199,6 +248,57 @@ def _assert_local_chat_disjoint(config: DatasetConfig) -> None:
         )
 
 
+def _assert_local_chat_supervision_consistent(config: DatasetConfig) -> None:
+    if config.source != "local_chat":
+        return
+    assert config.train_path is not None and config.validation_path is not None
+    train_modes = {
+        item.loss_mode for item in iter_rendered_conversations(config.train_path)
+    }
+    validation_modes = {
+        item.loss_mode for item in iter_rendered_conversations(config.validation_path)
+    }
+    if (
+        len(train_modes) != 1
+        or len(validation_modes) != 1
+        or train_modes != validation_modes
+    ):
+        raise ValueError(
+            "local_chat training and validation must use one matching supervision mode"
+        )
+
+
+def _supervision_for_encoding(
+    document: RenderedConversation | None,
+    offsets: list[tuple[int, int]],
+    token_count: int,
+) -> list[bool]:
+    if document is None or document.loss_mode == "all_tokens":
+        return [True] * token_count
+    spans = document.supervision_spans
+    # A token crossing a role boundary cannot be partially supervised. Spans
+    # include the assistant's leading separator space, but never role markers.
+    return [
+        any(
+            start < end and span_start <= start and end <= span_end
+            for span_start, span_end in spans
+        )
+        for start, end in offsets[:token_count]
+    ]
+
+
+def _source_documents(
+    config: DatasetConfig, split: str
+) -> Iterator[RenderedConversation]:
+    if config.source == "local_chat":
+        path = config.train_path if split == "train" else config.validation_path
+        assert path is not None
+        yield from iter_rendered_conversations(path)
+        return
+    for text in iter_documents(config, split):
+        yield RenderedConversation(text, ((0, len(text)),), "all_tokens")
+
+
 def _collect(
     config: DatasetConfig,
     tokenizer: Tokenizer,
@@ -206,7 +306,7 @@ def _collect(
     *,
     byte_table_size: int | None = None,
     byte_ngram_size: int | None = None,
-) -> tuple[np.ndarray, np.ndarray | None, dict[str, int]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, dict[str, int]]:
     max_documents = (
         config.train_max_documents
         if split == "train"
@@ -219,6 +319,7 @@ def _collect(
     if eos is None:
         raise ValueError("tokenizer has no <eos> special token")
     values: list[int] = []
+    supervision: list[bool] = []
     byte_addresses: list[int] | None = [] if byte_table_size is not None else None
     stats = {
         "acquired_documents": 0,
@@ -226,39 +327,53 @@ def _collect(
         "skipped_documents": 0,
         "truncated_documents": 0,
     }
-    documents = iter(iter_documents(config, split))
+    documents = iter(_source_documents(config, split))
     while stats["acquired_documents"] < max_documents and len(values) < max_tokens:
         try:
-            document = next(documents)
+            rendered = next(documents)
         except StopIteration:
             break
         stats["acquired_documents"] += 1
+        document = rendered.text
         if not document:
             stats["skipped_documents"] += 1
             continue
         encoding = tokenizer.encode(document, add_special_tokens=False)
         remaining = max_tokens - len(values)
-        if remaining == 0:
+        if remaining <= 1:
             break
         selected_count = min(len(encoding.ids), remaining - 1)
         selected = encoding.ids[:selected_count] + [eos]
+        selected_supervision = _supervision_for_encoding(
+            rendered, encoding.offsets, selected_count
+        )
+        # EOS is a prediction target only when it ends an assistant-supervised
+        # record; ordinary all-token corpora retain their historical behavior.
+        selected_supervision.append(
+            rendered.loss_mode == "all_tokens"
+            or (
+                selected_count == len(encoding.ids) and bool(rendered.supervision_spans)
+            )
+        )
         if selected_count < len(encoding.ids):
             stats["truncated_documents"] += 1
         if byte_addresses is not None:
             assert byte_ngram_size is not None
             prefix = bytearray()
-            for token_bytes in _encoded_token_bytes(tokenizer, encoding.ids, document)[
+            for token_piece in _encoded_token_bytes(tokenizer, encoding.ids, document)[
                 :selected_count
             ]:
-                prefix.extend(token_bytes)
+                prefix.extend(token_piece)
                 byte_addresses.append(
                     table_address(bytes(prefix[-byte_ngram_size:]), byte_table_size)
                 )
             byte_addresses.append(0)
         values.extend(selected)
+        supervision.extend(selected_supervision)
         stats["retained_documents"] += 1
     return (
         np.asarray(values, dtype=np.int32),
+        np.asarray(supervision, dtype=bool),
         None if byte_addresses is None else np.asarray(byte_addresses, dtype=np.int32),
         stats,
     )
@@ -292,12 +407,17 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
     }
     _assert_local_chat_disjoint(config.dataset)
+    _assert_local_chat_supervision_consistent(config.dataset)
     root = (
         config.dataset.cache_dir
         / hashlib.sha256(canonical_json(cache_identity)).hexdigest()[:16]
     )
     manifest_path = root / "manifest.json"
     train_path, validation_path = root / "train.npy", root / "validation.npy"
+    train_supervision_path, validation_supervision_path = (
+        root / "train_supervision.npy",
+        root / "validation_supervision.npy",
+    )
     byte_enabled = config.model.memory in {"byte", "portable"}
     train_byte_path, validation_byte_path = (
         root / "train_byte_addresses.npy",
@@ -307,6 +427,8 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         manifest_path.is_file()
         and train_path.is_file()
         and validation_path.is_file()
+        and train_supervision_path.is_file()
+        and validation_supervision_path.is_file()
         and (
             not byte_enabled
             or (train_byte_path.is_file() and validation_byte_path.is_file())
@@ -327,10 +449,10 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         if byte_enabled
         else {}
     )
-    train, train_byte, train_stats = _collect(
+    train, train_supervision, train_byte, train_stats = _collect(
         config.dataset, tokenizer, "train", **settings
     )
-    validation, validation_byte, validation_stats = _collect(
+    validation, validation_supervision, validation_byte, validation_stats = _collect(
         config.dataset, tokenizer, "validation", **settings
     )
     if (
@@ -340,6 +462,8 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         raise ValueError("prepared split lacks a full next-token block")
     _atomic_array(temporary_root / "train.npy", train)
     _atomic_array(temporary_root / "validation.npy", validation)
+    _atomic_array(temporary_root / "train_supervision.npy", train_supervision)
+    _atomic_array(temporary_root / "validation_supervision.npy", validation_supervision)
     if byte_enabled:
         assert train_byte is not None and validation_byte is not None
         _atomic_array(temporary_root / "train_byte_addresses.npy", train_byte)
@@ -400,6 +524,15 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             **validation_stats,
             **_array_metadata(temporary_root / "validation.npy"),
         },
+        "supervision": {
+            "kind": "token-loss-mask-v1",
+            "train": _array_metadata(
+                temporary_root / "train_supervision.npy", dtype=np.dtype(bool)
+            ),
+            "validation": _array_metadata(
+                temporary_root / "validation_supervision.npy", dtype=np.dtype(bool)
+            ),
+        },
         "byte_addressing": None
         if not byte_enabled
         else {
@@ -429,6 +562,8 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         root,
         np.load(train_path, mmap_mode="r", allow_pickle=False),
         np.load(validation_path, mmap_mode="r", allow_pickle=False),
+        np.load(train_supervision_path, mmap_mode="r", allow_pickle=False),
+        np.load(validation_supervision_path, mmap_mode="r", allow_pickle=False),
         np.load(train_byte_path, mmap_mode="r", allow_pickle=False)
         if byte_enabled
         else None,
@@ -441,15 +576,64 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
 
 class TokenBlockDataset:
     def __init__(
-        self, ids: np.ndarray, seq_len: int, byte_addresses: np.ndarray | None = None
+        self,
+        ids: np.ndarray,
+        seq_len: int,
+        byte_addresses: np.ndarray | None = None,
+        supervision: np.ndarray | None = None,
     ) -> None:
-        self.ids, self.seq_len, self.byte_addresses = ids, seq_len, byte_addresses
-        self.num_blocks = (len(ids) - 1) // seq_len
+        if ids.ndim != 1 or ids.dtype != np.dtype(np.int32):
+            raise ValueError("packed IDs must be one-dimensional int32")
+        if supervision is not None and (
+            supervision.ndim != 1
+            or supervision.dtype != np.dtype(bool)
+            or len(supervision) != len(ids)
+        ):
+            raise ValueError(
+                "supervision mask must be one-dimensional bool aligned with IDs"
+            )
         if byte_addresses is not None and len(byte_addresses) != len(ids):
             raise ValueError("byte address array must align with packed IDs")
+        self.ids, self.seq_len = ids, seq_len
+        self.byte_addresses, self.supervision = byte_addresses, supervision
+        candidates = (len(ids) - 1) // seq_len
+        if supervision is None:
+            self.block_indices = np.arange(candidates, dtype=np.int64)
+        else:
+            self.block_indices = np.asarray(
+                [
+                    block
+                    for block in range(candidates)
+                    if bool(
+                        supervision[
+                            block * seq_len + 1 : (block + 1) * seq_len + 1
+                        ].any()
+                    )
+                ],
+                dtype=np.int64,
+            )
 
     def __len__(self) -> int:
-        return self.num_blocks
+        return len(self.block_indices)
+
+    def numpy_block(
+        self, index: int
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+        block = int(self.block_indices[index])
+        start = block * self.seq_len
+        values = np.asarray(self.ids[start : start + self.seq_len + 1], dtype=np.int64)
+        targets = values[1:].copy()
+        if self.supervision is not None:
+            mask = self.supervision[start + 1 : start + self.seq_len + 1]
+            targets[~mask] = -100
+        addresses = (
+            None
+            if self.byte_addresses is None
+            else np.asarray(
+                self.byte_addresses[start : start + self.seq_len], dtype=np.int64
+            )
+        )
+        return values[:-1], targets, addresses
 
     def __getitem__(
         self, index: int
@@ -457,18 +641,14 @@ class TokenBlockDataset:
         tuple[torch.Tensor, torch.Tensor]
         | tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ):
-        start = index * self.seq_len
-        values = torch.from_numpy(
-            np.asarray(self.ids[start : start + self.seq_len + 1], dtype=np.int64)
+        inputs, targets, addresses = self.numpy_block(index)
+        if addresses is None:
+            return torch.from_numpy(inputs), torch.from_numpy(targets)
+        return (
+            torch.from_numpy(inputs),
+            torch.from_numpy(targets),
+            torch.from_numpy(addresses),
         )
-        if self.byte_addresses is None:
-            return values[:-1], values[1:]
-        addresses = torch.from_numpy(
-            np.asarray(
-                self.byte_addresses[start : start + self.seq_len], dtype=np.int64
-            )
-        )
-        return values[:-1], values[1:], addresses
 
 
 @dataclass(frozen=True)

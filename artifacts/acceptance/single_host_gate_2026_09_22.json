@@ -1,0 +1,116 @@
+{
+  "format_version": 1,
+  "status": "accepted",
+  "reviewer": "Main (Astra)",
+  "accepted_at": "2026-09-23T01:10:32.251Z",
+  "scope": "0.1 single-host runtime/staging/checkpoint/inference/dashboard and installed-wheel gate",
+  "evidence": [
+    {
+      "path": "artifacts/acceptance/host_cli_2026_09_22.json",
+      "sha256": "93887a4039aedb2cca592f1bda44c4f21c267eb0f8468da34d74e6f6b2ddc625",
+      "bytes": 65466
+    },
+    {
+      "path": "artifacts/acceptance/assistant_only_2026_09_22.json",
+      "sha256": "fcdcdc78f8f5facf4133628ff4a80b84f940bc33a66a2a45cdea51e235150bdb",
+      "bytes": 2632
+    },
+    {
+      "path": "artifacts/acceptance/mps_continuation_2026_09_22.json",
+      "sha256": "951ce817311ff1fc2d94611a46f3fd3ff7bf102678c32e13b3ae0ef65d2e6e4f",
+      "bytes": 98169
+    },
+    {
+      "path": "artifacts/acceptance/offload_2026_09_22.json",
+      "sha256": "56948906e056740ff7f403c02fc4f533e0015fcaa0642242368194febbfd4900",
+      "bytes": 18989
+    },
+    {
+      "path": "artifacts/acceptance/staging_2026_09_22.json",
+      "sha256": "13747f67d218e14c368eac14b7037ca6754904a018f1d608223445e2f6bff4a8",
+      "bytes": 26444
+    },
+    {
+      "path": "artifacts/acceptance/resource_policy_2026_09_22.json",
+      "sha256": "c718afc73206cc7cf2636c27c3e19d43f6791a9ea938ede4caeb9476cdfea56a",
+      "bytes": 1402
+    },
+    {
+      "path": "artifacts/acceptance/memory_optimizer_2026_09_22.json",
+      "sha256": "ba473db077067d3202cb123c70d9e3f18d4a23dceccbe5f7d166534152cae18a",
+      "bytes": 35740
+    },
+    {
+      "path": "artifacts/acceptance/configured_accounting_2026_09_22.json",
+      "sha256": "2ed95127fd747b2cf786116fe73ba1be1fa4a095390531df46b9a74ba5b57b80",
+      "bytes": 611
+    },
+    {
+      "path": "artifacts/acceptance/weight_import_2026_09_22.json",
+      "sha256": "2f1d9a8db50c91e667650ab7c81147a4574caea3e7dfbd1ef6aa1bce607657f1",
+      "bytes": 38588
+    },
+    {
+      "path": "artifacts/acceptance/signal_recovery_2026_09_22.json",
+      "sha256": "c44994beb0c3aded019281484269bff05fc3ec5215d313777d52f583354846bd",
+      "bytes": 23081
+    },
+    {
+      "path": "artifacts/acceptance/lineage_bound_2026_09_22.json",
+      "sha256": "5db5efff9c64880bd670d6ec37b9b8c530e55057eadd936ddc402a17d188bd48",
+      "bytes": 400
+    },
+    {
+      "path": "artifacts/acceptance/core_wheel_2026_09_22.json",
+      "sha256": "d0d822742488e742893ecad0ddaa11370ef4dce761bd59b3d54a14a9cfc1599a",
+      "bytes": 5521
+    },
+    {
+      "path": "artifacts/acceptance/dashboard_2026_09_22.json",
+      "sha256": "317cd32fd4e3646eeb5f940e26e89c16152263d50bdce6fd5140ae4d94d3ca33",
+      "bytes": 2116
+    }
+  ],
+  "immutable_execution_wheel": {
+    "path": "artifacts/acceptance/tiny_sparse_lab-0.1.0-runtime-gate.whl",
+    "sha256": "e5c0917289c80cae22ecd0c83b15f1a602a2c8fdbc08dc94fa89dcdd26e0b9b1",
+    "bytes": 204442,
+    "python": "/tmp/sparselab-core-wheel-20260922/venv/bin/python",
+    "cli": "/tmp/sparselab-core-wheel-20260922/venv/bin/sparselab",
+    "package": "/tmp/sparselab-core-wheel-20260922/venv/lib/python3.12/site-packages/sparselab/__init__.py",
+    "source_sha256": "79c718f934af4418003214c3db213741f48b5a08751577e707e92cdd131f9474",
+    "adafactor_bytes": 3436,
+    "offline_valid_targets": 64,
+    "offline_loss": 6.191512227058411,
+    "native_checkpoint_valid_without_sdk": true
+  },
+  "focused_sweeps": [
+    {
+      "passed": 79,
+      "scope": "runtime/runtime-contracts/memory/planner/staging/metrics/conversations/packing-manifest"
+    },
+    {
+      "passed": 35,
+      "scope": "weight import/legacy checkpoint/generation/recomputation"
+    },
+    {
+      "passed": 35,
+      "scope": "accounting/inference/memory-planner after configured accounting correction"
+    },
+    {
+      "passed": 3,
+      "scope": "assistant-only held-out evidence and tamper binding"
+    }
+  ],
+  "frozen_study_bindings": {
+    "count": 67,
+    "all_verified": true
+  },
+  "limitations": [
+    "No CUDA, ROCm or XPU hardware acceptance.",
+    "No distributed or independent-worker acceptance yet.",
+    "MPS memory peaks are sampled lower bounds.",
+    "Native MLX inference is full-prefix; core-only installation cannot execute MLX.",
+    "Evidence records preserve each scenario source identity; later reporting-only corrections do not rewrite prior runs."
+  ]
+}

@@ -1,0 +1,1 @@
+{"generation_id":5,"relative_path":"step_00000020_gen_000005","manifest_sha256":"1111111111111111111111111111111111111111111111111111111111111111","step":20,"tokens_seen":640,"created_at":"2026-01-02T03:04:08+00:00","bytes":157081,"validation_loss":5.724795460700989,"engine":"pytorch","backend":"cpu","verification_status":"verified","resume_level":"full"}

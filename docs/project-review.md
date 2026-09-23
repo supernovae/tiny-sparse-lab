@@ -19,7 +19,7 @@ A useful experiment trains an actual checkpoint, exercises it through chat, meas
 | Partial token budgets and performance metrics were misleading | Exact valid-target masking, skipping empty microbatches, synchronized update timing; historical throughput claims withdrawn. |
 | Architecture accounting/diagnostics were incomplete | Corrected MLA and multi-table parameter estimates, actual Engram storage versus active rows, persisted last-training-microbatch diagnostics, and pre-renormalization router selection mass. |
 | Byte-memory Unicode behavior differed between packing and generation | Shared reversible ByteLevel token-byte conversion with causal UTF-8 regression coverage. |
-| Runtime capabilities exceeded implemented behavior | Explicit FP32-only PyTorch training; documented MLX inference/evidence and target-hardware limitations instead of silent substitution. |
+| Runtime capabilities exceeded implemented behavior | Explicit runtime/precision validation, staged pilots, and MLX/target-hardware limitations documented instead of silent substitution or feature-parity claims. |
 
 ## Actual learning experiment
 
@@ -74,6 +74,6 @@ The local suite includes available MPS/MLX coverage; it is not CUDA, ROCm or XPU
 2. **Test Engram-specific hypotheses.** Vary address order, table size/collision pressure, and hash heads one at a time; include a dense baseline and matched-total-parameter design where efficiency is the question. Measure quality and real resource cost together.
 3. **Repeat seeds and budgets.** Report per-seed paired deltas and acquisition/generalization curves. Do not select the favorable seed or best test-scoring checkpoint. Automation for statistical aggregation remains future work.
 4. **Move to a licensed domain corpus.** Use local conversation JSONL and a frozen domain card with exact answers where appropriate. Audit semantic leakage, provenance, failure modes, and retention after further training. Whole-transcript next-token training is currently supported; assistant-only loss and tool-call schemas are not.
-5. **Increase scale only after the smaller experiment learns.** Reuse cards, data and tokenizer contracts at larger explicit backbones. Fit within one host; memory estimates are estimates, and native sparse speedups, mixed precision, KV caching and distributed execution require separate implementations and evidence.
+5. **Increase scale only after the smaller experiment learns.** Reuse cards, data and tokenizer contracts at larger explicit backbones. Fit within one host; memory estimates are estimates, and native sparse speedups, KV caching, broad mixed-precision hardware acceptance, and distributed execution require separate implementations and evidence.
 
 See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), and the [remaining roadmap](../TODO.md).

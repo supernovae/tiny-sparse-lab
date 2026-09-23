@@ -9,6 +9,7 @@ from typing import Literal
 import torch
 from torch import Tensor, nn
 
+from sparselab.model.moe import diagnostic_writes_enabled
 from sparselab.model.rope import RoPE
 
 
@@ -17,10 +18,10 @@ class SparseAttentionDiagnostics:
     available_tokens: Tensor
     selected_tokens: Tensor
     selection_ratio: Tensor
-    selected_blocks: Tensor
+    selected_blocks: Tensor | None
     estimated_attention_flops: Tensor
-    dense_teacher_mass: Tensor
-    dense_teacher_topk_recall: Tensor
+    dense_teacher_mass: Tensor | None
+    dense_teacher_topk_recall: Tensor | None
 
 
 SparseBackend = Literal["cpu", "mps", "torch"]
@@ -66,7 +67,19 @@ class BlockSparseAttention(nn.Module):
         self.last_diagnostics: SparseAttentionDiagnostics | None = None
         self.last_backend: SparseBackend | None = None
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        *,
+        valid_target_mask: Tensor | None = None,
+        diagnostics: Literal["scalar", "full"] = "full",
+    ) -> Tensor:
+        if diagnostics not in ("scalar", "full"):
+            raise ValueError(f"unknown diagnostics policy: {diagnostics}")
+        if valid_target_mask is not None and valid_target_mask.shape != x.shape[:2]:
+            raise ValueError("valid_target_mask must align with attention inputs")
+        if valid_target_mask is not None:
+            valid_target_mask = valid_target_mask.to(dtype=torch.bool)
         batch, length, hidden = x.shape
         if length > self.max_seq_len:
             raise ValueError("sequence length exceeds configured attention context")
@@ -78,7 +91,9 @@ class BlockSparseAttention(nn.Module):
                 .transpose(1, 2)
             )
 
-        self.last_backend = select_sparse_backend(x.device)
+        record_diagnostics = diagnostic_writes_enabled()
+        if record_diagnostics:
+            self.last_backend = select_sparse_backend(x.device)
 
         query, key, value = (
             self.rope(heads(self.q_proj)),
@@ -93,8 +108,15 @@ class BlockSparseAttention(nn.Module):
         selected_total = 0
         available_total = 0
         selected_block_ids: list[Tensor] = []
-        dense_mass_total = torch.zeros((), device=x.device)
-        dense_recall_total = torch.zeros((), device=x.device)
+        diagnostic_positions = 0
+        dense_mass_total = (
+            torch.zeros((), device=x.device)
+            if record_diagnostics and diagnostics == "full"
+            else None
+        )
+        dense_recall_total = (
+            torch.zeros_like(dense_mass_total) if dense_mass_total is not None else None
+        )
         for position in range(length):
             starts = torch.arange(0, position + 1, self.block_size, device=x.device)
             ends = (starts + self.block_size).clamp_max(position + 1)
@@ -106,7 +128,6 @@ class BlockSparseAttention(nn.Module):
             chosen = index_scores.topk(
                 min(self.selected_blocks, block_count), dim=-1
             ).indices
-            selected_block_ids.append(chosen.detach())
             indices = torch.cat(
                 [
                     torch.arange(
@@ -129,29 +150,81 @@ class BlockSparseAttention(nn.Module):
                 -1
             ) / math.sqrt(self.head_dim)
             result[:, :, position] = (
-                torch.softmax(scores, dim=-1).unsqueeze(-1).mul(chosen_value).sum(dim=2)
+                torch.softmax(scores.float(), dim=-1)
+                .unsqueeze(-1)
+                .mul(chosen_value)
+                .sum(dim=2)
             )
-            with torch.no_grad():
-                dense_scores = (
-                    query[:, :, position].unsqueeze(2) * key[:, :, : position + 1]
-                ).sum(-1) / math.sqrt(self.head_dim)
-                dense_probabilities = torch.softmax(dense_scores, dim=-1)
-                dense_mass_total += (
-                    dense_probabilities.index_select(2, indices).sum(dim=-1).mean()
+            if record_diagnostics:
+                valid_rows = (
+                    None
+                    if valid_target_mask is None
+                    else valid_target_mask[:, position]
                 )
-                dense_topk = dense_scores.topk(indices.numel(), dim=-1).indices
-                dense_recall_total += torch.isin(dense_topk, indices).float().mean()
-            selected_total += indices.numel()
-            available_total += position + 1
-        self.last_diagnostics = SparseAttentionDiagnostics(
-            torch.tensor(available_total),
-            torch.tensor(selected_total),
-            torch.tensor(selected_total / available_total),
-            torch.cat(selected_block_ids, dim=-1),
-            torch.tensor(selected_total * self.head_dim),
-            (dense_mass_total / length).detach(),
-            (dense_recall_total / length).detach(),
-        )
+                valid_count = batch if valid_rows is None else int(valid_rows.sum())
+                if valid_count:
+                    query_count = valid_count * self.num_heads
+                    diagnostic_positions += query_count
+                    selected_total += indices.numel() * query_count
+                    available_total += (position + 1) * query_count
+                    if diagnostics == "full":
+                        assert (
+                            dense_mass_total is not None
+                            and dense_recall_total is not None
+                        )
+                        with torch.no_grad():
+                            selected_block_ids.append(
+                                (chosen if valid_rows is None else chosen[valid_rows])
+                                .detach()
+                                .flatten()
+                            )
+                            diagnostic_query = (
+                                query[:, :, position]
+                                if valid_rows is None
+                                else query[valid_rows, :, position]
+                            )
+                            diagnostic_key = (
+                                key[:, :, : position + 1]
+                                if valid_rows is None
+                                else key[valid_rows, :, : position + 1]
+                            )
+                            dense_scores = (
+                                diagnostic_query.unsqueeze(2) * diagnostic_key
+                            ).sum(-1) / math.sqrt(self.head_dim)
+                            dense_probabilities = torch.softmax(
+                                dense_scores.float(), dim=-1
+                            )
+                            dense_mass_total += dense_probabilities.index_select(
+                                2, indices
+                            ).sum()
+                            dense_topk = dense_scores.topk(
+                                indices.numel(), dim=-1
+                            ).indices
+                            dense_recall_total += (
+                                torch.isin(dense_topk, indices).float().mean(-1).sum()
+                            )
+        if record_diagnostics:
+            self.last_diagnostics = SparseAttentionDiagnostics(
+                torch.tensor(available_total, device=x.device),
+                torch.tensor(selected_total, device=x.device),
+                torch.tensor(selected_total / max(1, available_total), device=x.device),
+                (
+                    torch.cat(selected_block_ids)
+                    if diagnostics == "full" and selected_block_ids
+                    else None
+                ),
+                torch.tensor(selected_total * self.head_dim, device=x.device),
+                (
+                    (dense_mass_total / max(1, diagnostic_positions)).detach()
+                    if dense_mass_total is not None and diagnostic_positions
+                    else None
+                ),
+                (
+                    (dense_recall_total / max(1, diagnostic_positions)).detach()
+                    if dense_recall_total is not None and diagnostic_positions
+                    else None
+                ),
+            )
         return self.out_proj(
             result.transpose(1, 2).contiguous().view(batch, length, hidden)
         )

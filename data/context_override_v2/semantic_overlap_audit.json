@@ -1,0 +1,128 @@
+{
+  "asset": "context_override_v2",
+  "audit_version": 2,
+  "scope": "Frozen before execution. This is a manual semantic audit of assignment identities and wording roles, not a claim of lexical-disjointness where common registry vocabulary is deliberately shared.",
+  "training": {
+    "permanent_assignments": {
+      "atlas": "amber",
+      "beacon": "bronze",
+      "cipher": "coral",
+      "delta": "dahlia",
+      "ember": "indigo",
+      "forge": "jade",
+      "grove": "lilac",
+      "harbor": "mango"
+    },
+    "temporary_assignment_pairs": [
+      "atlas->onyx",
+      "atlas->topaz",
+      "beacon->pearl",
+      "beacon->umber",
+      "cipher->raven",
+      "cipher->yarrow",
+      "delta->sable",
+      "delta->zephyr",
+      "ember->willow",
+      "ember->nectar",
+      "forge->quartz",
+      "forge->orbit",
+      "grove->zinc",
+      "grove->fable",
+      "harbor->velvet",
+      "harbor->cinder"
+    ]
+  },
+  "development_validation": {
+    "entities": [
+      "juniper",
+      "kestrel",
+      "morrow",
+      "nimbus",
+      "orchard",
+      "prism",
+      "quarry",
+      "rivet"
+    ],
+    "assignment_pairs": [
+      "juniper->glacier",
+      "kestrel->lantern",
+      "morrow->linen",
+      "nimbus->paprika",
+      "nimbus->silver",
+      "orchard->tangerine",
+      "prism->violet",
+      "quarry->moss",
+      "quarry->rose",
+      "rivet->sandalwood"
+    ],
+    "disposition": "No development-validation entity or complete assignment pair occurs in training or frozen test cards. Validation loss may see these documents; no capability card may use them."
+  },
+  "untouched_test": {
+    "static_recall_entities": [
+      "atlas",
+      "beacon",
+      "cipher",
+      "delta",
+      "ember",
+      "forge",
+      "grove",
+      "harbor"
+    ],
+    "override_assignment_pairs": [
+      "atlas->opal",
+      "beacon->ruby",
+      "cipher->sienna",
+      "delta->teal",
+      "ember->umber",
+      "forge->violet",
+      "grove->wheat",
+      "harbor->xenon"
+    ],
+    "last_assignment_pairs": [
+      "atlas->opal",
+      "beacon->ruby",
+      "cipher->sienna",
+      "delta->teal"
+    ],
+    "disposition": "Static entities intentionally overlap training so retained permanent associations can be measured. Every test temporary assignment pair and every test query wording is absent from training and validation. Test values are familiar response tokens only where this makes tokenization less confounded; the entity-to-local-value bindings remain unseen.",
+    "discarded_first_assignment_pairs": [
+      "atlas->navy",
+      "beacon->gold",
+      "cipher->mint",
+      "delta->flax"
+    ]
+  },
+  "paraphrase_audit": {
+    "train_assignment_forms": [
+      "set X to Y",
+      "X means Y",
+      "X is Y",
+      "assign X Y",
+      "bind X to Y",
+      "use Y for X",
+      "temporary X assignment"
+    ],
+    "train_query_forms": [
+      "what is X now",
+      "current value",
+      "local value",
+      "which mapping applies",
+      "final local value",
+      "latest value"
+    ],
+    "validation_forms": "Different entities and assignment pairs; diagnostic validation only. Fixed-budget endpoint selection never uses validation loss or capability scores.",
+    "test_forms": [
+      "treat X as Y for this session",
+      "local registry entry",
+      "current conversation binding",
+      "after the final revision",
+      "which answer should X yield"
+    ],
+    "test_disposition": "No full test prompt or exact assignment sentence occurs in train or validation. Shared words such as registry, temporary, local, and value are necessary task instructions rather than semantic leakage."
+  },
+  "task_separation": {
+    "context_copying": "Override prompts explicitly supply the temporary binding and score exact reproduction of the final binding. Success demonstrates learned use of supplied conversational context, not recall of a learned static fact.",
+    "static_recall": "Retention prompts do not supply the permanent value and score the original training association under held-out query wording. Success demonstrates retention of the taught static mapping, not context copying.",
+    "last_assignment": "The last-assignment cases contain two conflicting supplied bindings and score only the later one; they reject a first-mention or permanent-default heuristic."
+  }
+}

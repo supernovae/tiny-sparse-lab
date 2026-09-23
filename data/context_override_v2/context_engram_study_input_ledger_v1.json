@@ -1,0 +1,271 @@
+{
+  "derived_facts": {
+    "curriculum_supervision": "all-token token-loss-mask-v1",
+    "dropped_trailing_train_tokens_per_epoch": 63,
+    "generation_bounds": {
+      "context_window_tokens": 128,
+      "frozen_card_max_new_tokens": 8,
+      "max_expected_answer_tokens": 5,
+      "max_prompt_plus_expected_tokens": 116,
+      "max_prompt_plus_frozen_generation_tokens": 119
+    },
+    "packing_version": "contiguous-eos-v5",
+    "target_budgets": {
+      "24576": {
+        "full_epochs": 14,
+        "max_steps": 199,
+        "post_epoch_targets": 384
+      },
+      "49152": {
+        "full_epochs": 28,
+        "max_steps": 398,
+        "post_epoch_targets": 768
+      }
+    },
+    "tokenizer_training_split": "train.jsonl only; 24 documents",
+    "train_supervised_token_count": 1792,
+    "train_token_count": 1792,
+    "usable_targets_per_epoch": 1728,
+    "usable_train_blocks_at_seq_len_64": 27,
+    "validation_supervised_token_count": 761,
+    "validation_token_count": 761,
+    "window_target_pattern_per_epoch": [
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      128,
+      64
+    ],
+    "initial_input_only_train_tokens_per_epoch": 1
+  },
+  "entries": {
+    "cards": [
+      {
+        "path": "data/context_override_v2/context_override_acquisition_v1.card.json",
+        "sha256": "382479e7a5591ff4267138008815af47150f269fa628ec27b45ade539f1e7b6e",
+        "size_bytes": 3746
+      },
+      {
+        "path": "data/context_override_v2/context_override_untouched_v1.card.json",
+        "sha256": "78823b4e1d380e50aeb5bdeedb115c14d72634c0e2de1bc319a7d15b5fecd68e",
+        "size_bytes": 4336
+      },
+      {
+        "path": "data/context_override_v2/context_static_retention_v1.card.json",
+        "sha256": "22d0150a989e0270b1e34e48f90de197ed586df82fc1ba61bf4c8453226acd7e",
+        "size_bytes": 3357
+      }
+    ],
+    "configs": [
+      {
+        "path": "configs/context_study_dense_s17_b24k.yaml",
+        "sha256": "ff34f4e7c438492f6052632d772c9ae8faaea5aa4c794a0f8d271fee60c33038",
+        "size_bytes": 1572
+      },
+      {
+        "path": "configs/context_study_dense_s17_b48k.yaml",
+        "sha256": "e529d337ec256e98e2d075a30714f4d9ae8931cc585a5879002227951b47055c",
+        "size_bytes": 1572
+      },
+      {
+        "path": "configs/context_study_dense_s41_b24k.yaml",
+        "sha256": "e6da20c6c56101aa5df2faf3fe273828d0cad9c3ee025276ace9bc6ec931f8d2",
+        "size_bytes": 1572
+      },
+      {
+        "path": "configs/context_study_dense_s41_b48k.yaml",
+        "sha256": "6cf0b9779b8604ba994fc2b0ffb06f4ae511fb67290ac712d4d2157d84adf643",
+        "size_bytes": 1572
+      },
+      {
+        "path": "configs/context_study_dense_s73_b24k.yaml",
+        "sha256": "41a44073674c242e9eae176c7120cd98185e68851dafcf910139b6fb525414b1",
+        "size_bytes": 1572
+      },
+      {
+        "path": "configs/context_study_dense_s73_b48k.yaml",
+        "sha256": "f87ecc685fbcd89100e4b60999dd23d1608581d935ac9670cfb463525ef29e8b",
+        "size_bytes": 1572
+      },
+      {
+        "path": "configs/context_study_dense_total_s17_b24k.yaml",
+        "sha256": "b892565bbea1ca06ab88fe219e135f07141886dfbc731b4c4b8571a29c784952",
+        "size_bytes": 1578
+      },
+      {
+        "path": "configs/context_study_dense_total_s17_b48k.yaml",
+        "sha256": "a04ae993c6ff2c48afc2d6aecee1bda08083af51986a2a2319f5417d7c273dd6",
+        "size_bytes": 1578
+      },
+      {
+        "path": "configs/context_study_dense_total_s41_b24k.yaml",
+        "sha256": "5148f57b943a1cac292d4b26b7696410a474a35a5603c218b960b58a90b530cf",
+        "size_bytes": 1578
+      },
+      {
+        "path": "configs/context_study_dense_total_s41_b48k.yaml",
+        "sha256": "e638803892d8c58a0f1a5eea1cc78c2cc09d12a27b6d7a5fdad9318650c892cf",
+        "size_bytes": 1578
+      },
+      {
+        "path": "configs/context_study_dense_total_s73_b24k.yaml",
+        "sha256": "3aa4164eb88bd878241b65e45ec8b3a2c1a4edc12df82f02c52d8a66a6b6de9e",
+        "size_bytes": 1578
+      },
+      {
+        "path": "configs/context_study_dense_total_s73_b48k.yaml",
+        "sha256": "2f515c4f0d16eda2ba52d52f93235310312b641791d7aa1a182bbaa3418ff737",
+        "size_bytes": 1578
+      },
+      {
+        "path": "configs/context_study_engram_collision127_s17_b48k.yaml",
+        "sha256": "1beb1e100c7044c0dd24ccc356a542b9168d22e5a6cc0bcc05dbd5100080cf90",
+        "size_bytes": 1667
+      },
+      {
+        "path": "configs/context_study_engram_collision127_s41_b48k.yaml",
+        "sha256": "a2b7eddaa16127b00be55f4a1e5ef67c272c96f618f46b23ad728fb8ca091c09",
+        "size_bytes": 1667
+      },
+      {
+        "path": "configs/context_study_engram_collision127_s73_b48k.yaml",
+        "sha256": "0100107fb0853eddfb3dc1b4ae5190bb4ea4a32739c29b39fdfafd494ba2fa81",
+        "size_bytes": 1667
+      },
+      {
+        "path": "configs/context_study_engram_orders23_s17_b48k.yaml",
+        "sha256": "53fbab08966d1e744da24a75788a5e7ac2b61832f318d1438c7219ae45fe975c",
+        "size_bytes": 1694
+      },
+      {
+        "path": "configs/context_study_engram_orders23_s41_b48k.yaml",
+        "sha256": "70a84c83e1716182b798052dc4615895999e4740ec86602d1f2e33149cb2c21b",
+        "size_bytes": 1694
+      },
+      {
+        "path": "configs/context_study_engram_orders23_s73_b48k.yaml",
+        "sha256": "3b7a02f34cf86d64e7cfe08c31a0c7cee7ae9c40cbf3b787fd2deb2637da2c5a",
+        "size_bytes": 1694
+      },
+      {
+        "path": "configs/context_study_engram_s17_b24k.yaml",
+        "sha256": "1c901f40a08931cb21870e875bba3ec910cf46bd213fdd8e04dc0a8a427e618d",
+        "size_bytes": 1655
+      },
+      {
+        "path": "configs/context_study_engram_s17_b48k.yaml",
+        "sha256": "6ee7601d30da7a6559266e2f6f80d5154a4727cde03d151ff23b066f7bad5620",
+        "size_bytes": 1655
+      },
+      {
+        "path": "configs/context_study_engram_s41_b24k.yaml",
+        "sha256": "0b5c7e0c0aeb3644806faeba0cdf0ce2154bb384640f85f656e471b77fd90616",
+        "size_bytes": 1655
+      },
+      {
+        "path": "configs/context_study_engram_s41_b48k.yaml",
+        "sha256": "f2b72caa1c3ccb825843d5acf5c2b521cde70028127720d205a05f8335956e51",
+        "size_bytes": 1655
+      },
+      {
+        "path": "configs/context_study_engram_s73_b24k.yaml",
+        "sha256": "a2458c3121b284fde32374dd0fff64e942aee6e5f7a7969fd6d7ec41a9e6caac",
+        "size_bytes": 1655
+      },
+      {
+        "path": "configs/context_study_engram_s73_b48k.yaml",
+        "sha256": "66308d603e3bac995801fb92edb41d39753329f16e151fad115150f36ba119bc",
+        "size_bytes": 1655
+      },
+      {
+        "path": "configs/context_study_tokenizer.yaml",
+        "sha256": "34880716b1d22d089c8a1009daa46a5a3b4dc2d3b897a533bd9095102365ef1c",
+        "size_bytes": 540
+      }
+    ],
+    "prepared_token_stream": [
+      {
+        "path": "artifacts/tokenizer_context_study/prepared_data/700fe5e374dd8f13/manifest.json",
+        "sha256": "b203f79a8e36c960c3f2389b72bcd4712fc3aab552eb8db668de2445b836c148",
+        "size_bytes": 2172
+      },
+      {
+        "path": "artifacts/tokenizer_context_study/prepared_data/700fe5e374dd8f13/train.npy",
+        "sha256": "ca1e224e2a28af1f58f9e36e2212345cf4dcca0b4db86e917b96c91ca62abf9d",
+        "size_bytes": 7296
+      },
+      {
+        "path": "artifacts/tokenizer_context_study/prepared_data/700fe5e374dd8f13/validation.npy",
+        "sha256": "b7b279913c3d6d320d3f2f251c18c701bd7bb002327536695ebfdc72563c1b5c",
+        "size_bytes": 3172
+      },
+      {
+        "path": "artifacts/tokenizer_context_study/prepared_data/700fe5e374dd8f13/train_supervision.npy",
+        "sha256": "6b95d2b548c2c8bbe8c413eb3a57f3f75c95382c8c8a38a7b5548de93fa20436",
+        "size_bytes": 1920
+      },
+      {
+        "path": "artifacts/tokenizer_context_study/prepared_data/700fe5e374dd8f13/validation_supervision.npy",
+        "sha256": "37bf802d77ae0f5b03c39bb1d2a73cdf58a3d37934a68aec0a7d4e14e6634c4b",
+        "size_bytes": 889
+      }
+    ],
+    "provenance": [
+      {
+        "path": "data/context_override_v2/provenance.json",
+        "sha256": "933695819aefd70a47afa682f1e697b542aad3d819a8a59af72d1007bd22e8e6",
+        "size_bytes": 757
+      }
+    ],
+    "semantic_audit": [
+      {
+        "path": "data/context_override_v2/semantic_overlap_audit.json",
+        "sha256": "fb3387451f250ea21373d86b1ff64cfb1eeacb19f63e454db89fb4e66bf112c7",
+        "size_bytes": 4311
+      }
+    ],
+    "tokenizer": [
+      {
+        "path": "artifacts/tokenizer_context_study/tokenizer.json",
+        "sha256": "e22c6414e1f2e4359da3a4af9ec580d795c2af47b2b9e13a08f8a36cb55002ed",
+        "size_bytes": 21662
+      },
+      {
+        "path": "artifacts/tokenizer_context_study/tokenizer_manifest.json",
+        "sha256": "7dc9ded516e2e0d8ba8e8ca89dd8ab3511afe6fa7e362a53c935f5ed2de1dce7",
+        "size_bytes": 874
+      }
+    ],
+    "training": [
+      {
+        "path": "data/context_override_v2/train.jsonl",
+        "sha256": "e4c93c5d7a2e283f0cdd013629c0e89359991e73d8d1a6a46fe220275e9eba64",
+        "size_bytes": 10607
+      }
+    ],
+    "validation": [
+      {
+        "path": "data/context_override_v2/validation.jsonl",
+        "sha256": "abbc243db52d627752378649b28d454afab655475e6aceca9a13e06ca4125bcf",
+        "size_bytes": 3438
+      }
+    ]
+  },
+  "format": "context-engram-study-input-ledger",
+  "protocol_decisions": {
+    "card_scoring": "retain each card’s normalized_full_answer_exact_v1 scorer and existing v1 all-token curriculum",
+    "endpoint_selection": "one verified checkpoint generation exactly at the configured committed-target budget; validation is diagnostic only and never a selector",
+    "failure_handling": "a failed, interrupted, nonfinite, OOM, missing-endpoint, or partial-budget run is recorded individually; it contributes no endpoint card score and is never silently pooled",
+    "generation": "retain each card’s frozen greedy deterministic generation settings: max_new_tokens=8, temperature=0.0, top_k=0, seed=0, and its stop sequences; five tokens suffice for every expected label"
+  },
+  "version": 1
+}

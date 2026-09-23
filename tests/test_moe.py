@@ -66,3 +66,21 @@ def test_selected_probability_mass_is_measured_before_renormalization() -> None:
     assert torch.isclose(
         moe.last_diagnostics.mean_topk_probability, torch.tensor(2 / 3)
     )
+
+
+def test_full_routing_snapshot_contains_only_supervised_tokens() -> None:
+    torch.manual_seed(19)
+    moe = TopKMoE(4, 8, 3, experts_per_token=2)
+    values = torch.randn(1, 4, 4)
+    valid = torch.tensor([[True, True, False, False]])
+    moe(values, valid_target_mask=valid, diagnostics="full")
+    first = moe.last_diagnostics
+    changed = values.clone()
+    changed[:, 2:] += 100
+    moe(changed, valid_target_mask=valid, diagnostics="full")
+    second = moe.last_diagnostics
+    assert first is not None and second is not None
+    for name in ("router_logits", "selected_experts", "selected_weights"):
+        original, altered = getattr(first, name), getattr(second, name)
+        assert original.shape[0] == 2
+        torch.testing.assert_close(original, altered, rtol=0, atol=0)

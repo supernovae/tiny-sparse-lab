@@ -1,0 +1,16 @@
+matrix_version: 1
+base_config: ../../configs/runtime_smoke_cpu.yaml
+scheduling:
+  requirements:
+    backend: [cpu]
+axes:
+  seed:
+    - label: seed-7
+      set:
+        seed: 7
+    - label: seed-17
+      set:
+        seed: 17
+    - label: seed-41
+      set:
+        seed: 41

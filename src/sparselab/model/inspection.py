@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-from torch import nn
+from torch import Tensor, nn
 
 from sparselab.config.models import AttentionConfig, ModelConfig, RunConfig
 from sparselab.model.moe import TopKMoE
@@ -190,7 +190,8 @@ def parameter_inventory(config: RunConfig) -> ParameterInventory:
     table = _sum_specs(
         tensors,
         lambda name, spec: (
-            name.startswith(("memory.table.", "memory.extra_tables.")) or name == "memory.embedding.weight"
+            name.startswith(("memory.table.", "memory.extra_tables."))
+            or name == "memory.embedding.weight"
         ),
     )
     adapter = _sum_specs(
@@ -198,7 +199,8 @@ def parameter_inventory(config: RunConfig) -> ParameterInventory:
         lambda name, spec: (
             name.startswith("memory.")
             and not (
-                name.startswith(("memory.table.", "memory.extra_tables.")) or name == "memory.embedding.weight"
+                name.startswith(("memory.table.", "memory.extra_tables."))
+                or name == "memory.embedding.weight"
             )
         ),
     )
@@ -238,13 +240,13 @@ def parameter_inventory(config: RunConfig) -> ParameterInventory:
 
 def inspection_report(config: RunConfig) -> dict[str, int | str]:
     """Return ``inspect_model``-compatible accounting from shapes alone."""
+    from sparselab.memory import optimizer_state_bytes
+
     inventory = parameter_inventory(config)
     expert = inventory.routed_expert + inventory.shared_expert
     engram = inventory.memory_table + inventory.memory_adapter
     weight_bytes = inventory.total * 4
-    optimizer_bytes = inventory.trainable * (
-        8 if config.optimizer.name == "adamw" else 4
-    )
+    optimizer_bytes = optimizer_state_bytes(config, inventory)
     return {
         "total": inventory.total,
         "trainable": inventory.trainable,
@@ -285,7 +287,10 @@ def _unique_numel(parameters: Iterable[nn.Parameter]) -> int:
 
 
 def inspect_model(model: nn.Module) -> dict[str, int | str]:
-    """Count instantiated storage and direct one-token use, not FLOPs."""
+    """Count storage/direct use; optimizer fields assume FP32 AdamW.
+
+    Use inspection_report for a configured optimizer rather than this model-only view.
+    """
     if not isinstance(model, DenseLM):
         raise TypeError("inspection currently supports DenseLM")
     total = _unique_numel(model.parameters())
@@ -338,7 +343,9 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     weight_bytes = sum(
         parameter.numel() * parameter.element_size() for parameter in model.parameters()
     )
-    optimizer_state_bytes = trainable * 8
+    optimizer_state_bytes = trainable * 8 + 4 * sum(
+        parameter.requires_grad for parameter in model.parameters()
+    )
     expert = routed_expert + shared_expert
     return {
         "total": total,
@@ -373,45 +380,11 @@ def inspect_model(model: nn.Module) -> dict[str, int | str]:
     }
 
 
-def architecture_metrics(model: DenseLM) -> dict[str, float]:
-    """Scalar diagnostics from the last training microbatch, not update averages."""
-    result: dict[str, float] = {}
-    if model.memory is not None and model.memory.last_diagnostics is not None:
-        diagnostic = model.memory.last_diagnostics
-        for name in (
-            "lookup_count",
-            "unique_addresses",
-            "collision_count",
-            "bucket_reuse_rate",
-            "table_utilization",
-            "maximum_address_fraction",
-            "gate_mean",
-            "value_norm",
-            "hidden_norm",
-        ):
-            result[f"engram/{name}"] = float(getattr(diagnostic, name).detach())
-    for index, block in enumerate(model.blocks):
-        if isinstance(block.ffn, TopKMoE) and block.ffn.last_diagnostics is not None:
-            diagnostic = block.ffn.last_diagnostics
-            for metric, field in (
-                ("router_entropy", "entropy"),
-                ("maximum_expert_fraction", "maximum_fraction"),
-                ("mean_topk_probability", "mean_topk_probability"),
-            ):
-                result[f"moe/layer_{index}/{metric}"] = float(
-                    getattr(diagnostic, field).detach()
-                )
-        diagnostic = getattr(block.attention, "last_diagnostics", None)
-        if diagnostic is not None:
-            for metric, field in (
-                ("available_tokens", "available_tokens"),
-                ("selected_tokens", "selected_tokens"),
-                ("selection_ratio", "selection_ratio"),
-                ("estimated_flops", "estimated_attention_flops"),
-                ("dense_teacher_mass", "dense_teacher_mass"),
-                ("dense_teacher_topk_recall", "dense_teacher_topk_recall"),
-            ):
-                result[f"attention/layer_{index}/{metric}"] = float(
-                    getattr(diagnostic, field).detach()
-                )
-    return result
+def architecture_metrics(model: DenseLM) -> dict[str, Tensor]:
+    """Return detached device diagnostics from the most recent model forward.
+
+    This compatibility wrapper intentionally leaves scalar materialization to
+    the execution boundary; converting accelerator tensors here would serialize
+    every accumulated microbatch.
+    """
+    return model.architecture_metric_tensors()

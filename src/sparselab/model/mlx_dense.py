@@ -1,11 +1,15 @@
-"""Canonical bias-free dense decoder executed by optional Apple MLX."""
+"""Optional MLX implementation of the canonical dense SparseLab decoder.
+
+This module deliberately imports MLX: callers that only inspect checkpoint metadata use
+``training.mlx_checkpoints`` instead and therefore remain usable without MLX installed.
+"""
 
 from __future__ import annotations
 
 import mlx.core as mx
 from mlx import nn
 
-from sparselab.config.models import ModelConfig
+from sparselab.config.models import AttentionConfig, ModelConfig
 
 
 class RMSNorm(nn.Module):
@@ -15,11 +19,11 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def __call__(self, x: mx.array) -> mx.array:
-        return (
-            x
-            * mx.rsqrt(mx.mean(x * x, axis=-1, keepdims=True) + self.eps)
-            * self.weight
+        # Keep the reduction explicitly fp32: autocast is not an MLX capability yet.
+        scale = mx.rsqrt(
+            mx.mean(x.astype(mx.float32) ** 2, axis=-1, keepdims=True) + self.eps
         )
+        return x * scale.astype(x.dtype) * self.weight
 
 
 class SwiGLU(nn.Module):
@@ -34,7 +38,9 @@ class SwiGLU(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dims: int, heads: int, rope_base: float = 10000.0) -> None:
+    """Bias-free causal multi-head attention with adjacent-pair RoPE."""
+
+    def __init__(self, dims: int, heads: int, rope_base: float) -> None:
         super().__init__()
         self.heads, self.head_dim, self.rope_base = heads, dims // heads, rope_base
         self.q_proj = nn.Linear(dims, dims, bias=False)
@@ -45,7 +51,7 @@ class Attention(nn.Module):
     def __call__(self, x: mx.array) -> mx.array:
         batch, length, _ = x.shape
 
-        def split(layer):
+        def split(layer: nn.Linear) -> mx.array:
             return mx.transpose(
                 layer(x).reshape(batch, length, self.heads, self.head_dim), (0, 2, 1, 3)
             )
@@ -68,7 +74,8 @@ class Attention(nn.Module):
         )
         v = split(self.v_proj)
         scores = mx.matmul(q, mx.swapaxes(k, -1, -2)) / (self.head_dim**0.5)
-        scores = scores + mx.where(mx.triu(mx.ones((length, length)), k=1), -1e9, 0.0)
+        causal = mx.triu(mx.ones((length, length), dtype=mx.bool_), k=1)
+        scores = mx.where(causal, mx.array(-1e9, dtype=scores.dtype), scores)
         output = mx.matmul(mx.softmax(scores, axis=-1), v)
         return self.out_proj(
             mx.transpose(output, (0, 2, 1, 3)).reshape(batch, length, -1)
@@ -76,10 +83,30 @@ class Attention(nn.Module):
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, config: ModelConfig) -> None:
+    def __init__(self, config: ModelConfig, attention: AttentionConfig) -> None:
         super().__init__()
         self.norm1 = RMSNorm(config.hidden_dim, config.rms_norm_eps)
-        self.attention = Attention(config.hidden_dim, config.num_heads)
+        if attention.kind == "dense":
+            self.attention = Attention(
+                config.hidden_dim, config.num_heads, attention.rope_base
+            )
+        elif attention.kind == "block_sparse":
+            from sparselab.model.attention.mlx_sparse import MLXBlockSparseAttention
+
+            assert attention.block_size is not None
+            assert attention.selected_blocks is not None
+            self.attention = MLXBlockSparseAttention(
+                config.hidden_dim,
+                config.num_heads,
+                config.max_seq_len,
+                attention.rope_base,
+                attention.block_size,
+                attention.selected_blocks,
+            )
+        else:
+            raise ValueError(
+                f"MLXDenseLM does not implement {attention.kind} attention"
+            )
         self.norm2 = RMSNorm(config.hidden_dim, config.rms_norm_eps)
         self.ffn = SwiGLU(config.hidden_dim, config.ffn_dim)
 
@@ -89,18 +116,40 @@ class DecoderBlock(nn.Module):
 
 
 class MLXDenseLM(nn.Module):
-    def __init__(self, config: ModelConfig) -> None:
+    """Dense FFN decoder with dense or reference MLX block-sparse attention."""
+
+    def __init__(
+        self,
+        config: ModelConfig,
+        attention: AttentionConfig | None = None,
+        *,
+        recompute_blocks: bool = False,
+    ) -> None:
         super().__init__()
+        attention = attention or AttentionConfig()
         self.config = config
         self.embedding = nn.Embedding(config.vocab_size, config.hidden_dim)
-        self.blocks = [DecoderBlock(config) for _ in range(config.num_layers)]
+        self.blocks = [
+            DecoderBlock(config, attention) for _ in range(config.num_layers)
+        ]
+        self._block_calls = [
+            nn.utils.checkpoint(block) if recompute_blocks else block
+            for block in self.blocks
+        ]
         self.norm = RMSNorm(config.hidden_dim, config.rms_norm_eps)
-        self.output = nn.Linear(config.hidden_dim, config.vocab_size, bias=False)
-        if config.tie_embeddings:
-            self.output.weight = self.embedding.weight
+        self.output = (
+            None
+            if config.tie_embeddings
+            else nn.Linear(config.hidden_dim, config.vocab_size, bias=False)
+        )
 
     def __call__(self, input_ids: mx.array) -> mx.array:
         hidden = self.embedding(input_ids)
-        for block in self.blocks:
+        for block in self._block_calls:
             hidden = block(hidden)
-        return self.output(self.norm(hidden))
+        hidden = self.norm(hidden)
+        return (
+            self.embedding.as_linear(hidden)
+            if self.output is None
+            else self.output(hidden)
+        )
