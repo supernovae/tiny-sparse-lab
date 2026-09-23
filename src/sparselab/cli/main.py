@@ -532,6 +532,51 @@ def _capability_compare(args: argparse.Namespace) -> None:
     print(json.dumps({**result, "output": str(path)}, indent=2, sort_keys=True))
 
 
+def _study_plan(args: argparse.Namespace) -> None:
+    from sparselab.experiments.study import plan_study, study_plan_payload
+
+    plan = plan_study(Path(args.path), max_runs=args.max_runs)
+    print(json.dumps(study_plan_payload(plan), indent=2, sort_keys=True))
+
+
+def _study_submit(args: argparse.Namespace) -> None:
+    from sparselab.experiments.study import plan_study, submit_study
+
+    plan = plan_study(Path(args.path), max_runs=args.max_runs)
+    receipt = submit_study(
+        plan,
+        Path(args.receipt),
+        store=Path(args.store),
+        worker=args.worker,
+        stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
+    )
+    print(
+        json.dumps(
+            {
+                "study_sha256": plan.study_sha256,
+                "receipt": str(Path(args.receipt)),
+                "runs": receipt["runs"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _study_collect(args: argparse.Namespace) -> None:
+    from sparselab.experiments.study import collect_study, plan_study
+
+    plan = plan_study(Path(args.path), max_runs=args.max_runs)
+    report, report_path = collect_study(
+        plan,
+        Path(args.receipt),
+        runs_dir=Path(args.runs_dir),
+        checkpoint=args.checkpoint,
+        backend=args.backend,
+    )
+    print(json.dumps({**report, "output": str(report_path)}, indent=2, sort_keys=True))
+
+
 def _chat(args: argparse.Namespace) -> None:
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     history: list[ChatMessage] = []
@@ -894,6 +939,37 @@ def build_parser() -> argparse.ArgumentParser:
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     capability_compare.set_defaults(handler=_capability_compare)
+
+    study = commands.add_parser(
+        "study", help="Plan and compare matched architecture experiments."
+    )
+    study_commands = study.add_subparsers(dest="study_command", required=True)
+    study_plan = study_commands.add_parser("plan")
+    study_plan.add_argument("path", help="Architecture study YAML")
+    study_plan.add_argument("--max-runs", type=int, default=1000)
+    study_plan.set_defaults(handler=_study_plan)
+    study_submit = study_commands.add_parser("submit")
+    study_submit.add_argument("path", help="Architecture study YAML")
+    study_submit.add_argument("--receipt", required=True)
+    study_submit.add_argument("--worker")
+    study_submit.add_argument("--stage-bundle")
+    study_submit.add_argument("--max-runs", type=int, default=1000)
+    study_submit.add_argument("--store", default=runs_dir_default)
+    study_submit.set_defaults(handler=_study_submit)
+    study_collect = study_commands.add_parser("collect")
+    study_collect.add_argument("path", help="Architecture study YAML")
+    study_collect.add_argument("receipt")
+    study_collect.add_argument(
+        "--runs-dir",
+        default=runs_dir_default,
+        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+    )
+    study_collect.add_argument("--checkpoint")
+    study_collect.add_argument(
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    study_collect.add_argument("--max-runs", type=int, default=1000)
+    study_collect.set_defaults(handler=_study_collect)
     generation = commands.add_parser("generate")
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)

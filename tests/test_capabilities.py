@@ -188,12 +188,71 @@ def test_compare_requires_matched_identity_but_accepts_relocated_paths() -> None
     assert comparison["score_delta"] == 1.0
     assert comparison["paired_gains"] == 1
     assert comparison["outcome"] == "supported_observation"
+    assert comparison["format"] == "capability_comparison_v2"
+    assert "vary_fields" not in comparison
     with pytest.raises(ValueError, match="tokens_seen"):
         compare_results(base, _result(score=1.0, memory="ngram", tokens=767))
     with pytest.raises(ValueError):
         compare_results(base, _result(score=1.0, memory="ngram", seed=7))
     with pytest.raises(ValueError, match="tokenizer_sha256"):
         compare_results(base, _result(score=1.0, memory="ngram", tokenizer_sha="other"))
+
+
+def test_custom_comparison_requires_exact_declared_model_fields() -> None:
+    base = _result(score=0.0)
+    variant = _result(score=1.0)
+    identity = variant["identity"]
+    assert isinstance(identity, dict)
+    config = identity["config"]
+    assert isinstance(config, dict)
+    model = config["model"]
+    assert isinstance(model, dict)
+    model["hidden_dim"] = 96
+
+    comparison = compare_results(
+        base,
+        variant,
+        vary="custom",
+        vary_fields=("model.hidden_dim",),
+    )
+
+    assert comparison["format"] == "capability_comparison_v3"
+    assert comparison["vary_fields"] == ["model.hidden_dim"]
+    with pytest.raises(ValueError, match="outside custom"):
+        compare_results(
+            base,
+            variant,
+            vary="custom",
+            vary_fields=("model.ffn_dim",),
+        )
+    with pytest.raises(ValueError, match="include unchanged controls"):
+        compare_results(
+            base,
+            variant,
+            vary="custom",
+            vary_fields=("model.hidden_dim", "model.ffn_dim"),
+        )
+    with pytest.raises(ValueError, match="unique dotted"):
+        compare_results(
+            base,
+            variant,
+            vary="custom",
+            vary_fields=("model..hidden_dim",),
+        )
+    with pytest.raises(ValueError, match="identical"):
+        compare_results(
+            base,
+            base,
+            vary="custom",
+            vary_fields=("model.hidden_dim",),
+        )
+    with pytest.raises(ValueError, match="seed"):
+        compare_results(
+            base,
+            _result(score=1.0, seed=7),
+            vary="custom",
+            vary_fields=("seed",),
+        )
 
 
 def test_results_are_checkpoint_content_addressed_and_coexist(tmp_path: Path) -> None:

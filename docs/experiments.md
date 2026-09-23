@@ -29,6 +29,83 @@ Dry-run prints all resolved coordinates and hashes without downloading/preparing
 
 Matrix v1 uses an explicit base config and insertion-ordered axes with labeled dotted-path patches. Duplicate labels, conflicting patches, invalid configs, and excessive expansion are rejected. Labels such as “50M” or “MoE” never infer a model. Workers execute independent optimizers, not distributed gradients; unsupported requirements remain queued with a reason. See [worker contracts and matrix format](workers.md#explicit-matrices).
 
+## Architecture study campaigns
+
+An architecture study is an optional campaign wrapper over the existing explicit matrix format. It does not add a closed architecture registry or change `RunConfig`: every matrix coordinate still resolves to a normal concrete config, with the same dotted-path validation as `experiment submit --matrix`. Use direct training when that is simpler:
+
+```sh
+uv run sparselab train configs/my_architecture.yaml
+uv run sparselab inspect configs/my_architecture.yaml --json
+```
+
+If an architecture needs model-code or config-schema changes, make those normally and continue to train its concrete config directly. The campaign layer does not make arbitrary Python model code auto-configurable; it does not restrict existing direct builds to named presets.
+
+For a controlled FFN-width experiment, save these two files as `experiments/ffn-matrix.yaml` and `experiments/ffn-study.yaml`:
+
+```yaml
+# experiments/ffn-matrix.yaml
+matrix_version: 1
+base_config: ../configs/runtime_smoke_cpu.yaml
+axes:
+  architecture:
+    - label: baseline
+      set: {}
+    - label: wider-ffn
+      set:
+        model.ffn_dim: 48
+```
+
+```yaml
+# experiments/ffn-study.yaml
+study_version: 1
+name: ffn-width-smoke
+matrix: ffn-matrix.yaml
+cards:
+  - engram-recall-v1
+comparisons:
+  - id: wider-ffn
+    vary: custom
+    vary_fields:
+      - model.ffn_dim
+    baseline:
+      architecture: baseline
+    variant:
+      architecture: wider-ffn
+```
+
+The smoke config demonstrates wiring, not model quality; use a task-appropriate trained config and capability card for useful evidence. Built-in cards are named in [capabilities](capabilities.md); custom cards are referenced by JSON path. A card is a fixed post-training probe, not a training reward.
+
+Plan before allocating workers:
+
+```sh
+uv run sparselab study plan experiments/ffn-study.yaml
+```
+
+The plan expands every config, hashes the inputs, reports parameter inventory and estimated weight/optimizer/checkpoint bytes, and requires each declared comparison to match one-to-one over all unselected axes. It rejects undeclared config changes before submission. For multi-seed ablations, add a `seed` matrix axis and leave it out of both selectors; the same seed then pairs baseline and variant. Seeds cannot be the varied field. `vary_fields` must list exactly the changed dotted config fields. The built-in `memory`, `attention`, `ffn`, and `scale` modes enforce their corresponding model field families.
+
+Submit the immutable run inventory to the existing independent-worker controller, then run that controller in a separate terminal:
+
+```sh
+uv run sparselab worker register cpu-one --backend cpu --store /tmp/sparselab-study
+uv run sparselab study submit experiments/ffn-study.yaml \
+  --worker cpu-one --store /tmp/sparselab-study \
+  --receipt /tmp/sparselab-study/ffn-receipt.json
+uv run sparselab controller run --store /tmp/sparselab-study
+```
+
+After all coordinates finish, collect held-out validation loss/perplexity and each card against the run checkpoint:
+
+```sh
+uv run sparselab study collect experiments/ffn-study.yaml \
+  /tmp/sparselab-study/ffn-receipt.json --runs-dir /tmp/sparselab-study
+```
+
+Collection verifies the receipt against the current study and each run's resolved config, records checkpoint identities, and emits a content-addressed report beside the receipt. Missing runs or invalid evaluations stay explicitly inconclusive; they are not dropped from the denominator silently. `--checkpoint NAME` selects the same named checkpoint for every run; the default is each run's latest checkpoint. Paired deltas are descriptive, not statistical significance or a universal architecture ranking.
+
+The default controller store and collection run directory are both `runs/`; if `--store` is changed, pass that same directory to `study collect --runs-dir`.
+
+The study layer compares only configurations and evidence supported by the current training/evaluation stack. It does not add RL reward training or wire record-based Engram packs into model execution; those require separate model/trainer work. Keep data, tokenizer, source revision, runtime, and actual step/token budgets matched within each architecture comparison.
+
 ## Completed multi-seed studies
 
 - [Context/Engram study](context-engram-study.md#execution-results--2026-09-22): 24 endpoints spanning seeds 17/41/73, two exact target budgets, dense/backbone and dense-total comparisons, and collision/address-order diagnostics. Every untouched override endpoint remained 0/8. Added memory capacity and observed bucket collisions are not evidence of a generalization advantage.

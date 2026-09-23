@@ -515,16 +515,36 @@ def _identity(result: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def compare_results(
-    base: Mapping[str, Any], variant: Mapping[str, Any], *, vary: str = "memory"
+    base: Mapping[str, Any],
+    variant: Mapping[str, Any],
+    *,
+    vary: str = "memory",
+    vary_fields: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
-    if vary not in {"memory", "attention", "ffn", "scale", "none"}:
-        raise ValueError("vary must be memory, attention, ffn, scale, or none")
+    if vary not in {"memory", "attention", "ffn", "scale", "none", "custom"}:
+        raise ValueError("vary must be memory, attention, ffn, scale, none, or custom")
+    if vary == "custom":
+        if (
+            not vary_fields
+            or any(
+                not isinstance(field, str)
+                or not field
+                or field.startswith(".")
+                or field.endswith(".")
+                or any(not part for part in field.split("."))
+                for field in vary_fields
+            )
+            or len(vary_fields) != len(set(vary_fields))
+        ):
+            raise ValueError("custom comparisons require unique dotted vary_fields")
+    elif vary_fields is not None:
+        raise ValueError("vary_fields are only valid with vary='custom'")
     if base.get("card_digest") != variant.get("card_digest"):
         raise ValueError("capability cards differ")
     if base.get("evaluation_source_sha256") != variant.get("evaluation_source_sha256"):
         raise ValueError("capability evaluator source differs")
     base_identity, variant_identity = _identity(base), _identity(variant)
-    keys = (
+    keys: tuple[str, ...] = (
         "step",
         "tokens_seen",
         "tokenizer_sha256",
@@ -537,6 +557,14 @@ def compare_results(
     for key in keys:
         if base_identity.get(key) != variant_identity.get(key):
             raise ValueError(f"comparison identity differs at {key}")
+    base_config_data = base_identity["config"]
+    variant_config_data = variant_identity["config"]
+    if (
+        not isinstance(base_config_data, Mapping)
+        or not isinstance(variant_config_data, Mapping)
+        or base_config_data.get("seed") != variant_config_data.get("seed")
+    ):
+        raise ValueError("comparison identity differs at seed")
     base_config, variant_config = (
         _flatten(_scrub_config(base_identity["config"])),
         _flatten(_scrub_config(variant_identity["config"])),
@@ -552,12 +580,21 @@ def compare_results(
         "ffn": {f"model.{field}" for field in _FFN_FIELDS},
         "scale": {f"model.{field}" for field in _SCALE_FIELDS},
         "none": set(),
+        "custom": set(vary_fields or ()),
     }[vary]
     invalid = sorted(set(differences) - permitted)
     if invalid:
         raise ValueError(
             f"comparison varies controls outside {vary}: {', '.join(invalid)}"
         )
+    if not differences and vary != "none":
+        raise ValueError("comparison configurations are identical")
+    if vary == "custom":
+        unchanged = sorted(permitted - set(differences))
+        if unchanged:
+            raise ValueError(
+                f"custom vary_fields include unchanged controls: {', '.join(unchanged)}"
+            )
     if (
         not base.get("valid")
         or not variant.get("valid")
@@ -582,11 +619,14 @@ def compare_results(
         for item in common
     )
     return {
-        "format": "capability_comparison_v2",
+        "format": "capability_comparison_v3"
+        if vary == "custom"
+        else "capability_comparison_v2",
         "card": base.get("card"),
         "card_digest": base.get("card_digest"),
         "vary": vary,
         "differences": differences,
+        **({"vary_fields": list(vary_fields or ())} if vary == "custom" else {}),
         "base_score": base.get("score"),
         "variant_score": variant.get("score"),
         "score_delta": delta,
