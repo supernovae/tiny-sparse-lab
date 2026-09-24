@@ -51,10 +51,19 @@ All 18 runs scored zero on each capability card: `chat-alias-retention-v1` (24 c
 
 ## Experiments to run next
 
-The nano report is specific to the offline fixture; do not pool its results with the smoke campaign. Further comparisons need their own controls and endpoints, and public-data results should remain separate.
+The smoke and nano campaigns are three-seed endpoint observations, not evidence of a general memory benefit. Keep scales and datasets separate. The next experiments should answer the missing interaction directly rather than select a favorable pair.
 
+### First: test the FFN-width × lookup interaction
 
-A separate public-data question can use the micro profile and pinned TinyStories recipe:
+At nano/offline, preregister a `4x` versus `1x` FFN width × no-memory versus lexical-memory design (12 runs: four cells × seeds 17, 41, and 73). Hold tokenizer, data, backend, optimizer, budget, and endpoint fixed. For each matched seed and outcome, define `y00=4x/no-memory`, `y10=1x/no-memory`, `y01=4x/lexical`, and `y11=1x/lexical`. Report all four raw values, width and memory main effects, and `interaction_delta = y11 - y10 - y01 + y00`. Keep validation loss (lower is better) and each capability card (higher is better) separate. A missing or mismatched cell makes that interaction inconclusive; never impute zero.
+
+### Then: map failure boundaries
+
+Use separate, declared sweeps to locate where results change with FFN width/table size, MLA latent width, sparse selected-block budget, and MoE expert capacity. Use heatmaps only for points within the same evidence group (dataset, runtime, endpoint, and metric direction); keep architecture estimates separate from measured outcomes and preserve tied values. Increase scale only after the smaller comparison is interpretable.
+
+### Separate data follow-up
+
+For a public-data question, use the micro profile and pinned TinyStories recipe:
 
 ```sh
 sparselab research scaffold engram-ffn-substitution-v1 \
@@ -62,7 +71,7 @@ sparselab research scaffold engram-ffn-substitution-v1 \
 sparselab study plan experiments/ffn-memory-tinystories/study.yaml
 ```
 
-This requires explicit tokenizer training and data preparation and may download/cache TinyStories. Treat it as a separate dataset experiment: the alias and context cards are out-of-domain stress checks for stories, not TinyStories quality measures. Use held-out TinyStories loss and fixed, user-visible generation examples; do not combine these scores with the offline results.
+This requires explicit tokenizer training and data preparation and may download/cache TinyStories. Use held-out story loss and fixed, user-visible generation examples; the alias and context cards remain out-of-domain stress checks, not TinyStories quality measures. Do not pool these scores with offline results.
 
 Other controlled questions already available through `sparselab research list` include:
 
