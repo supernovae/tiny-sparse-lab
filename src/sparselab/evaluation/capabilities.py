@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import unicodedata
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,8 @@ from sparselab.data.chat_recall import cases as chat_recall_cases
 from sparselab.data.chat_recall import context_override_cases
 from sparselab.data.engram_recall import recall_case
 from sparselab.engines.mlx import MLXEngine
+from sparselab.engram.packs import EncoderIdentity
+from sparselab.engram.semantic import SemanticQueryBatch
 from sparselab.evaluation.chat import assistant_reply
 from sparselab.evaluation.generation import generate
 from sparselab.training.manifest import source_identity
@@ -81,11 +84,18 @@ _SCALE_FIELDS = frozenset(
 
 
 @dataclass(frozen=True)
+class CapabilitySemanticQuery:
+    encoder: EncoderIdentity
+    vector: tuple[float, ...]
+
+
+@dataclass(frozen=True)
 class CapabilityCase:
     identifier: str
     prompt: str
     expected: str
     kind: str = "recall"
+    semantic_query: CapabilitySemanticQuery | None = None
 
 
 @dataclass(frozen=True)
@@ -102,7 +112,38 @@ class CapabilityCard:
 
     @property
     def digest(self) -> str:
-        return _digest(asdict(self))
+        return _digest(_card_payload(self))
+
+
+def _case_payload(case: CapabilityCase) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "identifier": case.identifier,
+        "prompt": case.prompt,
+        "expected": case.expected,
+        "kind": case.kind,
+    }
+    if case.semantic_query is not None:
+        payload["semantic_query"] = {
+            "encoder": case.semantic_query.encoder.model_dump(mode="json"),
+            "vector": list(case.semantic_query.vector),
+        }
+    return payload
+
+
+def _card_payload(card: CapabilityCard) -> dict[str, Any]:
+    generation = dict(card.generation)
+    generation["stop_sequences"] = list(generation["stop_sequences"])
+    return {
+        "name": card.name,
+        "version": card.version,
+        "hypothesis": card.hypothesis,
+        "scorer": card.scorer,
+        "cases": [_case_payload(case) for case in card.cases],
+        "generation": generation,
+        "scoring": dict(card.scoring),
+        "controls": dict(card.controls),
+        "limitations": card.limitations,
+    }
 
 
 def _canonical_json(value: Any) -> str:
@@ -497,12 +538,12 @@ def task_card_payload(
 ) -> dict[str, Any]:
     """Serialize generated cases through the existing strict capability schema."""
     card = _task_card(name, hypothesis, limitations, cases)
-    return {"format": _CARD_FORMAT, **asdict(card), "digest": card.digest}
+    return {"format": _CARD_FORMAT, **_card_payload(card), "digest": card.digest}
 
 
 def describe_capability_card(name: str) -> dict[str, Any]:
     card = capability_card(name)
-    return {"format": _CARD_FORMAT, **asdict(card), "digest": card.digest}
+    return {"format": _CARD_FORMAT, **_card_payload(card), "digest": card.digest}
 
 
 def _is_positive_int(value: Any) -> bool:
@@ -596,7 +637,8 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
     for item in data["cases"]:
         if (
             not isinstance(item, dict)
-            or set(item) - {"identifier", "prompt", "expected", "kind"}
+            or set(item)
+            - {"identifier", "prompt", "expected", "kind", "semantic_query"}
             or not {"identifier", "prompt", "expected", "kind"} <= set(item)
         ):
             raise ValueError("capability card case schema is invalid")
@@ -608,9 +650,35 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
             or item["kind"] not in _CASE_KINDS
         ):
             raise ValueError("capability card case text or kind is invalid")
+        semantic_query = None
+        if "semantic_query" in item:
+            raw_query = item["semantic_query"]
+            if (
+                not isinstance(raw_query, dict)
+                or set(raw_query) != {"encoder", "vector"}
+                or not isinstance(raw_query["encoder"], dict)
+                or not isinstance(raw_query["vector"], list)
+                or not raw_query["vector"]
+                or any(
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(float(value))
+                    or abs(float(value)) > torch.finfo(torch.float32).max
+                    for value in raw_query["vector"]
+                )
+            ):
+                raise ValueError("capability semantic query schema is invalid")
+            semantic_query = CapabilitySemanticQuery(
+                EncoderIdentity.model_validate(raw_query["encoder"]),
+                tuple(float(value) for value in raw_query["vector"]),
+            )
         cases.append(
             CapabilityCase(
-                item["identifier"], item["prompt"], item["expected"], item["kind"]
+                item["identifier"],
+                item["prompt"],
+                item["expected"],
+                item["kind"],
+                semantic_query,
             )
         )
     if len({case.identifier for case in cases}) != len(cases):
@@ -714,6 +782,16 @@ def evaluate_capability(
         }
     results: list[dict[str, Any]] = []
     for case in card.cases:
+        semantic_queries = None
+        if case.semantic_query is not None:
+            if engine is not None or not isinstance(device, torch.device):
+                raise ValueError("semantic capability queries require a PyTorch device")
+            semantic_queries = SemanticQueryBatch(
+                case.semantic_query.encoder,
+                torch.tensor(
+                    [case.semantic_query.vector], dtype=torch.float32, device=device
+                ),
+            )
         completion = generate(
             model,
             tokenizer,
@@ -727,6 +805,7 @@ def evaluate_capability(
             strict_context=True,
             stop_sequences=card.generation["stop_sequences"],
             engine=engine,
+            semantic_queries=semantic_queries,
         )
         response = assistant_reply(completion, case.prompt)
         results.append(
@@ -790,6 +869,11 @@ def _scrub_config(value: Any, path: tuple[str, ...] = ()) -> Any:
         }
     if isinstance(value, list):
         return [_scrub_config(item, path) for item in value]
+    if path == ("dataset", "allocation_manifest_path") and isinstance(
+        value, (str, Path)
+    ):
+        # Keep allocation profiles comparable without leaking machine-local roots.
+        return Path(value).name
     if path and (
         path[-1] == "path"
         or path[-1].endswith("_path")

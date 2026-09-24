@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import torch
@@ -9,6 +9,7 @@ from tokenizers import Tokenizer
 
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.engines.mlx import MLXEngine, preserve_rng_state
+from sparselab.engram.semantic import SemanticQueryBatch
 
 
 def _addresses_from_ids(
@@ -170,13 +171,15 @@ def generate(
     strict_context: bool = False,
     use_cache: bool = True,
     engine: MLXEngine | None = None,
+    semantic_queries: SemanticQueryBatch
+    | Mapping[str, SemanticQueryBatch]
+    | None = None,
 ) -> str:
     """Continue ``prompt`` using locally seeded sampled decoding.
 
-    PyTorch uses its incremental cache when supported. Native MLX has no claimed
-    incremental cache, so it always follows the full-prefix reference path.
-    At a cropped-context rollover the cache is intentionally rebuilt, because
-    reference generation resets RoPE positions for the new active context.
+    Semantic inputs are already-encoded, identity-checked query batches. PyTorch
+    forwards the same query through full-prefix, cached, and cache-rebuild paths.
+    Native MLX does not implement semantic attachments.
     """
     _validate_generation_options(
         max_seq_len, max_new_tokens, temperature, top_k, seed, stop_sequences
@@ -186,6 +189,8 @@ def generate(
             raise ValueError(
                 "native MLX generation requires its model and device='metal'"
             )
+        if semantic_queries is not None:
+            raise ValueError("native MLX generation does not support semantic queries")
     elif not isinstance(device, torch.device):
         raise TypeError("PyTorch generation requires a torch.device")
     mx = engine._mx if engine is not None else None
@@ -243,7 +248,10 @@ def generate(
             if addresses is not None
             else None
         )
-        return model(input_ids, byte_addresses=byte_addresses)[0, -1]
+        options: dict[str, Any] = {"byte_addresses": byte_addresses}
+        if semantic_queries is not None:
+            options["semantic_queries"] = semantic_queries
+        return model(input_ids, **options)[0, -1]
 
     def rebuild_cache(remaining_tokens: int) -> torch.Tensor:
         nonlocal cache
@@ -254,10 +262,14 @@ def generate(
             if addresses is not None
             else None
         )
+        options: dict[str, Any] = {
+            "cache_capacity": min(max_seq_len, len(active_ids) + remaining_tokens),
+            "byte_addresses": byte_addresses,
+        }
+        if semantic_queries is not None:
+            options["semantic_queries"] = semantic_queries
         logits, cache = model.forward_cached(  # type: ignore[attr-defined]
-            input_ids,
-            cache_capacity=min(max_seq_len, len(active_ids) + remaining_tokens),
-            byte_addresses=byte_addresses,
+            input_ids, **options
         )
         return logits[0, -1]
 
@@ -318,8 +330,14 @@ def generate(
                         if addresses is not None
                         else None
                     )
+                    options: dict[str, Any] = {
+                        "cache": cache,
+                        "byte_addresses": next_addresses,
+                    }
+                    if semantic_queries is not None:
+                        options["semantic_queries"] = semantic_queries
                     next_logits, cache = model.forward_cached(  # type: ignore[attr-defined]
-                        next_ids, cache=cache, byte_addresses=next_addresses
+                        next_ids, **options
                     )
                     logits = next_logits[0, -1]
     finally:

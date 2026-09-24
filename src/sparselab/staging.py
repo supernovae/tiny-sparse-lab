@@ -15,7 +15,16 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.config.models import RunConfig
-from sparselab.data.packing import load_prepared_data, prepare_data
+from sparselab.data.allocation import (
+    copy_allocation_bundle,
+    load_allocation_manifest,
+    load_semantic_retriever,
+)
+from sparselab.data.packing import (
+    _tokenizer_sha256,
+    load_prepared_data,
+    prepare_data,
+)
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.memory import (
     calibrated_estimate,
@@ -171,6 +180,13 @@ def pilot_config(config: RunConfig, purpose: str, root: Path) -> RunConfig:
     )
     payload["optimizer"]["warmup_steps"] = min(config.optimizer.warmup_steps, steps - 1)
     payload["logging"]["root_dir"] = str(root / "pilots" / purpose)
+    if config.dataset.allocation_manifest_path is not None:
+        payload["dataset"]["allocation_manifest_path"] = str(
+            root
+            / "assets"
+            / "allocation"
+            / config.dataset.allocation_manifest_path.name
+        )
     return RunConfig.model_validate(payload)
 
 
@@ -204,6 +220,13 @@ def verify_stage_bundle(
     tokenizer = load_tokenizer(root / "assets" / "tokenizer.json")
     if tokenizer.get_vocab_size() != base.model.vocab_size:
         raise ValueError("staged tokenizer vocabulary does not match model")
+    _verify_allocation_assets(
+        root / "assets",
+        config,
+        data,
+        inputs.get("source_identity_sha256"),
+        tokenizer,
+    )
     if not len(data.train) or not len(data.validation):
         raise ValueError("staged data is empty")
     if purpose == "training":
@@ -230,6 +253,42 @@ def _copy_tree(source: Path, destination: Path) -> None:
         shutil.copytree(source, destination)
     else:
         shutil.copy2(source, destination)
+
+
+def _verify_allocation_assets(
+    assets: Path,
+    config: RunConfig,
+    data: Any,
+    source_sha256: object,
+    tokenizer: Any,
+) -> None:
+    allocation_path = config.dataset.allocation_manifest_path
+    metadata = data.manifest.get("allocation")
+    if allocation_path is None:
+        if metadata is not None or (assets / "allocation").exists():
+            raise ValueError("prepared inputs contain an unexpected allocation")
+        return
+    if not isinstance(source_sha256, str):
+        raise TypeError("prepared allocation source identity must be a string")
+    if not isinstance(metadata, dict):
+        raise TypeError("prepared allocation metadata must be an object")
+    allocation = load_allocation_manifest(
+        assets / "allocation" / allocation_path.name,
+        source_identity_sha256=source_sha256,
+        tokenizer_sha256=_tokenizer_sha256(tokenizer),
+    )
+    if allocation.sha256 != metadata.get("manifest_sha256"):
+        raise ValueError("prepared data and allocation manifests differ")
+    for split, values in (("train", data.train), ("validation", data.validation)):
+        allocation.split(split, token_count=len(values))
+    retriever = load_semantic_retriever(allocation)
+    if (retriever is None) != (config.model.semantic_memory_dim is None):
+        raise ValueError("model.semantic_memory_dim must match the allocation pack")
+    if (
+        retriever is not None
+        and retriever.memory_dim != config.model.semantic_memory_dim
+    ):
+        raise ValueError("model.semantic_memory_dim differs from semantic pack width")
 
 
 def materialize_prepared_inputs(
@@ -267,6 +326,20 @@ def materialize_prepared_inputs(
             if tokenizer_manifest.is_file():
                 shutil.copy2(tokenizer_manifest, assets / tokenizer_manifest.name)
             _copy_tree(data.root, assets / "data")
+            allocation_source = config.dataset.allocation_manifest_path
+            if allocation_source is not None:
+                allocation = load_allocation_manifest(
+                    allocation_source,
+                    source_identity_sha256=str(source_digest),
+                    tokenizer_sha256=_tokenizer_sha256(tokenizer),
+                )
+                prepared_allocation = data.manifest.get("allocation")
+                if (
+                    not isinstance(prepared_allocation, dict)
+                    or prepared_allocation.get("manifest_sha256") != allocation.sha256
+                ):
+                    raise ValueError("prepared data differs from allocation manifest")
+                copy_allocation_bundle(allocation, assets / "allocation")
             if config.model.memory_package_path is not None:
                 _copy_tree(
                     config.model.memory_package_path, assets / "portable_package"
@@ -346,6 +419,13 @@ def verify_prepared_inputs(
         raise ValueError("prepared tokenizer vocabulary does not match model")
     if not len(data.train) or not len(data.validation):
         raise ValueError("prepared data is empty")
+    _verify_allocation_assets(
+        root / "assets",
+        config,
+        data,
+        inputs.get("source_identity_sha256"),
+        tokenizer,
+    )
     if config.model.memory_package_path is not None:
         load_portable_engram(
             root / "assets" / "portable_package",

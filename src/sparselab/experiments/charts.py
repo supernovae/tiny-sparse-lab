@@ -273,6 +273,84 @@ def render_charts(report: dict[str, object]) -> dict[str, str]:
                     charts[f"allocation-{len(charts) + 1}.svg"] = _allocation_svg(
                         heatmap
                     )
+        allocation_curve = analysis.get("allocation_curve")
+        curve_rows = (
+            allocation_curve.get("rows") if isinstance(allocation_curve, dict) else None
+        )
+        if isinstance(curve_rows, list):
+            curve_groups: dict[str, list[tuple[str, float]]] = {}
+            for row in curve_rows:
+                if not isinstance(row, dict):
+                    continue
+                coordinate = row.get("coordinate")
+                ownership_label = row.get("ownership_profile")
+                if not isinstance(ownership_label, str):
+                    ownership_label = (
+                        coordinate.get("allocation")
+                        if isinstance(coordinate, dict)
+                        else None
+                    )
+                regime_label = row.get("resource_regime")
+                if not isinstance(regime_label, str):
+                    regime_label = "regime"
+                weight_label = row.get("neural_loss_weight")
+                if not isinstance(weight_label, str):
+                    weight_label = (
+                        coordinate.get("neural_loss_weight")
+                        if isinstance(coordinate, dict)
+                        else None
+                    )
+                observations = row.get("checkpoint_observations")
+                if not isinstance(observations, list):
+                    continue
+                for observation in observations:
+                    if not isinstance(observation, dict):
+                        continue
+                    identity = observation.get("identity")
+                    step = identity.get("step") if isinstance(identity, dict) else None
+                    label = (
+                        f"{regime_label}:{ownership_label or row.get('run_id', 'run')}/"
+                        f"{weight_label or 'weight'}@{step}"
+                    )
+                    validation = observation.get("validation")
+                    loss = (
+                        validation.get("loss") if isinstance(validation, dict) else None
+                    )
+                    if (
+                        isinstance(loss, (int, float))
+                        and not isinstance(loss, bool)
+                        and math.isfinite(float(loss))
+                    ):
+                        curve_groups.setdefault("held-out validation loss", []).append(
+                            (label, float(loss))
+                        )
+                    capabilities = observation.get("capabilities")
+                    if isinstance(capabilities, dict):
+                        for task, capability in capabilities.items():
+                            result = (
+                                capability.get("result", capability)
+                                if isinstance(capability, dict)
+                                else None
+                            )
+                            score = (
+                                result.get("score")
+                                if isinstance(result, dict)
+                                else None
+                            )
+                            if (
+                                isinstance(score, (int, float))
+                                and not isinstance(score, bool)
+                                and math.isfinite(float(score))
+                            ):
+                                curve_groups.setdefault(f"task: {task}", []).append(
+                                    (label, float(score))
+                                )
+            for metric, points in curve_groups.items():
+                charts[f"allocation-curve-{len(charts) + 1}.svg"] = _svg(
+                    f"Raw allocation checkpoint observations: {metric}",
+                    points,
+                    y_label=metric,
+                )
         sweeps = analysis.get("boundary_sweeps")
         axes = sweeps.get("axes") if isinstance(sweeps, dict) else None
         if isinstance(axes, list):

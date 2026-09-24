@@ -37,6 +37,9 @@ class Microbatch:
     inputs: np.ndarray
     targets: np.ndarray
     byte_addresses: np.ndarray | None = None
+    owner_ids: np.ndarray | None = None
+    semantic_queries: np.ndarray | None = None
+    semantic_mask: np.ndarray | None = None
 
 
 @dataclass(frozen=True)

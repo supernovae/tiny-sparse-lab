@@ -41,6 +41,7 @@ class ModelConfig(StrictModel):
     memory_package_path: Path | None = None
     memory_ngram_orders: tuple[int, ...] = ()
     memory_hash_heads: int = Field(default=1, gt=0)
+    semantic_memory_dim: int | None = Field(default=None, gt=0)
 
     @model_serializer(mode="wrap")
     def _serialize_legacy_final(
@@ -139,9 +140,14 @@ class DatasetConfig(StrictModel):
     train_path: Path | None = None
     validation_path: Path | None = None
     license: str | None = None
+    allocation_manifest_path: Path | None = None
 
     @model_validator(mode="after")
     def validate_source(self) -> DatasetConfig:
+        if self.allocation_manifest_path is not None and self.source != "local_chat":
+            raise ValueError(
+                "dataset.allocation_manifest_path requires source=local_chat"
+            )
         if (
             self.source in {"tinystories", "fineweb_edu", "cosmopedia"}
             and not self.revision
@@ -212,6 +218,7 @@ class TrainingConfig(StrictModel):
     max_steps: int = Field(gt=0)
     max_tokens: int = Field(gt=0)
     grad_clip_norm: float = Field(default=1.0, gt=0)
+    neural_loss_weight: float = Field(default=1.0, ge=0, le=1)
     deterministic: bool = True
 
 
@@ -356,6 +363,20 @@ class RunConfig(StrictModel):
             raise ValueError("MLX engine requires runtime.backend=metal")
         if self.runtime.engine == "pytorch" and self.runtime.backend == "metal":
             raise ValueError("PyTorch runtime does not use backend=metal")
+        if (
+            self.model.semantic_memory_dim is not None
+            and self.dataset.allocation_manifest_path is None
+        ):
+            raise ValueError(
+                "model.semantic_memory_dim requires dataset.allocation_manifest_path"
+            )
+        if (
+            self.dataset.allocation_manifest_path is not None
+            and self.runtime.engine != "pytorch"
+        ):
+            raise ValueError(
+                "allocation ownership currently requires the PyTorch engine"
+            )
         return self
 
 

@@ -149,6 +149,17 @@ def named_tensor_inventory(
         _add(tensors, "memory.output.weight", (d, m.memory_dim))
         _add(tensors, "memory.gate.weight", (1, d))
 
+    if m.semantic_memory_dim is not None:
+        _add(
+            tensors,
+            "semantic_memories.allocation.output.weight",
+            (d, m.semantic_memory_dim),
+        )
+        _add(
+            tensors,
+            "semantic_memories.allocation.gate.weight",
+            (1, d),
+        )
     if m.tie_embeddings:
         tensors["output.weight"] = TensorSpec((v, d), alias_of="embedding.weight")
     else:
@@ -197,7 +208,7 @@ def parameter_inventory(config: RunConfig) -> ParameterInventory:
     adapter = _sum_specs(
         tensors,
         lambda name, spec: (
-            name.startswith("memory.")
+            name.startswith(("memory.", "semantic_memories."))
             and not (
                 name.startswith(("memory.table.", "memory.extra_tables."))
                 or name == "memory.embedding.weight"

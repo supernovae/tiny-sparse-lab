@@ -8,11 +8,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
+from typing import cast
 
 import yaml
 from pydantic import BaseModel
 
-from sparselab.config.loading import load_config
+from sparselab.config.loading import _PATH_KEYS, load_config
 from sparselab.config.models import RunConfig
 from sparselab.training.manifest import canonical_json, config_sha256
 from sparselab.workers.models import SchedulingRequirements
@@ -219,13 +220,27 @@ def expand(path: Path, max_runs: int = 1000) -> list[ExpandedExperiment]:
             }
         )
     ).hexdigest()
+    matrix_dir = path.parent.resolve()
     expanded: list[ExpandedExperiment] = []
     for selected in product(*options):
         patch: dict[str, object] = {}
         coordinate: dict[str, str] = {}
         for axis_name, entry in zip(names, selected, strict=True):
-            coordinate[axis_name] = entry["label"]  # validated above
-            patch.update(entry["set"])  # conflicts were rejected above
+            label = cast(str, entry["label"])  # validated by _axis_options
+            settings = cast(dict[str, object], entry["set"])
+            coordinate[axis_name] = label
+            for dotted, value in settings.items():
+                if (
+                    isinstance(value, str)
+                    and dotted.rsplit(".", maxsplit=1)[-1] in _PATH_KEYS
+                ):
+                    axis_path = Path(value)
+                    value = (
+                        axis_path
+                        if axis_path.is_absolute()
+                        else (matrix_dir / axis_path).resolve()
+                    )
+                patch[dotted] = value
         concrete = RunConfig.model_validate(apply_patch(patchable_base, patch))
         expanded.append(
             ExpandedExperiment(

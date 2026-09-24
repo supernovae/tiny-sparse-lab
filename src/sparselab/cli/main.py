@@ -656,6 +656,35 @@ def _task_inventory(directory: Path) -> list[dict[str, object]]:
 
 
 def _build_phase_e_tasks(args: argparse.Namespace) -> None:
+    if args.task == "memory-allocation":
+        if args.seed != 17:
+            raise ValueError("memory-allocation uses fixed provenance and seeds")
+        from sparselab.data.allocation_tasks import build_memory_allocation
+
+        root = Path(__file__).resolve().parents[3]
+        manifest = build_memory_allocation(
+            Path(args.output),
+            tokenizer_path=Path(args.tokenizer)
+            if args.tokenizer
+            else root / "artifacts/tokenizer_path_domain_v1/tokenizer.json",
+            train_path=Path(args.train_jsonl)
+            if args.train_jsonl
+            else root / "data/path_domain_v1/train.jsonl",
+            validation_path=Path(args.validation_jsonl)
+            if args.validation_jsonl
+            else root / "data/path_domain_v1/development.jsonl",
+            audit_path=Path(args.oracle_audit)
+            if args.oracle_audit
+            else root / "data/path_domain_v1/oracle_audit.json",
+            provenance_path=Path(args.provenance)
+            if args.provenance
+            else root / "data/path_domain_v1/provenance.json",
+            cards_dir=Path(args.cards_dir)
+            if args.cards_dir
+            else root / "data/path_domain_v1/cards",
+        )
+        print(manifest)
+        return
     from sparselab.data.phase_e_tasks import (
         build_wikidata_mini,
         load_wikidata_mini_cases,
@@ -1605,7 +1634,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_scaffold.add_argument(
         "--design",
-        choices=("default", "latent-sweep", "budget-sweep"),
+        choices=(
+            "default",
+            "latent-sweep",
+            "budget-sweep",
+            "iso-total",
+            "iso-active",
+            "iso-token",
+            "iso-flop",
+        ),
         default="default",
     )
     research_scaffold.set_defaults(handler=_research_scaffold)
@@ -1615,10 +1652,22 @@ def build_parser() -> argparse.ArgumentParser:
     task_commands = research_tasks.add_subparsers(dest="task_command", required=True)
     task_build = task_commands.add_parser("build")
     task_build.add_argument(
-        "task", choices=("math-identities", "python-stdlib", "wikidata-mini")
+        "task",
+        choices=(
+            "math-identities",
+            "python-stdlib",
+            "wikidata-mini",
+            "memory-allocation",
+        ),
     )
     task_build.add_argument("--output", required=True)
     task_build.add_argument("--seed", type=int, default=17)
+    task_build.add_argument("--tokenizer")
+    task_build.add_argument("--train-jsonl")
+    task_build.add_argument("--validation-jsonl")
+    task_build.add_argument("--oracle-audit")
+    task_build.add_argument("--provenance")
+    task_build.add_argument("--cards-dir")
     task_build.set_defaults(handler=_build_phase_e_tasks)
     research_corpus = research_commands.add_parser(
         "corpus",

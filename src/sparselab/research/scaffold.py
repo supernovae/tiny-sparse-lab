@@ -49,6 +49,7 @@ _PATH_KEYS = frozenset(
         "memory_package_path",
         "train_path",
         "validation_path",
+        "allocation_manifest_path",
     }
 )
 
@@ -107,6 +108,7 @@ def _dataset_mapping(name: str) -> dict[str, object]:
         "train_path": None,
         "validation_path": None,
         "license": None,
+        "allocation_manifest_path": None,
     }
 
 
@@ -182,6 +184,19 @@ def _apply_overlay(
     return apply_patch(config, nested) if nested else config
 
 
+def _research_config_sha256(config: RunConfig) -> str:
+    payload = config.model_dump(mode="json")
+    allocation_path = config.dataset.allocation_manifest_path
+    if allocation_path is not None:
+        if allocation_path.is_symlink() or not allocation_path.is_file():
+            raise ValueError("allocation research config requires a regular manifest")
+        dataset = payload["dataset"]
+        if not isinstance(dataset, dict):
+            raise TypeError("allocation research config lacks a dataset mapping")
+        dataset["allocation_manifest_sha256"] = sha256_file(allocation_path)
+    return config_sha256(payload)
+
+
 def _write_resolved_config(config: RunConfig, root: Path, directory: Path) -> bytes:
     value = config.model_dump(mode="json")
 
@@ -193,13 +208,16 @@ def _write_resolved_config(config: RunConfig, root: Path, directory: Path) -> by
         if key in _PATH_KEYS and isinstance(item, str):
             absolute = Path(item)
             if not absolute.is_absolute():
-                absolute = (root / absolute).resolve()
-            try:
-                absolute.relative_to(root.resolve())
-            except ValueError as error:
+                absolute = root / absolute
+            absolute = absolute.resolve()
+            scaffold_root = root.resolve()
+            workspace_root = Path(__file__).resolve().parents[3]
+            if not absolute.is_relative_to(
+                scaffold_root
+            ) and not absolute.is_relative_to(workspace_root):
                 raise ValueError(
-                    f"generated config path escapes scaffold root: {item}"
-                ) from error
+                    f"generated config path escapes scaffold and workspace roots: {item}"
+                )
             return Path(os.path.relpath(absolute, directory.resolve())).as_posix()
         return item
 
@@ -439,8 +457,7 @@ def scaffold_research(
         seen_hashes: set[str] = set()
         config_payloads: dict[str, bytes] = {}
         for item in expanded:
-            scientific = item.config.model_dump(mode="json")
-            digest = config_sha256(scientific)
+            digest = _research_config_sha256(item.config)
             if digest in seen_hashes:
                 raise ValueError(
                     f"duplicate scientific configuration hash at {item.coordinate}"
@@ -463,16 +480,15 @@ def scaffold_research(
             _write(temporary / filename, content)
         for item in coordinates:
             exported = load_config(temporary / str(item["path"]))
-            if config_sha256(exported.model_dump(mode="json")) != item["config_sha256"]:
+            if _research_config_sha256(exported) != item["config_sha256"]:
                 raise ValueError(
                     f"exported config identity mismatch at {item['coordinate']}"
                 )
         # The planner was run against the exact published scientific inputs.
         planned = plan_study(temporary / "study.yaml")
-        if [
-            config_sha256(item.config.model_dump(mode="json"))
-            for item in planned.expanded
-        ] != [str(item["config_sha256"]) for item in coordinates]:
+        if [_research_config_sha256(item.config) for item in planned.expanded] != [
+            str(item["config_sha256"]) for item in coordinates
+        ]:
             raise ValueError(
                 "exported config identities differ from matrix coordinates"
             )

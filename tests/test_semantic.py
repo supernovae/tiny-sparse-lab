@@ -7,6 +7,9 @@ import numpy as np
 import pytest
 import torch
 from safetensors.numpy import save_file
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
+from tokenizers.pre_tokenizers import Whitespace
 
 from sparselab.config.models import AttentionConfig, ModelConfig
 from sparselab.engram.packs import compile_pack
@@ -15,6 +18,7 @@ from sparselab.engram.semantic import (
     SemanticQueryBatch,
     SemanticRetriever,
 )
+from sparselab.evaluation.generation import generate
 from sparselab.model.transformer import DenseLM
 from sparselab.training.manifest import canonical_json
 
@@ -448,3 +452,56 @@ def test_frozen_moe_accepts_unseen_pack_without_changing_adapter_or_gradients(
     assert adapter.last_traces[0].pack_id == unseen_pack.pack_id
     assert adapter.last_traces[0].status == "hit"
     assert all(parameter.grad is None for parameter in model.parameters())
+
+
+def test_semantic_query_generation_matches_cached_and_full_prefix(
+    tmp_path,
+) -> None:
+    retriever = _retriever(
+        tmp_path / "generation-pack",
+        name="generation",
+        record_ids=("answer",),
+        keys=[[1, 0, 0]],
+        values=[[1, 2, 3, 4, 5]],
+    )
+    vocab = {"<unk>": 0, "hello": 1, "answer": 2}
+    vocab.update({f"unused-{index}": index + 3 for index in range(257)})
+    tokenizer = Tokenizer(WordLevel(vocab, unk_token="<unk>"))
+    tokenizer.pre_tokenizer = Whitespace()
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=260,
+            hidden_dim=8,
+            num_layers=1,
+            num_heads=2,
+            ffn_dim=16,
+            max_seq_len=8,
+        ),
+        AttentionConfig(),
+    )
+    model.add_semantic_memory("allocation", retriever, site="final")
+    query = SemanticQueryBatch(
+        retriever.key_encoder, torch.tensor([[1.0, 0, 0]], dtype=torch.float32)
+    )
+    cached = generate(
+        model,
+        tokenizer,
+        "hello",
+        8,
+        3,
+        torch.device("cpu"),
+        semantic_queries=query,
+        use_cache=True,
+    )
+    full_prefix = generate(
+        model,
+        tokenizer,
+        "hello",
+        8,
+        3,
+        torch.device("cpu"),
+        semantic_queries=query,
+        use_cache=False,
+    )
+    assert cached == full_prefix
+    assert model.semantic_memories["allocation"].last_traces[0].status == "hit"

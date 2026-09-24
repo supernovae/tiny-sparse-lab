@@ -13,7 +13,8 @@ import torch
 from tokenizers import Tokenizer
 
 from sparselab.config.models import RunConfig
-from sparselab.data.packing import TokenBlockDataset
+from sparselab.data.allocation import load_allocation_manifest, load_semantic_retriever
+from sparselab.data.packing import TokenBlockDataset, _tokenizer_sha256
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import Microbatch
 from sparselab.engines.mlx import MLXEngine, preserve_rng_state
@@ -38,6 +39,9 @@ class InferenceRun:
         root = self.run / "data"
         addresses = root / "validation_byte_addresses.npy"
         supervision = root / "validation_supervision.npy"
+        owners = root / "validation_owner_ids.npy"
+        queries = root / "validation_semantic_queries.npy"
+        mask = root / "validation_semantic_mask.npy"
         return TokenBlockDataset(
             np.load(root / "validation.npy", mmap_mode="r", allow_pickle=False),
             self.config.training.seq_len,
@@ -46,6 +50,15 @@ class InferenceRun:
             else None,
             np.load(supervision, mmap_mode="r", allow_pickle=False)
             if supervision.is_file()
+            else None,
+            np.load(owners, mmap_mode="r", allow_pickle=False)
+            if self.config.dataset.allocation_manifest_path is not None
+            else None,
+            np.load(queries, mmap_mode="r", allow_pickle=False)
+            if queries.is_file()
+            else None,
+            np.load(mask, mmap_mode="r", allow_pickle=False)
+            if mask.is_file()
             else None,
         )
 
@@ -108,8 +121,15 @@ def load_run(
         ):
             raise ValueError(f"run artifact integrity failure: {relative}")
         artifacts[str(relative)] = entry["sha256"]
-    required = {"tokenizer.json", "data/train.npy", "data/validation.npy"}
+    required = {
+        "tokenizer.json",
+        "data/manifest.json",
+        "data/train.npy",
+        "data/validation.npy",
+    }
     data_manifest = json.loads((run / "data" / "manifest.json").read_text())
+    if not isinstance(data_manifest, dict):
+        raise TypeError("prepared-data manifest must be an object")
     if data_manifest.get("packing_version") == "contiguous-eos-v5":
         required.update(
             {"data/train_supervision.npy", "data/validation_supervision.npy"}
@@ -118,6 +138,20 @@ def load_run(
         required.update(
             {"data/train_byte_addresses.npy", "data/validation_byte_addresses.npy"}
         )
+    allocation_metadata = data_manifest.get("allocation")
+    if config.dataset.allocation_manifest_path is not None:
+        if not isinstance(allocation_metadata, dict):
+            raise ValueError("allocation run lacks prepared allocation metadata")
+        required.update({"data/train_owner_ids.npy", "data/validation_owner_ids.npy"})
+        if allocation_metadata.get("semantic") is not None:
+            required.update(
+                {
+                    "data/train_semantic_queries.npy",
+                    "data/validation_semantic_queries.npy",
+                    "data/train_semantic_mask.npy",
+                    "data/validation_semantic_mask.npy",
+                }
+            )
     if not required <= artifacts.keys():
         raise ValueError(
             f"run lacks verified artifacts: {sorted(required - artifacts.keys())}"
@@ -159,9 +193,38 @@ def load_run(
         raise ValueError(
             "checkpoint runtime differs from the verified run configuration"
         )
+    if config.dataset.allocation_manifest_path is not None:
+        allocation_name = config.dataset.allocation_manifest_path.name
+        if f"allocation/{allocation_name}" not in artifacts:
+            raise ValueError("run lacks a verified allocation manifest artifact")
     tokenizer = load_tokenizer(run / "tokenizer.json")
     if tokenizer.get_vocab_size() != config.model.vocab_size:
         raise ValueError("run tokenizer vocabulary differs from model configuration")
+    allocation_manifest = None
+    allocation_retriever = None
+    if config.dataset.allocation_manifest_path is not None:
+        allocation_name = config.dataset.allocation_manifest_path.name
+        allocation_manifest = load_allocation_manifest(
+            run / "allocation" / allocation_name,
+            source_identity_sha256=manifest["source_identity"]["sha256"],
+            tokenizer_sha256=_tokenizer_sha256(tokenizer),
+        )
+        if not isinstance(
+            allocation_metadata, dict
+        ) or allocation_manifest.sha256 != allocation_metadata.get("manifest_sha256"):
+            raise ValueError("prepared data and run allocation manifests differ")
+        allocation_retriever = load_semantic_retriever(allocation_manifest)
+        if (allocation_retriever is None) != (config.model.semantic_memory_dim is None):
+            raise ValueError(
+                "model.semantic_memory_dim must match the verified allocation pack"
+            )
+        if (
+            allocation_retriever is not None
+            and allocation_retriever.memory_dim != config.model.semantic_memory_dim
+        ):
+            raise ValueError(
+                "model.semantic_memory_dim differs from semantic pack value width"
+            )
     weights = manager.load(selected, "promote").model
     identity = {
         "run_id": run_id,
@@ -187,6 +250,62 @@ def load_run(
             )
         },
     }
+    if allocation_manifest is not None:
+        owner_names = {0: "neural", 1: "lexical", 2: "semantic", 3: "hybrid"}
+        allocation_identity: dict[str, Any] = {
+            "manifest_sha256": allocation_manifest.sha256,
+            "resource_regime": allocation_manifest.payload.get("resource_regime"),
+            "ownership_profile": allocation_manifest.payload.get("ownership_profile"),
+            "corpus": allocation_manifest.payload["corpus"],
+            "neural_loss_weight": config.training.neural_loss_weight,
+            "splits": {},
+        }
+        for split in ("train", "validation"):
+            token_ids = np.load(
+                run / "data" / f"{split}.npy",
+                mmap_mode="r",
+                allow_pickle=False,
+            )
+            sidecars = allocation_manifest.split(split, token_count=len(token_ids))
+            supervision_path = run / "data" / f"{split}_supervision.npy"
+            supervision = (
+                np.load(supervision_path, mmap_mode="r", allow_pickle=False)
+                if supervision_path.is_file()
+                else np.ones(len(token_ids), dtype=bool)
+            )
+            raw_counts = np.bincount(sidecars.owner, minlength=4)
+            target_counts = np.bincount(sidecars.owner[supervision], minlength=4)
+            split_identity: dict[str, Any] = {
+                "raw_tokens": len(token_ids),
+                "valid_supervised_targets": int(supervision.sum()),
+                "owner_raw_tokens": {
+                    owner_names[owner]: int(raw_counts[owner]) for owner in range(4)
+                },
+                "owner_supervised_targets": {
+                    owner_names[owner]: int(target_counts[owner]) for owner in range(4)
+                },
+                "semantic_query_positions": (
+                    0
+                    if sidecars.semantic_mask is None
+                    else int(sidecars.semantic_mask.sum())
+                ),
+            }
+            split_identity["weighted_neural_supervision_mass"] = (
+                config.training.neural_loss_weight
+                * (
+                    split_identity["owner_supervised_targets"]["neural"]
+                    + split_identity["owner_supervised_targets"]["hybrid"]
+                )
+            )
+            allocation_identity["splits"][split] = split_identity
+        semantic_identity = allocation_manifest.semantic
+        if semantic_identity is not None:
+            allocation_identity["semantic_pack"] = {
+                "pack_id": semantic_identity["pack_id"],
+                "manifest_sha256": semantic_identity["pack_sha256"],
+                "key_encoder": semantic_identity["key_encoder"],
+            }
+        identity["allocation"] = allocation_identity
     if config.runtime.engine == "mlx":
         if backend not in {None, "auto", "metal"}:
             raise ValueError(
@@ -235,10 +354,11 @@ def load_run(
         model_config = model_config.model_copy(
             update={"memory_package_path": run / "portable_package"}
         )
-    # Constructor initialization is irrelevant to loaded weights; don't perturb caller RNG.
     with torch.random.fork_rng(devices=[]):
         model = DenseLM(model_config, config.attention)
-    model.load_state_dict(weights)
+        if allocation_retriever is not None:
+            model.add_semantic_memory("allocation", allocation_retriever, site="final")
+        model.load_state_dict(weights)
     del weights
     model.to(device).eval()
     runtime = next(

@@ -26,6 +26,7 @@ _MACHINE_LOCAL_PATH_KEYS = frozenset(
         "memory_package_path",
         "train_path",
         "validation_path",
+        "allocation_manifest_path",
     }
 )
 

@@ -14,6 +14,7 @@ import torch
 from tokenizers import Tokenizer
 
 from sparselab.config.models import DatasetConfig, RunConfig
+from sparselab.data.allocation import AllocationManifest, load_allocation_manifest
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.conversations import (
     RenderedConversation,
@@ -35,6 +36,13 @@ class PreparedData:
     validation_supervision: np.ndarray | None
     train_byte_addresses: np.ndarray | None
     validation_byte_addresses: np.ndarray | None
+    train_owner_ids: np.ndarray | None
+    validation_owner_ids: np.ndarray | None
+    train_semantic_queries: np.ndarray | None
+    validation_semantic_queries: np.ndarray | None
+    train_semantic_mask: np.ndarray | None
+    validation_semantic_mask: np.ndarray | None
+    allocation: AllocationManifest | None
     manifest: dict[str, object]
 
 
@@ -48,10 +56,13 @@ def _tokenizer_sha256(tokenizer: Tokenizer) -> str:
 
 
 def _array_metadata(
-    path: Path, *, dtype: np.dtype[np.generic] | type[np.generic] = np.int32
+    path: Path,
+    *,
+    dtype: np.dtype[np.generic] | type[np.generic] = np.int32,
+    dimensions: int = 1,
 ) -> dict[str, object]:
     values = np.load(path, mmap_mode="r", allow_pickle=False)
-    if values.ndim != 1 or values.dtype != dtype:
+    if values.ndim != dimensions or values.dtype != dtype:
         raise ValueError(f"packed array has unexpected shape or dtype: {path}")
     return {
         "dtype": values.dtype.name,
@@ -166,10 +177,14 @@ def load_prepared_data(
         else manifest.get("cache_identity")
     )
     train, validation = root / "train.npy", root / "validation.npy"
-    train_supervision = root / "train_supervision.npy"
-    validation_supervision = root / "validation_supervision.npy"
-    train_byte = root / "train_byte_addresses.npy"
-    validation_byte = root / "validation_byte_addresses.npy"
+    train_supervision, validation_supervision = (
+        root / "train_supervision.npy",
+        root / "validation_supervision.npy",
+    )
+    train_byte, validation_byte = (
+        root / "train_byte_addresses.npy",
+        root / "validation_byte_addresses.npy",
+    )
     if not isinstance(identity, dict) or not _cache_is_valid(
         manifest,
         identity,
@@ -183,6 +198,111 @@ def load_prepared_data(
     ):
         raise ValueError(f"prepared-data cache integrity check failed: {root}")
     has_supervision = manifest.get("packing_version") == PACKING_VERSION
+    allocation_enabled = isinstance(manifest.get("allocation"), dict)
+    paths = [
+        root / name
+        for name in (
+            "train_owner_ids.npy",
+            "validation_owner_ids.npy",
+            "train_semantic_queries.npy",
+            "validation_semantic_queries.npy",
+            "train_semantic_mask.npy",
+            "validation_semantic_mask.npy",
+        )
+    ]
+    allocation_arrays: tuple[
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+    ] = (None, None, None, None, None, None)
+    if allocation_enabled:
+        allocation_metadata = manifest["allocation"]
+        assert isinstance(allocation_metadata, dict)
+        semantic = allocation_metadata.get("semantic")
+        if allocation_metadata.get("format") != "sparselab-prepared-allocation-v1":
+            raise ValueError("prepared allocation metadata is malformed")
+        expected_paths = paths[:2] if semantic is None else paths
+        if not all(path.is_file() for path in expected_paths) or (
+            semantic is None and any(path.exists() for path in paths[2:])
+        ):
+            raise ValueError("prepared allocation sidecars are missing or unexpected")
+        loaded: list[np.ndarray] = []
+        for split, owner_path, query_path, mask_path in (
+            ("train", paths[0], paths[2], paths[4]),
+            ("validation", paths[1], paths[3], paths[5]),
+        ):
+            split_metadata = allocation_metadata.get(split)
+            if not isinstance(split_metadata, dict) or not isinstance(
+                split_metadata.get("owner"), dict
+            ):
+                raise TypeError("prepared allocation metadata is malformed")
+            packed_ids = np.load(
+                train if split == "train" else validation,
+                mmap_mode="r",
+                allow_pickle=False,
+            )
+            owner = np.load(owner_path, mmap_mode="r", allow_pickle=False)
+            if (
+                owner.ndim != 1
+                or owner.shape != packed_ids.shape
+                or any(
+                    split_metadata["owner"].get(key) != value
+                    for key, value in _array_metadata(
+                        owner_path, dtype=np.dtype(np.uint8)
+                    ).items()
+                )
+                or np.any(owner > 3)
+            ):
+                raise ValueError("prepared allocation owner sidecar integrity failed")
+            loaded.append(owner)
+            if semantic is None:
+                continue
+            query_metadata = split_metadata.get("semantic_queries")
+            mask_metadata = split_metadata.get("semantic_mask")
+            if not isinstance(query_metadata, dict) or not isinstance(
+                mask_metadata, dict
+            ):
+                raise TypeError("prepared semantic allocation metadata is malformed")
+            query = np.load(query_path, mmap_mode="r", allow_pickle=False)
+            mask = np.load(mask_path, mmap_mode="r", allow_pickle=False)
+            if (
+                any(
+                    query_metadata.get(key) != value
+                    for key, value in _array_metadata(
+                        query_path, dtype=np.dtype(np.float32), dimensions=2
+                    ).items()
+                )
+                or any(
+                    mask_metadata.get(key) != value
+                    for key, value in _array_metadata(
+                        mask_path, dtype=np.dtype(bool)
+                    ).items()
+                )
+                or query.ndim != 2
+                or query.shape[0] != len(owner)
+                or query.shape[1] <= 0
+                or mask.shape != owner.shape
+                or mask[-1]
+                or np.any(mask[:-1] & ~np.isin(owner[1:], (2, 3)))
+            ):
+                raise ValueError(
+                    "prepared semantic allocation sidecar integrity failed"
+                )
+            loaded.extend((query, mask))
+        if semantic is None:
+            allocation_arrays = (loaded[0], loaded[1], None, None, None, None)
+        else:
+            allocation_arrays = (
+                loaded[0],
+                loaded[3],
+                loaded[1],
+                loaded[4],
+                loaded[2],
+                loaded[5],
+            )
     return PreparedData(
         root,
         np.load(train, mmap_mode="r", allow_pickle=False),
@@ -199,6 +319,8 @@ def load_prepared_data(
         np.load(validation_byte, mmap_mode="r", allow_pickle=False)
         if byte_enabled
         else None,
+        *allocation_arrays,
+        None,
         manifest,
     )
 
@@ -388,8 +510,27 @@ def _atomic_array(path: Path, values: np.ndarray) -> None:
 
 
 def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
-    """Prepare immutable IDs and, for byte memory, causal raw-UTF-8 suffix addresses."""
+    """Prepare immutable IDs and causal sidecars with an optional allocation."""
     local_chat = _local_chat_identity(config.dataset)
+    source_digest = source_identity()["sha256"]
+    allocation = None
+    if config.dataset.allocation_manifest_path is not None:
+        if config.dataset.source != "local_chat" or local_chat is None:
+            raise ValueError("allocation manifests require a local_chat dataset")
+        allocation = load_allocation_manifest(
+            config.dataset.allocation_manifest_path,
+            source_identity_sha256=source_digest,
+            tokenizer_sha256=_tokenizer_sha256(tokenizer),
+        )
+        corpus = allocation.payload["corpus"]
+        assert isinstance(corpus, dict)
+        if (
+            corpus["train_jsonl_sha256"] != local_chat["train_sha256"]
+            or corpus["validation_jsonl_sha256"] != local_chat["validation_sha256"]
+        ):
+            raise ValueError(
+                "allocation manifest corpus digests do not match local_chat"
+            )
     cache_identity = {
         "dataset": {
             key: value
@@ -397,17 +538,16 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             if key not in {"cache_dir", "train_path", "validation_path"}
         },
         "local_chat_source": local_chat,
+        "allocation_manifest_sha256": None if allocation is None else allocation.sha256,
         "packing": {
             "memory": config.model.memory,
             "memory_table_size": config.model.memory_table_size,
             "memory_ngram_size": config.model.memory_ngram_size,
         },
         "packing_version": PACKING_VERSION,
-        "source_identity_sha256": source_identity()["sha256"],
+        "source_identity_sha256": source_digest,
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
     }
-    _assert_local_chat_disjoint(config.dataset)
-    _assert_local_chat_supervision_consistent(config.dataset)
     root = (
         config.dataset.cache_dir
         / hashlib.sha256(canonical_json(cache_identity)).hexdigest()[:16]
@@ -437,6 +577,8 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         return load_prepared_data(
             root, byte_enabled=byte_enabled, expected_identity=cache_identity
         )
+    _assert_local_chat_disjoint(config.dataset)
+    _assert_local_chat_supervision_consistent(config.dataset)
     temporary_root = root.with_name(root.name + ".tmp")
     if temporary_root.exists():
         raise RuntimeError(f"incomplete prepared-data sibling exists: {temporary_root}")
@@ -460,6 +602,21 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         or len(validation) < config.training.seq_len + 1
     ):
         raise ValueError("prepared split lacks a full next-token block")
+    allocation_sides = None
+    if allocation is not None:
+        train_sides = allocation.split("train", token_count=len(train))
+        validation_sides = allocation.split("validation", token_count=len(validation))
+        allocation_sides = (train_sides, validation_sides)
+        for name, values in (
+            ("train_owner_ids.npy", train_sides.owner),
+            ("validation_owner_ids.npy", validation_sides.owner),
+            ("train_semantic_queries.npy", train_sides.semantic_queries),
+            ("validation_semantic_queries.npy", validation_sides.semantic_queries),
+            ("train_semantic_mask.npy", train_sides.semantic_mask),
+            ("validation_semantic_mask.npy", validation_sides.semantic_mask),
+        ):
+            if values is not None:
+                _atomic_array(temporary_root / name, values)
     _atomic_array(temporary_root / "train.npy", train)
     _atomic_array(temporary_root / "validation.npy", validation)
     _atomic_array(temporary_root / "train_supervision.npy", train_supervision)
@@ -544,6 +701,59 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
                 temporary_root / "validation_byte_addresses.npy"
             ),
         },
+        "allocation": None
+        if allocation is None
+        else {
+            "format": "sparselab-prepared-allocation-v1",
+            "manifest_sha256": allocation.sha256,
+            "owner_codes": {"neural": 0, "lexical": 1, "semantic": 2, "hybrid": 3},
+            "resource_regime": allocation.payload.get("resource_regime"),
+            "ownership_profile": allocation.payload.get("ownership_profile"),
+            "semantic": allocation.semantic,
+            "train": {
+                "owner": _array_metadata(
+                    temporary_root / "train_owner_ids.npy", dtype=np.dtype(np.uint8)
+                ),
+                **(
+                    {}
+                    if allocation_sides is None
+                    or allocation_sides[0].semantic_queries is None
+                    else {
+                        "semantic_queries": _array_metadata(
+                            temporary_root / "train_semantic_queries.npy",
+                            dtype=np.dtype(np.float32),
+                            dimensions=2,
+                        ),
+                        "semantic_mask": _array_metadata(
+                            temporary_root / "train_semantic_mask.npy",
+                            dtype=np.dtype(bool),
+                        ),
+                    }
+                ),
+            },
+            "validation": {
+                "owner": _array_metadata(
+                    temporary_root / "validation_owner_ids.npy",
+                    dtype=np.dtype(np.uint8),
+                ),
+                **(
+                    {}
+                    if allocation_sides is None
+                    or allocation_sides[1].semantic_queries is None
+                    else {
+                        "semantic_queries": _array_metadata(
+                            temporary_root / "validation_semantic_queries.npy",
+                            dtype=np.dtype(np.float32),
+                            dimensions=2,
+                        ),
+                        "semantic_mask": _array_metadata(
+                            temporary_root / "validation_semantic_mask.npy",
+                            dtype=np.dtype(bool),
+                        ),
+                    }
+                ),
+            },
+        },
     }
     manifest["manifest_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
     manifest_path = temporary_root / "manifest.json"
@@ -558,19 +768,8 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         os.fsync(directory_fd)
     finally:
         os.close(directory_fd)
-    return PreparedData(
-        root,
-        np.load(train_path, mmap_mode="r", allow_pickle=False),
-        np.load(validation_path, mmap_mode="r", allow_pickle=False),
-        np.load(train_supervision_path, mmap_mode="r", allow_pickle=False),
-        np.load(validation_supervision_path, mmap_mode="r", allow_pickle=False),
-        np.load(train_byte_path, mmap_mode="r", allow_pickle=False)
-        if byte_enabled
-        else None,
-        np.load(validation_byte_path, mmap_mode="r", allow_pickle=False)
-        if byte_enabled
-        else None,
-        manifest,
+    return load_prepared_data(
+        root, byte_enabled=byte_enabled, expected_identity=cache_identity
     )
 
 
@@ -581,6 +780,9 @@ class TokenBlockDataset:
         seq_len: int,
         byte_addresses: np.ndarray | None = None,
         supervision: np.ndarray | None = None,
+        owner_ids: np.ndarray | None = None,
+        semantic_queries: np.ndarray | None = None,
+        semantic_mask: np.ndarray | None = None,
     ) -> None:
         if ids.ndim != 1 or ids.dtype != np.dtype(np.int32):
             raise ValueError("packed IDs must be one-dimensional int32")
@@ -594,13 +796,36 @@ class TokenBlockDataset:
             )
         if byte_addresses is not None and len(byte_addresses) != len(ids):
             raise ValueError("byte address array must align with packed IDs")
+        if owner_ids is not None and (
+            owner_ids.ndim != 1
+            or owner_ids.dtype != np.dtype(np.uint8)
+            or len(owner_ids) != len(ids)
+        ):
+            raise ValueError("owner IDs must be one-dimensional uint8 aligned with IDs")
+        if semantic_queries is not None and (
+            semantic_queries.ndim != 2
+            or semantic_queries.dtype != np.dtype(np.float32)
+            or semantic_queries.shape[0] != len(ids)
+            or semantic_mask is None
+        ):
+            raise ValueError(
+                "semantic queries must be float32 [tokens,key_dim] with mask"
+            )
+        if semantic_mask is not None and (
+            semantic_mask.ndim != 1
+            or semantic_mask.dtype != np.dtype(bool)
+            or len(semantic_mask) != len(ids)
+        ):
+            raise ValueError("semantic query mask must be bool aligned with IDs")
         self.ids, self.seq_len = ids, seq_len
         self.byte_addresses, self.supervision = byte_addresses, supervision
+        self.owner_ids = owner_ids
+        self.semantic_queries, self.semantic_mask = semantic_queries, semantic_mask
         candidates = (len(ids) - 1) // seq_len
-        if supervision is None:
-            self.block_indices = np.arange(candidates, dtype=np.int64)
-        else:
-            self.block_indices = np.asarray(
+        self.block_indices = (
+            np.arange(candidates, dtype=np.int64)
+            if supervision is None
+            else np.asarray(
                 [
                     block
                     for block in range(candidates)
@@ -612,6 +837,7 @@ class TokenBlockDataset:
                 ],
                 dtype=np.int64,
             )
+        )
 
     def __len__(self) -> int:
         return len(self.block_indices)
@@ -624,8 +850,7 @@ class TokenBlockDataset:
         values = np.asarray(self.ids[start : start + self.seq_len + 1], dtype=np.int64)
         targets = values[1:].copy()
         if self.supervision is not None:
-            mask = self.supervision[start + 1 : start + self.seq_len + 1]
-            targets[~mask] = -100
+            targets[~self.supervision[start + 1 : start + self.seq_len + 1]] = -100
         addresses = (
             None
             if self.byte_addresses is None
@@ -634,6 +859,41 @@ class TokenBlockDataset:
             )
         )
         return values[:-1], targets, addresses
+
+    def numpy_microblock(
+        self, index: int
+    ) -> tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+    ]:
+        inputs, targets, addresses = self.numpy_block(index)
+        start = int(self.block_indices[index]) * self.seq_len
+        owners = (
+            None
+            if self.owner_ids is None
+            else np.asarray(
+                self.owner_ids[start + 1 : start + self.seq_len + 1], dtype=np.uint8
+            )
+        )
+        queries = (
+            None
+            if self.semantic_queries is None
+            else np.asarray(
+                self.semantic_queries[start : start + self.seq_len], dtype=np.float32
+            )
+        )
+        mask = (
+            None
+            if self.semantic_mask is None
+            else np.asarray(
+                self.semantic_mask[start : start + self.seq_len], dtype=bool
+            )
+        )
+        return inputs, targets, addresses, owners, queries, mask
 
     def __getitem__(
         self, index: int

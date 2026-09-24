@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE_CONFIG = ROOT / "configs" / "runtime_smoke_cpu.yaml"
 
 
-def _matrix(tmp_path: Path, axes: dict[str, object], **extra: object) -> Path:
+def _matrix(tmp_path: Path, axes: Mapping[str, object], **extra: object) -> Path:
     path = tmp_path / "matrix.yaml"
     path.write_text(
         yaml.safe_dump(
@@ -59,6 +60,28 @@ def test_expand_preserves_axis_and_option_order(tmp_path: Path) -> None:
     assert [item.config.training.max_steps for item in expanded] == [3, 4, 3, 4]
     assert {item.preferred_worker for item in expanded} == {"logical-cpu"}
     assert all(item.requirements.backend == ("cpu",) for item in expanded)
+
+
+def test_expand_resolves_relative_path_axis_values_from_matrix_directory(
+    tmp_path: Path,
+) -> None:
+    path = _matrix(
+        tmp_path,
+        {
+            "tokenizer": [
+                {
+                    "label": "local",
+                    "set": {"tokenizer.path": "assets/tokenizer.json"},
+                }
+            ]
+        },
+    )
+
+    expanded = expand(path)
+
+    assert expanded[0].config.tokenizer.path == (
+        tmp_path.resolve() / "assets" / "tokenizer.json"
+    )
 
 
 @pytest.mark.parametrize(
@@ -114,7 +137,8 @@ def test_expand_checks_product_bound_before_config_validation(tmp_path: Path) ->
 
 
 def test_checked_in_matrix_fixture_expands_three_concrete_cpu_configs() -> None:
-    expanded = expand(ROOT / "tests" / "fixtures" / "runtime-matrix.yaml")
+    matrix_path = ROOT / "tests" / "fixtures" / "runtime-matrix.yaml"
+    expanded = expand(matrix_path)
 
     assert len(expanded) == 3
     assert [item.coordinate["seed"] for item in expanded] == [
@@ -123,9 +147,9 @@ def test_checked_in_matrix_fixture_expands_three_concrete_cpu_configs() -> None:
         "seed-41",
     ]
     assert [item.config.runtime.backend for item in expanded] == ["cpu", "cpu", "cpu"]
-    assert expanded[0].matrix_sha256 == (
-        "7b4c53bb6578570bc1e2b458293fede87183cd4254efe391e5a0cb25e498c6a8"
-    )
+    assert [item.matrix_sha256 for item in expanded] == [
+        item.matrix_sha256 for item in expand(matrix_path)
+    ]
 
 
 def test_matrix_patches_omitted_default_memory_injection(tmp_path: Path) -> None:

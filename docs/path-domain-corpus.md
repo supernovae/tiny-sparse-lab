@@ -119,3 +119,75 @@ The auditable six-endpoint ledger, original infrastructure failures, verified
 lineage, exact retention bindings, descriptive aggregates, and all 18 full
 literal-response card reports are in
 [`artifacts/studies/path_domain_2026_09_22.json`](../artifacts/studies/path_domain_2026_09_22.json).
+
+## Ownership-aware allocation
+
+Build the provenance-bound bundle before planning the allocation recipe:
+
+```sh
+uv run sparselab research tasks build memory-allocation --output artifacts/allocation
+```
+
+The builder rechecks each rendered assistant label and structured prompt key
+against the oracle audit, binds the tokenizer/source hashes, and creates owner,
+semantic-query, and semantic-mask sidecars for train/development. Profiles
+`n100`, `n75`, `n50`, `n25`, and `n0` assign the rounded 100%, 75%, 50%, 25%,
+or 0% of valid assistant targets to neural ownership. Remaining valid targets
+are balanced across lexical, semantic, and hybrid ownership. Input/context
+positions without a supervised target remain present and are counted separately.
+
+The semantic pack stores only the 24 training records. Its frozen key encoder
+hashes canonical structured `(path, operation, argument)` identities; it does
+not embed natural-language prompts. Query-bound capability cards declare the
+same encoder identity and vector explicitly. Development/frozen records do not
+enter the pack, and this fixture does not test natural-language semantic
+generalization.
+
+Each design varies neural-loss weight over 1, 0.75, 0.5, 0.25, and 0. Neural
+and hybrid targets contribute to weighted neural supervision mass; lexical and
+semantic losses continue at full weight, including at neural weight zero.
+Raw input positions, valid supervised targets, and weighted neural mass are
+reported separately.
+
+The `default`, `iso-total`, `iso-active`, `iso-token`, and `iso-flop` recipe
+designs report distinct denominator views: neural-owned trainable parameters,
+total trainable parameters, active parameters per token, measured raw/valid
+token counts, and a rough parameter-based FLOP proxy. The proxy is
+`6 × active_parameters_per_token × raw_input_tokens`; it excludes exact
+attention work, memory lookup/retrieval, optimizer work, and hardware effects.
+These labels do not represent measured latency, energy, saved tokens, or
+independent resource-matched model architectures. Curves retain every observed
+checkpoint point, including nonmonotonic behavior; no best point is selected
+or smoothed.
+
+## Phase F CPU smoke observation
+
+The scaffold contains 75 coordinates (three seeds, five ownership profiles,
+five neural weights). Only `iso-total/s17/n50/w50` was executed; this is a
+pipeline smoke, not a completed allocation sweep. Its 1,109 training positions
+contain 103 supervised targets (52 neural, 17 lexical, 17 semantic, 17 hybrid)
+and 34 semantic-query positions. Development contains 476 positions, 77 targets,
+and 25 query positions.
+
+Across the smoke run's 32 updates, persisted training metrics sum to 3,904 raw
+input positions, 355 valid targets, and 120.5 weighted neural supervision mass
+(241 neural-or-hybrid targets at weight 0.5). The run has five integrity-verified
+held-out checkpoints; validation uses 69 targets at each point:
+
+| Step | Held-out validation CE | Acquisition | Development | Frozen |
+|---:|---:|---:|---:|---:|
+| 0 | 6.264263 | 0/6 | 0/8 | 0/12 |
+| 8 | 5.904443 | 0/6 | 0/8 | 0/12 |
+| 16 | 5.834760 | 0/6 | 0/8 | 0/12 |
+| 24 | 5.986260 | 0/6 | 0/8 | 0/12 |
+| 32 | 6.070393 | 0/6 | 0/8 | 0/12 |
+
+This single coordinate shows a nonmonotonic validation curve and no correct
+capability-card answers at any observed checkpoint. It does not establish an
+ownership optimum, allocation-dependent retention, semantic generalization, or
+a full learning curve across profiles. The 75-coordinate scaffold remains
+untrained; no FLOPs, latency, energy, or saved-token measurements were made.
+See the [allocation recipe](../src/sparselab/research/resources/recipes/memory-allocation-curve-v1.json), [bundle builder](../src/sparselab/data/allocation_tasks.py), and [reproduction commands](research/README.md). The generated bundle, scaffold,
+prepared arrays, SQLite store, and checkpoints remain local under the
+[contribution rules](../CONTRIBUTING.md); the source corpus and cards are
+[tracked here](../data/path_domain_v1/).

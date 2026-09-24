@@ -1,0 +1,79 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "id": "memory-allocation-curve-v1",
+  "title": "Ownership-aware memory allocation curves",
+  "question": "How do declared neural, lexical, semantic, and hybrid target ownership allocations affect task-specific retention, dependence, and learning curves?",
+  "mechanisms": [
+    "allocation manifest ownership routing",
+    "neural loss weighting",
+    "lexical memory",
+    "verified semantic EngramPack"
+  ],
+  "hypothesis": "The allocation sweep can be nonmonotonic: neither all-neural nor zero-neural supervision is assumed to be optimal for every task or checkpoint.",
+  "failure_interpretation": "A flat, U-shaped, or otherwise nonmonotonic curve is retained as observed evidence; it does not establish saved tokens, measured FLOPs, or a universal allocation policy.",
+  "controls": [
+    "Bind every coordinate to a versioned allocation manifest with aligned owner/query arrays, source and tokenizer identity, verified semantic EngramPack identity, resource regime, and ownership profile.",
+    "Cross five ownership profiles and five neural-loss weights within each denominator design while fixing seed, packed source, runtime, optimizer, architecture, stopping policy, and task cards.",
+    "Keep raw input tokens, valid supervised targets, and weighted neural supervision mass as distinct counters.",
+    "Evaluate each declared card at every immutable observed checkpoint and retain each checkpoint identity without choosing a best point."
+  ],
+  "independent_variables": [
+    "dataset.allocation_manifest_path",
+    "allocation_manifest.resource_regime",
+    "allocation_manifest.ownership_profile",
+    "training.neural_loss_weight"
+  ],
+  "dependent_metrics": [
+    {"name": "held-out validation loss", "unit": "cross-entropy", "kind": "measured", "direction": "lower"},
+    {"name": "capability-card score", "unit": "fraction", "kind": "capability", "direction": "higher"},
+    {"name": "raw input tokens", "unit": "tokens", "kind": "measured", "direction": "descriptive"},
+    {"name": "valid supervised targets", "unit": "targets", "kind": "measured", "direction": "descriptive"},
+    {"name": "weighted neural supervision mass", "unit": "weighted targets", "kind": "measured", "direction": "descriptive"},
+    {"name": "estimated parameter-proxy FLOPs", "unit": "rough estimated FLOPs", "kind": "architectural", "direction": "descriptive"}
+  ],
+  "confounders": [
+    "Ownership mixes, task dependency, and allocation-manifest contents change together; weight alone is not a compute measurement.",
+    "The five named resource regimes are denominator views over fixed architecture and token-budget runs, not independent replications or distinct model-size treatments.",
+    "Semantic results depend on the verified EngramPack and query provenance, not an unverified encoder.",
+    "Finite/repeated offline curricula and task-card wording limit generalization.",
+    "FLOPs use a rough 6 × active-parameters-per-token × measured-raw-tokens proxy; this is estimated accounting, while token and supervision counters are measured runtime counts."
+  ],
+  "minimum_useful_scale": "smoke",
+  "recommended_scale": "micro",
+  "hardware_notes": "Run each denominator design with the same selected backend. Iso-FLOP uses a rough parameter-based estimate, not measured compute, speed, or energy.",
+  "runtime_class": "Qualitative bounded educational workload; checkpoint curves may be nonmonotonic and no elapsed-time or FLOP result is implied.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {"smoke": 8, "nano": 32, "micro": 128, "tiny": 256},
+    "endpoint_cards": ["all declared cards at every immutable observed checkpoint"],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [
+    {"reference": "../../artifacts/allocation/cards/path-domain-acquisition-v1.json", "role": "development", "category": "retention/acquisition", "applicability": {"offline": "query-bound path-domain training-format acquisition", "tinystories": "not applicable: allocation recipe binds the provenance-controlled path-domain task bundle"}},
+    {"reference": "../../artifacts/allocation/cards/path-domain-development-v1.json", "role": "development", "category": "dependence/development", "applicability": {"offline": "query-bound path-domain development task", "tinystories": "not applicable: allocation recipe binds the provenance-controlled path-domain task bundle"}},
+    {"reference": "../../artifacts/allocation/cards/path-domain-frozen-v1.json", "role": "stress", "category": "held-out retention", "applicability": {"offline": "query-bound path-domain frozen held-out task", "tinystories": "not applicable: allocation recipe binds the provenance-controlled path-domain task bundle"}}
+  ],
+  "papers": [
+    {"title": "Engram", "url": "https://arxiv.org/abs/2601.07372", "claim_boundary": "Motivates memory allocation questions; this recipe reports only SparseLab's manifest-bound observed points."}
+  ],
+  "implementation_links": [
+    {"path": "src/sparselab/training/trainer.py", "symbol": "Trainer"},
+    {"path": "src/sparselab/experiments/study.py", "symbol": "_evaluate_trial"},
+    {"path": "src/sparselab/experiments/analysis.py", "symbol": "build_research_analysis"}
+  ],
+  "docs": ["docs/path-domain-corpus.md", "docs/metrics.md", "docs/research/README.md"],
+  "can_establish": [
+    "Manifest-bound raw per-task, per-checkpoint allocation observations in each declared comparison regime.",
+    "Whether observed retention, dependence, or validation curves are nonmonotonic at the actually evaluated allocation points."
+  ],
+  "cannot_establish": [
+    "Measured FLOP savings, latency, energy use, saved tokens, a smoothed optimum, or an allocation result transferred across a different task, pack, tokenizer, or source identity."
+  ],
+  "prerequisites": [
+    "Each selected allocation-manifest path must be built and verified before training; it binds source/tokenizer/owner/query arrays and semantic EngramPack identity.",
+    "Semantic and hybrid ownership require verified semantic query artifacts rather than a guessed encoder."
+  ],
+  "recipe": "recipes/memory-allocation-curve-v1.json"
+}

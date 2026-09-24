@@ -18,6 +18,7 @@ _PATH_KEYS = {
     "memory_package_path",
     "train_path",
     "validation_path",
+    "allocation_manifest_path",
 }
 
 

@@ -513,51 +513,50 @@ def _path_in_run(run: Path, value: Path) -> str:
     return str(value.resolve().relative_to(run.resolve()))
 
 
-def _evaluate_trial(
-    item: ExpandedExperiment,
-    receipt_item: dict[str, object],
-    study: ArchitectureStudy,
-    runs_dir: Path,
-    checkpoint: str | None,
-    backend: str | None,
-) -> dict[str, object]:
-    record: dict[str, object] = {
-        "coordinate": item.coordinate,
-        "config_sha256": config_sha256(item.config.model_dump(mode="json")),
-        "run_id": receipt_item["run_id"],
-        "parameter_inventory": asdict(parameter_inventory(item.config)),
-        "estimated_bytes": {
-            key: inspection_report(item.config)[key]
-            for key in (
-                "model_weight_bytes",
-                "optimizer_state_bytes",
-                "estimated_checkpoint_bytes",
-            )
-        },
-        "status": "unavailable",
-        "capabilities": {},
-    }
-    loaded = load_run(str(receipt_item["run_id"]), runs_dir, checkpoint, backend)
-    actual_config_digest = config_sha256(loaded.config.model_dump(mode="json"))
-    if actual_config_digest != record["config_sha256"]:
-        raise ValueError("run config does not match the submitted study coordinate")
-    record["identity"] = loaded.identity
-    record["status"] = "evaluated"
+def _checkpoint_paths(run: Path, selected: str | None) -> list[tuple[str, int | None]]:
+    """Return every immutable generation in chronological order.
+
+    An explicit checkpoint remains an explicit single-checkpoint collection.
+    """
+    if selected is not None:
+        return [(selected, None)]
+    checkpoints = run / "checkpoints"
+    generations: list[tuple[int, int, str]] = []
+    for path in checkpoints.glob("step_*_gen_*"):
+        if path.is_symlink() or not path.is_dir():
+            continue
+        manifest = path / "manifest.json"
+        if manifest.is_symlink() or not manifest.is_file():
+            continue
+        try:
+            value = json.loads(manifest.read_text(encoding="utf-8"))
+            step = value.get("step")
+            generation = value.get("generation_id")
+            if type(step) is int and type(generation) is int:
+                generations.append((step, generation, path.name))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            continue
+    return [(name, step) for step, _, name in sorted(generations)]
+
+
+def _evaluate_checkpoint_cards(
+    loaded: Any, study: ArchitectureStudy
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Evaluate cards and validation for exactly one verified loaded generation."""
     try:
         validation = loaded.evaluate()
         validation_result = {**validation, "identity": loaded.identity}
         validation_path = write_inference_result(
             loaded.run, "architecture-study-validation", validation_result
         )
-        record["validation"] = {
+        validation_record: dict[str, object] = {
             "loss": validation.get("loss"),
             "perplexity": validation.get("perplexity"),
             "valid_targets": validation.get("valid_targets"),
             "report": _path_in_run(loaded.run, validation_path),
         }
     except (OSError, RuntimeError, TypeError, ValueError, KeyError) as error:
-        record["validation"] = {"error": str(error)}
-
+        validation_record = {"error": str(error)}
     capabilities: dict[str, object] = {}
     for card in study.cards:
         try:
@@ -588,8 +587,96 @@ def _evaluate_trial(
                 "valid": False,
                 "error": str(error),
             }
+    return validation_record, capabilities
+
+
+def _evaluate_trial(
+    item: ExpandedExperiment,
+    receipt_item: dict[str, object],
+    study: ArchitectureStudy,
+    runs_dir: Path,
+    checkpoint: str | None,
+    backend: str | None,
+) -> dict[str, object]:
+    record: dict[str, object] = {
+        "coordinate": item.coordinate,
+        "config_sha256": config_sha256(item.config.model_dump(mode="json")),
+        "run_id": receipt_item["run_id"],
+        "parameter_inventory": asdict(parameter_inventory(item.config)),
+        "estimated_bytes": {
+            key: inspection_report(item.config)[key]
+            for key in (
+                "model_weight_bytes",
+                "optimizer_state_bytes",
+                "estimated_checkpoint_bytes",
+            )
+        },
+        "status": "unavailable",
+        "capabilities": {},
+    }
+    loaded = load_run(str(receipt_item["run_id"]), runs_dir, checkpoint, backend)
+    actual_config_digest = config_sha256(loaded.config.model_dump(mode="json"))
+    if actual_config_digest != record["config_sha256"]:
+        raise ValueError("run config does not match the submitted study coordinate")
+    record["identity"] = loaded.identity
+    record["status"] = "evaluated"
+    validation, capabilities = _evaluate_checkpoint_cards(loaded, study)
+    record["validation"] = validation
     record["capabilities"] = capabilities
+    observations: list[dict[str, object]] = [
+        {
+            "identity": loaded.identity,
+            "validation": validation,
+            "capabilities": capabilities,
+        }
+    ]
+    selected_identity = loaded.identity
+    run_root = loaded.run
     del loaded
+    for generation, expected_step in _checkpoint_paths(run_root, checkpoint):
+        try:
+            observed = load_run(
+                str(receipt_item["run_id"]), runs_dir, generation, backend
+            )
+            try:
+                if observed.identity.get("checkpoint_sha256") == selected_identity.get(
+                    "checkpoint_sha256"
+                ):
+                    continue
+                checkpoint_validation, checkpoint_capabilities = (
+                    _evaluate_checkpoint_cards(observed, study)
+                )
+                observations.append(
+                    {
+                        "identity": observed.identity,
+                        "validation": checkpoint_validation,
+                        "capabilities": checkpoint_capabilities,
+                    }
+                )
+            finally:
+                del observed
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as error:
+            observations.append(
+                {
+                    "checkpoint_selector": generation,
+                    "checkpoint_step": expected_step,
+                    "status": "unavailable",
+                    "error": str(error),
+                    "validation": {"error": "checkpoint could not be loaded"},
+                    "capabilities": {},
+                }
+            )
+
+    def observation_step(observation: dict[str, object]) -> int:
+        identity = observation.get("identity")
+        step = identity.get("step") if isinstance(identity, dict) else None
+        if type(step) is int:
+            return step
+        fallback = observation.get("checkpoint_step")
+        return fallback if type(fallback) is int else 2**63 - 1
+
+    observations.sort(key=observation_step)
+    record["checkpoint_observations"] = observations
     return record
 
 

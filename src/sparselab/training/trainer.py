@@ -16,6 +16,10 @@ from pathlib import Path
 import numpy as np
 
 from sparselab.config.models import RunConfig
+from sparselab.data.allocation import (
+    copy_allocation_bundle,
+    load_allocation_manifest,
+)
 from sparselab.data.packing import (
     BatchCursor,
     PreparedData,
@@ -65,6 +69,27 @@ def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
     )
 
 
+def _stack_optional(
+    records: list[
+        tuple[
+            np.ndarray,
+            np.ndarray,
+            np.ndarray | None,
+            np.ndarray | None,
+            np.ndarray | None,
+            np.ndarray | None,
+        ]
+    ],
+    field: int,
+) -> np.ndarray | None:
+    values = [record[field] for record in records]
+    if all(value is None for value in values):
+        return None
+    if any(value is None for value in values):
+        raise ValueError("microbatch sidecars must be present consistently")
+    return np.stack([value for value in values if value is not None])
+
+
 def _copy_artifacts(
     run: Path, config: RunConfig, data: PreparedData, source_run: Path | None = None
 ) -> tuple[ArtifactIdentity, ...]:
@@ -96,6 +121,30 @@ def _copy_artifacts(
             shutil.copytree(package_source, destination)
         else:
             shutil.copy2(package_source, destination)
+    allocation_source = config.dataset.allocation_manifest_path
+    if allocation_source is not None:
+        cache_identity = data.manifest.get("cache_identity")
+        allocation_metadata = data.manifest.get("allocation")
+        if not isinstance(cache_identity, dict) or not isinstance(
+            allocation_metadata, dict
+        ):
+            raise ValueError("prepared data lacks allocation identity")
+        source_identity_sha256 = cache_identity.get("source_identity_sha256")
+        tokenizer_sha256 = cache_identity.get("tokenizer_sha256")
+        if not isinstance(source_identity_sha256, str) or not isinstance(
+            tokenizer_sha256, str
+        ):
+            raise ValueError("prepared data allocation identity is malformed")
+        if source_run is not None:
+            allocation_source = source_run / "allocation" / allocation_source.name
+        allocation = load_allocation_manifest(
+            allocation_source,
+            source_identity_sha256=source_identity_sha256,
+            tokenizer_sha256=tokenizer_sha256,
+        )
+        if allocation.sha256 != allocation_metadata.get("manifest_sha256"):
+            raise ValueError("prepared data and allocation manifests differ")
+        copy_allocation_bundle(allocation, run / "allocation")
     for path in sorted(
         item
         for item in run.rglob("*")
@@ -446,12 +495,18 @@ def _train_impl(
             config.training.seq_len,
             data.train_byte_addresses,
             data.train_supervision,
+            data.train_owner_ids,
+            data.train_semantic_queries,
+            data.train_semantic_mask,
         )
         validation_dataset = TokenBlockDataset(
             data.validation,
             config.training.seq_len,
             data.validation_byte_addresses,
             data.validation_supervision,
+            data.validation_owner_ids,
+            data.validation_semantic_queries,
+            data.validation_semantic_mask,
         )
         if not len(dataset):
             raise ValueError("training data contains no supervised next-token targets")
@@ -801,7 +856,7 @@ def _train_impl(
                 if limit is not None and len(batches) >= limit:
                     break
                 records = [
-                    validation_dataset.numpy_block(index)
+                    validation_dataset.numpy_microblock(index)
                     for index in range(
                         offset,
                         min(
@@ -814,9 +869,10 @@ def _train_impl(
                     Microbatch(
                         np.stack([record[0] for record in records]),
                         np.stack([record[1] for record in records]),
-                        None
-                        if records[0][2] is None
-                        else np.stack([record[2] for record in records]),
+                        _stack_optional(records, 2),
+                        _stack_optional(records, 3),
+                        _stack_optional(records, 4),
+                        _stack_optional(records, 5),
                     )
                 )
             return batches
@@ -874,17 +930,20 @@ def _train_impl(
                 if not candidate_indices:
                     cursor = BatchCursor(cursor.epoch + 1, 0)
                     continue
-                records: list[tuple[np.ndarray, np.ndarray, np.ndarray | None]] = []
+                records = []
                 valid_targets = 0
                 for index in candidate_indices:
-                    inputs, targets, addresses = dataset.numpy_block(index)
+                    inputs, targets, addresses, owners, queries, query_mask = (
+                        dataset.numpy_microblock(index)
+                    )
                     labels = targets.copy()
                     available = int(np.count_nonzero(labels != -100))
                     allowed = min(remaining - valid_targets, available)
                     if allowed < available:
-                        positions = np.flatnonzero(labels != -100)
-                        labels[positions[allowed:]] = -100
-                    records.append((inputs, labels, addresses))
+                        labels[np.flatnonzero(labels != -100)[allowed:]] = -100
+                    records.append(
+                        (inputs, labels, addresses, owners, queries, query_mask)
+                    )
                     valid_targets += allowed
                     if valid_targets == remaining:
                         break
@@ -910,15 +969,21 @@ def _train_impl(
                                 ]
                             ]
                         ),
-                        None
-                        if records[offset][2] is None
-                        else np.stack(
-                            [
-                                record[2]
-                                for record in records[
-                                    offset : offset + config.training.micro_batch_size
-                                ]
-                            ]
+                        _stack_optional(
+                            records[offset : offset + config.training.micro_batch_size],
+                            2,
+                        ),
+                        _stack_optional(
+                            records[offset : offset + config.training.micro_batch_size],
+                            3,
+                        ),
+                        _stack_optional(
+                            records[offset : offset + config.training.micro_batch_size],
+                            4,
+                        ),
+                        _stack_optional(
+                            records[offset : offset + config.training.micro_batch_size],
+                            5,
                         ),
                     )
                     for offset in range(

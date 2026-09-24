@@ -76,8 +76,9 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
         "engram-placement-v1",
         "engram-sparse-budget-v1",
         "lexical-memory-heavy-v1",
+        "memory-allocation-curve-v1",
     }
-    assert len(lessons) == 10
+    assert len(lessons) == 11
     profiles = load_profiles().scales
     assert set(profiles) == {"smoke", "nano", "micro", "tiny"}
     assert [profiles[name].hidden_dim for name in profiles] == [64, 128, 320, 512]

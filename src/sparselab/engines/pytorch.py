@@ -13,6 +13,16 @@ import torch
 from torch.nn import functional
 
 from sparselab.config.models import RunConfig
+from sparselab.data.allocation import (
+    OWNER_HYBRID,
+    OWNER_LEXICAL,
+    OWNER_NEURAL,
+    OWNER_SEMANTIC,
+    load_allocation_manifest,
+    load_semantic_retriever,
+)
+from sparselab.data.packing import _tokenizer_sha256
+from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import (
     CanonicalTensor,
     EngineNonFiniteError,
@@ -23,6 +33,7 @@ from sparselab.engines.base import (
     UpdateResult,
     WeightSource,
 )
+from sparselab.engram.semantic import SemanticQueryBatch
 from sparselab.memory import MemoryMonitor
 from sparselab.model.inspection import architecture_metrics
 from sparselab.model.transformer import DenseLM
@@ -33,6 +44,7 @@ from sparselab.runtime import (
     torch_device_for,
     validate_runtime,
 )
+from sparselab.training.manifest import source_identity
 from sparselab.training.offload import ActivationOffload
 from sparselab.training.optimizer import (
     learning_rate_for_step,
@@ -292,6 +304,7 @@ class PyTorchEngine:
         self.scaler: torch.amp.GradScaler | None = None
         self.monitor: MemoryMonitor | None = None
         self.offload: ActivationOffload | None = None
+        self.semantic_encoder = None
 
     def validate(self, config: RunConfig):
         self.runtime = validate_runtime(config)
@@ -303,6 +316,27 @@ class PyTorchEngine:
         runtime = self.runtime if self.runtime is not None else self.validate(config)
         device = torch_device_for(runtime.backend, config.runtime.device_index)
         model = DenseLM(config.model, config.attention).to(device)
+        self.semantic_encoder = None
+        if config.dataset.allocation_manifest_path is not None:
+            allocation = load_allocation_manifest(
+                config.dataset.allocation_manifest_path,
+                source_identity_sha256=source_identity()["sha256"],
+                tokenizer_sha256=_tokenizer_sha256(
+                    load_tokenizer(config.tokenizer.path)
+                ),
+            )
+            retriever = load_semantic_retriever(allocation)
+            if (retriever is None) != (config.model.semantic_memory_dim is None):
+                raise ValueError(
+                    "model.semantic_memory_dim must match the verified allocation pack"
+                )
+            if retriever is not None:
+                if retriever.memory_dim != config.model.semantic_memory_dim:
+                    raise ValueError(
+                        "model.semantic_memory_dim differs from semantic pack value width"
+                    )
+                model.add_semantic_memory("allocation", retriever, site="final")
+                self.semantic_encoder = retriever.key_encoder
         if initial_weights is not None:
             model.load_state_dict(initial_weights)  # type: ignore[arg-type]
         optimizer = (
@@ -387,23 +421,168 @@ class PyTorchEngine:
         losses_finite = torch.ones((), device=device, dtype=torch.bool)
         recomputed = 0.0
         executed_microbatches = 0
+        allocation_enabled = config.dataset.allocation_manifest_path is not None
+        allocation_raw_counts = {
+            code: 0
+            for code in (OWNER_NEURAL, OWNER_LEXICAL, OWNER_SEMANTIC, OWNER_HYBRID)
+        }
+        allocation_target_counts = dict(allocation_raw_counts)
+        allocation_groups: dict[int, list[torch.nn.Parameter]] | None = None
+        if allocation_enabled:
+            neural, lexical, semantic = [], [], []
+            seen: set[int] = set()
+            for name, parameter in model.named_parameters():
+                if id(parameter) in seen:
+                    continue
+                seen.add(id(parameter))
+                if not parameter.requires_grad:
+                    continue
+                if name.startswith("memory."):
+                    lexical.append(parameter)
+                elif name.startswith("semantic_memories."):
+                    semantic.append(parameter)
+                else:
+                    neural.append(parameter)
+            allocation_groups = {
+                OWNER_NEURAL: neural,
+                OWNER_LEXICAL: lexical,
+                OWNER_SEMANTIC: semantic,
+            }
         for batch, chunk_valid in zip(microbatches, chunk_counts, strict=True):
+            if allocation_enabled:
+                if (
+                    batch.owner_ids is None
+                    or batch.owner_ids.shape != batch.targets.shape
+                    or batch.owner_ids.dtype != np.uint8
+                    or np.any(batch.owner_ids > OWNER_HYBRID)
+                ):
+                    raise ValueError("owner sidecar shape, dtype, or codes are invalid")
+                for owner in allocation_raw_counts:
+                    allocation_raw_counts[owner] += int(
+                        np.count_nonzero(batch.owner_ids == owner)
+                    )
             if not chunk_valid:
                 continue
             executed_microbatches += 1
-            x = torch.from_numpy(batch.inputs).to(device)
-            y = torch.from_numpy(batch.targets).to(device)
+            x, y = (
+                torch.from_numpy(batch.inputs).to(device),
+                torch.from_numpy(batch.targets).to(device),
+            )
             addresses = (
                 None
                 if batch.byte_addresses is None
                 else torch.from_numpy(batch.byte_addresses).to(device)
             )
-            hooks = self.offload.hooks() if self.offload is not None else nullcontext()
-            with hooks, precision_context(config, device):
+            owners = None
+            owner_tensor = None
+            memory_mask = None
+            semantic_queries = None
+            if allocation_enabled:
+                if batch.owner_ids is None:
+                    raise ValueError("allocation training requires owner sidecars")
+                owners = batch.owner_ids
+                if (
+                    owners.shape != batch.targets.shape
+                    or owners.dtype != np.uint8
+                    or np.any(owners > OWNER_HYBRID)
+                ):
+                    raise ValueError("owner sidecar shape, dtype, or codes are invalid")
+                owner_tensor = torch.from_numpy(owners).to(device)
+                for owner in allocation_target_counts:
+                    allocation_target_counts[owner] += int(
+                        np.count_nonzero((owners == owner) & (batch.targets != -100))
+                    )
+                semantic_width = (
+                    next(iter(model.semantic_memories.values())).retriever.key_dim
+                    if model.semantic_memories
+                    else None
+                )
+                assert allocation_groups is not None
+                if (
+                    allocation_target_counts[OWNER_LEXICAL]
+                    and not allocation_groups[OWNER_LEXICAL]
+                ):
+                    raise ValueError(
+                        "lexical ownership requires a lexical memory module"
+                    )
+                if (
+                    allocation_target_counts[OWNER_SEMANTIC]
+                    and not allocation_groups[OWNER_SEMANTIC]
+                ):
+                    raise ValueError(
+                        "semantic ownership requires a verified semantic memory"
+                    )
+                if allocation_target_counts[OWNER_HYBRID] and (
+                    not allocation_groups[OWNER_LEXICAL]
+                    or not allocation_groups[OWNER_SEMANTIC]
+                ):
+                    raise ValueError(
+                        "hybrid ownership requires lexical and semantic memory"
+                    )
+                memory_mask = (owner_tensor == OWNER_LEXICAL) | (
+                    owner_tensor == OWNER_HYBRID
+                )
+                if (
+                    batch.semantic_queries is not None
+                    or batch.semantic_mask is not None
+                ):
+                    if (
+                        self.semantic_encoder is None
+                        or batch.semantic_queries is None
+                        or batch.semantic_mask is None
+                        or batch.semantic_queries.ndim != 3
+                        or batch.semantic_queries.shape
+                        != (*batch.inputs.shape, semantic_width)
+                        or batch.semantic_queries.dtype != np.float32
+                        or batch.semantic_mask.shape != batch.inputs.shape
+                        or batch.semantic_mask.dtype != bool
+                        or not np.isfinite(batch.semantic_queries).all()
+                    ):
+                        raise ValueError("semantic allocation sidecars are invalid")
+                    semantic_mask = torch.from_numpy(batch.semantic_mask).to(device)
+                    allowed = (owner_tensor == OWNER_SEMANTIC) | (
+                        owner_tensor == OWNER_HYBRID
+                    )
+                    if bool(torch.any(semantic_mask & ~allowed)):
+                        raise ValueError(
+                            "semantic query mask may select only semantic or hybrid ownership"
+                        )
+                    semantic_queries = SemanticQueryBatch(
+                        self.semantic_encoder,
+                        torch.from_numpy(batch.semantic_queries).to(device),
+                        semantic_mask,
+                    )
+                elif allocation_groups[OWNER_SEMANTIC]:
+                    raise ValueError("semantic ownership requires query sidecars")
+            elif batch.semantic_queries is not None:
+                if self.semantic_encoder is None or batch.semantic_mask is None:
+                    raise ValueError(
+                        "semantic query sidecars require a verified attached pack"
+                    )
+                semantic_queries = SemanticQueryBatch(
+                    self.semantic_encoder,
+                    torch.from_numpy(batch.semantic_queries).to(device),
+                    torch.from_numpy(batch.semantic_mask).to(device),
+                )
+            valid_target_mask = y != -100
+            neural_aux_targets = 0
+            if allocation_enabled:
+                assert owner_tensor is not None
+                neural_target_mask = (owner_tensor == OWNER_NEURAL) | (
+                    owner_tensor == OWNER_HYBRID
+                )
+                valid_target_mask = valid_target_mask & neural_target_mask
+                neural_aux_targets = int(valid_target_mask.sum())
+            with (
+                self.offload.hooks() if self.offload is not None else nullcontext(),
+                precision_context(config, device),
+            ):
                 logits, auxiliary = model.forward_with_aux(
                     x,
                     byte_addresses=addresses,
-                    valid_target_mask=y != -100,
+                    semantic_queries=semantic_queries,
+                    memory_mask=memory_mask,
+                    valid_target_mask=valid_target_mask,
                     activation_checkpointing=config.runtime.memory.activation_checkpointing.enabled,
                     diagnostics=config.logging.architecture_diagnostics,
                 )
@@ -419,31 +598,95 @@ class PyTorchEngine:
             losses_finite = (
                 losses_finite & torch.isfinite(ce_sum) & torch.isfinite(auxiliary)
             )
-            loss = (ce_sum + auxiliary * chunk_valid) / valid_targets
-            if self.scaler is None:
-                loss.backward()
+            if allocation_enabled:
+                assert owner_tensor is not None and allocation_groups is not None
+                terms: list[tuple[torch.Tensor, list[torch.nn.Parameter]]] = []
+                for owner, parameters in allocation_groups.items():
+                    mask = (owner_tensor == owner) | (owner_tensor == OWNER_HYBRID)
+                    count = int(mask.logical_and(y != -100).sum())
+                    weight = (
+                        config.training.neural_loss_weight
+                        if owner == OWNER_NEURAL
+                        else 1.0
+                    )
+                    if count and parameters and weight:
+                        labels = y.masked_fill(~mask, -100)
+                        component = functional.cross_entropy(
+                            logits.float().flatten(0, 1),
+                            labels.flatten(),
+                            ignore_index=-100,
+                            reduction="sum",
+                        )
+                        terms.append((component * (weight / valid_targets), parameters))
+                if (
+                    config.training.neural_loss_weight
+                    and neural_aux_targets
+                    and auxiliary.requires_grad
+                ):
+                    terms.append(
+                        (
+                            auxiliary
+                            * neural_aux_targets
+                            * config.training.neural_loss_weight
+                            / valid_targets,
+                            allocation_groups[OWNER_NEURAL],
+                        )
+                    )
+                for index, (term, parameters) in enumerate(terms):
+                    torch.autograd.backward(
+                        term,
+                        inputs=parameters,
+                        retain_graph=index + 1 < len(terms),
+                    )
             else:
-                self.scaler.scale(loss).backward()
+                torch.autograd.backward(
+                    (ce_sum + auxiliary * chunk_valid) / valid_targets,
+                    inputs=[
+                        parameter
+                        for parameter in model.parameters()
+                        if parameter.requires_grad
+                    ],
+                )
             monitor.sample("backward")
             recomputed += model.recomputed_block_call_ratio
             language_sum = language_sum + ce_sum.detach()
-            aux_sum = aux_sum + auxiliary.detach() * chunk_valid
-            for name, value in diagnostics.items():
-                previous = diagnostic_sums.get(name)
-                diagnostic_sums[name] = (
-                    value * chunk_valid
-                    if previous is None
-                    else previous + value * chunk_valid
+            if allocation_enabled:
+                aux_sum = (
+                    aux_sum
+                    + auxiliary.detach()
+                    * neural_aux_targets
+                    * config.training.neural_loss_weight
                 )
-
+            else:
+                aux_sum = aux_sum + auxiliary.detach() * chunk_valid
+            for name, value in diagnostics.items():
+                diagnostic_sums[name] = (
+                    diagnostic_sums.get(name, value.new_zeros(())) + value * chunk_valid
+                )
         if self.scaler is not None:
             self.scaler.unscale_(optimizer)
-        norm = torch.nn.utils.clip_grad_norm_(
-            model.parameters(),
-            config.training.grad_clip_norm,
-            error_if_nonfinite=False,
-            foreach=False,
-        )
+        if allocation_enabled:
+            assert allocation_groups is not None
+            norms = [
+                torch.nn.utils.clip_grad_norm_(
+                    parameters,
+                    config.training.grad_clip_norm,
+                    error_if_nonfinite=False,
+                    foreach=False,
+                )
+                for parameters in allocation_groups.values()
+                if parameters
+            ]
+            norm = torch.linalg.vector_norm(
+                torch.stack([value.float() for value in norms])
+            )
+        else:
+            norm = torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                config.training.grad_clip_norm,
+                error_if_nonfinite=False,
+                foreach=False,
+            )
         gradients_finite = torch.isfinite(norm) if self.scaler is None else None
         # One pre-step boundary checks the accumulated loss and gradients before
         # optimizer mutation. No diagnostic scalar is read per microbatch.
@@ -495,6 +738,46 @@ class PyTorchEngine:
             },
             **memory_metrics,
         }
+        if allocation_enabled:
+            neural_targets = (
+                allocation_target_counts[OWNER_NEURAL]
+                + allocation_target_counts[OWNER_HYBRID]
+            )
+            metrics.update(
+                {
+                    "allocation/raw_tokens": float(sum(allocation_raw_counts.values())),
+                    "allocation/valid_targets": float(
+                        sum(allocation_target_counts.values())
+                    ),
+                    "allocation/weighted_neural_supervision_mass": (
+                        config.training.neural_loss_weight * neural_targets
+                    ),
+                    "allocation/owner/neural_raw_tokens": float(
+                        allocation_raw_counts[OWNER_NEURAL]
+                    ),
+                    "allocation/owner/lexical_raw_tokens": float(
+                        allocation_raw_counts[OWNER_LEXICAL]
+                    ),
+                    "allocation/owner/semantic_raw_tokens": float(
+                        allocation_raw_counts[OWNER_SEMANTIC]
+                    ),
+                    "allocation/owner/hybrid_raw_tokens": float(
+                        allocation_raw_counts[OWNER_HYBRID]
+                    ),
+                    "allocation/owner/neural_targets": float(
+                        allocation_target_counts[OWNER_NEURAL]
+                    ),
+                    "allocation/owner/lexical_targets": float(
+                        allocation_target_counts[OWNER_LEXICAL]
+                    ),
+                    "allocation/owner/semantic_targets": float(
+                        allocation_target_counts[OWNER_SEMANTIC]
+                    ),
+                    "allocation/owner/hybrid_targets": float(
+                        allocation_target_counts[OWNER_HYBRID]
+                    ),
+                }
+            )
         if self.scaler is not None:
             metrics["optimizer/loss_scale"] = self.scaler.get_scale()
         if self.offload is not None:
@@ -528,7 +811,79 @@ class PyTorchEngine:
                         if batch.byte_addresses is None
                         else torch.from_numpy(batch.byte_addresses).to(device)
                     )
-                    logits = model(x, byte_addresses=addresses)
+                    semantic_queries = None
+                    memory_mask = None
+                    if config.dataset.allocation_manifest_path is not None:
+                        if (
+                            batch.owner_ids is None
+                            or batch.owner_ids.shape != batch.targets.shape
+                            or batch.owner_ids.dtype != np.uint8
+                            or np.any(batch.owner_ids > OWNER_HYBRID)
+                        ):
+                            raise ValueError(
+                                "allocation evaluation requires valid owner sidecars"
+                            )
+                        owners = torch.from_numpy(batch.owner_ids).to(device)
+                        memory_mask = (owners == OWNER_LEXICAL) | (
+                            owners == OWNER_HYBRID
+                        )
+                        semantic_width = (
+                            next(
+                                iter(model.semantic_memories.values())
+                            ).retriever.key_dim
+                            if model.semantic_memories
+                            else None
+                        )
+                        if (
+                            batch.semantic_queries is not None
+                            or batch.semantic_mask is not None
+                        ):
+                            if (
+                                self.semantic_encoder is None
+                                or batch.semantic_queries is None
+                                or batch.semantic_mask is None
+                                or batch.semantic_queries.ndim != 3
+                                or batch.semantic_queries.shape
+                                != (*batch.inputs.shape, semantic_width)
+                                or batch.semantic_queries.dtype != np.float32
+                                or batch.semantic_mask.shape != batch.inputs.shape
+                                or batch.semantic_mask.dtype != bool
+                                or not np.isfinite(batch.semantic_queries).all()
+                            ):
+                                raise ValueError(
+                                    "semantic allocation sidecars are invalid"
+                                )
+                            semantic_mask = torch.from_numpy(batch.semantic_mask).to(
+                                device
+                            )
+                            allowed = (owners == OWNER_SEMANTIC) | (
+                                owners == OWNER_HYBRID
+                            )
+                            if bool(torch.any(semantic_mask & ~allowed)):
+                                raise ValueError(
+                                    "semantic query mask may select only semantic or hybrid ownership"
+                                )
+                            semantic_queries = SemanticQueryBatch(
+                                self.semantic_encoder,
+                                torch.from_numpy(batch.semantic_queries).to(device),
+                                semantic_mask,
+                            )
+                    elif batch.semantic_queries is not None:
+                        if self.semantic_encoder is None or batch.semantic_mask is None:
+                            raise ValueError(
+                                "semantic query sidecars require a verified attached pack"
+                            )
+                        semantic_queries = SemanticQueryBatch(
+                            self.semantic_encoder,
+                            torch.from_numpy(batch.semantic_queries).to(device),
+                            torch.from_numpy(batch.semantic_mask).to(device),
+                        )
+                    logits = model(
+                        x,
+                        byte_addresses=addresses,
+                        semantic_queries=semantic_queries,
+                        memory_mask=memory_mask,
+                    )
                     total_loss += float(
                         functional.cross_entropy(
                             logits.float().flatten(0, 1),

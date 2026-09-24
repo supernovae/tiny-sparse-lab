@@ -185,21 +185,34 @@ class DenseLM(nn.Module):
         token_ids: Tensor,
         byte_addresses: Tensor | None,
         *,
+        mask: Tensor | None = None,
         incremental: bool = False,
     ) -> Tensor:
         if self.memory is None:
             return hidden
+        if mask is not None and (
+            mask.dtype != torch.bool or mask.shape != hidden.shape[:2]
+        ):
+            raise ValueError("memory mask must be boolean and align with hidden states")
         if isinstance(self.memory, TokenNgramMemory):
-            if incremental:
-                return self.memory.forward_last(hidden, token_ids)
-            return self.memory(hidden, token_ids)
-        if isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
+            updated = (
+                self.memory.forward_last(hidden, token_ids)
+                if incremental
+                else self.memory(hidden, token_ids)
+            )
+        elif isinstance(self.memory, (ByteAddressMemory, PortableEngramAdapter)):
             if byte_addresses is None:
                 raise ValueError(
                     "byte-addressed memory requires prepared byte addresses"
                 )
-            return self.memory(hidden, byte_addresses)
-        raise TypeError(f"unsupported memory module: {type(self.memory).__name__}")
+            updated = self.memory(hidden, byte_addresses)
+        else:
+            raise TypeError(f"unsupported memory module: {type(self.memory).__name__}")
+        return (
+            updated
+            if mask is None
+            else torch.where(mask.unsqueeze(-1), updated, hidden)
+        )
 
     def add_semantic_memory(
         self,
@@ -318,6 +331,7 @@ class DenseLM(nn.Module):
         *,
         byte_addresses: Tensor | None = None,
         semantic_queries: SemanticQueryInput = None,
+        memory_mask: Tensor | None = None,
         valid_target_mask: Tensor | None = None,
         activation_checkpointing: bool = False,
         diagnostics: Literal["scalar", "full"] = "scalar",
@@ -333,7 +347,7 @@ class DenseLM(nn.Module):
         self._recomputed_block_calls = 0
         x = self.embedding(input_ids)
         if self.config.memory_injection == "embedding":
-            x = self._apply_memory(x, input_ids, byte_addresses)
+            x = self._apply_memory(x, input_ids, byte_addresses, mask=memory_mask)
         x = self._apply_semantic_site(x, semantic_query_map, site="embedding")
         auxiliary_loss = x.new_zeros(())
         for block_index, block in enumerate(self.blocks):
@@ -376,7 +390,7 @@ class DenseLM(nn.Module):
             auxiliary_loss = auxiliary_loss + block_aux
         x = self.norm(x)
         if self.config.memory_injection == "final":
-            x = self._apply_memory(x, input_ids, byte_addresses)
+            x = self._apply_memory(x, input_ids, byte_addresses, mask=memory_mask)
         x = self._apply_semantic_site(x, semantic_query_map, site="final")
         return self.output(x), auxiliary_loss
 
@@ -668,11 +682,13 @@ class DenseLM(nn.Module):
         *,
         byte_addresses: Tensor | None = None,
         semantic_queries: SemanticQueryInput = None,
+        memory_mask: Tensor | None = None,
         diagnostics: Literal["scalar", "full"] = "scalar",
     ) -> Tensor:
         return self.forward_with_aux(
             input_ids,
             byte_addresses=byte_addresses,
             semantic_queries=semantic_queries,
+            memory_mask=memory_mask,
             diagnostics=diagnostics,
         )[0]

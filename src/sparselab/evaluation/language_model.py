@@ -9,7 +9,9 @@ import numpy as np
 import torch
 from torch.nn import functional
 
+from sparselab.data.allocation import OWNER_HYBRID, OWNER_LEXICAL
 from sparselab.data.packing import TokenBlockDataset
+from sparselab.engram.semantic import SemanticQueryBatch
 
 
 def _device_rng_state(device: torch.device) -> torch.Tensor | None:
@@ -65,20 +67,57 @@ def evaluate(
         with torch.inference_mode():
             limit = min(len(dataset), batch_size * max_batches)
             for start in range(0, limit, batch_size):
-                batch = [
-                    dataset[i] for i in range(start, min(start + batch_size, limit))
+                records = [
+                    dataset.numpy_microblock(i)
+                    for i in range(start, min(start + batch_size, limit))
                 ]
-                if not batch:
+                if not records:
                     continue
-                x = torch.stack([item[0] for item in batch]).to(device)
-                y = torch.stack([item[1] for item in batch]).to(device)
+                inputs, targets, addresses, owners, queries, masks = zip(
+                    *records, strict=True
+                )
+                x = torch.from_numpy(np.stack(inputs)).to(device)
+                y = torch.from_numpy(np.stack(targets)).to(device)
                 byte_addresses = (
-                    torch.stack([item[2] for item in batch]).to(device)
-                    if len(batch[0]) == 3
-                    else None
+                    None
+                    if addresses[0] is None
+                    else torch.from_numpy(np.stack(addresses)).to(device)
+                )
+                memory_mask = None
+                if owners[0] is not None:
+                    owner_batch = np.stack(owners)
+                    if np.any(owner_batch > OWNER_HYBRID):
+                        raise ValueError(
+                            "evaluation owner sidecar contains unknown codes"
+                        )
+                    memory_mask = torch.from_numpy(
+                        (owner_batch == OWNER_LEXICAL) | (owner_batch == OWNER_HYBRID)
+                    ).to(device)
+                semantic_queries = None
+                if queries[0] is not None or masks[0] is not None:
+                    memories = getattr(model, "semantic_memories", None)
+                    if (
+                        not memories
+                        or len(memories) != 1
+                        or queries[0] is None
+                        or masks[0] is None
+                    ):
+                        raise ValueError(
+                            "evaluation semantic queries require one verified attached pack"
+                        )
+                    semantic_queries = SemanticQueryBatch(
+                        next(iter(memories.values())).retriever.key_encoder,
+                        torch.from_numpy(np.stack(queries)).to(device),
+                        torch.from_numpy(np.stack(masks)).to(device),
+                    )
+                logits = model(
+                    x,
+                    byte_addresses=byte_addresses,
+                    semantic_queries=semantic_queries,
+                    memory_mask=memory_mask,
                 )
                 loss = functional.cross_entropy(
-                    model(x, byte_addresses=byte_addresses).float().flatten(0, 1),
+                    logits.float().flatten(0, 1),
                     y.flatten(),
                     ignore_index=-100,
                     reduction="sum",

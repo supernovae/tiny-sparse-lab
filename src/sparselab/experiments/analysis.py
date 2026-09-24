@@ -753,6 +753,326 @@ def _boundary_sweeps(
     }
 
 
+_ALLOCATION_REGIMES = {
+    "default": "iso-neural",
+    "iso-neural": "iso-neural",
+    "iso-total": "iso-total",
+    "iso-active": "iso-active",
+    "iso-token": "iso-token",
+    "iso-flop": "iso-flop",
+}
+
+
+def _allocation_payload(run: Mapping[str, object]) -> Mapping[str, object] | None:
+    """Return the runtime-owned allocation evidence without transforming it."""
+    for key in ("allocation", "allocation_accounting", "allocation_metrics"):
+        payload = _mapping(run.get(key))
+        if payload is not None:
+            return payload
+    identity = _mapping(run.get("identity"))
+    return _mapping(identity.get("allocation")) if identity is not None else None
+
+
+def _allocation_resource_accounting(
+    run: Mapping[str, object], payload: Mapping[str, object] | None
+) -> dict[str, object]:
+    identity = _mapping(run.get("identity"))
+    inventory = _mapping(run.get("parameter_inventory"))
+    if inventory is None and identity is not None:
+        inventory = _mapping(identity.get("parameter_inventory"))
+
+    def count(*names: str) -> int | None:
+        if inventory is None:
+            return None
+        for name in names:
+            value = inventory.get(name)
+            if type(value) is int and value >= 0:
+                return value
+        return None
+
+    runtime_totals = {
+        "allocation/raw_tokens": 0.0,
+        "allocation/valid_targets": 0.0,
+        "allocation/weighted_neural_supervision_mass": 0.0,
+    }
+    seen_metrics: set[str] = set()
+    metric_rows = run.get("allocation_metrics")
+    if isinstance(metric_rows, list):
+        for row in metric_rows:
+            metric = _mapping(row)
+            if metric is None:
+                continue
+            name, value = metric.get("name"), metric.get("value")
+            if (
+                isinstance(name, str)
+                and name in runtime_totals
+                and isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(float(value))
+                and value >= 0
+            ):
+                runtime_totals[name] += float(value)
+                seen_metrics.add(name)
+
+    def runtime_total(name: str) -> float | None:
+        return runtime_totals[name] if name in seen_metrics else None
+
+    trainable = count("trainable")
+    memory_table = count("memory_table", "engram_table")
+    memory_adapter = count("memory_adapter", "engram_adapter")
+    neural_trainable = (
+        trainable - memory_table - memory_adapter
+        if trainable is not None
+        and memory_table is not None
+        and memory_adapter is not None
+        and trainable >= memory_table + memory_adapter
+        else None
+    )
+    active = count("active_per_token")
+    raw_tokens = runtime_total("allocation/raw_tokens")
+    valid_targets = runtime_total("allocation/valid_targets")
+    weighted_mass = runtime_total("allocation/weighted_neural_supervision_mass")
+    prepared_train: Mapping[str, object] | None = None
+    if payload is not None:
+        splits = _mapping(payload.get("splits"))
+        if splits is not None:
+            prepared_train = _mapping(splits.get("train"))
+    return {
+        "iso-neural": {
+            "unit": "trainable_parameters",
+            "value": neural_trainable,
+            "kind": "architectural_count",
+        },
+        "iso-total": {
+            "unit": "trainable_parameters",
+            "value": trainable,
+            "kind": "architectural_count",
+        },
+        "iso-active": {
+            "unit": "active_parameters_per_token",
+            "value": active,
+            "kind": "architectural_count",
+        },
+        "iso-token": {
+            "raw_input_tokens": raw_tokens,
+            "valid_supervised_targets": valid_targets,
+            "weighted_neural_supervision_mass": weighted_mass,
+            "prepared_train_raw_tokens": (
+                prepared_train.get("raw_tokens") if prepared_train is not None else None
+            ),
+            "prepared_train_valid_supervised_targets": (
+                prepared_train.get("valid_supervised_targets")
+                if prepared_train is not None
+                else None
+            ),
+            "kind": "measured_runtime_counts",
+        },
+        "iso-flop": {
+            "estimated_parameter_proxy_flops": (
+                6 * active * raw_tokens
+                if active is not None and raw_tokens is not None
+                else None
+            ),
+            "formula": "6 × active parameters per token × measured raw input tokens",
+            "kind": "rough_estimate",
+            "scope": (
+                "parameter-based training proxy; excludes exact attention work, "
+                "memory lookup/retrieval, optimizer work, and hardware effects"
+            ),
+        },
+    }
+
+
+def _allocation_observations(run: Mapping[str, object]) -> list[object]:
+    """Preserve every runtime-supplied checkpoint observation in source order."""
+    for key in ("allocation_curve", "checkpoint_observations"):
+        observations = run.get(key)
+        if isinstance(observations, list):
+            return list(observations)
+    payload = _allocation_payload(run)
+    if payload is not None:
+        for key in ("curve", "checkpoint_observations", "observations"):
+            observations = payload.get(key)
+            if isinstance(observations, list):
+                return list(observations)
+    identity = _mapping(run.get("identity"))
+    if identity is None:
+        return []
+    # Endpoint evidence remains a real checkpoint observation even if a producer
+    # did not retain a periodic curve.
+    return [
+        {
+            "checkpoint_sha256": identity.get("checkpoint_sha256"),
+            "checkpoint_relative_path": identity.get("checkpoint_relative_path"),
+            "step": identity.get("step"),
+            "tokens_seen": identity.get("tokens_seen"),
+        }
+    ]
+
+
+def _allocation_curve_analysis(
+    runs: Sequence[Mapping[str, object]], selection: Mapping[str, object]
+) -> dict[str, object] | None:
+    """Render allocation evidence as raw task/checkpoint rows, never an estimate.
+
+    The runtime owns the accounting schema.  This consumer intentionally carries
+    its records verbatim alongside the checkpoint-bound run identity so that
+    new ownership counters do not get silently collapsed into a single score.
+    """
+    denominators = {
+        "iso-neural": "neural-owned trainable parameters",
+        "iso-total": "total trainable parameters",
+        "iso-active": "active parameters per token",
+        "iso-token": "raw input tokens and valid supervised targets",
+        "iso-flop": "estimated FLOPs only; never inferred from neural loss weight",
+    }
+    rows: list[dict[str, object]] = []
+    for run in runs:
+        coordinate = _mapping(run.get("coordinate"))
+        payload = _allocation_payload(run)
+        if payload is None and not any(
+            isinstance(run.get(key), list)
+            for key in ("allocation_curve", "checkpoint_observations")
+        ):
+            continue
+        allocation_label = (
+            coordinate.get("allocation") or coordinate.get("ownership")
+            if coordinate is not None
+            else None
+        )
+        selected_regime = (
+            _ALLOCATION_REGIMES.get(str(selection.get("design")))
+            if selection.get("design") is not None
+            else None
+        )
+        resource_regime = (
+            payload.get("resource_regime")
+            if payload is not None and isinstance(payload.get("resource_regime"), str)
+            else selected_regime
+        )
+        ownership_profile = (
+            payload.get("ownership_profile")
+            if payload is not None and isinstance(payload.get("ownership_profile"), str)
+            else coordinate.get("ownership")
+            if coordinate is not None and isinstance(coordinate.get("ownership"), str)
+            else None
+        )
+        if isinstance(allocation_label, str) and allocation_label.count("-") >= 2:
+            label_regime, label_profile = allocation_label.rsplit("-", 1)
+            resource_regime = resource_regime or label_regime
+            ownership_profile = ownership_profile or label_profile
+        resource_regime = resource_regime or "unavailable"
+        ownership_profile = ownership_profile or "unavailable"
+        neural_loss_weight = (
+            coordinate.get("neural_loss_weight", "unavailable")
+            if coordinate is not None
+            else "unavailable"
+        )
+        identity = _mapping(run.get("identity"))
+        runtime_metrics = run.get("allocation_metrics")
+        tasks: list[dict[str, object]] = []
+        capabilities = _mapping(run.get("capabilities"))
+        if capabilities is not None:
+            for reference, value in capabilities.items():
+                if isinstance(reference, str) and _mapping(value) is not None:
+                    tasks.append({"task": reference, "evidence": value})
+        curve_id = f"{ownership_profile}:{neural_loss_weight}"
+        rows.append(
+            {
+                "run_id": run.get("run_id"),
+                "config_sha256": run.get("config_sha256"),
+                "resource_regime": resource_regime,
+                "ownership_profile": ownership_profile,
+                "neural_loss_weight": neural_loss_weight,
+                "curve_id": curve_id,
+                "coordinate": dict(coordinate) if coordinate is not None else None,
+                "checkpoint_identity": {
+                    key: identity.get(key) if identity is not None else None
+                    for key in (
+                        "checkpoint_sha256",
+                        "checkpoint_relative_path",
+                        "step",
+                        "tokens_seen",
+                        "source_identity_sha256",
+                    )
+                },
+                "allocation": dict(payload) if payload is not None else None,
+                "resource_accounting": _allocation_resource_accounting(run, payload),
+                "runtime_allocation_metrics": list(runtime_metrics)
+                if isinstance(runtime_metrics, list)
+                else [],
+                "checkpoint_observations": _allocation_observations(run),
+                "tasks": tasks,
+            }
+        )
+    if not rows:
+        return None
+    regime_order = ("iso-neural", "iso-total", "iso-active", "iso-token", "iso-flop")
+    observed_regimes = {str(row["resource_regime"]) for row in rows}
+    resource_regimes: list[dict[str, object]] = []
+    for resource_regime in (
+        *regime_order,
+        *sorted(observed_regimes - set(regime_order)),
+    ):
+        if resource_regime not in observed_regimes:
+            continue
+        profiles = sorted(
+            {
+                str(row["ownership_profile"])
+                for row in rows
+                if row["resource_regime"] == resource_regime
+            }
+        )
+        resource_regimes.append(
+            {
+                "label": resource_regime,
+                "comparison_denominator": denominators.get(
+                    resource_regime, "declared allocation comparison denominator"
+                ),
+                "cost_kind": (
+                    "estimated" if resource_regime == "iso-flop" else "accounting"
+                ),
+                "ownership_profiles": profiles,
+            }
+        )
+    return {
+        "format": "sparselab-memory-allocation-curve",
+        "version": 1,
+        "resource_regimes": resource_regimes,
+        "regime": next(
+            (
+                item
+                for item in resource_regimes
+                if item["label"]
+                == _ALLOCATION_REGIMES.get(str(selection.get("design")))
+            ),
+            resource_regimes[0] if len(resource_regimes) == 1 else None,
+        ),
+        "accounting": {
+            "raw_input_tokens": "measured_count",
+            "valid_supervised_targets": "measured_count",
+            "weighted_neural_supervision_mass": (
+                "measured_weighted_mass: neural_loss_weight × "
+                "(neural-owned + hybrid-owned valid supervised targets)"
+            ),
+            "ownership_labels": {
+                "neural": 0,
+                "lexical": 1,
+                "semantic": 2,
+                "hybrid": 3,
+            },
+        },
+        "rows": rows,
+        "interpretation": (
+            "Each task and every supplied checkpoint/allocation observation is "
+            "retained in source order. Resource labels are denominator views, "
+            "not independent replications; FLOPs are rough estimates only. "
+            "No smoothing, interpolation, ranking, task averaging, or measured "
+            "FLOP savings is inferred."
+        ),
+    }
+
+
 def build_research_analysis(
     runs: Sequence[Mapping[str, object]],
     *,
@@ -765,7 +1085,8 @@ def build_research_analysis(
 ) -> dict[str, object]:
     """Analyze only validated endpoint rows and recipe-declared directions."""
     outcomes, excluded = _metric_definitions(entry.get("dependent_metrics"), cards)
-    return {
+    allocation_curve = _allocation_curve_analysis(runs, selection)
+    output: dict[str, object] = {
         "format": "sparselab-research-analysis",
         "version": 1,
         "factorial": _factorial_analysis(runs, factorial_designs, outcomes),
@@ -776,3 +1097,6 @@ def build_research_analysis(
         "boundary_sweeps": _boundary_sweeps(runs, design_axes, outcomes),
         "excluded_metrics": excluded,
     }
+    if allocation_curve is not None:
+        output["allocation_curve"] = allocation_curve
+    return output

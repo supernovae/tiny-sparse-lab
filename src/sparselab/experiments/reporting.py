@@ -296,6 +296,13 @@ def _read_telemetry(
         "memory/device_peak_allocated_bytes",
         "memory/device_sampled_peak_bytes",
         "memory/process_peak_rss_bytes",
+        "allocation/raw_tokens",
+        "allocation/valid_targets",
+        "allocation/weighted_neural_supervision_mass",
+        "allocation/owner/neural_targets",
+        "allocation/owner/lexical_targets",
+        "allocation/owner/semantic_targets",
+        "allocation/owner/hybrid_targets",
     )
     output: dict[str, list[dict[str, object]]] = {}
     truncated_runs: set[str] = set()
@@ -315,7 +322,8 @@ def _read_telemetry(
                 "SELECT run_id,step,tokens_seen,wall_time,name,value FROM metrics "
                 f"WHERE run_id=? AND step<=? AND (name IN ({placeholders}) "
                 "OR name GLOB 'engram/*' OR name GLOB 'moe/*' "
-                "OR name GLOB 'attention/*') ORDER BY step,name LIMIT ?"
+                "OR name GLOB 'attention/*' OR name GLOB 'allocation/*') "
+                "ORDER BY step,name LIMIT ?"
             )
             for run_id in sorted(run_ids):
                 endpoint = endpoints.get(run_id)
@@ -848,6 +856,32 @@ def build_study_report(
             )
         record = dict(raw)
         record["capabilities"] = normalized
+        checkpoint_observations = raw.get("checkpoint_observations")
+        if checkpoint_observations is not None:
+            if not isinstance(checkpoint_observations, list):
+                raise ValueError("checkpoint observations must be a list")
+            # The collector records each immutable checkpoint's own identity and
+            # card output. Preserve these raw rows verbatim; endpoint validation
+            # above remains the comparison input and no curve point is selected.
+            for observation in checkpoint_observations:
+                if not isinstance(observation, dict):
+                    raise ValueError("checkpoint observation must be an object")
+                observed_identity = observation.get("identity")
+                if not isinstance(observed_identity, dict) or (
+                    observed_identity.get("run_id") != run_id
+                    or config_sha256(observed_identity.get("config", {})) != digest
+                    or not _is_sha256(observed_identity.get("checkpoint_sha256"))
+                    or not isinstance(observed_identity.get("step"), int)
+                    or isinstance(observed_identity.get("step"), bool)
+                    or not isinstance(observed_identity.get("tokens_seen"), int)
+                    or isinstance(observed_identity.get("tokens_seen"), bool)
+                    or observed_identity.get("source_identity_sha256")
+                    != raw_identity.get("source_identity_sha256")
+                ):
+                    raise ValueError(
+                        "checkpoint observation identity does not bind this run"
+                    )
+            record["checkpoint_observations"] = checkpoint_observations
         record["endpoint_status"] = _endpoint(record, planned.config)
         evaluated.append(record)
 
@@ -963,6 +997,17 @@ def build_study_report(
             {str(item["run_id"]) for item in evaluated},
             endpoints,
         )
+    for run in evaluated:
+        allocation_metrics = [
+            row
+            for row in telemetry.get(str(run["run_id"]), [])
+            if isinstance(row.get("name"), str)
+            and str(row["name"]).startswith("allocation/")
+        ]
+        if allocation_metrics:
+            # Read-only measured rows remain distinct from manifest identity and
+            # from any estimate-labelled FLOP comparison.
+            run["allocation_metrics"] = allocation_metrics
 
     local_evidence: dict[str, dict[str, object]] = {}
     if runs_dir is not None:
