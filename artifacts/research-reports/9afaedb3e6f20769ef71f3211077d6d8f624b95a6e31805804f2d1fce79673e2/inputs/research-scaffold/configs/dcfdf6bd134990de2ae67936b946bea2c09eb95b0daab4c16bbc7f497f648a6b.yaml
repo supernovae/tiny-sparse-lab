@@ -1,0 +1,96 @@
+schema_version: 2
+name: engram-ffn-substitution-v1-nano-offline
+seed: 17
+runtime:
+  engine: pytorch
+  backend: cpu
+  device_index: 0
+  precision: fp32
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.9
+    budget_bytes: null
+    activation_checkpointing:
+      enabled: false
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_sequence_lengths: []
+    allowed_optimizers: []
+model:
+  vocab_size: 512
+  hidden_dim: 128
+  num_layers: 6
+  num_heads: 4
+  ffn_dim: 512
+  max_seq_len: 256
+  rms_norm_eps: 1.0e-06
+  tie_embeddings: true
+  ffn: dense
+  num_experts: 1
+  experts_per_token: 1
+  shared_expert: false
+  router_aux_loss_coefficient: 0.0
+  memory: none
+  memory_table_size: 0
+  memory_ngram_size: 0
+  memory_dim: 0
+  memory_package_path: null
+  memory_ngram_orders: []
+  memory_hash_heads: 1
+tokenizer:
+  path: ../artifacts/tokenizer/tokenizer.json
+dataset:
+  source: chat_recall
+  revision: null
+  dataset_config: null
+  cache_dir: ../artifacts/data
+  train_max_documents: 768
+  validation_max_documents: 12
+  train_max_tokens: 131072
+  validation_max_tokens: 4096
+  synthetic_seed: 42
+  train_path: null
+  validation_path: null
+  license: null
+training:
+  micro_batch_size: 2
+  gradient_accumulation: 1
+  seq_len: 128
+  max_steps: 128
+  max_tokens: 32768
+  grad_clip_norm: 1.0
+  deterministic: true
+optimizer:
+  name: adamw
+  peak: 0.0003
+  floor: 3.0e-05
+  warmup_steps: 10
+  weight_decay: 0.1
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-08
+  state_offload: false
+attention:
+  kind: dense
+  rope_base: 10000.0
+  window_size: null
+  latent_dim: null
+  block_size: null
+  selected_blocks: null
+evaluation:
+  every_steps: 32
+  max_batches: 6
+checkpoint:
+  every_steps: 32
+  every_tokens: null
+  every_minutes: null
+  keep_periodic: true
+staging:
+  smoke_steps: 2
+  warmup_steps: 5
+logging:
+  root_dir: ../runs
+  every_steps: 1
+  architecture_diagnostics: scalar

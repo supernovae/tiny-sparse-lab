@@ -6,9 +6,9 @@ This is a completed CPU/offline smoke campaign for `engram-ffn-substitution-v1`,
 
 ## Summary
 
-Across the two FFN smoke and nano campaigns, lexical memory showed no consistent held-out loss benefit; the nano `1x` memory pairs had higher loss in all three seeds. All 36 FFN runs scored zero on the three capability cards, so these observations provide no evidence that lookup compensates for reduced FFN capacity. These short CPU/offline runs do not establish a general model-quality result.
+Across the original FFN smoke and nano campaigns plus this fixed-seed nano rerun, lexical memory showed no consistent held-out loss benefit; the nano `1x` lexical-memory pairs had higher loss in all three seeds. All 54 run executions scored zero on each of the three capability cards (162 run/card scores), so these observations provide no evidence that lookup compensates for reduced FFN capacity. These short CPU/offline observations do not establish a general model-quality result.
 
-The next informative training question is the matched `4x`/`1x` × no-memory/lexical-memory interaction at nano. Keep the existing `2x` width only as a separately labeled boundary point if the additional six runs are useful.
+The nano `4x`/`1x` × no-memory/lexical-memory interaction is complete and repeated with identical per-coordinate losses. The next engineering step is Phase C milestone/timing measurement, which needs a declared observation contract; see below.
 
 ## What was compared
 
@@ -30,7 +30,7 @@ The bundle validates 18 local run/checkpoint records and includes 5,850 bounded 
 
 ## Nano/offline FFN follow-up
 
-[Open the static report](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html) · [Inspect its manifest](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json)
+[Open the original static report](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html) · [Inspect its manifest](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json) · [Open the repeat report](../../artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/index.html) · [Inspect its manifest](../../artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/manifest.json)
 
 This completed CPU/PyTorch FP32 follow-up used the finite `chat_recall` offline fixture. It crossed FFN widths `4x`, `2x`, and `1x` with and without a lexical table (4,095 entries, value width 16, order 3, final injection), using seeds 17, 41, and 73. All 18 runs reached step 128 and 32,640 tokens; the step cap came before the 32,768-token cap. All 21 declared comparisons completed.
 
@@ -53,7 +53,11 @@ Width contrasts (narrower width minus 4x at the same memory setting) were:
 
 At 1x, lexical memory did not close the width gap: 1x remained worse than 4x lexical in all three seed pairs. At 2x, the lexical width contrast was slightly lower on average but crossed zero; it is a descriptive result from three seeds, not evidence that memory replaces FFN capacity.
 
+The matched four-cell `4x`/`1x` × no-memory/lexical held-out-loss interaction is `y11 - y10 - y01 + y00`, where `y00=4x/no-memory`, `y10=1x/no-memory`, `y01=4x/lexical`, and `y11=1x/lexical`. Per-seed deltas were -0.033497, +0.095629, and +0.012919 (mean +0.025017); signs were mixed.
+
 All 18 runs scored zero on each capability card: `chat-alias-retention-v1` (24 cases), `chat-alias-recall-v1` (12), and `chat-context-override-v1` (8). This follow-up found no card evidence that lexical memory compensated for a narrower FFN. The bundle validates all 18 local run records and all five checkpoint generations per run (including the initial state; 90 verified checkpoint/quality-observation records); all comparisons completed with no missing or rejected evidence. These short synthetic-task observations are not significance tests or general language-model claims. The static bundle contains no weights, prepared arrays, dataset cache, or runnable checkpoints. Its evidence copies include machine-local paths; hashes protect byte identity, not privacy.
+
+An independent execution with distinct run IDs and a new receipt reused the same study, matrix, data-profile, and scale hashes. It reproduced the prior held-out validation loss at all 18 coordinates exactly. This is a same-seed reproducibility rerun, not additional independent seed evidence.
 
 ## Phase B: research-analysis pipeline smoke
 
@@ -69,22 +73,19 @@ The raw validation-loss interaction is `y11 - y10 - y01 + y00`, with `y00=dense/
 
 The signs are mixed. All three capability-card scores were zero in each of the four cells for all three seeds (36 measured zeros); this smoke found no card evidence of benefit. The generated analysis contained four complete cells per seed, complete matched nondominance groups, configuration-derived allocation heatmaps, and observed-only sweeps. These outputs validate report behavior on this evidence; they do not establish quality, efficiency, or a useful interaction.
 
-Verification: `uv run pytest -q tests/test_study_reporting.py tests/test_research_workbench.py` (13 passed); the regenerated static report and interaction SVG were opened in a browser. The nano FFN-width × lookup interaction below remains the next training experiment; this MLA smoke does not replace it.
+Verification: `uv run pytest -q tests/test_study_reporting.py tests/test_research_workbench.py` (13 passed); the regenerated static report and interaction SVG were opened in a browser. The nano FFN-width × lookup experiment above is complete; this MLA smoke remains a separate engineering validation, not a training-quality result.
 
-## Experiments to run next
+## Next work
 
-The smoke and nano campaigns are three-seed endpoint observations, not evidence of a general memory benefit. Keep scales and datasets separate. The next experiments should answer the missing interaction directly rather than select a favorable pair.
+### Phase C: define milestone and timing contract
 
-### First: test the FFN-width × lookup interaction
+This nano campaign captured 128 optimizer-update timing samples per run (`performance/step_seconds` and `performance/tokens_per_second`), but it did not measure end-to-end wall time or time to a quality threshold. The recipe declares `milestones_supported: false` and no primary thresholds. Update telemetry excludes evaluation, checkpoint, setup, and idle time; no billing or energy evidence is present.
 
-At nano/offline, target a `4x` versus `1x` FFN width × no-memory versus lexical-memory design. The four factorial cells across seeds 17, 41, and 73 are 12 runs. The packaged default also retains `2x` width as a boundary point: keep it for 18 runs total, or remove the `2x` level from `matrix.yaml` before planning the focused 12-run design. Hold tokenizer, data, backend, optimizer, budget, and endpoint fixed. For each matched seed and outcome, define `y00=4x/no-memory`, `y10=1x/no-memory`, `y01=4x/lexical`, and `y11=1x/lexical`. Report all four raw values, width and memory main effects, and `interaction_delta = y11 - y10 - y01 + y00`. Keep validation loss (lower is better) and each capability card (higher is better) separate. A missing or mismatched cell makes that interaction inconclusive; never impute zero.
-```sh
-sparselab research scaffold engram-ffn-substitution-v1 \
-  --scale nano --data offline --backend cpu --output experiments/ffn-memory-factorial
-sparselab study plan experiments/ffn-memory-factorial/study.yaml
-```
+Freeze a versioned milestone contract first: outcome and direction, threshold, observation boundary, checkpoint/card capture, and censored or failed-run representation. Then independent subagents can work in parallel on milestone capture/evaluation, cost/telemetry aggregation, and report/chart presentation. Keep one integration owner for the shared trainer and report schemas.
 
-### Then: map failure boundaries
+Do not run timing jobs concurrently on the same physical CPU/device. Controller capacity is reserved per worker ID, not per host; separate worker IDs on this workstation would contend. Serialize timed runs per resource or use separate machines.
+
+### Further training: map failure boundaries
 
 Use separate, declared sweeps to locate where results change with FFN width/table size, MLA latent width, sparse selected-block budget, and MoE expert capacity. Use heatmaps only for points within the same evidence group (dataset, runtime, endpoint, and metric direction); keep architecture estimates separate from measured outcomes and preserve tied values. Increase scale only after the smaller comparison is interpretable.
 
