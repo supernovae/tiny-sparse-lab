@@ -1,0 +1,130 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "id": "engram-ffn-substitution-v1",
+  "title": "Can lookup compensate for a narrower FFN?",
+  "question": "Can lexical lookup compensate for a narrower dense FFN at a declared endpoint?",
+  "mechanisms": [
+    "SwiGLU FFN",
+    "token n-gram memory"
+  ],
+  "hypothesis": "Lookup may preserve some recall or completion behavior as dense FFN width narrows.",
+  "failure_interpretation": "Recall or completion may survive while composition or override behavior deteriorates.",
+  "controls": [
+    "Fix tokenizer, dataset source and packing within each selected data route.",
+    "Fix seed-matched model width, depth, heads, optimizer, runtime, budget, evaluator, and endpoint policy unless a listed axis changes.",
+    "Report held-out language-model loss separately from each capability card category."
+  ],
+  "independent_variables": [
+    "model.ffn_dim",
+    "model.memory"
+  ],
+  "dependent_metrics": [
+    {
+      "name": "held-out validation loss",
+      "unit": "cross-entropy",
+      "kind": "measured",
+      "direction": "lower"
+    },
+    {
+      "name": "capability-card score",
+      "unit": "fraction",
+      "kind": "capability",
+      "direction": "higher"
+    },
+    {
+      "name": "parameter inventory",
+      "unit": "parameters",
+      "kind": "architectural",
+      "direction": "descriptive"
+    }
+  ],
+  "confounders": [
+    "Model-construction RNG changes when module inventories differ.",
+    "Approximate scale classes rather than matched parameter counts.",
+    "Tokenizer-specific lexical addresses.",
+    "Finite, repeated offline curriculum.",
+    "Optimization differences across capacities.",
+    "Educational-kernel overhead is not an architecture-speed measurement."
+  ],
+  "minimum_useful_scale": "smoke",
+  "recommended_scale": "tiny",
+  "hardware_notes": "Default guided lab; Tiny is recommended for a larger bounded trial, not a training-efficiency claim.",
+  "runtime_class": "Qualitative scale-dependent educational PyTorch workload; measure local runtime rather than inferring timing.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {
+      "smoke": 8,
+      "nano": 32,
+      "micro": 128,
+      "tiny": 256
+    },
+    "endpoint_cards": [
+      "chat-alias-retention-v1",
+      "chat-alias-recall-v1",
+      "chat-context-override-v1"
+    ],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [
+    {
+      "reference": "chat-alias-retention-v1",
+      "role": "development",
+      "category": "training-format acquisition",
+      "applicability": {
+        "offline": "same-domain training-format acquisition check",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-alias-recall-v1",
+      "role": "development",
+      "category": "held-out wording",
+      "applicability": {
+        "offline": "held-out wording, not unseen facts",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    },
+    {
+      "reference": "chat-context-override-v1",
+      "role": "stress",
+      "category": "instruction/context override",
+      "applicability": {
+        "offline": "instruction/context stress",
+        "tinystories": "out-of-domain stress, not story-model quality"
+      }
+    }
+  ],
+  "papers": [
+    {
+      "title": "Engram",
+      "url": "https://arxiv.org/abs/2601.07372",
+      "claim_boundary": "Motivates memory questions; SparseLab lexical memory is a local educational implementation, not a reproduction."
+    }
+  ],
+  "implementation_links": [
+    {
+      "path": "src/sparselab/ffn.py",
+      "symbol": "SwiGLU"
+    },
+    {
+      "path": "src/sparselab/memory.py",
+      "symbol": "TokenNgramMemory"
+    }
+  ],
+  "docs": [
+    "docs/architecture.md",
+    "docs/engram.md"
+  ],
+  "can_establish": [
+    "All six declared raw outcomes and controlled endpoint deltas for width and memory contrasts."
+  ],
+  "cannot_establish": [
+    "A one-variable narrow-plus-memory versus wide-plus-none ablation, training-efficiency claim, semantic/hybrid result, or cross-tokenizer equivalence."
+  ],
+  "prerequisites": [
+    "Semantic and hybrid arms require later executable-memory prerequisites and are not generated."
+  ],
+  "recipe": "recipes/engram-ffn-substitution-v1.json"
+}

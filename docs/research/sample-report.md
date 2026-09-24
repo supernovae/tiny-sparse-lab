@@ -22,17 +22,37 @@ All 18 runs scored zero on each of `chat-alias-retention-v1`, `chat-alias-recall
 
 The bundle validates 18 local run/checkpoint records and includes 5,850 bounded telemetry rows. Telemetry is locally captured evidence, not a checkpoint-signed measurement. The short smoke endpoint, finite repeated training curriculum, three seeds, and narrow cards limit interpretation. The cards test alias acquisition/recall and context override, not general reasoning or story quality.
 
+## Nano/offline FFN follow-up
+
+[Open the static report](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html) · [Inspect its manifest](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json)
+
+This completed CPU/PyTorch FP32 follow-up used the finite `chat_recall` offline fixture. It crossed FFN widths `4x`, `2x`, and `1x` with and without a lexical table (4,095 entries, value width 16, order 3, final injection), using seeds 17, 41, and 73. All 18 runs reached step 128 and 32,640 tokens; the step cap came before the 32,768-token cap. All 21 declared comparisons completed.
+
+At each fixed width, the paired held-out validation-loss delta is `lexical - no memory`:
+
+| FFN width | Mean delta | Per-seed range | Lower loss with lexical memory |
+|---|---:|---:|---:|
+| 4x | +0.032894 | -0.011908 to +0.066751 | 1/3 pairs |
+| 2x | +0.000376 | -0.032826 to +0.027593 | 1/3 pairs |
+| 1x | +0.057911 | +0.033254 to +0.083721 | 0/3 pairs |
+
+The 1x lexical-memory variant had higher validation loss than its no-memory match in all three seeds. The 2x mean is near zero and mixed. No width shows a consistent same-width validation-loss improvement from lexical memory.
+
+Width contrasts (narrower width minus 4x at the same memory setting) were:
+
+| Memory | 1x - 4x mean (range) | 2x - 4x mean (range) |
+|---|---:|---:|
+| None | +0.055161 (-0.048475 to +0.112366) | +0.021280 (-0.003388 to +0.050933) |
+| Lexical | +0.080178 (+0.047154 to +0.125285) | -0.011238 (-0.024306 to +0.013456) |
+
+At 1x, lexical memory did not close the width gap: 1x remained worse than 4x lexical in all three seed pairs. At 2x, the lexical width contrast was slightly lower on average but crossed zero; it is a descriptive result from three seeds, not evidence that memory replaces FFN capacity.
+
+All 18 runs scored zero on each capability card: `chat-alias-retention-v1` (24 cases), `chat-alias-recall-v1` (12), and `chat-context-override-v1` (8). This follow-up found no card evidence that lexical memory compensated for a narrower FFN. The bundle validates all 18 local run records and all five checkpoint generations per run (including the initial state; 90 verified checkpoint/quality-observation records); all comparisons completed with no missing or rejected evidence. These short synthetic-task observations are not significance tests or general language-model claims. The static bundle contains no weights, prepared arrays, dataset cache, or runnable checkpoints. Its evidence copies include machine-local paths; hashes protect byte identity, not privacy.
+
 ## Experiments to run next
 
-The report is read-only evidence; it cannot resume these runs or evaluate another checkpoint. To test whether the zero card scores reflect insufficient training, first repeat the same question at the supported `nano` scale with the same offline data route and recipe controls:
+The nano report is specific to the offline fixture; do not pool its results with the smoke campaign. Further comparisons need their own controls and endpoints, and public-data results should remain separate.
 
-```sh
-sparselab research scaffold engram-ffn-substitution-v1 \
-  --scale nano --data offline --backend cpu --output experiments/ffn-memory-nano
-sparselab study plan experiments/ffn-memory-nano/study.yaml
-```
-
-Then follow the generated `README.md` to explicitly train the tokenizer, prepare data for the required configs, and run/collect the campaign. Keep all six conditions and the declared three seeds. Interpret the new report within nano; do not pool its deltas with smoke or select a favorable endpoint. Check whether the 1x loss pattern repeats and whether any card produces nonzero evidence. Even then, the result is limited to these tasks and endpoints.
 
 A separate public-data question can use the micro profile and pinned TinyStories recipe:
 

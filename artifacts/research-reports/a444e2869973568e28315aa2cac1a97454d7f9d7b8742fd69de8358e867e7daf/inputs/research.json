@@ -1,0 +1,413 @@
+{
+  "coordinates": [
+    {
+      "config_sha256": "4726778f340ba0ca02a68267ad822a07f4d47c718fa303c33aa7902ae4ecf0b8",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s17",
+        "width": "4x"
+      },
+      "path": "configs/4726778f340ba0ca02a68267ad822a07f4d47c718fa303c33aa7902ae4ecf0b8.yaml"
+    },
+    {
+      "config_sha256": "b88782240343679e72f9b20e07684173cb24ef6ff77dd1708901d34d1b9db0fc",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s17",
+        "width": "4x"
+      },
+      "path": "configs/b88782240343679e72f9b20e07684173cb24ef6ff77dd1708901d34d1b9db0fc.yaml"
+    },
+    {
+      "config_sha256": "47a8a58f8bbc52556b1404922d4c59bbcbd5809d167a55e400575a9cb3568783",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s17",
+        "width": "2x"
+      },
+      "path": "configs/47a8a58f8bbc52556b1404922d4c59bbcbd5809d167a55e400575a9cb3568783.yaml"
+    },
+    {
+      "config_sha256": "ef08a9119dfe36932bfa353073e343027b85143ab6e361842539436f64449058",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s17",
+        "width": "2x"
+      },
+      "path": "configs/ef08a9119dfe36932bfa353073e343027b85143ab6e361842539436f64449058.yaml"
+    },
+    {
+      "config_sha256": "dcfdf6bd134990de2ae67936b946bea2c09eb95b0daab4c16bbc7f497f648a6b",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s17",
+        "width": "1x"
+      },
+      "path": "configs/dcfdf6bd134990de2ae67936b946bea2c09eb95b0daab4c16bbc7f497f648a6b.yaml"
+    },
+    {
+      "config_sha256": "b71ba6073cec169fe5b75b08057feb4a4fc1e4c292a5b050c7e108d6d3e64f30",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s17",
+        "width": "1x"
+      },
+      "path": "configs/b71ba6073cec169fe5b75b08057feb4a4fc1e4c292a5b050c7e108d6d3e64f30.yaml"
+    },
+    {
+      "config_sha256": "347f1d8b5d5400b9452aceb154c9887005903b9c90b628eed0d6d50b50349dc3",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s41",
+        "width": "4x"
+      },
+      "path": "configs/347f1d8b5d5400b9452aceb154c9887005903b9c90b628eed0d6d50b50349dc3.yaml"
+    },
+    {
+      "config_sha256": "57447394f1c8efc297b4bee9e3b45324a6ab1ec04aba2e790f240284e6ad4da7",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s41",
+        "width": "4x"
+      },
+      "path": "configs/57447394f1c8efc297b4bee9e3b45324a6ab1ec04aba2e790f240284e6ad4da7.yaml"
+    },
+    {
+      "config_sha256": "5c0395fb7fec2f25ca115079558212ad6b7a98d099c4e4b74b0c4eac6bd351c6",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s41",
+        "width": "2x"
+      },
+      "path": "configs/5c0395fb7fec2f25ca115079558212ad6b7a98d099c4e4b74b0c4eac6bd351c6.yaml"
+    },
+    {
+      "config_sha256": "7f8a684e6088cb4f7e53907ad3de4d2038713029df9f1e33e5da11aa35e0c978",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s41",
+        "width": "2x"
+      },
+      "path": "configs/7f8a684e6088cb4f7e53907ad3de4d2038713029df9f1e33e5da11aa35e0c978.yaml"
+    },
+    {
+      "config_sha256": "e4e251e2b9da05e2a8e182955f1672519ff4ad7b91a583628e6e792137d47518",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s41",
+        "width": "1x"
+      },
+      "path": "configs/e4e251e2b9da05e2a8e182955f1672519ff4ad7b91a583628e6e792137d47518.yaml"
+    },
+    {
+      "config_sha256": "93f7f1aa8ad5f0ce0231863f0029ed82cb84f6a9d362fceda317b9466bb35e6a",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s41",
+        "width": "1x"
+      },
+      "path": "configs/93f7f1aa8ad5f0ce0231863f0029ed82cb84f6a9d362fceda317b9466bb35e6a.yaml"
+    },
+    {
+      "config_sha256": "d38c1f0460dc0d30907301159ec5fafa2a0f4b53209b5b9d570659e38fd5ecd4",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s73",
+        "width": "4x"
+      },
+      "path": "configs/d38c1f0460dc0d30907301159ec5fafa2a0f4b53209b5b9d570659e38fd5ecd4.yaml"
+    },
+    {
+      "config_sha256": "a2507672a5e03f3f4a3b75204ddd65de86d9c8bd2d102aef485229c63cdbddfa",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s73",
+        "width": "4x"
+      },
+      "path": "configs/a2507672a5e03f3f4a3b75204ddd65de86d9c8bd2d102aef485229c63cdbddfa.yaml"
+    },
+    {
+      "config_sha256": "c7488c4514bcda7ce406b71d16e74ab7e251f9e171c8650b15319d7cae55a3a6",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s73",
+        "width": "2x"
+      },
+      "path": "configs/c7488c4514bcda7ce406b71d16e74ab7e251f9e171c8650b15319d7cae55a3a6.yaml"
+    },
+    {
+      "config_sha256": "267bb7752d4ec4afd5011aaa219a65f47cd039e65e93022cd61d5aca96e1e83a",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s73",
+        "width": "2x"
+      },
+      "path": "configs/267bb7752d4ec4afd5011aaa219a65f47cd039e65e93022cd61d5aca96e1e83a.yaml"
+    },
+    {
+      "config_sha256": "51df242d3c16d487aadaa046c6e1312c5b950f8c28c02febdb28ae7b6c5ad2e4",
+      "coordinate": {
+        "memory": "none",
+        "seed": "s73",
+        "width": "1x"
+      },
+      "path": "configs/51df242d3c16d487aadaa046c6e1312c5b950f8c28c02febdb28ae7b6c5ad2e4.yaml"
+    },
+    {
+      "config_sha256": "a3e592fce866a71d494ee61c78b807f111da2829331b0eecd7eff2f0acab7d94",
+      "coordinate": {
+        "memory": "lexical",
+        "seed": "s73",
+        "width": "1x"
+      },
+      "path": "configs/a3e592fce866a71d494ee61c78b807f111da2829331b0eecd7eff2f0acab7d94.yaml"
+    }
+  ],
+  "entry": {
+    "can_establish": [
+      "All six declared raw outcomes and controlled endpoint deltas for width and memory contrasts."
+    ],
+    "cannot_establish": [
+      "A one-variable narrow-plus-memory versus wide-plus-none ablation, training-efficiency claim, semantic/hybrid result, or cross-tokenizer equivalence."
+    ],
+    "cards": [
+      {
+        "applicability": {
+          "offline": "same-domain training-format acquisition check",
+          "tinystories": "out-of-domain stress, not story-model quality"
+        },
+        "category": "training-format acquisition",
+        "reference": "chat-alias-retention-v1",
+        "role": "development"
+      },
+      {
+        "applicability": {
+          "offline": "held-out wording, not unseen facts",
+          "tinystories": "out-of-domain stress, not story-model quality"
+        },
+        "category": "held-out wording",
+        "reference": "chat-alias-recall-v1",
+        "role": "development"
+      },
+      {
+        "applicability": {
+          "offline": "instruction/context stress",
+          "tinystories": "out-of-domain stress, not story-model quality"
+        },
+        "category": "instruction/context override",
+        "reference": "chat-context-override-v1",
+        "role": "stress"
+      }
+    ],
+    "confounders": [
+      "Model-construction RNG changes when module inventories differ.",
+      "Approximate scale classes rather than matched parameter counts.",
+      "Tokenizer-specific lexical addresses.",
+      "Finite, repeated offline curriculum.",
+      "Optimization differences across capacities.",
+      "Educational-kernel overhead is not an architecture-speed measurement."
+    ],
+    "controls": [
+      "Fix tokenizer, dataset source and packing within each selected data route.",
+      "Fix seed-matched model width, depth, heads, optimizer, runtime, budget, evaluator, and endpoint policy unless a listed axis changes.",
+      "Report held-out language-model loss separately from each capability card category."
+    ],
+    "dependent_metrics": [
+      {
+        "direction": "lower",
+        "kind": "measured",
+        "name": "held-out validation loss",
+        "unit": "cross-entropy"
+      },
+      {
+        "direction": "higher",
+        "kind": "capability",
+        "name": "capability-card score",
+        "unit": "fraction"
+      },
+      {
+        "direction": "descriptive",
+        "kind": "architectural",
+        "name": "parameter inventory",
+        "unit": "parameters"
+      }
+    ],
+    "docs": [
+      "docs/architecture.md",
+      "docs/engram.md"
+    ],
+    "evaluation_policy": {
+      "endpoint_cards": [
+        "chat-alias-retention-v1",
+        "chat-alias-recall-v1",
+        "chat-context-override-v1"
+      ],
+      "endpoint_policy": "first_configured_limit",
+      "milestones_supported": false,
+      "periodic_validation_steps": {
+        "micro": 128,
+        "nano": 32,
+        "smoke": 8,
+        "tiny": 256
+      },
+      "primary_thresholds": []
+    },
+    "failure_interpretation": "Recall or completion may survive while composition or override behavior deteriorates.",
+    "format": "sparselab-research-entry",
+    "hardware_notes": "Default guided lab; Tiny is recommended for a larger bounded trial, not a training-efficiency claim.",
+    "hypothesis": "Lookup may preserve some recall or completion behavior as dense FFN width narrows.",
+    "id": "engram-ffn-substitution-v1",
+    "implementation_links": [
+      {
+        "path": "src/sparselab/ffn.py",
+        "symbol": "SwiGLU"
+      },
+      {
+        "path": "src/sparselab/memory.py",
+        "symbol": "TokenNgramMemory"
+      }
+    ],
+    "independent_variables": [
+      "model.ffn_dim",
+      "model.memory"
+    ],
+    "mechanisms": [
+      "SwiGLU FFN",
+      "token n-gram memory"
+    ],
+    "minimum_useful_scale": "smoke",
+    "papers": [
+      {
+        "claim_boundary": "Motivates memory questions; SparseLab lexical memory is a local educational implementation, not a reproduction.",
+        "title": "Engram",
+        "url": "https://arxiv.org/abs/2601.07372"
+      }
+    ],
+    "prerequisites": [
+      "Semantic and hybrid arms require later executable-memory prerequisites and are not generated."
+    ],
+    "question": "Can lexical lookup compensate for a narrower dense FFN at a declared endpoint?",
+    "recipe": "recipes/engram-ffn-substitution-v1.json",
+    "recommended_scale": "tiny",
+    "runtime_class": "Qualitative scale-dependent educational PyTorch workload; measure local runtime rather than inferring timing.",
+    "title": "Can lookup compensate for a narrower FFN?",
+    "version": 1
+  },
+  "entry_sha256": "c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6",
+  "format": "sparselab-research-scaffold",
+  "inputs": [
+    {
+      "path": "base.yaml",
+      "sha256": "b0429edd3aa5a2fae50694a6be221fd4387c9f9e88a1e8f336750bb73d3c6833"
+    },
+    {
+      "path": "tokenizer.yaml",
+      "sha256": "ae0ad3d0d342f65680bc52c2f75fa890552f795912409abd114a9f24bc7bcc32"
+    },
+    {
+      "path": "matrix.yaml",
+      "sha256": "b9ead5bb21eac8c4a1676771e0bb4e70d0bbe2c6e7d7f35443f43efc30c6cab3"
+    },
+    {
+      "path": "study.yaml",
+      "sha256": "11cc619a171e4dc657b9984d0ff5de3db3481d4cdf97b153df6b435ef0ff2eb6"
+    },
+    {
+      "path": "research_sources/catalog-entry.json",
+      "sha256": "c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6"
+    },
+    {
+      "path": "research_sources/recipe.json",
+      "sha256": "75f8c4806dff65d1d94f0dc7146c11a05474c8970d08897e3d59f6ec34d20b31"
+    },
+    {
+      "path": "research_sources/profiles.json",
+      "sha256": "39ea4c2af85866a923d5b99268c70a895f88756fb419f2117867524c268066a2"
+    },
+    {
+      "path": "research_sources/datasets.json",
+      "sha256": "b79eb83f578b4223bf312fa18edf6153b1672c74dba9199ed218f376bd8a27ad"
+    },
+    {
+      "path": "configs/267bb7752d4ec4afd5011aaa219a65f47cd039e65e93022cd61d5aca96e1e83a.yaml",
+      "sha256": "fa263718c1fcc08d06312a4ef1bc98c2318cfcec9b7f724a46fe87d6bf0ffd76"
+    },
+    {
+      "path": "configs/347f1d8b5d5400b9452aceb154c9887005903b9c90b628eed0d6d50b50349dc3.yaml",
+      "sha256": "080395fa1bb53219c7c32e5c6b3269621cafe34dab3ddaccfe0b47f2a00071d8"
+    },
+    {
+      "path": "configs/4726778f340ba0ca02a68267ad822a07f4d47c718fa303c33aa7902ae4ecf0b8.yaml",
+      "sha256": "93b65c6257c051248e589bc0f67d17347c678ccfc612465be53ba8e2cc2c70e6"
+    },
+    {
+      "path": "configs/47a8a58f8bbc52556b1404922d4c59bbcbd5809d167a55e400575a9cb3568783.yaml",
+      "sha256": "3fbddb63042fb4473da5e3be2593a64c1e2a5ac60edd42405393f0e31e98a308"
+    },
+    {
+      "path": "configs/51df242d3c16d487aadaa046c6e1312c5b950f8c28c02febdb28ae7b6c5ad2e4.yaml",
+      "sha256": "76221f0bf7c848049d9a7ad43473fd9627f2565d38b2feb4d3b34914ac7f10ff"
+    },
+    {
+      "path": "configs/57447394f1c8efc297b4bee9e3b45324a6ab1ec04aba2e790f240284e6ad4da7.yaml",
+      "sha256": "23e41c4a354da9c5241aaab232ffd7cc905b64f5bfa78b2fd2885c4759a640f4"
+    },
+    {
+      "path": "configs/5c0395fb7fec2f25ca115079558212ad6b7a98d099c4e4b74b0c4eac6bd351c6.yaml",
+      "sha256": "21c1c005c03aa1039dd6057dde2bc7acbc424d3d5417bca770319e093570ead9"
+    },
+    {
+      "path": "configs/7f8a684e6088cb4f7e53907ad3de4d2038713029df9f1e33e5da11aa35e0c978.yaml",
+      "sha256": "64a2fa9e219a85b0821771b0f72721982677c9fdf512564cb724b5d10bf23032"
+    },
+    {
+      "path": "configs/93f7f1aa8ad5f0ce0231863f0029ed82cb84f6a9d362fceda317b9466bb35e6a.yaml",
+      "sha256": "3413bb464aee8e26c8bd33b561ed407823e4b0749c6c03ef2f9b7d2491cc7f21"
+    },
+    {
+      "path": "configs/a2507672a5e03f3f4a3b75204ddd65de86d9c8bd2d102aef485229c63cdbddfa.yaml",
+      "sha256": "df3af05c1ee3f3dbd7cf856b3addfb9c376c5ab1989a998adbbd1307cff3c6a3"
+    },
+    {
+      "path": "configs/a3e592fce866a71d494ee61c78b807f111da2829331b0eecd7eff2f0acab7d94.yaml",
+      "sha256": "ad112e9d1c895fe3a7a3ea7bd23ceb01ddf858ac14095d9cc1b3acfd3e311ce8"
+    },
+    {
+      "path": "configs/b71ba6073cec169fe5b75b08057feb4a4fc1e4c292a5b050c7e108d6d3e64f30.yaml",
+      "sha256": "588e76430501d7ee74d786e0fce7f307054b739463a0ff9286435d1bc2195d8f"
+    },
+    {
+      "path": "configs/b88782240343679e72f9b20e07684173cb24ef6ff77dd1708901d34d1b9db0fc.yaml",
+      "sha256": "35a076c2202fc12b9bed67752903a70456baa6123efef2888dda7b6344074940"
+    },
+    {
+      "path": "configs/c7488c4514bcda7ce406b71d16e74ab7e251f9e171c8650b15319d7cae55a3a6.yaml",
+      "sha256": "3e363d48e7ec9669fb9a8963dc542baa63d9acc90075d1b0a18430aab130dfac"
+    },
+    {
+      "path": "configs/d38c1f0460dc0d30907301159ec5fafa2a0f4b53209b5b9d570659e38fd5ecd4.yaml",
+      "sha256": "18da97ec21ca65561a05fe602337ac078c33ee2024b1f691cba67169684a2221"
+    },
+    {
+      "path": "configs/dcfdf6bd134990de2ae67936b946bea2c09eb95b0daab4c16bbc7f497f648a6b.yaml",
+      "sha256": "19edeb071df279eeeecacef7dca8a091044f3f6192ffe75a70e635c59f0922a9"
+    },
+    {
+      "path": "configs/e4e251e2b9da05e2a8e182955f1672519ff4ad7b91a583628e6e792137d47518.yaml",
+      "sha256": "ae4bd80c91da84bff053a4eaaad02cd615aa9836d69fa219c3d14b0488f09e49"
+    },
+    {
+      "path": "configs/ef08a9119dfe36932bfa353073e343027b85143ab6e361842539436f64449058.yaml",
+      "sha256": "8a4fd76e86222ae9abf312c87c2802cffd7599442e1c955eeff5b962f0ff2047"
+    }
+  ],
+  "recipe_sha256": "75f8c4806dff65d1d94f0dc7146c11a05474c8970d08897e3d59f6ec34d20b31",
+  "research_sha256": "746ca84ac39a8a1d8bcbfa53db2c78b1b225aa3cfccc79168d0472d11aa7bbd8",
+  "selection": {
+    "backend": "cpu",
+    "data": "offline",
+    "design": "default",
+    "scale": "nano"
+  },
+  "version": 1
+}

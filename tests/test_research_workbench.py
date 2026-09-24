@@ -207,25 +207,26 @@ def test_initialized_probe_bounds_and_reports_mechanisms(tmp_path: Path) -> None
             kv_widths.append(_shape(layer["output_shape"])[-1])
     assert kv_widths == [32, 32]
 
-    byte_model = config.model.model_copy(
-        update={
-            "memory": "byte",
-            "memory_table_size": 257,
-            "memory_ngram_size": 3,
-            "memory_dim": 8,
-        }
+    byte_lesson = scaffold_lesson(
+        "byte-engram", tmp_path / "byte-lesson", scale="smoke"
     )
-    byte_config = config.model_copy(update={"model": byte_model})
+    byte_config = load_config(byte_lesson / "model.yaml")
+    assert byte_config.model.memory_table_size == 263
+    _write_byte_tokenizer(byte_config.tokenizer.path)
+    byte_config = byte_config.model_copy(
+        update={"model": byte_config.model.model_copy(update={"vocab_size": 260})}
+    )
     unicode_prompt = "café"
     byte_result = probe_model(byte_config, unicode_prompt)
-    tokenizer = load_tokenizer(tokenizer_path)
+    tokenizer = load_tokenizer(byte_config.tokenizer.path)
     expected = _prompt_byte_addresses(
         tokenizer,
         unicode_prompt,
         tokenizer.encode(unicode_prompt, add_special_tokens=False).ids,
-        257,
-        3,
+        byte_config.model.memory_table_size,
+        byte_config.model.memory_ngram_size,
     )
+    assert len(set(expected)) > 1
     addresses = _mapping(
         _mapping(byte_result["memory_lookup_addresses"])["memory.table"]
     )

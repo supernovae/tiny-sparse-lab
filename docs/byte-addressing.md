@@ -10,6 +10,11 @@ The byte-memory table is local trainable state, checkpointed with the model. Byt
 
 The [`byte-engram` lesson](research/lesson-paths.md) makes the prepared UTF-8 address path inspectable with an initialized probe. It does not train data or provide a second hashing scheme: training still requires explicit tokenizer and data preparation. A verified exported table can instead be attached through the [`portable-engram` lesson](research/lesson-paths.md), whose table dimensions come from the supplied package.
 
+The shared `smoke` scale uses a 257-entry table for token memory, but byte hashing multiplies every completed hash by 257. The byte lesson therefore overrides only its smoke table to 263 entries; leaving the modulus at 257 would map every byte address to slot zero. The hash algorithm and portable package format are unchanged. Custom byte/portable tables should likewise avoid sizes divisible by 257.
+
+## Verified smoke execution
+
+The `byte-engram` smoke lesson was scaffolded and run with offline data. After explicitly training its tokenizer, preparing data, and probing an initialized model, `café` mapped to `[189, 119, 246, 37, 94]` in the 263-entry table: five distinct nonzero slots. The prepared training and validation caches also used table size 263; their address arrays contained 111 and 104 distinct slots, with 26,779 and 799 nonzero positions, respectively. Training completed two optimizer steps with `--stop-after-step 2`. This verifies address diversity, cache preparation, and an actual update—not retrieval quality.
 
 ```sh
 uv run sparselab data prepare configs/smoke_byte_memory_cpu.yaml
