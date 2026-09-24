@@ -547,9 +547,383 @@ def scaffold_research(
         raise
 
 
+def _semantic_lesson_workspace(directory: Path) -> dict[str, object]:
+    """Materialize a verified semantic pack and its executable lesson probe."""
+    import numpy as np
+    from safetensors.numpy import save_file
+
+    from sparselab.engram.packs import compile_pack
+
+    key_indices = {
+        ("atlas", "maps_to"): 0,
+        ("beacon", "maps_to"): 1,
+        ("cipher", "maps_to"): 2,
+        ("harbor", "label"): 3,
+        ("vault", "label"): 4,
+        ("fork", "maps_to"): 5,
+    }
+    value_indices = {
+        "beacon": 0,
+        "amber": 1,
+        "delta": 2,
+        "open": 3,
+        "closed": 4,
+        "left": 5,
+        "right": 6,
+    }
+    facts = (
+        ("lesson-atlas-maps-to-beacon", "atlas", "maps_to", "beacon", None, None),
+        ("lesson-beacon-maps-to-amber", "beacon", "maps_to", "amber", None, None),
+        ("lesson-cipher-maps-to-delta", "cipher", "maps_to", "delta", None, None),
+        (
+            "lesson-harbor-label-open",
+            "harbor",
+            "label",
+            "open",
+            "2025-01-01",
+            "2025-12-31",
+        ),
+        ("lesson-vault-label-closed", "vault", "label", "closed", None, "2020-12-31"),
+        ("lesson-fork-left", "fork", "maps_to", "left", None, None),
+        ("lesson-fork-right", "fork", "maps_to", "right", None, None),
+    )
+    record_rows = [
+        {
+            "record_version": 1,
+            "id": record_id,
+            "namespace": "semantic-retrieval-lesson",
+            "subject": subject,
+            "relation": relation,
+            "value": value,
+            "license": "CC0-1.0",
+            "source": "SparseLab original tutorial fixture",
+            "source_revision": "frozen-v1",
+            "created_at": "2026-09-23T00:00:00Z",
+            "valid_from": valid_from,
+            "valid_until": valid_until,
+        }
+        for record_id, subject, relation, value, valid_from, valid_until in facts
+    ]
+    records_bytes = b"".join(canonical_json(row) + b"\n" for row in record_rows)
+    records_path = directory / "records.jsonl"
+    _write(records_path, records_bytes)
+
+    key_specification = {
+        "algorithm": "fixed-one-hot-structured-key-v1",
+        "dimension": len(key_indices),
+        "indices": [
+            {"subject": subject, "relation": relation, "index": index}
+            for (subject, relation), index in sorted(key_indices.items())
+        ],
+    }
+    value_specification = {
+        "algorithm": "fixed-one-hot-value-v1",
+        "dimension": len(value_indices),
+        "indices": [
+            {"value": value, "index": index}
+            for value, index in sorted(value_indices.items())
+        ],
+    }
+    key_encoder = {
+        "name": "tutorial-fixed-structured-key",
+        "revision": "frozen-v1",
+        "sha256": hashlib.sha256(canonical_json(key_specification)).hexdigest(),
+    }
+    value_encoder = {
+        "name": "tutorial-fixed-value",
+        "revision": "frozen-v1",
+        "sha256": hashlib.sha256(canonical_json(value_specification)).hexdigest(),
+    }
+    keys = np.zeros((len(facts), len(key_indices)), dtype=np.float32)
+    values = np.zeros((len(facts), len(value_indices)), dtype=np.float32)
+    for row_index, (_, subject, relation, value, _, _) in enumerate(facts):
+        keys[row_index, key_indices[(subject, relation)]] = 1.0
+        values[row_index, value_indices[value]] = 1.0
+    keys_path = directory / "semantic_keys.safetensors"
+    values_path = directory / "semantic_values.safetensors"
+    save_file({"keys": keys}, keys_path)
+    save_file({"values": values}, values_path)
+    metadata_path = directory / "semantic.json"
+    _write(
+        metadata_path,
+        canonical_json(
+            {
+                "format": "sparselab-semantic-assets",
+                "format_version": 1,
+                "record_ids": [row["id"] for row in record_rows],
+                "key_encoder": key_encoder,
+                "value_encoder": value_encoder,
+                "key_normalization": "none",
+            }
+        )
+        + b"\n",
+    )
+    pack_path = directory / "semantic-pack"
+    manifest = compile_pack(
+        records_path,
+        pack_path,
+        name="semantic-retrieval-lesson",
+        namespace="semantic-retrieval-lesson",
+        default_license="CC0-1.0",
+        source_name="SparseLab original tutorial fixture",
+        source_revision="frozen-v1",
+        created_at="2026-09-23T00:00:00Z",
+        semantic_keys=keys_path,
+        semantic_values=values_path,
+        semantic_metadata=metadata_path,
+    )
+    semantic = manifest.semantic
+    if semantic is None:
+        raise RuntimeError("compiled semantic lesson pack lacks its semantic component")
+    demo = """from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import torch
+
+from sparselab.config.models import AttentionConfig, ModelConfig
+from sparselab.engram.semantic import SemanticQueryBatch, SemanticRetriever
+from sparselab.model.transformer import DenseLM
+
+ROOT = Path(__file__).resolve().parent
+PACK_ID = "__PACK_ID__"
+KEY_DIM = 6
+KEY_INDEX = __KEY_INDEX__
+VALUE_INDEX = __VALUE_INDEX__
+VALUE_BY_INDEX = {index: value for value, index in VALUE_INDEX.items()}
+
+
+def encode_key(subject: str, relation: str) -> torch.Tensor:
+    vector = torch.zeros(KEY_DIM, dtype=torch.float32)
+    index = KEY_INDEX.get((subject, relation))
+    if index is not None:
+        vector[index] = 1.0
+    return vector
+
+
+retriever = SemanticRetriever.from_pack(
+    ROOT / "semantic-pack", expected_pack_id=PACK_ID
+)
+query_examples = {
+    "hit": ("atlas", "maps_to", None),
+    "unknown": ("missing", "maps_to", None),
+    "conflict": ("fork", "maps_to", None),
+    "temporal_hit": ("harbor", "label", "2025-06-01"),
+    "temporal_miss": ("vault", "label", "2025-06-01"),
+}
+retrieval = {}
+for name, (subject, relation, as_of) in query_examples.items():
+    outcome = retriever.retrieve(
+        encode_key(subject, relation),
+        key_encoder=retriever.key_encoder,
+        top_k=2,
+        min_score=0.9,
+        as_of=as_of,
+    )
+    retrieval[name] = {
+        "status": outcome.status,
+        "hits": [
+            {
+                "record_id": hit.record_id,
+                "score": hit.score,
+                "value_shape": list(hit.value_vector.shape),
+            }
+            for hit in outcome.hits
+        ],
+        "trace": {
+            "pack_id": outcome.trace.pack_id,
+            "metric": outcome.trace.metric,
+            "comparison_count": outcome.trace.comparison_count,
+            "candidate_count": outcome.trace.candidate_count,
+            "temporal_excluded_count": outcome.trace.temporal_excluded_count,
+            "best_record_id": outcome.trace.best_record_id,
+            "best_score": outcome.trace.best_score,
+            "tie_count": outcome.trace.tie_count,
+            "tied_record_ids": outcome.trace.tied_record_ids,
+        },
+    }
+
+first_hop = retriever.retrieve(
+    encode_key("atlas", "maps_to"),
+    key_encoder=retriever.key_encoder,
+    min_score=0.9,
+)
+intermediate_index = int(first_hop.hits[0].value_vector.argmax())
+intermediate = VALUE_BY_INDEX[intermediate_index]
+second_hop = retriever.retrieve(
+    encode_key(intermediate, "maps_to"),
+    key_encoder=retriever.key_encoder,
+    min_score=0.9,
+)
+
+model = DenseLM(
+    ModelConfig(
+        vocab_size=260,
+        hidden_dim=16,
+        num_layers=2,
+        num_heads=4,
+        ffn_dim=32,
+        max_seq_len=8,
+    ),
+    AttentionConfig(),
+)
+adapter = model.add_semantic_memory(
+    "lesson",
+    retriever,
+    site="after_block",
+    block_index=0,
+    min_score=0.9,
+)
+trainable_adapter_parameters = sum(
+    parameter.numel() for parameter in adapter.parameters() if parameter.requires_grad
+)
+model.eval()
+model.requires_grad_(False)
+adapter.freeze()
+tokens = torch.tensor([[1, 2, 3]], dtype=torch.long)
+queries = SemanticQueryBatch(
+    retriever.key_encoder, encode_key("atlas", "maps_to").reshape(1, KEY_DIM)
+)
+with torch.inference_mode():
+    logits = model(tokens, semantic_queries=queries)
+    cached_logits, _ = model.forward_cached(
+        tokens, cache_capacity=8, semantic_queries=queries
+    )
+torch.testing.assert_close(cached_logits, logits, atol=1e-5, rtol=1e-5)
+metrics = {
+    name: float(value.detach().cpu())
+    for name, value in model.architecture_metric_tensors().items()
+}
+report = {
+    "pack_id": retriever.pack_id,
+    "dimensions": {
+        "keys": [retriever.entry_count, retriever.key_dim],
+        "values": [retriever.entry_count, retriever.memory_dim],
+        "queries": [1, retriever.key_dim],
+        "hidden": [1, tokens.shape[1], model.config.hidden_dim],
+        "logits": list(logits.shape),
+    },
+    "retrieval": retrieval,
+    "two_hop": {
+        "status": "retrieved" if second_hop.status == "hit" else second_hop.status,
+        "intermediate": intermediate,
+        "answer": VALUE_BY_INDEX[int(second_hop.hits[0].value_vector.argmax())],
+        "record_ids": [first_hop.hits[0].record_id, second_hop.hits[0].record_id],
+    },
+    "adapter": {
+        "site": adapter.site,
+        "block_index": adapter.block_index,
+        "trainable_parameter_count_before_freeze": trainable_adapter_parameters,
+        "frozen_after_attachment": all(
+            not parameter.requires_grad for parameter in model.parameters()
+        ),
+        "traces": [
+            {
+                "status": trace.status,
+                "best_record_id": trace.best_record_id,
+                "best_score": trace.best_score,
+                "comparison_count": trace.comparison_count,
+            }
+            for trace in adapter.last_traces
+        ],
+        "metrics": metrics,
+    },
+    "cached_forward_parity": True,
+    "parameter_gradients_absent": all(
+        parameter.grad is None for parameter in model.parameters()
+    ),
+}
+print(json.dumps(report, indent=2, sort_keys=True))
+"""
+    demo = (
+        demo.replace("__PACK_ID__", manifest.pack_id)
+        .replace("__KEY_INDEX__", repr(key_indices))
+        .replace("__VALUE_INDEX__", repr(value_indices))
+    )
+    demo_path = directory / "demo.py"
+    _write(demo_path, demo)
+
+    inputs = [
+        {"path": name, "sha256": sha256_file(directory / name)}
+        for name in (
+            "records.jsonl",
+            "semantic_keys.safetensors",
+            "semantic_values.safetensors",
+            "semantic.json",
+            "demo.py",
+        )
+    ]
+    pack_manifest_path = pack_path / "manifest.json"
+    inputs.append(
+        {
+            "path": "semantic-pack/manifest.json",
+            "sha256": sha256_file(pack_manifest_path),
+        }
+    )
+    inputs.extend(
+        {
+            "path": f"semantic-pack/{item.relative_path}",
+            "sha256": item.sha256,
+        }
+        for item in manifest.files
+    )
+    return {
+        "records_sha256": sha256_file(records_path),
+        "inputs": inputs,
+        "semantic_pack": {
+            "path": "semantic-pack",
+            "pack_id": manifest.pack_id,
+            "manifest_sha256": sha256_file(pack_manifest_path),
+            "entry_count": semantic.entry_count,
+            "key_dim": semantic.key_dim,
+            "value_dim": semantic.memory_dim,
+            "key_encoder": key_encoder,
+            "value_encoder": value_encoder,
+        },
+    }
+
+
 def _lesson_readme(
     lesson: MechanismLesson, scale: str, data: str, backend: str, *, artifact: bool
 ) -> str:
+    if artifact and lesson.id == "semantic-retrieval":
+        walkthrough = "\n".join(
+            f"- **{step.source_path}:{step.source_symbol}** — {step.explanation} "
+            f"Shapes: {'; '.join(step.shapes)} Observe: {', '.join(step.observe)}."
+            for step in lesson.steps
+        )
+        source_links = "\n".join(f"- {doc}" for doc in lesson.docs)
+        return f"""# {lesson.title}
+
+{lesson.summary}
+
+This standalone workspace contains a verified semantic EngramPack and a runnable Python lesson. Query vectors are explicit structured one-hot fixtures, not natural-language embeddings.
+
+## Run and inspect
+
+```sh
+python demo.py
+sparselab engram pack inspect semantic-pack
+sparselab engram pack verify semantic-pack
+```
+
+The demo reports verified pack identity, retrieval status, ordered record IDs and scores, candidate/comparison counts, temporal exclusions, deterministic tie IDs, adapter site, trainable adapter parameter count before freezing, frozen attachment state, observed model metrics, and full-prefix/cached parity. It also runs a two-edge structured lookup. No tokenizer, model training run, external dataset, text encoder, or network access is required.
+
+## Tensor walkthrough
+
+This fixture uses keys `[7,6]`, values `[7,7]`, queries `[1,6]`, and backbone hidden states `[1,3,16]`. The adapter maps value width `7` to hidden width `16`; the key encoder width `6` is independent. The demo prints actual output and diagnostic shapes.
+
+{walkthrough}
+
+**Try changes:** {"; ".join(lesson.try_changes)}
+
+**Limits:** {"; ".join(lesson.limits)}
+
+## Source and follow-up
+
+{source_links}
+"""
     if artifact:
         return f"""# {lesson.title}
 
@@ -652,41 +1026,45 @@ def scaffold_lesson(
             "selection": {"scale": scale, "data": data, "backend": backend},
         }
         if lesson.mechanism_kind == "artifact":
-            record_rows = [
-                {
-                    "record_version": 1,
-                    "id": "tutorial-atlas-maps-to-beacon",
-                    "namespace": "tutorial-map",
-                    "subject": "atlas",
-                    "relation": "maps_to",
-                    "value": "beacon",
-                    "license": "CC0-1.0",
-                },
-                {
-                    "record_version": 1,
-                    "id": "tutorial-beacon-maps-to-amber",
-                    "namespace": "tutorial-map",
-                    "subject": "beacon",
-                    "relation": "maps_to",
-                    "value": "amber",
-                    "license": "CC0-1.0",
-                },
-                {
-                    "record_version": 1,
-                    "id": "tutorial-cipher-maps-to-delta",
-                    "namespace": "tutorial-map",
-                    "subject": "cipher",
-                    "relation": "maps_to",
-                    "value": "delta",
-                    "license": "CC0-1.0",
-                },
-            ]
-            records = b"".join(canonical_json(row) + b"\n" for row in record_rows)
-            _write(temporary / "records.jsonl", records)
-            lesson_payload["records_sha256"] = hashlib.sha256(records).hexdigest()
-            lesson_payload["inputs"] = [
-                {"path": "records.jsonl", "sha256": hashlib.sha256(records).hexdigest()}
-            ]
+            if identifier == "semantic-retrieval":
+                lesson_payload.update(_semantic_lesson_workspace(temporary))
+            else:
+                record_rows = [
+                    {
+                        "record_version": 1,
+                        "id": "tutorial-atlas-maps-to-beacon",
+                        "namespace": "tutorial-map",
+                        "subject": "atlas",
+                        "relation": "maps_to",
+                        "value": "beacon",
+                        "license": "CC0-1.0",
+                    },
+                    {
+                        "record_version": 1,
+                        "id": "tutorial-beacon-maps-to-amber",
+                        "namespace": "tutorial-map",
+                        "subject": "beacon",
+                        "relation": "maps_to",
+                        "value": "amber",
+                        "license": "CC0-1.0",
+                    },
+                    {
+                        "record_version": 1,
+                        "id": "tutorial-cipher-maps-to-delta",
+                        "namespace": "tutorial-map",
+                        "subject": "cipher",
+                        "relation": "maps_to",
+                        "value": "delta",
+                        "license": "CC0-1.0",
+                    },
+                ]
+                records = b"".join(canonical_json(row) + b"\n" for row in record_rows)
+                _write(temporary / "records.jsonl", records)
+                records_sha256 = hashlib.sha256(records).hexdigest()
+                lesson_payload["records_sha256"] = records_sha256
+                lesson_payload["inputs"] = [
+                    {"path": "records.jsonl", "sha256": records_sha256}
+                ]
             _write(
                 temporary / "README.md",
                 _lesson_readme(lesson, scale, data, backend, artifact=True),

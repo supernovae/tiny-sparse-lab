@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
 from contextlib import nullcontext
 from typing import Literal
 
@@ -9,6 +11,11 @@ import torch
 from torch import Tensor, nn
 
 from sparselab.config.models import AttentionConfig, ModelConfig
+from sparselab.engram.semantic import (
+    SemanticMemoryAdapter,
+    SemanticQueryBatch,
+    SemanticRetriever,
+)
 from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.attention.latent import LatentAttention
 from sparselab.model.attention.sparse import BlockSparseAttention
@@ -26,6 +33,8 @@ from sparselab.model.moe import (
 )
 from sparselab.model.norm import RMSNorm
 from sparselab.model.portable_engram import PortableEngramAdapter, load_portable_engram
+
+SemanticQueryInput = SemanticQueryBatch | Mapping[str, SemanticQueryBatch] | None
 
 
 class DecoderBlock(nn.Module):
@@ -151,6 +160,7 @@ class DenseLM(nn.Module):
                 )
             )
         )
+        self.semantic_memories = nn.ModuleDict()
         self.output = nn.Linear(model.hidden_dim, model.vocab_size, bias=False)
         self.apply(self._initialize)
         if model.tie_embeddings:
@@ -191,11 +201,123 @@ class DenseLM(nn.Module):
             return self.memory(hidden, byte_addresses)
         raise TypeError(f"unsupported memory module: {type(self.memory).__name__}")
 
+    def add_semantic_memory(
+        self,
+        name: str,
+        retriever: SemanticRetriever,
+        *,
+        site: Literal["embedding", "after_block", "final"],
+        block_index: int | None = None,
+        min_score: float | None = None,
+    ) -> SemanticMemoryAdapter:
+        """Attach one verified semantic pack with independent site ownership."""
+        if site not in ("embedding", "after_block", "final"):
+            raise ValueError(f"unsupported semantic injection site: {site!r}")
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name):
+            raise ValueError("semantic memory name must be lowercase kebab/snake case")
+        if name in self.semantic_memories:
+            raise ValueError(f"semantic memory {name!r} is already attached")
+        if site == "after_block":
+            if type(block_index) is not int or not 0 <= block_index < len(self.blocks):
+                raise ValueError(
+                    "after_block site needs a valid zero-based block_index"
+                )
+        elif block_index is not None:
+            raise ValueError("block_index is valid only for after_block site")
+        if not isinstance(retriever, SemanticRetriever):
+            raise TypeError("semantic memory requires a verified SemanticRetriever")
+        for attached in self.semantic_memories.values():
+            if (
+                attached.retriever.key_encoder.sha256 == retriever.key_encoder.sha256
+                and attached.retriever.key_encoder != retriever.key_encoder
+            ):
+                raise ValueError("one encoder SHA-256 cannot name different identities")
+        adapter = SemanticMemoryAdapter(
+            retriever,
+            self.config.hidden_dim,
+            min_score=min_score,
+            site=site,
+            block_index=block_index,
+        )
+        adapter.apply(self._initialize)
+        adapter.to(
+            device=self.embedding.weight.device, dtype=self.embedding.weight.dtype
+        )
+        adapter.train(self.training)
+        self.semantic_memories[name] = adapter
+        return adapter
+
+    def replace_semantic_memory(self, name: str, retriever: SemanticRetriever) -> None:
+        """Swap verified pack assets while preserving a named adapter's weights."""
+        try:
+            adapter = self.semantic_memories[name]
+        except KeyError as error:
+            raise ValueError(f"semantic memory {name!r} is not attached") from error
+        adapter.replace_retriever(retriever)
+
+    def _semantic_query_map(
+        self, semantic_queries: SemanticQueryInput
+    ) -> dict[str, SemanticQueryBatch]:
+        if not self.semantic_memories:
+            if semantic_queries is not None:
+                raise ValueError("semantic queries were supplied without an attachment")
+            return {}
+        if semantic_queries is None:
+            raise ValueError("attached semantic memory requires explicit query vectors")
+        if isinstance(semantic_queries, SemanticQueryBatch):
+            batches = {semantic_queries.encoder.sha256: semantic_queries}
+        elif isinstance(semantic_queries, Mapping):
+            batches = {}
+            for key, batch in semantic_queries.items():
+                if not isinstance(batch, SemanticQueryBatch):
+                    raise TypeError(
+                        "semantic query mapping values must be SemanticQueryBatch"
+                    )
+                if key != batch.encoder.sha256 or key in batches:
+                    raise ValueError(
+                        "semantic query mapping keys must be unique encoder SHA-256 values"
+                    )
+                batches[key] = batch
+        else:
+            raise TypeError(
+                "semantic_queries must be a SemanticQueryBatch or encoder mapping"
+            )
+        required = {
+            module.retriever.key_encoder.sha256: module.retriever.key_encoder
+            for module in self.semantic_memories.values()
+        }
+        if set(batches) != set(required):
+            raise ValueError(
+                "semantic query mapping must cover exactly the attached key encoders"
+            )
+        for digest, identity in required.items():
+            if batches[digest].encoder != identity:
+                raise ValueError(
+                    "semantic query encoder identity does not match its attached pack"
+                )
+        return batches
+
+    def _apply_semantic_site(
+        self,
+        hidden: Tensor,
+        queries: Mapping[str, SemanticQueryBatch],
+        *,
+        site: Literal["embedding", "after_block", "final"],
+        block_index: int | None = None,
+    ) -> Tensor:
+        for name in sorted(self.semantic_memories):
+            adapter = self.semantic_memories[name]
+            if adapter.site == site and adapter.block_index == block_index:
+                batch = queries[adapter.retriever.key_encoder.sha256]
+                hidden = adapter(hidden, batch)
+        return hidden
+
     def forward_with_aux(
         self,
         input_ids: Tensor,
         *,
         byte_addresses: Tensor | None = None,
+        semantic_queries: SemanticQueryInput = None,
         valid_target_mask: Tensor | None = None,
         activation_checkpointing: bool = False,
         diagnostics: Literal["scalar", "full"] = "scalar",
@@ -206,13 +328,15 @@ class DenseLM(nn.Module):
             raise ValueError("input sequence exceeds model.max_seq_len")
         if diagnostics not in ("scalar", "full"):
             raise ValueError(f"unknown diagnostics policy: {diagnostics}")
+        semantic_query_map = self._semantic_query_map(semantic_queries)
         self._forward_block_calls = 0
         self._recomputed_block_calls = 0
         x = self.embedding(input_ids)
         if self.config.memory_injection == "embedding":
             x = self._apply_memory(x, input_ids, byte_addresses)
+        x = self._apply_semantic_site(x, semantic_query_map, site="embedding")
         auxiliary_loss = x.new_zeros(())
-        for block in self.blocks:
+        for block_index, block in enumerate(self.blocks):
             if activation_checkpointing and self.training and torch.is_grad_enabled():
 
                 def run_block(
@@ -243,10 +367,17 @@ class DenseLM(nn.Module):
                 x, block_aux = block.forward_with_aux(
                     x, valid_target_mask=valid_target_mask, diagnostics=diagnostics
                 )
+            x = self._apply_semantic_site(
+                x,
+                semantic_query_map,
+                site="after_block",
+                block_index=block_index,
+            )
             auxiliary_loss = auxiliary_loss + block_aux
         x = self.norm(x)
         if self.config.memory_injection == "final":
             x = self._apply_memory(x, input_ids, byte_addresses)
+        x = self._apply_semantic_site(x, semantic_query_map, site="final")
         return self.output(x), auxiliary_loss
 
     def architecture_metric_tensors(self) -> dict[str, Tensor]:
@@ -271,6 +402,32 @@ class DenseLM(nn.Module):
             ):
                 result[f"engram/{name}"] = getattr(diagnostic, name).detach()
             result[f"engram/injection/{self.config.memory_injection}"] = (
+                diagnostic.gate_mean.new_ones(()).detach()
+            )
+        for name, adapter in sorted(self.semantic_memories.items()):
+            diagnostic = adapter.last_diagnostics
+            if diagnostic is None:
+                continue
+            for metric in (
+                "lookup_count",
+                "hit_count",
+                "unknown_count",
+                "conflict_count",
+                "temporal_miss_count",
+                "mean_score",
+                "gate_mean",
+                "value_norm",
+                "hidden_norm",
+            ):
+                result[f"semantic/{name}/{metric}"] = getattr(
+                    diagnostic, metric
+                ).detach()
+            location = (
+                f"after_block/{adapter.block_index}"
+                if adapter.site == "after_block"
+                else adapter.site
+            )
+            result[f"semantic/{name}/injection/{location}"] = (
                 diagnostic.gate_mean.new_ones(()).detach()
             )
         for index, block in enumerate(self.blocks):
@@ -336,6 +493,7 @@ class DenseLM(nn.Module):
         cache_capacity: int | None = None,
         cache: GenerationCache | None = None,
         byte_addresses: Tensor | None = None,
+        semantic_queries: SemanticQueryInput = None,
     ) -> tuple[Tensor, GenerationCache]:
         """Return logits and bounded, owner-checked inference-only request state.
 
@@ -474,16 +632,27 @@ class DenseLM(nn.Module):
                 raise ValueError(
                     "byte_addresses must match cached input IDs in shape and device"
                 )
+        semantic_query_map = self._semantic_query_map(semantic_queries)
         cache.append_input_ids(input_ids)
         full_ids = cache.input_ids[:, : cache.length]
         x = self.embedding(input_ids)
         if self.config.memory_injection == "embedding":
             x = self._apply_memory(x, full_ids, byte_addresses, incremental=True)
-        for block, layer_cache in zip(self.blocks, cache.layers, strict=True):
+        x = self._apply_semantic_site(x, semantic_query_map, site="embedding")
+        for block_index, (block, layer_cache) in enumerate(
+            zip(self.blocks, cache.layers, strict=True)
+        ):
             x, _ = block.forward_cached(x, layer_cache)
+            x = self._apply_semantic_site(
+                x,
+                semantic_query_map,
+                site="after_block",
+                block_index=block_index,
+            )
         x = self.norm(x)
         if self.config.memory_injection == "final":
             x = self._apply_memory(x, full_ids, byte_addresses, incremental=True)
+        x = self._apply_semantic_site(x, semantic_query_map, site="final")
         return self.output(x), cache
 
     @property
@@ -498,8 +667,12 @@ class DenseLM(nn.Module):
         input_ids: Tensor,
         *,
         byte_addresses: Tensor | None = None,
+        semantic_queries: SemanticQueryInput = None,
         diagnostics: Literal["scalar", "full"] = "scalar",
     ) -> Tensor:
         return self.forward_with_aux(
-            input_ids, byte_addresses=byte_addresses, diagnostics=diagnostics
+            input_ids,
+            byte_addresses=byte_addresses,
+            semantic_queries=semantic_queries,
+            diagnostics=diagnostics,
         )[0]
