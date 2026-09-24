@@ -77,3 +77,54 @@ A useful task needs a training source and a separately held-out card. Use [local
 5. Add capabilities one at a time: collision stress, longer-distance context, compositional lookup, and realistic domain conversations need their own frozen cards and controls.
 
 KV-cached PyTorch decoding and native MLX sparse attention are available within their documented boundaries. Neither implies arbitrary-model compatibility or a universal performance advantage. Capability comparisons must retain optimizer semantics, engine/backend, precision, checkpoint and tokenizer identities, actual token budgets, and the complete declared case set; execution support is not task competence.
+
+## Phase E task and review pipeline
+
+Inspect the outcome groups with `sparselab capability suite`. Held-out language-model loss remains separate from exact-answer behavior-card scores. The suite has distinct cards for canonical lexical recall, paraphrase, multi-turn follow-up, Python API behavior, novel-operand math, application, composition, long-context retrieval, conversation override, instruction-over-memory, and stale/conflicting/missing evidence. Lexical, paraphrase, and conversation cards share the synthetic alias domain; treat them as task conditions, not independent knowledge samples. Wikidata factual and paraphrase cards are generated from the explicitly built local source bundle.
+
+Build the deterministic synthetic task splits without network access:
+
+```sh
+uv run sparselab research tasks build math-identities --output artifacts/phase-e/math
+uv run sparselab research tasks build python-stdlib --output artifacts/phase-e/python
+```
+
+Each bundle contains `train.jsonl`, `validation.jsonl`, a held-out test card under `cards/`, test cases, and a hash-bound manifest. The JSONL files use the existing `local_chat` format; configure `dataset.source: local_chat`, point `train_path` and `validation_path` at the respective files, and declare the manifest's `MIT` license. Math identities use disjoint operand pools across train, validation, and test. Python tasks compute outputs through a finite allowlist of trusted standard-library calls; they never evaluate generated source, execute user code, or execute a benchmark project. No benchmark solutions are imported or extracted.
+
+The optional factual miniature downloads data only when explicitly requested:
+
+```sh
+uv run sparselab research tasks build wikidata-mini --output artifacts/phase-e/wikidata
+uv run sparselab capability evaluate RUN_ID artifacts/phase-e/wikidata/cards/wikidata-mini-factual-recall-v1.json
+```
+
+The answer-free packaged source manifest pins Q42 and Q937 to training, Q7259 to validation, and Q7186 to test, each at a fixed Wikidata revision. The builder makes four serial requests to the revision-specific `Special:EntityData` endpoint, sends a descriptive User-Agent, caps each response at 8 MiB, and does not retry a rate-limited request. It downloads each complete entity JSON, extracts an English label or (when absent) a language-neutral `mul` label recorded as `label_language`, and extracts P569/P570 dates at day precision. It verifies each entity ID and revision, hashes the canonical response, and retains no raw entity JSON. Wikidata structured data is [CC0](https://www.wikidata.org/wiki/Wikidata:Reuse); the [data-access guidance](https://www.wikidata.org/wiki/Wikidata:Data_access) recommends specific revisions and considerate request rates. The manifest labels source facts `CC0-1.0` and generated prompts/format `MIT`; set the combined local-chat license to `MIT prompts/format; CC0-1.0 Wikidata facts`. Train/validation/test membership is entity-disjoint, and test answers are absent from training. This four-entity fixture is not a broad factual-knowledge benchmark.
+
+Mine lexical statistics using only the explicitly supplied training corpus:
+
+```sh
+uv run sparselab research corpus mine \
+  --train-jsonl artifacts/phase-e/math/train.jsonl \
+  --tokenizer runs/RUN_ID/tokenizer/tokenizer.json \
+  --table-size 65536 --memory-dim 64 --ngram-orders 2 4 --hash-heads 1 \
+  --output artifacts/phase-e/math-lexical-analysis.json
+```
+
+The report binds the train-file and tokenizer hashes and contains token/document frequencies, empirical unigram entropy, exact per-order/head address occupancy, and storage estimates. Collisions count distinct zero-padded token n-gram keys that share an address (`collisions / distinct_ngram_count`); repeat lookups are reported separately. Exact key tracking is bounded to one million distinct keys and eight million key components. The estimator opens one explicit training JSONL and no validation/test path. It tokenizes each rendered train conversation independently, without packing, EOS insertion, or trainer truncation; address statistics are a source-document estimate, not the exact packed training run. Its table-byte estimate excludes the output projection and gate.
+
+Create a blinded comparison directly from content-addressed capability results:
+
+```sh
+uv run sparselab review bundle \
+  --base-result runs/base/evaluations/BASE_RESULT.json \
+  --variant-result runs/variant/evaluations/VARIANT_RESULT.json \
+  --criteria rubric.json --seed 17 \
+  --bundle artifacts/review/rater-bundle.json \
+  --reveal-map private/reveal-map.json
+uv run sparselab review validate \
+  --bundle artifacts/review/rater-bundle.json \
+  --judgments artifacts/review/judgments.json \
+  --output artifacts/review/validated-judgments.json
+```
+
+The bundle builder verifies both result digests and requires a shared card, evaluator, case set, prompts, and expected answers. It randomizes case order and A/B assignment, but keeps condition names, result identities, and case identifiers only in the separate reveal map. The rater bundle binds its seed, criteria digest, and reveal-map digest; give raters only that bundle. `--records` is also available for paired responses that do not come from capability results. Judgments bind to the bundle and criteria, cover every blind case exactly once, and contain no reveal fields. Validation only normalizes judgments; it does not score, rank, select, or tune models. Do not use held-out test scores or unblinded judgments in a hidden optimization loop.

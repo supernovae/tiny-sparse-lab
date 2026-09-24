@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import unicodedata
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -33,7 +34,26 @@ _GENERATION = {
     "seed": 0,
     "stop_sequences": ("\nUser:", "\nSystem:", "\nAssistant:"),
 }
-_CASE_KINDS = frozenset({"recall", "alias_recall", "context_override", "custom"})
+_CASE_KINDS = frozenset(
+    {
+        "recall",
+        "alias_recall",
+        "context_override",
+        "custom",
+        "math",
+        "api",
+        "factual_recall",
+        "paraphrase",
+        "application",
+        "composition",
+        "long_context",
+        "instruction",
+        "conversation",
+        "stale_source",
+        "conflicting_source",
+        "missing_source",
+    }
+)
 _MEMORY_FIELDS = frozenset(
     {
         "memory",
@@ -164,13 +184,296 @@ def _chat_card(name: str) -> CapabilityCard:
     )
 
 
+def _task_card(
+    name: str,
+    hypothesis: str,
+    limitations: str,
+    cases: Any,
+) -> CapabilityCard:
+    normalized_cases = tuple(
+        CapabilityCase(
+            case.identifier,
+            case.prompt
+            if case.prompt.rstrip().endswith("Assistant:")
+            else f"User: {case.prompt.strip()}\nAssistant:",
+            case.expected,
+            case.kind,
+        )
+        for case in cases
+    )
+    if not normalized_cases:
+        raise ValueError(f"capability card {name} requires test cases")
+    answer_counts = Counter(case.expected for case in normalized_cases)
+    return CapabilityCard(
+        name,
+        1,
+        hypothesis,
+        _EXACT_SCORER,
+        normalized_cases,
+        _GENERATION,
+        {
+            "normalization": "unicode_nfc_casefold_trim_collapse_whitespace",
+            "match": "full_answer",
+        },
+        {
+            "uniform_chance": 1 / len(answer_counts),
+            "majority_answer": max(answer_counts.values()) / len(normalized_cases),
+        },
+        limitations,
+    )
+
+
+def _phase_e_cards() -> tuple[CapabilityCard, ...]:
+    from sparselab.data.phase_e_tasks import (
+        math_identity_test_cases,
+        python_stdlib_test_cases,
+    )
+
+    alias_test_cases = chat_recall_cases("test")
+    lexical_cases = tuple(
+        CapabilityCase(
+            case.identifier,
+            "User: Look up the stored value for alias "
+            f"{case.identifier.removeprefix('test-alias-')}. Return the value only.\nAssistant:",
+            case.expected,
+            "recall",
+        )
+        for case in alias_test_cases
+    )
+    paraphrase_cases = tuple(
+        CapabilityCase(
+            case.identifier,
+            "System: Answer the requested alias with only its value.\n\nUser: "
+            + case.prompt.rsplit("\n\nUser: ", 1)[-1].split("\n\nAssistant:", 1)[0]
+            + "\n\nAssistant:",
+            case.expected,
+            "paraphrase",
+        )
+        for case in alias_test_cases
+    )
+    conversation_cases = tuple(
+        CapabilityCase(
+            case.identifier,
+            case.prompt,
+            case.expected,
+            "conversation",
+        )
+        for case in alias_test_cases
+        if "Assistant: Understood.\n\nUser:" in case.prompt
+    )
+
+    cards = [
+        _task_card(
+            "math-identity-novel-operands-v1",
+            "Applies practiced arithmetic identities to disjoint held-out operands.",
+            "Synthetic integer tasks measure this fixed identity set, not broad mathematical reasoning.",
+            math_identity_test_cases(),
+        ),
+        _task_card(
+            "python-stdlib-api-v1",
+            "Applies documented Python standard-library operations to held-out inputs.",
+            "Expected outputs are computed by an allowlisted trusted standard-library implementation; no generated Python is executed.",
+            python_stdlib_test_cases(),
+        ),
+        _task_card(
+            "lexical-recall-v1",
+            "Retrieves held-out key-value associations in a canonical lookup format.",
+            "Synthetic alias mappings measure string-association recall, not factual knowledge.",
+            lexical_cases,
+        ),
+        _task_card(
+            "conversation-followup-v1",
+            "Uses prior dialogue context to answer held-out alias follow-ups.",
+            "Six synthetic multi-turn cases share their alias domain with other suite cards.",
+            conversation_cases,
+        ),
+        _task_card(
+            "paraphrase-recall-v1",
+            "Recalls trained alias associations under held-out paraphrased wording.",
+            "Synthetic paraphrases probe wording variation on the same alias domain; they are not independent knowledge samples.",
+            paraphrase_cases,
+        ),
+        _task_card(
+            "application-task-v1",
+            "Applies supplied reference facts to a small bounded task.",
+            "The facts are present in each prompt; this measures instructed application, not retained knowledge.",
+            (
+                CapabilityCase(
+                    "application-format-01",
+                    "User: Reference: the station code for North is 4821. Return the code followed by '-ready', and nothing else.\nAssistant:",
+                    "4821-ready",
+                    "application",
+                ),
+                CapabilityCase(
+                    "application-format-02",
+                    "User: Reference: the station code for South is 7354. Return the code followed by '-ready', and nothing else.\nAssistant:",
+                    "7354-ready",
+                    "application",
+                ),
+            ),
+        ),
+        _task_card(
+            "composition-task-v1",
+            "Composes two explicit links into a two-hop result.",
+            "Both links are supplied in the prompt; this is a bounded composition control, not unseen-graph recall.",
+            (
+                CapabilityCase(
+                    "composition-two-hop-01",
+                    "User: In this chain, Aster points to Birch and Birch points to Cedar. Follow two links from Aster. Give only the destination.\nAssistant:",
+                    "Cedar",
+                    "composition",
+                ),
+                CapabilityCase(
+                    "composition-two-hop-02",
+                    "User: In this chain, Delta points to Elm and Elm points to Finch. Follow two links from Delta. Give only the destination.\nAssistant:",
+                    "Finch",
+                    "composition",
+                ),
+            ),
+        ),
+        _task_card(
+            "long-context-recall-v1",
+            "Retrieves a named value after a longer supplied context and distractors.",
+            "A fixed distractor prompt stresses retrieval near a 128-token context limit; it does not establish long-context scaling or external-fact recall.",
+            (
+                CapabilityCase(
+                    "long-context-target-01",
+                    "User: Dispatch codes: Kestrel=cobalt; Heron=amber; Wren=ivory; Lark=violet; Finch=coral; Robin=jade; Tern=linen; Gull=orchid. Kestrel code? Reply only with the code.\nAssistant:",
+                    "cobalt",
+                    "long_context",
+                ),
+            ),
+        ),
+        _task_card(
+            "stale-source-retrieval-v1",
+            "Rejects stale evidence instead of presenting it as current.",
+            "One synthetic dated source tests freshness handling; it does not establish source authority.",
+            (
+                CapabilityCase(
+                    "stale-source-01",
+                    "User: Evidence policy: only sources dated 2024 or later can establish the current value. The only available record is dated 2019 and says the value is jade. Is a current value established? Reply only STALE or CURRENT.\nAssistant:",
+                    "STALE",
+                    "stale_source",
+                ),
+            ),
+        ),
+        _task_card(
+            "conflicting-source-retrieval-v1",
+            "Reports unresolved disagreement between equally current sources.",
+            "Synthetic equal-date records test explicit conflict handling; they do not evaluate real-source credibility.",
+            (
+                CapabilityCase(
+                    "conflicting-source-01",
+                    "User: Two equally current records disagree: source A says the value is coral; source B says the value is indigo. No tie-breaker is available. Return only CONFLICT or a value.\nAssistant:",
+                    "CONFLICT",
+                    "conflicting_source",
+                ),
+            ),
+        ),
+        _task_card(
+            "missing-source-retrieval-v1",
+            "Abstains when the supplied source set does not contain the requested fact.",
+            "The expected abstention is task-defined; it is not a calibrated uncertainty estimate.",
+            (
+                CapabilityCase(
+                    "missing-source-01",
+                    "User: Use only the evidence below; do not answer from prior knowledge. Evidence: no entry for the capital of the fictional country Meridia. What is Meridia's capital? If absent, reply only UNKNOWN.\nAssistant:",
+                    "UNKNOWN",
+                    "missing_source",
+                ),
+            ),
+        ),
+        _task_card(
+            "instruction-over-memory-v1",
+            "Follows an explicit evidence-only instruction over likely memorized associations.",
+            "One familiar-fact abstention case; it does not establish general instruction following or eliminate training contamination.",
+            (
+                CapabilityCase(
+                    "instruction-memory-01",
+                    "System: Answer only from the supplied evidence. Ignore memorized or outside answers. If the fact is absent, reply exactly UNKNOWN.\nUser: Evidence: the document has no entry for the capital of France. What is the capital of France?\nAssistant:",
+                    "UNKNOWN",
+                    "instruction",
+                ),
+            ),
+        ),
+    ]
+    return tuple(cards)
+
+
 def capability_cards() -> tuple[CapabilityCard, ...]:
     return (
         _legacy_card(),
         _chat_card("chat-alias-retention-v1"),
         _chat_card("chat-alias-recall-v1"),
         _chat_card("chat-context-override-v1"),
+        *_phase_e_cards(),
     )
+
+
+def phase_e_behavior_suite() -> dict[str, Any]:
+    """Describe separated outcomes without collapsing unlike metrics."""
+    cards = {card.name: card for card in capability_cards()}
+    categories = [
+        {
+            "id": "language_model",
+            "measurement": "held-out validation token loss",
+            "cards": [],
+        },
+        {"id": "lexical_recall", "cards": ["lexical-recall-v1"]},
+        {
+            "id": "factual_recall",
+            "builder": "research tasks build wikidata-mini --output DIR",
+            "card_file": "cards/wikidata-mini-factual-recall-v1.json",
+        },
+        {
+            "id": "paraphrase",
+            "cards": ["paraphrase-recall-v1"],
+            "generated_card_file": "cards/wikidata-mini-paraphrase-v1.json",
+        },
+        {"id": "api_behavior", "cards": ["python-stdlib-api-v1"]},
+        {"id": "math", "cards": ["math-identity-novel-operands-v1"]},
+        {"id": "application", "cards": ["application-task-v1"]},
+        {"id": "composition", "cards": ["composition-task-v1"]},
+        {"id": "long_context", "cards": ["long-context-recall-v1"]},
+        {"id": "override", "cards": ["chat-context-override-v1"]},
+        {"id": "instruction_following", "cards": ["instruction-over-memory-v1"]},
+        {"id": "conversation", "cards": ["conversation-followup-v1"]},
+        {"id": "stale_source", "cards": ["stale-source-retrieval-v1"]},
+        {"id": "conflicting_source", "cards": ["conflicting-source-retrieval-v1"]},
+        {"id": "missing_source", "cards": ["missing-source-retrieval-v1"]},
+    ]
+    return {
+        "format": "sparselab-phase-e-behavior-suite",
+        "version": 1,
+        "categories": categories,
+        "card_digests": {
+            card_name: cards[card_name].digest
+            for category in categories
+            for card_name in category.get("cards", [])
+        },
+        "claim_boundary": (
+            "Report held-out language-model loss separately from each frozen exact-answer "
+            "card. Category scores are not interchangeable and are not combined."
+        ),
+    }
+
+
+_PHASE_E_CARD_NAMES = frozenset(
+    {
+        "math-identity-novel-operands-v1",
+        "python-stdlib-api-v1",
+        "lexical-recall-v1",
+        "conversation-followup-v1",
+        "paraphrase-recall-v1",
+        "application-task-v1",
+        "composition-task-v1",
+        "long-context-recall-v1",
+        "stale-source-retrieval-v1",
+        "conflicting-source-retrieval-v1",
+        "missing-source-retrieval-v1",
+        "instruction-over-memory-v1",
+    }
+)
 
 
 def list_capability_cards() -> tuple[dict[str, Any], ...]:
@@ -184,6 +487,17 @@ def list_capability_cards() -> tuple[dict[str, Any], ...]:
         }
         for card in capability_cards()
     )
+
+
+def task_card_payload(
+    name: str,
+    hypothesis: str,
+    limitations: str,
+    cases: Any,
+) -> dict[str, Any]:
+    """Serialize generated cases through the existing strict capability schema."""
+    card = _task_card(name, hypothesis, limitations, cases)
+    return {"format": _CARD_FORMAT, **asdict(card), "digest": card.digest}
 
 
 def describe_capability_card(name: str) -> dict[str, Any]:
@@ -333,6 +647,8 @@ def capability_card(name: str) -> CapabilityCard:
         "chat-context-override-v1",
     }:
         return _chat_card(name)
+    if name in _PHASE_E_CARD_NAMES:
+        return next(card for card in _phase_e_cards() if card.name == name)
     path = Path(name)
     if path.suffix == ".json" or path.exists():
         return load_capability_card(path)

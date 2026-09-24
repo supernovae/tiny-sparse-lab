@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
@@ -18,7 +25,12 @@ from sparselab.data.withheld_facts import (
     verify_manifest,
     write_manifest,
 )
-from sparselab.engram.packs import compile_pack, inspect_pack, verify_pack
+from sparselab.engram.packs import (
+    _rename_noreplace,
+    compile_pack,
+    inspect_pack,
+    verify_pack,
+)
 from sparselab.evaluation.byte_memory_transfer import transfer_byte_memory
 from sparselab.evaluation.capabilities import (
     capability_card,
@@ -26,6 +38,8 @@ from sparselab.evaluation.capabilities import (
     describe_capability_card,
     evaluate_capability,
     list_capability_cards,
+    phase_e_behavior_suite,
+    task_card_payload,
     write_capability_result,
 )
 from sparselab.evaluation.chat import ChatMessage, assistant_reply, prepare_chat_prompt
@@ -534,6 +548,450 @@ def _capability_compare(args: argparse.Namespace) -> None:
     print(json.dumps({**result, "output": str(path)}, indent=2, sort_keys=True))
 
 
+def _capability_suite(args: argparse.Namespace) -> None:
+    del args
+    print(json.dumps(phase_e_behavior_suite(), indent=2, sort_keys=True))
+
+
+def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _read_strict_json(path: Path, *, max_bytes: int = 2 * 1024 * 1024) -> object:
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as error:
+        raise ValueError(f"cannot open JSON input {path}: {error}") from error
+    with os.fdopen(descriptor, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"JSON input must be a regular file: {path}")
+        if info.st_size > max_bytes:
+            raise ValueError(f"JSON input exceeds {max_bytes} byte limit: {path}")
+        content = handle.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise ValueError(f"JSON input exceeds {max_bytes} byte limit: {path}")
+    try:
+        return json.loads(
+            content.decode("utf-8"),
+            object_pairs_hook=_strict_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read strict JSON from {path}: {error}") from error
+
+
+def _write_json_exclusive(path: Path, value: object) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    )
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return path
+
+
+def _task_jsonl(cases: Iterable[Any]) -> bytes:
+    records: list[bytes] = []
+    for case in cases:
+        record = {
+            "messages": [
+                {"role": "user", "content": case.prompt},
+                {"role": "assistant", "content": case.expected},
+            ]
+        }
+        records.append(
+            json.dumps(
+                record,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            + b"\n"
+        )
+    if not records:
+        raise ValueError("task split must not be empty")
+    return b"".join(records)
+
+
+def _task_inventory(directory: Path) -> list[dict[str, object]]:
+    files: list[dict[str, object]] = []
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"generated task bundle contains a symlink: {path}")
+        if path.is_file() and path.relative_to(directory) != Path("manifest.json"):
+            content = path.read_bytes()
+            files.append(
+                {
+                    "path": path.relative_to(directory).as_posix(),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                    "size_bytes": len(content),
+                }
+            )
+    return files
+
+
+def _build_phase_e_tasks(args: argparse.Namespace) -> None:
+    from sparselab.data.phase_e_tasks import (
+        build_wikidata_mini,
+        load_wikidata_mini_cases,
+        math_identity_test_cases,
+        math_identity_training_cases,
+        math_identity_validation_cases,
+        python_stdlib_test_cases,
+        python_stdlib_training_cases,
+        python_stdlib_validation_cases,
+        wikidata_mini_spec,
+    )
+
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if os.path.lexists(output):
+        raise FileExistsError(f"refusing to overwrite task bundle: {output}")
+    staging = Path(
+        tempfile.mkdtemp(prefix=f".{output.name}.phase-e-", dir=output.parent)
+    )
+    try:
+        if args.task == "wikidata-mini":
+            if args.seed != 17:
+                raise ValueError(
+                    "wikidata-mini uses fixed source revisions and no seed"
+                )
+            source = staging / "source"
+            build_wikidata_mini(source)
+            cases = load_wikidata_mini_cases(source, split="test")
+            factual = tuple(case for case in cases if case.kind == "factual_recall")
+            paraphrase = tuple(case for case in cases if case.kind == "paraphrase")
+            cards = staging / "cards"
+            cards.mkdir()
+            payloads = (
+                task_card_payload(
+                    "wikidata-mini-factual-recall-v1",
+                    "Recalls date facts from train-only exposure to pinned Wikidata entities.",
+                    "Four-entity fixture with CC0 source facts and MIT prompts; not a broad factual-knowledge benchmark.",
+                    factual,
+                ),
+                task_card_payload(
+                    "wikidata-mini-paraphrase-v1",
+                    "Retrieves held-out entity facts under alternate question wording.",
+                    "The answers derive only from pinned Wikidata test-entity revisions and must not enter training.",
+                    paraphrase,
+                ),
+            )
+            for payload in payloads:
+                card_path = cards / f"{payload['name']}.json"
+                card_path.write_text(
+                    json.dumps(
+                        payload,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        indent=2,
+                        allow_nan=False,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+            source_manifest = json.loads(
+                (source / "manifest.json").read_text(encoding="utf-8")
+            )
+            details = {
+                "task": args.task,
+                "seed": None,
+                "license": "MIT prompts/format; CC0-1.0 Wikidata facts",
+                "source_data_license": "CC0-1.0",
+                "generated_artifact_license": "MIT",
+                "source_manifest": wikidata_mini_spec(),
+                "source_manifest_sha256": source_manifest["source_manifest_sha256"],
+                "train_paths": ["source/train.jsonl"],
+                "validation_paths": ["source/validation.jsonl"],
+                "held_out_cards": [
+                    f"cards/{payload['name']}.json" for payload in payloads
+                ],
+                "split_unit": "entity",
+                "test_answers_used_for_training": False,
+            }
+        else:
+            if args.task == "math-identities":
+                train = math_identity_training_cases(args.seed)
+                validation = math_identity_validation_cases(args.seed)
+                test = math_identity_test_cases(args.seed)
+                card_name = "math-identity-novel-operands-v1"
+                hypothesis = "Applies practiced arithmetic identities to disjoint held-out operands."
+                limitations = "Synthetic integer tasks measure this fixed identity set, not broad mathematical reasoning."
+                answer_method = "integer arithmetic over generated operands"
+            elif args.task == "python-stdlib":
+                train = python_stdlib_training_cases(args.seed)
+                validation = python_stdlib_validation_cases(args.seed)
+                test = python_stdlib_test_cases(args.seed)
+                card_name = "python-stdlib-api-v1"
+                hypothesis = "Applies documented Python standard-library operations to held-out inputs."
+                limitations = "Expected outputs use a finite trusted standard-library allowlist; generated Python is never executed."
+                answer_method = "direct calls to fixed standard-library functions"
+            else:
+                raise ValueError(f"unknown Phase E task bundle: {args.task}")
+
+            (staging / "train.jsonl").write_bytes(_task_jsonl(train))
+            (staging / "validation.jsonl").write_bytes(_task_jsonl(validation))
+            cases_path = staging / "test-cases.json"
+            cases_path.write_text(
+                json.dumps(
+                    [asdict(case) for case in test],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                    allow_nan=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            cards = staging / "cards"
+            cards.mkdir()
+            payload = task_card_payload(card_name, hypothesis, limitations, test)
+            (cards / f"{card_name}.json").write_text(
+                json.dumps(
+                    payload,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                    allow_nan=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            details = {
+                "task": args.task,
+                "seed": args.seed,
+                "license": "MIT",
+                "provenance": "SparseLab-authored synthetic tasks; no upstream benchmark solutions.",
+                "answer_method": answer_method,
+                "train_paths": ["train.jsonl"],
+                "validation_paths": ["validation.jsonl"],
+                "held_out_cards": [f"cards/{card_name}.json"],
+                "test_answers_used_for_training": False,
+            }
+
+        manifest = {
+            "format": "sparselab-phase-e-task-bundle",
+            "version": 1,
+            **details,
+            "files": _task_inventory(staging),
+        }
+        (staging / "manifest.json").write_text(
+            json.dumps(
+                manifest,
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+                allow_nan=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        _rename_noreplace(staging, output)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    print(
+        json.dumps({"output": str(output), "manifest": str(output / "manifest.json")})
+    )
+
+
+def _research_corpus_mine(args: argparse.Namespace) -> None:
+    from sparselab.data.lexical_mining import analyze_training_corpus
+
+    result = analyze_training_corpus(
+        Path(args.train_jsonl),
+        Path(args.tokenizer),
+        table_size=args.table_size,
+        memory_dim=args.memory_dim,
+        ngram_orders=tuple(args.ngram_orders),
+        hash_heads=args.hash_heads,
+    )
+    output = _write_json_exclusive(Path(args.output), result)
+    print(
+        json.dumps(
+            {"output": str(output), "analysis_sha256": result["analysis_sha256"]}
+        )
+    )
+
+
+def _valid_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _review_records_from_results(base: object, variant: object) -> list[dict[str, str]]:
+    if not isinstance(base, dict) or not isinstance(variant, dict):
+        raise TypeError("capability results must be JSON objects")
+    for label, result in (("base", base), ("variant", variant)):
+        if (
+            result.get("format") != "capability_result_v2"
+            or result.get("valid") is not True
+            or not isinstance(result.get("identity"), dict)
+            or not isinstance(result.get("results"), list)
+        ):
+            raise ValueError(f"{label} capability result is invalid or incomplete")
+        result_digest = result.get("result_digest")
+        if not _valid_sha256(result_digest):
+            raise ValueError(f"{label} capability result lacks a content digest")
+        body = {key: value for key, value in result.items() if key != "result_digest"}
+        canonical = json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != result_digest:
+            raise ValueError(f"{label} capability result digest mismatch")
+        if not _valid_sha256(result.get("card_digest")) or not _valid_sha256(
+            result.get("evaluation_source_sha256")
+        ):
+            raise ValueError(f"{label} capability result lacks card/evaluator digests")
+        if not _valid_sha256(result["identity"].get("checkpoint_sha256")):
+            raise ValueError(f"{label} capability result lacks checkpoint identity")
+    if (
+        base["card_digest"] != variant["card_digest"]
+        or base["evaluation_source_sha256"] != variant["evaluation_source_sha256"]
+    ):
+        raise ValueError("capability results must share card and evaluator identities")
+
+    def cases(result: dict[str, object], label: str) -> dict[str, dict[str, str]]:
+        indexed: dict[str, dict[str, str]] = {}
+        for raw in result["results"]:
+            if not isinstance(raw, dict):
+                raise TypeError(f"{label} capability result has a malformed case")
+            required = ("id", "prompt", "expected", "response")
+            if not all(isinstance(raw.get(key), str) and raw[key] for key in required):
+                raise ValueError(f"{label} capability result case is incomplete")
+            identifier = raw["id"]
+            if identifier in indexed:
+                raise ValueError(f"{label} capability result has duplicate case IDs")
+            indexed[identifier] = {key: raw[key] for key in required}
+        return indexed
+
+    base_cases, variant_cases = cases(base, "base"), cases(variant, "variant")
+    if not base_cases or set(base_cases) != set(variant_cases):
+        raise ValueError("capability results must contain the same nonempty case set")
+    records: list[dict[str, str]] = []
+    for identifier in sorted(base_cases):
+        left, right = base_cases[identifier], variant_cases[identifier]
+        if left["prompt"] != right["prompt"] or left["expected"] != right["expected"]:
+            raise ValueError(f"capability case {identifier} differs across results")
+        records.extend(
+            (
+                {
+                    "case_id": identifier,
+                    "prompt": left["prompt"],
+                    "condition": "baseline",
+                    "response": left["response"],
+                    "source_id": base["result_digest"],
+                },
+                {
+                    "case_id": identifier,
+                    "prompt": right["prompt"],
+                    "condition": "variant",
+                    "response": right["response"],
+                    "source_id": variant["result_digest"],
+                },
+            )
+        )
+    return records
+
+
+def _review_bundle(args: argparse.Namespace) -> None:
+    from sparselab.evaluation.human_review import create_review_bundle
+
+    if args.records:
+        if args.variant_result:
+            raise ValueError("--variant-result requires --base-result")
+        records = _read_strict_json(Path(args.records))
+    else:
+        if not args.variant_result:
+            raise ValueError(
+                "--base-result and --variant-result must be supplied together"
+            )
+        records = _review_records_from_results(
+            _read_strict_json(Path(args.base_result)),
+            _read_strict_json(Path(args.variant_result)),
+        )
+    criteria = _read_strict_json(Path(args.criteria))
+    bundle, reveal_map = create_review_bundle(records, criteria, args.seed)
+    bundle_path, reveal_path = Path(args.bundle), Path(args.reveal_map)
+    if bundle_path.resolve() == reveal_path.resolve():
+        raise ValueError("review bundle and reveal map must be separate files")
+    created_bundle = _write_json_exclusive(bundle_path, bundle)
+    try:
+        _write_json_exclusive(reveal_path, reveal_map)
+    except BaseException:
+        created_bundle.unlink(missing_ok=True)
+        raise
+    print(
+        json.dumps(
+            {
+                "bundle": str(bundle_path),
+                "bundle_digest": bundle["bundle_digest"],
+                "reveal_map": str(reveal_path),
+                "reveal_map_digest": reveal_map["reveal_map_digest"],
+            },
+            sort_keys=True,
+        )
+    )
+
+
+def _review_validate(args: argparse.Namespace) -> None:
+    from sparselab.evaluation.human_review import validate_review_judgments
+
+    bundle_path, judgments_path, output_path = (
+        Path(args.bundle),
+        Path(args.judgments),
+        Path(args.output),
+    )
+    if output_path.resolve() in {bundle_path.resolve(), judgments_path.resolve()}:
+        raise ValueError("normalized judgment output must not overwrite an input")
+    bundle = _read_strict_json(bundle_path)
+    judgments = _read_strict_json(judgments_path)
+    normalized = validate_review_judgments(bundle, judgments)
+    output = _write_json_exclusive(output_path, normalized)
+    print(
+        json.dumps(
+            {
+                "output": str(output),
+                "bundle_digest": normalized["bundle_digest"],
+                "judgment_count": len(normalized["judgments"]),
+            },
+            sort_keys=True,
+        )
+    )
+
+
 def _study_plan(args: argparse.Namespace) -> None:
     from sparselab.experiments.study import plan_study, study_plan_payload
 
@@ -1031,6 +1489,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     capability_list = capability_commands.add_parser("list")
     capability_list.set_defaults(handler=_capability_list)
+    capability_suite = capability_commands.add_parser(
+        "suite", help="List separated Phase E outcome categories and frozen cards."
+    )
+    capability_suite.set_defaults(handler=_capability_suite)
     capability_describe = capability_commands.add_parser("describe")
     capability_describe.add_argument(
         "card", help="Built-in card name or declarative JSON file"
@@ -1114,7 +1576,8 @@ def build_parser() -> argparse.ArgumentParser:
     study_report.set_defaults(handler=_study_report)
 
     research = commands.add_parser(
-        "research", help="Discover and scaffold controlled hypothesis studies."
+        "research",
+        help="Discover studies, build Phase E tasks, and mine training-only corpus statistics.",
     )
     research_commands = research.add_subparsers(dest="research_command", required=True)
     research_list = research_commands.add_parser("list")
@@ -1146,6 +1609,55 @@ def build_parser() -> argparse.ArgumentParser:
         default="default",
     )
     research_scaffold.set_defaults(handler=_research_scaffold)
+    research_tasks = research_commands.add_parser(
+        "tasks", help="Build provenance-bound train and held-out task artifacts."
+    )
+    task_commands = research_tasks.add_subparsers(dest="task_command", required=True)
+    task_build = task_commands.add_parser("build")
+    task_build.add_argument(
+        "task", choices=("math-identities", "python-stdlib", "wikidata-mini")
+    )
+    task_build.add_argument("--output", required=True)
+    task_build.add_argument("--seed", type=int, default=17)
+    task_build.set_defaults(handler=_build_phase_e_tasks)
+    research_corpus = research_commands.add_parser(
+        "corpus",
+        help="Measure token statistics on one explicitly supplied train split.",
+    )
+    corpus_commands = research_corpus.add_subparsers(
+        dest="corpus_command", required=True
+    )
+    corpus_mine = corpus_commands.add_parser("mine")
+    corpus_mine.add_argument("--train-jsonl", required=True)
+    corpus_mine.add_argument("--tokenizer", required=True)
+    corpus_mine.add_argument("--table-size", type=int, required=True)
+    corpus_mine.add_argument("--memory-dim", type=int, required=True)
+    corpus_mine.add_argument("--ngram-orders", type=int, nargs="+", required=True)
+    corpus_mine.add_argument("--hash-heads", type=int, default=1)
+    corpus_mine.add_argument("--output", required=True)
+    corpus_mine.set_defaults(handler=_research_corpus_mine)
+
+    review = commands.add_parser(
+        "review", help="Create blinded human-review bundles and validate judgments."
+    )
+    review_commands = review.add_subparsers(dest="review_command", required=True)
+    review_bundle = review_commands.add_parser("bundle")
+    source = review_bundle.add_mutually_exclusive_group(required=True)
+    source.add_argument("--records", help="Paired candidate record JSON")
+    source.add_argument("--base-result", help="First capability_result_v2 JSON")
+    review_bundle.add_argument(
+        "--variant-result", help="Second capability_result_v2 JSON, paired by case ID"
+    )
+    review_bundle.add_argument("--criteria", required=True)
+    review_bundle.add_argument("--seed", type=int, required=True)
+    review_bundle.add_argument("--bundle", required=True)
+    review_bundle.add_argument("--reveal-map", required=True)
+    review_bundle.set_defaults(handler=_review_bundle)
+    review_validate = review_commands.add_parser("validate")
+    review_validate.add_argument("--bundle", required=True)
+    review_validate.add_argument("--judgments", required=True)
+    review_validate.add_argument("--output", required=True)
+    review_validate.set_defaults(handler=_review_validate)
 
     learn = commands.add_parser(
         "learn", help="Learn and probe one mechanism without a campaign."
