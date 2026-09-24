@@ -266,6 +266,7 @@ def _study_readme(
     coordinates: list[dict[str, object]],
     run_count: int,
     pair_count: int,
+    factorial_count: int,
 ) -> str:
     profile = load_datasets().datasets[data]
     choices = "\n".join(
@@ -300,7 +301,7 @@ sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --stop-af
 - Dataset `{data}`: {profile.notes[0]} {profile.notes[-1]}
 - Source and rights: {profile.license} [{profile.source_url}]({profile.source_url})
 - Dataset seed `{profile.dataset_seed}` is independent of model seeds `{", ".join(map(str, _SEEDS))}`.
-- Scale `{scale}`; backend `{backend}`; design `{design}`. The recipe has {run_count} planned coordinates and {pair_count} declared pairs.
+- Scale `{scale}`; backend `{backend}`; design `{design}`. The recipe has {run_count} planned coordinates, {pair_count} declared pairs, and {factorial_count} versioned 2×2 factorial designs.
 - Other supported profiles (scale is independent of data and budget):
 {choices}
 - Tokenizer fitting uses only the declared training prefix. Held-out validation and capability-card examples are not tokenizer inputs. Preparation can access network/cache only when the explicit `data prepare` command is run for TinyStories.
@@ -485,6 +486,7 @@ def scaffold_research(
             coordinates,
             len(planned.expanded),
             len(planned.pairs),
+            len(scale_recipe.factorial_designs),
         )
         _write(temporary / "README.md", readme)
         source_inputs = {
@@ -523,6 +525,9 @@ def scaffold_research(
             "entry": _entry_payload(entry),
             "entry_sha256": entry_digest,
             "recipe_sha256": recipe_digest,
+            "factorial_designs": [
+                item.model_dump(mode="json") for item in scale_recipe.factorial_designs
+            ],
             "selection": {
                 "scale": scale,
                 "data": data,

@@ -85,6 +85,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -217,6 +228,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -349,6 +371,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -481,6 +514,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -635,6 +679,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -859,6 +914,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -1083,6 +1149,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",
@@ -1307,6 +1384,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "mla-memory-interaction",
+            "factors": [
+              {"axis": "attention", "control": "dense", "treatment": "mla-half"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense",

@@ -24,6 +24,7 @@ from sparselab.research.catalog import (
     list_lessons,
     list_research,
     load_profiles,
+    load_recipe,
     load_research,
 )
 from sparselab.research.probe import probe_model
@@ -81,6 +82,33 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
     assert set(profiles) == {"smoke", "nano", "micro", "tiny"}
     assert [profiles[name].hidden_dim for name in profiles] == [64, 128, 320, 512]
 
+    recipes = {entry.id: load_recipe(entry) for entry in entries}
+    expected_factorial_recipes = {
+        "engram-ffn-substitution-v1",
+        "engram-mla-compression-v1",
+        "engram-moe-capacity-v1",
+        "engram-sparse-budget-v1",
+    }
+    assert {
+        recipe_id
+        for recipe_id, recipe in recipes.items()
+        if recipe.designs["default"]["smoke"].factorial_designs
+    } == expected_factorial_recipes
+    assert [
+        factor.axis
+        for factor in recipes["engram-mla-compression-v1"]
+        .designs["latent-sweep"]["smoke"]
+        .factorial_designs[0]
+        .factors
+    ] == ["attention", "memory"]
+    assert [
+        factor.axis
+        for factor in recipes["engram-sparse-budget-v1"]
+        .designs["budget-sweep"]["smoke"]
+        .factorial_designs[0]
+        .factors
+    ] == ["attention", "memory"]
+
     invalid = entries[0].model_dump(mode="json")
     invalid["version"] = True
     with pytest.raises(ValidationError, match="version must be integer 1"):
@@ -113,6 +141,11 @@ def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     assert len(plan.expanded) == 18
     assert len(plan.pairs) == 21
     assert {item.config.seed for item in plan.expanded} == {17, 41, 73}
+    assert metadata["factorial_designs"][0]["id"] == "wide-vs-narrow-memory"
+    assert metadata["factorial_designs"][0]["version"] == 1
+    assert "1 versioned 2×2 factorial designs" in (output / "README.md").read_text(
+        encoding="utf-8"
+    )
     assert len({item["config_sha256"] for item in metadata["coordinates"]}) == 18
     for item in metadata["inputs"]:
         content = (output / item["path"]).read_bytes()

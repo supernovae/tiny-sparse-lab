@@ -98,6 +98,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "wide-vs-narrow-memory",
+            "factors": [
+              {"axis": "width", "control": "4x", "treatment": "1x"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-4x",
@@ -291,6 +302,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "wide-vs-narrow-memory",
+            "factors": [
+              {"axis": "width", "control": "4x", "treatment": "1x"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-4x",
@@ -484,6 +506,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "wide-vs-narrow-memory",
+            "factors": [
+              {"axis": "width", "control": "4x", "treatment": "1x"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-4x",
@@ -677,6 +710,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "wide-vs-narrow-memory",
+            "factors": [
+              {"axis": "width", "control": "4x", "treatment": "1x"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-4x",

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import (
+    Field,
     StrictBool,
     StrictInt,
     StrictStr,
@@ -167,10 +168,68 @@ class MatrixOption(StrictModel):
     set: dict[StrictStr, object]
 
 
+class FactorialFactor(StrictModel):
+    axis: StrictStr
+    control: StrictStr
+    treatment: StrictStr
+
+    @model_validator(mode="after")
+    def validate_levels(self) -> FactorialFactor:
+        if not self.axis or not self.control or not self.treatment:
+            raise ValueError("factorial axis and levels must be nonempty")
+        if self.control == self.treatment:
+            raise ValueError("factorial control and treatment must differ")
+        return self
+
+
+class FactorialDesign(_Versioned):
+    format: Literal["sparselab-factorial-design"]
+    version: Literal[1]
+    id: StrictStr
+    factors: tuple[FactorialFactor, FactorialFactor]
+
+    @field_validator("id")
+    @classmethod
+    def valid_id(cls, value: str) -> str:
+        if not _ID.fullmatch(value):
+            raise ValueError("factorial design id must be lowercase kebab case")
+        return value
+
+    @model_validator(mode="after")
+    def validate_factors(self) -> FactorialDesign:
+        if self.factors[0].axis == self.factors[1].axis:
+            raise ValueError("factorial factors must use distinct axes")
+        return self
+
+
 class ScaleRecipe(StrictModel):
     base_set: dict[StrictStr, object]
     axes: dict[StrictStr, list[MatrixOption]]
     comparisons: list[dict[str, object]]
+    factorial_designs: list[FactorialDesign] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_factorial_designs(self) -> ScaleRecipe:
+        identifiers = [design.id for design in self.factorial_designs]
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError("factorial design ids must be unique")
+        for design in self.factorial_designs:
+            for factor in design.factors:
+                options = self.axes.get(factor.axis)
+                if options is None:
+                    raise ValueError(
+                        f"factorial {design.id} uses unknown axis {factor.axis!r}"
+                    )
+                labels = [option.label for option in options]
+                if len(set(labels)) != len(labels):
+                    raise ValueError(
+                        f"factorial axis {factor.axis!r} has duplicate labels"
+                    )
+                if factor.control not in labels or factor.treatment not in labels:
+                    raise ValueError(
+                        f"factorial {design.id} levels must exist on {factor.axis!r}"
+                    )
+        return self
 
 
 class ResearchRecipe(_Versioned):

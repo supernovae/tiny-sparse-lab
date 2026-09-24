@@ -21,6 +21,7 @@ from typing import Any
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.evaluation.capabilities import _passes
 from sparselab.evaluation.evidence import experiment_evidence
+from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
 from sparselab.experiments.study import (
     _comparison_report,
@@ -251,6 +252,16 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
         raise ValueError(
             "research source files differ from declared entry or selection"
         )
+    scale_recipe = recipe_scales[selection["scale"]]
+    factorial_designs = [
+        item.model_dump(mode="json") for item in scale_recipe.factorial_designs
+    ]
+    if metadata.get("factorial_designs", []) != factorial_designs:
+        raise ValueError("research factorial designs differ from the bound recipe")
+    design_axes = {
+        axis: [{"label": option.label, "set": option.set} for option in options]
+        for axis, options in scale_recipe.axes.items()
+    }
     return {
         "sha256": _sha(raw),
         "research_sha256": metadata["research_sha256"],
@@ -265,6 +276,8 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
             "sha256": source_hashes["research_sources/profiles.json"],
             "profile": profiles.scales[selection["scale"]].model_dump(mode="json"),
         },
+        "factorial_designs": factorial_designs,
+        "design_axes": design_axes,
     }
 
 
@@ -1030,6 +1043,32 @@ def build_study_report(
         }
         for item in study.cards
     ]
+    research_analysis: dict[str, object] | None = None
+    if research is not None:
+        research_metadata = research.get("metadata")
+        analysis_entry = (
+            research_metadata.get("entry")
+            if isinstance(research_metadata, dict)
+            else None
+        )
+        analysis_selection = (
+            research_metadata.get("selection")
+            if isinstance(research_metadata, dict)
+            else None
+        )
+        if not isinstance(analysis_entry, dict) or not isinstance(
+            analysis_selection, dict
+        ):
+            raise ValueError("validated research analysis inputs are unavailable")
+        research_analysis = build_research_analysis(
+            evaluated,
+            entry=analysis_entry,
+            selection=analysis_selection,
+            factorial_designs=research.get("factorial_designs"),
+            design_axes=research.get("design_axes"),
+            quantities=quantities,
+            cards=cards,
+        )
     report_inputs: dict[str, object] = {
         "study_sha256": study.study_sha256,
         "matrix_sha256": study.matrix_sha256,
@@ -1054,6 +1093,7 @@ def build_study_report(
         "research": research,
         "cards": cards,
         "runs": evaluated,
+        "research_analysis": research_analysis,
         "comparisons": comparisons,
         "architectural_quantities": quantities,
         "implementation_quantities": {
@@ -1073,6 +1113,10 @@ def build_study_report(
             "Static report rendering does not train, load a model, or evaluate cards.",
             "Collected report values are checksummed evidence, not a new experiment attestation.",
             "Cache shapes are configuration-derived templates, not live request allocations.",
+            "Factorial effects require four matched endpoint cells; missing or identity-mismatched cells remain inconclusive.",
+            "Nondominance uses declared directions and exact observations; it is not a significance or winner claim.",
+            "Allocation heatmaps show configuration-derived parameter inventories, not measured runtime cost.",
+            "Boundary sweeps show configured levels only; no failure threshold is inferred.",
             "Monetary cost is unavailable without billing or energy-meter evidence.",
         ],
         "reproducibility_commands": [
@@ -1182,6 +1226,7 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
         "<h2>Runs and endpoints</h2>"
         f"{runs_table}<h2>Observed comparisons</h2>"
         f"{block('Comparisons', report.get('comparisons', []))}"
+        f"{block('Research analyses', report.get('research_analysis', {}))}"
         f"{block('Architectural quantities and cache layouts', report.get('architectural_quantities', []))}"
         f"{block('Implementation telemetry', report.get('implementation_quantities', {}))}"
         f"{block('Measured costs and missing values', report.get('costs', {}))}"

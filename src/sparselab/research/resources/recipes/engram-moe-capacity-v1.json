@@ -98,6 +98,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "expert-capacity-memory",
+            "factors": [
+              {"axis": "capacity", "control": "dense-2x", "treatment": "moe"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense-2x",
@@ -297,6 +308,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "expert-capacity-memory",
+            "factors": [
+              {"axis": "capacity", "control": "dense-2x", "treatment": "moe"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense-2x",
@@ -496,6 +518,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "expert-capacity-memory",
+            "factors": [
+              {"axis": "capacity", "control": "dense-2x", "treatment": "moe"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense-2x",
@@ -695,6 +728,17 @@
             }
           ]
         },
+        "factorial_designs": [
+          {
+            "format": "sparselab-factorial-design",
+            "version": 1,
+            "id": "expert-capacity-memory",
+            "factors": [
+              {"axis": "capacity", "control": "dense-2x", "treatment": "moe"},
+              {"axis": "memory", "control": "none", "treatment": "lexical"}
+            ]
+          }
+        ],
         "comparisons": [
           {
             "id": "lexical-minus-none-dense-2x",

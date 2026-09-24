@@ -4,6 +4,12 @@
 
 This is a completed CPU/offline smoke campaign for `engram-ffn-substitution-v1`, not a pretrained model or a performance claim. The report bundles the original receipt and collected evidence, study inputs, per-run results, static charts, and validated local checkpoint evidence. Its verification scope is `report_plus_local_checkpoint_validation`. It contains no model weights, prepared arrays, dataset cache, or runnable checkpoints.
 
+## Summary
+
+Across the two FFN smoke and nano campaigns, lexical memory showed no consistent held-out loss benefit; the nano `1x` memory pairs had higher loss in all three seeds. All 36 FFN runs scored zero on the three capability cards, so these observations provide no evidence that lookup compensates for reduced FFN capacity. These short CPU/offline runs do not establish a general model-quality result.
+
+The next informative training question is the matched `4x`/`1x` × no-memory/lexical-memory interaction at nano. Keep the existing `2x` width only as a separately labeled boundary point if the additional six runs are useful.
+
 ## What was compared
 
 The study crossed three FFN widths with and without lexical lookup: `4x`, `2x`, and `1x` the smoke profile's hidden width. Each of the six conditions used seeds 17, 41, and 73: 18 runs total. It declared 21 matched comparisons. All runs reached step 32 and 4,096 tokens on the finite `chat_recall` offline curriculum. The lexical table had 257 entries, value width 8, order 3, and final injection.
@@ -49,13 +55,34 @@ At 1x, lexical memory did not close the width gap: 1x remained worse than 4x lex
 
 All 18 runs scored zero on each capability card: `chat-alias-retention-v1` (24 cases), `chat-alias-recall-v1` (12), and `chat-context-override-v1` (8). This follow-up found no card evidence that lexical memory compensated for a narrower FFN. The bundle validates all 18 local run records and all five checkpoint generations per run (including the initial state; 90 verified checkpoint/quality-observation records); all comparisons completed with no missing or rejected evidence. These short synthetic-task observations are not significance tests or general language-model claims. The static bundle contains no weights, prepared arrays, dataset cache, or runnable checkpoints. Its evidence copies include machine-local paths; hashes protect byte identity, not privacy.
 
+## Phase B: research-analysis pipeline smoke
+
+A CPU/offline `engram-mla-compression-v1` campaign exercised the factorial, nondominance, allocation, and boundary-sweep report paths. This is an engineering smoke, not an attention or memory-quality conclusion. All 12 runs (dense/MLA-half attention × no/lexical memory × seeds 17, 41, and 73) passed local evidence validation and reached step 32 / 4,096 tokens.
+
+The raw validation-loss interaction is `y11 - y10 - y01 + y00`, with `y00=dense/no-memory`, `y10=MLA-half/no-memory`, `y01=dense/lexical`, and `y11=MLA-half/lexical`:
+
+| Seed | Interaction delta |
+|---|---:|
+| 17 | -0.030430 |
+| 41 | -0.033917 |
+| 73 | +0.035364 |
+
+The signs are mixed. All three capability-card scores were zero in each of the four cells for all three seeds (36 measured zeros); this smoke found no card evidence of benefit. The generated analysis contained four complete cells per seed, complete matched nondominance groups, configuration-derived allocation heatmaps, and observed-only sweeps. These outputs validate report behavior on this evidence; they do not establish quality, efficiency, or a useful interaction.
+
+Verification: `uv run pytest -q tests/test_study_reporting.py tests/test_research_workbench.py` (13 passed); the regenerated static report and interaction SVG were opened in a browser. The nano FFN-width × lookup interaction below remains the next training experiment; this MLA smoke does not replace it.
+
 ## Experiments to run next
 
 The smoke and nano campaigns are three-seed endpoint observations, not evidence of a general memory benefit. Keep scales and datasets separate. The next experiments should answer the missing interaction directly rather than select a favorable pair.
 
 ### First: test the FFN-width × lookup interaction
 
-At nano/offline, preregister a `4x` versus `1x` FFN width × no-memory versus lexical-memory design (12 runs: four cells × seeds 17, 41, and 73). Hold tokenizer, data, backend, optimizer, budget, and endpoint fixed. For each matched seed and outcome, define `y00=4x/no-memory`, `y10=1x/no-memory`, `y01=4x/lexical`, and `y11=1x/lexical`. Report all four raw values, width and memory main effects, and `interaction_delta = y11 - y10 - y01 + y00`. Keep validation loss (lower is better) and each capability card (higher is better) separate. A missing or mismatched cell makes that interaction inconclusive; never impute zero.
+At nano/offline, target a `4x` versus `1x` FFN width × no-memory versus lexical-memory design. The four factorial cells across seeds 17, 41, and 73 are 12 runs. The packaged default also retains `2x` width as a boundary point: keep it for 18 runs total, or remove the `2x` level from `matrix.yaml` before planning the focused 12-run design. Hold tokenizer, data, backend, optimizer, budget, and endpoint fixed. For each matched seed and outcome, define `y00=4x/no-memory`, `y10=1x/no-memory`, `y01=4x/lexical`, and `y11=1x/lexical`. Report all four raw values, width and memory main effects, and `interaction_delta = y11 - y10 - y01 + y00`. Keep validation loss (lower is better) and each capability card (higher is better) separate. A missing or mismatched cell makes that interaction inconclusive; never impute zero.
+```sh
+sparselab research scaffold engram-ffn-substitution-v1 \
+  --scale nano --data offline --backend cpu --output experiments/ffn-memory-factorial
+sparselab study plan experiments/ffn-memory-factorial/study.yaml
+```
 
 ### Then: map failure boundaries
 
