@@ -7,6 +7,7 @@ from typing import cast
 
 import pytest
 import torch
+import yaml
 from pydantic import ValidationError
 from tokenizers import Tokenizer
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
@@ -18,11 +19,13 @@ from sparselab.config.models import AttentionConfig
 from sparselab.data.tokenizer import SPECIAL_TOKENS, load_tokenizer
 from sparselab.engram.packs import compile_pack, verify_pack
 from sparselab.evaluation.generation import _prompt_byte_addresses
+from sparselab.experiments.reporting import _validate_research
 from sparselab.experiments.study import plan_study
 from sparselab.research.catalog import (
     ResearchEntry,
     list_lessons,
     list_research,
+    load_datasets,
     load_profiles,
     load_recipe,
     load_research,
@@ -166,6 +169,59 @@ def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     with pytest.raises(FileExistsError):
         scaffold_research("engram-ffn-substitution-v1", output, scale="smoke")
     assert marker.read_text(encoding="utf-8") == "user data"
+
+
+def test_fineweb_edu_scaffold_is_pinned_and_does_not_prepare_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbid_download(*_: object, **__: object) -> None:
+        raise AssertionError("scaffolding must not access remote datasets")
+
+    monkeypatch.setattr("sparselab.data.datasets.load_dataset", forbid_download)
+    profile = load_datasets().datasets["fineweb_edu"]
+    output = scaffold_research(
+        "engram-ffn-substitution-v1",
+        tmp_path / "fineweb-study",
+        scale="micro",
+        data="fineweb_edu",
+    )
+    plan = plan_study(output / "study.yaml")
+    bound_research = _validate_research(output / "research.json", output / "study.yaml")
+    assert _mapping(bound_research["dataset_profile"])["name"] == "fineweb_edu"
+    tokenizer = _mapping(yaml.safe_load((output / "tokenizer.yaml").read_text()))
+    tokenizer_dataset = _mapping(tokenizer["dataset"])
+
+    assert profile.dataset_config == "sample-10BT"
+    assert profile.revision == "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9"
+    assert profile.train_max_documents == 20_000
+    assert profile.validation_max_documents == 500
+    assert profile.train_max_tokens == 2_000_000
+    assert profile.validation_max_tokens == 65_536
+    assert profile.license == "ODC-BY 1.0; attribution required."
+    assert "web-crawled" in " ".join(profile.notes)
+    assert len(plan.expanded) == 18
+    assert {item.config.seed for item in plan.expanded} == {17, 41, 73}
+    assert {item.config.dataset.source for item in plan.expanded} == {"fineweb_edu"}
+    assert {
+        (
+            item.config.dataset.train_max_documents,
+            item.config.dataset.validation_max_documents,
+            item.config.dataset.train_max_tokens,
+            item.config.dataset.validation_max_tokens,
+        )
+        for item in plan.expanded
+    } == {(20_000, 500, 2_000_000, 65_536)}
+    assert {item.config.dataset.dataset_config for item in plan.expanded} == {
+        "sample-10BT"
+    }
+    assert {item.config.dataset.revision for item in plan.expanded} == {
+        "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9"
+    }
+    assert tokenizer_dataset["dataset_config"] == "sample-10BT"
+    assert tokenizer_dataset["train_max_documents"] == 20_000
+    assert tokenizer_dataset["validation_max_documents"] == 500
+    assert not (output / "artifacts").exists()
+    assert not (output / "runs").exists()
 
 
 def test_research_scaffold_rebases_paths_from_symlinked_destination(

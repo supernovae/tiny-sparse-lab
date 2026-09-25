@@ -32,7 +32,12 @@ from sparselab.research.catalog import (
 from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
 
 _RESOURCE_ROOT = Path(__file__).resolve().parent / "resources"
-_DATASETS = frozenset({"offline", "tinystories"})
+
+
+def _dataset_names() -> tuple[str, ...]:
+    return tuple(sorted(load_datasets().datasets))
+
+
 _BACKENDS = frozenset({"cpu", "mps", "cuda", "rocm", "xpu"})
 _SEEDS = (17, 41, 73)
 _CARDS = (
@@ -92,13 +97,14 @@ def _dataset_mapping(name: str) -> dict[str, object]:
     try:
         profile = load_datasets().datasets[name]
     except KeyError as error:
+        choices = ", ".join(_dataset_names())
         raise ValueError(
-            f"unknown dataset profile {name!r}; choose offline or tinystories"
+            f"unknown dataset profile {name!r}; choose {choices}"
         ) from error
     return {
         "source": profile.source,
         "revision": profile.revision,
-        "dataset_config": None,
+        "dataset_config": profile.dataset_config,
         "cache_dir": "artifacts/data",
         "train_max_documents": profile.train_max_documents,
         "validation_max_documents": profile.validation_max_documents,
@@ -117,7 +123,7 @@ def _tokenizer_values(name: str) -> dict[str, object]:
     dataset = {
         "source": profile.source,
         "revision": profile.revision,
-        "dataset_config": None,
+        "dataset_config": profile.dataset_config,
         "cache_dir": "artifacts/data",
         "train_max_documents": profile.tokenizer_max_documents,
         "validation_max_documents": profile.tokenizer_validation_max_documents,
@@ -146,7 +152,11 @@ def _scale_patch(scale: str, data: str, backend: str) -> dict[str, object]:
         raise ValueError(
             f"unsupported runnable scale {scale!r}; choose {choices}. Larger classes are recommendation-only."
         ) from error
-    dataset = load_datasets().datasets[data]
+    try:
+        dataset = load_datasets().datasets[data]
+    except KeyError as error:
+        choices = ", ".join(_dataset_names())
+        raise ValueError(f"unsupported dataset {data!r}; choose {choices}") from error
     return {
         "model.vocab_size": dataset.vocab_size,
         "model.hidden_dim": profile.hidden_dim,
@@ -322,8 +332,8 @@ sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --stop-af
 - Scale `{scale}`; backend `{backend}`; design `{design}`. The recipe has {run_count} planned coordinates, {pair_count} declared pairs, and {factorial_count} versioned 2×2 factorial designs.
 - Other supported profiles (scale is independent of data and budget):
 {choices}
-- Tokenizer fitting uses only the declared training prefix. Held-out validation and capability-card examples are not tokenizer inputs. Preparation can access network/cache only when the explicit `data prepare` command is run for TinyStories.
-- Capability cards: {", ".join(f"`{card}` ({profile.card_applicability.get(card, 'not applicable')})" for card in _CARDS)}. Cards are unchanged, unsealed development/stress evaluations; on TinyStories they are out-of-domain stress, not story-model quality. Held-out LM loss and each card stay separate. Generated stories are unscored examples.
+- Tokenizer fitting uses only the declared training prefix. Held-out validation and capability-card examples are not tokenizer inputs. Remote dataset preparation can access the network or an existing Hugging Face cache only when the explicit `tokenizer train` or `data prepare` command is run; scaffolding never does.
+- Capability cards: {", ".join(f"`{card}` ({profile.card_applicability.get(card, 'not applicable')})" for card in _CARDS)}. Cards are unchanged, unsealed development/stress evaluations; remote-corpus profiles use them only as out-of-domain stress, not corpus-quality tests. Held-out LM loss and each card stay separate. Generated stories are unscored examples.
 - Configured endpoint stops at the first existing step or target-token limit. Periodic validation is not a preregistered milestone; primary thresholds are absent. Actual steps and targets must be reported.
 
 ## Prepare explicitly, then plan or train
@@ -368,7 +378,7 @@ The scaffold itself performs no tokenization, data preparation/download, trainin
 
 **Prerequisites / unavailable arms:** {"; ".join(entry.prerequisites) if entry.prerequisites else "None for the declared recipe."}
 
-The first displayed configuration is a runnable `{scale}`/`{data}`/`{backend}` example. The smoke/offline/cpu entry route remains available by scaffolding with `--scale smoke --data offline --backend cpu`; the public-data option remains independent, for example `--scale micro --data tinystories`. Larger reference-small, medium-research, and large-local profiles are recommendations only here; no GQA/reference aliases are generated.
+The first displayed configuration is a runnable `{scale}`/`{data}`/`{backend}` example. The smoke/offline/cpu entry route remains available by scaffolding with `--scale smoke --data offline --backend cpu`; public-data options remain independent, for example `--scale micro --data tinystories` or `--scale micro --data fineweb_edu`. Larger reference-small, medium-research, and large-local profiles are recommendations only here; no GQA/reference aliases are generated.
 
 """
 
@@ -388,8 +398,10 @@ def scaffold_research(
 ) -> Path:
     """Write a complete editable study scaffold; never prepare or execute it."""
     entry = load_research(reference)
-    if data not in _DATASETS:
-        raise ValueError(f"unsupported dataset {data!r}; choose offline or tinystories")
+    if data not in _dataset_names():
+        raise ValueError(
+            f"unsupported dataset {data!r}; choose {', '.join(_dataset_names())}"
+        )
     if backend not in _BACKENDS:
         raise ValueError(
             f"unsupported backend {backend!r}; choose {', '.join(sorted(_BACKENDS))}"
@@ -973,7 +985,7 @@ sparselab learn probe model.yaml --prompt \"A short input asks about an object.\
 sparselab train model.yaml --run-id lesson-{lesson.id} --stop-after-step 2
 ```
 
-Tokenizer fitting and dataset preparation are explicit; TinyStories may use the network/cache only at those commands. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.
+Tokenizer fitting and dataset preparation are explicit; remote datasets may use the network or Hugging Face cache only at those commands. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.
 
 ## Walkthrough
 
@@ -1000,8 +1012,10 @@ def scaffold_lesson(
 ) -> Path:
     """Write a single-mechanism lesson configuration or an artifact walkthrough."""
     lesson = load_lesson(identifier)
-    if data not in _DATASETS:
-        raise ValueError(f"unsupported dataset {data!r}; choose offline or tinystories")
+    if data not in _dataset_names():
+        raise ValueError(
+            f"unsupported dataset {data!r}; choose {', '.join(_dataset_names())}"
+        )
     if backend not in _BACKENDS:
         raise ValueError(
             f"unsupported backend {backend!r}; choose {', '.join(sorted(_BACKENDS))}"

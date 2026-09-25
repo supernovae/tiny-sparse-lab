@@ -1196,6 +1196,20 @@ def _study_report(args: argparse.Namespace) -> None:
     print(write_study_report(report, Path(args.output)))
 
 
+def _reference_pythia_trajectory(args: argparse.Namespace) -> None:
+    from sparselab.research.pythia import evaluate_pythia_trajectory
+
+    print(
+        evaluate_pythia_trajectory(
+            load_config(Path(args.config)),
+            Path(args.output),
+            cache_dir=Path(args.cache_dir) if args.cache_dir else None,
+            device=args.device,
+            steps=tuple(args.steps),
+        )
+    )
+
+
 def _chat(args: argparse.Namespace) -> None:
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
     history: list[ChatMessage] = []
@@ -1604,6 +1618,31 @@ def build_parser() -> argparse.ArgumentParser:
     study_report.add_argument("--runs-dir")
     study_report.set_defaults(handler=_study_report)
 
+    reference = commands.add_parser(
+        "reference",
+        help="Run explicitly pinned, observation-only external model adapters.",
+    )
+    reference_commands = reference.add_subparsers(
+        dest="reference_command", required=True
+    )
+    pythia = reference_commands.add_parser(
+        "pythia",
+        help="Observe registered Pythia checkpoints on pinned FineWeb-Edu validation.",
+    )
+    pythia_commands = pythia.add_subparsers(dest="pythia_command", required=True)
+    trajectory = pythia_commands.add_parser("trajectory")
+    trajectory.add_argument("config")
+    trajectory.add_argument("--output", required=True)
+    trajectory.add_argument("--cache-dir")
+    trajectory.add_argument("--device", choices=("cpu", "mps", "cuda"), default="cpu")
+    trajectory.add_argument(
+        "--steps",
+        nargs="+",
+        choices=("step0", "step10000", "step143000"),
+        default=("step0", "step10000", "step143000"),
+    )
+    trajectory.set_defaults(handler=_reference_pythia_trajectory)
+
     research = commands.add_parser(
         "research",
         help="Discover studies, build Phase E tasks, and mine training-only corpus statistics.",
@@ -1626,8 +1665,11 @@ def build_parser() -> argparse.ArgumentParser:
     research_scaffold.add_argument(
         "--scale", choices=("smoke", "nano", "micro", "tiny"), default="micro"
     )
+    from sparselab.research.catalog import load_datasets
+
+    research_data_choices = tuple(sorted(load_datasets().datasets))
     research_scaffold.add_argument(
-        "--data", choices=("offline", "tinystories"), default="offline"
+        "--data", choices=research_data_choices, default="offline"
     )
     research_scaffold.add_argument(
         "--backend", choices=("cpu", "mps", "cuda", "rocm", "xpu"), default="cpu"

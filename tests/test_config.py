@@ -151,3 +151,16 @@ def test_embedding_memory_injection_requires_enabled_memory() -> None:
             max_seq_len=16,
             memory_injection="embedding",
         )
+
+
+def test_grouped_query_attention_rejects_mlx_run_configs() -> None:
+    config = load_config(
+        Path(__file__).resolve().parents[1] / "configs" / "runtime_smoke_cpu.yaml"
+    )
+    values = config.model_dump(mode="json")
+    values["model"]["num_kv_heads"] = 1
+    values["runtime"]["engine"] = "mlx"
+    values["runtime"]["backend"] = "metal"
+
+    with pytest.raises(ValueError, match="grouped-query attention"):
+        RunConfig.model_validate(values)

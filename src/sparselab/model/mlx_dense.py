@@ -127,6 +127,8 @@ class MLXDenseLM(nn.Module):
     ) -> None:
         super().__init__()
         attention = attention or AttentionConfig()
+        if config.num_kv_heads is not None and config.num_kv_heads != config.num_heads:
+            raise ValueError("MLXDenseLM does not support grouped-query attention")
         self.config = config
         self.embedding = nn.Embedding(config.vocab_size, config.hidden_dim)
         self.blocks = [

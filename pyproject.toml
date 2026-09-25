@@ -29,6 +29,9 @@ sparselab = "sparselab.cli.main:main"
 mlx = [
     "mlx==0.32.2",
 ]
+reference = [
+    "transformers>=4.45,<5",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]

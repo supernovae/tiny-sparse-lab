@@ -24,6 +24,7 @@ class ModelConfig(StrictModel):
     hidden_dim: int
     num_layers: int
     num_heads: int
+    num_kv_heads: int | None = None
     ffn_dim: int
     max_seq_len: int
     rms_norm_eps: float = 1e-6
@@ -50,6 +51,8 @@ class ModelConfig(StrictModel):
         result = handler(self)
         if self.memory_injection == "final":
             result.pop("memory_injection", None)
+        if self.num_kv_heads is None:
+            result.pop("num_kv_heads", None)
         return result
 
     @model_validator(mode="after")
@@ -68,6 +71,15 @@ class ModelConfig(StrictModel):
             raise ValueError("model.vocab_size must be at least 260")
         if self.hidden_dim % self.num_heads or (self.hidden_dim // self.num_heads) % 2:
             raise ValueError("model head dimension must be even and divide hidden_dim")
+        if self.num_kv_heads is not None and (
+            self.num_kv_heads <= 0
+            or self.num_kv_heads > self.num_heads
+            or self.num_heads % self.num_kv_heads
+        ):
+            raise ValueError(
+                "model.num_kv_heads must be positive, no greater than num_heads, "
+                "and divide num_heads"
+            )
         if self.rms_norm_eps <= 0:
             raise ValueError("model.rms_norm_eps must be positive")
         if self.ffn == "dense" and (
@@ -347,6 +359,17 @@ class RunConfig(StrictModel):
             and self.attention.latent_dim % self.model.num_heads
         ):
             raise ValueError("attention.latent_dim must divide evenly across heads")
+        if (
+            self.model.num_kv_heads is not None
+            and self.model.num_kv_heads != self.model.num_heads
+            and (
+                self.attention.kind in {"mla", "block_sparse"}
+                or self.runtime.engine == "mlx"
+            )
+        ):
+            raise ValueError(
+                "grouped-query attention is supported only for PyTorch dense or sliding_window attention"
+            )
         if self.optimizer.warmup_steps >= self.training.max_steps:
             raise ValueError(
                 "optimizer.warmup_steps must be smaller than training.max_steps"
@@ -363,6 +386,12 @@ class RunConfig(StrictModel):
             raise ValueError("MLX engine requires runtime.backend=metal")
         if self.runtime.engine == "pytorch" and self.runtime.backend == "metal":
             raise ValueError("PyTorch runtime does not use backend=metal")
+        if (
+            self.runtime.engine == "mlx"
+            and self.model.num_kv_heads is not None
+            and self.model.num_kv_heads != self.model.num_heads
+        ):
+            raise ValueError("MLX engine does not support grouped-query attention")
         if (
             self.model.semantic_memory_dim is not None
             and self.dataset.allocation_manifest_path is None

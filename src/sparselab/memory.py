@@ -192,7 +192,9 @@ def estimate_memory(
             b * t * (4 * 6 * d + 4 * (3 * f * direct + 2 * model.num_experts))
         )
     projected_width = (
-        2 * d + (attention.latent_dim or d) if attention.kind == "mla" else 3 * d
+        2 * d + (attention.latent_dim or d)
+        if attention.kind == "mla"
+        else d + 2 * (model.num_kv_heads or h) * (d // h)
     )
     per_block_attention = 4 * b * t * projected_width + 2 * 4 * b * h * t * t
     streams = (

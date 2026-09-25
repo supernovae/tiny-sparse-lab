@@ -17,6 +17,7 @@ from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.packing import prepare_data
 from sparselab.evaluation.chat import chat_turn
 from sparselab.evaluation.generation import _prompt_byte_addresses, generate
+from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.portable_engram import export_portable_engram
 from sparselab.model.transformer import DenseLM
 
@@ -265,6 +266,66 @@ def test_real_tiny_model_forward_is_usable_for_generation() -> None:
 
     assert completion.startswith("hello")
     assert model.training
+
+
+def test_grouped_query_attention_matches_explicit_kv_repeat_reference() -> None:
+    torch.manual_seed(23)
+    attention = DenseAttention(16, 4, 8, 10_000.0, num_kv_heads=2).eval()
+    inputs = torch.randn(2, 5, 16)
+
+    actual = attention(inputs)
+    query = attention.rope(attention._heads(attention.q_proj, inputs, 4))
+    key = attention.rope(attention._heads(attention.k_proj, inputs, 2))
+    value = attention._heads(attention.v_proj, inputs, 2)
+    repeated_key = key.repeat_interleave(2, dim=1)
+    repeated_value = value.repeat_interleave(2, dim=1)
+    scores = query @ repeated_key.transpose(-2, -1) / (attention.head_dim**0.5)
+    scores.masked_fill_(attention.causal_mask[:5, :5], float("-inf"))
+    output = torch.softmax(scores.float(), dim=-1).to(value.dtype) @ repeated_value
+    expected = attention.out_proj(output.transpose(1, 2).contiguous().view(2, 5, 16))
+
+    torch.testing.assert_close(actual, expected)
+
+    actual.square().mean().backward()
+    actual_gradients = {
+        name: parameter.grad.detach().clone()
+        for name, parameter in attention.named_parameters()
+    }
+    attention.zero_grad(set_to_none=True)
+    expected.square().mean().backward()
+    for name, parameter in attention.named_parameters():
+        torch.testing.assert_close(actual_gradients[name], parameter.grad)
+
+
+@pytest.mark.parametrize(
+    "attention",
+    [AttentionConfig(), AttentionConfig(kind="sliding_window", window_size=2)],
+)
+def test_grouped_query_incremental_cache_matches_full_prefix_logits(
+    attention: AttentionConfig,
+) -> None:
+    torch.manual_seed(29)
+    model = DenseLM(
+        ModelConfig(
+            vocab_size=260,
+            hidden_dim=16,
+            num_layers=2,
+            num_heads=4,
+            num_kv_heads=2,
+            ffn_dim=32,
+            max_seq_len=8,
+        ),
+        attention,
+    ).eval()
+    prefix = torch.tensor([[3, 7, 11], [5, 9, 15]])
+    appended = torch.tensor([[13], [17]])
+
+    full_prefix = model(prefix)
+    cached_prefix, cache = model.forward_cached(prefix, cache_capacity=8)
+    torch.testing.assert_close(cached_prefix, full_prefix)
+    cached_next, _ = model.forward_cached(appended, cache=cache)
+    full_next = model(torch.cat((prefix, appended), dim=1))[:, -1]
+    torch.testing.assert_close(cached_next[:, -1], full_next)
 
 
 @pytest.mark.parametrize("autocast", [False, True])

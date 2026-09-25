@@ -37,7 +37,9 @@ controller-side artifact ingestion are separate contracts.
 `weights import` accepts closed, validated source formats:
 `sparselab_legacy_v1` and `hf_llama_safetensors`. The latter is a narrow
 bias-free dense Llama mapping with compatible attention/RoPE/tokenizer semantics,
-not a general Hugging Face, quantization, GQA, or chat-template importer.
+including exact dense or grouped-query layouts when the destination's
+`num_kv_heads` exactly matches the source `num_key_value_heads`. It is not a
+general Hugging Face, quantization, or chat-template importer.
 
 ```sh
 sparselab weights import SOURCE OUTPUT_RUN \

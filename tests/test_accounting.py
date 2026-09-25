@@ -4,14 +4,16 @@ import pytest
 import torch
 
 from sparselab.config.loading import load_config
-from sparselab.config.models import AdafactorConfig
+from sparselab.config.models import AdafactorConfig, ModelConfig
 from sparselab.memory import parameter_inventory
 from sparselab.model.inspection import (
     architecture_metrics,
     inspect_model,
     inspection_report,
+    named_tensor_inventory,
 )
 from sparselab.model.transformer import DenseLM
+from sparselab.training.manifest import config_sha256
 from sparselab.training.metric_registry import metric_spec
 
 
@@ -44,6 +46,51 @@ def test_shape_inventory_matches_instantiated_architecture(preset):
         assert report[key] == actual[key]
     assert estimated.total == actual["total"]
     assert estimated.trainable == actual["trainable"]
+
+
+def test_grouped_query_inventory_and_cache_use_kv_head_width() -> None:
+    base = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+    model = base.model.model_copy(
+        update={"num_heads": 4, "num_kv_heads": 2, "hidden_dim": 16, "ffn_dim": 32}
+    )
+    config = base.model_copy(
+        update={
+            "model": model,
+            "training": base.training.model_copy(update={"seq_len": 8}),
+        }
+    )
+    instantiated = DenseLM(config.model, config.attention).eval()
+    tensors = named_tensor_inventory(config.model, config.attention)
+
+    assert tensors["blocks.0.attention.q_proj.weight"].shape == (16, 16)
+    assert tensors["blocks.0.attention.k_proj.weight"].shape == (8, 16)
+    assert tensors["blocks.0.attention.v_proj.weight"].shape == (8, 16)
+    assert (
+        inspection_report(config)["attention"]
+        == inspect_model(instantiated)["attention"]
+    )
+    _, cache = instantiated.forward_cached(torch.tensor([[3, 7]]), cache_capacity=5)
+    assert cache.layers[0].key.shape == (1, 2, 5, 4)
+    assert cache.layers[0].value.shape == (1, 2, 5, 4)
+    assert cache.allocated_bytes == 5 * (8 + config.model.num_layers * 2 * 2 * 4 * 4)
+
+
+def test_omitted_kv_heads_preserve_legacy_model_serialization() -> None:
+    model = ModelConfig(
+        vocab_size=260,
+        hidden_dim=16,
+        num_layers=1,
+        num_heads=2,
+        ffn_dim=32,
+        max_seq_len=8,
+    )
+    base = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+    explicit_none = base.model_copy(
+        update={"model": base.model.model_copy(update={"num_kv_heads": None})}
+    )
+
+    assert "num_kv_heads" not in model.model_dump(mode="json")
+    assert config_sha256(base) == config_sha256(explicit_none)
 
 
 def test_engram_tables_count_as_storage_not_all_active_rows():

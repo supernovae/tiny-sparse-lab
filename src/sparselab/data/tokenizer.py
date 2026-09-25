@@ -36,7 +36,7 @@ def load_tokenizer(path: Path) -> Tokenizer:
 
 
 def train_tokenizer(config: TokenizerTrainConfig) -> Path:
-    """Train BPE on a bounded train-only prefix and publish an immutable artifact."""
+    """Train BPE from a bounded train-only UTF-8 byte prefix."""
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     output = config.output_dir
     json_path = output / "tokenizer.json"
@@ -45,8 +45,12 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
     selected: list[str] = []
     digest = hashlib.sha256()
     documents = iter(iter_documents(config.dataset, "train"))
+    # The final ByteLevel BPE vocabulary does not exist yet; UTF-8 bytes
+    # conservatively upper-bound the tokenizer's input token count.
+    input_byte_budget = config.dataset.train_max_tokens
+    selected_input_bytes = 0
     acquired = 0
-    while acquired < config.max_documents:
+    while acquired < config.max_documents and selected_input_bytes < input_byte_budget:
         try:
             document = next(documents)
         except StopIteration:
@@ -54,9 +58,19 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         acquired += 1
         if not document:
             continue
-        selected.append(document)
-        digest.update(document.encode("utf-8"))
-        digest.update(b"\0")
+        encoded = document.encode("utf-8")
+        remaining = input_byte_budget - selected_input_bytes
+        truncated = len(encoded) > remaining
+        if truncated:
+            document = encoded[:remaining].decode("utf-8", errors="ignore")
+            encoded = document.encode("utf-8")
+        if document:
+            selected.append(document)
+            digest.update(encoded)
+            digest.update(b"\0")
+            selected_input_bytes += len(encoded)
+        if truncated:
+            break
     if not selected:
         raise ValueError("tokenizer training selected no non-empty documents")
     training_contract = {
@@ -64,6 +78,9 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         "min_frequency": config.min_frequency,
         "source": config.dataset.source,
         "revision": config.dataset.revision,
+        "input_byte_budget_utf8": input_byte_budget,
+        "selected_input_bytes_utf8": selected_input_bytes,
+        "max_documents": config.max_documents,
         "content_digest_sha256": digest.hexdigest(),
     }
     if json_path.exists() or manifest_path.exists():
@@ -123,6 +140,8 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
             "revision": config.dataset.revision,
             "split": "train",
             "selected_documents": len(selected),
+            "input_byte_budget_utf8": input_byte_budget,
+            "selected_input_bytes_utf8": selected_input_bytes,
             "content_digest_sha256": digest.hexdigest(),
             "tokenizers_version": __import__("tokenizers").__version__,
         },

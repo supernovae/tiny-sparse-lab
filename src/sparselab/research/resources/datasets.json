@@ -5,6 +5,7 @@
     "offline": {
       "source": "chat_recall",
       "revision": null,
+      "dataset_config": null,
       "dataset_seed": 42,
       "train_max_documents": 768,
       "validation_max_documents": 12,
@@ -29,6 +30,7 @@
       "source": "tinystories",
       "revision": "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64",
       "dataset_seed": 42,
+      "dataset_config": null,
       "train_max_documents": 20000,
       "validation_max_documents": 500,
       "train_max_tokens": 2000000,
@@ -46,6 +48,30 @@
         "chat-alias-retention-v1": "out-of-domain stress, not story-model quality",
         "chat-alias-recall-v1": "out-of-domain stress, not story-model quality",
         "chat-context-override-v1": "out-of-domain stress, not story-model quality"
+      }
+    },
+    "fineweb_edu": {
+      "source": "fineweb_edu",
+      "revision": "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+      "dataset_config": "sample-10BT",
+      "dataset_seed": 42,
+      "train_max_documents": 20000,
+      "validation_max_documents": 500,
+      "train_max_tokens": 2000000,
+      "validation_max_tokens": 65536,
+      "vocab_size": 8192,
+      "min_frequency": 2,
+      "tokenizer_max_documents": 20000,
+      "tokenizer_train_max_tokens": 2000000,
+      "tokenizer_validation_max_documents": 500,
+      "tokenizer_validation_max_tokens": 65536,
+      "license": "ODC-BY 1.0; attribution required.",
+      "source_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu/tree/87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+      "notes": ["Pinned FineWeb-Edu sample-10BT revision; tokenizer fitting and data preparation download or use the Hugging Face cache only when explicitly requested.", "FineWeb-Edu is web-crawled. ODC-BY 1.0 covers the database, not independent source-content rights or terms.", "FineWeb-Edu is one source reported for SmolLM2-135M's multi-source 2T mixture; this bounded sample is not an official 2T reproduction.", "Nemotron-CC is intentionally excluded from this public reproducible route because its NVIDIA Data Agreement is restrictive.", "Alias capability cards are out-of-domain stress, not FineWeb quality tests; held-out FineWeb cross-entropy is the language-model measurement.", "Tokenizer fitting consumes training documents only; validation and capability cards are excluded."],
+      "card_applicability": {
+        "chat-alias-retention-v1": "out-of-domain stress, not FineWeb quality",
+        "chat-alias-recall-v1": "out-of-domain stress, not FineWeb quality",
+        "chat-context-override-v1": "out-of-domain stress, not FineWeb quality"
       }
     }
   }

@@ -291,10 +291,11 @@ def _llama_config(source: Path) -> dict[str, Any]:
             raise ValueError(f"invalid Llama config field: {name}")
         elif kind is int and value <= 0:
             raise ValueError(f"Llama config field must be positive: {name}")
-    if config["num_key_value_heads"] != config["num_attention_heads"]:
-        raise ValueError(
-            "grouped-query Llama attention is incompatible with SparseLab dense attention"
-        )
+    if (
+        config["num_key_value_heads"] > config["num_attention_heads"]
+        or config["num_attention_heads"] % config["num_key_value_heads"]
+    ):
+        raise ValueError("Llama num_key_value_heads must divide num_attention_heads")
     if config["attention_bias"] or config["mlp_bias"]:
         raise ValueError("biased Llama projections are incompatible with SparseLab")
     if config["hidden_act"] != "silu":
@@ -339,6 +340,7 @@ def _llama_weights(
         "intermediate_size": model.ffn_dim,
         "num_hidden_layers": model.num_layers,
         "num_attention_heads": model.num_heads,
+        "num_key_value_heads": model.num_kv_heads or model.num_heads,
         "vocab_size": model.vocab_size,
         "tie_word_embeddings": model.tie_embeddings,
     }
@@ -412,15 +414,19 @@ def _llama_weights(
     # pairs adjacent coordinates. Permute Q/K output rows, not values/O.
     head_dim = model.hidden_dim // model.num_heads
     for index in range(model.num_layers):
-        for projection in ("q_proj", "k_proj"):
+        for projection, heads in (
+            ("q_proj", model.num_heads),
+            ("k_proj", model.num_kv_heads or model.num_heads),
+        ):
             name = f"blocks.{index}.attention.{projection}.weight"
             weight = mapped[name]
-            if weight.shape != (model.hidden_dim, model.hidden_dim):
+            expected_shape = (heads * head_dim, model.hidden_dim)
+            if weight.shape != expected_shape:
                 raise ValueError(f"Llama rotary projection shape differs: {name}")
             mapped[name] = (
-                weight.reshape(model.num_heads, 2, head_dim // 2, model.hidden_dim)
+                weight.reshape(heads, 2, head_dim // 2, model.hidden_dim)
                 .transpose(1, 2)
-                .reshape(model.hidden_dim, model.hidden_dim)
+                .reshape(expected_shape)
             )
     return (
         _validate_destination_tensors(destination, mapped),

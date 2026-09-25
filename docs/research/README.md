@@ -11,7 +11,9 @@ sparselab research scaffold engram-ffn-substitution-v1 \
 sparselab study plan experiments/ffn-memory/study.yaml
 ```
 
-The runnable scales are `smoke`, `nano`, `micro`, and `tiny`; `offline` and `tinystories` are separate data profiles. Offline uses the finite cyclic `chat_recall` fixture. TinyStories preparation is explicitly requested later and may download or use the Hugging Face cache at its pinned revision; it is not performed by browsing or scaffolding.
+The runnable scales are `smoke`, `nano`, `micro`, and `tiny`; `offline`, `tinystories`, and `fineweb_edu` are separate data profiles. Offline uses the finite cyclic `chat_recall` fixture. TinyStories and the bounded FineWeb-Edu `sample-10BT` profile perform remote access only when a later explicit `tokenizer train` or `data prepare` command downloads or reads an existing Hugging Face cache at the pinned revision; browsing and scaffolding do neither.
+
+FineWeb-Edu is pinned to revision `87f09149ef4734204d70ed1d046ddc9ca3f2b8f9` and attributed under ODC-BY 1.0. It is web-crawled: database licensing does not resolve independent source-content rights or terms. The bounded sample is one reported source in SmolLM2-135M's multi-source 2T mixture, not an official 2T reproduction. Its chat capability cards are out-of-domain stress, not FineWeb-quality tests. Nemotron-CC is intentionally excluded from this public reproducible route because its NVIDIA Data Agreement is restrictive.
 
 A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `study.yaml`, hashed standalone configs, and metadata. It does **not** execute them. Follow the generated README to train the tokenizer, prepare each required config's data, inspect/probe/train, or explicitly submit and collect a study. See [lesson paths](lesson-paths.md), [the catalog notes](engram-ffn-substitution.md), [evidence and reporting](evidence-and-reporting.md), and [dashboard browsing](dashboard.md).
 

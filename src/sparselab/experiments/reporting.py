@@ -246,7 +246,7 @@ def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
         or selection["scale"] not in recipe_scales
         or set(profiles.scales) != {"smoke", "nano", "micro", "tiny"}
         or selection["scale"] not in profiles.scales
-        or set(datasets.datasets) != {"offline", "tinystories"}
+        or set(datasets.datasets) != {"offline", "tinystories", "fineweb_edu"}
         or selection["data"] not in datasets.datasets
     ):
         raise ValueError(

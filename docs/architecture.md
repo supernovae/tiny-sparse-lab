@@ -17,6 +17,20 @@ flowchart LR
 
 RMSNorm rescales a vector by its reciprocal RMS without centering it. RoPE rotates adjacent query/key pairs by position; relative phase represents distance. The upper-triangular attention mask prevents future-token access. Dense SwiGLU computes `down(silu(gate(x)) * up(x))`. Tied embeddings reuse input-embedding storage for output logits.
 
+## Grouped-query attention
+
+PyTorch dense and sliding-window attention optionally set
+`model.num_kv_heads` to a positive divisor of `num_heads`. Queries and the
+output projection remain full hidden width, while key and value projections and
+the request-local KV cache use `num_kv_heads × head_dim`. Query-head groups
+share each KV head through a broadcast group axis; SparseLab does not
+materialize repeated K/V tensors. Scores remain query-head-wide, so this is a
+storage/projection-width change rather than a claim of a sparse score kernel or
+a measured speedup. Omitting the field preserves ordinary multi-head attention
+and legacy serialized identities. MLA, block-sparse attention, and MLX reject
+unequal KV/query head counts.
+
+
 ## Local Top-K MoE
 
 For each normalized token representation `x`, the router computes `softmax(W_router x)`, selects `experts_per_token` experts, renormalizes the selected weights, and sums their SwiGLU outputs. An optional shared expert runs for every token. The trainer records router entropy, maximum expert fraction, mean selected probability, and auxiliary load-balancing loss.
@@ -50,7 +64,14 @@ bandwidth claim.
 
 ## Inference cache versus training state
 
-Supported PyTorch generation paths use a bounded, request-local KV cache with a full-prefix reference available through `generate(..., use_cache=False)`. Unsupported cache configurations and native MLX decoding use full-prefix evaluation. A decode cache is not an Engram table, a durable checkpoint, or a reduction in training-memory estimates; bounded parity checks are not a long-context serving benchmark.
+Supported PyTorch dense and sliding-window generation paths use a bounded,
+request-local KV cache with a full-prefix reference available through
+`generate(..., use_cache=False)`. With grouped-query attention, each cache
+stores only KV heads, while score tensors still use all query heads.
+Unsupported cache configurations and native MLX decoding use full-prefix
+evaluation. A decode cache is not an Engram table, a durable checkpoint, or a
+reduction in training-memory estimates; bounded parity checks are not a
+long-context serving benchmark.
 
 ## Combined reference configuration
 

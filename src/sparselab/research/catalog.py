@@ -346,8 +346,9 @@ class ProfilesFile(_Versioned):
 
 
 class DatasetProfile(StrictModel):
-    source: Literal["chat_recall", "tinystories"]
+    source: Literal["chat_recall", "tinystories", "fineweb_edu"]
     revision: StrictStr | None
+    dataset_config: StrictStr | None = None
     dataset_seed: StrictInt
     train_max_documents: StrictInt
     validation_max_documents: StrictInt
@@ -382,6 +383,8 @@ class DatasetProfile(StrictModel):
             )
         ):
             raise ValueError("dataset and tokenizer limits must be positive")
+        if self.source == "fineweb_edu" and not self.dataset_config:
+            raise ValueError("fineweb_edu requires dataset_config")
         return self
 
 
@@ -577,9 +580,9 @@ def load_datasets() -> DatasetsFile:
     datasets = DatasetsFile.model_validate(raw)
     for dataset in datasets.datasets.values():
         _validate_https(dataset.source_url, "dataset source URL")
-    if set(datasets.datasets) != {"offline", "tinystories"}:
+    if set(datasets.datasets) != {"offline", "tinystories", "fineweb_edu"}:
         raise ValueError(
-            "research datasets must define exactly offline and tinystories"
+            "research datasets must define exactly offline, tinystories, and fineweb_edu"
         )
     return datasets
 

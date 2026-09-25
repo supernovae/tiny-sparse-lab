@@ -87,8 +87,11 @@ def named_tensor_inventory(
             _add(tensors, f"{attention_prefix}.k_up.weight", (d, latent))
             _add(tensors, f"{attention_prefix}.out_proj.weight", (d, latent))
         else:
-            for projection in ("q_proj", "k_proj", "v_proj", "out_proj"):
-                _add(tensors, f"{attention_prefix}.{projection}.weight", (d, d))
+            kv_dim = (m.num_kv_heads or m.num_heads) * (d // m.num_heads)
+            _add(tensors, f"{attention_prefix}.q_proj.weight", (d, d))
+            _add(tensors, f"{attention_prefix}.k_proj.weight", (kv_dim, d))
+            _add(tensors, f"{attention_prefix}.v_proj.weight", (kv_dim, d))
+            _add(tensors, f"{attention_prefix}.out_proj.weight", (d, d))
 
         ffn_prefix = f"{prefix}.ffn"
         if m.ffn == "dense":

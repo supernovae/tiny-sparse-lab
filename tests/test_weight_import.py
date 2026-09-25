@@ -99,6 +99,15 @@ def _provenance(path: Path) -> Path:
     return path
 
 
+def _hf_llama_rotary_rows(weight: torch.Tensor, heads: int) -> torch.Tensor:
+    head_dim = weight.shape[0] // heads
+    return (
+        weight.reshape(heads, head_dim // 2, 2, weight.shape[1])
+        .transpose(1, 2)
+        .reshape_as(weight)
+    )
+
+
 def _llama_export(root: Path, config: RunConfig) -> dict[str, torch.Tensor]:
     root.mkdir()
     state = DenseLM(config.model, config.attention).state_dict()
@@ -115,20 +124,30 @@ def _llama_export(root: Path, config: RunConfig) -> dict[str, torch.Tensor]:
         "model.layers.0.mlp.up_proj.weight": "blocks.0.ffn.up.weight",
         "model.layers.0.mlp.down_proj.weight": "blocks.0.ffn.down.weight",
     }
-    save_file(
-        {source: state[target] for source, target in source_names.items()},
-        root / "model.safetensors",
-    )
+    exported = {
+        source: (
+            _hf_llama_rotary_rows(state[target], config.model.num_heads)
+            if source.endswith("q_proj.weight")
+            else _hf_llama_rotary_rows(
+                state[target], config.model.num_kv_heads or config.model.num_heads
+            )
+            if source.endswith("k_proj.weight")
+            else state[target]
+        )
+        for source, target in source_names.items()
+    }
+    save_file(exported, root / "model.safetensors")
     (root / "config.json").write_text(
         json.dumps(
             {
                 "model_type": "llama",
-                "hidden_size": 8,
-                "intermediate_size": 16,
-                "num_hidden_layers": 1,
-                "num_attention_heads": 2,
-                "num_key_value_heads": 2,
-                "vocab_size": 260,
+                "hidden_size": config.model.hidden_dim,
+                "intermediate_size": config.model.ffn_dim,
+                "num_hidden_layers": config.model.num_layers,
+                "num_attention_heads": config.model.num_heads,
+                "num_key_value_heads": config.model.num_kv_heads
+                or config.model.num_heads,
+                "vocab_size": config.model.vocab_size,
                 "rms_norm_eps": 1e-6,
                 "rope_theta": 10000.0,
                 "hidden_act": "silu",
@@ -229,7 +248,7 @@ def test_llama_import_rejects_incompatible_tokenizer_and_unsafe_tensor(
         )
 
 
-def test_llama_import_rejects_grouped_query_and_nonfinite_weights(
+def test_llama_import_rejects_incompatible_grouped_query_layout(
     tmp_path: Path,
 ) -> None:
     tokenizer = tmp_path / "tokenizer.json"
@@ -241,7 +260,7 @@ def test_llama_import_rejects_grouped_query_and_nonfinite_weights(
     raw = json.loads((source / "config.json").read_text())
     raw["num_key_value_heads"] = 1
     (source / "config.json").write_text(json.dumps(raw))
-    with pytest.raises(ValueError, match="grouped-query"):
+    with pytest.raises(ValueError, match="num_key_value_heads differs"):
         import_weights(
             source,
             tmp_path / "bad-architecture",
@@ -264,6 +283,39 @@ def test_llama_import_rejects_grouped_query_and_nonfinite_weights(
             source_tokenizer=source / "tokenizer.json",
             provenance=tmp_path / "provenance.json",
         )
+
+
+def test_llama_import_round_trips_grouped_query_weights(tmp_path: Path) -> None:
+    tokenizer = tmp_path / "tokenizer.json"
+    _tokenizer(tokenizer)
+    config = _config(tmp_path, tokenizer)
+    config = config.model_copy(
+        update={
+            "model": config.model.model_copy(
+                update={
+                    "num_heads": 4,
+                    "num_kv_heads": 2,
+                    "hidden_dim": 16,
+                    "ffn_dim": 32,
+                }
+            )
+        }
+    )
+    source = tmp_path / "llama-gqa"
+    expected = _llama_export(source, config)
+    shutil.copyfile(tokenizer, source / "tokenizer.json")
+
+    result = import_weights(
+        source,
+        tmp_path / "imported-gqa",
+        config,
+        source_format="hf_llama_safetensors",
+        source_tokenizer=source / "tokenizer.json",
+        provenance=_provenance(tmp_path / "provenance.json"),
+    )
+    loaded = CheckpointManager(result.run_dir).load(result.checkpoint, "promote")
+    for name, tensor in expected.items():
+        torch.testing.assert_close(loaded.model[name], tensor)
 
 
 @pytest.mark.parametrize(

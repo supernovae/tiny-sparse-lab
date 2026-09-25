@@ -40,6 +40,14 @@ SemanticQueryInput = SemanticQueryBatch | Mapping[str, SemanticQueryBatch] | Non
 class DecoderBlock(nn.Module):
     def __init__(self, model: ModelConfig, attention: AttentionConfig) -> None:
         super().__init__()
+        if (
+            model.num_kv_heads is not None
+            and model.num_kv_heads != model.num_heads
+            and attention.kind in {"mla", "block_sparse"}
+        ):
+            raise ValueError(
+                "grouped-query attention is supported only for dense or sliding_window attention"
+            )
         self.norm1 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
         self.attention: nn.Module = (
             LatentAttention(
@@ -65,6 +73,7 @@ class DecoderBlock(nn.Module):
                 model.max_seq_len,
                 attention.rope_base,
                 attention.window_size,
+                model.num_kv_heads,
             )
         )
         self.norm2 = RMSNorm(model.hidden_dim, model.rms_norm_eps)
@@ -607,18 +616,23 @@ class DenseLM(nn.Module):
                     if isinstance(attention, DenseAttention)
                     else attention.value_dim
                 )
+                kv_heads = (
+                    attention.num_kv_heads
+                    if isinstance(attention, DenseAttention)
+                    else attention.num_heads
+                )
                 if (
                     layer.key.shape
                     != (
                         cache.batch_size,
-                        attention.num_heads,
+                        kv_heads,
                         cache.capacity,
                         attention.head_dim,
                     )
                     or layer.value.shape
                     != (
                         cache.batch_size,
-                        attention.num_heads,
+                        kv_heads,
                         cache.capacity,
                         value_dim,
                     )

@@ -42,6 +42,21 @@ def _model(
     )
 
 
+def test_mlx_dense_rejects_grouped_query_attention() -> None:
+    with pytest.raises(ValueError, match="does not support grouped-query attention"):
+        MLXDenseLM(
+            ModelConfig(
+                vocab_size=260,
+                hidden_dim=16,
+                num_layers=1,
+                num_heads=2,
+                num_kv_heads=1,
+                ffn_dim=32,
+                max_seq_len=16,
+            )
+        )
+
+
 def _config(*, tied: bool) -> RunConfig:
     return RunConfig.model_validate(
         {
