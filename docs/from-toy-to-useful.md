@@ -65,21 +65,21 @@ Assistant:
 
 The model continues after `Assistant:`. The role labels and system instructions are learned text conventions, not privileged programmatic rules. No search, tools, database access, persistent personal memory, or instruction-security guarantee is hidden behind them. Chat history is supplied as context; `/reset` clears it, not the trained weights.
 
-## 3. The progression: from A to something useful
+## 3. Capability goals and current evidence
 
-Use these as **acceptance gates**, not a promise that a certain parameter count unlocks a skill.
+These are evidence questions, not parameter-count stages. A runnable path does not show that a model learned the target behavior.
 
-| Stage | Human goal | What to train and try | Evidence needed before moving on |
-|---|---|---|---|
-| A. Make the program work | Save and reopen an actual model | The small `smoke_cpu` workflow | Training, checkpoint verification, evaluation, and generation work. Fluent text is not required. |
-| B. Learn flashcards | Learn something measurable | The dense/Engram alias pair | Improve over step zero; separate retention, new wording, and changed-context tests. |
-| C. Learn language patterns | Produce sensible sentences in a narrow domain | Bounded TinyStories text continuation | New story prompts and held-out next-token loss improve, without claiming instruction following. |
-| D. Learn conversation conventions | Answer rather than merely continue text | The synthetic instruction curriculum, then diverse licensed conversations | Greetings, requests, paraphrases, and answer lengths work on examples not used for tuning. |
-| E. Do one useful job | Classify support requests, extract a field, or answer a bounded handbook question | A domain corpus with correct, verifiable responses | Beat a simple baseline on independently held-out real requests; include missing-information cases. |
-| F. Handle conversation changes | Follow a correction, ask a necessary question, preserve earlier facts | Multi-turn examples, corrections, ambiguity and abstention examples | Tests for changed facts, contradictory context, unsupported requests, and forgetting after further training. |
-| Z. Ship a bounded application | Help people without hiding failures | A measured checkpoint plus application safeguards | Human review, latency/resource measurements, privacy rules, versioned evaluation and rollback. This is more than model training. |
+| Capability goal | Evidence today | What is still needed |
+|---|---|---|
+| Execute and reproduce a run | CPU, MPS, and MLX paths have training/evaluation/checkpoint smoke evidence. | Larger-workload fit and performance must be measured on the actual backend; smoke execution is not a quality result. |
+| Retain taught associations | The dense and Engram alias models reached 24/24 training-format retention; held-out wording was 8/12 dense and 6/12 Engram. | Independent facts/tasks and repeat seeds; the aliases are a tiny synthetic curriculum. |
+| Use changed conversation context | The alias override card scored 0/8 for both models; the domain-adaptation study also found unreliable held-out behavior and severe retention loss. | Robust corrections, conflicting/missing facts, abstention, and forgetting checks on independent tasks. |
+| Learn text patterns | Pinned-corpus model training and held-out next-token loss have been measured, including a multi-seed FineWeb-Edu micro study. | Human-reviewed continuations and broader held-out task evidence; lower language-model loss alone does not establish useful behavior. |
+| Follow instructions | The measured instruction starter learned a recognizable curriculum template. Its ordinary arithmetic, color, and unrelated responses were wrong. | Diverse licensed conversations, natural paraphrases, independent cases, and explicit unknown/clarification behavior. |
+| Complete one useful job | Task builders, custom cards, and blinded review tools are available. | No useful real-domain model has been established; compare a trained checkpoint against rules/search on permissioned, independently held-out requests. |
+| Use external memory reliably | Lexical/byte tables and portable adapters run; semantic packs support bounded retrieval from supplied vectors. The two-case portable result was negative. | Broader transfer tests; semantic text encoding and automatic retrieval are not on the standard chat/training path. |
 
-You do **not** need to climb to 100M parameters before trying stage E. A small classifier can be useful while a much larger undertrained chatbot is not. Choose a low-risk, narrow job first; compare with rules, search, or a lookup table before deciding that a generative model is warranted.
+Choose the next capability that matters to a real user and define how it can fail. The acceptance criteria and remaining experiments are tracked in the [capability backlog](../TODO.md).
 
 ## 4. Which larger model do we actually have?
 
@@ -299,7 +299,7 @@ uv run sparselab evidence support-adapted --json
 
 Review the saved per-case replies: wrong label, extra prose, or a truncated answer should not quietly become a pass. Exact-answer cards suit labels and fixed extraction. They do **not** grade open-ended explanations fairly; those need a declared human rubric or a separately implemented evaluator. `best.json` selects lowest validation loss, not the best test score.
 
-A handbook assistant is the next step: supply facts in context, train answers and missing-information responses, then test on new documents. Knowledge supplied in the question is legitimate for that task; claim **reading supplied context**, not memorizing unseen facts. Retrieval can keep changing facts outside the weights, but SparseLab currently has no retriever or retrieval-augmented generation pipeline. Manual short context is supported; automated retrieval is an application extension.
+A handbook assistant is a useful next test: supply facts in context, train answers and missing-information responses, then test on new documents. Claim **reading supplied context**, not memorizing unseen facts. SparseLab has bounded semantic pack retrieval in a direct PyTorch `DenseLM` API, but the standard chat/generation path does not encode text queries or retrieve automatically. Manual short context is supported; a complete text-to-query and retrieval application path remains open.
 
 ## 7. Decide what to change after a failure
 
@@ -342,19 +342,21 @@ Smaller microbatches with accumulation reduce the per-forward activation load wh
 
 Shape-only inspection estimates parameter, optimizer, activation, and working-memory costs without allocating the model. It is not a physical-fit result; use isolated staging and actual measurements before increasing the workload.
 
-## 9. What must the framework gain for the next stages?
+## 9. What remains before stronger capability claims?
 
-| Available now | Not yet a completed capability |
+| Available and exercised | Not yet established |
 |---|---|
 | Validated legacy and compatible Llama safetensor weight import | General external architectures, tokenizers, quantization, and chat-template conversion |
-| Explicit experiment matrices, archived multi-seed comparisons, paired deltas, and per-case outputs | General statistically justified model selection and open-ended response grading |
-| Context passed in the conversation | Retrieval, tool execution, long-lived user memory, a secure application permission boundary |
+| Explicit matrices, multi-seed comparisons, paired deltas, factorial analysis, and per-case reports | Adequately powered general model selection, learning-to-threshold evidence, and open-ended response grading |
+| Trainable token/byte Engram plus verified portable-table export and adapters | Generalized lexical/portable transfer or a consistent Engram benefit |
+| Verified semantic retrieval of supplied vectors through the direct PyTorch API | Natural-language query encoding, standard trainer/chat integration, or semantic quality claims |
+| Context passed in the conversation | Tool execution, long-lived user memory, and a secure application permission boundary |
 | Verified bounded PyTorch KV caches and measured native MLX sparse components | Broader hardware validation, fused kernels, and production-serving guarantees |
-| Shape-only CLI estimates and isolated smoke/warmup pilots | Measured large-model fit or a general hardware-capacity guarantee |
-| One host/device per experiment; independent local/SSH worker queues, sealed bundles, device leases, cancellation, and explicit child resume | Actual ROCm/XPU and overlapping real Mac/AMD/Intel acceptance; distributed training remains out of scope |
-| MLX common checkpoints, continuation, promotion, generation/chat, and held-out evidence for FP32 dense/native-sparse models | Blanket PyTorch feature or training-trajectory equivalence |
+| Shape-only CLI estimates, isolated smoke/warmup pilots, and backend-specific measurements | Measured large-model fit or a general hardware-capacity/performance guarantee |
+| One host/device per experiment; independent local/SSH queues, leases, cancellation, recovery | Actual ROCm/XPU and cross-host acceptance; distributed training remains out of scope |
+| MLX checkpoints, continuation, promotion, generation/chat, and held-out evidence for FP32 dense/native-sparse models | Blanket PyTorch feature or training-trajectory equivalence |
 
-The completed [context/Engram](context-engram-study.md#execution-results--2026-09-22) and [domain-adaptation](path-domain-corpus.md#2026-09-22-execution-record) studies show why these boundaries matter: untouched override scores stayed 0/8, and adaptation improved acquisition without reliable held-out behavior while sharply damaging retention. The [completion ledger](../TODO.md) separates completed engineering work from unavailable-hardware gates.
+The [context/Engram](context-engram-study.md#execution-results--2026-09-22) and [domain-adaptation](path-domain-corpus.md#2026-09-22-execution-record) results show why these boundaries matter: untouched override scores stayed 0/8, while adaptation improved acquisition without reliable held-out behavior and sharply damaged retention. The [capability backlog](../TODO.md) separates exercised paths from open transfer, useful-task, and hardware evidence.
 
 Build these in response to measured bottlenecks. For broad assistant quality sooner, adapting a properly licensed pretrained instruction model is a different route from learning every capability from scratch. The current framework has no general Hugging Face weight/tokenizer/chat-template importer; do not point `--promote` at arbitrary downloaded weights and assume compatibility. Use an appropriate existing stack for that route, or implement and validate the exact architecture/tokenizer/checkpoint mapping here.
 

@@ -17,7 +17,7 @@ Multi-order/multi-head streams preserve causal addressing and allocate one table
 
 ## Learn and compare placement
 
-The [`lexical-engram` lesson](research/lesson-paths.md) provides a standalone final-injection configuration and initialized shape/diagnostic probe. Lexical `memory_injection` supports final and embedding placement; these are the alternatives in the [placement study](research/engram-placement.md), not evidence for lexical middle placement. Phase D separately adds verified semantic retrieval and direct `DenseLM` semantic adapters at embedding, after-block, and final sites, including multiple named/multipack attachments; see [Verified semantic memory](research/semantic-memory.md). Lookup diagnostics remain mechanism observations, not score or transfer proof.
+The [`lexical-engram` lesson](research/lesson-paths.md) provides a standalone final-injection configuration and initialized shape/diagnostic probe. Lexical `memory_injection` supports final and embedding placement; these are the alternatives in the [placement study](research/engram-placement.md), not evidence for lexical middle placement. Separately, verified semantic retrieval and direct `DenseLM` adapters support embedding, after-block, and final sites, including multiple named/multipack attachments; see [Verified semantic memory](research/semantic-memory.md). Lookup diagnostics remain mechanism observations, not score or transfer proof.
 
 
 ## Adding an Engram variant

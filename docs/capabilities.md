@@ -78,7 +78,7 @@ A useful task needs a training source and a separately held-out card. Use [local
 
 KV-cached PyTorch decoding and native MLX sparse attention are available within their documented boundaries. Neither implies arbitrary-model compatibility or a universal performance advantage. Capability comparisons must retain optimizer semantics, engine/backend, precision, checkpoint and tokenizer identities, actual token budgets, and the complete declared case set; execution support is not task competence.
 
-## Phase E task and review pipeline
+## Additional task and review workflows
 
 Inspect the outcome groups with `sparselab capability suite`. Held-out language-model loss remains separate from exact-answer behavior-card scores. The suite has distinct cards for canonical lexical recall, paraphrase, multi-turn follow-up, Python API behavior, novel-operand math, application, composition, long-context retrieval, conversation override, instruction-over-memory, and stale/conflicting/missing evidence. Lexical, paraphrase, and conversation cards share the synthetic alias domain; treat them as task conditions, not independent knowledge samples. Wikidata factual and paraphrase cards are generated from the explicitly built local source bundle.
 

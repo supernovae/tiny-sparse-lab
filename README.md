@@ -21,15 +21,16 @@ Tiny Sparse Lab is a reference laboratory, not a production training service. On
 
 ## Verified status and remaining gates
 
-The **2026-09-22/23 acceptance records** cover **335 passing tests**, Ruff lint/format checks, installed-wheel execution outside the checkout, and real CPU, MPS, and MLX/Metal scenarios. These are implementation checks, not a claim that a tiny checkpoint is a useful general assistant.
+The dated **2026-09-22/23 acceptance records** capture **335 passing tests**, Ruff lint/format checks, installed-wheel execution outside the checkout, and real CPU, MPS, and MLX/Metal scenarios. A later offline regression run passed 509 tests (tracked in [TODO.md](TODO.md)). These are implementation checks, not a claim that a tiny checkpoint is a useful general assistant.
 
 | Evidence | What was actually exercised |
 |---|---|
 | [Single-host acceptance](artifacts/acceptance/single_host_gate_2026_09_22.json) | CPU FP32/BF16 and Adafactor continuation, actual MPS/MLX execution, safe interruption/recovery, promotion, offline artifacts, staging, and populated dashboard checks. |
 | [Independent-worker acceptance](artifacts/acceptance/independent_workers_2026_09_23.json) | Three overlapping logical CPU workers, progress through controller loss, idempotent launch replay, cancellation and bitwise child-resume comparison, forced executor loss, CLI matrices, source/capacity rejection, and an actual MLX worker. |
 | [Scientific studies](artifacts/acceptance/scientific_studies_2026_09_22.json) | Preregistered multi-seed/multi-budget context/Engram comparisons and domain adaptation with retention checks. Untouched context overrides remained **0/8** at every endpoint; adaptation did not establish reliable held-out domain behavior and caused severe forgetting. |
+| [Research workbench evidence](docs/research/sample-report.md) | Completed CPU/offline smoke and nano campaigns plus an MPS/FineWeb-Edu micro study; the observed alias-card scores were zero. The MLA report smoke exercised factorial, nondominance, allocation, and boundary outputs, not model quality or speedup. |
 
-[The completion ledger](TODO.md) records **31 completed tasks and five hardware-blocked gates**: native CUDA sparse attention, native HIP sparse attention, actual ROCm acceptance, actual XPU acceptance, and overlapping real Mac/AMD/Intel execution. CPU worker labels do not prove foreign hardware support; SSH protocol tests are not remote driver validation.
+[Capability status and open verification work](TODO.md) separates implemented paths, smoke evidence, task-level results, and remaining gates. See the [research roadmap](docs/research/roadmap.md) for the open work on lexical/portable/semantic memory and useful task models.
 
 The latest worker UI check captured actual rendered curve pixels; standard browser screenshots stalled, so runtime-table values were additionally verified through Streamlit's app harness. The earlier populated single-host dashboard screenshots remain in the acceptance record.
 
@@ -138,7 +139,7 @@ The [project review](docs/project-review.md) preserves the original local learni
 - [Architecture](docs/architecture.md), [MoE](docs/moe.md), [sparse attention](docs/sparse-attention.md), [MLA](docs/mla.md), and [Engram](docs/engram.md) — reference mechanisms.
 - [Training and resume](docs/training.md), [metrics](docs/metrics.md), [experiments](docs/experiments.md), and [evidence](docs/evidence.md) — local lifecycle and comparison practice.
 - [Context/Engram study](docs/context-engram-study.md) and [domain corpus/adaptation](docs/path-domain-corpus.md) — frozen inputs, executed comparisons, negative results, and limitations.
-- [Completion backlog](TODO.md) — recorded acceptance and separately blocked hardware/distributed work.
+- [Capability status and open verification backlog](TODO.md) — implemented paths, smoke evidence, useful-model gaps, and hardware/experiment work that remains.
 
 ## Data and contributions
 

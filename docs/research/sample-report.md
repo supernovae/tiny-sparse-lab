@@ -8,7 +8,7 @@ This is a completed CPU/offline smoke campaign for `engram-ffn-substitution-v1`,
 
 Across the original FFN smoke and nano campaigns plus this fixed-seed nano rerun, lexical memory showed no consistent held-out loss benefit; the nano `1x` lexical-memory pairs had higher loss in all three seeds. All 54 run executions scored zero on each of the three capability cards (162 run/card scores), so these observations provide no evidence that lookup compensates for reduced FFN capacity. These short CPU/offline observations do not establish a general model-quality result.
 
-The nano `4x`/`1x` × no-memory/lexical-memory interaction is complete and repeated with identical per-coordinate losses. The next engineering step is Phase C milestone/timing measurement, which needs a declared observation contract; see below.
+The nano `4x`/`1x` lexical-memory × FFN interaction is complete and reproduced with identical per-coordinate losses. This result has update-level telemetry, but no declared time-to-quality-target protocol or end-to-end cost comparison; those remain open.
 
 ## What was compared
 
@@ -59,7 +59,7 @@ All 18 runs scored zero on each capability card: `chat-alias-retention-v1` (24 c
 
 An independent execution with distinct run IDs and a new receipt reused the same study, matrix, data-profile, and scale hashes. It reproduced the prior held-out validation loss at all 18 coordinates exactly. This is a same-seed reproducibility rerun, not additional independent seed evidence.
 
-## Phase B: research-analysis pipeline smoke
+## Research-analysis pipeline smoke
 
 A CPU/offline `engram-mla-compression-v1` campaign exercised the factorial, nondominance, allocation, and boundary-sweep report paths. This is an engineering smoke, not an attention or memory-quality conclusion. All 12 runs (dense/MLA-half attention × no/lexical memory × seeds 17, 41, and 73) passed local evidence validation and reached step 32 / 4,096 tokens.
 
@@ -77,11 +77,11 @@ Verification: `uv run pytest -q tests/test_study_reporting.py tests/test_researc
 
 ## Next work
 
-### Phase C: define milestone and timing contract
+### Open: learning curves and measured cost
 
-This nano campaign captured 128 optimizer-update timing samples per run (`performance/step_seconds` and `performance/tokens_per_second`), but it did not measure end-to-end wall time or time to a quality threshold. The recipe declares `milestones_supported: false` and no primary thresholds. Update telemetry excludes evaluation, checkpoint, setup, and idle time; no billing or energy evidence is present.
+This nano campaign captured 128 optimizer-update timing samples per run (`performance/step_seconds` and `performance/tokens_per_second`), but not end-to-end wall time or time to a task-quality threshold. The recipe has no primary task threshold or capability-score capture schedule. Update telemetry excludes evaluation, checkpoint, setup, and idle time; no billing or energy evidence is present.
 
-Freeze a versioned milestone contract first: outcome and direction, threshold, observation boundary, checkpoint/card capture, and censored or failed-run representation. Then independent subagents can work in parallel on milestone capture/evaluation, cost/telemetry aggregation, and report/chart presentation. Keep one integration owner for the shared trainer and report schemas.
+Define a versioned observation protocol for task outcomes, metric direction, target threshold, capture boundary, checkpoint/card evaluation, and censored or failed runs. Capture per-checkpoint task scores alongside validation loss, actual targets, total wall time, and hardware context. Keep setup/evaluation/checkpoint overhead separate from optimizer-update timing.
 
 Do not run timing jobs concurrently on the same physical CPU/device. Controller capacity is reserved per worker ID, not per host; separate worker IDs on this workstation would contend. Serialize timed runs per resource or use separate machines.
 

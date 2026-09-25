@@ -1,6 +1,6 @@
 # Repository review: from mechanism demos to measured small models
 
-This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records the newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [completion ledger](../TODO.md) for current capabilities and remaining hardware gates.
+This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [capability backlog](../TODO.md) for current capabilities and remaining verification.
 
 ## Project contract
 
@@ -80,8 +80,8 @@ The local suite includes available MPS/MLX coverage; it is not CUDA, ROCm or XPU
 | Add missing training/runtime mechanisms | Assistant-only objectives and versioned inert tool-call transcripts, bounded PyTorch KV caches, native MLX sparse components, block recomputation, accumulation, measured activation offload, and PyTorch Adafactor are implemented within their explicit support boundaries. |
 | Make experiments reproducible and independently schedulable | Immutable native checkpoints, full-state child resume, fresh-state promotion, isolated pilots, explicit matrices, local/SSH worker contracts, device leases, and verified controller-local ingestion passed the recorded local acceptance gates. |
 
-The [scientific acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json) independently verifies preserved inputs, native endpoints, responses and comparisons. The [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) gates cover actual execution/recovery/installation scenarios; the final implementation suite passed 335 tests. Passing an engineering gate does not make a negative learning result positive.
+The [scientific acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json) independently verifies preserved inputs, native endpoints, responses and comparisons. The [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) gates cover actual execution/recovery/installation scenarios; the suite at that acceptance revision passed 335 tests. A passing engineering gate does not make a negative learning result positive.
 
 Further curriculum or scale experiments need a new explicit hypothesis and frozen evaluation; inspected cases must not become “untouched” again. Generic statistically justified model selection and open-ended response grading are not established by these studies. Native CUDA/HIP work, actual ROCm/XPU acceptance, and overlapping real Mac/AMD/Intel execution remain hardware-blocked. Distributed training remains outside the current scope.
 
-See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), and the [completion ledger](../TODO.md).
+See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), and the [capability backlog](../TODO.md).

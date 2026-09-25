@@ -23,7 +23,7 @@ FineWeb-Edu is identified in the output as ODC-BY-1.0; that database license doe
 
 Pythia weights are Apache-2.0. This is observation only: it does not download, package, or reproduce The Pile, and it is not a controlled comparison with SparseLab. Pythia and SparseLab can have different tokenizers, data histories, architectures, and training procedures, so their losses must not be presented as matched architecture effects.
 
-## Phase G bounded reference study
+## Completed FineWeb-Edu micro study
 
 The `engram-ffn-substitution-v1` micro study uses the pinned [FineWeb-Edu sample-10BT revision](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu/tree/87f09149ef4734204d70ed1d046ddc9ca3f2b8f9). Run data is capped at 2,000,000 model tokens and validation at 65,536 tokens, with an 8,192-entry tokenizer. Before the BPE vocabulary exists, tokenizer fitting conservatively caps its UTF-8 input at 2,000,000 bytes; it used that full byte budget across 464 training documents. Each prepared memory-mode cache contains 2,000,000 train tokens from 1,571 documents and 65,536 validation tokens from 48 documents; the none and lexical caches have identical token-content hashes. The byte limit bounds input pieces, not final BPE tokens.
 

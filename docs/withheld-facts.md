@@ -1,6 +1,6 @@
 # Withheld-fact diagnostic
 
-Milestones 0.6–0.9 provide an offline deterministic fixture, an immutable split manifest, an offline verifier, and a compact verified audit for testing fact-identity data separation before transfer experiments. `split_facts(seed)` creates six training facts and two held-out facts. The split is by complete `(subject, relation)` identity; held-out values are absent from training documents. Evaluation cases expose a prompt and expected value, with the expected value excluded from the prompt.
+The offline deterministic fixture, immutable split manifest, verifier, and compact verified audit make fact-identity separation testable before transfer experiments. `split_facts(seed)` creates six training facts and two held-out facts. The split is by complete `(subject, relation)` identity; held-out values are absent from training documents. Evaluation cases expose a prompt and expected value, with the expected value excluded from the prompt.
 
 This is not a training source, benchmark score, or evidence of byte-memory transfer. It deliberately does not add held-out facts to backbone training, memory-adapter supervision, or router objectives. Its purpose is to make accidental leakage detectable before a future trained diagnostic is designed.
 

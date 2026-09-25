@@ -1,6 +1,6 @@
 # Architecture decision records
 
-These ADRs preserve historical design context, not a current feature roadmap. Some later implementations extend an earlier decision without rewriting its original rationale. Use the [README](../../README.md), [runtime policy](../runtime.md), [independent-worker contract](../workers.md), and [completion ledger](../../TODO.md) for current capabilities, verified acceptance, and blocked hardware gates.
+These ADRs preserve historical design context, not a current feature roadmap. Some later implementations extend an earlier decision without rewriting its original rationale. Use the [README](../../README.md), [runtime policy](../runtime.md), [independent-worker contract](../workers.md), and [capability backlog](../../TODO.md) for current capabilities, verified acceptance, and blocked hardware gates.
 
 | ADR | Decision |
 |---|---|

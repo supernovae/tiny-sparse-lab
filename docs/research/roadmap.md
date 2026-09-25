@@ -1,37 +1,58 @@
-# Research roadmap: teacher representations and semantic memory
+# Capability status and evidence roadmap
 
-This roadmap separates implemented mechanisms from gated research questions. A phase title is not a claim that every item in that phase is runnable. For current semantic-retrieval behavior, see [Verified semantic memory](semantic-memory.md) and [Portable Engram](../portable-engram.md).
+This roadmap describes what SparseLab can execute, what has been smoke-tested, what outcomes have been observed, and what still blocks stronger claims. Progress is organized by capability and evidence—not release phases. **Implemented** means the path exists; **smoke-tested** means it ran; neither means a model is useful or an architecture is better. The active checklist is in [TODO.md](../../TODO.md).
 
-## Program sequence
+## Capabilities available now
 
-| Phase | Question and intended evidence |
+| Capability | Current boundary |
 |---|---|
-| A — Learn, try, compare, share | Standalone mechanism lessons, controlled study scaffolds, readable static evidence, and independent learning routes. |
-| B — Interactions and failure boundaries | Matched factorial cells, per-seed main effects and interaction deltas, explicit missing-cell handling, and failure-boundary sweeps. |
-| C — Learning efficiency and cost | Preregistered milestones, censored thresholds, common-support curves, and separately measured training, compilation, retrieval, and hardware costs. |
-| D — Executable memory and canonical worlds | Verified frozen packs, exact retrieval, ownership/site controls, changing synthetic worlds, and held-out pack/recipient checks. |
-| E — Useful tasks and human evidence | Leakage-controlled task suites, licensed source builders, and separately collected blinded human judgments. |
-| F — Allocation and narrower-network training | Provenance-bound ownership, neural-loss allocation, and distinct neural/total/active/token/FLOP regimes. |
-| G — References and scaling | Pinned observational model references and carefully bounded scaling recommendations. |
-| H — Compiler and teaching substrate | Compile frozen teacher representations into portable packs, test transfer across recipients, and account for every teacher/compiler/student cost. |
+| Model workflow | Train, inspect, evaluate, checkpoint, resume/promote, generate, and chat on documented CPU, MPS, and MLX paths. Worker-based independent runs are supported; no distributed backward or expert sharding. |
+| Learn and research | Packaged mechanism lessons, offline/TinyStories/FineWeb-Edu profiles, controlled recipes, explicit scaffolds, capability cards, paired/factorial comparisons, static reports, and read-only research browsing. Preparation, training, and collection remain explicit commands. |
+| Architecture | PyTorch dense, sliding-window, block-sparse and MLA attention; local Top-K MoE; token/byte/portable Engram. MLX supports dense and native block-sparse attention, not every PyTorch mechanism. |
+| Lexical memory | Token- and byte-addressed trainable tables, placement options, diagnostics, and checkpoint integration. Addressing/reuse/collisions are observable mechanisms, not proof of useful retrieval. |
+| Portable memory | Verified byte-table export/load and a frozen table with a trainable target adapter. This is distinct from a semantic EngramPack and from a text encoder. |
+| Semantic EngramPack | Verified exact retrieval from caller-supplied vectors, structured toy-world controls, and direct PyTorch `DenseLM` adapters. The standard text chat/training path does not construct semantic queries. |
+| Useful model behavior | No independently validated useful domain model yet. Synthetic association and instruction runs provide learning/failure examples, not general assistant capability. |
 
-## Phase H status and gate
+## Smoke and experiment evidence
 
-**Status: the design and teaching boundary are documented; the teacher-representation compiler is not implemented.** The existing runtime verifies semantic EngramPack assets and executes bounded exact retrieval. A `SemanticQueryBatch` contains already-encoded vectors; it does not encode prompt text. Current toy worlds use canonical structured keys, not macro-model representations or natural-language embeddings. The standard trainer and generation CLI do not supply a teacher encoder or semantic query batches. Consequently, current exact-retrieval and structured-world tests demonstrate runtime mechanics, not a useful teacher-derived semantic-transfer result.
+- The [CPU/offline FFN smoke and nano reports](sample-report.md) completed 18 runs and 21 comparisons per campaign. All three alias-card scores were zero for every run; lexical memory showed no consistent held-out-loss benefit. The fixed-seed rerun reproduced all 18 losses, but adds no independent seed evidence.
+- The [FineWeb-Edu micro study](../model-scaling.md#completed-fineweb-edu-micro-study) completed 18 MPS runs at 1,024 updates / 262,144 targets. Narrower FFNs had higher held-out loss; lexical deltas changed by seed/width, and all three alias cards were zero. This is bounded, descriptive evidence, not a scaling law or a general quality result.
+- The [MLA analysis smoke](sample-report.md#research-analysis-pipeline-smoke) completed 12 CPU/offline runs and exercised factorial, nondominance, allocation, and boundary-sweep reporting. Its 36 card outcomes were measured zeros; the run verifies analysis paths, not an MLA/memory benefit.
+- The [byte-Engram smoke](../byte-addressing.md#verified-smoke-execution) verified nontrivial UTF-8 addresses and two training updates. It does not establish learned byte-memory value.
+- The [portable Engram comparison](../portable-engram.md) tested two held-out cases; baseline, random-table, and trained-adapter systems all had zero exact matches, and the trained adapter did not outperform the random control. General transfer remains unverified.
+- The [ownership-allocation smoke](../path-domain-corpus.md#partial-cpu-allocation-smoke-observation) executed one of 75 configured coordinates. It produced zero card passes at every recorded checkpoint; no allocation optimum or full curve is established.
+- The [instruction starter](../from-toy-to-useful.md#measured-starter-example-what-improved-what-did-not) lowered synthetic validation loss, but its actual replies still failed ordinary arithmetic, color, and unrelated questions. This is not a useful assistant.
 
-The existing `sparselab engram pack compile` command packages caller-supplied vectors. It is not a representation compiler: it does not load a teacher, extract hidden states, choose layers, pool source text, or account for teacher compute. Do not describe manual vectors, record compilation, or the structured toy encoder as teacher knowledge distillation.
+## Open capability work
 
-Phase H implementation must remain gated until a train-only, reproducible semantic representation path has been exercised through the verified pack runtime and shown to transfer across independently configured recipient models. The gate requires:
+The detailed acceptance conditions live in [TODO.md](../../TODO.md). The main open questions are:
 
-1. A frozen, locally available teacher and an immutable teacher revision/checkpoint identity; no implicit download or remote code execution.
+- **Useful tasks:** establish one low-risk real task against an independent test population and a simple baseline, with declared error handling and human review.
+- **Lexical Engram:** test transfer/generalization across independent task data, held-out wording/facts, seeds, and collision/capacity controls; keep token and byte results distinct.
+- **Portable byte Engram:** extend the negative two-case result to multiple recipient configurations and held-out cases; prove adapter updates leave source table bytes unchanged and retain disabled/random/frozen-only controls.
+- **Semantic EngramPack:** distinguish exact retrieval of supplied vectors from natural-language understanding. Any text-query capability first needs a reproducible encoder/space contract, an exercised query path, leakage-audited tasks, pack controls, and measured encoder/retrieval cost.
+- **Other mechanisms and allocation:** run selected full comparisons beyond wiring smokes, preserve every seed/outcome, and separate task quality from parameter/cache estimates and synchronized device timing.
+- **Learning and cost evidence:** add a versioned observation protocol for held-out outcomes, actual token/checkpoint boundaries, threshold censoring, wall/device time, and memory. Update duration is not end-to-end experiment time.
+- **Hardware:** CPU/Apple evidence cannot close CUDA/HIP/ROCm/XPU or real cross-host execution gates.
+
+## Deferred capability: teacher-derived semantic representations
+
+**Status: not implemented.** Verified semantic retrieval consumes already encoded canonical vectors; it does not encode prompt text. Current toy worlds use structured keys, not natural-language embeddings. Standard training and generation do not construct semantic query batches. These interfaces and tests establish bounded retrieval mechanics only.
+
+The existing `sparselab engram pack compile` command packages caller-supplied vectors. It does not load a teacher, extract hidden states, choose layers, pool source text, or account for teacher compute. Do not describe manual vectors, record compilation, or the structured toy encoder as teacher knowledge distillation.
+
+A teacher-derived pack remains gated until all of the following are exercised:
+
+1. A frozen, locally available teacher with immutable revision/checkpoint identity; no implicit download or remote code execution.
 2. Reproducible query and value representations with declared encoder identities and one explicit compatible feature-space contract.
-3. A verified portable pack used by at least two recipient configurations, with unchanged pack bytes and separate recipient adapters.
-4. Held-out evaluation against correct, disabled, random, conflicting, and incomplete pack controls. Compiler inputs must exclude validation, test, and capability-card content.
-5. Source, license, provenance, and measured teacher/compiler/storage costs recorded before any transfer or amortization claim.
+3. One verified pack used by at least two recipient configurations, with unchanged pack bytes and separate recipient adapters.
+4. Held-out evaluation against correct, disabled, random, conflicting, and incomplete pack controls; compiler inputs exclude validation, test, and capability-card content.
+5. Source/license/provenance plus measured teacher and compiler costs before any transfer or amortization claim.
 
-Until these conditions are met, do not add a `teacher compile` command, promote the synthetic key encoder into a text encoder, or label the current retrieval interface as natural-language understanding.
+Until those conditions hold, do not add an implicit `teacher compile` path, call the synthetic key encoder a text encoder, or describe current retrieval as natural-language understanding.
 
-## Future compiler contract
+## Required contract for a future teacher-pack compiler
 
 When the gate is met, compilation is an explicit offline command over already-authorized local assets. Its output is a versioned, verified semantic EngramPack; pack creation never runs implicitly during scaffold, training, evaluation, or dashboard browsing. Any new manifest fields require a versioned schema and must preserve compatibility with existing records-only, lexical, and externally supplied semantic packs.
 

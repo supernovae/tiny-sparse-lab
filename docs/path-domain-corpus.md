@@ -160,7 +160,7 @@ independent resource-matched model architectures. Curves retain every observed
 checkpoint point, including nonmonotonic behavior; no best point is selected
 or smoothed.
 
-## Phase F CPU smoke observation
+## Partial CPU allocation smoke observation
 
 The scaffold contains 75 coordinates (three seeds, five ownership profiles,
 five neural weights). Only `iso-total/s17/n50/w50` was executed; this is a

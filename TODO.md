@@ -1,6 +1,34 @@
-# Completion backlog — independent experiments, no distributed training
+# Capability status and open verification backlog
 
-This is the active execution checklist for the approved runtime/staging/workers plan. Subagents implement isolated slices; Main (Astra) reviews their changes and runs the acceptance scenarios. A subagent completion report is not acceptance. Checkboxes close only with recorded behavioral evidence, and hardware-dependent gates stay open when their hardware is unavailable.
+This is the living checklist for what SparseLab can execute, what has been smoke-tested, and what still needs evidence before stronger capability claims. A passing test or smoke run proves a code path, not useful model behavior. Completed acceptance records remain below as a historical evidence ledger; the current open work is organized by capabilities, not release phases. See the [capability roadmap](docs/research/roadmap.md).
+
+## Current capability snapshot
+
+| Capability | Implemented and exercised | What remains unproven |
+|---|---|---|
+| Training and runtime | CPU, MPS, and MLX/Metal training, evaluation, checkpoint recovery, inference, and independent-worker paths have acceptance evidence. | Fit, throughput, or reliability at larger workloads and on untested vendor hardware. |
+| Learning and experiment workbench | Packaged lessons/catalog, explicit scaffolds, paired and factorial comparisons, static reports, and read-only dashboard paths exist. CPU/offline smoke, nano, and MPS/FineWeb-Edu micro studies are recorded. | A smoke is not a quality result; time-to-target, complete cost accounting, and broader independent task results remain open. |
+| Token/byte Engram | Trainable tables are integrated with the model/training/checkpoint paths; byte-address smoke and controlled lexical-memory studies exist. | No consistent held-out benefit or general knowledge-transfer result; results vary by task and budget. |
+| Portable byte Engram | Exported table identity can be verified and reused with a frozen table plus trainable recipient adapter. A two-case comparison is recorded. | That small comparison was negative; broader multi-seed and multi-recipient transfer remains unverified. |
+| Semantic EngramPack | Verified exact retrieval from caller-supplied vectors, direct PyTorch `DenseLM` adapters, and structured synthetic-world controls are implemented. | No natural-language query encoder or standard chat/trainer query pipeline; no natural-language semantic capability claim. |
+| Other architectures | PyTorch attention, MLA, local MoE, and memory paths have tests and integration runs; native MLX sparse attention has component measurements. | Most evidence is mechanism correctness or small, task-specific studies—not general quality or speed superiority. |
+| Useful local models | A measured synthetic instruction starter and narrow capability cards provide honest failure examples. | No independently evaluated, useful real-world task model has been established. |
+
+The latest offline workstation regression run was `uv run pytest -m 'not cuda and not rocm and not xpu and not network'` (**509 passed**). This validates software paths; it does not change any model-capability status above.
+
+## Open capability work
+
+- [ ] **Lexical Engram:** run matched, multi-seed tests on a non-alias task with a training-only corpus, independent held-out cases, dense/no-memory controls, and collision/address diagnostics. Report token and byte addressing separately; do not infer transfer from reuse or table occupancy.
+- [ ] **Portable byte Engram:** extend beyond the recorded two-case comparison. Use multiple held-out facts and phrasings, more than one recipient configuration, and disabled/random/frozen-only/trained-adapter controls. Verify the exported table digest and values are unchanged after adapter training; publish all seeds, scores, and failures.
+- [ ] **Semantic EngramPack:** decide whether the supported claim stays caller-supplied-vector retrieval or adds a real text-query producer. For text use, bind encoder/revision/space identity, connect query construction to a supported inference/training path, and evaluate correct, disabled, random, conflicting, and incomplete packs on leakage-audited held-out tasks. Measure producer and retrieval costs separately.
+- [ ] **Allocation curve:** complete or explicitly bound the current 75-coordinate design; the recorded CPU smoke executed only one coordinate. Preserve per-task outcomes, all declared ownership/weight combinations, actual targets, and nonmonotonic results.
+- [ ] **Architecture evidence:** choose one task and compare one mechanism at a time—MLA, sparse attention, MoE, placement, or FFN width—with matched data, tokenizer, seed, endpoint, and backend. Keep task scores, parameter/cache estimates, synchronized update timing, and end-to-end wall time separate.
+- [ ] **Useful narrow model:** select one low-risk job, use permissioned non-synthetic examples, freeze an independent test set, and compare against a simple non-neural baseline. Predeclare acceptance criteria; include ambiguous/unknown cases, per-case errors, multiple seeds, and human review before describing the result as useful.
+- [ ] **Learning and cost curves:** define a versioned observation policy for held-out task scores at committed token/checkpoint boundaries, thresholds, censored runs, wall/device time, and measured memory. Preserve update time separately from setup, evaluation, and checkpoint overhead; do not label a smoke timing as time-to-quality.
+
+CUDA/HIP/ROCm/XPU, actual cross-host hardware, and distributed training retain their separate constraints below. They are not closed by CPU or Apple Silicon smoke results.
+
+## Earlier acceptance evidence
 
 ## Local runtime
 
@@ -62,10 +90,10 @@ Workers execute whole independent experiments. No shared optimizer, distributed 
 
 ## Astra acceptance
 
-- [x] Verify every completed slice with Astra review. **Astra:** independently verified subagent reports, real artifact identities/counters and recovery behavior; reproduced and fixed final lifecycle/codec findings. Final Ruff checks and all **335 tests** pass. Earlier scientific and single-host gate evidence remains intact; hardware-dependent claims stay blocked.
+- [x] Verify every completed slice with Astra review. **Astra:** independently verified subagent reports, real artifact identities/counters and recovery behavior; reproduced and fixed final lifecycle/codec findings. At that acceptance revision, Ruff checks and 335 tests passed. Later regression results are summarized above. Earlier scientific and single-host gate evidence remains intact; hardware-dependent claims stay blocked.
 - [x] Complete the integrated single-host runtime acceptance gate. **Astra:** accepted after actual CPU FP32/BF16/Adafactor and native MLX continuation, MPS 20/640 full/resumed comparison and CPU-weight promotion, signal/corruption recovery, isolated warmup, dashboard, core-only wheel, and integrity regressions. The immutable execution wheel and hashed evidence index are retained. [Gate record](artifacts/acceptance/single_host_gate_2026_09_22.json).
 - [x] Complete end-to-end independent-worker acceptance. **Astra:** final installed core-only wheel, concurrent CPU runs, actual MLX worker, controller disconnect/replay, cancellation, explicit crash recovery, offline promotion/evaluation/inference, real CLI matrix, admission rejection and read-only dashboard checks passed. Actual browser WebGL curve pixels were captured and visually inspected; standard screenshots/runtime-table rasterization stalled, so runtime table values were verified with Streamlit's real app harness. [Gate record](artifacts/acceptance/independent_workers_2026_09_23.json), [rendered curves](artifacts/acceptance/workers_training_2026_09_23.svg).
-- [x] Publish verified changes and accurately record blocked gates. **Astra:** implementation, curated data, study results, acceptance records, rendered UI evidence and both frozen execution wheels published to `origin/main` in [e8a60d8](https://github.com/supernovae/tiny-sparse-lab/commit/e8a60d8). All 31 locally actionable tasks are complete; five actual-hardware gates remain explicitly blocked. Owned acceptance services and throwaway drivers were removed or stopped; canonical run/checkpoint/proof directories were retained.
+- [x] Publish verified changes and accurately record blocked gates. **Astra:** implementation, curated data, study results, acceptance records, rendered UI evidence and both frozen execution wheels were published to `origin/main` in [e8a60d8](https://github.com/supernovae/tiny-sparse-lab/commit/e8a60d8). At that acceptance point, 31 locally actionable tasks were complete and five actual-hardware gates remained blocked. The capability work now tracked at the top of this file extends beyond that historical acceptance.
 
 Evidence must include actual CLI scenarios, checkpoint/optimizer/RNG comparisons, negative integrity and recovery cases, populated browser verification, installed-wheel behavior, and real hardware measurements where claimed. Shape-only inspection is not a large-model training result. Sampled MPS peaks are lower bounds, not native allocator high-water measurements.
 
