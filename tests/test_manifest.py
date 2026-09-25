@@ -72,16 +72,16 @@ def test_legacy_final_memory_injection_preserves_hashes_and_embedding_binds() ->
     root = Path(__file__).resolve().parents[1]
     expected = {
         "runtime_smoke_cpu.yaml": (
-            "0a2c6cff8756684c12f1ce2743eb392e40a161ce64caa14dbd039aeaa56a4787",
-            "2e382ca276c05f9799be83de6fbdff5871f04a5c7e6605b5388bd4e460ae688b",
+            "2843e32cd3b64ec6049a20881ada0512e561b9fa4c1b05dcc8910dde01390c4f",
+            "abee11a5910dcd65942047b98a65b1c600125c7142fae5099c80771d9eebc949",
         ),
         "context_study_dense_s17_b24k.yaml": (
-            "204fc93286d05b3dd5e073698491494659d6c71072d5f93556ffb8f2d61cbfdb",
-            "c0b593f08717cae4189a8b24246155c7b18b6b3d626ee4931ff22f3fc7f54583",
+            "93db49867e51f63089c903ae02d913bc28ab3d8b9e9ae6d30305c0abb9d8ce9f",
+            "32569ae52919b99b04ddb4882dd4c74536998a058a418db48e9c6e4bd8dcfaba",
         ),
         "context_study_engram_s17_b24k.yaml": (
-            "17f4efe8e0c72e7c6b9bc5c5f6d6ac3b0cec685222b006e092f3a76898b33872",
-            "8ea7e2f56fa3b1902ff72be1656db489ea0191da883e44c8ce2129f026439a02",
+            "0573c402becc5129e8c7185d5c8be0afb8612b10333e311f505a947c3f8d8181",
+            "9da4c0a2159a703bd0ddcdcc9d6f53b414833793d3ab2a039f47e70f719e9af2",
         ),
     }
     for filename, digests in expected.items():

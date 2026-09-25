@@ -633,14 +633,19 @@ class PyTorchEngine:
                         )
                     )
                 for index, (term, parameters) in enumerate(terms):
+                    if self.scaler is not None:
+                        term = self.scaler.scale(term)
                     torch.autograd.backward(
                         term,
                         inputs=parameters,
                         retain_graph=index + 1 < len(terms),
                     )
             else:
+                backward_loss = (ce_sum + auxiliary * chunk_valid) / valid_targets
+                if self.scaler is not None:
+                    backward_loss = self.scaler.scale(backward_loss)
                 torch.autograd.backward(
-                    (ce_sum + auxiliary * chunk_valid) / valid_targets,
+                    backward_loss,
                     inputs=[
                         parameter
                         for parameter in model.parameters()

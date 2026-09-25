@@ -38,7 +38,7 @@
       "vocab_size": 8192,
       "min_frequency": 2,
       "tokenizer_max_documents": 20000,
-      "tokenizer_train_max_tokens": 2000000,
+      "tokenizer_train_max_tokens": 5000000,
       "tokenizer_validation_max_documents": 500,
       "tokenizer_validation_max_tokens": 65536,
       "license": "CDLA-Sharing-1.0; upstream records GPT-3.5/GPT-4 generated stories.",

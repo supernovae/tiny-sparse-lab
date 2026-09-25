@@ -110,12 +110,14 @@ def evaluate(
                         torch.from_numpy(np.stack(queries)).to(device),
                         torch.from_numpy(np.stack(masks)).to(device),
                     )
-                logits = model(
-                    x,
-                    byte_addresses=byte_addresses,
-                    semantic_queries=semantic_queries,
-                    memory_mask=memory_mask,
-                )
+                model_inputs: dict[str, object] = {}
+                if byte_addresses is not None:
+                    model_inputs["byte_addresses"] = byte_addresses
+                if semantic_queries is not None:
+                    model_inputs["semantic_queries"] = semantic_queries
+                if memory_mask is not None:
+                    model_inputs["memory_mask"] = memory_mask
+                logits = model(x, **model_inputs)
                 loss = functional.cross_entropy(
                     logits.float().flatten(0, 1),
                     y.flatten(),

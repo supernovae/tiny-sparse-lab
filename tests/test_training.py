@@ -52,7 +52,7 @@ def config(root: Path) -> RunConfig:
                     "cache_dir": root / "cache",
                     "train_max_documents": 200,
                     "validation_max_documents": 40,
-                    "train_max_tokens": 8192,
+                    "train_max_tokens": 32768,
                     "validation_max_tokens": 2048,
                     "synthetic_seed": 7,
                 },

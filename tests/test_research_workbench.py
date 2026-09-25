@@ -224,6 +224,26 @@ def test_fineweb_edu_scaffold_is_pinned_and_does_not_prepare_data(
     assert not (output / "runs").exists()
 
 
+def test_tinystories_scaffold_sets_runnable_tokenizer_prefix(
+    tmp_path: Path,
+) -> None:
+    profile = load_datasets().datasets["tinystories"]
+    output = scaffold_research(
+        "engram-ffn-substitution-v1",
+        tmp_path / "tinystories-study",
+        scale="smoke",
+        data="tinystories",
+    )
+    tokenizer = _mapping(yaml.safe_load((output / "tokenizer.yaml").read_text()))
+    tokenizer_dataset = _mapping(tokenizer["dataset"])
+
+    assert profile.tokenizer_train_max_tokens == 5_000_000
+    assert tokenizer["vocab_size"] == profile.vocab_size
+    assert tokenizer_dataset["train_max_tokens"] == 5_000_000
+    assert tokenizer_dataset["revision"] == profile.revision
+    assert not (output / "artifacts").exists()
+
+
 def test_research_scaffold_rebases_paths_from_symlinked_destination(
     tmp_path: Path,
 ) -> None:

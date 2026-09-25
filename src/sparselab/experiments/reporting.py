@@ -1,3 +1,5 @@
+# Invalid serialized evidence uses one ValueError contract at the report boundary.
+# ruff: noqa: TRY004
 """Read-only validation and publication of static architecture-study evidence.
 
 This module deliberately does not load models, run inference, or open the writer-side
@@ -18,11 +20,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from sparselab.config.loading import load_config
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.evaluation.capabilities import _passes
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
+from sparselab.experiments.matrix import _load_matrix
 from sparselab.experiments.study import (
     _comparison_report,
     _reject_duplicate_pairs,
@@ -108,6 +112,95 @@ def _is_sha256(value: object) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _historical_config_sha256(config: dict[str, Any]) -> str:
+    """Reproduce v1 digests from before additive default fields were added."""
+    normalized = dict(config)
+    for section_name, field, default in (
+        ("model", "semantic_memory_dim", None),
+        ("training", "neural_loss_weight", 1.0),
+    ):
+        section = normalized.get(section_name)
+        if not isinstance(section, dict) or field not in section:
+            continue
+        value = section[field]
+        if value != default or isinstance(value, bool):
+            raise ValueError(
+                "historical identity compatibility requires default fields"
+            )
+        normalized[section_name] = {
+            key: item for key, item in section.items() if key != field
+        }
+    dataset = normalized.get("dataset")
+    if (
+        isinstance(dataset, dict)
+        and dataset.get("allocation_manifest_path") is not None
+    ):
+        raise ValueError("historical identity cannot omit an allocation manifest")
+    return config_sha256(normalized)
+
+
+def _historical_study_identity(study: Any) -> tuple[str, str, list[str]]:
+    raw = _load_matrix(study.matrix_path)
+    base_reference = raw.get("base_config")
+    axes = raw.get("axes")
+    if not isinstance(base_reference, str) or not isinstance(axes, dict):
+        raise TypeError("historical study identity inputs are invalid")
+    base_path = Path(base_reference)
+    if not base_path.is_absolute():
+        base_path = study.matrix_path.parent / base_path
+    base = load_config(base_path).model_dump(mode="python")
+    first = study.expanded[0]
+    matrix_material = {
+        "matrix_version": 1,
+        "base_config_sha256": _historical_config_sha256(base),
+        "axes": [{"name": name, "options": options} for name, options in axes.items()],
+        "scheduling": {
+            "preferred_worker": first.preferred_worker,
+            "requirements": first.requirements.model_dump(mode="json"),
+        },
+    }
+    matrix_sha256 = hashlib.sha256(canonical_json(matrix_material)).hexdigest()
+    config_digests = [
+        _historical_config_sha256(item.config.model_dump(mode="json"))
+        for item in study.expanded
+    ]
+    study_material = {
+        "study_version": 1,
+        "name": study.name,
+        "matrix_sha256": matrix_sha256,
+        "cards": [
+            {"name": item.card.name, "digest": item.card.digest} for item in study.cards
+        ],
+        "comparisons": [asdict(item) for item in study.comparisons],
+        "runs": [
+            {"coordinate": item.coordinate, "config_sha256": digest}
+            for item, digest in zip(study.expanded, config_digests, strict=True)
+        ],
+    }
+    study_sha256 = hashlib.sha256(canonical_json(study_material)).hexdigest()
+    return matrix_sha256, study_sha256, config_digests
+
+
+def _identity_for_receipt(
+    study: Any, receipt: dict[str, object]
+) -> tuple[str, str, list[str], str]:
+    current_configs = [
+        config_sha256(item.config.model_dump(mode="json")) for item in study.expanded
+    ]
+    if (
+        receipt.get("study_sha256") == study.study_sha256
+        and receipt.get("matrix_sha256") == study.matrix_sha256
+    ):
+        return study.study_sha256, study.matrix_sha256, current_configs, "current"
+    matrix_sha256, study_sha256, historical_configs = _historical_study_identity(study)
+    if (
+        receipt.get("study_sha256") == study_sha256
+        and receipt.get("matrix_sha256") == matrix_sha256
+    ):
+        return study_sha256, matrix_sha256, historical_configs, "legacy_default_fields"
+    raise ValueError("study specification differs from receipt")
 
 
 def _validate_research(path: Path, study_path: Path) -> dict[str, object]:
@@ -743,11 +836,9 @@ def build_study_report(
         or receipt["schema_version"] != 1
     ):
         raise ValueError("unsupported study receipt")
-    if (
-        receipt.get("study_sha256") != study.study_sha256
-        or receipt.get("matrix_sha256") != study.matrix_sha256
-    ):
-        raise ValueError("study specification differs from receipt")
+    study_sha256, matrix_sha256, config_digests, identity_mode = _identity_for_receipt(
+        study, receipt
+    )
     remap = _cards_by_identity(study, receipt)
     evidence, evidence_bytes = _read_json(evidence_path, "collected report")
     if (
@@ -764,8 +855,8 @@ def build_study_report(
     ):
         raise ValueError("collected report hash mismatch")
     if (
-        evidence.get("study_sha256") != study.study_sha256
-        or evidence.get("matrix_sha256") != study.matrix_sha256
+        evidence.get("study_sha256") != study_sha256
+        or evidence.get("matrix_sha256") != matrix_sha256
         or evidence.get("receipt_sha256") != _sha(receipt_bytes)
     ):
         raise ValueError("collected report identity differs from supplied inputs")
@@ -781,12 +872,12 @@ def build_study_report(
 
     evaluated: list[dict[str, object]] = []
     seen_ids: set[str] = set()
-    for planned, submitted, raw in zip(
-        study.expanded, receipt_runs, records, strict=True
+    for index, (planned, submitted, raw) in enumerate(
+        zip(study.expanded, receipt_runs, records, strict=True)
     ):
         if not isinstance(submitted, dict) or not isinstance(raw, dict):
             raise ValueError("invalid run inventory")
-        digest = config_sha256(planned.config.model_dump(mode="json"))
+        digest = config_digests[index]
         run_id = _safe_run_id(submitted.get("run_id"))
         if (
             run_id in seen_ids
@@ -955,8 +1046,10 @@ def build_study_report(
         scale_info = research["scale_profile"]
         dataset = DatasetProfile.model_validate(dataset_info["profile"])
         scale = ScaleProfile.model_validate(scale_info["profile"])
-        for planned, declared in zip(study.expanded, declared_coordinates, strict=True):
-            digest = config_sha256(planned.config.model_dump(mode="json"))
+        for index, (planned, declared) in enumerate(
+            zip(study.expanded, declared_coordinates, strict=True)
+        ):
+            digest = config_digests[index]
             config = planned.config
             if (
                 declared["coordinate"] != planned.coordinate
@@ -1029,11 +1122,11 @@ def build_study_report(
             )
 
     quantities = []
-    for planned in study.expanded:
+    for index, planned in enumerate(study.expanded):
         inventory = parameter_inventory(planned.config)
         quantities.append(
             {
-                "config_sha256": config_sha256(planned.config.model_dump(mode="json")),
+                "config_sha256": config_digests[index],
                 "inventory": asdict(inventory),
                 "inspection": inspection_report(planned.config),
                 "dataset": {
@@ -1115,8 +1208,8 @@ def build_study_report(
             cards=cards,
         )
     report_inputs: dict[str, object] = {
-        "study_sha256": study.study_sha256,
-        "matrix_sha256": study.matrix_sha256,
+        "study_sha256": study_sha256,
+        "matrix_sha256": matrix_sha256,
         "receipt_sha256": _sha(receipt_bytes),
         "collected_report_sha256": claimed,
         "verification_scope": (
@@ -1124,6 +1217,7 @@ def build_study_report(
             if runs_dir is None
             else "report_plus_local_checkpoint_validation"
         ),
+        "config_identity_mode": identity_mode,
     }
     if research is not None:
         report_inputs["research_sha256"] = research["research_sha256"]

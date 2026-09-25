@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import shutil
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -8,7 +11,23 @@ from pydantic import ValidationError
 
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
+from sparselab.experiments.reporting import (
+    _historical_study_identity,
+    _identity_for_receipt,
+    build_study_report,
+    load_report_bundle,
+    write_study_report,
+)
+from sparselab.experiments.study import plan_study
 from sparselab.research.catalog import FactorialDesign
+from sparselab.training.manifest import canonical_json
+
+_HISTORICAL_REPORT_INPUTS = (
+    Path(__file__).resolve().parents[1]
+    / "artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/inputs"
+)
+
+_HISTORICAL_STUDY = _HISTORICAL_REPORT_INPUTS / "research-scaffold" / "study.yaml"
 
 _FACTORIAL_DESIGN = {
     "format": "sparselab-factorial-design",
@@ -301,3 +320,107 @@ def test_factorial_design_metadata_has_strict_version_and_distinct_axes() -> Non
     }
     with pytest.raises(ValidationError, match="distinct axes"):
         FactorialDesign.model_validate(malformed)
+
+
+def test_historical_default_fields_preserve_collected_study_identity() -> None:
+    study = plan_study(
+        Path(__file__).resolve().parents[1] / "configs/memory_injection_v1.study.yaml"
+    )
+    matrix_sha256, study_sha256, config_digests = _historical_study_identity(study)
+
+    assert matrix_sha256 == (
+        "77582b627384f5fcf998721393868e0e35cf004693f5ec3bca91109908277a0b"
+    )
+    assert study_sha256 == (
+        "eb7b57eb358bf243657ce6f929e5bc2c028f4f10cddac33add495d1ff11d03e5"
+    )
+    assert _identity_for_receipt(
+        study,
+        {"study_sha256": study_sha256, "matrix_sha256": matrix_sha256},
+    ) == (study_sha256, matrix_sha256, config_digests, "legacy_default_fields")
+
+
+@pytest.fixture(scope="module")
+def historical_report_bundle(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[dict[str, object], Path, Path]:
+    report = build_study_report(
+        _HISTORICAL_STUDY,
+        _HISTORICAL_REPORT_INPUTS / "receipt.json",
+        _HISTORICAL_REPORT_INPUTS / "collected-report.json",
+    )
+    output = tmp_path_factory.mktemp("historical-report") / "bundles"
+    bundle = write_study_report(report, output)
+    return report, output, bundle
+
+
+def test_historical_report_bundle_replays_and_validates(
+    historical_report_bundle: tuple[dict[str, object], Path, Path],
+) -> None:
+    report, output, bundle = historical_report_bundle
+    inputs = report["inputs"]
+    assert isinstance(inputs, dict)
+    assert inputs["config_identity_mode"] == "legacy_default_fields"
+    assert inputs["verification_scope"] == "checksummed_report_only"
+    assert len(report["runs"]) == 18
+    assert len(report["comparisons"]) == 21
+    assert write_study_report(report, output) == bundle
+
+    loaded = load_report_bundle(bundle)
+    assert loaded["report"]["inputs"] == inputs
+    assert len(loaded["report"]["runs"]) == 18
+
+
+def test_collected_report_rejects_stale_digest_after_evidence_tampering(
+    tmp_path: Path,
+) -> None:
+    evidence = json.loads(
+        (_HISTORICAL_REPORT_INPUTS / "collected-report.json").read_text()
+    )
+    evidence["runs"][0]["run_id"] = "tampered-run"
+    evidence_path = tmp_path / "tampered-report.json"
+    evidence_path.write_bytes(canonical_json(evidence) + b"\n")
+
+    with pytest.raises(ValueError, match="collected report hash mismatch"):
+        build_study_report(
+            _HISTORICAL_STUDY,
+            _HISTORICAL_REPORT_INPUTS / "receipt.json",
+            evidence_path,
+        )
+
+
+def test_collected_report_rechecks_resigned_capability_response(
+    tmp_path: Path,
+) -> None:
+    evidence = json.loads(
+        (_HISTORICAL_REPORT_INPUTS / "collected-report.json").read_text()
+    )
+    capability = next(iter(evidence["runs"][0]["capabilities"].values()))
+    result = capability["result"]
+    case = result["results"][0]
+    case["response"] = case["expected"]
+    material = {key: value for key, value in evidence.items() if key != "report_sha256"}
+    evidence["report_sha256"] = hashlib.sha256(canonical_json(material)).hexdigest()
+    evidence_path = tmp_path / "resigned-report.json"
+    evidence_path.write_bytes(canonical_json(evidence) + b"\n")
+
+    with pytest.raises(ValueError, match="capability scorer result was tampered"):
+        build_study_report(
+            _HISTORICAL_STUDY,
+            _HISTORICAL_REPORT_INPUTS / "receipt.json",
+            evidence_path,
+        )
+
+
+def test_report_bundle_rejects_mutated_content(
+    historical_report_bundle: tuple[dict[str, object], Path, Path],
+    tmp_path: Path,
+) -> None:
+    _, _, bundle = historical_report_bundle
+    tampered = tmp_path / bundle.name
+    shutil.copytree(bundle, tampered)
+    report_path = tampered / "report.json"
+    report_path.write_bytes(report_path.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match="child integrity failure"):
+        load_report_bundle(tampered)

@@ -90,7 +90,9 @@ def test_omitted_kv_heads_preserve_legacy_model_serialization() -> None:
     )
 
     assert "num_kv_heads" not in model.model_dump(mode="json")
-    assert config_sha256(base) == config_sha256(explicit_none)
+    assert config_sha256(base.model_dump(mode="json")) == config_sha256(
+        explicit_none.model_dump(mode="json")
+    )
 
 
 def test_engram_tables_count_as_storage_not_all_active_rows():
