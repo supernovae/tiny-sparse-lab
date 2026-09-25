@@ -17,6 +17,8 @@ FineWeb-Edu is pinned to revision `87f09149ef4734204d70ed1d046ddc9ca3f2b8f9` and
 
 A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `study.yaml`, hashed standalone configs, and metadata. It does **not** execute them. Follow the generated README to train the tokenizer, prepare each required config's data, inspect/probe/train, or explicitly submit and collect a study. See [lesson paths](lesson-paths.md), [the catalog notes](engram-ffn-substitution.md), [evidence and reporting](evidence-and-reporting.md), and [dashboard browsing](dashboard.md).
 
+The [research roadmap](roadmap.md) records Phase H's gate: no teacher-representation compiler or natural-language encoder is shipped; semantic retrieval currently requires pre-encoded vectors.
+
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
 

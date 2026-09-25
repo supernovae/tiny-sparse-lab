@@ -94,6 +94,8 @@ The lesson supports verified pack loading, exact bounded score ordering, determi
 
 For artifact provenance and semantic component layout, see [Portable Engram](../portable-engram.md). For the existing trainable token/byte tables, which are distinct from external semantic retrieval, see [Engram](../engram.md).
 
+The gated teacher-representation compiler and its measured-cost requirements are described in the [research roadmap](roadmap.md).
+
 ## Primary context
 
 - Karpukhin et al., [*Dense Passage Retrieval for Open-Domain Question Answering*](https://arxiv.org/abs/2004.04906). It motivates vector retrieval research, but this lesson neither supplies DPR's text encoders nor reproduces its open-domain QA protocol or results.
