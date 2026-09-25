@@ -114,6 +114,148 @@ def _is_sha256(value: object) -> bool:
     )
 
 
+def _validate_portability_evidence(
+    path: Path,
+) -> tuple[dict[str, object], bytes]:
+    """Validate the versioned portability evidence envelope without rendering rows."""
+    evidence, evidence_bytes = _read_json(path, "portability evidence")
+    required = {
+        "format",
+        "version",
+        "campaign_id",
+        "scale",
+        "protocol_sha256",
+        "world_manifest_sha256",
+        "arms",
+        "observations",
+        "summary",
+        "limitations",
+        "sha256",
+    }
+    if set(evidence) != required:
+        raise ValueError("portability evidence has an invalid top-level schema")
+    if (
+        evidence["format"] != "sparselab-portability-evidence"
+        or type(evidence["version"]) is not int
+        or evidence["version"] != 1
+        or not isinstance(evidence["campaign_id"], str)
+        or not evidence["campaign_id"]
+        or not isinstance(evidence["scale"], str)
+        or evidence["scale"] not in {"smoke", "nano", "micro", "tiny"}
+        or not _is_sha256(evidence["protocol_sha256"])
+        or not _is_sha256(evidence["world_manifest_sha256"])
+        or not isinstance(evidence["arms"], list)
+        or not isinstance(evidence["observations"], list)
+        or not isinstance(evidence["summary"], dict)
+        or not isinstance(evidence["limitations"], list)
+    ):
+        raise ValueError("unsupported portability evidence")
+    arm_fields = {
+        "arm_id",
+        "recipient",
+        "representation",
+        "condition",
+        "seed",
+        "status",
+        "run_id",
+    }
+    for arm in evidence["arms"]:
+        if (
+            not isinstance(arm, dict)
+            or set(arm) != arm_fields
+            or any(
+                not isinstance(arm[field], str) or not arm[field]
+                for field in (
+                    "arm_id",
+                    "recipient",
+                    "representation",
+                    "condition",
+                    "status",
+                )
+            )
+            or type(arm["seed"]) is not int
+            or (
+                arm["run_id"] is not None
+                and (
+                    not isinstance(arm["run_id"], str)
+                    or not arm["run_id"]
+                )
+            )
+        ):
+            raise ValueError("portability evidence arm is malformed")
+    observation_fields = {
+        "run_id",
+        "step",
+        "tokens_seen",
+        "checkpoint_sha256",
+        "observation_sha256",
+        "censored",
+    }
+    for observation in evidence["observations"]:
+        if (
+            not isinstance(observation, dict)
+            or set(observation) != observation_fields
+            or not isinstance(observation["run_id"], str)
+            or not observation["run_id"]
+            or type(observation["step"]) is not int
+            or observation["step"] < 0
+            or type(observation["tokens_seen"]) is not int
+            or observation["tokens_seen"] < 0
+            or not _is_sha256(observation["checkpoint_sha256"])
+            or not _is_sha256(observation["observation_sha256"])
+            or type(observation["censored"]) is not bool
+        ):
+            raise ValueError("portability evidence observation is malformed")
+    summary_fields = {
+        "planned_arms",
+        "completed_arms",
+        "failed_arms",
+        "censored_arms",
+    }
+    summary = evidence["summary"]
+    if (
+        set(summary) != summary_fields
+        or any(
+            type(value) is not int or value < 0
+            for value in summary.values()
+        )
+        or summary["planned_arms"] != len(evidence["arms"])
+        or (
+            summary["completed_arms"]
+            + summary["failed_arms"]
+            + summary["censored_arms"]
+            > summary["planned_arms"]
+        )
+        or any(
+            not isinstance(limitation, str) or not limitation
+            for limitation in evidence["limitations"]
+        )
+    ):
+        raise ValueError("portability evidence summary is malformed")
+    claimed = evidence["sha256"]
+    material = {key: value for key, value in evidence.items() if key != "sha256"}
+    if (
+        not _is_sha256(claimed)
+        or hashlib.sha256(canonical_json(material)).hexdigest() != claimed
+    ):
+        raise ValueError("portability evidence hash mismatch")
+    if evidence_bytes != canonical_json(evidence) + b"\n":
+        raise ValueError("portability evidence must use canonical JSON")
+    return (
+        {
+            "format": evidence["format"],
+            "version": evidence["version"],
+            "campaign_id": evidence["campaign_id"],
+            "scale": evidence["scale"],
+            "protocol_sha256": evidence["protocol_sha256"],
+            "world_manifest_sha256": evidence["world_manifest_sha256"],
+            "summary": summary,
+            "sha256": claimed,
+        },
+        evidence_bytes,
+    )
+
+
 def _historical_config_sha256(config: dict[str, Any]) -> str:
     """Reproduce v1 digests from before additive default fields were added."""
     normalized = dict(config)
@@ -826,6 +968,7 @@ def build_study_report(
     *,
     research_path: Path | None = None,
     runs_dir: Path | None = None,
+    portability_evidence_path: Path | None = None,
 ) -> dict[str, object]:
     """Validate supplied collected evidence and return a presentation-only report."""
     study = plan_study(study_path)
@@ -854,6 +997,12 @@ def build_study_report(
         or hashlib.sha256(canonical_json(material)).hexdigest() != claimed
     ):
         raise ValueError("collected report hash mismatch")
+    portability_evidence: dict[str, object] | None = None
+    portability_evidence_bytes: bytes | None = None
+    if portability_evidence_path is not None:
+        portability_evidence, portability_evidence_bytes = _validate_portability_evidence(
+            portability_evidence_path
+        )
     if (
         evidence.get("study_sha256") != study_sha256
         or evidence.get("matrix_sha256") != matrix_sha256
@@ -1225,6 +1374,23 @@ def build_study_report(
         scale_profile = research["scale_profile"]
         report_inputs["dataset_profile_sha256"] = dataset_profile["sha256"]
         report_inputs["scale_profile_sha256"] = scale_profile["sha256"]
+    bundle_inputs: dict[str, object] = {
+        "receipt": receipt_bytes,
+        "collected": evidence_bytes,
+        "study_path": study_path,
+        "study_file_sha256": sha256_file(study_path),
+        "matrix_path": study.matrix_path,
+        "matrix_file_sha256": sha256_file(study.matrix_path),
+        "receipt_path": receipt_path,
+        "evidence_path": evidence_path,
+        "research_path": research_path,
+        "cards": _card_bundle_files(study),
+    }
+    if portability_evidence is not None:
+        report_inputs["portability_evidence"] = portability_evidence
+        if portability_evidence_bytes is None:
+            raise ValueError("validated portability evidence bytes are unavailable")
+        bundle_inputs["portability_evidence"] = portability_evidence_bytes
     return {
         "format": _REPORT_FORMAT,
         "version": 1,
@@ -1264,18 +1430,7 @@ def build_study_report(
                 f"--evidence {evidence_path} --output REPORTS_DIR"
             )
         ],
-        "_bundle_inputs": {
-            "receipt": receipt_bytes,
-            "collected": evidence_bytes,
-            "study_path": study_path,
-            "study_file_sha256": sha256_file(study_path),
-            "matrix_path": study.matrix_path,
-            "matrix_file_sha256": sha256_file(study.matrix_path),
-            "receipt_path": receipt_path,
-            "evidence_path": evidence_path,
-            "research_path": research_path,
-            "cards": _card_bundle_files(study),
-        },
+        "_bundle_inputs": bundle_inputs,
     }
 
 
@@ -1469,6 +1624,11 @@ def write_study_report(report: dict[str, object], output: Path) -> Path:
             if not isinstance(content, bytes):
                 raise ValueError("report input bytes are unavailable")
             add_input(name, content)
+        portability_evidence = inputs.get("portability_evidence")
+        if portability_evidence is not None:
+            if not isinstance(portability_evidence, bytes):
+                raise ValueError("portability evidence bytes are unavailable")
+            add_input("portability-evidence.json", portability_evidence)
         cards = inputs.get("cards")
         if not isinstance(cards, list):
             raise ValueError("report card inventory is unavailable")

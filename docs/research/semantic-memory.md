@@ -66,9 +66,9 @@ Each attachment has a unique name and an explicitly owned site:
 - `after_block`, at one zero-based decoder block index; or
 - `final`, after final normalization.
 
-These are semantic adapter sites, not aliases for lexical-memory placement. Multiple adapters can share a site or independently own hybrid multipack sites. A multipack request uses a SHA-256-keyed query mapping when key spaces differ. Missing/mismatched queries fail closed. Full-prefix and cached forwards agree at supported sites for the same constant per-request query.
+These are semantic adapter sites, not aliases for lexical-memory placement. Multiple adapters can share a site or independently own hybrid multipack sites. A multipack request uses a SHA-256-keyed query mapping when key spaces differ. Missing/mismatched queries fail closed. Full-prefix and cached forwards agree when the aligned query trajectories are equivalent.
 
-This is a direct PyTorch `DenseLM` API. The standard `sparselab train` and generation CLI paths do not carry semantic query vectors or a text encoder; the lesson demo supplies its explicit query batches directly. Trainable adapters can be optimized through ordinary `DenseLM` forward calls, but the standard trainer does not currently construct semantic batches. Observe attachment name/site/block index, per-attachment traces, gate, and lookup diagnostics. Sources: `src/sparselab/model/transformer.py:DenseLM.add_semantic_memory` and `src/sparselab/engram/semantic.py:SemanticMemoryAdapter`.
+This is a direct PyTorch `DenseLM` API. The standard `sparselab train` and generation CLI paths do not construct semantic query vectors or load a text encoder; callers can pass explicit batches to `generate()`. Position-shaped query batches follow context truncation and repeat their final vector, mask, and `as_of` value across generated continuation tokens. Trainable adapters can be optimized through ordinary `DenseLM` forward calls, but the standard trainer does not currently construct semantic batches. Observe attachment name/site/block index, per-attachment traces, gate, and lookup diagnostics. Sources: `src/sparselab/model/transformer.py:DenseLM.add_semantic_memory` and `src/sparselab/engram/semantic.py:SemanticMemoryAdapter`.
 
 ## Toy worlds are partitioned retrieval evidence
 

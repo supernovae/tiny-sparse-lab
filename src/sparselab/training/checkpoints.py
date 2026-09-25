@@ -258,7 +258,11 @@ def _check_rng(rng: dict[str, Any], backend: str, device_index: int) -> None:
 def _check_tensor_inventory(
     config: RunConfig, tensors: dict[str, Any], aliases: dict[str, str]
 ) -> Mapping[str, TensorSpec]:
-    expected = named_tensor_inventory(config.model, config.attention)
+    expected = named_tensor_inventory(
+        config.model,
+        config.attention,
+        trainable_parameters=config.training.trainable_parameters,
+    )
     if set(expected) != set(tensors) | set(aliases):
         raise ValueError("configured tensor inventory mismatch")
     for name, spec in expected.items():
@@ -764,7 +768,9 @@ class CheckpointManager:
             trainability = {
                 name: spec.trainable
                 for name, spec in named_tensor_inventory(
-                    resolved.model, resolved.attention
+                    resolved.model,
+                    resolved.attention,
+                    trainable_parameters=resolved.training.trainable_parameters,
                 ).items()
                 if spec.alias_of is None
             }

@@ -10,6 +10,7 @@ import pytest
 import torch
 from test_training import config
 
+from sparselab.config.loading import load_config
 from sparselab.config.models import AttentionConfig, DatasetConfig, ModelConfig
 from sparselab.data.allocation import build_allocation_manifest
 from sparselab.data.allocation_tasks import _collect_provenance
@@ -438,3 +439,47 @@ def test_provenance_requires_audited_path_and_answer(
     }
     with pytest.raises(ValueError, match=message):
         _collect_provenance(dataset, tokenizer, "train", [record])
+
+def test_explicit_trainable_parameters_freeze_optimizer_and_update():
+    config = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+    config = config.model_copy(
+        update={
+            "training": config.training.model_copy(
+                update={
+                    "gradient_accumulation": 1,
+                    "trainable_parameters": ("embedding.weight",),
+                }
+            )
+        }
+    )
+    torch.manual_seed(config.seed)
+    engine = PyTorchEngine()
+    engine.initialize(config)
+    assert engine.model is not None
+    model = engine.model
+    initial = {
+        name: parameter.detach().clone()
+        for name, parameter in model.named_parameters()
+    }
+    assert {
+        name for name, parameter in model.named_parameters() if parameter.requires_grad
+    } == {"embedding.weight"}
+
+    result = engine.train_update(
+        [
+            Microbatch(
+                np.array([[1, 2, 3, 4]], dtype=np.int64),
+                np.array([[2, 3, 4, 5]], dtype=np.int64),
+            )
+        ],
+        update_index=2,
+        valid_targets=4,
+    )
+
+    assert result.outcome == "APPLIED"
+    assert engine._last_gradient_parameter_names == ("embedding.weight",)
+    for name, parameter in model.named_parameters():
+        if name == "embedding.weight":
+            assert not torch.equal(parameter.detach(), initial[name])
+        else:
+            assert torch.equal(parameter.detach(), initial[name])

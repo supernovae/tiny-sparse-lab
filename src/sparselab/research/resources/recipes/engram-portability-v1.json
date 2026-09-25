@@ -1,0 +1,81 @@
+{
+  "format": "sparselab-research-recipe",
+  "version": 1,
+  "id": "engram-portability-v1",
+  "designs": {
+    "default": {
+      "smoke": {
+        "base_set": {"model.hidden_dim": 64, "model.num_layers": 2, "model.num_heads": 4, "model.ffn_dim": 256, "training.max_steps": 32, "training.max_tokens": 4096, "evaluation.every_steps": 8, "checkpoint.every_steps": 8, "attention.kind": "dense", "model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1},
+        "axes": {
+          "recipient": [
+            {"label": "a-64d-2l", "set": {"model.hidden_dim": 64, "model.num_layers": 2, "model.num_heads": 4, "model.ffn_dim": 256}},
+            {"label": "b-128d-6l", "set": {"model.hidden_dim": 128, "model.num_layers": 6, "model.num_heads": 4, "model.ffn_dim": 512}}
+          ],
+          "generic_interface": [
+            {"label": "none", "set": {"model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}},
+            {"label": "local-ngram-diagnostic", "set": {"model.memory": "ngram", "model.memory_injection": "final", "model.memory_table_size": 8191, "model.memory_ngram_size": 32, "model.memory_dim": 32, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}}
+          ]
+        },
+        "comparisons": [
+          {"id": "local-ngram-minus-none-a", "vary": "memory", "baseline": {"recipient": "a-64d-2l", "generic_interface": "none"}, "variant": {"recipient": "a-64d-2l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "local-ngram-minus-none-b", "vary": "memory", "baseline": {"recipient": "b-128d-6l", "generic_interface": "none"}, "variant": {"recipient": "b-128d-6l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "recipient-b-minus-a-unattached", "vary": "custom", "vary_fields": ["model.hidden_dim", "model.num_layers", "model.ffn_dim"], "baseline": {"recipient": "a-64d-2l", "generic_interface": "none"}, "variant": {"recipient": "b-128d-6l", "generic_interface": "none"}}
+        ]
+      },
+      "nano": {
+        "base_set": {"model.hidden_dim": 128, "model.num_layers": 6, "model.num_heads": 4, "model.ffn_dim": 512, "training.max_steps": 128, "training.max_tokens": 32768, "evaluation.every_steps": 32, "checkpoint.every_steps": 32, "attention.kind": "dense", "model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1},
+        "axes": {
+          "recipient": [
+            {"label": "a-128d-6l", "set": {"model.hidden_dim": 128, "model.num_layers": 6, "model.num_heads": 4, "model.ffn_dim": 512}},
+            {"label": "b-64d-2l", "set": {"model.hidden_dim": 64, "model.num_layers": 2, "model.num_heads": 4, "model.ffn_dim": 256}}
+          ],
+          "generic_interface": [
+            {"label": "none", "set": {"model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}},
+            {"label": "local-ngram-diagnostic", "set": {"model.memory": "ngram", "model.memory_injection": "final", "model.memory_table_size": 8191, "model.memory_ngram_size": 32, "model.memory_dim": 32, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}}
+          ]
+        },
+        "comparisons": [
+          {"id": "local-ngram-minus-none-a", "vary": "memory", "baseline": {"recipient": "a-128d-6l", "generic_interface": "none"}, "variant": {"recipient": "a-128d-6l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "local-ngram-minus-none-b", "vary": "memory", "baseline": {"recipient": "b-64d-2l", "generic_interface": "none"}, "variant": {"recipient": "b-64d-2l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "recipient-b-minus-a-unattached", "vary": "custom", "vary_fields": ["model.hidden_dim", "model.num_layers", "model.ffn_dim"], "baseline": {"recipient": "a-128d-6l", "generic_interface": "none"}, "variant": {"recipient": "b-64d-2l", "generic_interface": "none"}}
+        ]
+      },
+      "micro": {
+        "base_set": {"model.hidden_dim": 320, "model.num_layers": 6, "model.num_heads": 4, "model.ffn_dim": 1280, "training.max_steps": 1024, "training.max_tokens": 262144, "evaluation.every_steps": 128, "checkpoint.every_steps": 128, "attention.kind": "dense", "model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1},
+        "axes": {
+          "recipient": [
+            {"label": "a-320d-6l", "set": {"model.hidden_dim": 320, "model.num_layers": 6, "model.num_heads": 4, "model.ffn_dim": 1280}},
+            {"label": "b-192d-4l", "set": {"model.hidden_dim": 192, "model.num_layers": 4, "model.num_heads": 4, "model.ffn_dim": 512}}
+          ],
+          "generic_interface": [
+            {"label": "none", "set": {"model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}},
+            {"label": "local-ngram-diagnostic", "set": {"model.memory": "ngram", "model.memory_injection": "final", "model.memory_table_size": 8191, "model.memory_ngram_size": 32, "model.memory_dim": 32, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}}
+          ]
+        },
+        "comparisons": [
+          {"id": "local-ngram-minus-none-a", "vary": "memory", "baseline": {"recipient": "a-320d-6l", "generic_interface": "none"}, "variant": {"recipient": "a-320d-6l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "local-ngram-minus-none-b", "vary": "memory", "baseline": {"recipient": "b-192d-4l", "generic_interface": "none"}, "variant": {"recipient": "b-192d-4l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "recipient-b-minus-a-unattached", "vary": "custom", "vary_fields": ["model.hidden_dim", "model.num_layers", "model.ffn_dim"], "baseline": {"recipient": "a-320d-6l", "generic_interface": "none"}, "variant": {"recipient": "b-192d-4l", "generic_interface": "none"}}
+        ]
+      },
+      "tiny": {
+        "base_set": {"model.hidden_dim": 512, "model.num_layers": 8, "model.num_heads": 8, "model.ffn_dim": 2048, "training.max_steps": 4096, "training.max_tokens": 1048576, "evaluation.every_steps": 256, "checkpoint.every_steps": 256, "attention.kind": "dense", "model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1},
+        "axes": {
+          "recipient": [
+            {"label": "a-512d-8l", "set": {"model.hidden_dim": 512, "model.num_layers": 8, "model.num_heads": 8, "model.ffn_dim": 2048}},
+            {"label": "b-320d-6l", "set": {"model.hidden_dim": 320, "model.num_layers": 6, "model.num_heads": 4, "model.ffn_dim": 1280}}
+          ],
+          "generic_interface": [
+            {"label": "none", "set": {"model.memory": "none", "model.memory_injection": "final", "model.memory_table_size": 0, "model.memory_ngram_size": 0, "model.memory_dim": 0, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}},
+            {"label": "local-ngram-diagnostic", "set": {"model.memory": "ngram", "model.memory_injection": "final", "model.memory_table_size": 8191, "model.memory_ngram_size": 32, "model.memory_dim": 32, "model.memory_package_path": null, "model.memory_ngram_orders": [], "model.memory_hash_heads": 1}}
+          ]
+        },
+        "comparisons": [
+          {"id": "local-ngram-minus-none-a", "vary": "memory", "baseline": {"recipient": "a-512d-8l", "generic_interface": "none"}, "variant": {"recipient": "a-512d-8l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "local-ngram-minus-none-b", "vary": "memory", "baseline": {"recipient": "b-320d-6l", "generic_interface": "none"}, "variant": {"recipient": "b-320d-6l", "generic_interface": "local-ngram-diagnostic"}},
+          {"id": "recipient-b-minus-a-unattached", "vary": "custom", "vary_fields": ["model.hidden_dim", "model.num_layers", "model.num_heads", "model.ffn_dim"], "baseline": {"recipient": "a-512d-8l", "generic_interface": "none"}, "variant": {"recipient": "b-320d-6l", "generic_interface": "none"}}
+        ]
+      }
+    }
+  }
+}

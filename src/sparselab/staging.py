@@ -566,7 +566,9 @@ def stage(
                     tensor_inventory={
                         name: asdict(spec)
                         for name, spec in named_tensor_inventory(
-                            config.model, config.attention
+                            config.model,
+                            config.attention,
+                            trainable_parameters=config.training.trainable_parameters,
                         ).items()
                     },
                 )

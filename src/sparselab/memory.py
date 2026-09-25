@@ -115,7 +115,11 @@ def _adafactor_state_bytes(config: RunConfig) -> int:
     independent of sparse direct-use accounting: inactive expert state is resident.
     """
     total = 0
-    for spec in named_tensor_inventory(config.model, config.attention).values():
+    for spec in named_tensor_inventory(
+        config.model,
+        config.attention,
+        trainable_parameters=config.training.trainable_parameters,
+    ).values():
         if spec.alias_of is not None or not spec.trainable:
             continue
         if len(spec.shape) >= 2:
@@ -133,7 +137,11 @@ def optimizer_state_bytes(
     if config.optimizer.name == "adamw":
         steps = sum(
             spec.trainable and spec.alias_of is None
-            for spec in named_tensor_inventory(config.model, config.attention).values()
+            for spec in named_tensor_inventory(
+                config.model,
+                config.attention,
+                trainable_parameters=config.training.trainable_parameters,
+            ).values()
         )
         return (inventory or parameter_inventory(config)).trainable * 8 + steps * 4
     return _adafactor_state_bytes(config)

@@ -230,3 +230,26 @@ def test_memory_injection_diagnostics_and_inspection() -> None:
             "model",
             "memory",
         )
+
+
+def test_explicit_trainable_inventory_selects_only_canonical_storage() -> None:
+    config = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+    selected = ("blocks.0.attention.q_proj.weight",)
+    inventory = named_tensor_inventory(
+        config.model,
+        config.attention,
+        trainable_parameters=selected,
+    )
+
+    assert inventory[selected[0]].trainable
+    assert sum(spec.trainable for spec in inventory.values()) == 1
+    assert inventory["embedding.weight"].trainable is False
+    if config.model.tie_embeddings:
+        assert inventory["output.weight"].alias_of == "embedding.weight"
+        assert inventory["output.weight"].trainable is False
+        with pytest.raises(ValueError, match="canonical storages"):
+            named_tensor_inventory(
+                config.model,
+                config.attention,
+                trainable_parameters=("output.weight",),
+            )

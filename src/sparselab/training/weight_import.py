@@ -186,7 +186,11 @@ def _storage_key(tensor: torch.Tensor) -> tuple[int, int, tuple[int, ...], str]:
 def _validate_destination_tensors(
     config: RunConfig, tensors: Mapping[str, torch.Tensor]
 ) -> dict[str, torch.Tensor]:
-    expected = named_tensor_inventory(config.model, config.attention)
+    expected = named_tensor_inventory(
+        config.model,
+        config.attention,
+        trainable_parameters=config.training.trainable_parameters,
+    )
     if set(tensors) != set(expected):
         missing, extra = (
             sorted(set(expected) - set(tensors)),

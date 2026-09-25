@@ -44,6 +44,7 @@ class SemanticQueryBatch:
     encoder: EncoderIdentity
     vectors: Tensor
     mask: Tensor | None = None
+    as_of: str | date | datetime | Sequence[str | date | datetime | None] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "encoder", _coerce_encoder_identity(self.encoder))
@@ -63,6 +64,22 @@ class SemanticQueryBatch:
                 raise ValueError(
                     "semantic query mask must match query batch and sequence dimensions"
                 )
+        if isinstance(self.as_of, Sequence) and not isinstance(
+            self.as_of, (str, bytes)
+        ):
+            expected_count = (
+                self.vectors.shape[0]
+                if self.vectors.ndim == 2
+                else self.vectors.shape[0] * self.vectors.shape[1]
+            )
+            if len(self.as_of) != expected_count:
+                raise ValueError("semantic as_of sequence must match query positions")
+            normalized_as_of: datetime | tuple[datetime | None, ...] | None = tuple(
+                _time_instant(value) for value in self.as_of
+            )
+        else:
+            normalized_as_of = _time_instant(self.as_of)
+        object.__setattr__(self, "as_of", normalized_as_of)
 
 
 @dataclass(frozen=True)
@@ -691,11 +708,24 @@ class SemanticMemoryAdapter(nn.Module):
             selected_queries = flat_vectors.index_select(
                 0, active.to(flat_vectors.device)
             )
+            if isinstance(queries.as_of, tuple):
+                active_indices = active.to(device="cpu").tolist()
+                if queries.vectors.ndim == 2:
+                    query_as_of = tuple(
+                        queries.as_of[index // sequence] for index in active_indices
+                    )
+                else:
+                    query_as_of = tuple(
+                        queries.as_of[index] for index in active_indices
+                    )
+            else:
+                query_as_of = queries.as_of
             outcomes = self.retriever.retrieve_many(
                 selected_queries,
                 key_encoder=queries.encoder,
                 top_k=1,
                 min_score=self.min_score,
+                as_of=query_as_of,
             )
             active_indices = active.to(device="cpu").tolist()
             for flat_index, outcome in zip(active_indices, outcomes, strict=True):

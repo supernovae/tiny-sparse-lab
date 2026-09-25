@@ -164,3 +164,52 @@ def test_grouped_query_attention_rejects_mlx_run_configs() -> None:
 
     with pytest.raises(ValueError, match="grouped-query attention"):
         RunConfig.model_validate(values)
+
+
+def test_portability_config_is_opt_in_and_requires_exact_controls() -> None:
+    base = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+    legacy = base.model_dump(mode="json")
+    assert "trainable_parameters" not in legacy["training"]
+    assert "portability_manifest_path" not in legacy["training"]
+    assert RunConfig.model_validate(legacy).model_dump(mode="json") == legacy
+
+    portability = {
+        **legacy,
+        "training": {
+            **legacy["training"],
+            "trainable_parameters": ["blocks.0.attention.q_proj.weight"],
+            "portability_manifest_path": "run.json",
+        },
+    }
+    configured = RunConfig.model_validate(portability)
+    assert configured.training.trainable_parameters == (
+        "blocks.0.attention.q_proj.weight",
+    )
+    assert configured.training.portability_manifest_path == Path("run.json")
+
+    duplicate = {
+        **portability,
+        "training": {
+            **portability["training"],
+            "trainable_parameters": ["embedding.weight", "embedding.weight"],
+        },
+    }
+    with pytest.raises(ValueError, match="unique canonical names"):
+        RunConfig.model_validate(duplicate)
+
+    missing_controls = {
+        **legacy,
+        "training": {
+            **legacy["training"],
+            "portability_manifest_path": "run.json",
+        },
+    }
+    with pytest.raises(ValueError, match="explicit trainable_parameters"):
+        RunConfig.model_validate(missing_controls)
+
+    mlx = {
+        **portability,
+        "runtime": {"engine": "mlx", "backend": "metal"},
+    }
+    with pytest.raises(ValueError, match="require the PyTorch engine"):
+        RunConfig.model_validate(mlx)

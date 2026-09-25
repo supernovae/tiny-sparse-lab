@@ -49,3 +49,7 @@ encoder or evidence of semantic generalization. See [the corpus and allocation
 boundaries](../path-domain-corpus.md#ownership-aware-allocation).
 
 Published worked examples: [FFN-substitution smoke report](../../artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) and [nano/offline FFN follow-up report](../../artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html), with their [outcomes and interpretation](sample-report.md).
+
+## Controlled Engram portability
+
+The explicit `research portability` runner binds generated worlds, direct token/byte compiles, semantic packs, independent recipient-preparation checkpoints, update audits, immutable checkpoint observations, A/B/A replacement probes, and censored threshold reports. Start with the [A/B/C/D/E/F/Z lifecycle guide](engram-portability.md). The packaged research recipe remains an inert generic configuration sketch; it is not a portability run.

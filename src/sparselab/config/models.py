@@ -232,6 +232,36 @@ class TrainingConfig(StrictModel):
     grad_clip_norm: float = Field(default=1.0, gt=0)
     neural_loss_weight: float = Field(default=1.0, ge=0, le=1)
     deterministic: bool = True
+    trainable_parameters: tuple[str, ...] | None = None
+    portability_manifest_path: Path | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_optional_experiment_fields(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        result = handler(self)
+        if self.trainable_parameters is None:
+            result.pop("trainable_parameters", None)
+        if self.portability_manifest_path is None:
+            result.pop("portability_manifest_path", None)
+        return result
+
+    @model_validator(mode="after")
+    def validate_trainable_parameters(self) -> TrainingConfig:
+        names = self.trainable_parameters
+        if names is not None and (
+            not names
+            or any(not name or not name.strip() for name in names)
+            or len(names) != len(set(names))
+        ):
+            raise ValueError(
+                "training.trainable_parameters must be a nonempty tuple of unique canonical names"
+            )
+        if self.portability_manifest_path is not None and not str(
+            self.portability_manifest_path
+        ).strip():
+            raise ValueError("training.portability_manifest_path must not be blank")
+        return self
 
 
 class AdamWConfig(StrictModel):
@@ -354,6 +384,15 @@ class RunConfig(StrictModel):
     def validate_cross_section(self) -> RunConfig:
         if self.training.seq_len > self.model.max_seq_len:
             raise ValueError("training.seq_len cannot exceed model.max_seq_len")
+        if self.training.portability_manifest_path is not None:
+            if self.runtime.engine != "pytorch":
+                raise ValueError(
+                    "portability runs require the PyTorch engine in this implementation"
+                )
+            if self.training.trainable_parameters is None:
+                raise ValueError(
+                    "portability runs require an explicit trainable_parameters list"
+                )
         if (
             self.attention.kind == "mla"
             and self.attention.latent_dim % self.model.num_heads

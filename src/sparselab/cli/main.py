@@ -1118,6 +1118,116 @@ def _research_scaffold(args: argparse.Namespace) -> None:
         design=args.design,
     )
     print(path)
+def _research_portability_build(args: argparse.Namespace) -> None:
+    from sparselab.research.portability_campaign import build_portability_campaign
+
+    protocol = build_portability_campaign(
+        Path(args.output),
+        seed=args.seed,
+        scale=args.scale,
+        updates=args.updates,
+    )
+    print(
+        json.dumps(
+            {
+                "protocol": str(protocol),
+                "plan": str(protocol.parent / "plan.json"),
+                "campaign_id": json.loads(protocol.read_text())["campaign_id"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _research_portability_plan(args: argparse.Namespace) -> None:
+    from sparselab.research.portability_runner import portability_resource_plan
+
+    print(
+        json.dumps(
+            portability_resource_plan(Path(args.campaign_root)),
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _research_portability_run(args: argparse.Namespace) -> None:
+    from sparselab.research.portability_runner import (
+        build_portability_evidence,
+        execute_portability_arm,
+        record_portability_failure,
+    )
+
+    root = Path(args.campaign_root)
+    try:
+        receipt = execute_portability_arm(
+            root,
+            recipient=args.recipient,
+            representation=args.representation,
+            condition=args.condition,
+            seed=args.seed,
+            updates=json.loads((root / "portability_protocol.json").read_text())[
+                "training"
+            ]["planned_updates"],
+        )
+    except Exception as error:
+        record_portability_failure(
+            root,
+            recipient=args.recipient,
+            representation=args.representation,
+            condition=args.condition,
+            seed=args.seed,
+            error=error,
+        )
+        raise
+    evidence = build_portability_evidence(root)
+    print(json.dumps({"receipt": receipt, "evidence": str(evidence)}, indent=2, sort_keys=True))
+
+
+def _research_portability_continue(args: argparse.Namespace) -> None:
+    from sparselab.research.portability_runner import (
+        build_portability_evidence,
+        continue_portability_campaign,
+    )
+
+    root = Path(args.campaign_root)
+    result = continue_portability_campaign(root, max_arms=args.max_arms)
+    result["evidence"] = str(build_portability_evidence(root))
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
+def _research_portability_report(args: argparse.Namespace) -> None:
+    from sparselab.experiments.reporting import _validate_portability_evidence
+    from sparselab.research.portability_runner import build_portability_evidence
+
+    path = build_portability_evidence(Path(args.campaign_root))
+    evidence, _ = _validate_portability_evidence(path)
+    print(json.dumps({"evidence": str(path), "summary": evidence["summary"]}, indent=2, sort_keys=True))
+
+
+def _research_portability_probe_byte(args: argparse.Namespace) -> None:
+    from sparselab.data.byte_hash import table_address
+
+    raw = args.text.encode("utf-8")
+    terminal = raw[-args.ngram_size :]
+    print(
+        json.dumps(
+            {
+                "normalization": "raw-utf8-v1",
+                "hashing": "poly257-terminal-v1",
+                "utf8_byte_length": len(raw),
+                "ngram_size": args.ngram_size,
+                "terminal_bytes_hex": terminal.hex(),
+                "table_size": args.table_size,
+                "address": table_address(terminal, args.table_size),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
 
 
 def _learn_list(args: argparse.Namespace) -> None:
@@ -1192,6 +1302,9 @@ def _study_report(args: argparse.Namespace) -> None:
         Path(args.evidence),
         research_path=Path(args.research) if args.research else None,
         runs_dir=Path(args.runs_dir) if args.runs_dir else None,
+        portability_evidence_path=(
+            Path(args.portability_evidence) if args.portability_evidence else None
+        ),
     )
     print(write_study_report(report, Path(args.output)))
 
@@ -1616,6 +1729,7 @@ def build_parser() -> argparse.ArgumentParser:
     study_report.add_argument("--output", required=True)
     study_report.add_argument("--research")
     study_report.add_argument("--runs-dir")
+    study_report.add_argument("--portability-evidence")
     study_report.set_defaults(handler=_study_report)
 
     reference = commands.add_parser(
@@ -1727,6 +1841,56 @@ def build_parser() -> argparse.ArgumentParser:
     corpus_mine.add_argument("--hash-heads", type=int, default=1)
     corpus_mine.add_argument("--output", required=True)
     corpus_mine.set_defaults(handler=_research_corpus_mine)
+    portability = research_commands.add_parser(
+        "portability", help="Build and execute controlled Engram portability campaigns."
+    )
+    portability_commands = portability.add_subparsers(
+        dest="portability_command", required=True
+    )
+    portability_build = portability_commands.add_parser("build")
+    portability_build.add_argument("--output", required=True)
+    portability_build.add_argument(
+        "--scale", choices=("smoke", "nano", "micro", "tiny"), default="smoke"
+    )
+    portability_build.add_argument("--seed", type=int, default=20260925)
+    portability_build.add_argument("--updates", type=int, default=4)
+    portability_build.set_defaults(handler=_research_portability_build)
+    portability_plan = portability_commands.add_parser("plan")
+    portability_plan.add_argument("--campaign-root", required=True)
+    portability_plan.set_defaults(handler=_research_portability_plan)
+    portability_run = portability_commands.add_parser("run")
+    portability_run.add_argument("--campaign-root", required=True)
+    portability_run.add_argument("--recipient", choices=("width32", "width64"), required=True)
+    portability_run.add_argument(
+        "--representation", choices=("token", "byte", "semantic"), required=True
+    )
+    portability_run.add_argument(
+        "--condition",
+        choices=(
+            "native",
+            "adapter-tuned",
+            "frozen-only",
+            "joint",
+            "random",
+            "corrupt",
+            "disabled",
+        ),
+        required=True,
+    )
+    portability_run.add_argument("--seed", type=int, choices=(17, 41, 73), required=True)
+    portability_run.set_defaults(handler=_research_portability_run)
+    portability_continue = portability_commands.add_parser("continue")
+    portability_continue.add_argument("--campaign-root", required=True)
+    portability_continue.add_argument("--max-arms", type=int)
+    portability_continue.set_defaults(handler=_research_portability_continue)
+    portability_report = portability_commands.add_parser("report")
+    portability_report.add_argument("--campaign-root", required=True)
+    portability_report.set_defaults(handler=_research_portability_report)
+    portability_probe = portability_commands.add_parser("probe-byte")
+    portability_probe.add_argument("text")
+    portability_probe.add_argument("--ngram-size", type=int, default=32)
+    portability_probe.add_argument("--table-size", type=int, default=8192)
+    portability_probe.set_defaults(handler=_research_portability_probe_byte)
 
     review = commands.add_parser(
         "review", help="Create blinded human-review bundles and validate judgments."

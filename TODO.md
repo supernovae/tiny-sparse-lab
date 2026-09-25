@@ -10,17 +10,59 @@ This is the living checklist for what SparseLab can execute, what has been smoke
 | Learning and experiment workbench | Packaged lessons/catalog, explicit scaffolds, paired and factorial comparisons, static reports, and read-only dashboard paths exist. CPU/offline smoke, nano, and MPS/FineWeb-Edu micro studies are recorded. | A smoke is not a quality result; time-to-target, complete cost accounting, and broader independent task results remain open. |
 | Token/byte Engram | Trainable tables are integrated with the model/training/checkpoint paths; byte-address smoke and controlled lexical-memory studies exist. | No consistent held-out benefit or general knowledge-transfer result; results vary by task and budget. |
 | Portable byte Engram | Exported table identity can be verified and reused with a frozen table plus trainable recipient adapter. A two-case comparison is recorded. | That small comparison was negative; broader multi-seed and multi-recipient transfer remains unverified. |
-| Semantic EngramPack | Verified exact retrieval from caller-supplied vectors, direct PyTorch `DenseLM` adapters, and structured synthetic-world controls are implemented. | No natural-language query encoder or standard chat/trainer query pipeline; no natural-language semantic capability claim. |
+| Semantic EngramPack | **implemented** verified exact retrieval from caller-supplied vectors, direct PyTorch `DenseLM` adapters, structured synthetic-world controls, and verified semantic query/mask allocation sidecars consumed by `PyTorchEngine`. | **still unproven** useful recipient behavior, natural-language query production, replacement-world transfer, and cross-width portability. No standard text-query pipeline. |
 | Other architectures | PyTorch attention, MLA, local MoE, and memory paths have tests and integration runs; native MLX sparse attention has component measurements. | Most evidence is mechanism correctness or small, task-specific studies—not general quality or speed superiority. |
 | Useful local models | A measured synthetic instruction starter and narrow capability cards provide honest failure examples. | No independently evaluated, useful real-world task model has been established. |
 
-The latest offline workstation regression run was `uv run pytest -m 'not cuda and not rocm and not xpu and not network'` (**509 passed**). This validates software paths; it does not change any model-capability status above.
+The latest offline workstation regression run was `uv run pytest -m 'not cuda and not rocm and not xpu and not network'` (**524 passed**). This validates software paths; it does not change any model-capability status above.
+
+## Engram portability evidence ledger
+
+Evidence labels are deliberately separate: **implemented** means a code path exists; **smoke-tested only** means the path ran without establishing useful behavior; **experimentally measured** means bounded behavioral measurements exist; **still unproven** means the claim lacks adequate evidence; **hardware-blocked** means the required target is unavailable; **deferred** means excluded until a named prerequisite is met. A mechanism can be implemented or smoke-tested while its behavioral claim remains still unproven.
+
+| Question | Current evidence |
+|---|---|
+| Token-address portability | **implemented** address identity is tokenizer-dependent; a tokenizer match is an address invariant, not hidden-coordinate alignment. Cross-tokenizer behavior is **still unproven**. |
+| Raw-byte address portability | **implemented** byte-address mechanisms; **experimentally measured** existing negative two-case portable-byte comparison. Broader address/behavior evidence is **still unproven**. |
+| Immutable-artifact portability | Portable byte export/load and semantic-pack verification are **implemented**; cross-recipient frozen-artifact behavior is **still unproven**. |
+| Dimensional/interface portability | Structured semantic K=32, V=8 differs from recipient width by design; interface compatibility is **implemented**, useful transfer is **still unproven**. |
+| Behavioral portability | **still unproven** beyond the bounded local MiniLM pilot below; that pilot does not establish frozen-recipient adaptation. |
+| Zero-shot portability | **still unproven** for independently prepared recipients. |
+| Adapter-tuned portability | **still unproven** under frozen-backbone, update-isolated recipient adaptation. |
+| Cross-hidden-width portability | **still unproven**; changing width/depth in DenseLM is not cross-architecture evidence. |
+| Cross-scale portability | **still unproven**. |
+| Cross-architecture portability | **still unproven**; initial DenseLM recipients all use dense attention. |
+| Knowledge-swap portability | **still unproven** on neural recipients. Exact structured traversal is retrieval-only and cannot count as learned recipient behavior. |
+
+**Bounded local MiniLM pilot — experimentally measured, limited scope:** widths 32/64, seeds 17/41/73, six rows; correct-pack answer accuracy 1.0, baseline/random/disabled 0.125, incomplete 0.5625, conflicting 0.0. Pack ID `2eae0ee0fe90b06bf06c31683b9e41e735ee80c73df49f7e1987c42310e7dc51`. Joint training ran 200 updates on 16 facts with precomputed MiniLM query vectors; held-out wording referred to training facts. This is not frozen-backbone adaptation, unseen-world swapping, micro-scale evidence, or ordinary language generation.
+
+**Portability runner full smoke matrix — experimentally executed; useful behavior remains unproven:** campaign `/tmp/engram-portability-v1-final-matrix`, report `portability_evidence-a39168d1a7d8b69c.json`. All 120 declared arms ran at smoke scale for two updates across seeds 17/41/73: 42 token, 42 byte, 36 semantic, widths 32/64, all declared controls. The report contains 324 immutable checkpoint observations; 102 training audits passed and the 18 `frozen-only` arms used step-zero recipient checkpoints. No arm failed; all 120 were right-censored at the predeclared 0.95 development threshold. Development and final exact answer/path accuracy were 0.0 for every arm. The 468 saved A/B/A probes reproduced exact A answers and paths; a post-fix semantic-arm smoke also verified exact-comparison reporting. A semantic adapter arm recorded 520 retrieval hits, four conflicts, four temporal misses, and 16 unknowns while answer accuracy stayed 0.0. The protocol uses direct structured token/byte compiles and supplied structured semantic vectors, not source-model-trained artifacts or a natural-language query producer. This is workflow/retrieval evidence only, not useful transfer.
+
+**Measured campaign resource envelope:** analytical maximum single-arm RAM estimate 69,222,400 bytes; total checkpoint-storage estimate 185,317,632 bytes (177,061,248 training, 8,256,384 preparation). Across the 120 saved arm receipts, observed median train-plus-checkpoint-observation wall time was 6.992303667 seconds per arm.
+
+**Other measured negative/mixed evidence:** the two-case portable-byte comparison was negative. FineWeb-Edu micro has 18 MPS endpoints at 1,024 updates/262,144 targets; lexical-minus-none mean validation-loss deltas were −0.003625/ +0.006116/ −0.013402 for FFN widths 5120/2560/1280, with mixed per-seed signs and all stress cards zero. Neither result licenses a general portability or scaling claim.
+
+**Separate unresolved mechanisms:** a reproducible text-query producer is **still unproven as a supported reproducible integration**. The local MiniLM producer is a prototype, not an absent mechanism; integration must bind encoder name, immutable revision, artifact digest, output dimension, normalization, representation-space ID, producer time/compute, and input provenance. Teacher-derived hidden-state compilation is **deferred** until ordinary semantic-pack portability has evidence.
+
+Portability checklist (each item requires its own evidence; preparation or implementation does not close the behavioral question):
+
+- [x] **implemented, smoke-tested only** shared-fact provenance, split/role permissions, deterministic worlds, verified structured packs, and lexical/token/byte representation manifests. The smoke-scale generator and replay ran; useful recipient behavior remains **still unproven**.
+- [x] **implemented, smoke-tested only** independently initialized width-32/64 recipients with per-seed preparation checkpoints and no source-backbone tensor transfer. The full matrix preserves separate seed/width identities; adaptation quality remains **still unproven**.
+- [x] **implemented, smoke-tested only** frozen-pack controls, exact optimizer membership, and byte-identical update isolation; all 102 trained-arm audits passed. The 18 `frozen-only` arms performed no updates.
+- [x] **smoke-tested only** structured replacement-world trajectories and A→B→A attachment replay; all 468 saved probes reproduced the exact A answer/path. Recipient correctness remains **still unproven**.
+- [x] **smoke-tested only** immutable step-zero/intermediate/final observations and censored threshold reporting; 324 observations cover the 120 arms, all right-censored at two updates.
+- [x] **smoke-tested only** three-seed evidence across token, byte, semantic representations, and declared controls: 120 arms executed, with 0.0 final development and exact-answer/path accuracy. Useful behavior remains **still unproven**.
+- [x] **implemented, smoke-tested only** reference-small configuration basis exists in `configs/instruction_100m.yaml`; analytical resource estimates and measured arm wall time are available, but no useful model claim is established.
+- [x] **implemented** restored lifecycle guide with explicit A/B/C/D/E/F/Z model acceptance checkpoints.
+- [ ] **still unproven** smallest supported reproducible text-query producer integration.
+- [ ] **deferred** teacher-derived hidden-state compilation pending ordinary semantic portability evidence.
+
 
 ## Open capability work
 
-- [ ] **Lexical Engram:** run matched, multi-seed tests on a non-alias task with a training-only corpus, independent held-out cases, dense/no-memory controls, and collision/address diagnostics. Report token and byte addressing separately; do not infer transfer from reuse or table occupancy.
-- [ ] **Portable byte Engram:** extend beyond the recorded two-case comparison. Use multiple held-out facts and phrasings, more than one recipient configuration, and disabled/random/frozen-only/trained-adapter controls. Verify the exported table digest and values are unchanged after adapter training; publish all seeds, scores, and failures.
-- [ ] **Semantic EngramPack:** decide whether the supported claim stays caller-supplied-vector retrieval or adds a real text-query producer. For text use, bind encoder/revision/space identity, connect query construction to a supported inference/training path, and evaluate correct, disabled, random, conflicting, and incomplete packs on leakage-audited held-out tasks. Measure producer and retrieval costs separately.
+- [ ] **still unproven** matched multi-seed lexical Engram behavior on a non-alias task with a training-only corpus, independent held-out cases, dense/no-memory controls, and collision/address diagnostics. Token and byte addressing remain separate.
+- [ ] **still unproven** portable byte Engram beyond the recorded negative two-case comparison; test multiple facts/phrasings, recipients, disabled/random/frozen-only/trained-adapter controls, and immutable exported values.
+- [ ] **still unproven** semantic EngramPack useful recipient behavior. Exact encoder-space compatibility requires key/value encoder identities, dimensions, normalization, and representation-space ID—not a shared tokenizer.
 - [ ] **Allocation curve:** complete or explicitly bound the current 75-coordinate design; the recorded CPU smoke executed only one coordinate. Preserve per-task outcomes, all declared ownership/weight combinations, actual targets, and nonmonotonic results.
 - [ ] **Architecture evidence:** choose one task and compare one mechanism at a time—MLA, sparse attention, MoE, placement, or FFN width—with matched data, tokenizer, seed, endpoint, and backend. Keep task scores, parameter/cache estimates, synchronized update timing, and end-to-end wall time separate.
 - [ ] **Useful narrow model:** select one low-risk job, use permissioned non-synthetic examples, freeze an independent test set, and compare against a simple non-neural baseline. Predeclare acceptance criteria; include ambiguous/unknown cases, per-case errors, multiple seeds, and human review before describing the result as useful.

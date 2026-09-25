@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import random
 import re
 import time
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager, nullcontext
+from typing import cast
 
 import numpy as np
 import torch
@@ -37,6 +39,14 @@ from sparselab.engram.semantic import SemanticQueryBatch
 from sparselab.memory import MemoryMonitor
 from sparselab.model.inspection import architecture_metrics
 from sparselab.model.transformer import DenseLM
+from sparselab.research.portability import (
+    PortabilityRun,
+    apply_trainable_parameter_filter,
+    initialize_memory_artifact,
+    initialize_recipient_backbone,
+    load_portability_manifest,
+    verify_portability_assets_unchanged,
+)
 from sparselab.runtime import (
     make_grad_scaler,
     precision_context,
@@ -292,6 +302,11 @@ class _PyTorchWeights(WeightSource):
             yield CanonicalTensor(name, array, self._trainable.get(name, False))
 
 
+def _parameter_sha256(parameter: torch.nn.Parameter) -> str:
+    raw = parameter.detach().to(device="cpu").contiguous().view(torch.uint8).numpy()
+    return hashlib.sha256(memoryview(raw).cast("B")).hexdigest()
+
+
 class PyTorchEngine:
     """The former trainer compute path, without lifecycle or checkpoint ownership."""
 
@@ -305,6 +320,12 @@ class PyTorchEngine:
         self.monitor: MemoryMonitor | None = None
         self.offload: ActivationOffload | None = None
         self.semantic_encoder = None
+        self.portability_run: PortabilityRun | None = None
+        self._portability_parameters: tuple[tuple[str, torch.nn.Parameter], ...] = ()
+        self._last_gradient_parameter_names: tuple[str, ...] = ()
+        self._last_update_parameter_names: tuple[str, ...] = ()
+        self._portability_initial_digests: dict[str, str] = {}
+        self._portability_update_history: list[dict[str, object]] = []
 
     def validate(self, config: RunConfig):
         self.runtime = validate_runtime(config)
@@ -314,13 +335,22 @@ class PyTorchEngine:
         self, config: RunConfig, initial_weights: Mapping[str, object] | None = None
     ) -> None:
         runtime = self.runtime if self.runtime is not None else self.validate(config)
+        portability_run = (
+            load_portability_manifest(config)
+            if config.training.portability_manifest_path is not None
+            else None
+        )
+        if portability_run is not None and initial_weights is not None:
+            raise ValueError(
+                "portability initialization must come from its verified manifest"
+            )
         device = torch_device_for(runtime.backend, config.runtime.device_index)
         model = DenseLM(config.model, config.attention).to(device)
         self.semantic_encoder = None
         if config.dataset.allocation_manifest_path is not None:
             allocation = load_allocation_manifest(
                 config.dataset.allocation_manifest_path,
-                source_identity_sha256=source_identity()["sha256"],
+                source_identity_sha256=cast(str, source_identity()["sha256"]),
                 tokenizer_sha256=_tokenizer_sha256(
                     load_tokenizer(config.tokenizer.path)
                 ),
@@ -335,10 +365,21 @@ class PyTorchEngine:
                     raise ValueError(
                         "model.semantic_memory_dim differs from semantic pack value width"
                     )
-                model.add_semantic_memory("allocation", retriever, site="final")
+                model.add_semantic_memory(
+                    "allocation",
+                    retriever,
+                    site="final",
+                    min_score=3.5 if portability_run is not None else None,
+                )
                 self.semantic_encoder = retriever.key_encoder
-        if initial_weights is not None:
+        if portability_run is not None:
+            initialize_recipient_backbone(model, config, portability_run)
+            initialize_memory_artifact(model, config, portability_run)
+        elif initial_weights is not None:
             model.load_state_dict(initial_weights)  # type: ignore[arg-type]
+        trainable_parameters = apply_trainable_parameter_filter(
+            model, config, portability_run
+        )
         optimizer = (
             make_optimizer(
                 model,
@@ -357,8 +398,29 @@ class PyTorchEngine:
                 config.optimizer.d,
             )
         )
+        selected_ids = {id(parameter) for _, parameter in trainable_parameters}
+        optimizer_ids = {
+            id(parameter)
+            for group in optimizer.param_groups
+            for parameter in group["params"]
+        }
+        if optimizer_ids != selected_ids:
+            raise RuntimeError(
+                "optimizer parameters differ from the explicit trainable inventory"
+            )
         self.config, self.runtime, self.device = config, runtime, device
         self.model, self.optimizer = model, optimizer
+        self.portability_run = portability_run
+        self._portability_parameters = trainable_parameters
+        self._last_gradient_parameter_names = ()
+        self._portability_initial_digests = (
+            {
+                name: _parameter_sha256(parameter)
+                for name, parameter in model.named_parameters()
+            }
+            if portability_run is not None
+            else {}
+        )
         self.scaler = make_grad_scaler(config, device)
         self.monitor = MemoryMonitor(device, runtime_info=runtime)
         self.offload = (
@@ -379,6 +441,44 @@ class PyTorchEngine:
         ):
             raise RuntimeError("PyTorchEngine is not initialized")
         return self.config, self.device, self.model, self.optimizer, self.monitor
+
+    def portability_audit(self) -> dict[str, object]:
+        if self.portability_run is None or self.model is None:
+            raise RuntimeError("no portability run is initialized")
+        final_digests = {
+            name: _parameter_sha256(parameter)
+            for name, parameter in self.model.named_parameters()
+        }
+        selected = {name for name, _ in self._portability_parameters}
+        changed = {
+            name
+            for name, digest in final_digests.items()
+            if self._portability_initial_digests.get(name) != digest
+        }
+        frozen_changes = sorted(changed - selected)
+        if frozen_changes:
+            raise RuntimeError(
+                f"frozen parameters changed during portability run: {frozen_changes}"
+            )
+        backbone_names = sorted(
+            name
+            for name in self._portability_initial_digests
+            if not name.startswith(("memory.", "semantic_memories."))
+        )
+        backbone_unchanged = not (changed & set(backbone_names))
+        verify_portability_assets_unchanged(self.portability_run)
+        return {
+            "trainable_parameter_names": sorted(selected),
+            "gradient_update_history": self._portability_update_history.copy(),
+            "updated_parameter_names": sorted(changed),
+            "frozen_parameters_unchanged": True,
+            "backbone_unchanged": backbone_unchanged,
+            "initial_parameter_sha256": self._portability_initial_digests.copy(),
+            "final_parameter_sha256": final_digests,
+            "assets_unchanged": True,
+        }
+
+
 
     def train_update(
         self, microbatches: list[Microbatch], update_index: int, valid_targets: int
@@ -422,6 +522,7 @@ class PyTorchEngine:
         recomputed = 0.0
         executed_microbatches = 0
         allocation_enabled = config.dataset.allocation_manifest_path is not None
+        portability_enabled = self.portability_run is not None
         allocation_raw_counts = {
             code: 0
             for code in (OWNER_NEURAL, OWNER_LEXICAL, OWNER_SEMANTIC, OWNER_HYBRID)
@@ -568,10 +669,11 @@ class PyTorchEngine:
             neural_aux_targets = 0
             if allocation_enabled:
                 assert owner_tensor is not None
-                neural_target_mask = (owner_tensor == OWNER_NEURAL) | (
-                    owner_tensor == OWNER_HYBRID
-                )
-                valid_target_mask = valid_target_mask & neural_target_mask
+                if not portability_enabled:
+                    neural_target_mask = (owner_tensor == OWNER_NEURAL) | (
+                        owner_tensor == OWNER_HYBRID
+                    )
+                    valid_target_mask = valid_target_mask & neural_target_mask
                 neural_aux_targets = int(valid_target_mask.sum())
             with (
                 self.offload.hooks() if self.offload is not None else nullcontext(),
@@ -598,7 +700,7 @@ class PyTorchEngine:
             losses_finite = (
                 losses_finite & torch.isfinite(ce_sum) & torch.isfinite(auxiliary)
             )
-            if allocation_enabled:
+            if allocation_enabled and not portability_enabled:
                 assert owner_tensor is not None and allocation_groups is not None
                 terms: list[tuple[torch.Tensor, list[torch.nn.Parameter]]] = []
                 for owner, parameters in allocation_groups.items():
@@ -655,7 +757,7 @@ class PyTorchEngine:
             monitor.sample("backward")
             recomputed += model.recomputed_block_call_ratio
             language_sum = language_sum + ce_sum.detach()
-            if allocation_enabled:
+            if allocation_enabled and not portability_enabled:
                 aux_sum = (
                     aux_sum
                     + auxiliary.detach()
@@ -670,7 +772,30 @@ class PyTorchEngine:
                 )
         if self.scaler is not None:
             self.scaler.unscale_(optimizer)
-        if allocation_enabled:
+        named_parameters = dict(model.named_parameters())
+        gradient_names = tuple(
+            name
+            for name, parameter in named_parameters.items()
+            if parameter.grad is not None
+        )
+        if config.training.trainable_parameters is not None:
+            allowed_names = set(config.training.trainable_parameters)
+            unexpected_gradients = set(gradient_names) - allowed_names
+            if unexpected_gradients:
+                optimizer.zero_grad(set_to_none=True)
+                raise RuntimeError(
+                    "gradients escaped the explicit trainable inventory: "
+                    f"{sorted(unexpected_gradients)}"
+                )
+        self._last_gradient_parameter_names = gradient_names
+        if portability_enabled:
+            norm = torch.nn.utils.clip_grad_norm_(
+                [parameter for _, parameter in self._portability_parameters],
+                config.training.grad_clip_norm,
+                error_if_nonfinite=False,
+                foreach=False,
+            )
+        elif allocation_enabled:
             assert allocation_groups is not None
             norms = [
                 torch.nn.utils.clip_grad_norm_(
@@ -723,6 +848,15 @@ class PyTorchEngine:
             assert window_rng is not None
             _restore_rng(window_rng, device)
             return UpdateResult("OVERFLOW", None, valid_targets, 0, elapsed)
+        self._last_update_parameter_names = gradient_names
+        if portability_enabled:
+            self._portability_update_history.append(
+                {
+                    "step": update_index,
+                    "gradient_parameter_names": list(gradient_names),
+                    "update_parameter_names": list(gradient_names),
+                }
+            )
         metrics = {
             "train/loss": float(language_sum) / valid_targets,
             "moe/router_auxiliary_loss": float(aux_sum) / valid_targets,

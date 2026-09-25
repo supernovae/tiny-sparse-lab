@@ -717,3 +717,14 @@ def knowledge_swap_ratio(
         raise ValueError("knowledge-swap ratio requires one attachment condition")
     followed = sum(evaluations[case.id].followed_attached_pack for case in eligible)
     return KnowledgeSwapRatio(followed / len(eligible), len(eligible), None)
+
+
+def materialize_portability_worlds(
+    root: Path, *, seed: int = 20260925, scale: str = "micro"
+) -> Path:
+    """Materialize the immutable, leakage-audited Engram portability inputs."""
+    from sparselab.data.portability_worlds import (
+        materialize_portability_worlds as build,
+    )
+
+    return build(root, seed=seed, scale=scale)

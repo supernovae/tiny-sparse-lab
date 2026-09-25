@@ -77,6 +77,7 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
         "engram-mla-compression-v1",
         "engram-moe-capacity-v1",
         "engram-placement-v1",
+        "engram-portability-v1",
         "engram-sparse-budget-v1",
         "lexical-memory-heavy-v1",
         "memory-allocation-curve-v1",

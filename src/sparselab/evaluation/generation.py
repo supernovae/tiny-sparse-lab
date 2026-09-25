@@ -155,6 +155,71 @@ def _mlx_next_token(
     mx.eval(token)
     return int(token), next_key
 
+def _semantic_queries_for_context(
+    queries: Any,
+    *,
+    prompt_length: int,
+    active_start: int,
+    active_length: int,
+) -> Any:
+    if queries is None:
+        return None
+    if isinstance(queries, Mapping):
+        return {
+            key: _semantic_queries_for_context(
+                batch,
+                prompt_length=prompt_length,
+                active_start=active_start,
+                active_length=active_length,
+            )
+            for key, batch in queries.items()
+        }
+    if not isinstance(queries, SemanticQueryBatch) or queries.vectors.ndim == 2:
+        return queries
+    vectors = queries.vectors
+    if vectors.shape[1] != prompt_length:
+        raise ValueError("sequence semantic queries must match the encoded prompt length")
+    prompt_start = min(active_start, prompt_length)
+    prompt_end = min(active_start + active_length, prompt_length)
+    generated_count = max(0, active_start + active_length - prompt_length)
+    vector_parts = [vectors[:, prompt_start:prompt_end]]
+    if generated_count:
+        vector_parts.append(vectors[:, -1:, :].expand(-1, generated_count, -1))
+    active_vectors = (
+        vector_parts[0]
+        if len(vector_parts) == 1
+        else torch.cat(vector_parts, dim=1)
+    )
+    active_mask = queries.mask
+    if active_mask is not None and active_mask.ndim == 2:
+        mask_parts = [active_mask[:, prompt_start:prompt_end]]
+        if generated_count:
+            mask_parts.append(active_mask[:, -1:].expand(-1, generated_count))
+        active_mask = (
+            mask_parts[0]
+            if len(mask_parts) == 1
+            else torch.cat(mask_parts, dim=1)
+        )
+    as_of = queries.as_of
+    if isinstance(as_of, tuple):
+        batch_size = vectors.shape[0]
+        as_of_rows = [
+            as_of[index * prompt_length : (index + 1) * prompt_length]
+            for index in range(batch_size)
+        ]
+        active_as_of: list[Any] = []
+        for row in as_of_rows:
+            active_as_of.extend(row[prompt_start:prompt_end])
+            if generated_count:
+                active_as_of.extend([row[-1]] * generated_count)
+        as_of = tuple(active_as_of)
+    return SemanticQueryBatch(
+        encoder=queries.encoder,
+        vectors=active_vectors,
+        mask=active_mask,
+        as_of=as_of,
+    )
+
 
 def generate(
     model: Any,
@@ -177,8 +242,9 @@ def generate(
 ) -> str:
     """Continue ``prompt`` using locally seeded sampled decoding.
 
-    Semantic inputs are already-encoded, identity-checked query batches. PyTorch
-    forwards the same query through full-prefix, cached, and cache-rebuild paths.
+    Semantic inputs are already-encoded, identity-checked query batches. Sequence
+    queries track context truncation and repeat their final position across generated
+    tokens; cached and full-prefix PyTorch paths preserve the same query trajectory.
     Native MLX does not implement semantic attachments.
     """
     _validate_generation_options(
@@ -204,6 +270,7 @@ def generate(
         if bos is None:
             raise ValueError("tokenizer has no <bos> token")
         ids = [bos]
+    prompt_length = len(ids)
     if strict_context and len(ids) + max_new_tokens > max_seq_len:
         raise ValueError("prompt and requested completion exceed max_seq_len")
     if max_new_tokens == 0:
@@ -249,8 +316,14 @@ def generate(
             else None
         )
         options: dict[str, Any] = {"byte_addresses": byte_addresses}
-        if semantic_queries is not None:
-            options["semantic_queries"] = semantic_queries
+        query_input = _semantic_queries_for_context(
+            semantic_queries,
+            prompt_length=prompt_length,
+            active_start=len(ids) - len(active_ids),
+            active_length=len(active_ids),
+        )
+        if query_input is not None:
+            options["semantic_queries"] = query_input
         return model(input_ids, **options)[0, -1]
 
     def rebuild_cache(remaining_tokens: int) -> torch.Tensor:
@@ -266,8 +339,14 @@ def generate(
             "cache_capacity": min(max_seq_len, len(active_ids) + remaining_tokens),
             "byte_addresses": byte_addresses,
         }
-        if semantic_queries is not None:
-            options["semantic_queries"] = semantic_queries
+        query_input = _semantic_queries_for_context(
+            semantic_queries,
+            prompt_length=prompt_length,
+            active_start=len(ids) - len(active_ids),
+            active_length=len(active_ids),
+        )
+        if query_input is not None:
+            options["semantic_queries"] = query_input
         logits, cache = model.forward_cached(  # type: ignore[attr-defined]
             input_ids, **options
         )
@@ -334,8 +413,14 @@ def generate(
                         "cache": cache,
                         "byte_addresses": next_addresses,
                     }
-                    if semantic_queries is not None:
-                        options["semantic_queries"] = semantic_queries
+                    query_input = _semantic_queries_for_context(
+                        semantic_queries,
+                        prompt_length=prompt_length,
+                        active_start=len(ids) - 1,
+                        active_length=1,
+                    )
+                    if query_input is not None:
+                        options["semantic_queries"] = query_input
                     next_logits, cache = model.forward_cached(  # type: ignore[attr-defined]
                         next_ids, **options
                     )

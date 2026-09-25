@@ -60,7 +60,10 @@ def _add(
 
 
 def named_tensor_inventory(
-    model_config: ModelConfig, attention_config: AttentionConfig | None = None
+    model_config: ModelConfig,
+    attention_config: AttentionConfig | None = None,
+    *,
+    trainable_parameters: tuple[str, ...] | None = None,
 ) -> Mapping[str, TensorSpec]:
     """Return the canonical parameter schema without constructing a model.
 
@@ -167,7 +170,41 @@ def named_tensor_inventory(
         tensors["output.weight"] = TensorSpec((v, d), alias_of="embedding.weight")
     else:
         _add(tensors, "output.weight", (v, d))
-    return tensors
+    if trainable_parameters is None:
+        return tensors
+    if (
+        type(trainable_parameters) is not tuple
+        or not trainable_parameters
+        or len(trainable_parameters) != len(set(trainable_parameters))
+    ):
+        raise ValueError("trainable_parameters must be a nonempty tuple of unique names")
+    unknown = set(trainable_parameters) - set(tensors)
+    if unknown:
+        raise ValueError(f"unknown trainable parameter names: {sorted(unknown)}")
+    invalid = [
+        name
+        for name in trainable_parameters
+        if tensors[name].alias_of is not None or not tensors[name].trainable
+    ]
+    if invalid:
+        raise ValueError(
+            "trainable parameter names must identify trainable canonical storages: "
+            f"{sorted(invalid)}"
+        )
+    selected = set(trainable_parameters)
+    return {
+        name: TensorSpec(
+            spec.shape,
+            spec.dtype,
+            trainable=(
+                spec.alias_of in selected
+                if spec.alias_of is not None
+                else name in selected
+            ),
+            alias_of=spec.alias_of,
+        )
+        for name, spec in tensors.items()
+    }
 
 
 def _sum_specs(tensors: Mapping[str, TensorSpec], predicate: object) -> int:
@@ -181,7 +218,11 @@ def _sum_specs(tensors: Mapping[str, TensorSpec], predicate: object) -> int:
 def parameter_inventory(config: RunConfig) -> ParameterInventory:
     """Aggregate the pure canonical tensor schema into disjoint categories."""
     m = config.model
-    tensors = named_tensor_inventory(m, config.attention)
+    tensors = named_tensor_inventory(
+        m,
+        config.attention,
+        trainable_parameters=config.training.trainable_parameters,
+    )
     stored = lambda name, spec: spec.alias_of is None
     embedding = _sum_specs(tensors, lambda name, spec: name == "embedding.weight")
     output = _sum_specs(tensors, lambda name, spec: name == "output.weight")

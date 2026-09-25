@@ -225,6 +225,33 @@ def test_temporal_filter_is_inclusive_and_distinguishes_miss_from_unknown(
     assert unknown.status == "unknown"
     assert unknown.trace.candidate_count == 2
 
+def test_temporal_as_of_flows_through_batched_adapter_queries(tmp_path) -> None:
+    retriever = _retriever(
+        tmp_path / "query-batch-temporal",
+        name="query-batch-temporal",
+        record_ids=("expired", "current"),
+        keys=[[1, 0, 0], [0, 1, 0]],
+        validity={"expired": {"valid_until": "2020-12-31"}},
+    )
+    adapter = SemanticMemoryAdapter(retriever, hidden_dim=4, min_score=0.9)
+    queries = SemanticQueryBatch(
+        retriever.key_encoder,
+        torch.tensor([[[1.0, 0, 0], [1.0, 0, 0]]]),
+        mask=torch.ones((1, 2), dtype=torch.bool),
+        as_of=("2025-01-01", "2019-01-01"),
+    )
+
+    adapter(torch.zeros((1, 2, 4)), queries)
+
+    assert tuple(trace.status for trace in adapter.last_traces) == (
+        "temporal_miss",
+        "hit",
+    )
+    assert tuple(trace.as_of for trace in adapter.last_traces) == (
+        "2025-01-01T00:00:00+00:00",
+        "2019-01-01T00:00:00+00:00",
+    )
+
 
 def test_adapter_keeps_pack_assets_external_and_replacement_preserves_weights(
     tmp_path,
@@ -504,4 +531,38 @@ def test_semantic_query_generation_matches_cached_and_full_prefix(
         use_cache=False,
     )
     assert cached == full_prefix
+    assert model.semantic_memories["allocation"].last_traces[0].status == "hit"
+
+    long_prompt = " ".join(["hello", *("answer" for _ in range(8))])
+    sequence_vectors = torch.zeros((1, 9, 3), dtype=torch.float32)
+    sequence_vectors[0, -1] = torch.tensor([1.0, 0, 0])
+    sequence_mask = torch.zeros((1, 9), dtype=torch.bool)
+    sequence_mask[0, -1] = True
+    sequence_query = SemanticQueryBatch(
+        retriever.key_encoder,
+        sequence_vectors,
+        mask=sequence_mask,
+        as_of=(_CREATED_AT,) * 9,
+    )
+    cached_sequence = generate(
+        model,
+        tokenizer,
+        long_prompt,
+        8,
+        3,
+        torch.device("cpu"),
+        semantic_queries=sequence_query,
+        use_cache=True,
+    )
+    full_prefix_sequence = generate(
+        model,
+        tokenizer,
+        long_prompt,
+        8,
+        3,
+        torch.device("cpu"),
+        semantic_queries=sequence_query,
+        use_cache=False,
+    )
+    assert cached_sequence == full_prefix_sequence
     assert model.semantic_memories["allocation"].last_traces[0].status == "hit"

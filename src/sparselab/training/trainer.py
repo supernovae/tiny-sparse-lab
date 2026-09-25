@@ -796,6 +796,41 @@ def _train_impl(
             return record
 
         def finish_run(status: str, reason: str | None = None) -> None:
+            if (
+                isinstance(engine, PyTorchEngine)
+                and engine.portability_run is not None
+            ):
+                audit_path = run / "portability_audit.json"
+                try:
+                    audit: dict[str, object] = {
+                        "format": "sparselab-portability-audit",
+                        "version": 1,
+                        "valid": True,
+                        **engine.portability_audit(),
+                    }
+                # Any audit exception invalidates the run and must be recorded.
+                except Exception as error:  # noqa: BLE001
+                    audit = {
+                        "format": "sparselab-portability-audit",
+                        "version": 1,
+                        "valid": False,
+                        "error_type": type(error).__name__,
+                        "error": str(error),
+                    }
+                    status = "failed"
+                    reason = f"portability integrity audit failed: {error}"
+                _atomic_json(audit_path, audit)
+                store.log_event(
+                    run_id,
+                    step,
+                    tokens,
+                    elapsed_seconds(),
+                    "portability_audit_recorded",
+                    {
+                        "valid": audit["valid"],
+                        "sha256": sha256_file(audit_path),
+                    },
+                )
             if status == "failed" and history.current is not None:
                 finish_stage("failed", reason)
             enter_stage(

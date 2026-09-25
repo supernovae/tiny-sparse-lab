@@ -1,0 +1,88 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "id": "engram-portability-v1",
+  "title": "Controlled Engram portability study",
+  "question": "Can the exact same frozen Engram artifact transfer useful information to independently configured DenseLM recipient backbones, including different hidden widths, using only a small recipient-local alignment adapter?",
+  "mechanisms": [
+    "immutable Engram artifacts",
+    "token, raw-byte, and structured semantic addressing",
+    "recipient-local memory projection and gate",
+    "independent dense-attention DenseLM recipients"
+  ],
+  "hypothesis": "Under matched recipient preparation and controls, a real frozen artifact may improve declared recipient behavior over no-memory, random-memory, and row-corruption controls; it may also fail to do so.",
+  "failure_interpretation": "A null or adverse controlled contrast means this bounded protocol did not demonstrate useful recipient-local adaptation for that representation, recipient, task family, or endpoint; it does not establish that retrieval was unavailable or that a different architecture would behave identically.",
+  "controls": [
+    "Use the same independently prepared recipient backbone and recipient-local adapter initialization within each matched recipient/condition group.",
+    "Keep the frozen real artifact byte-identical across recipient widths for each declared source/representation group; retain its digest and pack identity.",
+    "Compare no-memory, random frozen memory, real frozen memory at step zero, adapter-only real memory, joint recipient training, native recipient memory, and row-association corruption as separately named conditions.",
+    "Keep source facts, recipient preparation facts, adapter eligibility, development observations, and final replacement worlds separated and auditable.",
+    "Report retrieval-only oracle diagnostics separately from unrestricted recipient answer behavior."
+  ],
+  "independent_variables": [
+    "recipient architecture and hidden width",
+    "representation (token, raw byte, structured semantic)",
+    "memory condition and recipient-local trainable set",
+    "source seed and recipient seed",
+    "attached replacement-world artifact"
+  ],
+  "dependent_metrics": [
+    {"name": "development_exact_answer_accuracy", "unit": "fraction", "kind": "capability", "direction": "higher"},
+    {"name": "development_exact_path_accuracy", "unit": "fraction", "kind": "capability", "direction": "higher"},
+    {"name": "final_exact_answer_accuracy", "unit": "fraction", "kind": "capability", "direction": "higher"},
+    {"name": "a_b_a_prediction_reproducibility", "unit": "boolean per probe", "kind": "capability", "direction": "descriptive"},
+    {"name": "frozen_artifact_bytes", "unit": "bytes", "kind": "architectural", "direction": "descriptive"},
+    {"name": "recipient_local_trainable_parameters", "unit": "parameters", "kind": "architectural", "direction": "descriptive"}
+  ],
+  "confounders": [
+    "Token-address compatibility is an address invariant, not hidden-coordinate compatibility.",
+    "Raw-byte endpoint agreement does not establish behavioral equivalence across tokenizers.",
+    "Structured semantic queries are pre-encoded caller-supplied vectors in this protocol, not a supported natural-language query production path.",
+    "Exact key/value encoder identities, dimensions, normalization, and representation-space identity are required semantic interface invariants; a shared tokenizer is insufficient.",
+    "Different width/depth recipients are dense-attention DenseLM variants, not a cross-architecture experiment.",
+    "Recipient behavior can differ from exact retrieval; scorer traversal must not repair a wrong neural intermediate prediction.",
+    "Native-memory arms have different fact exposure and optimization budgets and are not matched adapter-only causal contrasts."
+  ],
+  "minimum_useful_scale": "smoke",
+  "recommended_scale": "micro",
+  "hardware_notes": "The declared portability campaign requires explicit generated worlds, source artifacts, recipient preparation checkpoints, and verified protocol assets. Measure setup, compilation, observation, checkpoint, and update costs on the selected backend; this packaged entry contains no timing or behavioral measurements.",
+  "runtime_class": "A bounded multi-seed PyTorch research protocol with immutable artifacts and typed observations; no portability result has been measured by this catalog entry.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {"smoke": 8, "nano": 32, "micro": 128, "tiny": 256},
+    "endpoint_cards": ["chat-recall", "chat-paraphrase", "chat-override", "chat-conflict"],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [
+    {"reference": "chat-recall", "role": "development", "category": "generic memory-disabled diagnostic", "applicability": {"offline": "diagnostic only; not a portability outcome", "tinystories": "out-of-domain stress only", "fineweb_edu": "out-of-domain stress only"}},
+    {"reference": "chat-paraphrase", "role": "stress", "category": "generic wording stress", "applicability": {"offline": "diagnostic only; not structured-query behavior", "tinystories": "out-of-domain stress only", "fineweb_edu": "out-of-domain stress only"}},
+    {"reference": "chat-override", "role": "stress", "category": "generic context override stress", "applicability": {"offline": "diagnostic only; not a replacement-world score", "tinystories": "out-of-domain stress only", "fineweb_edu": "out-of-domain stress only"}},
+    {"reference": "chat-conflict", "role": "stress", "category": "generic ambiguity stress", "applicability": {"offline": "diagnostic only; not a structured conflict trace", "tinystories": "out-of-domain stress only", "fineweb_edu": "out-of-domain stress only"}}
+  ],
+  "papers": [
+    {"title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks", "url": "https://arxiv.org/abs/2005.11401", "claim_boundary": "Background on retrieval-augmented systems only; it is not evidence that this protocol transfers an Engram or that its recipient behavior succeeds."}
+  ],
+  "implementation_links": [
+    {"path": "src/sparselab/research/portability.py", "symbol": "load_portability_manifest"},
+    {"path": "src/sparselab/research/portability_campaign.py", "symbol": "build_portability_campaign"},
+    {"path": "src/sparselab/research/portability_runner.py", "symbol": "execute_portability_arm and build_portability_evidence"}
+  ],
+  "docs": ["docs/research/engram-portability.md"],
+  "can_establish": [
+    "Observed controlled recipient behavior for the executed artifacts, tasks, seeds, DenseLM widths, and endpoints.",
+    "Whether exact artifact bytes and structured pack identities remained unchanged across recipient configurations.",
+    "Recipient answer/path accuracy at immutable checkpoints, structured retrieval traces, and bounded A/B/A attachment responses."
+  ],
+  "cannot_establish": [
+    "Any portability success claim beyond the specific executed observations.",
+    "Natural-language semantic query production, because structured queries are supplied by the generator.",
+    "That direct retrieval is recipient behavioral success, or that a correct retrieval trace repairs a recipient prediction.",
+    "Cross-architecture portability, broad knowledge transfer, cross-tokenizer behavioral equivalence, or zero-shot language competence."
+  ],
+  "prerequisites": [
+    "Build an explicit versioned campaign before training; the portability CLI binds generated worlds, verified assets, recipient preparation checkpoints, and typed observations.",
+    "The packaged default recipe remains an inert generic configuration sketch; it does not substitute for the portability campaign or its supplied structured queries, replacements, and evaluator."
+  ],
+  "recipe": "recipes/engram-portability-v1.json"
+}
