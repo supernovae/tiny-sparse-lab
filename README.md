@@ -36,7 +36,7 @@ The latest worker UI check captured actual rendered curve pixels; standard brows
 
 ## Start with a bounded local path
 
-Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/). Run commands from the repository root.
+Requirements: Python 3.14 and [uv](https://docs.astral.sh/uv/). Run commands from the repository root.
 
 ```sh
 uv sync --locked --dev

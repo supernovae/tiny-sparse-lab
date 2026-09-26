@@ -8,6 +8,8 @@ import pytest
 import yaml
 from tokenizers import Tokenizer
 
+from sparselab.config.loading import load_tokenizer_config
+from sparselab.data.tokenizer import train_tokenizer
 from sparselab.evaluation.capabilities import load_capability_card
 from sparselab.experiments.study import (
     ArchitectureStudy,
@@ -241,7 +243,7 @@ def test_validation_loss_requires_matched_run_identity(tmp_path: Path) -> None:
     assert "delta_variant_minus_baseline" not in validation
 
 
-def test_memory_injection_campaign_plan_and_composition_card() -> None:
+def test_memory_injection_campaign_plan_and_composition_card(tmp_path: Path) -> None:
     study = plan_study(ROOT / "configs/memory_injection_v1.study.yaml")
 
     assert len(study.expanded) == 9
@@ -294,9 +296,19 @@ def test_memory_injection_campaign_plan_and_composition_card() -> None:
         assert graph[graph[left_start.group(1)]] == left.expected
         assert graph[right_start.group(1)] != right.expected
         assert graph[graph[right_start.group(1)]] == right.expected
-    tokenizer = Tokenizer.from_file(
-        str(ROOT / "artifacts/tokenizer_context_study/tokenizer.json")
+    tokenizer_config = load_tokenizer_config(
+        ROOT / "configs/context_study_tokenizer.yaml"
     )
+    tokenizer_config = tokenizer_config.model_copy(
+        update={
+            "output_dir": tmp_path / "context-study-tokenizer",
+            "dataset": tokenizer_config.dataset.model_copy(
+                update={"cache_dir": tmp_path / "context-study-tokenizer-cache"}
+            ),
+        }
+    )
+    tokenizer_path = train_tokenizer(tokenizer_config)
+    tokenizer = Tokenizer.from_file(str(tokenizer_path))
     lengths = [
         len(tokenizer.encode(case.prompt, add_special_tokens=False).ids)
         for case in card.cases

@@ -74,6 +74,39 @@ step-size cap**, not an AdamW-equivalent absolute learning rate. Parameter RMS
 scaling and its own update clipping still apply. An optimizer change requires
 a fresh or promoted run, never full resume.
 
+## ROCm 10 on WSL2
+
+The recorded target is an AMD Radeon RX 7900 XTX (`gfx1100`) under WSL2.
+This host-specific acceptance requires Python 3.14 and AMD's
+`torch[device-gfx1100]==2.13.0+rocm10.0.0` wheel from the explicit ROCm index.
+Install with:
+
+```sh
+uv sync --locked --python 3.14 --group dev
+```
+
+PyTorch exposes ROCm devices through its `torch.cuda` API. Confirm the
+installed build reports a HIP version and can probe the physical GPU; CPU
+fallback does not count as ROCm acceptance:
+
+```sh
+uv run --locked --python 3.14 python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.device_count(), torch.cuda.get_device_name(0))'
+uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
+uv run --locked pytest -m 'not cuda and not rocm and not xpu and not network'
+RUN_ID="rocm-wsl2-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
+STAGE_DIR="/tmp/sparselab-rocm-warmup-$RUN_ID"
+uv run --locked sparselab stage configs/runtime_smoke_rocm.yaml --through warmup --output "$STAGE_DIR"
+uv run --locked sparselab train configs/runtime_smoke_rocm.yaml --run-id "$RUN_ID"
+uv run --locked sparselab eval "$RUN_ID" --backend rocm --runs-dir runs-rocm
+```
+
+The stage, training manifest, and evaluation must all record `rocm`; training
+must commit 20 steps / 640 targets, and evaluation must use the committed
+checkpoint. The host probe must report `torch.version.hip`, an available
+device, and the RX 7900 XTX. An explicit ROCm request that fails or resolves
+to another backend is a failed acceptance, not permission to continue on CPU.
+See AMD's [ROCm PyTorch installation documentation](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html).
+
 ## Recorded local acceptance
 
 The [Astra CLI record](../artifacts/acceptance/host_cli_2026_09_22.json) contains
@@ -87,7 +120,7 @@ training equivalence, model-quality results, or foreign-hardware acceptance.
 
 The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
 
-Native CUDA/HIP sparse kernels, actual ROCm/XPU acceptance, and overlapping real Mac/AMD/Intel execution remain hardware-blocked in [the capability backlog](../TODO.md). Provisioned vendor-compatible runtimes and those physical targets are prerequisites; declaring a capability or assigning a CPU worker a platform name does not close a hardware gate.
+Native CUDA sparse kernels, actual XPU acceptance, and overlapping real Mac/AMD/Intel execution remain open in [the capability backlog](../TODO.md). Native HIP sparse attention has been exercised and benchmarked on the RX 7900 XTX; ROCm runtime acceptance remains limited to one WSL2 host and does not establish cross-host support.
 
 See [memory accounting](memory.md), [activation recomputation](activation-checkpointing.md),
 and [activation offload](offload.md) for the estimate/measurement boundaries.

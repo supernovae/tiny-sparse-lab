@@ -3,15 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from test_training import config as training_config
-
+from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.data.allocation_tasks import build_memory_allocation
 from sparselab.data.packing import prepare_data
-from sparselab.data.tokenizer import load_tokenizer
+from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
 from sparselab.evaluation.capabilities import compare_results, load_capability_card
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
 from sparselab.research.catalog import load_recipe, load_research
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _run(allocation: str, weights: float) -> dict[str, object]:
@@ -246,15 +247,24 @@ def test_allocation_regimes_remain_distinct_and_flops_are_estimated() -> None:
 
 
 def test_allocation_builder_binds_published_development_audit(tmp_path: Path) -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = ROOT
     corpus = root / "data" / "path_domain_v1"
+    tokenizer_config = load_tokenizer_config(
+        root / "configs/path_domain_tokenizer_cpu.yaml"
+    )
+    tokenizer_config = tokenizer_config.model_copy(
+        update={
+            "output_dir": tmp_path / "path-domain-tokenizer",
+            "dataset": tokenizer_config.dataset.model_copy(
+                update={"cache_dir": tmp_path / "path-domain-tokenizer-cache"}
+            ),
+        }
+    )
+    tokenizer_path = train_tokenizer(tokenizer_config)
     bundle = tmp_path / "allocation"
     manifest_path = build_memory_allocation(
         bundle,
-        tokenizer_path=root
-        / "artifacts"
-        / "tokenizer_path_domain_v1"
-        / "tokenizer.json",
+        tokenizer_path=tokenizer_path,
         train_path=corpus / "train.jsonl",
         validation_path=corpus / "development.jsonl",
         audit_path=corpus / "oracle_audit.json",
@@ -288,14 +298,18 @@ def test_allocation_builder_binds_published_development_audit(tmp_path: Path) ->
         card = load_capability_card(bundle / "cards" / card_name)
         assert all(case.semantic_query is not None for case in card.cases)
 
-    tokenizer_path = root / "artifacts" / "tokenizer_path_domain_v1" / "tokenizer.json"
-    base = training_config(tmp_path)
+    base = load_config(root / "configs/runtime_smoke_cpu.yaml")
     configured = base.model_copy(
         update={
             "tokenizer": base.tokenizer.model_copy(update={"path": tokenizer_path}),
             "model": base.model.model_copy(update={"semantic_memory_dim": 8}),
             "dataset": base.dataset.model_copy(
                 update={
+                    "cache_dir": tmp_path / "cache",
+                    "train_max_documents": tokenizer_config.dataset.train_max_documents,
+                    "validation_max_documents": tokenizer_config.dataset.validation_max_documents,
+                    "train_max_tokens": tokenizer_config.dataset.train_max_tokens,
+                    "validation_max_tokens": tokenizer_config.dataset.validation_max_tokens,
                     "source": "local_chat",
                     "train_path": corpus / "train.jsonl",
                     "validation_path": corpus / "development.jsonl",

@@ -428,7 +428,9 @@ def _probe_runtime(
     if result.get("tested_precision") != precision:
         raise ValueError("runtime probe returned an invalid precision result")
     expected_features = ["forward_backward_optimizer", f"optimizer:{optimizer}"]
-    if attention == "block_sparse":
+    if attention == "block_sparse" and (
+        engine == "mlx" or (engine == "pytorch" and backend == "rocm")
+    ):
         expected_features.append("native_block_sparse_attention")
     if checkpointing:
         expected_features.append("activation_checkpointing")

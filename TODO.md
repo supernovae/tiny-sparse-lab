@@ -141,12 +141,12 @@ Keep the previous failed override controls and negative Engram comparison. Do no
 - [x] Complete Adafactor accounting, education, and integration coverage. **Astra:** actual state is 3,436 bytes versus AdamW 86,444 bytes for the same tiny architecture, exactly matching factor/alias-aware estimates; Adafactor full/resumed states match bitwise. Browser Learn identifies relative learning-rate cap semantics. [Evidence](artifacts/acceptance/memory_optimizer_2026_09_22.json).
 - [x] Correct configured optimizer inventory across inference reports. **Astra:** reproduced missing AdamW step scalars and Adafactor inference mislabeled as AdamW-sized state; unified configured reports with canonical accounting. Real consumer values now 86,444/3,436 bytes; 35 accounting/inference/planner regressions pass. [Evidence](artifacts/acceptance/configured_accounting_2026_09_22.json).
 - [ ] Implement and benchmark native CUDA sparse attention. **Blocked:** no reachable CUDA target.
-- [ ] Implement and benchmark native HIP sparse attention. **Blocked:** no reachable ROCm target.
+- [x] Implement and benchmark native HIP sparse attention. Astra: online-softmax forward plus query-owned/key-owned backward JIT-built with `hipcc`; ROCm-gated output/input/projection-gradient comparisons pass on RX 7900 XTX, and a fixed-mask attention-only measurement records 0.829 ms HIP versus 67.809 ms eager PyTorch at B=2/H=4/T=128/D=32 (not end-to-end). [Implementation, measurements, and limits](docs/sparse-attention.md).
 - [x] Implement and benchmark native MLX sparse attention. Astra: custom Metal forward/dQ/dK-dV kernels; 10 native regressions pass, including sparse recomputation and wider-head gradients; matched Metal measurements at 32/128/512 tokens. [Evidence and limits](docs/sparse-attention.md#measured-metal-attention-component).
-- [ ] Validate ROCm acceptance on actual target hardware. **Blocked:** no provisioned AMD host.
+- [x] Validate ROCm acceptance on actual target hardware. Recorded WSL2 ROCm 10 acceptance on an AMD Radeon RX 7900 XTX (`gfx1100`): ROCm probe, staged warmup, 20 steps / 640 targets, and checkpoint evaluation. [Evidence](artifacts/acceptance/rocm_wsl2_2026_09_25.json).
 - [ ] Validate XPU acceptance on actual target hardware. **Blocked:** no provisioned Intel host.
 
-The current host is Apple Silicon. No remote hosts are registered with the harness. CUDA/HIP/XPU execution and kernel-performance claims require their actual machines and vendor-provisioned environments; CPU or Apple execution cannot close those gates.
+The recorded WSL2 ROCm target and native HIP sparse-attention path are validated. CUDA, XPU, and untested cross-host claims remain open. No remote hosts are registered with the harness.
 
 ## Independent orchestration
 

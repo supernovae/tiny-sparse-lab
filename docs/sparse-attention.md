@@ -1,8 +1,12 @@
 # Block Sparse Attention
 
-`attention.kind: block_sparse` is a readable causal selector. It groups only already-available keys into fixed-size blocks, scores compressed mean-key representations against each query, selects the highest-scoring blocks, gathers their original K/V tokens, and computes regular attention over that gathered subset. It does not allocate a dense `[B, H, T, T]` score matrix.
+`attention.kind: block_sparse` is a causal selector. It groups only already-available keys into fixed-size blocks, scores compressed mean-key representations against each query, and selects the highest-scoring blocks. The PyTorch reference gathers original K/V tokens; native HIP attends to selected tokens directly. Neither path forms a dense `[B, H, T, T]` score matrix.
 
-`block_size` controls compression granularity; `selected_blocks` controls the retrieval budget. Block means use prefix sums instead of constructing a Python list of slices for every query; query-time selection and gathered attention remain a readable Python-loop reference, not a custom sparse kernel. It reports available and selected token counts, selection ratio, selected block IDs, a selected-token attention-work estimate, dense-teacher retained mass, and dense Top-K recall. Sparse-vs-dense quality curves remain a separate controlled experiment.
+The selector remains a PyTorch reference loop on all devices. On ROCm, selected-block FP32 attention dispatches to a native HIP library JIT-built with `hipcc`: online-softmax forward plus query-owned and key-owned backward consume the shared batch/head membership mask directly, without gathering K/V or forming token-square scores. First use requires `hipcc` and the matching ROCm SDK runtime; head dimensions are limited to 2048. This accelerates the attention operation only; selection remains high-level PyTorch, and no end-to-end speedup is claimed.
+
+## Local HIP component measurement
+
+On the RX 7900 XTX (`gfx1100`), a fixed-mask attention-only forward/backward run at `B=2, H=4, T=128, D=32`, block size 16, and two selected blocks measured 0.829 ms for HIP versus 67.809 ms for the eager PyTorch selected-block reference (one warmup, median of 12 synchronized runs). The measurement excludes block selection and projections, covers one shape, and does not establish end-to-end model speedup.
 
 ## Optional MLX implementation
 

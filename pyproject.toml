@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Byron Miller (MOBB)", email = "bymiller@redhat.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "datasets>=4,<5",
     "huggingface-hub>=0.34,<2",
@@ -17,7 +17,12 @@ dependencies = [
     "pyyaml>=6,<7",
     "streamlit>=1.64,<2",
     "tokenizers==0.22.2",
-    "torch>=2.8,<3",
+    "triton==3.8.0+git4cff872c.rocm10.0.0; sys_platform == 'linux'",
+    "amd-torch-device-gfx1100==2.13.0+rocm10.0.0; sys_platform == 'linux'",
+    "amd-torch-device-gfx110x==2.13.0+rocm10.0.0; sys_platform == 'linux'",
+    "torch[device-gfx1100]==2.13.0+rocm10.0.0; sys_platform == 'linux'",
+    "rocm[libraries]==10.0.0; sys_platform == 'linux'",
+    "torch>=2.8,<3; sys_platform != 'linux'",
     "pyarrow>=25,<26",
     "safetensors>=0.5,<1",
 ]
@@ -41,12 +46,23 @@ build-backend = "uv_build"
 module-name = "sparselab"
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "rocm"
+url = "https://stable.repo.amd.com/rocm/whl-next/"
 explicit = true
 
+[[tool.uv.index]]
+name = "rocm-core"
+url = "https://stable.repo.amd.com/rocm/core/whl-next/"
+
 [tool.uv.sources]
-torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torch = [{ index = "rocm", marker = "sys_platform == 'linux'" }]
+rocm = { index = "rocm-core", marker = "sys_platform == 'linux'" }
+triton = { index = "rocm", marker = "sys_platform == 'linux'" }
+amd-torch-device-gfx1100 = { index = "rocm", marker = "sys_platform == 'linux'" }
+amd-torch-device-gfx110x = { index = "rocm", marker = "sys_platform == 'linux'" }
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
 
 [dependency-groups]
 dev = [

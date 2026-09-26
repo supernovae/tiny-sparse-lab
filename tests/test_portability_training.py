@@ -8,7 +8,8 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from sparselab.config.loading import load_config
+from sparselab.config.loading import load_config, load_tokenizer_config
+from sparselab.data.tokenizer import train_tokenizer
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.transformer import DenseLM
@@ -20,6 +21,8 @@ from sparselab.research.portability import (
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import architecture_sha256, sha256_file
 from sparselab.training.trainer import train
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _directory_descriptor(root: Path, directory: Path) -> dict[str, object]:
@@ -37,8 +40,23 @@ def _directory_descriptor(root: Path, directory: Path) -> dict[str, object]:
     }
 
 
-def test_recipient_checkpoint_load_preserves_backbone_and_freezes_memory(tmp_path: Path) -> None:
-    base = load_config(Path("configs/runtime_smoke_cpu.yaml"))
+def test_recipient_checkpoint_load_preserves_backbone_and_freezes_memory(
+    tmp_path: Path,
+) -> None:
+    tokenizer_config = load_tokenizer_config(ROOT / "configs/tokenizer_smoke.yaml")
+    tokenizer_config = tokenizer_config.model_copy(
+        update={
+            "output_dir": tmp_path / "tokenizer",
+            "dataset": tokenizer_config.dataset.model_copy(
+                update={"cache_dir": tmp_path / "tokenizer-cache"}
+            ),
+        }
+    )
+    tokenizer_path = train_tokenizer(tokenizer_config)
+    base = load_config(ROOT / "configs/runtime_smoke_cpu.yaml")
+    base = base.model_copy(
+        update={"tokenizer": base.tokenizer.model_copy(update={"path": tokenizer_path})}
+    )
     prepared = base.model_copy(
         update={
             "logging": base.logging.model_copy(update={"root_dir": tmp_path / "runs"}),
@@ -144,9 +162,7 @@ def test_learned_fact_exposure_threshold_tracks_budget(
     engine._learned_fact_targets = {1: 3, 2: 4}
     engine._learned_fact_ids_by_row = {1: "fact-a", 2: "fact-b"}
     engine._learned_initial_table_rows = initial_rows
-    engine._learned_fact_exposures = {
-        row: expected_presentations for row in rows
-    }
+    engine._learned_fact_exposures = {row: expected_presentations for row in rows}
     engine._learned_address_collision_targets = 7
     engine._learned_audit_parameter = parameter
     engine.optimizer.state[parameter]["sparselab_learned_audit_v1"] = {
