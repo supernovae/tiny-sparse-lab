@@ -398,6 +398,11 @@ def scaffold_research(
 ) -> Path:
     """Write a complete editable study scaffold; never prepare or execute it."""
     entry = load_research(reference)
+    if entry.id == "learned-engram-portability-v1":
+        raise ValueError(
+            "learned-engram-portability-v1 uses research portability build "
+            "--experiment learned-engram-portability-v1, not research scaffold"
+        )
     if data not in _dataset_names():
         raise ValueError(
             f"unsupported dataset {data!r}; choose {', '.join(_dataset_names())}"

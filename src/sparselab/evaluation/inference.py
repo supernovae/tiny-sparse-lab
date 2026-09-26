@@ -200,6 +200,24 @@ def load_run(
     tokenizer = load_tokenizer(run / "tokenizer.json")
     if tokenizer.get_vocab_size() != config.model.vocab_size:
         raise ValueError("run tokenizer vocabulary differs from model configuration")
+
+    learned_portability = None
+    portability_manifest = run / "portability_manifest.json"
+    if portability_manifest.is_file():
+        portability_payload = json.loads(portability_manifest.read_text())
+        if portability_payload.get("version") == 2:
+            from sparselab.research.portability import load_portability_manifest
+
+            config = config.model_copy(
+                update={
+                    "training": config.training.model_copy(
+                        update={"portability_manifest_path": portability_manifest}
+                    )
+                }
+            )
+            learned_portability = load_portability_manifest(config)
+    if learned_portability is not None and config.runtime.engine != "pytorch":
+        raise ValueError("learned portability inference requires the PyTorch runtime")
     allocation_manifest = None
     allocation_retriever = None
     if config.dataset.allocation_manifest_path is not None:
@@ -348,7 +366,7 @@ def load_run(
     )
     device = torch_device_for(actual_backend, config.runtime.device_index)
     model_config = config.model
-    if model_config.memory_package_path is not None:
+    if model_config.memory_package_path is not None and learned_portability is None:
         if "portable_package" not in artifacts:
             raise ValueError("run lacks a verified portable memory package")
         model_config = model_config.model_copy(
@@ -360,6 +378,14 @@ def load_run(
             model.add_semantic_memory("allocation", allocation_retriever, site="final")
         model.load_state_dict(weights)
     del weights
+    if learned_portability is not None:
+        from sparselab.research.portability import (
+            initialize_memory_artifact,
+            verify_portability_assets_unchanged,
+        )
+
+        initialize_memory_artifact(model, config, learned_portability)
+        verify_portability_assets_unchanged(learned_portability)
     model.to(device).eval()
     runtime = next(
         info

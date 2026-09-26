@@ -185,6 +185,47 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
     assert [item["step"] for item in observations] == [0, 2, 4, 6, 8, 10, 12]
 
 
+def test_trainer_saves_only_explicit_checkpoint_boundaries(tmp_path: Path) -> None:
+    original = config(tmp_path)
+    configuration = original.model_dump(mode="json")
+    configuration["evaluation"].update({"every_steps": 12, "max_batches": 1})
+    configuration["checkpoint"].update(
+        {
+            "every_steps": None,
+            "every_tokens": None,
+            "every_minutes": None,
+            "steps": [0, 2, 6, 12],
+            "keep_periodic": True,
+        }
+    )
+    measured = RunConfig.model_validate(configuration)
+    run_id = train(measured, run_id="explicit-boundaries")
+
+    manifests = sorted(
+        (measured.logging.root_dir / run_id / "checkpoints").glob(
+            "step_*_gen_*/manifest.json"
+        )
+    )
+    assert [json.loads(path.read_text())["step"] for path in manifests] == [
+        0,
+        2,
+        6,
+        12,
+    ]
+
+    invalid = original.model_dump(mode="json")
+    invalid["checkpoint"].update(
+        {
+            "every_steps": None,
+            "every_tokens": None,
+            "every_minutes": None,
+            "steps": [0, 4, 2],
+        }
+    )
+    with pytest.raises(ValueError, match="strictly increasing"):
+        RunConfig.model_validate(invalid)
+
+
 def test_assistant_only_evidence_counts_and_binds_supervised_targets(
     tmp_path: Path,
 ) -> None:

@@ -79,15 +79,19 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
         "engram-placement-v1",
         "engram-portability-v1",
         "engram-sparse-budget-v1",
+        "learned-engram-portability-v1",
         "lexical-memory-heavy-v1",
         "memory-allocation-curve-v1",
     }
+    assert load_research("learned-engram-portability-v1").recipe is None
     assert len(lessons) == 11
     profiles = load_profiles().scales
     assert set(profiles) == {"smoke", "nano", "micro", "tiny"}
     assert [profiles[name].hidden_dim for name in profiles] == [64, 128, 320, 512]
 
-    recipes = {entry.id: load_recipe(entry) for entry in entries}
+    recipes = {
+        entry.id: load_recipe(entry) for entry in entries if entry.recipe is not None
+    }
     expected_factorial_recipes = {
         "engram-ffn-substitution-v1",
         "engram-mla-compression-v1",
@@ -118,6 +122,24 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
     invalid["version"] = True
     with pytest.raises(ValidationError, match="version must be integer 1"):
         ResearchEntry.model_validate(invalid)
+
+
+
+def test_learned_runner_catalog_rejects_generic_recipe_and_scaffold(
+    tmp_path: Path,
+) -> None:
+    entry = load_research("learned-engram-portability-v1")
+    guidance = (
+        "learned-engram-portability-v1 uses research portability build "
+        "--experiment learned-engram-portability-v1, not research scaffold"
+    )
+    with pytest.raises(ValueError, match=guidance):
+        load_recipe(entry)
+
+    output = tmp_path / "must-not-exist"
+    with pytest.raises(ValueError, match=guidance):
+        scaffold_research("learned-engram-portability-v1", output)
+    assert not output.exists()
 
 
 def test_catalog_rejects_duplicate_json_and_lists_unknown_ids(tmp_path: Path) -> None:

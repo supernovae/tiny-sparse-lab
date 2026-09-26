@@ -13,6 +13,7 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from pathlib import Path
 
+import math
 import numpy as np
 
 from sparselab.config.models import RunConfig
@@ -62,6 +63,10 @@ from sparselab.training.manifest import (
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.stages import ExperimentStage, StageHistory
 
+class _WallTimeExpired(Exception):
+    """Internal signal that discards an incomplete cooperative evaluation."""
+
+
 
 def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
     return load_prepared_data(
@@ -90,6 +95,81 @@ def _stack_optional(
     return np.stack([value for value in values if value is not None])
 
 
+def _portability_manifest_v2(path: Path | None) -> dict[str, object] | None:
+    if path is None or path.is_symlink() or not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        isinstance(payload, dict)
+        and payload.get("format") == "sparselab-portability-run"
+        and type(payload.get("version")) is int
+        and payload["version"] == 2
+    ):
+        return payload
+    return None
+
+
+def _bind_learned_inputs(config: RunConfig, manifest_path: Path) -> RunConfig:
+    payload = _portability_manifest_v2(manifest_path)
+    if payload is None:
+        raise ValueError("learned portability run manifest is not v2")
+    memory = payload.get("memory")
+    if not isinstance(memory, dict):
+        raise ValueError("learned portability manifest lacks memory identity")
+    artifact = memory.get("artifact")
+    package_path: Path | None = None
+    if artifact is not None:
+        if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str):
+            raise ValueError("learned portable memory descriptor is invalid")
+        package_path = manifest_path.parent / artifact["path"]
+    role = payload["coordinate"]["role"]
+    condition = payload["coordinate"]["condition"]
+    default_train = {
+        "source": "source_train.jsonl",
+        "preparation": "preparation_train.jsonl",
+        "recipient": "adapter_calibration.jsonl",
+        "native": "source_train.jsonl",
+        "calibration": (
+            "preparation_train.jsonl"
+            if condition.startswith("preparation-")
+            else "adapter_calibration.jsonl"
+            if condition.startswith("adapter-")
+            else "source_train.jsonl"
+        ),
+    }[role]
+    train_name = (
+        config.dataset.train_path.name
+        if config.dataset.train_path is not None
+        else default_train
+    )
+    default_validation = "preparation_validation.jsonl"
+    validation_name = (
+        config.dataset.validation_path.name
+        if config.dataset.validation_path is not None
+        else default_validation
+    )
+    data_root = manifest_path.parent / "portability" / "data"
+    return config.model_copy(
+        update={
+            "tokenizer": config.tokenizer.model_copy(
+                update={"path": manifest_path.parent / "tokenizer.json"}
+            ),
+            "model": config.model.model_copy(
+                update={"memory_package_path": package_path}
+            ),
+            "dataset": config.dataset.model_copy(
+                update={
+                    "train_path": data_root / train_name,
+                    "validation_path": data_root / validation_name,
+                }
+            ),
+            "training": config.training.model_copy(
+                update={"portability_manifest_path": manifest_path}
+            ),
+        }
+    )
+
+
 def _copy_artifacts(
     run: Path, config: RunConfig, data: PreparedData, source_run: Path | None = None
 ) -> tuple[ArtifactIdentity, ...]:
@@ -110,12 +190,30 @@ def _copy_artifacts(
             source_run / "tokenizer_manifest.json", run / "tokenizer_manifest.json"
         )
     shutil.copytree(data.root, run / "data")
+    manifest_source = (
+        source_run / "portability_manifest.json"
+        if source_run is not None
+        and (source_run / "portability_manifest.json").is_file()
+        else config.training.portability_manifest_path
+    )
+    learned_manifest = _portability_manifest_v2(manifest_source)
+    if learned_manifest is not None:
+        assert manifest_source is not None
+        bundle_source = manifest_source.parent / "portability"
+        if bundle_source.is_symlink() or not bundle_source.is_dir():
+            raise ValueError("learned portability owned bundle is missing")
+        shutil.copytree(bundle_source, run / "portability")
+        shutil.copy2(manifest_source, run / "portability_manifest.json")
     package_source = (
         source_run / "portable_package"
         if source_run is not None
         else config.model.memory_package_path
     )
-    if package_source is not None and package_source.exists():
+    if (
+        learned_manifest is None
+        and package_source is not None
+        and package_source.exists()
+    ):
         destination = run / "portable_package"
         if package_source.is_dir():
             shutil.copytree(package_source, destination)
@@ -175,7 +273,9 @@ def _checkpoint_due(
             (elapsed - watermarks.get("minutes", 0)) / 60,
         ),
     )
-    return any(interval is not None and value >= interval for interval, value in checks)
+    return step in config.checkpoint.steps or any(
+        interval is not None and value >= interval for interval, value in checks
+    )
 
 
 def _save(
@@ -295,14 +395,22 @@ def train(
     stop_after_step: int | None = None,
     worker_id: str | None = None,
     allow_runtime_drift: bool = False,
-    stage_bundle: Path | None = None,
+    max_wall_seconds: float | None = None,
     cancel_path: Path | None = None,
     experiment_id: str | None = None,
     attempt_id: str | None = None,
     dispatch_metadata: dict[str, object] | None = None,
+    stage_bundle: Path | None = None,
     requested_config_override: dict[str, object] | None = None,
 ) -> str:
-    """Run one independent experiment; staging pilots use the private execution core."""
+    """Run one independent experiment, optionally bound to a stage bundle."""
+    if max_wall_seconds is not None and (
+        isinstance(max_wall_seconds, bool)
+        or not isinstance(max_wall_seconds, (int, float))
+        or not math.isfinite(max_wall_seconds)
+        or max_wall_seconds <= 0
+    ):
+        raise ValueError("max_wall_seconds must be positive and finite")
     return _train_impl(
         config,
         resume=resume,
@@ -314,10 +422,12 @@ def train(
         allow_runtime_drift=allow_runtime_drift,
         stage_bundle=stage_bundle,
         cancel_path=cancel_path,
+        purpose="training",
         experiment_id=experiment_id,
         attempt_id=attempt_id,
         dispatch_metadata=dispatch_metadata,
         requested_config_override=requested_config_override,
+        max_wall_seconds=max_wall_seconds,
     )
 
 
@@ -338,7 +448,21 @@ def _train_impl(
     attempt_id: str | None = None,
     dispatch_metadata: dict[str, object] | None = None,
     requested_config_override: dict[str, object] | None = None,
+    max_wall_seconds: float | None = None,
 ) -> str:
+
+    def wall_expired() -> bool:
+        return deadline is not None and time.monotonic() >= deadline
+    if max_wall_seconds is not None and (
+        isinstance(max_wall_seconds, bool)
+        or not isinstance(max_wall_seconds, (int, float))
+        or not math.isfinite(max_wall_seconds)
+        or max_wall_seconds <= 0
+    ):
+        raise ValueError("max_wall_seconds must be positive and finite")
+    deadline = (
+        None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
+    )
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):
             raise ValueError("experiment_id and attempt_id must be supplied together")
@@ -452,6 +576,15 @@ def _train_impl(
             }
         )
         current_source = source_identity()
+        if promote is None and (resume is not None or recover is not None):
+            continuation_root = (
+                recover.resolve()
+                if recover is not None
+                else resume.parent.parent.resolve()  # type: ignore[union-attr]
+            )
+            owned_manifest = continuation_root / "portability_manifest.json"
+            if _portability_manifest_v2(owned_manifest) is not None:
+                config = _bind_learned_inputs(config, owned_manifest)
         continuation_state = load_continuation(
             config,
             runtime,
@@ -535,7 +668,17 @@ def _train_impl(
             )
         offload_headroom = validate_offload_headroom(config, runtime, memory_estimate)
         history.finish()
-        if continuation == "RESUMED" and config.model.memory_package_path is not None:
+        if (
+            continuation == "RESUMED"
+            and config.model.memory_package_path is not None
+            and (
+                config.training.portability_manifest_path is None
+                or _portability_manifest_v2(
+                    config.training.portability_manifest_path
+                )
+                is None
+            )
+        ):
             assert source_run is not None
             owned_package = source_run / "portable_package"
             if not owned_package.exists():
@@ -553,7 +696,20 @@ def _train_impl(
             if snapshot is not None and continuation == "RESUMED"
             else 1
         )
-        engine.initialize(config, initial_weights=initial_weights)
+        if isinstance(engine, PyTorchEngine):
+            engine.initialize(
+                config,
+                initial_weights=initial_weights,
+                resume_portability=(
+                    continuation == "RESUMED"
+                    and _portability_manifest_v2(
+                        config.training.portability_manifest_path
+                    )
+                    is not None
+                ),
+            )
+        else:
+            engine.initialize(config, initial_weights=initial_weights)
         resources.callback(engine.close)
         step = tokens = 0
         cursor = BatchCursor()
@@ -592,6 +748,14 @@ def _train_impl(
         manager = CheckpointManager(run, keep_periodic=config.checkpoint.keep_periodic)
         resources.enter_context(manager.writer_lease())
         artifacts = _copy_artifacts(run, config, data, artifact_source)
+        owned_manifest = run / "portability_manifest.json"
+        if _portability_manifest_v2(owned_manifest) is not None:
+            config = _bind_learned_inputs(config, owned_manifest)
+            from sparselab.research.portability import load_portability_manifest
+
+            assert isinstance(engine, PyTorchEngine)
+            engine.portability_run = load_portability_manifest(config)
+            engine.config = config
         pilot_reports = tuple(staged["pilot_reports"]) if staged else ()
         stage_digest = str(staged["sha256"]) if staged else None
         if staged is not None:
@@ -801,12 +965,20 @@ def _train_impl(
                 and engine.portability_run is not None
             ):
                 audit_path = run / "portability_audit.json"
+                audit_version = (
+                    2
+                    if engine.portability_run.payload.get("version") == 2
+                    else 1
+                )
                 try:
                     audit: dict[str, object] = {
                         "format": "sparselab-portability-audit",
-                        "version": 1,
+                        "version": audit_version,
                         "valid": True,
-                        **engine.portability_audit(),
+                        "run_status": status,
+                        **engine.portability_audit(
+                            completed=status == "completed"
+                        ),
                     }
                 # Any audit exception invalidates the run and must be recorded.
                 except Exception as error:  # noqa: BLE001
@@ -882,14 +1054,16 @@ def _train_impl(
                 )
             progress(status)
 
-        def evaluation_batches() -> list[Microbatch]:
-            batches: list[Microbatch] = []
+        def evaluation_batches():
             limit = config.evaluation.max_batches
+            emitted = 0
             for offset in range(
                 0, len(validation_dataset), config.training.micro_batch_size
             ):
-                if limit is not None and len(batches) >= limit:
+                if limit is not None and emitted >= limit:
                     break
+                if wall_expired():
+                    raise _WallTimeExpired
                 records = [
                     validation_dataset.numpy_microblock(index)
                     for index in range(
@@ -900,21 +1074,25 @@ def _train_impl(
                         ),
                     )
                 ]
-                batches.append(
-                    Microbatch(
-                        np.stack([record[0] for record in records]),
-                        np.stack([record[1] for record in records]),
-                        _stack_optional(records, 2),
-                        _stack_optional(records, 3),
-                        _stack_optional(records, 4),
-                        _stack_optional(records, 5),
-                    )
+                emitted += 1
+                yield Microbatch(
+                    np.stack([record[0] for record in records]),
+                    np.stack([record[1] for record in records]),
+                    _stack_optional(records, 2),
+                    _stack_optional(records, 3),
+                    _stack_optional(records, 4),
+                    _stack_optional(records, 5),
                 )
-            return batches
 
-        def evaluate_and_record(elapsed: float) -> dict[str, object]:
+        def evaluate_and_record(elapsed: float) -> dict[str, object] | None:
+            if wall_expired():
+                return None
             enter_stage(ExperimentStage.EVALUATING)
-            result = engine.evaluate(evaluation_batches()).to_report()
+            try:
+                result = engine.evaluate(evaluation_batches()).to_report()
+            except _WallTimeExpired:
+                finish_stage("interrupted", "wall_time_limit")
+                return None
             metrics: dict[str, float] = {"validation/loss": float(result["loss"])}
             if isinstance(result.get("perplexity"), (int, float)):
                 metrics["validation/perplexity"] = float(result["perplexity"])
@@ -937,21 +1115,32 @@ def _train_impl(
         try:
             initial_validation = evaluate_and_record(cumulative_wall)
             save_boundary(initial_validation)
+            if wall_expired():
+                finish_run("interrupted", "wall_time_limit")
+                return run_id
             enter_stage(ExperimentStage.TRAINING)
             while (
                 step < config.training.max_steps and tokens < config.training.max_tokens
             ):
                 if cancel_path is not None and cancel_path.exists():
                     interrupted = True
+                if wall_expired():
+                    interrupted = True
                 if interrupted:
                     if latest_record is None or latest_record.step != step:
-                        save_boundary(evaluate_and_record(elapsed_seconds()))
-                    finish_run(
-                        "interrupted",
-                        "cancelled"
+                        validation = evaluate_and_record(elapsed_seconds())
+                        if validation is None and wall_expired():
+                            if history.current is not None:
+                                finish_stage("interrupted", "wall_time_limit")
+                        save_boundary(validation)
+                    reason = (
+                        "wall_time_limit"
+                        if wall_expired()
+                        else "cancelled"
                         if cancel_path is not None and cancel_path.exists()
-                        else "signal",
+                        else "signal"
                     )
+                    finish_run("interrupted", reason)
                     return run_id
                 order = epoch_order(len(dataset), config.seed, cursor.epoch)
                 remaining = config.training.max_tokens - tokens
@@ -1046,6 +1235,17 @@ def _train_impl(
                 cursor = BatchCursor(cursor.epoch, cursor.next_block + len(records))
                 elapsed = cumulative_wall + time.perf_counter() - started
                 store.log_metrics(run_id, step, tokens, elapsed, metric_values)
+                if isinstance(engine, PyTorchEngine):
+                    row_evidence = engine.portability_update_evidence()
+                    if row_evidence is not None:
+                        store.log_event(
+                            run_id,
+                            step,
+                            tokens,
+                            elapsed,
+                            "learned_engram_gradient_rows",
+                            row_evidence,
+                        )
                 for name, value in metric_values.items():
                     if name.startswith("memory/") and "peak" in name:
                         observed_peaks[name] = max(observed_peaks.get(name, 0.0), value)
@@ -1068,8 +1268,12 @@ def _train_impl(
                     or step == stop_after_step
                     or interrupted
                 )
-                evaluation_due = terminal or step % config.evaluation.every_steps == 0
+                deadline_stopping = wall_expired()
+                evaluation_due = not deadline_stopping and (
+                    terminal or step % config.evaluation.every_steps == 0
+                )
                 validation = evaluate_and_record(elapsed) if evaluation_due else None
+                terminal = terminal or wall_expired()
                 new_best = validation is not None and (
                     local_best is None
                     or float(validation["loss"]) < float(local_best.validation_loss)
@@ -1091,6 +1295,8 @@ def _train_impl(
                         status,
                         None
                         if status == "completed"
+                        else "wall_time_limit"
+                        if wall_expired()
                         else "cancelled"
                         if cancel_path is not None and cancel_path.exists()
                         else "signal"

@@ -24,6 +24,11 @@ from sparselab.training.manifest import canonical_json, sha256_file
 
 _RESOURCE_ROOT = Path(str(files("sparselab.research").joinpath("resources"))).resolve()
 _MAX_JSON_BYTES = 2 * 1024 * 1024
+_RUNNER_ONLY_ENTRY_ID = "learned-engram-portability-v1"
+_RUNNER_ONLY_GUIDANCE = (
+    "learned-engram-portability-v1 uses research portability build "
+    "--experiment learned-engram-portability-v1, not research scaffold"
+)
 _ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 _SCALE_IDS = ("smoke", "nano", "micro", "tiny")
 
@@ -100,7 +105,7 @@ class ResearchEntry(_Versioned):
     can_establish: list[StrictStr]
     cannot_establish: list[StrictStr]
     prerequisites: list[StrictStr]
-    recipe: StrictStr
+    recipe: StrictStr | None
 
     @field_validator("id")
     @classmethod
@@ -123,8 +128,9 @@ class ResearchEntry(_Versioned):
 
     @field_validator("recipe")
     @classmethod
-    def safe_recipe(cls, value: str) -> str:
-        _relative_resource(value, "recipe")
+    def safe_recipe(cls, value: str | None) -> str | None:
+        if value is not None:
+            _relative_resource(value, "recipe")
         return value
 
     @model_validator(mode="after")
@@ -141,7 +147,20 @@ class ResearchEntry(_Versioned):
             raise ValueError(
                 "research title, question, hypothesis, interpretation, hardware, and runtime text must be nonempty"
             )
-        if (
+        if self.id == _RUNNER_ONLY_ENTRY_ID:
+            if self.recipe is not None:
+                raise ValueError("runner-only learned portability entry must not declare a recipe")
+            if (
+                not self.evaluation_policy.milestones_supported
+                or self.evaluation_policy.primary_thresholds
+                != [{"metric": "held_out_accuracy", "value": 0.75}]
+            ):
+                raise ValueError(
+                    "learned portability entry must declare its milestone policy and held-out threshold"
+                )
+        elif self.recipe is None:
+            raise ValueError("only the learned portability runner entry may omit a recipe")
+        elif (
             self.evaluation_policy.milestones_supported
             or self.evaluation_policy.primary_thresholds
         ):
@@ -513,7 +532,11 @@ def load_research(reference: str | Path) -> ResearchEntry:
         source = candidate.resolve(strict=True)
         raw, _ = _read_json(source)
         entry = ResearchEntry.model_validate(raw)
-        recipe_path = _validate_contained(source.parent, entry.recipe, "recipe")
+        recipe_path = (
+            None
+            if entry.recipe is None
+            else _validate_contained(source.parent, entry.recipe, "recipe")
+        )
     else:
         identifier = str(reference)
         if not _ID.fullmatch(identifier) or identifier not in _available_ids("catalog"):
@@ -523,17 +546,24 @@ def load_research(reference: str | Path) -> ResearchEntry:
             )
         raw, _, _ = _read_packaged(f"catalog/{identifier}.json")
         entry = ResearchEntry.model_validate(raw)
-        recipe_path = _validate_contained(_RESOURCE_ROOT, entry.recipe, "recipe")
+        recipe_path = (
+            None
+            if entry.recipe is None
+            else _validate_contained(_RESOURCE_ROOT, entry.recipe, "recipe")
+        )
     if entry.id != (candidate.stem if local_file else str(reference)):
         raise ValueError("research entry id does not match requested identifier")
     _validate_links(entry)
-    _validate_recipe_file(recipe_path, entry.id)
+    if recipe_path is not None:
+        _validate_recipe_file(recipe_path, entry.id)
     return entry
-
-
 def load_recipe(
     entry: ResearchEntry, *, local_root: Path | None = None
 ) -> ResearchRecipe:
+    if entry.id == _RUNNER_ONLY_ENTRY_ID:
+        raise ValueError(_RUNNER_ONLY_GUIDANCE)
+    if entry.recipe is None:
+        raise ValueError(f"research entry {entry.id!r} has no runnable recipe")
     root = local_root.resolve(strict=True) if local_root else _RESOURCE_ROOT
     path = _validate_contained(root, entry.recipe, "recipe")
     return _validate_recipe_file(path, entry.id)

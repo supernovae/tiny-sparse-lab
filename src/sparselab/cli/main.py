@@ -1118,15 +1118,39 @@ def _research_scaffold(args: argparse.Namespace) -> None:
         design=args.design,
     )
     print(path)
-def _research_portability_build(args: argparse.Namespace) -> None:
-    from sparselab.research.portability_campaign import build_portability_campaign
+def _is_learned_portability_root(root: Path) -> bool:
+    protocol = root / "portability_protocol.json"
+    if protocol.is_symlink() or not protocol.is_file():
+        return False
+    try:
+        payload = json.loads(protocol.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return payload.get("experiment") == "learned-engram-portability-v1"
 
-    protocol = build_portability_campaign(
-        Path(args.output),
-        seed=args.seed,
-        scale=args.scale,
-        updates=args.updates,
-    )
+
+def _research_portability_build(args: argparse.Namespace) -> None:
+    if args.experiment == "learned-engram-portability-v1":
+        from sparselab.research.learned_portability_campaign import (
+            build_learned_portability_campaign,
+        )
+
+        if args.updates is not None:
+            raise ValueError("--updates is not supported by learned-engram-portability-v1")
+        protocol = build_learned_portability_campaign(
+            Path(args.output), seed=args.seed, scale=args.scale, backend=args.backend
+        )
+    else:
+        from sparselab.research.portability_campaign import build_portability_campaign
+
+        if args.backend != "auto":
+            raise ValueError("--backend is only supported by learned-engram-portability-v1")
+        protocol = build_portability_campaign(
+            Path(args.output),
+            seed=args.seed,
+            scale=args.scale,
+            updates=4 if args.updates is None else args.updates,
+        )
     print(
         json.dumps(
             {
@@ -1141,67 +1165,90 @@ def _research_portability_build(args: argparse.Namespace) -> None:
 
 
 def _research_portability_plan(args: argparse.Namespace) -> None:
-    from sparselab.research.portability_runner import portability_resource_plan
+    root = Path(args.campaign_root)
+    if _is_learned_portability_root(root):
+        from sparselab.research.learned_portability_campaign import learned_portability_plan
 
-    print(
-        json.dumps(
-            portability_resource_plan(Path(args.campaign_root)),
-            indent=2,
-            sort_keys=True,
-        )
-    )
+        payload = learned_portability_plan(root)
+    else:
+        from sparselab.research.portability_runner import portability_resource_plan
+
+        payload = portability_resource_plan(root)
+    print(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def _research_portability_run(args: argparse.Namespace) -> None:
+    root = Path(args.campaign_root)
+    if _is_learned_portability_root(root):
+        from sparselab.research.learned_portability_campaign import (
+            execute_learned_portability_campaign,
+        )
+
+        if any(
+            value is not None
+            for value in (args.recipient, args.representation, args.condition, args.seed)
+        ):
+            raise ValueError("learned portability run does not accept coordinate overrides")
+        if args.max_wall_seconds is None:
+            raise ValueError("learned portability run requires --max-wall-seconds")
+        print(json.dumps(execute_learned_portability_campaign(root, max_wall_seconds=args.max_wall_seconds), indent=2, sort_keys=True))
+        return
+    if args.max_wall_seconds is not None:
+        raise ValueError("--max-wall-seconds is only supported by learned portability")
+    if any(value is None for value in (args.recipient, args.representation, args.condition, args.seed)):
+        raise ValueError("compiled portability run requires recipient, representation, condition, and seed")
     from sparselab.research.portability_runner import (
         build_portability_evidence,
         execute_portability_arm,
         record_portability_failure,
     )
 
-    root = Path(args.campaign_root)
     try:
         receipt = execute_portability_arm(
-            root,
-            recipient=args.recipient,
-            representation=args.representation,
-            condition=args.condition,
-            seed=args.seed,
-            updates=json.loads((root / "portability_protocol.json").read_text())[
-                "training"
-            ]["planned_updates"],
+            root, recipient=args.recipient, representation=args.representation,
+            condition=args.condition, seed=args.seed,
+            updates=json.loads((root / "portability_protocol.json").read_text())["training"]["planned_updates"],
         )
     except Exception as error:
-        record_portability_failure(
-            root,
-            recipient=args.recipient,
-            representation=args.representation,
-            condition=args.condition,
-            seed=args.seed,
-            error=error,
-        )
+        record_portability_failure(root, recipient=args.recipient, representation=args.representation,
+                                   condition=args.condition, seed=args.seed, error=error)
         raise
     evidence = build_portability_evidence(root)
     print(json.dumps({"receipt": receipt, "evidence": str(evidence)}, indent=2, sort_keys=True))
 
 
 def _research_portability_continue(args: argparse.Namespace) -> None:
+    root = Path(args.campaign_root)
+    if _is_learned_portability_root(root):
+        from sparselab.research.learned_portability_campaign import continue_learned_portability_campaign
+
+        if args.max_wall_seconds is None:
+            raise ValueError("learned portability continue requires --max-wall-seconds")
+        print(json.dumps(continue_learned_portability_campaign(root, max_wall_seconds=args.max_wall_seconds), indent=2, sort_keys=True))
+        return
+    if args.max_wall_seconds is not None:
+        raise ValueError("--max-wall-seconds is only supported by learned portability")
     from sparselab.research.portability_runner import (
         build_portability_evidence,
         continue_portability_campaign,
     )
 
-    root = Path(args.campaign_root)
     result = continue_portability_campaign(root, max_arms=args.max_arms)
     result["evidence"] = str(build_portability_evidence(root))
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
 def _research_portability_report(args: argparse.Namespace) -> None:
+    root = Path(args.campaign_root)
+    if _is_learned_portability_root(root):
+        from sparselab.research.learned_portability_campaign import report_learned_portability_campaign
+
+        print(json.dumps(report_learned_portability_campaign(root), indent=2, sort_keys=True))
+        return
     from sparselab.experiments.reporting import _validate_portability_evidence
     from sparselab.research.portability_runner import build_portability_evidence
 
-    path = build_portability_evidence(Path(args.campaign_root))
+    path = build_portability_evidence(root)
     evidence, _ = _validate_portability_evidence(path)
     print(json.dumps({"evidence": str(path), "summary": evidence["summary"]}, indent=2, sort_keys=True))
 
@@ -1850,20 +1897,22 @@ def build_parser() -> argparse.ArgumentParser:
     portability_build = portability_commands.add_parser("build")
     portability_build.add_argument("--output", required=True)
     portability_build.add_argument(
+        "--experiment", choices=("engram-portability-v1", "learned-engram-portability-v1")
+    )
+    portability_build.add_argument(
         "--scale", choices=("smoke", "nano", "micro", "tiny"), default="smoke"
     )
+    portability_build.add_argument("--backend", choices=("auto", "cpu", "mps"), default="auto")
     portability_build.add_argument("--seed", type=int, default=20260925)
-    portability_build.add_argument("--updates", type=int, default=4)
+    portability_build.add_argument("--updates", type=int)
     portability_build.set_defaults(handler=_research_portability_build)
     portability_plan = portability_commands.add_parser("plan")
     portability_plan.add_argument("--campaign-root", required=True)
     portability_plan.set_defaults(handler=_research_portability_plan)
     portability_run = portability_commands.add_parser("run")
     portability_run.add_argument("--campaign-root", required=True)
-    portability_run.add_argument("--recipient", choices=("width32", "width64"), required=True)
-    portability_run.add_argument(
-        "--representation", choices=("token", "byte", "semantic"), required=True
-    )
+    portability_run.add_argument("--recipient", choices=("width32", "width64"))
+    portability_run.add_argument("--representation", choices=("token", "byte", "semantic"))
     portability_run.add_argument(
         "--condition",
         choices=(
@@ -1875,13 +1924,14 @@ def build_parser() -> argparse.ArgumentParser:
             "corrupt",
             "disabled",
         ),
-        required=True,
     )
-    portability_run.add_argument("--seed", type=int, choices=(17, 41, 73), required=True)
+    portability_run.add_argument("--seed", type=int, choices=(17, 41, 73))
+    portability_run.add_argument("--max-wall-seconds", type=float)
     portability_run.set_defaults(handler=_research_portability_run)
     portability_continue = portability_commands.add_parser("continue")
     portability_continue.add_argument("--campaign-root", required=True)
     portability_continue.add_argument("--max-arms", type=int)
+    portability_continue.add_argument("--max-wall-seconds", type=float)
     portability_continue.set_defaults(handler=_research_portability_continue)
     portability_report = portability_commands.add_parser("report")
     portability_report.add_argument("--campaign-root", required=True)

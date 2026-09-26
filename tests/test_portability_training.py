@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import pytest
 import torch
 
 from sparselab.config.loading import load_config
+from sparselab.engines.pytorch import PyTorchEngine
+from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.transformer import DenseLM
 from sparselab.research.portability import (
     PortabilityRun,
@@ -97,3 +102,61 @@ def test_recipient_checkpoint_load_preserves_backbone_and_freezes_memory(tmp_pat
         name for name, parameter in model.named_parameters() if parameter.requires_grad
     } == set(selected)
 
+
+@pytest.mark.parametrize(
+    ("max_steps", "expected_presentations"),
+    ((4, 2), (8, 4)),
+)
+def test_learned_fact_exposure_threshold_tracks_budget(
+    max_steps: int, expected_presentations: int
+) -> None:
+    model = torch.nn.Module()
+    model.memory = ByteAddressMemory(2, 16, 2)
+    parameter = model.memory.table.weight
+    rows = (1, 2)
+    initial_rows: dict[int, bytes] = {}
+    with torch.no_grad():
+        for row in rows:
+            parameter[row].zero_()
+            initial_rows[row] = bytes(
+                parameter[row].contiguous().view(torch.uint8).numpy()
+            )
+            parameter[row].fill_(1.0)
+
+    engine = PyTorchEngine()
+    engine.config = SimpleNamespace(
+        training=SimpleNamespace(max_steps=max_steps, micro_batch_size=1)
+    )
+    engine.model = model
+    engine.portability_run = SimpleNamespace(
+        payload={"coordinate": {"condition": "source-real"}}
+    )
+    engine.optimizer = torch.optim.AdamW([parameter])
+    engine._portability_parameters = (("memory.table.weight", parameter),)
+    engine._portability_update_history = [
+        {
+            "gradient_parameter_names": ["memory.table.weight"],
+            "update_parameter_names": ["memory.table.weight"],
+            "row_gradient_evidence": {},
+        }
+        for _ in range(max_steps)
+    ]
+    engine._learned_fact_targets = {1: 3, 2: 4}
+    engine._learned_fact_ids_by_row = {1: "fact-a", 2: "fact-b"}
+    engine._learned_initial_table_rows = initial_rows
+    engine._learned_fact_exposures = {
+        row: expected_presentations for row in rows
+    }
+    engine._learned_address_collision_targets = 7
+    engine._learned_audit_parameter = parameter
+    engine.optimizer.state[parameter]["sparselab_learned_audit_v1"] = {
+        "applied_steps": torch.ones(max_steps, dtype=torch.bool),
+        "gradient_seen": torch.ones(len(rows), dtype=torch.bool),
+    }
+
+    with patch.object(engine, "_source_memory_ablation", return_value={}):
+        audit = engine._learned_byte_audit(completed=True)
+
+    assert audit["expected_presentations_per_fact"] == expected_presentations
+    assert audit["full_fact_exposure"] is True
+    assert audit["address_collision_target_count"] == 7

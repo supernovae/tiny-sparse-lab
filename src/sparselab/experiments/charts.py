@@ -147,12 +147,153 @@ def _allocation_svg(heatmap: dict[str, object]) -> str:
     )
 
 
+def _learned_curve_svg(title: str, curves: list[dict[str, object]]) -> str:
+    width, height = 900, 430
+    left, top, right, bottom = 72, 36, 235, 72
+    plot_w, plot_h = width - left - right, height - top - bottom
+    all_steps = [
+        int(point["step"])
+        for curve in curves
+        for point in curve.get("points", [])
+        if isinstance(point, dict) and type(point.get("step")) is int
+    ]
+    max_step = max(all_steps, default=1)
+    denominator = math.log1p(max_step) or 1.0
+    palette = (
+        "#1769aa",
+        "#d1495b",
+        "#2a9d8f",
+        "#e09f3e",
+        "#7b2cbf",
+        "#4d908e",
+        "#f15bb5",
+        "#577590",
+        "#6a994e",
+        "#bc4749",
+    )
+    marks: list[str] = []
+    for index in range(5):
+        ratio = index / 4
+        y = top + plot_h * ratio
+        accuracy = 1.0 - ratio
+        marks.append(
+            f'<line x1="{left}" y1="{y:.2f}" x2="{width-right}" y2="{y:.2f}" stroke="#ddd"/>'
+            f'<text x="{left-10}" y="{y+4:.2f}" text-anchor="end">{accuracy:.2f}</text>'
+        )
+    tick_steps = sorted(set(all_steps))
+    if len(tick_steps) > 9:
+        tick_steps = [0, 8, 32, 128, 512, 2048, 8192]
+        tick_steps = [step for step in tick_steps if step <= max_step]
+        if max_step not in tick_steps:
+            tick_steps.append(max_step)
+    for step in tick_steps:
+        x = left + plot_w * math.log1p(step) / denominator
+        marks.append(
+            f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top+plot_h}" stroke="#eee"/>'
+            f'<text x="{x:.2f}" y="{height-bottom+20}" text-anchor="middle">{step}</text>'
+        )
+    for index, curve in enumerate(curves):
+        label = str(curve.get("label", f"series-{index + 1}"))
+        color = palette[index % len(palette)]
+        points = curve.get("points")
+        points = points if isinstance(points, list) else []
+        segments: list[list[tuple[float, float]]] = []
+        current: list[tuple[float, float]] = []
+        for point in points:
+            if not isinstance(point, dict) or type(point.get("step")) is not int:
+                if current:
+                    segments.append(current)
+                    current = []
+                continue
+            step, value = point["step"], point.get("accuracy")
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or not 0.0 <= float(value) <= 1.0
+            ):
+                if current:
+                    segments.append(current)
+                    current = []
+                continue
+            x = left + plot_w * math.log1p(step) / denominator
+            y = top + plot_h * (1.0 - float(value))
+            current.append((x, y))
+        if current:
+            segments.append(current)
+        for segment in segments:
+            if len(segment) >= 2:
+                coordinates = " ".join(
+                    f"{x:.2f},{y:.2f}" for x, y in segment
+                )
+                marks.append(
+                    f'<polyline points="{coordinates}" fill="none" stroke="{color}" stroke-width="1.6"/>'
+                )
+            for x, y in segment:
+                marks.append(
+                    f'<circle cx="{x:.2f}" cy="{y:.2f}" r="3" fill="{color}"/>'
+                )
+        legend_y = top + 14 + (index % 21) * 17
+        if index < 42:
+            legend_x = width - right + (index // 21) * 106
+            marks.append(
+                f'<line x1="{legend_x}" y1="{legend_y-4}" x2="{legend_x+14}" y2="{legend_y-4}" stroke="{color}" stroke-width="2"/>'
+                f'<text x="{legend_x+19}" y="{legend_y}">{html.escape(_chart_label(label))}</text>'
+            )
+    marks.extend(
+        [
+            f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top+plot_h}" stroke="#555"/>',
+            f'<line x1="{left}" y1="{top+plot_h}" x2="{width-right}" y2="{top+plot_h}" stroke="#555"/>',
+            f'<text x="{left+plot_w/2:.2f}" y="{height-10}" text-anchor="middle">Training updates (log1p scale)</text>',
+            f'<text x="16" y="{top+plot_h/2:.2f}" transform="rotate(-90 16 {top+plot_h/2:.2f})" text-anchor="middle">Accuracy</text>',
+        ]
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">'
+        f"<title>{html.escape(title)}</title>"
+        "<style>text{font:11px sans-serif}</style>"
+        + "".join(marks)
+        + "</svg>\n"
+    )
+
+
+def _learned_portability_charts(
+    portability: dict[str, object],
+) -> dict[str, str]:
+    curves = portability.get("curves")
+    curves = curves if isinstance(curves, list) else []
+    groups = (
+        ("source-monitor", "source_monitor", "source_monitor"),
+        ("preparation", "preparation_validation", "preparation_copy"),
+        ("recipient-calibration", "calibration", "adapter_return"),
+        ("recipient-final-report", "held_out", "final_report"),
+        ("recipient-final-state", "held_out", "final_state"),
+    )
+    charts: dict[str, str] = {}
+    for name, partition, wording in groups:
+        selected = [
+            curve
+            for curve in curves
+            if isinstance(curve, dict)
+            and curve.get("partition") == partition
+            and curve.get("wording") == wording
+        ]
+        charts[f"learned-{name}.svg"] = _learned_curve_svg(
+            f"Learned portability: {name.replace('-', ' ')}", selected
+        )
+    return charts
+
+
 def render_charts(report: dict[str, object]) -> dict[str, str]:
     """Return stable SVG bytes keyed by safe fixed chart names.
 
     Charts intentionally render only endpoint observations supplied in the report;
     they never smooth, rank, or infer missing values.
     """
+    portability = report.get("portability")
+    if isinstance(portability, dict):
+        return _learned_portability_charts(portability)
     charts: dict[str, str] = {}
     runs = report.get("runs")
     cards = report.get("cards")

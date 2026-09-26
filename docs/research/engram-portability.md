@@ -2,6 +2,10 @@
 
 This runner distinguishes implementation from behavior. Its smoke campaign uses generated structured records, direct token/byte table compilation, supplied frozen semantic vectors, 32/64-wide dense-attention `DenseLM` recipients, and seeds 17/41/73. The token and byte tables are **not source-model-trained producer representations**. Semantic query vectors are supplied from the generated structured key; this is **not** a natural-language query encoder. A correct retrieval trace does not repair a wrong recipient prediction.
 
+This guide documents the historical **compiled-world** portability runner: token/byte tables were directly compiled from generated structured facts, while semantic vectors were supplied. It is not source-learned representation transfer. The active Experiment A protocol is documented separately in [Learned Engram portability](learned-engram-portability.md). The staged questions for [compiled knowledge](compiled-knowledge-engram-v1.md) and [compiled initialization](compiled-engram-initialization-v1.md) are documentation only.
+
+The earlier one-token evaluation began at the colon-only assistant prefix, whereas the data conversation adds a separator space before the answer. This is a newly identified alignment limitation for historical scores; preserve the original threshold, identities, artifacts, and scores, and do not rescore them as learned-protocol evidence.
+
 ## A — Declare the protocol
 
 Build an immutable campaign before training:

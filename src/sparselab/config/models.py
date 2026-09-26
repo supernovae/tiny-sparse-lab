@@ -341,13 +341,19 @@ class CheckpointConfig(StrictModel):
     every_tokens: int | None = Field(default=None, gt=0)
     every_minutes: float | None = Field(default=None, gt=0)
     keep_periodic: bool = True
+    steps: tuple[Annotated[int, Field(strict=True, ge=0)], ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def validate_cadence(self) -> CheckpointConfig:
+        if tuple(sorted(set(self.steps))) != self.steps:
+            raise ValueError("checkpoint steps must be strictly increasing and unique")
         if (
             self.every_steps is None
             and self.every_tokens is None
             and self.every_minutes is None
+            and not self.steps
         ):
             raise ValueError("at least one checkpoint cadence is required")
         return self
