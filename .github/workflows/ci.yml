@@ -21,3 +21,17 @@ jobs:
       - run: uv run pytest -m "not mps and not network"
       - run: uv run sparselab --help
       - run: uv run sparselab inspect configs/micro_dense.yaml --json
+  test-macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --dev --extra mlx
+      - run: uv run pytest -m "not mps and not network"
+      - run: uv run sparselab --help
+      - run: uv run sparselab inspect configs/micro_dense.yaml --json

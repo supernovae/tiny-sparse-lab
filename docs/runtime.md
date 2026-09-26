@@ -32,6 +32,11 @@ Install the Apple-arm64 extra with `uv sync --extra mlx`; retain it when using
 A core-only installation can inspect and verify native checkpoint files without
 the MLX SDK, but cannot execute native training or inference.
 
+The project defaults to CPython 3.14 on CPU and macOS as well as ROCm. The
+locked environment includes Apple Silicon wheel resolution; use
+`uv sync --locked --dev --extra mlx` on Apple Silicon to install the optional
+MLX runtime and run the native MLX tests.
+
 ## Discovery, validation, and measurements
 
 Discovery is passive: it inventories CPU, MPS, CUDA, ROCm, XPU, and MLX availability without creating a model. It records unavailable runtimes and API limitations rather than guessing. Validation separately exercises a disposable forward/backward/optimizer probe for the requested engine and precision. Discovery or a vendor specification is not a hardware acceptance result.
