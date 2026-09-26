@@ -23,13 +23,13 @@ Evidence labels are deliberately separate: **implemented** means a code path exi
 | Question | Current evidence |
 |---|---|
 | Token-address portability | **implemented** address identity is tokenizer-dependent; a tokenizer match is an address invariant, not hidden-coordinate alignment. Cross-tokenizer behavior is **still unproven**. |
-| Raw-byte address portability | **implemented** byte-address mechanisms; **experimentally measured** existing negative two-case portable-byte comparison. Broader address/behavior evidence is **still unproven**. |
-| Immutable-artifact portability | Portable byte export/load and semantic-pack verification are **implemented**; in N=512, all 3 source package tables exactly match final checkpoints, and the seed-17 width-64 zero-shot/adapter copies match package bytes and manifest bindings. Cross-width learned-copy and frozen-recipient behavior remain **unproven**. |
+| Raw-byte address portability | **implemented** terminal byte addressing; **experimentally measured** N=2,048 source learning with all target rows covered and zero true distinct-key aliases. The historical two-case transfer comparison remains negative; broader address distributions and non-synthetic tasks are untested. |
+| Immutable-artifact portability | **experimentally measured (N=2,048):** all three exported tables match final source checkpoints and same-seed width-64/128 recipient tensors (nine exact comparisons). This establishes exact reuse within this DenseLM family, not useful zero-shot behavior or cross-architecture compatibility. |
 | Dimensional/interface portability | Structured semantic K=32, V=8 differs from recipient width by design; interface compatibility is **implemented**, useful transfer is **still unproven**. |
-| Behavioral portability | **still unproven** beyond the bounded local MiniLM pilot below; that pilot does not establish frozen-recipient adaptation. |
-| Zero-shot portability | **still unproven** for independently prepared recipients. |
-| Adapter-tuned portability | **still unproven** under frozen-backbone, update-isolated recipient adaptation. |
-| Cross-hidden-width portability | **still unproven**; changing width/depth in DenseLM is not cross-architecture evidence. |
+| Behavioral portability | **experimentally measured, bounded:** source gates pass; recipient adapters average 71.70% on one held-out wording but 3.125% on a second; the preregistered all-six ≥50% criterion fails one group. Robust wording, task, and general-language transfer remain unproven. |
+| Zero-shot portability | **experimentally measured:** all six real-zero-shot recipients scored 3.125%, equal to baseline, on both final wordings despite exact table reuse. Useful zero-shot recipient behavior was not demonstrated. |
+| Adapter-tuned portability | **experimentally measured, partial:** mean held-out gain is 68.57 percentage points on “Report the assigned symbol”; all six remain at 3.125% on “State the assigned symbol.” The strict all-six ≥50% criterion failed at width64/seed73; broad phrase/recipient transfer remains unproven. |
+| Cross-hidden-width portability | **experimentally measured within DenseLM:** same-seed source bytes were used at widths 64/128; adapter `final_report` means were 61.88%/81.51%. Three paired seeds, seed variation, and second-wording failure do not establish robust width-independent or cross-architecture behavior. |
 | Cross-scale portability | **still unproven**. |
 | Cross-architecture portability | **still unproven**; initial DenseLM recipients all use dense attention. |
 | Knowledge-swap portability | **still unproven** on neural recipients. Exact structured traversal is retrieval-only and cannot count as learned recipient behavior. |
@@ -90,7 +90,7 @@ Recipient held-out accuracy: baseline, constant, random, permuted, and zero-shot
 ## Open capability work
 
 - [ ] **still unproven** matched multi-seed lexical Engram behavior on a non-alias task with a training-only corpus, independent held-out cases, dense/no-memory controls, and collision/address diagnostics. Token and byte addressing remain separate.
-- [ ] **still unproven** portable byte Engram beyond the recorded negative two-case comparison; test multiple facts/phrasings, recipients, disabled/random/frozen-only/trained-adapter controls, and immutable exported values.
+- [ ] **still unproven** robust portable byte-Engram behavior beyond the N=2,048 synthetic association study. Final5 establishes source acquisition and exact same-seed table reuse at widths 64/128, but zero-shot stayed at baseline and adapter accuracy failed one of six ≥50% groups and all six on the second held-out wording. Expand independent task/world and phrase diversity, new seeds/recipients, and architecture coverage.
 - [ ] **still unproven** semantic EngramPack useful recipient behavior. Exact encoder-space compatibility requires key/value encoder identities, dimensions, normalization, and representation-space ID—not a shared tokenizer.
 - [ ] **Allocation curve:** complete or explicitly bound the current 75-coordinate design; the recorded CPU smoke executed only one coordinate. Preserve per-task outcomes, all declared ownership/weight combinations, actual targets, and nonmonotonic results.
 - [ ] **Architecture evidence:** choose one task and compare one mechanism at a time—MLA, sparse attention, MoE, placement, or FFN width—with matched data, tokenizer, seed, endpoint, and backend. Keep task scores, parameter/cache estimates, synchronized update timing, and end-to-end wall time separate.
