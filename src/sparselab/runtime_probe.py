@@ -194,7 +194,10 @@ def probe(payload: dict[str, Any]) -> dict[str, Any]:
         "activation_offload",
         "attention",
     }
-    if set(payload) != expected or payload["attention"] != "dense":
+    if set(payload) != expected or payload["attention"] not in {
+        "dense",
+        "block_sparse",
+    }:
         raise ValueError("unsupported PyTorch runtime probe request")
     backend = payload["backend"]
     precision = payload["precision"]
@@ -251,13 +254,60 @@ def probe(payload: dict[str, Any]) -> dict[str, Any]:
         scaler.update()
     if not torch.isfinite(parameter).all().item() or torch.equal(parameter, before):
         raise RuntimeError("probe did not complete a finite optimizer update")
+    native_sparse = False
+    if payload["attention"] == "block_sparse":
+        from sparselab.model.attention.sparse import BlockSparseAttention
 
+        sparse = BlockSparseAttention(8, 2, 8, 10_000.0, 2, 1).to(device)
+        sparse_optimizer = optimizer_type(sparse.parameters(), lr=0.01, foreach=False)
+        sparse_before = [
+            parameter.detach().clone() for parameter in sparse.parameters()
+        ]
+        sparse_input = torch.full((1, 4, 8), 0.125, device=device, requires_grad=True)
+        sparse_optimizer.zero_grad(set_to_none=True)
+        with _autocast(torch, device, precision):
+            sparse_output = (
+                checkpoint(
+                    lambda value: sparse(value, diagnostics="scalar"),
+                    sparse_input,
+                    use_reentrant=False,
+                )
+                if checkpointing
+                else sparse(sparse_input, diagnostics="scalar")
+            )
+        sparse_loss = sparse_output.float().square().mean()
+        sparse_loss.backward()
+        if (
+            not torch.isfinite(sparse_loss).item()
+            or sparse_input.grad is None
+            or not torch.isfinite(sparse_input.grad).all().item()
+            or any(
+                parameter.grad is None
+                or not torch.isfinite(parameter.grad).all().item()
+                for parameter in sparse.parameters()
+            )
+        ):
+            raise RuntimeError("sparse attention probe produced nonfinite gradients")
+        sparse_optimizer.step()
+        if all(
+            torch.equal(parameter, before)
+            for parameter, before in zip(sparse.parameters(), sparse_before)
+        ):
+            raise RuntimeError("sparse attention probe did not update its parameters")
+        if backend == "rocm":
+            if not torch.version.hip or sparse.last_backend != "hip":
+                raise RuntimeError(
+                    "ROCm sparse probe did not execute the native HIP kernel"
+                )
+            native_sparse = True
     info = next(
         item
         for item in discover_runtimes(measurement_device=device)
         if item.engine == "pytorch" and item.backend == backend
     )
     features = ["forward_backward_optimizer", f"optimizer:{optimizer_name}"]
+    if native_sparse:
+        features.append("native_block_sparse_attention")
     if checkpointing:
         features.append("activation_checkpointing")
     if activation_offload:

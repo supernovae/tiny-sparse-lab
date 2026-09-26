@@ -24,15 +24,17 @@ class SparseAttentionDiagnostics:
     dense_teacher_topk_recall: Tensor | None
 
 
-SparseBackend = Literal["cpu", "mps", "torch"]
+SparseBackend = Literal["cpu", "mps", "torch", "hip"]
 
 
 def select_sparse_backend(device: torch.device) -> SparseBackend:
-    """Choose a verified reference path without claiming an unavailable kernel."""
+    """Report the implementation selected for sparse attention."""
     if device.type == "cpu":
         return "cpu"
     if device.type == "mps":
         return "mps"
+    if device.type == "cuda" and torch.version.hip:
+        return "hip"
     return "torch"
 
 
@@ -104,6 +106,16 @@ class BlockSparseAttention(nn.Module):
             (torch.zeros_like(key[:, :, :1]), key.cumsum(dim=2)),
             dim=2,
         )
+        hip_selected = x.device.type == "cuda" and bool(torch.version.hip)
+        membership = (
+            torch.zeros(
+                (length, (length + self.block_size - 1) // self.block_size),
+                dtype=torch.bool,
+                device=x.device,
+            )
+            if hip_selected
+            else None
+        )
         result = torch.empty_like(query)
         selected_total = 0
         available_total = 0
@@ -142,19 +154,22 @@ class BlockSparseAttention(nn.Module):
             for block in chosen.flatten().unique():
                 mask |= (indices // self.block_size) == block
             indices = indices[mask]
-            chosen_key, chosen_value = (
-                key.index_select(2, indices),
-                value.index_select(2, indices),
-            )
-            scores = (query[:, :, position].unsqueeze(2) * chosen_key).sum(
-                -1
-            ) / math.sqrt(self.head_dim)
-            result[:, :, position] = (
-                torch.softmax(scores.float(), dim=-1)
-                .unsqueeze(-1)
-                .mul(chosen_value)
-                .sum(dim=2)
-            )
+            if membership is not None:
+                membership[position, chosen] = True
+            else:
+                chosen_key, chosen_value = (
+                    key.index_select(2, indices),
+                    value.index_select(2, indices),
+                )
+                scores = (query[:, :, position].unsqueeze(2) * chosen_key).sum(
+                    -1
+                ) / math.sqrt(self.head_dim)
+                result[:, :, position] = (
+                    torch.softmax(scores.float(), dim=-1)
+                    .unsqueeze(-1)
+                    .mul(chosen_value)
+                    .sum(dim=2)
+                )
             if record_diagnostics:
                 valid_rows = (
                     None
@@ -203,6 +218,10 @@ class BlockSparseAttention(nn.Module):
                             dense_recall_total += (
                                 torch.isin(dense_topk, indices).float().mean(-1).sum()
                             )
+        if membership is not None:
+            from sparselab.model.attention.hip_sparse import selected_attention
+
+            result = selected_attention(query, key, value, membership, self.block_size)
         if record_diagnostics:
             self.last_diagnostics = SparseAttentionDiagnostics(
                 torch.tensor(available_total, device=x.device),

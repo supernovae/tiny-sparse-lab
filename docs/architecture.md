@@ -50,7 +50,7 @@ a sparse-kernel speedup or long-context scaling result.
 
 `attention.kind: block_sparse` groups causal keys into fixed-size blocks and scores compressed block keys. The PyTorch reference gathers original K/V vectors from the selected blocks and retains the causal mask. Selection diagnostics distinguish available and selected keys, selection ratio, and an estimated attention-work count.
 
-The PyTorch path uses an inspectable reference loop. MLX additionally implements native Metal forward/dQ/dK-dV kernels over the selected-key union, without gathered K/V copies or token-square softmax intermediates. Both preserve the documented selection semantics; matching dense attention when every causal block is selected does not establish equivalence at a restricted budget or a general speedup. See [kernel measurements and limits](sparse-attention.md).
+The PyTorch path uses an inspectable reference loop on CPU and non-ROCm devices. ROCm additionally uses native HIP online-softmax forward/dQ/dK-dV kernels over the selected-key union, with direct K/V access and no token-square softmax intermediates. MLX implements equivalent native Metal kernels. These paths preserve selection semantics; matching dense attention when every causal block is selected does not establish equivalence at a restricted budget or a general end-to-end speedup. See [kernel measurements and limits](sparse-attention.md).
 
 
 ## Multi-head latent attention
