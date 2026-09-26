@@ -9,9 +9,9 @@ import pytest
 import torch
 
 from sparselab.config.loading import load_config, load_tokenizer_config
+from sparselab.data.tokenizer import train_tokenizer
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.model.memory import ByteAddressMemory
-from sparselab.data.tokenizer import train_tokenizer
 from sparselab.model.transformer import DenseLM
 from sparselab.research.portability import (
     PortabilityRun,
@@ -162,9 +162,7 @@ def test_learned_fact_exposure_threshold_tracks_budget(
     engine._learned_fact_targets = {1: 3, 2: 4}
     engine._learned_fact_ids_by_row = {1: "fact-a", 2: "fact-b"}
     engine._learned_initial_table_rows = initial_rows
-    engine._learned_fact_exposures = {
-        row: expected_presentations for row in rows
-    }
+    engine._learned_fact_exposures = {row: expected_presentations for row in rows}
     engine._learned_address_collision_targets = 7
     engine._learned_audit_parameter = parameter
     engine.optimizer.state[parameter]["sparselab_learned_audit_v1"] = {
