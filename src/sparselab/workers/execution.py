@@ -613,7 +613,7 @@ def _heartbeat(definition: Any, attempt_id: str, stop: threading.Event) -> None:
 
             if _mutate_receipt(definition, attempt_id, touch)["state"] != "RUNNING":
                 return
-        except (OSError, ValueError, TypeError):
+        except OSError, ValueError, TypeError:
             _LOGGER.exception("Worker receipt heartbeat failed")
             return
 

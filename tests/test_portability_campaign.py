@@ -30,7 +30,9 @@ def test_memory_asset_compiler_builds_token_byte_and_semantic_replacements(
         tmp_path / "worlds", seed=17, scale="smoke"
     )
     asset_root = tmp_path / "assets"
-    asset_manifest_path = build_portability_memory_assets(world_manifest_path, asset_root)
+    asset_manifest_path = build_portability_memory_assets(
+        world_manifest_path, asset_root
+    )
     manifest = json.loads(asset_manifest_path.read_text(encoding="utf-8"))
 
     assert manifest["format"] == "sparselab-portability-memory-assets"
@@ -64,7 +66,10 @@ def test_memory_asset_compiler_builds_token_byte_and_semantic_replacements(
         for row in addresses["records"]
         if row["scope"] == "training"
     )
-    assert build_portability_memory_assets(world_manifest_path, asset_root) == asset_manifest_path
+    assert (
+        build_portability_memory_assets(world_manifest_path, asset_root)
+        == asset_manifest_path
+    )
     asset_manifest_path.write_text("{}", encoding="utf-8")
     with pytest.raises(FileExistsError):
         build_portability_memory_assets(world_manifest_path, asset_root)
@@ -84,7 +89,9 @@ def test_portability_allocation_aligns_owned_targets_and_structured_queries(
         tokenizer.to_str().encode("utf-8")
     ).hexdigest()
     asset_root = tmp_path / "assets"
-    asset_manifest_path = build_portability_memory_assets(world_manifest_path, asset_root)
+    asset_manifest_path = build_portability_memory_assets(
+        world_manifest_path, asset_root
+    )
     assets = json.loads(asset_manifest_path.read_text(encoding="utf-8"))
     training_pack = (
         asset_root

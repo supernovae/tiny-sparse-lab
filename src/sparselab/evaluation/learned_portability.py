@@ -1,3 +1,5 @@
+# Serialized query and manifest failures use the evaluator's ValueError contract.
+# ruff: noqa: TRY004
 """Strict evaluator for the learned byte-Engram portability protocol.
 
 The query corpus deliberately contains no labels.  This module keeps scorer loading
@@ -18,7 +20,6 @@ from typing import Any
 
 import numpy as np
 import torch
-
 from torch import Tensor
 
 from sparselab.data.byte_hash import table_address, token_bytes
@@ -44,7 +45,9 @@ def _without_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object
 
 def _read_json(path: Path) -> dict[str, object]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_without_duplicate_keys)
+        value = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_without_duplicate_keys
+        )
     except json.JSONDecodeError as error:
         raise ValueError(f"invalid JSON: {path}") from error
     if not isinstance(value, dict):
@@ -73,7 +76,11 @@ def _descriptor_inventory(manifest: dict[str, object]) -> list[dict[str, object]
         raise ValueError("learned data manifest lacks a nonempty file inventory")
     descriptors: list[dict[str, object]] = []
     for entry in inventory:
-        if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "size_bytes"}:
+        if not isinstance(entry, dict) or set(entry) != {
+            "path",
+            "sha256",
+            "size_bytes",
+        }:
             raise ValueError("data file inventory entries must be exact descriptors")
         relative, digest, size = entry["path"], entry["sha256"], entry["size_bytes"]
         if (
@@ -169,12 +176,10 @@ def _verify_manifest(path: Path) -> tuple[dict[str, object], dict[str, Path]]:
         or set(ownership_descriptor) != {"path", "sha256", "size_bytes"}
         or ownership_descriptor.get("path") != "ownership.json"
         or ownership_descriptor.get("path") not in resolved
-        or ownership_descriptor.get("sha256")
-        != sha256_file(resolved["ownership.json"])
+        or ownership_descriptor.get("sha256") != sha256_file(resolved["ownership.json"])
         or ownership_descriptor.get("size_bytes")
         != resolved["ownership.json"].stat().st_size
-        or _read_json(resolved["ownership.json"])
-        != manifest.get("ownership")
+        or _read_json(resolved["ownership.json"]) != manifest.get("ownership")
     ):
         raise ValueError("learned ownership file differs from manifest")
     tokenizer = manifest.get("tokenizer")
@@ -222,7 +227,7 @@ def _bound_file_descriptor(
     if (
         not isinstance(descriptor, dict)
         or descriptor.get("path") != name
-        or set(("path", "sha256", "size_bytes")) - set(descriptor)
+        or {"path", "sha256", "size_bytes"} - set(descriptor)
     ):
         raise ValueError(f"learned data manifest lacks a bound {name} descriptor")
     path = _required_file(files, name)
@@ -316,7 +321,10 @@ def _load_facts(
         ):
             raise ValueError(f"learned fact fields are invalid: {fact_id}")
         suffix = b"|" + key.encode("ascii") + b"\n\nAssistant: "
-        if len(suffix) != 32 or table_address(suffix[-order:], table_size) != target_row:
+        if (
+            len(suffix) != 32
+            or table_address(suffix[-order:], table_size) != target_row
+        ):
             raise ValueError(f"learned fact address differs from key: {fact_id}")
         facts[fact_id] = fact
         target_rows.add(target_row)
@@ -358,9 +366,7 @@ def _load_preparation_facts(
         or preparation["validation_fact_ids"] != expected_validation
     ):
         raise ValueError("learned preparation split IDs differ from protocol")
-    transferred_rows = {
-        int(fact["target_row"]) for fact in transferred.values()
-    }
+    transferred_rows = {int(fact["target_row"]) for fact in transferred.values()}
     result: dict[str, dict[str, object]] = {}
     rows: set[int] = set()
     keys: set[str] = set()
@@ -388,7 +394,11 @@ def _load_preparation_facts(
             fact.get("target_row"),
             fact.get("assigned_symbol"),
         )
-        body = {name: value for name, value in fact.items() if name != "content_digest_sha256"}
+        body = {
+            name: value
+            for name, value in fact.items()
+            if name != "content_digest_sha256"
+        }
         if (
             fact.get("fact_id") != fact_id
             or fact.get("split") != split
@@ -415,7 +425,10 @@ def _load_preparation_facts(
         ):
             raise ValueError(f"learned preparation fact is invalid: {fact_id}")
         suffix = b"|" + key.encode("ascii") + b"\n\nAssistant: "
-        if len(suffix) != 32 or table_address(suffix[-order:], table_size) != target_row:
+        if (
+            len(suffix) != 32
+            or table_address(suffix[-order:], table_size) != target_row
+        ):
             raise ValueError(f"learned preparation fact address differs: {fact_id}")
         result[fact_id] = fact
         rows.add(target_row)
@@ -445,7 +458,11 @@ def _validate_rows(
     table_size: int,
     order: int,
 ) -> list[tuple[dict[str, object], str]]:
-    if not partitions or len(set(partitions)) != len(partitions) or any(not isinstance(p, str) or not p for p in partitions):
+    if (
+        not partitions
+        or len(set(partitions)) != len(partitions)
+        or any(not isinstance(p, str) or not p for p in partitions)
+    ):
         raise ValueError("partitions must be a nonempty tuple of unique names")
     if not isinstance(wording, str) or not wording:
         raise ValueError("wording must be a nonempty template ID")
@@ -453,15 +470,26 @@ def _validate_rows(
     scores: dict[str, tuple[str, str]] = {}
     for score in _jsonl(scorer_path):
         if set(score) != {"case_id", "fact_id", "expected_symbol"}:
-            raise ValueError("scorer rows must contain only case_id, fact_id, and expected_symbol")
+            raise ValueError(
+                "scorer rows must contain only case_id, fact_id, and expected_symbol"
+            )
         case_id, fact_id = score.get("case_id"), score.get("fact_id")
-        if not isinstance(case_id, str) or not case_id or not isinstance(fact_id, str) or not fact_id:
+        if (
+            not isinstance(case_id, str)
+            or not case_id
+            or not isinstance(fact_id, str)
+            or not fact_id
+        ):
             raise ValueError("scorer rows require case_id and fact_id")
         if case_id in scores:
             raise ValueError("duplicate scorer case ID")
         fact = facts.get(fact_id)
         expected = _answer_symbol(score, path=scorer_path)
-        if fact is None or expected not in symbols or expected != fact["assigned_symbol"]:
+        if (
+            fact is None
+            or expected not in symbols
+            or expected != fact["assigned_symbol"]
+        ):
             raise ValueError("scorer label differs from its immutable fact")
         scores[case_id] = (fact_id, expected)
     selected: list[tuple[dict[str, object], str]] = []
@@ -469,17 +497,26 @@ def _validate_rows(
     all_query_ids: set[str] = set()
     for query in _jsonl(queries_path):
         if set(query) != {
-            "case_id", "fact_id", "ownership", "template_id", "prompt",
-            "answer_prefix", "address",
+            "case_id",
+            "fact_id",
+            "ownership",
+            "template_id",
+            "prompt",
+            "answer_prefix",
+            "address",
         }:
             raise ValueError("query rows must contain the published label-free fields")
         case_id, fact_id = query.get("case_id"), query.get("fact_id")
         ownership, template_id = query.get("ownership"), query.get("template_id")
         if (
-            not isinstance(case_id, str) or not case_id
-            or not isinstance(fact_id, str) or not fact_id
-            or not isinstance(ownership, str) or not ownership
-            or not isinstance(template_id, str) or not template_id
+            not isinstance(case_id, str)
+            or not case_id
+            or not isinstance(fact_id, str)
+            or not fact_id
+            or not isinstance(ownership, str)
+            or not ownership
+            or not isinstance(template_id, str)
+            or not template_id
         ):
             raise ValueError("query rows require nonempty IDs and ownership fields")
         if case_id in all_query_ids:
@@ -518,34 +555,48 @@ def _validate_rows(
 def _prefix_inputs(
     loaded: InferenceRun, query: dict[str, object], table_size: int, order: int
 ) -> tuple[list[int], list[int], str]:
-    prompt, prefix, declared_address = query.get("prompt"), query.get("answer_prefix"), query.get("address")
+    prompt, prefix, declared_address = (
+        query.get("prompt"),
+        query.get("answer_prefix"),
+        query.get("address"),
+    )
     if not isinstance(prompt, str) or not prompt.endswith("Assistant:"):
         raise ValueError("learned query prompt must end with Assistant:")
     if prefix != prompt + " ":
-        raise ValueError("learned query answer prefix must be prompt plus separator space")
+        raise ValueError(
+            "learned query answer prefix must be prompt plus separator space"
+        )
     if not isinstance(declared_address, int) or isinstance(declared_address, bool):
         raise ValueError("learned query address must be an integer")
     prefix_ids = loaded.tokenizer.encode(prefix, add_special_tokens=False).ids
     if not prefix_ids:
         raise ValueError("learned query prefix tokenizes to no IDs")
-    reconstructed = b"".join(token_bytes(loaded.tokenizer, token_id) for token_id in prefix_ids)
+    reconstructed = b"".join(
+        token_bytes(loaded.tokenizer, token_id) for token_id in prefix_ids
+    )
     if reconstructed != prefix.encode("utf-8"):
         raise ValueError("tokenizer cannot reconstruct learned query prefix bytes")
     actual_address = table_address(prefix.encode("utf-8")[-order:], table_size)
     if declared_address != actual_address:
-        raise ValueError("learned query declared address differs from answer-prefix hash")
+        raise ValueError(
+            "learned query declared address differs from answer-prefix hash"
+        )
     addresses: list[int] = []
     stream = bytearray()
     for token_id in prefix_ids:
         stream.extend(token_bytes(loaded.tokenizer, token_id))
         addresses.append(table_address(bytes(stream[-order:]), table_size))
     if addresses[-1] != actual_address:
-        raise ValueError("tokenized learned query address differs from raw answer-prefix hash")
+        raise ValueError(
+            "tokenized learned query address differs from raw answer-prefix hash"
+        )
     return prefix_ids, addresses, prefix
 
 
 @contextmanager
-def _preserved_inference_state(model: Any, device: torch.device | str) -> Iterator[None]:
+def _preserved_inference_state(
+    model: Any, device: torch.device | str
+) -> Iterator[None]:
     """Preserve mode and all relevant PyTorch RNG states around read-only scoring."""
     modules = list(model.modules())
     training_modes = [bool(module.training) for module in modules]
@@ -561,7 +612,9 @@ def _preserved_inference_state(model: Any, device: torch.device | str) -> Iterat
         if torch.device(device).type == "mps" and callable(mps_get_state)
         else None
     )
-    prior_diagnostics = getattr(getattr(model, "memory", None), "last_diagnostics", None)
+    prior_diagnostics = getattr(
+        getattr(model, "memory", None), "last_diagnostics", None
+    )
     model.eval()
     try:
         with torch.inference_mode():
@@ -584,11 +637,23 @@ def _preserved_inference_state(model: Any, device: torch.device | str) -> Iterat
 def _quantiles(values: Tensor) -> dict[str, float | int]:
     flat = values.detach().float().flatten().cpu()
     if not flat.numel():
-        return {"count": 0, "min": 0.0, "p25": 0.0, "median": 0.0, "p75": 0.0, "p95": 0.0, "max": 0.0}
+        return {
+            "count": 0,
+            "min": 0.0,
+            "p25": 0.0,
+            "median": 0.0,
+            "p75": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+        }
     return {
-        "count": int(flat.numel()), "min": float(flat.min()), "p25": float(torch.quantile(flat, .25)),
-        "median": float(torch.quantile(flat, .5)), "p75": float(torch.quantile(flat, .75)),
-        "p95": float(torch.quantile(flat, .95)), "max": float(flat.max()),
+        "count": int(flat.numel()),
+        "min": float(flat.min()),
+        "p25": float(torch.quantile(flat, 0.25)),
+        "median": float(torch.quantile(flat, 0.5)),
+        "p75": float(torch.quantile(flat, 0.75)),
+        "p95": float(torch.quantile(flat, 0.95)),
+        "max": float(flat.max()),
     }
 
 
@@ -606,7 +671,9 @@ def evaluate_learned_portability(
     intentionally suitable for the separately hashed observation-result artifact.
     """
     if loaded.engine is not None:
-        raise ValueError("learned byte portability evaluation requires PyTorch inference")
+        raise ValueError(
+            "learned byte portability evaluation requires PyTorch inference"
+        )
     if not isinstance(loaded.device, torch.device):
         raise TypeError("learned byte portability evaluation requires a torch.device")
     model = loaded.model
@@ -616,21 +683,31 @@ def evaluate_learned_portability(
     memory = getattr(model, "memory", None)
     if memory_kind == "none":
         if memory is not None:
-            raise ValueError("memory-free learned baseline has an unexpected memory attachment")
+            raise ValueError(
+                "memory-free learned baseline has an unexpected memory attachment"
+            )
     elif memory_kind in {"byte", "portable"}:
         if (
             getattr(model.config, "memory_table_size", None) != table_size
             or getattr(model.config, "memory_ngram_size", None) != order
         ):
-            raise ValueError("model byte-address contract differs from learned data manifest")
+            raise ValueError(
+                "model byte-address contract differs from learned data manifest"
+            )
         if not isinstance(memory, (ByteAddressMemory, PortableEngramAdapter)):
-            raise TypeError("learned portability evaluator requires a byte memory attachment")
+            raise TypeError(
+                "learned portability evaluator requires a byte memory attachment"
+            )
     else:
-        raise ValueError("learned portability evaluation requires byte memory or a memory-free control")
+        raise ValueError(
+            "learned portability evaluation requires byte memory or a memory-free control"
+        )
     if not memory_enabled and memory is None:
         raise ValueError("cannot ablate a model without a byte memory attachment")
     tokenizer_descriptor = manifest.get("tokenizer")
-    if not isinstance(tokenizer_descriptor, dict) or not isinstance(tokenizer_descriptor.get("path"), str):
+    if not isinstance(tokenizer_descriptor, dict) or not isinstance(
+        tokenizer_descriptor.get("path"), str
+    ):
         raise ValueError("learned data manifest lacks a tokenizer descriptor")
     tokenizer_path = files.get(tokenizer_descriptor["path"])
     tokenizer_sha256 = tokenizer_descriptor.get("sha256")
@@ -647,7 +724,10 @@ def evaluate_learned_portability(
     selected = _validate_rows(
         queries, scorer, partitions, wording, facts, set(_SYMBOLS), table_size, order
     )
-    prepared = [(*_prefix_inputs(loaded, query, table_size, order), query, expected) for query, expected in selected]
+    prepared = [
+        (*_prefix_inputs(loaded, query, table_size, order), query, expected)
+        for query, expected in selected
+    ]
     max_seq_len = int(model.config.max_seq_len)
     if any(len(ids) > max_seq_len for ids, _, _, _, _ in prepared):
         raise ValueError("learned query prefix exceeds model context")
@@ -664,7 +744,9 @@ def evaluate_learned_portability(
         if not isinstance(hidden, Tensor) or not isinstance(addresses, Tensor):
             raise TypeError("byte memory hook received invalid inputs")
         final_addresses = addresses[:, -1]
-        table = memory.table if isinstance(memory, ByteAddressMemory) else memory.embedding
+        table = (
+            memory.table if isinstance(memory, ByteAddressMemory) else memory.embedding
+        )
         raw = table(final_addresses)
         raw_norms.append(raw.norm(dim=-1).detach().cpu())
         captured_addresses.append(final_addresses.detach().cpu())
@@ -689,17 +771,27 @@ def evaluate_learned_portability(
                 batch = prepared[start : start + _BATCH_SIZE]
                 lengths = {len(item[0]) for item in batch}
                 if len(lengths) != 1:
-                    raise ValueError("learned query prefixes must have equal token length per batch")
-                ids = torch.tensor([item[0] for item in batch], dtype=torch.long, device=loaded.device)
-                addresses = torch.tensor([item[1] for item in batch], dtype=torch.long, device=loaded.device)
+                    raise ValueError(
+                        "learned query prefixes must have equal token length per batch"
+                    )
+                ids = torch.tensor(
+                    [item[0] for item in batch], dtype=torch.long, device=loaded.device
+                )
+                addresses = torch.tensor(
+                    [item[1] for item in batch], dtype=torch.long, device=loaded.device
+                )
                 logits = model(ids, byte_addresses=addresses)[:, -1, :]
                 if not torch.isfinite(logits).all():
                     raise FloatingPointError("nonfinite learned portability logits")
-                predicted_ids = logits.argmax(dim=-1)  # Deliberately unrestricted vocabulary.
+                predicted_ids = logits.argmax(
+                    dim=-1
+                )  # Deliberately unrestricted vocabulary.
                 log_probabilities = torch.log_softmax(logits.float(), dim=-1)
                 for index, (prefix_ids, _, prefix, query, expected) in enumerate(batch):
                     expected_id = loaded.tokenizer.token_to_id(expected)
-                    if expected_id is None or loaded.tokenizer.encode(expected, add_special_tokens=False).ids != [expected_id]:
+                    if expected_id is None or loaded.tokenizer.encode(
+                        expected, add_special_tokens=False
+                    ).ids != [expected_id]:
                         raise ValueError("scorer symbol is not one tokenizer token")
                     prediction_id = int(predicted_ids[index])
                     prediction_bytes = token_bytes(loaded.tokenizer, prediction_id)
@@ -707,13 +799,20 @@ def evaluate_learned_portability(
                         prediction = prediction_bytes.decode("utf-8")
                     except UnicodeDecodeError:
                         prediction = prediction_bytes.decode("utf-8", errors="replace")
-                    records.append({
-                        "case_id": query["case_id"], "fact_id": query["fact_id"], "ownership": query["ownership"],
-                        "template_id": query["template_id"], "address": query["address"], "predicted_token_id": prediction_id,
-                        "predicted_answer": prediction, "expected_answer": expected,
-                        "correct": prediction_id == expected_id,
-                        "answer_nll": float(-log_probabilities[index, expected_id]),
-                    })
+                    records.append(
+                        {
+                            "case_id": query["case_id"],
+                            "fact_id": query["fact_id"],
+                            "ownership": query["ownership"],
+                            "template_id": query["template_id"],
+                            "address": query["address"],
+                            "predicted_token_id": prediction_id,
+                            "predicted_answer": prediction,
+                            "expected_answer": expected,
+                            "correct": prediction_id == expected_id,
+                            "answer_nll": float(-log_probabilities[index, expected_id]),
+                        }
+                    )
     finally:
         if handle is not None:
             handle.remove()
@@ -732,8 +831,12 @@ def evaluate_learned_portability(
     )
     diagnostics = {
         "memory_accessed": active_memory is not None,
-        "raw_vector_norm": _quantiles(torch.cat(raw_norms) if raw_norms else torch.empty(0)),
-        "projected_vector_norm": _quantiles(torch.cat(projected_norms) if projected_norms else torch.empty(0)),
+        "raw_vector_norm": _quantiles(
+            torch.cat(raw_norms) if raw_norms else torch.empty(0)
+        ),
+        "projected_vector_norm": _quantiles(
+            torch.cat(projected_norms) if projected_norms else torch.empty(0)
+        ),
         "gate": _quantiles(torch.cat(gate_values) if gate_values else torch.empty(0)),
         "interface_parameter_norms": interface_norms,
         "trainable_parameter_count": (
@@ -746,8 +849,19 @@ def evaluate_learned_portability(
             "unique_addresses": len({int(item[1][-1]) for item in prepared}),
         },
     }
-    metrics = {"count": len(records), "correct": correct, "accuracy": correct / len(records), "answer_nll": nll}
-    return {"partitions": list(partitions), "wording": wording, "metrics": metrics, "results": records, "diagnostics": diagnostics}
+    metrics = {
+        "count": len(records),
+        "correct": correct,
+        "accuracy": correct / len(records),
+        "answer_nll": nll,
+    }
+    return {
+        "partitions": list(partitions),
+        "wording": wording,
+        "metrics": metrics,
+        "results": records,
+        "diagnostics": diagnostics,
+    }
 
 
 def evaluate_learned_preparation(
@@ -767,20 +881,13 @@ def evaluate_learned_preparation(
     manifest, files = _verify_manifest(data_manifest_path)
     table_size, order = _addressing(manifest)
     tokenizer_descriptor = manifest["tokenizer"]
-    if (
-        not isinstance(tokenizer_descriptor, dict)
-        or loaded.identity.get("tokenizer_sha256") != tokenizer_descriptor.get("sha256")
-    ):
+    if not isinstance(tokenizer_descriptor, dict) or loaded.identity.get(
+        "tokenizer_sha256"
+    ) != tokenizer_descriptor.get("sha256"):
         raise ValueError("preparation tokenizer differs from learned data")
     transferred = _load_facts(manifest, files, table_size, order)
-    facts = _load_preparation_facts(
-        manifest, files, table_size, order, transferred
-    )
-    selected = [
-        fact
-        for fact in facts.values()
-        if fact["split"] == split
-    ]
+    facts = _load_preparation_facts(manifest, files, table_size, order, transferred)
+    selected = [fact for fact in facts.values() if fact["split"] == split]
     from sparselab.data.learned_portability import _query_prompt, _token_ids
 
     prepared: list[tuple[str, str, str, list[int]]] = []
@@ -794,60 +901,56 @@ def evaluate_learned_preparation(
         prefix_ids = _token_ids(loaded.tokenizer, prefix)
         if len(prefix_ids) != 126 or len(prefix_ids) > int(model.config.max_seq_len):
             raise ValueError("preparation prompt length differs from fixed protocol")
-        if table_address(prefix.encode("utf-8")[-order:], table_size) != fact["target_row"]:
+        if (
+            table_address(prefix.encode("utf-8")[-order:], table_size)
+            != fact["target_row"]
+        ):
             raise ValueError("preparation query address differs from its target row")
         expected_id = loaded.tokenizer.token_to_id(expected)
-        if (
-            expected_id is None
-            or loaded.tokenizer.encode(expected, add_special_tokens=False).ids
-            != [expected_id]
-        ):
+        if expected_id is None or loaded.tokenizer.encode(
+            expected, add_special_tokens=False
+        ).ids != [expected_id]:
             raise ValueError("preparation scorer symbol is not one tokenizer token")
         prepared.append((str(fact["fact_id"]), expected, prompt, prefix_ids))
     if len(prepared) != (512 if split == "training" else 128):
         raise ValueError("preparation evaluator case count differs")
 
     records: list[dict[str, object]] = []
-    with _preserved_inference_state(model, loaded.device):
-        with torch.inference_mode():
-            for start in range(0, len(prepared), _BATCH_SIZE):
-                batch = prepared[start : start + _BATCH_SIZE]
-                input_ids = torch.tensor(
-                    [item[3] for item in batch],
-                    dtype=torch.long,
-                    device=loaded.device,
+    with _preserved_inference_state(model, loaded.device), torch.inference_mode():
+        for start in range(0, len(prepared), _BATCH_SIZE):
+            batch = prepared[start : start + _BATCH_SIZE]
+            input_ids = torch.tensor(
+                [item[3] for item in batch],
+                dtype=torch.long,
+                device=loaded.device,
+            )
+            logits = model(input_ids)[:, -1, :].float()
+            if not torch.isfinite(logits).all():
+                raise FloatingPointError("nonfinite preparation logits")
+            predictions = logits.argmax(dim=-1)
+            log_probabilities = torch.log_softmax(logits, dim=-1)
+            for index, (fact_id, expected, _prompt, _prefix_ids) in enumerate(batch):
+                expected_id = loaded.tokenizer.token_to_id(expected)
+                assert expected_id is not None
+                predicted_id = int(predictions[index])
+                predicted_bytes = token_bytes(loaded.tokenizer, predicted_id)
+                predicted = predicted_bytes.decode("utf-8", errors="replace")
+                records.append(
+                    {
+                        "case_id": f"{fact_id}:preparation_copy",
+                        "fact_id": fact_id,
+                        "split": split,
+                        "predicted_token_id": predicted_id,
+                        "predicted_answer": predicted,
+                        "expected_answer": expected,
+                        "correct": predicted_id == expected_id,
+                        "answer_nll": float(-log_probabilities[index, expected_id]),
+                    }
                 )
-                logits = model(input_ids)[:, -1, :].float()
-                if not torch.isfinite(logits).all():
-                    raise FloatingPointError("nonfinite preparation logits")
-                predictions = logits.argmax(dim=-1)
-                log_probabilities = torch.log_softmax(logits, dim=-1)
-                for index, (fact_id, expected, _prompt, _prefix_ids) in enumerate(batch):
-                    expected_id = loaded.tokenizer.token_to_id(expected)
-                    assert expected_id is not None
-                    predicted_id = int(predictions[index])
-                    predicted_bytes = token_bytes(loaded.tokenizer, predicted_id)
-                    predicted = predicted_bytes.decode("utf-8", errors="replace")
-                    records.append(
-                        {
-                            "case_id": f"{fact_id}:preparation_copy",
-                            "fact_id": fact_id,
-                            "split": split,
-                            "predicted_token_id": predicted_id,
-                            "predicted_answer": predicted,
-                            "expected_answer": expected,
-                            "correct": predicted_id == expected_id,
-                            "answer_nll": float(
-                                -log_probabilities[index, expected_id]
-                            ),
-                        }
-                    )
     correct = sum(bool(row["correct"]) for row in records)
     per_symbol: dict[str, dict[str, float | int]] = {}
     for symbol in _SYMBOLS:
-        symbol_rows = [
-            row for row in records if row["expected_answer"] == symbol
-        ]
+        symbol_rows = [row for row in records if row["expected_answer"] == symbol]
         if not symbol_rows:
             raise ValueError(f"preparation split lacks symbol {symbol}")
         symbol_correct = sum(bool(row["correct"]) for row in symbol_rows)

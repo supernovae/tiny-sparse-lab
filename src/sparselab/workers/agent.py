@@ -200,7 +200,7 @@ def serve_stdio(definition: WorkerDefinition) -> int:
             }
             try:
                 write_frame(sys.stdout.buffer, header, {})
-            except (OSError, ValueError, TypeError):
+            except OSError, ValueError, TypeError:
                 return 2
     return 0
 

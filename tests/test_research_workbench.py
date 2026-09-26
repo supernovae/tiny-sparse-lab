@@ -124,7 +124,6 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
         ResearchEntry.model_validate(invalid)
 
 
-
 def test_learned_runner_catalog_rejects_generic_recipe_and_scaffold(
     tmp_path: Path,
 ) -> None:

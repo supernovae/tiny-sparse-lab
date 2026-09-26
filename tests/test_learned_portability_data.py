@@ -1,4 +1,5 @@
 """Contracts for the learned Engram portability data publication."""
+
 from __future__ import annotations
 
 import hashlib
@@ -80,16 +81,33 @@ def test_learned_data_replays_and_separates_labels(tmp_path: Path) -> None:
     )
     assert all(
         row["answer_prefix"].encode("utf-8")[-32:]
-        == b"|" + next(fact["key"] for fact in facts if fact["fact_id"] == row["fact_id"]).encode("ascii") + b"\n\nAssistant: "
+        == b"|"
+        + next(
+            fact["key"] for fact in facts if fact["fact_id"] == row["fact_id"]
+        ).encode("ascii")
+        + b"\n\nAssistant: "
         for row in queries
     )
-    assert manifest["sha256"] == hashlib.sha256(
-        json.dumps({key: value for key, value in manifest.items() if key != "sha256"}, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    ).hexdigest()
-    assert all(_descriptor(root / str(entry["path"]), root) == entry for entry in manifest["files"])
+    assert (
+        manifest["sha256"]
+        == hashlib.sha256(
+            json.dumps(
+                {key: value for key, value in manifest.items() if key != "sha256"},
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+    )
+    assert all(
+        _descriptor(root / str(entry["path"]), root) == entry
+        for entry in manifest["files"]
+    )
 
 
-def test_packing_retains_exact_factual_blocks_and_withholds_rows(tmp_path: Path) -> None:
+def test_packing_retains_exact_factual_blocks_and_withholds_rows(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "learned"
     materialize_learned_portability_data(root, fact_count=128)
     facts = _rows(root / "facts.jsonl")
@@ -101,7 +119,9 @@ def test_packing_retains_exact_factual_blocks_and_withholds_rows(tmp_path: Path)
     assert len(source) == 256
     assert len(calibration) == 64
     assert all(row["token_count_before_eos"] == 127 for row in blocks)
-    assert all(row["address"] == target_by_fact[row["fact_id"]] for row in source + calibration)
+    assert all(
+        row["address"] == target_by_fact[row["fact_id"]] for row in source + calibration
+    )
     assert {row["fact_id"] for row in calibration} == {
         row["fact_id"] for row in facts if row["ownership"] == "calibration"
     }
@@ -115,7 +135,9 @@ def test_packing_retains_exact_factual_blocks_and_withholds_rows(tmp_path: Path)
     }
     prior_accesses = np.concatenate(
         [
-            np.load(root / f"{split}_byte_addresses.npy", allow_pickle=False).reshape(-1)
+            np.load(root / f"{split}_byte_addresses.npy", allow_pickle=False).reshape(
+                -1
+            )
             for split in (
                 "preparation_train",
                 "preparation_validation",
@@ -131,4 +153,7 @@ def test_packing_retains_exact_factual_blocks_and_withholds_rows(tmp_path: Path)
         assert len(values) == (expected + 1) * 128
         assert len(supervision) == len(values) == len(addresses)
         assert (len(values) - 1) // 128 == expected
-        assert all(supervision[block * 128 + 1 : (block + 1) * 128 + 1].sum() == 2 for block in range(expected))
+        assert all(
+            supervision[block * 128 + 1 : (block + 1) * 128 + 1].sum() == 2
+            for block in range(expected)
+        )

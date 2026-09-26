@@ -1,3 +1,5 @@
+# Malformed portability bundles retain one ValueError boundary.
+# ruff: noqa: TRY004
 """Verified inputs and model initialization for Engram portability runs."""
 
 from __future__ import annotations
@@ -70,9 +72,13 @@ def _digest(value: object, name: str) -> str:
 
 def _relative_path(root: Path, value: object) -> Path:
     if not isinstance(value, str) or not value or "\\" in value:
-        raise ValueError("portability asset path must be a nonempty POSIX relative path")
+        raise ValueError(
+            "portability asset path must be a nonempty POSIX relative path"
+        )
     relative = PurePosixPath(value)
-    if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+    if relative.is_absolute() or any(
+        part in {"", ".", ".."} for part in relative.parts
+    ):
         raise ValueError("portability asset path is unsafe")
     path = root.joinpath(*relative.parts)
     current = root
@@ -103,7 +109,9 @@ def _verify_file(root: Path, descriptor: object) -> Path:
         raise ValueError("portability file size_bytes must be a nonnegative integer")
     expected_digest = _digest(descriptor["sha256"], "file sha256")
     if info.st_size != expected_size or sha256_file(path) != expected_digest:
-        raise ValueError(f"portability file asset failed integrity verification: {path}")
+        raise ValueError(
+            f"portability file asset failed integrity verification: {path}"
+        )
     return path
 
 
@@ -155,7 +163,10 @@ def _verify_world_manifest(path: Path) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError("world manifest is invalid JSON") from error
-    if not isinstance(payload, dict) or payload.get("format") != "sparselab-portability-worlds":
+    if (
+        not isinstance(payload, dict)
+        or payload.get("format") != "sparselab-portability-worlds"
+    ):
         raise ValueError("unsupported portability world manifest")
     expected = _digest(payload.get("sha256"), "world manifest sha256")
     content = {key: value for key, value in payload.items() if key != "sha256"}
@@ -211,7 +222,11 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise ValueError("portability run manifest has an invalid top-level schema")
-    if payload["format"] != _FORMAT or type(payload["version"]) is not int or payload["version"] != _VERSION:
+    if (
+        payload["format"] != _FORMAT
+        or type(payload["version"]) is not int
+        or payload["version"] != _VERSION
+    ):
         raise ValueError("unsupported portability run manifest version")
     expected = _digest(payload["sha256"], "portability run manifest sha256")
     content = {key: value for key, value in payload.items() if key != "sha256"}
@@ -233,8 +248,7 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
             "portability coordinate must name recipient, representation, and condition"
         )
     if not all(
-        isinstance(coordinate[key], str) and coordinate[key]
-        for key in coordinate
+        isinstance(coordinate[key], str) and coordinate[key] for key in coordinate
     ):
         raise ValueError("portability coordinate fields must be nonempty strings")
     representation = coordinate["representation"]
@@ -296,21 +310,33 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
         if candidate["kind"] != representation:
             raise ValueError("memory kind differs from the declared representation")
         artifact_value = candidate["artifact"]
-        native_local_table = condition == "native" and representation in {"token", "byte"}
+        native_local_table = condition == "native" and representation in {
+            "token",
+            "byte",
+        }
         disabled = condition == "disabled"
         if (condition == "native" and representation == "semantic") or (
             artifact_value is None and not native_local_table and not disabled
         ):
-            raise ValueError("portability memory artifact is required for this condition")
+            raise ValueError(
+                "portability memory artifact is required for this condition"
+            )
         memory_path = (
             None if artifact_value is None else _verify_asset(root, artifact_value)
         )
         if disabled:
             if any(
                 candidate[field] is not None
-                for field in ("pack_id", "tensor_sha256", "addressing", "encoder_contract")
+                for field in (
+                    "pack_id",
+                    "tensor_sha256",
+                    "addressing",
+                    "encoder_contract",
+                )
             ):
-                raise ValueError("disabled conditions cannot declare an attached memory asset")
+                raise ValueError(
+                    "disabled conditions cannot declare an attached memory asset"
+                )
         elif representation == "semantic":
             if (
                 memory_path is None
@@ -319,7 +345,9 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
                 or not isinstance(candidate["encoder_contract"], dict)
                 or candidate["addressing"] is not None
             ):
-                raise ValueError("semantic memory must bind a verified pack and encoder contract")
+                raise ValueError(
+                    "semantic memory must bind a verified pack and encoder contract"
+                )
             pack_report = verify_pack(
                 memory_path,
                 expected_pack_id=_digest(candidate["pack_id"], "pack_id"),
@@ -327,22 +355,37 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
             if not pack_report.valid:
                 raise ValueError("portability semantic pack failed verification")
         else:
-            if candidate["pack_id"] is not None or candidate["encoder_contract"] is not None:
-                raise ValueError("lexical memory must not claim a semantic pack contract")
+            if (
+                candidate["pack_id"] is not None
+                or candidate["encoder_contract"] is not None
+            ):
+                raise ValueError(
+                    "lexical memory must not claim a semantic pack contract"
+                )
             if not isinstance(candidate["addressing"], dict):
                 raise ValueError("lexical memory must bind its addressing identity")
             if artifact_value is None:
                 if candidate["tensor_sha256"] is not None:
-                    raise ValueError("native local memory must not pin a frozen table digest")
+                    raise ValueError(
+                        "native local memory must not pin a frozen table digest"
+                    )
             else:
                 _digest(candidate["tensor_sha256"], "memory tensor_sha256")
         replacements = candidate["replacements"]
         if not isinstance(replacements, dict):
             raise TypeError("memory replacements must be an object")
-        if not disabled and condition != "native" and set(replacements) != evaluation_world_ids:
-            raise ValueError("replacement memory inventory must cover every evaluation world")
+        if (
+            not disabled
+            and condition != "native"
+            and set(replacements) != evaluation_world_ids
+        ):
+            raise ValueError(
+                "replacement memory inventory must cover every evaluation world"
+            )
         if (disabled or condition == "native") and replacements:
-            raise ValueError("conditions without transferred memory cannot declare replacements")
+            raise ValueError(
+                "conditions without transferred memory cannot declare replacements"
+            )
         for replacement in replacements.values():
             if not isinstance(replacement, dict) or set(replacement) != {
                 "artifact",
@@ -354,21 +397,27 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
             if representation == "semantic":
                 _digest(replacement["pack_id"], "replacement pack_id")
                 if replacement["tensor_sha256"] is not None:
-                    raise ValueError("semantic replacements cannot declare tensor digests")
+                    raise ValueError(
+                        "semantic replacements cannot declare tensor digests"
+                    )
             else:
                 if replacement["pack_id"] is not None:
                     raise ValueError("lexical replacements cannot declare pack ids")
                 _digest(replacement["tensor_sha256"], "replacement tensor_sha256")
     memory = memories[seed_key]
     if condition != "native" and backbone is None:
-        raise ValueError("transferred portability conditions require a preparation checkpoint")
+        raise ValueError(
+            "transferred portability conditions require a preparation checkpoint"
+        )
 
     observations = payload["observations"]
     if not isinstance(observations, dict) or set(observations) != {
         "development",
         "final",
     }:
-        raise ValueError("observations must reference development and final case manifests")
+        raise ValueError(
+            "observations must reference development and final case manifests"
+        )
     for descriptor in observations.values():
         _verify_file(root, descriptor)
     training_fact_ids = payload["training_fact_ids"]
@@ -397,7 +446,9 @@ def _load_portability_manifest_v1(config: RunConfig) -> PortabilityRun:
         )
     }
     if not set(training_fact_ids) <= permitted_ids:
-        raise ValueError("portability manifest includes recipient-ineligible fact associations")
+        raise ValueError(
+            "portability manifest includes recipient-ineligible fact associations"
+        )
     tokenizer_digest = sha256_file(config.tokenizer.path)
     if backbone is not None and tokenizer_digest != backbone["tokenizer_sha256"]:
         raise ValueError(
@@ -415,9 +466,7 @@ _V2_ADDRESSING = {
     "table_size": 65521,
     "embedding_dim": 32,
 }
-_V2_ROLES = frozenset(
-    {"source", "preparation", "recipient", "native", "calibration"}
-)
+_V2_ROLES = frozenset({"source", "preparation", "recipient", "native", "calibration"})
 _V2_SCIENTIFIC_CONDITIONS = {
     "source": {"source-real", "source-dense"},
     "preparation": {"prepare"},
@@ -443,10 +492,17 @@ _V2_TIMING_CONDITIONS = frozenset(
 )
 
 
-def _v2_descriptor(root: Path, value: object, *, extra: frozenset[str] = frozenset()) -> Path:
-    if not isinstance(value, dict) or set(value) != {"path", "sha256", "size_bytes"} | extra:
+def _v2_descriptor(
+    root: Path, value: object, *, extra: frozenset[str] = frozenset()
+) -> Path:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"path", "sha256", "size_bytes"} | extra
+    ):
         raise ValueError("learned portability descriptor has an invalid schema")
-    return _verify_file(root, {key: value[key] for key in ("path", "sha256", "size_bytes")})
+    return _verify_file(
+        root, {key: value[key] for key in ("path", "sha256", "size_bytes")}
+    )
 
 
 def _within(directory: Path, path: Path, name: str) -> None:
@@ -480,21 +536,45 @@ def _read_jsonl(path: Path, name: str) -> list[dict[str, Any]]:
 def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
     data = _read_json(path, "learned portability data manifest")
     required = {
-        "format", "version", "seed", "fact_count", "rng_derivation", "symbols",
-        "addressing", "address_audit", "tokenizer", "templates", "ownership",
-        "ownership_file", "facts", "preparation", "preparation_facts",
-        "queries", "scorer", "blocks", "files", "sha256",
+        "format",
+        "version",
+        "seed",
+        "fact_count",
+        "rng_derivation",
+        "symbols",
+        "addressing",
+        "address_audit",
+        "tokenizer",
+        "templates",
+        "ownership",
+        "ownership_file",
+        "facts",
+        "preparation",
+        "preparation_facts",
+        "queries",
+        "scorer",
+        "blocks",
+        "files",
+        "sha256",
     }
     if set(data) != required or data["format"] != _V2_FORMAT or data["version"] != 1:
         raise ValueError("unsupported learned portability data manifest")
     expected = _digest(data["sha256"], "learned data manifest sha256")
-    if hashlib.sha256(canonical_json({k: v for k, v in data.items() if k != "sha256"})).hexdigest() != expected:
+    if (
+        hashlib.sha256(
+            canonical_json({k: v for k, v in data.items() if k != "sha256"})
+        ).hexdigest()
+        != expected
+    ):
         raise ValueError("learned portability data manifest hash mismatch")
     if type(data["fact_count"]) is not int or data["fact_count"] <= 0:
         raise ValueError("learned portability fact_count is invalid")
     if data["addressing"] != {
-        "kind": "raw-utf8", "hash": "poly257-terminal-v1", "table_size": 65521,
-        "ngram_size": 32, "embedding_dim": 32,
+        "kind": "raw-utf8",
+        "hash": "poly257-terminal-v1",
+        "table_size": 65521,
+        "ngram_size": 32,
+        "embedding_dim": 32,
         "answer_prefix_contract": "hash(raw UTF-8 last 32 bytes of answer_prefix); answer_prefix == prompt + ' '",
     }:
         raise ValueError("learned portability data addressing contract differs")
@@ -515,16 +595,25 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
         if item.is_file() and item != path:
             actual_paths.add(item.relative_to(path.parent).as_posix())
     if actual_paths != expected_paths:
-        raise ValueError("learned portability data inventory differs from its directory")
+        raise ValueError(
+            "learned portability data inventory differs from its directory"
+        )
     facts_path = _v2_descriptor(path.parent, data["facts"], extra=frozenset({"count"}))
-    queries_path = _v2_descriptor(path.parent, data["queries"], extra=frozenset({"count"}))
-    scorer_path = _v2_descriptor(path.parent, data["scorer"], extra=frozenset({"count"}))
+    queries_path = _v2_descriptor(
+        path.parent, data["queries"], extra=frozenset({"count"})
+    )
+    scorer_path = _v2_descriptor(
+        path.parent, data["scorer"], extra=frozenset({"count"})
+    )
     facts, queries, scorer = (
         _read_jsonl(facts_path, "learned facts"),
         _read_jsonl(queries_path, "learned queries"),
         _read_jsonl(scorer_path, "learned scorer"),
     )
-    if any(data[key]["count"] != len(rows) for key, rows in (("facts", facts), ("queries", queries), ("scorer", scorer))):
+    if any(
+        data[key]["count"] != len(rows)
+        for key, rows in (("facts", facts), ("queries", queries), ("scorer", scorer))
+    ):
         raise ValueError("learned data descriptor count differs from content")
     fact_ids: set[str] = set()
     fact_by_id: dict[str, dict[str, Any]] = {}
@@ -537,8 +626,22 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
         "held_out": ["held_out_evaluation", "source_training"],
     }
     for fact in facts:
-        required_fact = {"fact_id", "ownership", "key", "nonce", "target_row", "assigned_symbol", "provenance", "permitted_roles", "content_digest_sha256"}
-        if set(fact) != required_fact or not isinstance(fact["fact_id"], str) or fact["fact_id"] in fact_ids:
+        required_fact = {
+            "fact_id",
+            "ownership",
+            "key",
+            "nonce",
+            "target_row",
+            "assigned_symbol",
+            "provenance",
+            "permitted_roles",
+            "content_digest_sha256",
+        }
+        if (
+            set(fact) != required_fact
+            or not isinstance(fact["fact_id"], str)
+            or fact["fact_id"] in fact_ids
+        ):
             raise ValueError("learned fact schema or identity is invalid")
         ownership = fact["ownership"]
         provenance = fact["provenance"]
@@ -552,24 +655,39 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
             or type(fact["nonce"]) is not int
         ):
             raise ValueError("learned fact ownership is invalid")
-        if not isinstance(fact["assigned_symbol"], str) or len(fact["assigned_symbol"]) != 1:
+        if (
+            not isinstance(fact["assigned_symbol"], str)
+            or len(fact["assigned_symbol"]) != 1
+        ):
             raise ValueError("learned fact symbol is invalid")
         if type(fact["target_row"]) is not int or not 0 < fact["target_row"] < 65521:
             raise ValueError("learned fact target row is invalid")
-        content = {key: value for key, value in fact.items() if key != "content_digest_sha256"}
-        if hashlib.sha256(canonical_json(content)).hexdigest() != _digest(fact["content_digest_sha256"], "fact content digest"):
+        content = {
+            key: value for key, value in fact.items() if key != "content_digest_sha256"
+        }
+        if hashlib.sha256(canonical_json(content)).hexdigest() != _digest(
+            fact["content_digest_sha256"], "fact content digest"
+        ):
             raise ValueError("learned fact content digest mismatch")
         fact_ids.add(fact["fact_id"])
         fact_by_id[fact["fact_id"]] = fact
         ownership_ids[ownership].add(fact["fact_id"])
-    if len(facts) != data["fact_count"] or len({row["target_row"] for row in facts}) != len(facts):
+    if len(facts) != data["fact_count"] or len(
+        {row["target_row"] for row in facts}
+    ) != len(facts):
         raise ValueError("learned facts do not have unique declared target rows")
     ownership = data["ownership"]
     if not isinstance(ownership, dict) or set(ownership) != set(ownership_ids):
         raise ValueError("learned ownership manifest is invalid")
     for name, ids in ownership_ids.items():
         item = ownership[name]
-        if not isinstance(item, dict) or set(item) != {"count", "fact_ids", "permitted_roles"} or item["count"] != len(ids) or item["fact_ids"] != [row["fact_id"] for row in facts if row["ownership"] == name]:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"count", "fact_ids", "permitted_roles"}
+            or item["count"] != len(ids)
+            or item["fact_ids"]
+            != [row["fact_id"] for row in facts if row["ownership"] == name]
+        ):
             raise ValueError("learned ownership facts differ from manifest")
     ownership_file = _v2_descriptor(path.parent, data["ownership_file"])
     if _read_json(ownership_file, "learned ownership manifest") != ownership:
@@ -581,9 +699,7 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
     )
     prep_facts = _read_jsonl(prep_path, "preparation facts")
     expected_training_ids = [f"prep-training-{index:04d}" for index in range(512)]
-    expected_validation_ids = [
-        f"prep-validation-{index:04d}" for index in range(128)
-    ]
+    expected_validation_ids = [f"prep-validation-{index:04d}" for index in range(128)]
     if (
         not isinstance(preparation, dict)
         or set(preparation) != {"training_fact_ids", "validation_fact_ids"}
@@ -636,7 +752,9 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
             }
         ):
             raise ValueError("learned preparation fact schema or identity differs")
-        content = {key: value for key, value in fact.items() if key != "content_digest_sha256"}
+        content = {
+            key: value for key, value in fact.items() if key != "content_digest_sha256"
+        }
         if hashlib.sha256(canonical_json(content)).hexdigest() != _digest(
             fact["content_digest_sha256"], "preparation fact content digest"
         ):
@@ -660,7 +778,16 @@ def _verify_learned_data_manifest(path: Path) -> dict[str, Any]:
     query_ids: set[str] = set()
     for row in queries:
         if (
-            set(row) != {"case_id", "fact_id", "ownership", "template_id", "prompt", "answer_prefix", "address"}
+            set(row)
+            != {
+                "case_id",
+                "fact_id",
+                "ownership",
+                "template_id",
+                "prompt",
+                "answer_prefix",
+                "address",
+            }
             or row["fact_id"] not in fact_ids
             or row["ownership"] != fact_by_id[row["fact_id"]]["ownership"]
             or not isinstance(row["template_id"], str)
@@ -854,7 +981,8 @@ def _load_portability_manifest_v2(
     transferred = (
         not is_timing
         and role == "recipient"
-        and condition in {
+        and condition
+        in {
             "constant",
             "random",
             "permuted",
@@ -868,7 +996,11 @@ def _load_portability_manifest_v2(
         if transferred
         else "byte"
         if (role in {"source", "native"} and condition in {"source-real", "native"})
-        or (is_timing and condition in {"source-byte-128", "native-64", "adapter-64", "adapter-128"})
+        or (
+            is_timing
+            and condition
+            in {"source-byte-128", "native-64", "adapter-64", "adapter-128"}
+        )
         else "none"
     )
     if config.model.memory != expected_model_memory:
@@ -876,7 +1008,9 @@ def _load_portability_manifest_v2(
     if transferred:
         artifact_path = _v2_descriptor(root, artifact)
         if not artifact_path.is_relative_to(bundle):
-            raise ValueError("learned memory artifact is outside owned portability assets")
+            raise ValueError(
+                "learned memory artifact is outside owned portability assets"
+            )
         table_sha = _digest(memory["tensor_sha256"], "learned memory tensor sha256")
         from sparselab.model.portable_engram import load_portable_engram
 
@@ -919,7 +1053,9 @@ def _load_portability_manifest_v2(
         or scorer_path != data_root / data["payload"]["scorer"]["path"]
         or ownership_path != data_root / data["payload"]["ownership_file"]["path"]
     ):
-        raise ValueError("learned observation data bindings differ from the world manifest")
+        raise ValueError(
+            "learned observation data bindings differ from the world manifest"
+        )
     schedule = _read_json(schedule_path, "learned observation schedule")
     if (
         schedule.get("format") != "sparselab-portability-observation-schedule"
@@ -953,9 +1089,7 @@ def _load_portability_manifest_v2(
         checkpoint_manifest = _read_json(
             checkpoint / "manifest.json", "preparation checkpoint manifest"
         )
-        prepared_manifest_payload = _read_json(
-            run_manifest, "preparation run manifest"
-        )
+        prepared_manifest_payload = _read_json(run_manifest, "preparation run manifest")
         prepared_manifest = read_manifest(run_manifest)
         if (
             checkpoint_manifest.get("sha256")
@@ -963,7 +1097,9 @@ def _load_portability_manifest_v2(
             or checkpoint_manifest.get("manifest_sha256")
             != prepared_manifest_payload.get("sha256")
             or checkpoint_manifest.get("architecture_sha256")
-            != _digest(backbone["architecture_sha256"], "preparation architecture sha256")
+            != _digest(
+                backbone["architecture_sha256"], "preparation architecture sha256"
+            )
             or prepared_manifest.get("architecture_sha256")
             != backbone["architecture_sha256"]
         ):
@@ -1031,8 +1167,7 @@ def _load_portability_manifest_v2(
         raise ValueError("learned training facts differ from permitted ownership")
 
     expected_paths = {
-        str(payload[key]["path"])
-        for key in ("protocol", "world_manifest")
+        str(payload[key]["path"]) for key in ("protocol", "world_manifest")
     }
     expected_paths.add(str(observations["schedule"]["path"]))
     expected_paths.update(
@@ -1043,7 +1178,13 @@ def _load_portability_manifest_v2(
         expected_paths.add(str(artifact["path"]))
         expected_paths.update(
             str(source[key]["path"])
-            for key in ("gate", "run_manifest", "checkpoint_manifest", "audit", "provenance")
+            for key in (
+                "gate",
+                "run_manifest",
+                "checkpoint_manifest",
+                "audit",
+                "provenance",
+            )
         )
     if needs_backbone:
         expected_paths.add(str(backbone["run_manifest"]["path"]))
@@ -1060,7 +1201,8 @@ def _load_portability_manifest_v2(
         raise ValueError("learned portability bundle inventory differs from bindings")
     tokenizer_sha = data["payload"]["tokenizer"]["sha256"]
     if (
-        config.tokenizer.path.resolve(strict=True) != (root / "tokenizer.json").resolve(strict=True)
+        config.tokenizer.path.resolve(strict=True)
+        != (root / "tokenizer.json").resolve(strict=True)
         or sha256_file(config.tokenizer.path) != tokenizer_sha
     ):
         raise ValueError("learned run tokenizer differs from owned data tokenizer")
@@ -1081,7 +1223,10 @@ def load_portability_manifest(config: RunConfig) -> PortabilityRun:
         raise ValueError("training.portability_manifest_path is not configured")
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise ValueError("portability run manifest must be a regular nonsymlink file")
-    root, path = manifest_path.parent.resolve(strict=True), manifest_path.resolve(strict=True)
+    root, path = (
+        manifest_path.parent.resolve(strict=True),
+        manifest_path.resolve(strict=True),
+    )
     payload = _read_json(path, "portability run manifest")
     if payload.get("format") != _FORMAT or type(payload.get("version")) is not int:
         raise ValueError("unsupported portability run manifest version")
@@ -1130,7 +1275,9 @@ def initialize_recipient_backbone(
     ):
         raise ValueError("recipient preparation architecture identity mismatch")
     checkpoint_config = RunConfig.model_validate(prepared_config)
-    if checkpoint_config.attention.model_dump(mode="json") != config.attention.model_dump(mode="json"):
+    if checkpoint_config.attention.model_dump(
+        mode="json"
+    ) != config.attention.model_dump(mode="json"):
         raise ValueError("recipient preparation attention configuration mismatch")
     prepared_model = checkpoint_config.model.model_dump(mode="json")
     recipient_model = config.model.model_dump(mode="json")
@@ -1144,9 +1291,13 @@ def initialize_recipient_backbone(
         for name, spec in named_tensor_inventory(config.model, config.attention).items()
         if _nonmemory_name(name)
     }
-    prepared = {name: tensor for name, tensor in snapshot.model.items() if _nonmemory_name(name)}
+    prepared = {
+        name: tensor for name, tensor in snapshot.model.items() if _nonmemory_name(name)
+    }
     if set(prepared) != set(expected):
-        raise ValueError("recipient preparation non-memory tensor names or aliases differ")
+        raise ValueError(
+            "recipient preparation non-memory tensor names or aliases differ"
+        )
     for name, spec in expected.items():
         if tuple(prepared[name].shape) != spec.shape:
             raise ValueError(f"recipient preparation tensor shape mismatch: {name}")
@@ -1162,7 +1313,14 @@ def initialize_recipient_backbone(
 
 
 def _tensor_digest(tensor: torch.Tensor) -> str:
-    raw = tensor.detach().to(device="cpu").contiguous().view(torch.uint8).numpy().tobytes()
+    raw = (
+        tensor.detach()
+        .to(device="cpu")
+        .contiguous()
+        .view(torch.uint8)
+        .numpy()
+        .tobytes()
+    )
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -1243,10 +1401,14 @@ def initialize_memory_artifact(
                 raise ValueError("disabled condition must not attach semantic memory")
             return
         if condition != "native" or kind not in {"token", "byte"}:
-            raise ValueError("this portability condition requires a frozen memory artifact")
+            raise ValueError(
+                "this portability condition requires a frozen memory artifact"
+            )
         if kind == "token":
             if config.model.memory != "ngram" or model.memory is None:
-                raise ValueError("native token memory requires a token n-gram attachment")
+                raise ValueError(
+                    "native token memory requires a token n-gram attachment"
+                )
             expected = {
                 "tokenizer_sha256": sha256_file(config.tokenizer.path),
                 "order": config.model.memory_ngram_size,
@@ -1256,7 +1418,9 @@ def initialize_memory_artifact(
             }
         else:
             if config.model.memory != "byte" or model.memory is None:
-                raise ValueError("native byte memory requires a local byte-table attachment")
+                raise ValueError(
+                    "native byte memory requires a local byte-table attachment"
+                )
             expected = {
                 "format_version": 1,
                 "normalization": "raw-utf8-v1",
@@ -1266,20 +1430,30 @@ def initialize_memory_artifact(
                 "embedding_dim": config.model.memory_dim,
             }
         if memory["addressing"] != expected:
-            raise ValueError("native memory addressing identity differs from recipient config")
+            raise ValueError(
+                "native memory addressing identity differs from recipient config"
+            )
         return
 
     artifact = _verify_asset(run.root, descriptor)
     if kind == "token":
         if config.model.memory != "ngram" or model.memory is None:
-            raise ValueError("token portability requires a token n-gram memory attachment")
+            raise ValueError(
+                "token portability requires a token n-gram memory attachment"
+            )
         loaded = load_file(artifact, device="cpu")
         if set(loaded) != {"memory.table.weight"}:
-            raise ValueError("token memory safetensors must contain only memory.table.weight")
+            raise ValueError(
+                "token memory safetensors must contain only memory.table.weight"
+            )
         table = loaded["memory.table.weight"]
         module_table = model.memory.table.weight
-        if table.dtype != module_table.dtype or tuple(table.shape) != tuple(module_table.shape):
-            raise ValueError("token memory table shape or dtype differs from recipient configuration")
+        if table.dtype != module_table.dtype or tuple(table.shape) != tuple(
+            module_table.shape
+        ):
+            raise ValueError(
+                "token memory table shape or dtype differs from recipient configuration"
+            )
         if _tensor_digest(table) != memory["tensor_sha256"]:
             raise ValueError("token memory table tensor digest mismatch")
         with torch.no_grad():
@@ -1292,7 +1466,9 @@ def initialize_memory_artifact(
             "embedding_dim": config.model.memory_dim,
         }
         if memory["addressing"] != expected:
-            raise ValueError("token memory addressing identity differs from recipient config")
+            raise ValueError(
+                "token memory addressing identity differs from recipient config"
+            )
         return
     if kind == "byte":
         from sparselab.model.portable_engram import load_portable_engram
@@ -1307,8 +1483,13 @@ def initialize_memory_artifact(
         if package.manifest.table_sha256 != memory["tensor_sha256"]:
             raise ValueError("portable byte table tensor digest differs from manifest")
         table = model.memory.table.weight
-        if tuple(table.shape) != tuple(package.table.shape) or table.dtype != package.table.dtype:
-            raise ValueError("portable byte table shape or dtype differs from recipient configuration")
+        if (
+            tuple(table.shape) != tuple(package.table.shape)
+            or table.dtype != package.table.dtype
+        ):
+            raise ValueError(
+                "portable byte table shape or dtype differs from recipient configuration"
+            )
         if _tensor_digest(package.table) != memory["tensor_sha256"]:
             raise ValueError("portable byte table tensor digest mismatch")
         with torch.no_grad():
@@ -1322,11 +1503,15 @@ def initialize_memory_artifact(
             "embedding_dim": config.model.memory_dim,
         }
         if memory["addressing"] != expected:
-            raise ValueError("portable byte addressing identity differs from recipient config")
+            raise ValueError(
+                "portable byte addressing identity differs from recipient config"
+            )
         return
     if kind == "semantic":
         if "allocation" not in model.semantic_memories:
-            raise ValueError("semantic portability requires the verified allocation attachment")
+            raise ValueError(
+                "semantic portability requires the verified allocation attachment"
+            )
         adapter = model.semantic_memories["allocation"]
         retriever = adapter.retriever
         if retriever.pack_id != memory["pack_id"]:
@@ -1371,7 +1556,9 @@ def apply_trainable_parameter_filter(
         and run.payload["coordinate"]["condition"] != "joint"
         and "memory.table.weight" in names
     ):
-        raise ValueError("a transferred token table is trainable only in the joint condition")
+        raise ValueError(
+            "a transferred token table is trainable only in the joint condition"
+        )
     parameters = dict(model.named_parameters())
     selected: list[tuple[str, torch.nn.Parameter]] = []
     for name in names:
@@ -1391,7 +1578,9 @@ def verify_portability_assets_unchanged(run: PortabilityRun) -> None:
     payload = run.payload
     if payload.get("version") == 2:
         if run.config is None:
-            raise ValueError("learned portability run lacks its validated configuration")
+            raise ValueError(
+                "learned portability run lacks its validated configuration"
+            )
         current = _read_json(run.path, "learned portability run manifest")
         reloaded = _load_portability_manifest_v2(
             run.config, run.path, run.root, current
@@ -1407,15 +1596,19 @@ def verify_portability_assets_unchanged(run: PortabilityRun) -> None:
     for entry in payload["memory"].values():
         if entry["artifact"] is not None:
             path = _verify_asset(run.root, entry["artifact"])
-            if entry["pack_id"] is not None and not verify_pack(
-                path, expected_pack_id=entry["pack_id"]
-            ).valid:
+            if (
+                entry["pack_id"] is not None
+                and not verify_pack(path, expected_pack_id=entry["pack_id"]).valid
+            ):
                 raise ValueError("pinned semantic pack changed after training")
         for replacement in entry["replacements"].values():
             path = _verify_asset(run.root, replacement["artifact"])
-            if replacement["pack_id"] is not None and not verify_pack(
-                path, expected_pack_id=replacement["pack_id"]
-            ).valid:
-                raise ValueError("pinned replacement semantic pack changed after training")
+            if (
+                replacement["pack_id"] is not None
+                and not verify_pack(path, expected_pack_id=replacement["pack_id"]).valid
+            ):
+                raise ValueError(
+                    "pinned replacement semantic pack changed after training"
+                )
     for descriptor in payload["observations"].values():
         _verify_file(run.root, descriptor)

@@ -176,10 +176,7 @@ def _validate_portability_evidence(
             or type(arm["seed"]) is not int
             or (
                 arm["run_id"] is not None
-                and (
-                    not isinstance(arm["run_id"], str)
-                    or not arm["run_id"]
-                )
+                and (not isinstance(arm["run_id"], str) or not arm["run_id"])
             )
         ):
             raise ValueError("portability evidence arm is malformed")
@@ -215,10 +212,7 @@ def _validate_portability_evidence(
     summary = evidence["summary"]
     if (
         set(summary) != summary_fields
-        or any(
-            type(value) is not int or value < 0
-            for value in summary.values()
-        )
+        or any(type(value) is not int or value < 0 for value in summary.values())
         or summary["planned_arms"] != len(evidence["arms"])
         or (
             summary["completed_arms"]
@@ -1000,8 +994,8 @@ def build_study_report(
     portability_evidence: dict[str, object] | None = None
     portability_evidence_bytes: bytes | None = None
     if portability_evidence_path is not None:
-        portability_evidence, portability_evidence_bytes = _validate_portability_evidence(
-            portability_evidence_path
+        portability_evidence, portability_evidence_bytes = (
+            _validate_portability_evidence(portability_evidence_path)
         )
     if (
         evidence.get("study_sha256") != study_sha256
@@ -1434,9 +1428,7 @@ def build_study_report(
     }
 
 
-def _portability_html(
-    report: dict[str, object], charts: dict[str, str]
-) -> str:
+def _portability_html(report: dict[str, object], charts: dict[str, str]) -> str:
     portability = report.get("portability")
     portability = portability if isinstance(portability, dict) else {}
 
@@ -1469,9 +1461,7 @@ def _portability_html(
             ]
             rows.append(
                 "<tr>"
-                + "".join(
-                    f"<td>{html.escape(str(value))}</td>" for value in cells
-                )
+                + "".join(f"<td>{html.escape(str(value))}</td>" for value in cells)
                 + "</tr>"
             )
     chart_links = "".join(
@@ -1494,9 +1484,7 @@ def _portability_html(
             )
             contrast_rows.append(
                 "<tr>"
-                + "".join(
-                    f"<td>{html.escape(str(value))}</td>" for value in values
-                )
+                + "".join(f"<td>{html.escape(str(value))}</td>" for value in values)
                 + "</tr>"
             )
     report_inputs = report.get("inputs")
@@ -1907,10 +1895,8 @@ def load_report_bundle(path: Path) -> dict[str, object]:
     else:
         if (
             report_inputs.get("campaign_id") != manifest.get("campaign_id")
-            or report_inputs.get("evidence_sha256")
-            != manifest.get("evidence_sha256")
-            or report_inputs.get("protocol_sha256")
-            != manifest.get("protocol_sha256")
+            or report_inputs.get("evidence_sha256") != manifest.get("evidence_sha256")
+            or report_inputs.get("protocol_sha256") != manifest.get("protocol_sha256")
             or _sha((root / "report.json").read_bytes())
             != manifest.get("report_sha256")
         ):
@@ -2013,9 +1999,7 @@ def _learned_campaign_artifact(
 def _validate_learned_portability_evidence(
     evidence_path: Path,
 ) -> tuple[dict[str, object], bytes, dict[str, object]]:
-    evidence, evidence_bytes = _read_json(
-        evidence_path, "learned portability evidence"
-    )
+    evidence, evidence_bytes = _read_json(evidence_path, "learned portability evidence")
     expected_fields = {
         "format",
         "version",
@@ -2182,8 +2166,7 @@ def _validate_learned_portability_evidence(
             )
         ],
         "artifact_bytes": {
-            record["bundle_path"]: content
-            for record, content in artifacts.values()
+            record["bundle_path"]: content for record, content in artifacts.values()
         },
     }
     return evidence, evidence_bytes, inputs
@@ -2191,8 +2174,8 @@ def _validate_learned_portability_evidence(
 
 def build_portability_report(evidence_path: Path) -> dict[str, object]:
     """Build a presentation-only report from a verified learned v2 evidence file."""
-    evidence, evidence_bytes, bundle_inputs = (
-        _validate_learned_portability_evidence(Path(evidence_path))
+    evidence, evidence_bytes, bundle_inputs = _validate_learned_portability_evidence(
+        Path(evidence_path)
     )
     campaign_root = bundle_inputs["campaign_root"]
     if not isinstance(campaign_root, Path):
@@ -2263,9 +2246,7 @@ def build_portability_report(evidence_path: Path) -> dict[str, object]:
                 )
                 metrics = found.get("metrics") if found is not None else None
                 accuracy = (
-                    metrics.get("accuracy")
-                    if isinstance(metrics, dict)
-                    else None
+                    metrics.get("accuracy") if isinstance(metrics, dict) else None
                 )
                 points.append({"step": int(step), "accuracy": accuracy})
             curve = {
@@ -2284,13 +2265,9 @@ def build_portability_report(evidence_path: Path) -> dict[str, object]:
                 ),
             }
             curve_groups.setdefault((kind, partition, wording), []).append(curve)
-    curves = [
-        curve
-        for key in sorted(curve_groups)
-        for curve in curve_groups[key]
-    ]
-    evidence_relative = Path(evidence_path).resolve(strict=True).relative_to(
-        campaign_root
+    curves = [curve for key in sorted(curve_groups) for curve in curve_groups[key]]
+    evidence_relative = (
+        Path(evidence_path).resolve(strict=True).relative_to(campaign_root)
     )
     evidence_internal_sha = str(evidence["sha256"])
     report_inputs = {
@@ -2314,9 +2291,7 @@ def build_portability_report(evidence_path: Path) -> dict[str, object]:
         "world_manifest": world,
         "world_artifact": world_descriptor,
         "resource_selection": evidence["resource_selection"],
-        "resource_selection_artifact": evidence[
-            "resource_selection_artifact"
-        ],
+        "resource_selection_artifact": evidence["resource_selection_artifact"],
         "timing_pilots": timing,
         "receipt": receipt,
         "sources": evidence["sources"],
@@ -2348,9 +2323,7 @@ def build_portability_report(evidence_path: Path) -> dict[str, object]:
     }
 
 
-def _write_portability_report_bundle(
-    report: dict[str, object], output: Path
-) -> Path:
+def _write_portability_report_bundle(report: dict[str, object], output: Path) -> Path:
     report = dict(report)
     bundle_inputs = report.pop("_bundle_inputs", None)
     if (
@@ -2364,9 +2337,7 @@ def _write_portability_report_bundle(
         raise ValueError("report was not built from learned portability evidence")
     evidence_bytes = bundle_inputs.get("evidence_bytes")
     artifact_bytes = bundle_inputs.get("artifacts")
-    if not isinstance(evidence_bytes, bytes) or not isinstance(
-        artifact_bytes, dict
-    ):
+    if not isinstance(evidence_bytes, bytes) or not isinstance(artifact_bytes, dict):
         raise ValueError("learned report source artifacts are unavailable")
     report_bytes = canonical_json(report) + b"\n"
     charts = render_charts(report)
@@ -2433,12 +2404,8 @@ def _write_portability_report_bundle(
             "evidence_sha256": inputs["evidence_sha256"],
             "report_sha256": _sha(report_bytes),
         }
-        manifest["bundle_sha256"] = hashlib.sha256(
-            canonical_json(manifest)
-        ).hexdigest()
-        (temp / "manifest.json").write_bytes(
-            canonical_json(manifest) + b"\n"
-        )
+        manifest["bundle_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+        (temp / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
         destination = output / str(manifest["bundle_sha256"])
         if os.path.lexists(destination):
             load_report_bundle(destination)

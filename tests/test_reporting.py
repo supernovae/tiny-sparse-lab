@@ -101,7 +101,9 @@ def test_report_rejects_tampered_portability_evidence(
     else:
         payload["unexpected"] = True
         payload["sha256"] = hashlib.sha256(
-            canonical_json({key: value for key, value in payload.items() if key != "sha256"})
+            canonical_json(
+                {key: value for key, value in payload.items() if key != "sha256"}
+            )
         ).hexdigest()
         expected = "invalid top-level schema"
     evidence_path.write_bytes(canonical_json(payload) + b"\n")
@@ -141,6 +143,7 @@ def test_omitted_portability_evidence_preserves_legacy_report_shape() -> None:
     assert isinstance(bundle_inputs, dict)
     assert "portability_evidence" not in inputs
     assert "portability_evidence" not in bundle_inputs
-    assert json.loads(_COLLECTED.read_text())["report_sha256"] == inputs[
-        "collected_report_sha256"
-    ]
+    assert (
+        json.loads(_COLLECTED.read_text())["report_sha256"]
+        == inputs["collected_report_sha256"]
+    )

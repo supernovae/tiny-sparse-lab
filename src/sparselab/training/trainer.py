@@ -1,9 +1,12 @@
+# Malformed persisted portability identity is reported as ValueError.
+# ruff: noqa: TRY004
 """Engine-neutral single-host training lifecycle with explicit update boundaries."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import shutil
 import signal
 import socket
@@ -13,7 +16,6 @@ from contextlib import ExitStack
 from dataclasses import asdict
 from pathlib import Path
 
-import math
 import numpy as np
 
 from sparselab.config.models import RunConfig
@@ -63,9 +65,9 @@ from sparselab.training.manifest import (
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.stages import ExperimentStage, StageHistory
 
+
 class _WallTimeExpired(Exception):
     """Internal signal that discards an incomplete cooperative evaluation."""
-
 
 
 def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
@@ -453,6 +455,7 @@ def _train_impl(
 
     def wall_expired() -> bool:
         return deadline is not None and time.monotonic() >= deadline
+
     if max_wall_seconds is not None and (
         isinstance(max_wall_seconds, bool)
         or not isinstance(max_wall_seconds, (int, float))
@@ -460,9 +463,7 @@ def _train_impl(
         or max_wall_seconds <= 0
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
-    deadline = (
-        None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
-    )
+    deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):
             raise ValueError("experiment_id and attempt_id must be supplied together")
@@ -673,9 +674,7 @@ def _train_impl(
             and config.model.memory_package_path is not None
             and (
                 config.training.portability_manifest_path is None
-                or _portability_manifest_v2(
-                    config.training.portability_manifest_path
-                )
+                or _portability_manifest_v2(config.training.portability_manifest_path)
                 is None
             )
         ):
@@ -960,15 +959,10 @@ def _train_impl(
             return record
 
         def finish_run(status: str, reason: str | None = None) -> None:
-            if (
-                isinstance(engine, PyTorchEngine)
-                and engine.portability_run is not None
-            ):
+            if isinstance(engine, PyTorchEngine) and engine.portability_run is not None:
                 audit_path = run / "portability_audit.json"
                 audit_version = (
-                    2
-                    if engine.portability_run.payload.get("version") == 2
-                    else 1
+                    2 if engine.portability_run.payload.get("version") == 2 else 1
                 )
                 try:
                     audit: dict[str, object] = {
@@ -976,9 +970,7 @@ def _train_impl(
                         "version": audit_version,
                         "valid": True,
                         "run_status": status,
-                        **engine.portability_audit(
-                            completed=status == "completed"
-                        ),
+                        **engine.portability_audit(completed=status == "completed"),
                     }
                 # Any audit exception invalidates the run and must be recorded.
                 except Exception as error:  # noqa: BLE001
@@ -1056,11 +1048,11 @@ def _train_impl(
 
         def evaluation_batches():
             limit = config.evaluation.max_batches
-            emitted = 0
-            for offset in range(
-                0, len(validation_dataset), config.training.micro_batch_size
+            for emitted, offset in enumerate(
+                range(0, len(validation_dataset), config.training.micro_batch_size),
+                start=1,
             ):
-                if limit is not None and emitted >= limit:
+                if limit is not None and emitted > limit:
                     break
                 if wall_expired():
                     raise _WallTimeExpired
@@ -1074,7 +1066,6 @@ def _train_impl(
                         ),
                     )
                 ]
-                emitted += 1
                 yield Microbatch(
                     np.stack([record[0] for record in records]),
                     np.stack([record[1] for record in records]),
@@ -1129,9 +1120,12 @@ def _train_impl(
                 if interrupted:
                     if latest_record is None or latest_record.step != step:
                         validation = evaluate_and_record(elapsed_seconds())
-                        if validation is None and wall_expired():
-                            if history.current is not None:
-                                finish_stage("interrupted", "wall_time_limit")
+                        if (
+                            validation is None
+                            and wall_expired()
+                            and history.current is not None
+                        ):
+                            finish_stage("interrupted", "wall_time_limit")
                         save_boundary(validation)
                     reason = (
                         "wall_time_limit"

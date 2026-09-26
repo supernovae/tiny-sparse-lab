@@ -1,3 +1,5 @@
+# Persisted campaign schema failures intentionally remain ValueError.
+# ruff: noqa: TRY004
 """Immutable workflow records for the learned Engram portability campaign.
 
 This module deliberately owns campaign publication and state transitions, rather than
@@ -5,6 +7,7 @@ reusing the historical compiled-world campaign.  Model execution is supplied thr
 ``execute_learned_coordinate`` in :mod:`sparselab.research.portability_runner`; keeping
 that narrow boundary makes build/plan/report completely inert.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,7 +19,7 @@ import sqlite3
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import psutil
 
@@ -62,6 +65,7 @@ def _read_json(path: Path, description: str) -> dict[str, Any]:
         raise ValueError(f"{description} must be canonical JSON: {path}")
     return value
 
+
 def _verified_checkpoint_pointer(
     run_root: Path, path: Path, description: str
 ) -> dict[str, Any]:
@@ -78,6 +82,7 @@ def _verified_checkpoint_pointer(
     if not isinstance(value, dict):
         raise ValueError(f"{description} must be a JSON object: {path}")
     return value
+
 
 def _read_learned_run_audit(root: Path, run_id: str) -> dict[str, Any]:
     if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
@@ -135,7 +140,9 @@ def _write_immutable_json(path: Path, value: dict[str, Any]) -> Path:
             os.link(temporary, path)
         except FileExistsError:
             if path.is_symlink() or not path.is_file() or path.read_bytes() != encoded:
-                raise FileExistsError(f"immutable learned portability file differs: {path}")
+                raise FileExistsError(
+                    f"immutable learned portability file differs: {path}"
+                )
     finally:
         temporary.unlink(missing_ok=True)
     return path
@@ -149,6 +156,7 @@ def _descriptor(root: Path, path: Path) -> dict[str, object]:
         "sha256": sha256_file(path),
         "size_bytes": path.stat().st_size,
     }
+
 
 def _directory_file_bytes(path: Path) -> int:
     if path.is_symlink() or not path.is_dir():
@@ -178,21 +186,51 @@ def _coordinate_plan() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for seed in _SEEDS:
         for condition in _SOURCE_CONDITIONS:
-            rows.append({"role": "source", "condition": condition, "recipient": "source", "seed": seed})
+            rows.append(
+                {
+                    "role": "source",
+                    "condition": condition,
+                    "recipient": "source",
+                    "seed": seed,
+                }
+            )
     for seed in _SEEDS:
         for recipient in _WIDTHS:
-            rows.append({"role": "preparation", "condition": "prepare", "recipient": f"width{recipient}", "seed": seed})
+            rows.append(
+                {
+                    "role": "preparation",
+                    "condition": "prepare",
+                    "recipient": f"width{recipient}",
+                    "seed": seed,
+                }
+            )
             for condition in _RECIPIENT_CONDITIONS:
                 role = "native" if condition == "native" else "recipient"
-                rows.append({"role": role, "condition": condition, "recipient": f"width{recipient}", "seed": seed})
+                rows.append(
+                    {
+                        "role": role,
+                        "condition": condition,
+                        "recipient": f"width{recipient}",
+                        "seed": seed,
+                    }
+                )
     return rows
 
 
 def _coordinate_id(row: dict[str, object]) -> str:
-    return "-".join((str(row["role"]), str(row["recipient"]), str(row["condition"]), f"s{row['seed']}"))
+    return "-".join(
+        (
+            str(row["role"]),
+            str(row["recipient"]),
+            str(row["condition"]),
+            f"s{row['seed']}",
+        )
+    )
 
 
-def _protocol(root: Path, scale: str, backend: str, data: dict[str, dict[str, object]]) -> dict[str, Any]:
+def _protocol(
+    root: Path, scale: str, backend: str, data: dict[str, dict[str, object]]
+) -> dict[str, Any]:
     """The protocol is deliberately unselected for nano until measured calibration."""
     smoke = scale == "smoke"
     selected = 128 if smoke else None
@@ -207,32 +245,79 @@ def _protocol(root: Path, scale: str, backend: str, data: dict[str, dict[str, ob
         "pair_seeds": list(_SEEDS),
         "data": data,
         "models": {
-            "source": {"hidden_dim": 128, "num_layers": 2, "num_heads": 4, "ffn_dim": 512},
-            "width64": {"hidden_dim": 64, "num_layers": 2, "num_heads": 4, "ffn_dim": 256},
-            "width128": {"hidden_dim": 128, "num_layers": 2, "num_heads": 4, "ffn_dim": 512},
+            "source": {
+                "hidden_dim": 128,
+                "num_layers": 2,
+                "num_heads": 4,
+                "ffn_dim": 512,
+            },
+            "width64": {
+                "hidden_dim": 64,
+                "num_layers": 2,
+                "num_heads": 4,
+                "ffn_dim": 256,
+            },
+            "width128": {
+                "hidden_dim": 128,
+                "num_layers": 2,
+                "num_heads": 4,
+                "ffn_dim": 512,
+            },
         },
-        "memory": {"kind": "byte", "table_size": 65521, "embedding_dim": 32, "ngram_size": 32,
-                   "normalization": "raw-utf8-v1", "hashing": "poly257-terminal-v1"},
-        "training": {"backend_request": backend, "policy": "smoke-wiring-only" if smoke else "unselected",
-                     "source": None if updates is None else updates["source"],
-                     "preparation": None if updates is None else updates["preparation"],
-                     "adapter": None if updates is None else updates["adapter"],
-                     "native": None if updates is None else updates["native"]},
-        "observation_steps": {"source_native": [0, 32, 128, 512, 2048, 8192], "preparation": [0, 128, 512, 2048], "adapter": [0, 8, 32, 128, 512, 2048, 8192]},
-        "gates": {"source_monitor_accuracy": 0.75, "enabled_accuracy_advantage": 0.10, "disabled_nll_advantage": 0.10,
-                  "gradient_and_changed_row_fraction": 0.90, "preparation_accuracy": 0.95, "preparation_per_symbol_accuracy": 0.75},
+        "memory": {
+            "kind": "byte",
+            "table_size": 65521,
+            "embedding_dim": 32,
+            "ngram_size": 32,
+            "normalization": "raw-utf8-v1",
+            "hashing": "poly257-terminal-v1",
+        },
+        "training": {
+            "backend_request": backend,
+            "policy": "smoke-wiring-only" if smoke else "unselected",
+            "source": None if updates is None else updates["source"],
+            "preparation": None if updates is None else updates["preparation"],
+            "adapter": None if updates is None else updates["adapter"],
+            "native": None if updates is None else updates["native"],
+        },
+        "observation_steps": {
+            "source_native": [0, 32, 128, 512, 2048, 8192],
+            "preparation": [0, 128, 512, 2048],
+            "adapter": [0, 8, 32, 128, 512, 2048, 8192],
+        },
+        "gates": {
+            "source_monitor_accuracy": 0.75,
+            "enabled_accuracy_advantage": 0.10,
+            "disabled_nll_advantage": 0.10,
+            "gradient_and_changed_row_fraction": 0.90,
+            "preparation_accuracy": 0.95,
+            "preparation_per_symbol_accuracy": 0.75,
+        },
         "controls": list(_RECIPIENT_CONDITIONS),
-        "resource_selection": {"status": "sealed" if smoke else "uncalibrated", "selected_fact_count": selected,
-                               "candidate_fact_counts": [128] if smoke else [512, 1024, 2048],
-                               "ceiling_seconds": 3600 if smoke else 43200,
-                               "selection_path": None if smoke else "execution/resource-selection.json"},
-        "limitations": ["Smoke is wiring-only and cannot support the behavioral claim." if smoke else "Timing remains uncalibrated until disposable pilots complete.",
-                        "This protocol tests artifact and adapter portability, not representation portability."],
+        "resource_selection": {
+            "status": "sealed" if smoke else "uncalibrated",
+            "selected_fact_count": selected,
+            "candidate_fact_counts": [128] if smoke else [512, 1024, 2048],
+            "ceiling_seconds": 3600 if smoke else 43200,
+            "selection_path": None if smoke else "execution/resource-selection.json",
+        },
+        "limitations": [
+            "Smoke is wiring-only and cannot support the behavioral claim."
+            if smoke
+            else "Timing remains uncalibrated until disposable pilots complete.",
+            "This protocol tests artifact and adapter portability, not representation portability.",
+        ],
     }
     return {**body, "sha256": _digest(body)}
 
 
-def build_learned_portability_campaign(output_root: Path, *, seed: int = 20260925, scale: str = "nano", backend: str = "auto") -> Path:
+def build_learned_portability_campaign(
+    output_root: Path,
+    *,
+    seed: int = 20260925,
+    scale: str = "nano",
+    backend: str = "auto",
+) -> Path:
     """Materialize and seal learned inputs.  This function never constructs a model."""
     started = time.monotonic()
     if seed != 20260925:
@@ -248,12 +333,16 @@ def build_learned_portability_campaign(output_root: Path, *, seed: int = 2026092
     if protocol_path.exists():
         protocol = _read_json(protocol_path, "learned portability protocol")
         if protocol.get("experiment") != _EXPERIMENT:
-            raise FileExistsError("existing campaign root belongs to another experiment")
+            raise FileExistsError(
+                "existing campaign root belongs to another experiment"
+            )
         if (
             protocol.get("scale") != scale
             or protocol.get("training", {}).get("backend_request") != backend
         ):
-            raise FileExistsError("existing learned campaign conflicts with requested build")
+            raise FileExistsError(
+                "existing learned campaign conflicts with requested build"
+            )
         build_receipt = root / "execution" / "build.json"
         if not build_receipt.is_file():
             raise ValueError("existing campaign lacks its immutable build receipt")
@@ -262,17 +351,26 @@ def build_learned_portability_campaign(output_root: Path, *, seed: int = 2026092
             raise ValueError("learned build receipt belongs to another protocol")
         return protocol_path
     if root.exists() and any(root.iterdir()):
-        raise FileExistsError(f"refusing to reuse nonempty learned campaign root: {root}")
+        raise FileExistsError(
+            f"refusing to reuse nonempty learned campaign root: {root}"
+        )
     root.mkdir(parents=True, exist_ok=True)
     from sparselab.data.learned_portability import materialize_learned_portability_data
 
     counts = (128,) if scale == "smoke" else (512, 1024, 2048)
     manifests: dict[str, dict[str, object]] = {}
     for count in counts:
-        manifest_path = materialize_learned_portability_data(root / "data-candidates" / str(count), seed=seed, fact_count=count)
+        manifest_path = materialize_learned_portability_data(
+            root / "data-candidates" / str(count), seed=seed, fact_count=count
+        )
         manifest = _read_json(manifest_path, "learned portability data manifest")
-        if manifest.get("format") != "sparselab-learned-portability-data" or manifest.get("version") != 1:
-            raise ValueError("materializer returned an unsupported learned data manifest")
+        if (
+            manifest.get("format") != "sparselab-learned-portability-data"
+            or manifest.get("version") != 1
+        ):
+            raise ValueError(
+                "materializer returned an unsupported learned data manifest"
+            )
         manifests[str(count)] = _descriptor(root, manifest_path)
     protocol = _protocol(root, scale, backend, manifests)
     _write_immutable_json(protocol_path, protocol)
@@ -281,28 +379,53 @@ def build_learned_portability_campaign(output_root: Path, *, seed: int = 2026092
     updates = _updates(scale, 128) if scale == "smoke" else None
     configurations = {
         "experiment": _EXPERIMENT,
-        "data_manifest": None if selected_count is None else manifests[str(selected_count)],
+        "data_manifest": None
+        if selected_count is None
+        else manifests[str(selected_count)],
         "candidate_data": manifests,
         "optimizer": {
-            "name": "adamw", "peak": 0.001, "floor": 0.0001,
-            "warmup": "min(64, max_steps // 8)", "betas": [0.9, 0.95],
-            "eps": 1e-8, "weight_decay": 0.0, "grad_clip_norm": 1.0,
-            "micro_batch_size": 8, "gradient_accumulation": 1, "seq_len": 128,
+            "name": "adamw",
+            "peak": 0.001,
+            "floor": 0.0001,
+            "warmup": "min(64, max_steps // 8)",
+            "betas": [0.9, 0.95],
+            "eps": 1e-8,
+            "weight_decay": 0.0,
+            "grad_clip_norm": 1.0,
+            "micro_batch_size": 8,
+            "gradient_accumulation": 1,
+            "seq_len": 128,
             "precision": "fp32",
         },
         "roles": {
-            "source": {"model": protocol["models"]["source"], "max_steps": None if updates is None else updates["source"]},
-            "preparation": {"max_steps": None if updates is None else updates["preparation"]},
-            "adapter": {"max_steps": None if updates is None else updates["adapter"],
-                        "trainable_parameters": ["memory.output.weight", "memory.gate.weight"]},
+            "source": {
+                "model": protocol["models"]["source"],
+                "max_steps": None if updates is None else updates["source"],
+            },
+            "preparation": {
+                "max_steps": None if updates is None else updates["preparation"]
+            },
+            "adapter": {
+                "max_steps": None if updates is None else updates["adapter"],
+                "trainable_parameters": ["memory.output.weight", "memory.gate.weight"],
+            },
             "native": {"max_steps": None if updates is None else updates["native"]},
         },
     }
-    config_path = _write_immutable_json(root / "execution" / "configs.json", configurations)
-    plan = {"format": "sparselab-learned-portability-plan", "version": 1, "experiment": _EXPERIMENT,
-            "protocol": _descriptor(root, protocol_path), "configs": _descriptor(root, config_path),
-            "coordinates": [{**row, "coordinate_id": _coordinate_id(row)} for row in _coordinate_plan()],
-            "read_only": True}
+    config_path = _write_immutable_json(
+        root / "execution" / "configs.json", configurations
+    )
+    plan = {
+        "format": "sparselab-learned-portability-plan",
+        "version": 1,
+        "experiment": _EXPERIMENT,
+        "protocol": _descriptor(root, protocol_path),
+        "configs": _descriptor(root, config_path),
+        "coordinates": [
+            {**row, "coordinate_id": _coordinate_id(row)} for row in _coordinate_plan()
+        ],
+        "read_only": True,
+    }
     plan_path = _write_immutable_json(root / "plan.json", plan)
     design_path = _write_immutable_json(
         root / "execution" / "design.json",
@@ -343,15 +466,25 @@ def _selection(root: Path, protocol: dict[str, Any]) -> dict[str, Any]:
         }
     path = root / "execution" / "resource-selection.json"
     if not path.exists():
-        raise ValueError("nano execution requires completed immutable timing calibration")
+        raise ValueError(
+            "nano execution requires completed immutable timing calibration"
+        )
     result = _read_json(path, "learned timing selection")
-    if result.get("protocol_sha256") != protocol["sha256"] or result.get("status") != "sealed":
-        raise ValueError("learned timing selection is not a sealed decision for this protocol")
-    if result.get("fact_count") not in protocol["resource_selection"][
-        "candidate_fact_counts"
-    ]:
+    if (
+        result.get("protocol_sha256") != protocol["sha256"]
+        or result.get("status") != "sealed"
+    ):
+        raise ValueError(
+            "learned timing selection is not a sealed decision for this protocol"
+        )
+    if (
+        result.get("fact_count")
+        not in protocol["resource_selection"]["candidate_fact_counts"]
+    ):
         raise ValueError("learned timing selection has an invalid fact count")
-    if result.get("policy") not in {"full", "half"} or not isinstance(result.get("updates"), dict):
+    if result.get("policy") not in {"full", "half"} or not isinstance(
+        result.get("updates"), dict
+    ):
         raise ValueError("learned timing selection has an invalid budget policy")
     accounted = result.get("accounted_elapsed_seconds")
     if (
@@ -390,6 +523,7 @@ def _seal_smoke_or_calibration(
     )
     from sparselab.research.portability import _verify_learned_data_manifest
     from sparselab.training.trainer import train
+
     prior_receipt = _receipt(root)
 
     calibration_limit = min(1800.0, float(allowance))
@@ -397,9 +531,7 @@ def _seal_smoke_or_calibration(
         root / "execution" / "build.json", "learned build receipt"
     )
     prior_elapsed = (
-        float(prior_receipt["elapsed_seconds"])
-        if prior_receipt is not None
-        else 0.0
+        float(prior_receipt["elapsed_seconds"]) if prior_receipt is not None else 0.0
     )
     build_elapsed = float(build_receipt["elapsed_seconds"])
     elapsed_before_calibration = (
@@ -465,9 +597,7 @@ def _seal_smoke_or_calibration(
             for label, recipient in timing_specs
         }
         timing_manifests = {
-            label: build_learned_run_manifest(
-                root, coordinate, purpose="timing"
-            )
+            label: build_learned_run_manifest(root, coordinate, purpose="timing")
             for label, coordinate in timing_coordinates.items()
         }
 
@@ -480,9 +610,7 @@ def _seal_smoke_or_calibration(
             backend_override="cpu",
         )
         for count in counts:
-            candidate_root = (
-                root / protocol["data"][str(count)]["path"]
-            ).parent
+            candidate_root = (root / protocol["data"][str(count)]["path"]).parent
             candidate_config = preparation_config.model_copy(
                 update={
                     "dataset": preparation_config.dataset.model_copy(
@@ -502,14 +630,13 @@ def _seal_smoke_or_calibration(
                 candidate_config,
                 load_tokenizer(candidate_root / "tokenizer" / "tokenizer.json"),
             )
-            candidate_costs[str(count)][
-                "data_preparation_seconds"
-            ] = time.monotonic() - prep_started
+            candidate_costs[str(count)]["data_preparation_seconds"] = (
+                time.monotonic() - prep_started
+            )
 
         requested = str(protocol["training"]["backend_request"])
         mps_available = bool(
-            getattr(torch.backends, "mps", None)
-            and torch.backends.mps.is_available()
+            getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
         )
         if requested == "auto":
             backends = ("cpu", "mps") if mps_available else ("cpu",)
@@ -575,13 +702,10 @@ def _seal_smoke_or_calibration(
                     if status is None or status[0] != "completed":
                         raise RuntimeError("timing run did not complete")
                     values = [
-                        float(value)
-                        for step, value in timings
-                        if 1 <= int(step) <= 16
+                        float(value) for step, value in timings if 1 <= int(step) <= 16
                     ]
                     if len(values) != 16 or any(
-                        not math.isfinite(value) or value <= 0
-                        for value in values
+                        not math.isfinite(value) or value <= 0 for value in values
                     ):
                         raise RuntimeError("timing update series is incomplete")
                     progress_path = root / "timing-runs" / run_id / "progress.json"
@@ -604,7 +728,9 @@ def _seal_smoke_or_calibration(
                         or not math.isfinite(peak_driver_allocated)
                         or peak_driver_allocated < 0
                     ):
-                        raise RuntimeError("timing host-resource telemetry is incomplete")
+                        raise RuntimeError(
+                            "timing host-resource telemetry is incomplete"
+                        )
                     run_root = root / "timing-runs" / run_id
                     checkpoint_root = run_root / "checkpoints"
                     if checkpoint_root.is_symlink() or not checkpoint_root.is_dir():
@@ -612,14 +738,17 @@ def _seal_smoke_or_calibration(
                     checkpoint_generations = []
                     for item in checkpoint_root.iterdir():
                         if item.is_symlink():
-                            raise RuntimeError("timing checkpoint inventory contains a symlink")
+                            raise RuntimeError(
+                                "timing checkpoint inventory contains a symlink"
+                            )
                         if item.is_dir() and item.name.startswith("step_"):
                             checkpoint_generations.append(item)
                     checkpoint_sizes = [
-                        _directory_file_bytes(item)
-                        for item in checkpoint_generations
+                        _directory_file_bytes(item) for item in checkpoint_generations
                     ]
-                    if not checkpoint_sizes or any(size <= 0 for size in checkpoint_sizes):
+                    if not checkpoint_sizes or any(
+                        size <= 0 for size in checkpoint_sizes
+                    ):
                         raise RuntimeError("timing checkpoint inventory is empty")
                     audit_path = run_root / "portability_audit.json"
                     if audit_path.is_symlink() or not audit_path.is_file():
@@ -627,7 +756,9 @@ def _seal_smoke_or_calibration(
                     audit = json.loads(audit_path.read_text(encoding="utf-8"))
                     audit_history = audit.get("gradient_update_history")
                     if not isinstance(audit_history, list) or len(audit_history) != 16:
-                        raise RuntimeError("timing audit update inventory is incomplete")
+                        raise RuntimeError(
+                            "timing audit update inventory is incomplete"
+                        )
                     audit_history_bytes = len(canonical_json(audit_history))
                     audit_fixed_bytes = audit_path.stat().st_size - audit_history_bytes
                     if audit_fixed_bytes < 0:
@@ -637,9 +768,11 @@ def _seal_smoke_or_calibration(
                         name = stage.get("stage")
                         start_value = stage.get("started_at")
                         finish_value = stage.get("finished_at")
-                        if not isinstance(name, str) or not isinstance(
-                            start_value, str
-                        ) or not isinstance(finish_value, str):
+                        if (
+                            not isinstance(name, str)
+                            or not isinstance(start_value, str)
+                            or not isinstance(finish_value, str)
+                        ):
                             continue
                         duration = (
                             datetime.fromisoformat(finish_value)
@@ -647,9 +780,7 @@ def _seal_smoke_or_calibration(
                         ).total_seconds()
                         if duration < 0 or not math.isfinite(duration):
                             raise RuntimeError("timing stage interval is invalid")
-                        stage_seconds[name] = (
-                            stage_seconds.get(name, 0.0) + duration
-                        )
+                        stage_seconds[name] = stage_seconds.get(name, 0.0) + duration
                     evaluation_seconds = stage_seconds.get("EVALUATING", 0.0)
                     checkpoint_seconds = stage_seconds.get("CHECKPOINTED", 0.0)
                     train_elapsed = time.monotonic() - train_started
@@ -665,9 +796,7 @@ def _seal_smoke_or_calibration(
                         {
                             "role": label,
                             "run_id": run_id,
-                            "median_update_seconds": statistics.median(
-                                values[-14:]
-                            ),
+                            "median_update_seconds": statistics.median(values[-14:]),
                             "setup_and_data_preparation_seconds": non_update,
                             "checkpoint_seconds_per_pilot": checkpoint_seconds,
                             "evaluation_seconds_per_pilot": evaluation_seconds,
@@ -681,22 +810,16 @@ def _seal_smoke_or_calibration(
                             ),
                             "elapsed_seconds": train_elapsed,
                             "peak_process_rss_bytes": int(peak_process_rss),
-                            "peak_driver_allocated_bytes": int(
-                                peak_driver_allocated
-                            ),
-                            "checkpoint_generation_count": len(
-                                checkpoint_sizes
-                            ),
-                            "max_checkpoint_generation_bytes": max(
-                                checkpoint_sizes
-                            ),
+                            "peak_driver_allocated_bytes": int(peak_driver_allocated),
+                            "checkpoint_generation_count": len(checkpoint_sizes),
+                            "max_checkpoint_generation_bytes": max(checkpoint_sizes),
                             "audit_fixed_bytes": audit_fixed_bytes,
                             "audit_bytes_per_update": (
                                 audit_history_bytes / len(audit_history)
                             ),
                         }
                     )
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001
                     rows.append(
                         {
                             "role": label,
@@ -713,8 +836,7 @@ def _seal_smoke_or_calibration(
                     "complete": complete,
                     "pilots": rows,
                     "elapsed_seconds": sum(
-                        float(row.get("elapsed_seconds", 0.0))
-                        for row in rows
+                        float(row.get("elapsed_seconds", 0.0)) for row in rows
                     ),
                 }
             )
@@ -725,11 +847,8 @@ def _seal_smoke_or_calibration(
             raise RuntimeError("calibration_incomplete")
         chosen = min(completed, key=lambda item: item["elapsed_seconds"])
 
-
         selected_backend = str(chosen["backend"])
-        pilot_rows = {
-            str(row["role"]): row for row in chosen["pilots"]
-        }
+        pilot_rows = {str(row["role"]): row for row in chosen["pilots"]}
         source_loaded = load_run(
             str(pilot_rows["source-byte-128"]["run_id"]),
             root / "timing-runs",
@@ -879,9 +998,7 @@ def _seal_smoke_or_calibration(
             unreceipted_pilot_seconds = pilot_seconds
     calibration_elapsed = time.monotonic() - started
     accounted_elapsed = (
-        elapsed_before_calibration
-        + unreceipted_pilot_seconds
-        + calibration_elapsed
+        elapsed_before_calibration + unreceipted_pilot_seconds + calibration_elapsed
     )
     remaining = min(
         float(allowance) - calibration_elapsed,
@@ -894,8 +1011,7 @@ def _seal_smoke_or_calibration(
         for role in required_roles
     }
     audit_fixed_bytes_by_role = {
-        role: int(timing_by_role[role]["audit_fixed_bytes"])
-        for role in required_roles
+        role: int(timing_by_role[role]["audit_fixed_bytes"]) for role in required_roles
     }
     audit_bytes_per_update_by_role = {
         role: float(timing_by_role[role]["audit_bytes_per_update"])
@@ -930,9 +1046,7 @@ def _seal_smoke_or_calibration(
         for count in (512, 1024, 2048):
             updates = _updates("nano", count)
             if divisor == 2:
-                updates = {
-                    key: value // 2 for key, value in updates.items()
-                }
+                updates = {key: value // 2 for key, value in updates.items()}
             source_row = timing_by_role["source-byte-128"]
             dense_row = timing_by_role["dense-128"]
             prep_row = timing_by_role["preparation-64"]
@@ -1017,28 +1131,16 @@ def _seal_smoke_or_calibration(
             update_cost = (
                 3
                 * updates["source"]
-                * (
-                    measured["source-byte-128"]
-                    + measured["dense-128"]
-                )
+                * (measured["source-byte-128"] + measured["dense-128"])
                 + 3
                 * updates["preparation"]
-                * (
-                    measured["preparation-64"]
-                    + measured["dense-128"]
-                )
+                * (measured["preparation-64"] + measured["dense-128"])
                 + 3
                 * updates["native"]
-                * (
-                    measured["native-64"]
-                    + measured["source-byte-128"]
-                )
+                * (measured["native-64"] + measured["source-byte-128"])
                 + 12
                 * updates["adapter"]
-                * (
-                    measured["adapter-64"]
-                    + measured["adapter-128"]
-                )
+                * (measured["adapter-64"] + measured["adapter-128"])
             )
             checkpoint_cost = (
                 3
@@ -1105,11 +1207,8 @@ def _seal_smoke_or_calibration(
                 + 24
                 * schedule_counts["adapter"]
                 * float(candidate["recipient_query_evaluation_seconds"])
-                + 12
-                * float(candidate["recipient_query_evaluation_seconds"])
-                + 3
-                * 2
-                * float(candidate["source_monitor_evaluation_seconds"])
+                + 12 * float(candidate["recipient_query_evaluation_seconds"])
+                + 3 * 2 * float(candidate["source_monitor_evaluation_seconds"])
             )
             raw = (
                 update_cost
@@ -1119,15 +1218,12 @@ def _seal_smoke_or_calibration(
                 + evidence_evaluation_cost
             )
             data_inventory_bytes = int(candidate["data_inventory_bytes"])
-            data_growth_bytes = max(
-                0, data_inventory_bytes - base_inventory_bytes
-            )
+            data_growth_bytes = max(0, data_inventory_bytes - base_inventory_bytes)
             projected_host_memory_bytes = math.ceil(
                 1.25 * (observed_training_bytes + data_growth_bytes)
             )
             host_memory_feasible = (
-                projected_host_memory_bytes
-                <= resource_capacity["host_available_bytes"]
+                projected_host_memory_bytes <= resource_capacity["host_available_bytes"]
             )
             checkpoint_projection_bytes = (
                 (schedule_counts["source_native"] + 1)
@@ -1161,8 +1257,7 @@ def _seal_smoke_or_calibration(
                     multiplicity
                     * (
                         audit_fixed_bytes_by_role[role] * audit_scale
-                        + audit_bytes_per_update_by_role[role]
-                        * updates[update_role]
+                        + audit_bytes_per_update_by_role[role] * updates[update_role]
                     )
                     for role, multiplicity, update_role in (
                         ("source-byte-128", 3, "source"),
@@ -1188,8 +1283,7 @@ def _seal_smoke_or_calibration(
                 )
             )
             disk_feasible = (
-                projected_disk_bytes
-                <= resource_capacity["campaign_volume_free_bytes"]
+                projected_disk_bytes <= resource_capacity["campaign_volume_free_bytes"]
             )
             time_feasible = 1.25 * raw <= 0.80 * remaining
             resource_projection = {
@@ -1206,9 +1300,7 @@ def _seal_smoke_or_calibration(
                     "owned_data_bundle_bytes": data_bundle_bytes,
                     "portable_memory_package_bytes": portable_memory_bytes,
                     "projected_bytes_with_margin": projected_disk_bytes,
-                    "available_bytes": resource_capacity[
-                        "campaign_volume_free_bytes"
-                    ],
+                    "available_bytes": resource_capacity["campaign_volume_free_bytes"],
                     "feasible": disk_feasible,
                 },
             }
@@ -1270,18 +1362,28 @@ def _seal_smoke_or_calibration(
         },
     )
     return _selection(root, protocol)
+
+
 def _directory_descriptor(root: Path, path: Path) -> dict[str, object]:
     if path.is_symlink() or not path.is_dir():
         raise ValueError(f"learned portability bundle is not a directory: {path}")
-    files = [_descriptor(path, item) for item in sorted(path.rglob("*")) if item.is_file()]
+    files = [
+        _descriptor(path, item) for item in sorted(path.rglob("*")) if item.is_file()
+    ]
     if not files or any(item.is_symlink() for item in path.rglob("*")):
         raise ValueError("learned portability bundle is empty or unsafe")
     return {"path": path.relative_to(root).as_posix(), "files": files}
 
 
 def _addressing() -> dict[str, object]:
-    return {"format_version": 1, "normalization": "raw-utf8-v1", "hashing": "poly257-terminal-v1",
-            "ngram_size": 32, "table_size": 65521, "embedding_dim": 32}
+    return {
+        "format_version": 1,
+        "normalization": "raw-utf8-v1",
+        "hashing": "poly257-terminal-v1",
+        "ngram_size": 32,
+        "table_size": 65521,
+        "embedding_dim": 32,
+    }
 
 
 def build_learned_run_manifest(
@@ -1296,7 +1398,9 @@ def build_learned_run_manifest(
     import shutil
 
     root = Path(campaign_root)
-    protocol = _read_json(root / "portability_protocol.json", "learned portability protocol")
+    protocol = _read_json(
+        root / "portability_protocol.json", "learned portability protocol"
+    )
     coordinate_id = _coordinate_id(coordinate)
     planned = {_coordinate_id(row): row for row in _coordinate_plan()}.get(
         coordinate_id
@@ -1317,7 +1421,9 @@ def build_learned_run_manifest(
         "recipient": timing_widths.get(str(coordinate.get("condition"))),
         "seed": 20260925,
     }:
-        raise ValueError("timing coordinate is not one of six sealed calibration pilots")
+        raise ValueError(
+            "timing coordinate is not one of six sealed calibration pilots"
+        )
     if purpose not in {"scientific", "timing"}:
         raise ValueError("learned run purpose must be scientific or timing")
     seed = int(coordinate["seed"])
@@ -1360,9 +1466,7 @@ def build_learned_run_manifest(
         if role == "preparation"
         else role
     )
-    step_limit = (
-        16 if purpose == "timing" else int(selection["updates"][budget_key])
-    )
+    step_limit = 16 if purpose == "timing" else int(selection["updates"][budget_key])
     observed_steps = (
         {0}
         if role == "recipient" and condition in {"baseline", "real-zero-shot"}
@@ -1390,9 +1494,7 @@ def build_learned_run_manifest(
         "scorer": "portability/data/scorer.jsonl",
         "ownership": "portability/data/ownership.json",
     }
-    schedule_path = _write_immutable_json(
-        observations_root / "schedule.json", schedule
-    )
+    schedule_path = _write_immutable_json(observations_root / "schedule.json", schedule)
 
     if role in {"recipient", "native"}:
         if backbone is None:
@@ -1421,19 +1523,22 @@ def build_learned_run_manifest(
             "tokenizer_sha256": sha256_file(manifest_root / "tokenizer.json"),
             "run_manifest": _descriptor(manifest_root, run_manifest_path),
         }
-        if prepared_manifest.get("architecture_sha256") != backbone["architecture_sha256"]:
+        if (
+            prepared_manifest.get("architecture_sha256")
+            != backbone["architecture_sha256"]
+        ):
             raise ValueError("preparation checkpoint architecture binding differs")
     else:
         if backbone is not None:
-            raise ValueError("source/preparation runs cannot bind a preparation checkpoint")
+            raise ValueError(
+                "source/preparation runs cannot bind a preparation checkpoint"
+            )
         backbone = None
 
     ownership = data["ownership"]
     prep = data["preparation"]
     all_facts = [
-        fact_id
-        for section in ownership.values()
-        for fact_id in section["fact_ids"]
+        fact_id for section in ownership.values() for fact_id in section["fact_ids"]
     ]
     if purpose == "timing":
         training_fact_ids = (
@@ -1457,7 +1562,8 @@ def build_learned_run_manifest(
     transferred = (
         purpose == "scientific"
         and role == "recipient"
-        and condition in {
+        and condition
+        in {
             "constant",
             "random",
             "permuted",
@@ -1506,7 +1612,11 @@ def build_learned_run_manifest(
             source_run, pointer_path, "source checkpoint pointer"
         )
         generation = pointer.get("relative_path")
-        if not isinstance(generation, str) or Path(generation).is_absolute() or ".." in Path(generation).parts:
+        if (
+            not isinstance(generation, str)
+            or Path(generation).is_absolute()
+            or ".." in Path(generation).parts
+        ):
             raise ValueError("source checkpoint pointer is unsafe")
         source_checkpoint = source_run / "checkpoints" / generation
         source_checkpoint_manifest = source_checkpoint / "manifest.json"
@@ -1546,8 +1656,12 @@ def build_learned_run_manifest(
             "architecture_sha256": source_manifest_value["architecture_sha256"],
             "table_sha256": original_package.manifest.table_sha256,
             "gate": _descriptor(manifest_root, gate_path),
-            "run_manifest": _descriptor(manifest_root, source_dir / "run_manifest.json"),
-            "checkpoint_manifest": _descriptor(manifest_root, source_dir / "checkpoint_manifest.json"),
+            "run_manifest": _descriptor(
+                manifest_root, source_dir / "run_manifest.json"
+            ),
+            "checkpoint_manifest": _descriptor(
+                manifest_root, source_dir / "checkpoint_manifest.json"
+            ),
             "audit": _descriptor(manifest_root, source_dir / "audit.json"),
             "provenance": _descriptor(manifest_root, source_dir / "provenance.json"),
         }
@@ -1582,13 +1696,19 @@ def build_learned_run_manifest(
     )
     observations = {
         "schedule": _descriptor(manifest_root, schedule_path),
-        "queries": _descriptor(manifest_root, bundle / "data" / data["queries"]["path"]),
+        "queries": _descriptor(
+            manifest_root, bundle / "data" / data["queries"]["path"]
+        ),
         "scorer": _descriptor(manifest_root, bundle / "data" / data["scorer"]["path"]),
-        "ownership": _descriptor(manifest_root, bundle / "data" / data["ownership_file"]["path"]),
+        "ownership": _descriptor(
+            manifest_root, bundle / "data" / data["ownership_file"]["path"]
+        ),
     }
     memory = {
         "kind": "byte",
-        "artifact": None if memory_path is None else _descriptor(manifest_root, memory_path),
+        "artifact": None
+        if memory_path is None
+        else _descriptor(manifest_root, memory_path),
         "pack_id": None,
         "tensor_sha256": tensor_sha256,
         "addressing": _addressing(),
@@ -1602,14 +1722,18 @@ def build_learned_run_manifest(
             "version": 2,
             "experiment": _EXPERIMENT,
             "protocol": _descriptor(manifest_root, bundle / "protocol.json"),
-            "world_manifest": _descriptor(manifest_root, bundle / "data" / "manifest.json"),
+            "world_manifest": _descriptor(
+                manifest_root, bundle / "data" / "manifest.json"
+            ),
             "coordinate": external_coordinate,
             "seed": seed,
             "initialization": {
                 "purpose": purpose,
                 "derivation_version": "init-v1",
                 "pair_seed": seed,
-                "width": 128 if recipient == "source" or recipient == "width128" else 64,
+                "width": 128
+                if recipient == "source" or recipient == "width128"
+                else 64,
                 "families": families,
             },
             "initial_backbone": backbone,
@@ -1624,16 +1748,32 @@ def build_learned_run_manifest(
 def learned_portability_plan(campaign_root: Path) -> dict[str, object]:
     """Return a verified, read-only plan; it performs neither calibration nor training."""
     root = Path(campaign_root)
-    protocol = _read_json(root / "portability_protocol.json", "learned portability protocol")
+    protocol = _read_json(
+        root / "portability_protocol.json", "learned portability protocol"
+    )
     plan = _read_json(root / "plan.json", "learned portability plan")
-    if protocol.get("experiment") != _EXPERIMENT or plan.get("experiment") != _EXPERIMENT:
+    if (
+        protocol.get("experiment") != _EXPERIMENT
+        or plan.get("experiment") != _EXPERIMENT
+    ):
         raise ValueError("campaign is not a learned Engram portability campaign")
     selection = protocol.get("resource_selection")
     if not isinstance(selection, dict):
         raise ValueError("learned protocol lacks resource selection")
-    return {"experiment": _EXPERIMENT, "campaign_id": protocol["campaign_id"], "protocol_sha256": protocol["sha256"],
-            "coordinates": plan["coordinates"], "resource_selection": selection, "timing": "uncalibrated" if selection.get("status") == "uncalibrated" else selection.get("status"),
-            "prerequisites": ["all three source gates must pass before export or recipient work", "timing calibration must seal a resource selection before behavioral execution"]}
+    return {
+        "experiment": _EXPERIMENT,
+        "campaign_id": protocol["campaign_id"],
+        "protocol_sha256": protocol["sha256"],
+        "coordinates": plan["coordinates"],
+        "resource_selection": selection,
+        "timing": "uncalibrated"
+        if selection.get("status") == "uncalibrated"
+        else selection.get("status"),
+        "prerequisites": [
+            "all three source gates must pass before export or recipient work",
+            "timing calibration must seal a resource selection before behavioral execution",
+        ],
+    }
 
 
 def _receipt(root: Path) -> dict[str, Any] | None:
@@ -1644,7 +1784,9 @@ def _receipt(root: Path) -> dict[str, Any] | None:
     revision = value.get("current")
     if not isinstance(revision, str):
         raise ValueError("learned receipt index has no current revision")
-    return _read_json(root / "execution" / "receipts" / revision, "learned execution receipt")
+    return _read_json(
+        root / "execution" / "receipts" / revision, "learned execution receipt"
+    )
 
 
 def _publish_receipt(
@@ -1675,9 +1817,7 @@ def _publish_receipt(
         key=lambda item: (str(item["started_at"]), str(item["artifact"]["path"]))
     )
     timing_path = root / "execution" / "timing-pilots.json"
-    timing_artifact = (
-        _descriptor(root, timing_path) if timing_path.exists() else None
-    )
+    timing_artifact = _descriptor(root, timing_path) if timing_path.exists() else None
     body = {
         "format": _RECEIPT_FORMAT,
         "version": 2,
@@ -1691,18 +1831,24 @@ def _publish_receipt(
         "remaining_seconds": max(0.0, allowance - elapsed),
     }
     digest = _digest(body)
-    receipt = _write_immutable_json(root / "execution" / "receipts" / f"{digest}.json", body)
+    receipt = _write_immutable_json(
+        root / "execution" / "receipts" / f"{digest}.json", body
+    )
     index = root / "execution" / "receipt-index.json"
     revisions: list[str] = []
     if index.exists():
         existing = _read_json(index, "learned receipt index")
         stored = existing.get("revisions")
-        if not isinstance(stored, list) or not all(isinstance(item, str) for item in stored):
+        if not isinstance(stored, list) or not all(
+            isinstance(item, str) for item in stored
+        ):
             raise ValueError("learned receipt index is malformed")
         revisions = stored
     index_body = {"current": receipt.name, "revisions": [*revisions, receipt.name]}
     temporary = index.with_suffix(".tmp")
-    temporary.write_bytes(canonical_json({**index_body, "sha256": _digest(index_body)}) + b"\n")
+    temporary.write_bytes(
+        canonical_json({**index_body, "sha256": _digest(index_body)}) + b"\n"
+    )
     os.replace(temporary, index)
     return receipt
 
@@ -1732,7 +1878,9 @@ def record_learned_coordinate_outcome(
     before this final outcome is recorded, and duplicate logical outcomes fail closed.
     """
     root = Path(campaign_root)
-    protocol = _read_json(root / "portability_protocol.json", "learned portability protocol")
+    protocol = _read_json(
+        root / "portability_protocol.json", "learned portability protocol"
+    )
     if protocol.get("experiment") != _EXPERIMENT:
         raise ValueError("campaign is not a learned Engram portability campaign")
     coordinate_id = _coordinate_id(coordinate)
@@ -1741,10 +1889,14 @@ def record_learned_coordinate_outcome(
         raise ValueError("coordinate is not in the sealed learned campaign plan")
     status = outcome.get("status")
     if status not in {"completed", "failed"}:
-        raise ValueError("only terminal outcomes are immutable; interruptions remain attempt records")
+        raise ValueError(
+            "only terminal outcomes are immutable; interruptions remain attempt records"
+        )
     existing = _outcome_records(root)
     if coordinate_id in existing:
-        raise FileExistsError(f"learned coordinate already has an immutable outcome: {coordinate_id}")
+        raise FileExistsError(
+            f"learned coordinate already has an immutable outcome: {coordinate_id}"
+        )
     body = {
         "format": "sparselab-learned-portability-coordinate-outcome",
         "version": 1,
@@ -1754,7 +1906,9 @@ def record_learned_coordinate_outcome(
         "coordinate_id": coordinate_id,
         "outcome": outcome,
     }
-    return _write_immutable_json(root / "execution" / "outcomes" / f"{coordinate_id}.json", body)
+    return _write_immutable_json(
+        root / "execution" / "outcomes" / f"{coordinate_id}.json", body
+    )
 
 
 def _source_gate(outcome: dict[str, Any]) -> tuple[bool, str | None]:
@@ -1775,15 +1929,13 @@ def _source_gate(outcome: dict[str, Any]) -> tuple[bool, str | None]:
     if float(outcome.get("disabled_minus_enabled_nll", -1.0)) < 0.10:
         return False, "source_memory_nll_gate_failed"
     return True, None
+
+
 def _preparation_gate(outcome: dict[str, Any]) -> tuple[bool, str | None]:
     metrics = outcome.get("preparation_metrics")
     if not isinstance(metrics, dict):
         observation = outcome.get("preparation")
-        metrics = (
-            observation.get("metrics")
-            if isinstance(observation, dict)
-            else None
-        )
+        metrics = observation.get("metrics") if isinstance(observation, dict) else None
     if not isinstance(metrics, dict):
         return False, "preparation_observation_missing"
     if float(metrics.get("accuracy", -1.0)) < 0.95:
@@ -1792,13 +1944,11 @@ def _preparation_gate(outcome: dict[str, Any]) -> tuple[bool, str | None]:
     if not isinstance(per_symbol, dict) or not per_symbol:
         return False, "preparation_symbol_metrics_missing"
     if any(
-        not isinstance(item, dict)
-        or float(item.get("accuracy", -1.0)) < 0.75
+        not isinstance(item, dict) or float(item.get("accuracy", -1.0)) < 0.75
         for item in per_symbol.values()
     ):
         return False, "preparation_per_symbol_gate_failed"
     return True, None
-
 
 
 def _materialize_control_package(
@@ -1815,23 +1965,19 @@ def _materialize_control_package(
     if condition not in {"constant", "random", "permuted"}:
         raise ValueError("control package requested for a non-control condition")
     seed = int(coordinate["seed"])
-    package_path = (
-        root
-        / "exports"
-        / "controls"
-        / f"source-s{seed}-{condition}.engram"
-    )
+    package_path = root / "exports" / "controls" / f"source-s{seed}-{condition}.engram"
     provenance_path = package_path.with_suffix(".provenance.json")
     source_descriptor = _descriptor(root, source_path)
     if package_path.exists() or provenance_path.exists():
         if not package_path.is_file() or not provenance_path.is_file():
-            raise ValueError("control package and provenance must be published together")
+            raise ValueError(
+                "control package and provenance must be published together"
+            )
         provenance = _read_json(provenance_path, "control package provenance")
         package = load_portable_engram(package_path)
         if (
             provenance.get("experiment") != _EXPERIMENT
-            or provenance.get("coordinate_id")
-            != f"control-source-s{seed}-{condition}"
+            or provenance.get("coordinate_id") != f"control-source-s{seed}-{condition}"
             or provenance.get("source_package") != source_descriptor
             or provenance.get("package") != _descriptor(root, package_path)
             or provenance.get("condition") != condition
@@ -1882,10 +2028,13 @@ def _materialize_control_package(
     )
     return package_path
 
+
 def learned_portability_status(campaign_root: Path) -> dict[str, object]:
     """Resolve immutable outcomes into the dependency graph without executing it."""
     root = Path(campaign_root)
-    protocol = _read_json(root / "portability_protocol.json", "learned portability protocol")
+    protocol = _read_json(
+        root / "portability_protocol.json", "learned portability protocol"
+    )
     if protocol.get("experiment") != _EXPERIMENT:
         raise ValueError("campaign is not a learned Engram portability campaign")
     outcomes = _outcome_records(root)
@@ -2021,7 +2170,9 @@ def _learned_config(
     from sparselab.config.models import AttentionConfig, ModelConfig, RunConfig
     from sparselab.model.inspection import named_tensor_inventory
 
-    protocol = _read_json(root / "portability_protocol.json", "learned portability protocol")
+    protocol = _read_json(
+        root / "portability_protocol.json", "learned portability protocol"
+    )
     data_root = manifest_path.parent / "portability" / "data"
     role, condition, recipient = (
         str(coordinate[key]) for key in ("role", "condition", "recipient")
@@ -2112,9 +2263,9 @@ def _learned_config(
         for name, spec in tensors.items()
         if spec.trainable and spec.alias_of is None
     )
-    adapter_tuning = (
-        role == "recipient" and condition in _ADAPTER_CONDITIONS
-    ) or (purpose == "timing" and condition in {"adapter-64", "adapter-128"})
+    adapter_tuning = (role == "recipient" and condition in _ADAPTER_CONDITIONS) or (
+        purpose == "timing" and condition in {"adapter-64", "adapter-128"}
+    )
     native_tuning = role == "native" or (
         purpose == "timing" and condition == "native-64"
     )
@@ -2195,6 +2346,7 @@ def _learned_config(
     }
     return RunConfig.model_validate(base)
 
+
 def _resume_config_for_checkpoint(
     campaign_root: Path, requested: Any, checkpoint: Path
 ) -> Any:
@@ -2206,9 +2358,15 @@ def _resume_config_for_checkpoint(
     try:
         parent_root.resolve(strict=True).relative_to(runs_root)
     except (OSError, ValueError) as error:
-        raise ValueError("resume checkpoint is outside the campaign run store") from error
+        raise ValueError(
+            "resume checkpoint is outside the campaign run store"
+        ) from error
     resolved_path = parent_root / "resolved_config.yaml"
-    if parent_root.is_symlink() or resolved_path.is_symlink() or not resolved_path.is_file():
+    if (
+        parent_root.is_symlink()
+        or resolved_path.is_symlink()
+        or not resolved_path.is_file()
+    ):
         raise ValueError("resume parent lacks its owned resolved configuration")
     parent = load_config(resolved_path)
     requested_payload = requested.model_dump(mode="json")
@@ -2262,7 +2420,10 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
         if not isinstance(steps, list):
             raise ValueError("learned outcome observation inventory is invalid")
         for step_result in steps:
-            if not isinstance(step_result, dict) or type(step_result.get("step")) is not int:
+            if (
+                not isinstance(step_result, dict)
+                or type(step_result.get("step")) is not int
+            ):
                 raise ValueError("learned observation step is malformed")
             entries = step_result.get("observations")
             if not isinstance(entries, list):
@@ -2287,9 +2448,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
                 result_path = root / relative
                 if _descriptor(root, result_path) != descriptor:
                     raise ValueError("learned observation artifact digest differs")
-                result_artifact = _read_json(
-                    result_path, "learned observation result"
-                )
+                result_artifact = _read_json(result_path, "learned observation result")
                 if (
                     result_artifact.get("coordinate_id") != coordinate_id
                     or result_artifact.get("step") != step_result["step"]
@@ -2297,7 +2456,9 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
                     or result_artifact.get("partition") != entry.get("partition")
                     or result_artifact.get("wording") != entry.get("wording")
                 ):
-                    raise ValueError("learned observation reference differs from artifact")
+                    raise ValueError(
+                        "learned observation reference differs from artifact"
+                    )
                 result = result_artifact.get("result")
                 metrics = result.get("metrics") if isinstance(result, dict) else None
                 if not isinstance(metrics, dict) or metrics != entry.get("metrics"):
@@ -2316,9 +2477,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
                 observations.append(observation)
                 by_coordinate.setdefault(coordinate_id, []).append(observation)
 
-    coordinate_status = {
-        str(row["coordinate_id"]): row for row in state["coordinates"]
-    }
+    coordinate_status = {str(row["coordinate_id"]): row for row in state["coordinates"]}
     sources: list[dict[str, object]] = []
     preparations: list[dict[str, object]] = []
     arms: list[dict[str, object]] = []
@@ -2345,14 +2504,11 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
             else role
         )
         maximum = (
-            int(selection["updates"][budget_key])
-            if selection is not None
-            else None
+            int(selection["updates"][budget_key]) if selection is not None else None
         )
         scheduled_steps = (
             [0]
-            if role == "recipient"
-            and condition in {"baseline", "real-zero-shot"}
+            if role == "recipient" and condition in {"baseline", "real-zero-shot"}
             else None
             if maximum is None
             else sorted(
@@ -2416,9 +2572,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
             if package_path.is_file():
                 item["memory_package_artifact"] = _descriptor(root, package_path)
             if provenance_path.is_file():
-                item["memory_package_provenance"] = _descriptor(
-                    root, provenance_path
-                )
+                item["memory_package_provenance"] = _descriptor(root, provenance_path)
         if status["role"] == "recipient" and status["condition"] in {
             "constant",
             "random",
@@ -2434,16 +2588,12 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
                     / f"source-s{status['seed']}-{status['condition']}.engram"
                 )
             else:
-                package_path = (
-                    root / "exports" / f"source-s{status['seed']}.engram"
-                )
+                package_path = root / "exports" / f"source-s{status['seed']}.engram"
             provenance_path = package_path.with_suffix(".provenance.json")
             if package_path.is_file():
                 item["memory_package_artifact"] = _descriptor(root, package_path)
             if provenance_path.is_file():
-                item["memory_package_provenance"] = _descriptor(
-                    root, provenance_path
-                )
+                item["memory_package_provenance"] = _descriptor(root, provenance_path)
         if status["role"] == "source":
             gate_passed, gate_reason = (
                 _source_gate(outcome)
@@ -2460,9 +2610,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
                     if gate_passed is False
                     else "pending",
                     "reason": gate_reason,
-                    "source_monitor_accuracy": outcome.get(
-                        "source_monitor_accuracy"
-                    ),
+                    "source_monitor_accuracy": outcome.get("source_monitor_accuracy"),
                     "enabled_minus_disabled_accuracy": outcome.get(
                         "enabled_minus_disabled_accuracy"
                     ),
@@ -2649,10 +2797,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
     source_ready = (
         len(source_gates) == len(protocol["pair_seeds"])
         and all(item["status"] == "passed" for item in source_gates)
-        and all(
-            item["status"] == "completed"
-            for item in sources
-        )
+        and all(item["status"] == "completed" for item in sources)
     )
     adapter_pairs = [
         item
@@ -2751,7 +2896,9 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
         },
         "costs": {
             "elapsed_seconds": None if receipt is None else receipt["elapsed_seconds"],
-            "remaining_seconds": None if receipt is None else receipt["remaining_seconds"],
+            "remaining_seconds": None
+            if receipt is None
+            else receipt["remaining_seconds"],
             "resource_selection": selection_record,
             "timing_pilots": timing_descriptor,
         },
@@ -2764,9 +2911,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
                 row["status"] in {"failed", "gate_failed"}
                 for row in state["coordinates"]
             ),
-            "blocked": sum(
-                row["status"] == "blocked" for row in state["coordinates"]
-            ),
+            "blocked": sum(row["status"] == "blocked" for row in state["coordinates"]),
         },
         "limitations": list(protocol["limitations"])
         + [
@@ -2777,9 +2922,7 @@ def build_learned_portability_evidence(campaign_root: Path) -> Path:
     }
     digest = _digest(body)
     evidence_dir = root / "execution" / "evidence"
-    evidence_path = _write_immutable_json(
-        evidence_dir / f"{digest}.json", body
-    )
+    evidence_path = _write_immutable_json(evidence_dir / f"{digest}.json", body)
     index_path = root / "execution" / "evidence-index.json"
     revisions: list[str] = []
     if index_path.exists():
@@ -2808,9 +2951,10 @@ def execute_learned_portability_campaign(
     continue_existing: bool = False,
 ) -> dict[str, object]:
     """Execute sealed scientific coordinates and publish observed evidence."""
-    import torch
     import uuid
     from datetime import UTC, datetime
+
+    import torch
 
     from sparselab.data.tokenizer import load_tokenizer
     from sparselab.engines.pytorch import PyTorchEngine
@@ -2849,9 +2993,7 @@ def execute_learned_portability_campaign(
     selection_path = root / "execution" / "resource-selection.json"
     if selection_path.exists():
         sealed_selection = _selection(root, protocol)
-        consumed = max(
-            consumed, float(sealed_selection["accounted_elapsed_seconds"])
-        )
+        consumed = max(consumed, float(sealed_selection["accounted_elapsed_seconds"]))
     remaining = ceiling - consumed
     if remaining <= 0:
         return {
@@ -2860,9 +3002,7 @@ def execute_learned_portability_campaign(
             "remaining_seconds": 0.0,
         }
     if continue_existing and max_wall_seconds > remaining:
-        raise ValueError(
-            "continue may not raise the sealed learned campaign allowance"
-        )
+        raise ValueError("continue may not raise the sealed learned campaign allowance")
     started = time.monotonic()
     try:
         selection = _seal_smoke_or_calibration(
@@ -2881,7 +3021,6 @@ def execute_learned_portability_campaign(
             "remaining_seconds": max(0.0, ceiling - elapsed),
         }
     limit = min(float(max_wall_seconds), remaining)
-    data_manifest = root / protocol["data"][str(selection["fact_count"])]["path"]
 
     def left() -> float:
         return limit - (time.monotonic() - started)
@@ -2992,7 +3131,7 @@ def execute_learned_portability_campaign(
             if value.get("step") == step:
                 try:
                     generation = int(candidate.name.rsplit("_", 1)[1])
-                except (IndexError, ValueError):
+                except IndexError, ValueError:
                     raise ValueError("checkpoint generation name is invalid")
                 matches.append((generation, candidate, value))
         if not matches:
@@ -3015,9 +3154,7 @@ def execute_learned_portability_campaign(
         for step in expected_steps:
             if left() <= 0:
                 raise _ObservationBudgetExpired
-            checkpoint_root, checkpoint_manifest = checkpoint_for_step(
-                run_root, step
-            )
+            checkpoint_root, checkpoint_manifest = checkpoint_for_step(run_root, step)
             loaded = load_run(
                 run_id,
                 root / "runs",
@@ -3037,9 +3174,11 @@ def execute_learned_portability_campaign(
             )
         last = step_results[-1]["observations"]
         final_metrics = {
-            str(item["kind"]) + ":" + str(item["partition"]) + ":" + str(item["wording"]): item[
-                "metrics"
-            ]
+            str(item["kind"])
+            + ":"
+            + str(item["partition"])
+            + ":"
+            + str(item["wording"]): item["metrics"]
             for item in last
         }
         return step_results, final_metrics
@@ -3112,13 +3251,8 @@ def execute_learned_portability_campaign(
         resume = None
         if reuse_run is None and last_record is not None:
             parent = last_record.get("run_id")
-            if (
-                last_record.get("status") == "interrupted"
-                and isinstance(parent, str)
-            ):
-                checkpoint = (
-                    root / "runs" / parent / "checkpoints" / "latest.json"
-                )
+            if last_record.get("status") == "interrupted" and isinstance(parent, str):
+                checkpoint = root / "runs" / parent / "checkpoints" / "latest.json"
                 if checkpoint.is_file() and not checkpoint.is_symlink():
                     resume = checkpoint
         if resume is not None:
@@ -3154,14 +3288,13 @@ def execute_learned_portability_campaign(
                 )
                 loaded.model.eval()
                 schedule = _read_json(
-                    manifest.parent
-                    / "portability"
-                    / "observations"
-                    / "schedule.json",
+                    manifest.parent / "portability" / "observations" / "schedule.json",
                     "observation-only schedule",
                 )
                 if schedule["steps"] != [0]:
-                    raise ValueError("observation-only coordinates must observe step zero")
+                    raise ValueError(
+                        "observation-only coordinates must observe step zero"
+                    )
                 checkpoint = {
                     "kind": "preparation_backbone",
                     "manifest_sha256": backbone["checkpoint_sha256"]
@@ -3302,9 +3435,7 @@ def execute_learned_portability_campaign(
             outcome: dict[str, object] = {
                 "status": "completed",
                 "run_id": None if observation_only else run_id,
-                "execution": "observation_only"
-                if observation_only
-                else "trained",
+                "execution": "observation_only" if observation_only else "trained",
                 "step_observations": step_results,
                 "final_metrics": final_metrics,
                 "elapsed_seconds": time.monotonic() - began,
@@ -3324,9 +3455,7 @@ def execute_learned_portability_campaign(
                     raise ValueError("source monitor result is missing")
                 outcome.update(
                     {
-                        "source_monitor_accuracy": source_metrics.get(
-                            "accuracy", -1.0
-                        ),
+                        "source_monitor_accuracy": source_metrics.get("accuracy", -1.0),
                         "enabled_minus_disabled_accuracy": audit.get(
                             "enabled_minus_disabled_accuracy", -1.0
                         ),
@@ -3336,16 +3465,10 @@ def execute_learned_portability_campaign(
                         "gradient_changed_row_fraction": audit.get(
                             "gradient_changed_row_fraction", -1.0
                         ),
-                        "full_fact_exposure": audit.get(
-                            "full_fact_exposure", False
-                        ),
-                        "valid_update_audit": audit.get(
-                            "valid_update_audit", False
-                        ),
+                        "full_fact_exposure": audit.get("full_fact_exposure", False),
+                        "valid_update_audit": audit.get("valid_update_audit", False),
                         "finite_tensors": audit.get("finite_tensors", False),
-                        "nonzero_table_delta": audit.get(
-                            "nonzero_table_delta", False
-                        ),
+                        "nonzero_table_delta": audit.get("nonzero_table_delta", False),
                     }
                 )
             attempt_path = attempts_dir / f"{attempt_id}.json"
@@ -3378,7 +3501,7 @@ def execute_learned_portability_campaign(
                 },
             )
             return False
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             reason = f"{type(error).__name__}: {error}"
             attempt_path = attempts_dir / f"{attempt_id}.json"
             if not attempt_path.exists():
@@ -3417,8 +3540,7 @@ def execute_learned_portability_campaign(
     source_outcomes = _outcome_records(root)
     source_stage_complete = all(
         _coordinate_id(row) in source_outcomes
-        and source_outcomes[_coordinate_id(row)]["outcome"].get("status")
-        == "completed"
+        and source_outcomes[_coordinate_id(row)]["outcome"].get("status") == "completed"
         for row in source_rows
     )
     if source_stage_complete and state["source_gate_failure"] is None:
@@ -3434,9 +3556,7 @@ def execute_learned_portability_campaign(
                     raise ValueError(
                         "source package and provenance must be published together"
                     )
-                provenance = _read_json(
-                    provenance_path, "source export provenance"
-                )
+                provenance = _read_json(provenance_path, "source export provenance")
                 if (
                     provenance.get("source_run_id") != outcome.get("run_id")
                     or provenance.get("package") != _descriptor(root, package)
@@ -3445,12 +3565,8 @@ def execute_learned_portability_campaign(
                     raise ValueError("existing source export provenance differs")
                 load_portable_engram(package)
                 continue
-            loaded = load_run(
-                str(outcome["run_id"]), root / "runs", backend=None
-            )
-            if loaded.model.memory is None or not hasattr(
-                loaded.model.memory, "table"
-            ):
+            loaded = load_run(str(outcome["run_id"]), root / "runs", backend=None)
+            if loaded.model.memory is None or not hasattr(loaded.model.memory, "table"):
                 raise ValueError("passed source gate has no trainable byte table")
             export_portable_engram(
                 loaded.model.memory.table.weight, package, ngram_size=32
@@ -3523,9 +3639,7 @@ def execute_learned_portability_campaign(
                     checkpoint_root / "manifest.json",
                     "preparation checkpoint manifest",
                 )
-                if checkpoint_manifest.get("sha256") != pointer.get(
-                    "manifest_sha256"
-                ):
+                if checkpoint_manifest.get("sha256") != pointer.get("manifest_sha256"):
                     raise ValueError("preparation checkpoint pointer digest differs")
                 backbone = {
                     "run_root": prep_root,
@@ -3567,8 +3681,13 @@ def execute_learned_portability_campaign(
         "remaining_seconds": max(0.0, ceiling - elapsed),
     }
 
-def continue_learned_portability_campaign(campaign_root: Path, *, max_wall_seconds: float) -> dict[str, object]:
-    return execute_learned_portability_campaign(campaign_root, max_wall_seconds=max_wall_seconds, continue_existing=True)
+
+def continue_learned_portability_campaign(
+    campaign_root: Path, *, max_wall_seconds: float
+) -> dict[str, object]:
+    return execute_learned_portability_campaign(
+        campaign_root, max_wall_seconds=max_wall_seconds, continue_existing=True
+    )
 
 
 def report_learned_portability_campaign(

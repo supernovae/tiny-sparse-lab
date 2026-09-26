@@ -177,7 +177,9 @@ def named_tensor_inventory(
         or not trainable_parameters
         or len(trainable_parameters) != len(set(trainable_parameters))
     ):
-        raise ValueError("trainable_parameters must be a nonempty tuple of unique names")
+        raise ValueError(
+            "trainable_parameters must be a nonempty tuple of unique names"
+        )
     unknown = set(trainable_parameters) - set(tensors)
     if unknown:
         raise ValueError(f"unknown trainable parameter names: {sorted(unknown)}")

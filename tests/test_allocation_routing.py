@@ -440,6 +440,7 @@ def test_provenance_requires_audited_path_and_answer(
     with pytest.raises(ValueError, match=message):
         _collect_provenance(dataset, tokenizer, "train", [record])
 
+
 def test_explicit_trainable_parameters_freeze_optimizer_and_update():
     config = load_config(Path("configs/runtime_smoke_cpu.yaml"))
     config = config.model_copy(
@@ -458,8 +459,7 @@ def test_explicit_trainable_parameters_freeze_optimizer_and_update():
     assert engine.model is not None
     model = engine.model
     initial = {
-        name: parameter.detach().clone()
-        for name, parameter in model.named_parameters()
+        name: parameter.detach().clone() for name, parameter in model.named_parameters()
     }
     assert {
         name for name, parameter in model.named_parameters() if parameter.requires_grad

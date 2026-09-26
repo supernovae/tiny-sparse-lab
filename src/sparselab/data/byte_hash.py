@@ -25,7 +25,7 @@ def _byte_to_unicode() -> dict[str, int]:
 _BYTE_LEVEL_BYTES = _byte_to_unicode()
 
 
-def token_bytes(tokenizer: "Tokenizer", token_id: int) -> bytes:
+def token_bytes(tokenizer: Tokenizer, token_id: int) -> bytes:
     """Return one ByteLevel BPE token's raw bytes without lossy UTF-8 decoding."""
     token = tokenizer.id_to_token(token_id)
     if token is None:

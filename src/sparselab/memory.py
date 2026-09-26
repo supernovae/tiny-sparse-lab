@@ -863,7 +863,7 @@ class MemoryMonitor:
             if kind == "mps" and name == "driver_allocated":
                 method = getattr(torch.mps, "driver_allocated_memory", None)
                 return int(method()) if method else None
-        except (ImportError, RuntimeError, AttributeError):
+        except ImportError, RuntimeError, AttributeError:
             return None
         return None
 
@@ -882,7 +882,7 @@ class MemoryMonitor:
                 if reset is not None:
                     reset(self.device)
                     self._native_peaks_valid = True
-            except (RuntimeError, AttributeError):
+            except RuntimeError, AttributeError:
                 pass
         elif self._device_type == "metal":
             try:
@@ -890,7 +890,7 @@ class MemoryMonitor:
 
                 mx.reset_peak_memory()
                 self._native_peaks_valid = True
-            except (ImportError, RuntimeError, AttributeError):
+            except ImportError, RuntimeError, AttributeError:
                 pass
         self.sample("begin")
         if self.sample_interval_seconds is not None:
@@ -915,7 +915,7 @@ class MemoryMonitor:
         }
         try:
             sample["memory/process_rss_bytes"] = process_rss_bytes()
-        except (OSError, RuntimeError, psutil.Error):
+        except OSError, RuntimeError, psutil.Error:
             self.unavailable_reasons["memory/process_rss_bytes"] = (
                 "process RSS API failed"
             )
@@ -923,7 +923,7 @@ class MemoryMonitor:
             sample["memory/system_available_bytes"] = int(
                 psutil.virtual_memory().available
             )
-        except (OSError, RuntimeError, psutil.Error):
+        except OSError, RuntimeError, psutil.Error:
             self.unavailable_reasons["memory/system_available_bytes"] = (
                 "system RAM API failed"
             )
@@ -933,7 +933,7 @@ class MemoryMonitor:
                 if self._device_type == "metal"
                 else allocated_memory_bytes(self.device)  # type: ignore[arg-type]
             )
-        except (RuntimeError, AttributeError):
+        except RuntimeError, AttributeError:
             allocated = None
         if allocated is None:
             self.unavailable_reasons["memory/device_allocated_bytes"] = (

@@ -58,7 +58,9 @@ def _file_descriptor(root: Path, path: Path) -> dict[str, object]:
 
 def _verify_existing_assets(root: Path, world_digest: str) -> Path:
     if root.is_symlink() or not root.is_dir():
-        raise FileExistsError(f"portability asset root is not a regular directory: {root}")
+        raise FileExistsError(
+            f"portability asset root is not a regular directory: {root}"
+        )
     manifest_path = root / "memory_assets.json"
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise FileExistsError(f"portability asset manifest is missing: {manifest_path}")
@@ -71,7 +73,9 @@ def _verify_existing_assets(root: Path, world_digest: str) -> Path:
         or manifest.get("world_manifest_sha256") != world_digest
         or hashlib.sha256(canonical_json(body)).hexdigest() != digest
     ):
-        raise FileExistsError("existing portability memory assets bind different inputs")
+        raise FileExistsError(
+            "existing portability memory assets bind different inputs"
+        )
     expected: set[str] = set()
     for entry in manifest.get("files", []):
         if not isinstance(entry, dict) or set(entry) != {
@@ -79,10 +83,14 @@ def _verify_existing_assets(root: Path, world_digest: str) -> Path:
             "sha256",
             "size_bytes",
         }:
-            raise FileExistsError("existing portability memory asset inventory is invalid")
+            raise FileExistsError(
+                "existing portability memory asset inventory is invalid"
+            )
         relative = entry["path"]
         if not isinstance(relative, str) or relative in expected:
-            raise FileExistsError("existing portability memory asset path is duplicated")
+            raise FileExistsError(
+                "existing portability memory asset path is duplicated"
+            )
         path = root / relative
         if (
             path.is_symlink()
@@ -90,7 +98,9 @@ def _verify_existing_assets(root: Path, world_digest: str) -> Path:
             or path.stat().st_size != entry["size_bytes"]
             or sha256_file(path) != entry["sha256"]
         ):
-            raise FileExistsError(f"existing portability memory asset failed verification: {relative}")
+            raise FileExistsError(
+                f"existing portability memory asset failed verification: {relative}"
+            )
         expected.add(relative)
     actual = {
         item.relative_to(root).as_posix()
@@ -190,11 +200,15 @@ def _memory_artifact(
         key_id = f"{fact.key.subject}|{fact.key.relation}"
         prior = address_owner.get(address)
         if prior is not None and prior != key_id:
-            colliding_facts.append({"address": str(address), "first_key": prior, "second_key": key_id})
+            colliding_facts.append(
+                {"address": str(address), "first_key": prior, "second_key": key_id}
+            )
         address_owner[address] = key_id
         vector = torch.from_numpy(value_encoder.encode(controlled).copy())
         if vector.shape != (_VALUE_DIM,):
-            raise ValueError("value encoder dimension differs from portability table width")
+            raise ValueError(
+                "value encoder dimension differs from portability table width"
+            )
         table[address] = vector
         fact_rows.append(
             {
@@ -282,7 +296,9 @@ def _compile_semantic_pack(
     shutil.rmtree(input_root)
     report = verify_pack(destination)
     if not report.valid:
-        raise ValueError(f"compiled portability pack failed verification: {scope}/{condition}")
+        raise ValueError(
+            f"compiled portability pack failed verification: {scope}/{condition}"
+        )
     return destination
 
 
@@ -294,7 +310,9 @@ def _world_packs(world_root: Path, world_manifest: dict[str, Any]) -> dict[str, 
     return result
 
 
-def _training_facts(world_root: Path, world_manifest: dict[str, Any]) -> list[ProducerFact]:
+def _training_facts(
+    world_root: Path, world_manifest: dict[str, Any]
+) -> list[ProducerFact]:
     eligible = set(world_manifest["recipient_adapter_fact_ids"])
     result = [
         _fact(row)
@@ -304,11 +322,15 @@ def _training_facts(world_root: Path, world_manifest: dict[str, Any]) -> list[Pr
         if row["id"] in eligible
     ]
     if {fact.id for fact in result} != eligible:
-        raise ValueError("training producer rows differ from eligible recipient fact inventory")
+        raise ValueError(
+            "training producer rows differ from eligible recipient fact inventory"
+        )
     return result
 
 
-def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path) -> Path:
+def build_portability_memory_assets(
+    world_manifest_path: Path, asset_root: Path
+) -> Path:
     """Compile frozen lexical and semantic artifacts from verified generated worlds.
 
     Token and byte artifacts are deterministic direct compiles of the declared
@@ -328,7 +350,9 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
         return asset_root / "memory_assets.json"
     asset_root.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
-        tempfile.mkdtemp(prefix=f".{asset_root.name}.memory-assets-", dir=asset_root.parent)
+        tempfile.mkdtemp(
+            prefix=f".{asset_root.name}.memory-assets-", dir=asset_root.parent
+        )
     )
     try:
         tokenizer_path = world_root / world_manifest["tokenizer"]["path"]
@@ -342,7 +366,9 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
             if world["partition"] != "train"
         }
         outputs: dict[str, dict[str, dict[str, Any]]] = {
-            representation: {condition: {} for condition in ("real", "random", "corrupt")}
+            representation: {
+                condition: {} for condition in ("real", "random", "corrupt")
+            }
             for representation in ("token", "byte", "semantic")
         }
         address_rows: list[dict[str, object]] = []
@@ -358,7 +384,8 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
                 )
                 for scope, facts in scopes.items():
                     selected = [
-                        fact for fact in facts
+                        fact
+                        for fact in facts
                         if scope != "training" or fact.id in train_ids
                     ]
                     controlled = [
@@ -395,7 +422,9 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
                             )
                         pack_report = verify_pack(artifact)
                         if not pack_report.valid:
-                            raise ValueError(f"portability pack failed verification: {artifact}")
+                            raise ValueError(
+                                f"portability pack failed verification: {artifact}"
+                            )
                         retriever = SemanticRetriever.from_pack(
                             artifact, expected_pack_id=pack_report.pack_id
                         )
@@ -405,8 +434,12 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
                             "tensor_sha256": None,
                             "addressing": None,
                             "encoder_contract": {
-                                "key_encoder": retriever.key_encoder.model_dump(mode="json"),
-                                "value_encoder": retriever.value_encoder.model_dump(mode="json"),
+                                "key_encoder": retriever.key_encoder.model_dump(
+                                    mode="json"
+                                ),
+                                "value_encoder": retriever.value_encoder.model_dump(
+                                    mode="json"
+                                ),
                                 "key_dim": retriever.key_dim,
                                 "value_dim": retriever.memory_dim,
                                 "normalization": retriever.key_normalization,
@@ -471,15 +504,19 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
                                 for key, value in descriptor.items()
                                 if key != "artifact"
                             },
-                            "artifact": _file_descriptor(staging, descriptor["artifact"])
+                            "artifact": _file_descriptor(
+                                staging, descriptor["artifact"]
+                            )
                             if descriptor["artifact"].is_file()
                             else {
-                                "path": descriptor["artifact"].relative_to(staging).as_posix(),
+                                "path": descriptor["artifact"]
+                                .relative_to(staging)
+                                .as_posix(),
                                 "files": [
-                                    _file_descriptor(
-                                        descriptor["artifact"], member
+                                    _file_descriptor(descriptor["artifact"], member)
+                                    for member in sorted(
+                                        descriptor["artifact"].rglob("*")
                                     )
-                                    for member in sorted(descriptor["artifact"].rglob("*"))
                                     if member.is_file()
                                 ],
                             },
@@ -506,6 +543,8 @@ def build_portability_memory_assets(world_manifest_path: Path, asset_root: Path)
 
 def _facts_for_world(world_root: Path, world_id: str) -> list[ProducerFact]:
     return [_fact(row) for row in _load_fact_rows(world_root, world_id)]
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [
         json.loads(line)
@@ -524,15 +563,22 @@ def prepare_recipient_initialization_split(
     train_rows, validation_rows = rows[:-5], rows[-5:]
     if output_root.exists() or output_root.is_symlink():
         if output_root.is_symlink() or not output_root.is_dir():
-            raise FileExistsError(f"recipient preparation split is not a regular directory: {output_root}")
-        train_path, validation_path = output_root / "train.jsonl", output_root / "validation.jsonl"
+            raise FileExistsError(
+                f"recipient preparation split is not a regular directory: {output_root}"
+            )
+        train_path, validation_path = (
+            output_root / "train.jsonl",
+            output_root / "validation.jsonl",
+        )
         if (
             not train_path.is_file()
             or not validation_path.is_file()
             or _read_jsonl(train_path) != train_rows
             or _read_jsonl(validation_path) != validation_rows
         ):
-            raise FileExistsError("existing recipient preparation split differs from source")
+            raise FileExistsError(
+                "existing recipient preparation split differs from source"
+            )
         return train_path, validation_path
     output_root.parent.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True)
@@ -553,7 +599,9 @@ def _allocation_arrays(
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
     documents = list(iter_rendered_conversations(path))
     if len(documents) != len(fact_ids):
-        raise ValueError("conversation rows and allocation provenance are not one-to-one")
+        raise ValueError(
+            "conversation rows and allocation provenance are not one-to-one"
+        )
     encodings = [
         tokenizer.encode(document.text, add_special_tokens=False)
         for document in documents
@@ -563,16 +611,18 @@ def _allocation_arrays(
     semantic_queries: np.ndarray | None = None
     semantic_mask: np.ndarray | None = None
     if owner_code == OWNER_SEMANTIC:
-        semantic_queries = np.zeros((token_count, key_encoder.dimension), dtype=np.float32)
+        semantic_queries = np.zeros(
+            (token_count, key_encoder.dimension), dtype=np.float32
+        )
         semantic_mask = np.zeros(token_count, dtype=np.bool_)
     offset = 0
-    for document, encoding, fact_id in zip(
-        documents, encodings, fact_ids, strict=True
-    ):
+    for document, encoding, fact_id in zip(documents, encodings, fact_ids, strict=True):
         if fact_id is not None:
             key = key_by_fact_id.get(fact_id)
             if key is None:
-                raise ValueError(f"adapter example references an ineligible fact: {fact_id}")
+                raise ValueError(
+                    f"adapter example references an ineligible fact: {fact_id}"
+                )
             for index, (start, end) in enumerate(encoding.offsets):
                 supervised = any(
                     start < end and span_start <= start and end <= span_end
@@ -617,22 +667,31 @@ def build_portability_allocation(
         condition == "disabled" and semantic_pack_path is not None
     ):
         raise ValueError("condition cannot use the requested semantic attachment")
-    if representation == "semantic" and condition != "disabled" and semantic_pack_path is None:
+    if (
+        representation == "semantic"
+        and condition != "disabled"
+        and semantic_pack_path is None
+    ):
         raise ValueError("semantic allocation requires the selected training pack")
     if output_root.exists() or output_root.is_symlink():
         raise FileExistsError(f"portability allocation already exists: {output_root}")
     world_root = Path(world_manifest_path).parent
     world_manifest = json.loads(world_manifest_path.read_text(encoding="utf-8"))
     world_digest = world_manifest.get("sha256")
-    if hashlib.sha256(
-        canonical_json(
-            {key: value for key, value in world_manifest.items() if key != "sha256"}
-        )
-    ).hexdigest() != world_digest:
+    if (
+        hashlib.sha256(
+            canonical_json(
+                {key: value for key, value in world_manifest.items() if key != "sha256"}
+            )
+        ).hexdigest()
+        != world_digest
+    ):
         raise ValueError("portability world manifest hash mismatch")
     output_root.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
-        tempfile.mkdtemp(prefix=f".{output_root.name}.allocation-", dir=output_root.parent)
+        tempfile.mkdtemp(
+            prefix=f".{output_root.name}.allocation-", dir=output_root.parent
+        )
     )
     try:
         wrappers = _read_jsonl(world_root / "recipient_adapter_examples.jsonl")
@@ -641,7 +700,9 @@ def build_portability_allocation(
         for row in wrappers:
             conversation = row.get("conversation")
             if not isinstance(conversation, dict):
-                raise TypeError("adapter corpus contains an invalid conversation envelope")
+                raise TypeError(
+                    "adapter corpus contains an invalid conversation envelope"
+                )
             conversations.append(conversation)
             fact_id = row.get("fact_id")
             training_fact_ids.append(fact_id if isinstance(fact_id, str) else None)
@@ -709,7 +770,9 @@ def build_portability_allocation(
         allocation = build_allocation_manifest(
             staging / "allocation.json",
             source_identity_sha256=str(source_identity()["sha256"]),
-            tokenizer_sha256=hashlib.sha256(tokenizer.to_str().encode("utf-8")).hexdigest(),
+            tokenizer_sha256=hashlib.sha256(
+                tokenizer.to_str().encode("utf-8")
+            ).hexdigest(),
             train_jsonl_sha256=sha256_file(train_path),
             validation_jsonl_sha256=sha256_file(validation_path),
             train_owner=train_owner,
@@ -825,7 +888,9 @@ def _campaign_config(
                     semantic_memory_dim=_VALUE_DIM,
                 )
             else:
-                raise ValueError(f"unsupported portability representation: {representation}")
+                raise ValueError(
+                    f"unsupported portability representation: {representation}"
+                )
     base_path = Path(str(files("sparselab.research").joinpath("resources/base.yaml")))
     base = load_config(base_path).model_dump(mode="python")
     base["name"] = (
@@ -896,6 +961,8 @@ def _campaign_config(
         "precision": "fp32",
     }
     return RunConfig.model_validate(base)
+
+
 def _directory_descriptor(root: Path, path: Path) -> dict[str, object]:
     if path.is_symlink() or not path.is_dir():
         raise ValueError(f"portability checkpoint must be a regular directory: {path}")
@@ -946,7 +1013,9 @@ def _write_immutable_json(path: Path, value: dict[str, Any]) -> str:
 
 
 def _observation_inputs(world_root: Path, partition: str, output: Path) -> Path:
-    manifest = json.loads((world_root / "world_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (world_root / "world_manifest.json").read_text(encoding="utf-8")
+    )
     all_queries = _read_jsonl(world_root / f"{partition}_queries.jsonl")
     all_scores = {
         row["case_id"]: row
@@ -961,8 +1030,7 @@ def _observation_inputs(world_root: Path, partition: str, output: Path) -> Path:
         if any(row["case_id"] not in all_scores for row in queries):
             raise ValueError(f"query/scorer rows are misaligned for {world_id}")
         cases.extend(
-            {**query, "scorer": all_scores[query["case_id"]]}
-            for query in queries
+            {**query, "scorer": all_scores[query["case_id"]]} for query in queries
         )
     if not cases:
         raise ValueError(f"no {partition} portability observations were materialized")
@@ -993,7 +1061,9 @@ def build_portability_campaign(
     assets = json.loads(asset_path.read_text(encoding="utf-8"))
     address_path = asset_path.parent / assets["address_observations"]
     _observation_inputs(
-        world_path.parent, "development", output_root / "observations" / "development.jsonl"
+        world_path.parent,
+        "development",
+        output_root / "observations" / "development.jsonl",
     )
     _observation_inputs(
         world_path.parent, "final", output_root / "observations" / "final.jsonl"
@@ -1072,7 +1142,9 @@ def build_portability_campaign(
         "format": "sparselab-portability-plan",
         "version": 1,
         "campaign_id": protocol["campaign_id"],
-        "protocol_sha256": json.loads(protocol_path.read_text(encoding="utf-8"))["sha256"],
+        "protocol_sha256": json.loads(protocol_path.read_text(encoding="utf-8"))[
+            "sha256"
+        ],
         "arms": [
             {
                 "recipient": f"width{width}",
@@ -1103,7 +1175,9 @@ def _run_if_needed(config: Any, run_id: str) -> Path:
         if manifest["effective_config_sha256"] != config_sha256(
             config.model_dump(mode="json")
         ):
-            raise FileExistsError(f"existing portability run has a different config: {run_dir}")
+            raise FileExistsError(
+                f"existing portability run has a different config: {run_dir}"
+            )
         latest = CheckpointManager(run_dir).recovery_report().record
         if latest is None or latest.step < config.training.max_steps:
             train(config, recover=run_dir, run_id=run_id)
@@ -1111,7 +1185,9 @@ def _run_if_needed(config: Any, run_id: str) -> Path:
         raise RuntimeError(f"training did not create a run manifest: {run_dir}")
     latest = CheckpointManager(run_dir).recovery_report().record
     if latest is None or latest.step < config.training.max_steps:
-        raise RuntimeError(f"portability training did not reach planned updates: {run_dir}")
+        raise RuntimeError(
+            f"portability training did not reach planned updates: {run_dir}"
+        )
     return run_dir
 
 
@@ -1151,22 +1227,28 @@ def _prepare_recipient(
     manager = CheckpointManager(run_dir)
     record = manager.recovery_report().record
     if record is None:
-        raise RuntimeError(f"recipient preparation has no verified checkpoint: {run_dir}")
+        raise RuntimeError(
+            f"recipient preparation has no verified checkpoint: {run_dir}"
+        )
     checkpoint = run_dir / "checkpoints" / record.relative_path
     snapshot = manager.load(checkpoint, mode="promote")
     if snapshot.step != 0 or not snapshot.checkpoint_sha256:
-        raise ValueError("preparation checkpoint promotion did not yield immutable weights")
+        raise ValueError(
+            "preparation checkpoint promotion did not yield immutable weights"
+        )
     if manifest["effective_config"]["model"]["hidden_dim"] != int(
         recipient.removeprefix("width")
     ):
-        raise ValueError("recipient preparation checkpoint width differs from its label")
+        raise ValueError(
+            "recipient preparation checkpoint width differs from its label"
+        )
     return {
         "checkpoint": _directory_descriptor(campaign_root, checkpoint),
         "checkpoint_sha256": snapshot.checkpoint_sha256,
         "architecture_sha256": manifest["architecture_sha256"],
-        "tokenizer_sha256": json.loads(
-            world_manifest_path.read_text(encoding="utf-8")
-        )["tokenizer"]["sha256"],
+        "tokenizer_sha256": json.loads(world_manifest_path.read_text(encoding="utf-8"))[
+            "tokenizer"
+        ]["sha256"],
     }
 
 
@@ -1210,7 +1292,9 @@ def _trainable_names(
         config.model, config.attention, trainable_parameters=selected
     )
     if any(name not in inventory or not inventory[name].trainable for name in selected):
-        raise ValueError("selected portability names differ from canonical model inventory")
+        raise ValueError(
+            "selected portability names differ from canonical model inventory"
+        )
     return selected
 
 
@@ -1221,6 +1305,8 @@ def _asset_descriptor_from_manifest(
     if "files" in descriptor["artifact"]:
         return _directory_descriptor(campaign_root, artifact)
     return _file_descriptor(campaign_root, artifact)
+
+
 def build_portability_run_manifest(
     campaign_root: Path,
     *,
@@ -1235,7 +1321,9 @@ def build_portability_run_manifest(
     protocol_path = campaign_root / "portability_protocol.json"
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     if updates != protocol["training"]["planned_updates"]:
-        raise ValueError("requested updates differ from the immutable campaign protocol")
+        raise ValueError(
+            "requested updates differ from the immutable campaign protocol"
+        )
     world_path = campaign_root / "worlds" / "world_manifest.json"
     world = json.loads(world_path.read_text(encoding="utf-8"))
     asset_root = campaign_root / "assets"
@@ -1245,7 +1333,10 @@ def build_portability_run_manifest(
         raise ValueError("protocol and world manifest identities differ")
     if asset_manifest["sha256"] != protocol["memory_assets_sha256"]:
         raise ValueError("protocol and memory asset identities differ")
-    if representation not in protocol["conditions"] or condition not in protocol["conditions"][representation]:
+    if (
+        representation not in protocol["conditions"]
+        or condition not in protocol["conditions"][representation]
+    ):
         raise ValueError("coordinate is not declared in the immutable protocol")
     if seed not in protocol["recipient_seeds"]:
         raise ValueError("recipient seed is not declared in the immutable protocol")
@@ -1281,18 +1372,22 @@ def build_portability_run_manifest(
         else None
     )
     allocation_root = campaign_root / "allocations" / f"{representation}-{condition}"
-    allocation = build_portability_allocation(
-        world_path,
-        allocation_root,
-        representation=representation,
-        condition=condition,
-        semantic_pack_path=semantic_pack,
-    ) if not allocation_root.exists() else {
-        "root": allocation_root,
-        "train_path": allocation_root / "train.jsonl",
-        "validation_path": allocation_root / "validation.jsonl",
-        "allocation_manifest_path": allocation_root / "allocation.json",
-    }
+    allocation = (
+        build_portability_allocation(
+            world_path,
+            allocation_root,
+            representation=representation,
+            condition=condition,
+            semantic_pack_path=semantic_pack,
+        )
+        if not allocation_root.exists()
+        else {
+            "root": allocation_root,
+            "train_path": allocation_root / "train.jsonl",
+            "validation_path": allocation_root / "validation.jsonl",
+            "allocation_manifest_path": allocation_root / "allocation.json",
+        }
+    )
 
     if condition == "disabled":
         memory_entry: dict[str, object] = {
@@ -1357,7 +1452,8 @@ def build_portability_run_manifest(
             "replacements": replacements,
         }
     memory_by_seed = {
-        str(candidate_seed): memory_entry for candidate_seed in protocol["recipient_seeds"]
+        str(candidate_seed): memory_entry
+        for candidate_seed in protocol["recipient_seeds"]
     }
     observation_descriptors = {
         partition: _file_descriptor(
@@ -1391,8 +1487,16 @@ def build_portability_run_manifest(
         world_manifest_path=world_path,
         training_path=allocation["train_path"],
         validation_path=allocation["validation_path"],
-        cache_dir=campaign_root / "cache" / f"{recipient}-{representation}-{condition}" / f"s{seed}",
-        logging_root=campaign_root / "runs" / recipient / representation / condition / f"s{seed}",
+        cache_dir=campaign_root
+        / "cache"
+        / f"{recipient}-{representation}-{condition}"
+        / f"s{seed}",
+        logging_root=campaign_root
+        / "runs"
+        / recipient
+        / representation
+        / condition
+        / f"s{seed}",
         seed=seed,
         recipient=recipient,
         updates=updates,

@@ -65,8 +65,13 @@ def _load_replacement(
             raise ValueError("replacement token table has an invalid tensor inventory")
         table = loaded["memory.table.weight"]
         destination = model.memory.table.weight
-        if tuple(table.shape) != tuple(destination.shape) or table.dtype != destination.dtype:
-            raise ValueError("replacement token table differs from recipient dimensions")
+        if (
+            tuple(table.shape) != tuple(destination.shape)
+            or table.dtype != destination.dtype
+        ):
+            raise ValueError(
+                "replacement token table differs from recipient dimensions"
+            )
         if _sha256_tensor(table) != descriptor["tensor_sha256"]:
             raise ValueError("replacement token table digest mismatch")
     elif kind == "byte":
@@ -81,7 +86,10 @@ def _load_replacement(
             raise ValueError("replacement byte package tensor digest mismatch")
     else:
         raise ValueError(f"unsupported replacement memory kind: {kind}")
-    if tuple(table.shape) != tuple(destination.shape) or table.dtype != destination.dtype:
+    if (
+        tuple(table.shape) != tuple(destination.shape)
+        or table.dtype != destination.dtype
+    ):
         raise ValueError("replacement memory tensor differs from recipient dimensions")
     if _sha256_tensor(table) != descriptor["tensor_sha256"]:
         raise ValueError("replacement memory tensor digest mismatch")
@@ -245,12 +253,13 @@ def _swap_probes(
 ) -> list[dict[str, Any]]:
     if not run.memory["replacements"]:
         return []
-    world_specs = {
-        entry["world_id"]: entry for entry in world_manifest["worlds"]
-    }
+    world_specs = {entry["world_id"]: entry for entry in world_manifest["worlds"]}
     selected: list[tuple[str, str, dict[str, Any]]] = []
     for case in cases:
-        if case["task"] != "three-hop" or case["start_key"]["subject"].split(".")[1].split("~")[0] != "A":
+        if (
+            case["task"] != "three-hop"
+            or case["start_key"]["subject"].split(".")[1].split("~")[0] != "A"
+        ):
             continue
         spec = world_specs[case["world_id"]]
         if spec.get("replacement") != "a":
@@ -267,11 +276,17 @@ def _swap_probes(
     for world_a, world_b, case in selected:
         verify_portability_assets_unchanged(run)
         pack_a = _load_replacement(model, run, world_a)
-        prediction_a1 = _predict_case(model, tokenizer, case, world_manifest, device, seed=seed)
+        prediction_a1 = _predict_case(
+            model, tokenizer, case, world_manifest, device, seed=seed
+        )
         pack_b = _load_replacement(model, run, world_b)
-        prediction_b = _predict_case(model, tokenizer, case, world_manifest, device, seed=seed)
+        prediction_b = _predict_case(
+            model, tokenizer, case, world_manifest, device, seed=seed
+        )
         pack_a2 = _load_replacement(model, run, world_a)
-        prediction_a2 = _predict_case(model, tokenizer, case, world_manifest, device, seed=seed)
+        prediction_a2 = _predict_case(
+            model, tokenizer, case, world_manifest, device, seed=seed
+        )
         results.append(
             {
                 "case_id": case["case_id"],
@@ -301,11 +316,12 @@ def _checkpoint_records(run_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
         report = manager.verify(checkpoint)
         if not report.valid:
             continue
-        manifest = json.loads((checkpoint / "manifest.json").read_text(encoding="utf-8"))
+        manifest = json.loads(
+            (checkpoint / "manifest.json").read_text(encoding="utf-8")
+        )
         records.append((checkpoint, manifest))
     records.sort(key=lambda item: (item[1]["step"], item[1]["generation_id"]))
     return records
-
 
 
 def _evaluate_checkpoint(
@@ -394,6 +410,8 @@ def _evaluate_checkpoint(
         "development_exact_answer_accuracy": dev_results["exact_answer_accuracy"],
         "development_exact_path_accuracy": dev_results["exact_path_accuracy"],
     }
+
+
 def execute_portability_arm(
     campaign_root: Path,
     *,
@@ -433,7 +451,9 @@ def execute_portability_arm(
         run_id = None
         backbone = portability_run.backbone
         if backbone is None:
-            raise ValueError("frozen-only arm is missing its recipient preparation checkpoint")
+            raise ValueError(
+                "frozen-only arm is missing its recipient preparation checkpoint"
+            )
         checkpoint_records: list[tuple[Path | None, dict[str, Any]]] = [
             (
                 None,
@@ -450,7 +470,9 @@ def execute_portability_arm(
         run_dir = config.logging.root_dir / run_id
         checkpoint_records = _checkpoint_records(run_dir)
         if not checkpoint_records or checkpoint_records[-1][1]["step"] != updates:
-            raise RuntimeError(f"arm did not save its final planned checkpoint: {arm_id}")
+            raise RuntimeError(
+                f"arm did not save its final planned checkpoint: {arm_id}"
+            )
         audit_path = run_dir / "portability_audit.json"
         if audit_path.is_symlink() or not audit_path.is_file():
             raise ValueError(f"portability arm did not write its final audit: {arm_id}")
@@ -464,9 +486,12 @@ def execute_portability_arm(
             != set(config.training.trainable_parameters or ())
         ):
             raise ValueError(f"portability update-isolation audit failed: {arm_id}")
-        if condition in {"adapter-tuned", "random", "corrupt", "frozen-only"} and not audit.get(
-            "backbone_unchanged", False
-        ):
+        if condition in {
+            "adapter-tuned",
+            "random",
+            "corrupt",
+            "frozen-only",
+        } and not audit.get("backbone_unchanged", False):
             raise ValueError(f"frozen recipient backbone changed: {arm_id}")
         final_checkpoint = checkpoint_records[-1][0]
         snapshot = CheckpointManager(run_dir).load(final_checkpoint, mode="resume")
@@ -474,13 +499,13 @@ def execute_portability_arm(
         if isinstance(raw_names, dict):
             optimizer_names = set(raw_names.values())
         elif isinstance(raw_names, list):
-            optimizer_names = {
-                name for group in raw_names for name in group
-            }
+            optimizer_names = {name for group in raw_names for name in group}
         else:
             raise ValueError("checkpoint omits canonical optimizer parameter names")
         if optimizer_names != set(config.training.trainable_parameters or ()):
-            raise ValueError(f"checkpoint optimizer membership differs from plan: {arm_id}")
+            raise ValueError(
+                f"checkpoint optimizer membership differs from plan: {arm_id}"
+            )
     threshold = float(
         json.loads((campaign_root / "portability_protocol.json").read_text())[
             "training"
@@ -592,9 +617,7 @@ def continue_portability_campaign(
     plan = json.loads((campaign_root / "plan.json").read_text(encoding="utf-8"))
     completed_now: list[str] = []
     for arm in plan["arms"]:
-        arm_id = (
-            f"{arm['recipient']}-{arm['representation']}-{arm['condition']}-s{arm['seed']}"
-        )
+        arm_id = f"{arm['recipient']}-{arm['representation']}-{arm['condition']}-s{arm['seed']}"
         receipt = campaign_root / "evidence" / "arms" / f"{arm_id}.json"
         if receipt.exists():
             continue
@@ -657,12 +680,9 @@ def build_portability_evidence(campaign_root: Path) -> Path:
         receipt_path = campaign_root / "evidence" / "arms" / f"{arm_id}.json"
         if not receipt_path.is_file():
             failure_paths = sorted(
-                (
-                    campaign_root
-                    / "evidence"
-                    / "failures"
-                    / arm_id
-                ).glob("attempt-*.json")
+                (campaign_root / "evidence" / "failures" / arm_id).glob(
+                    "attempt-*.json"
+                )
             )
             if failure_paths:
                 failure = json.loads(failure_paths[-1].read_text(encoding="utf-8"))
@@ -731,6 +751,8 @@ def build_portability_evidence(campaign_root: Path) -> Path:
     evidence_path = campaign_root / f"portability_evidence-{digest[:16]}.json"
     _write_immutable_json(evidence_path, evidence)
     return evidence_path
+
+
 def portability_resource_plan(campaign_root: Path) -> dict[str, Any]:
     """Estimate sequential CPU campaign memory and storage without loading weights."""
     from sparselab.config.models import AttentionConfig, ModelConfig
@@ -776,7 +798,9 @@ def portability_resource_plan(campaign_root: Path) -> dict[str, Any]:
             }
         )
         inventory = named_tensor_inventory(model, AttentionConfig())
-        parameters = sum(spec.numel for spec in inventory.values() if spec.alias_of is None)
+        parameters = sum(
+            spec.numel for spec in inventory.values() if spec.alias_of is None
+        )
         adapter_parameters = 9 * width
         selected_parameters = (
             adapter_parameters
@@ -801,10 +825,7 @@ def portability_resource_plan(campaign_root: Path) -> dict[str, Any]:
             "condition": condition,
             "updates": updates,
         }
-    unique_coordinates = {
-        key: item
-        for key, item in resource_by_arm.items()
-    }
+    unique_coordinates = {key: item for key, item in resource_by_arm.items()}
     completed_receipts = list((campaign_root / "evidence" / "arms").glob("*.json"))
     observed_seconds = [
         json.loads(path.read_text(encoding="utf-8"))["elapsed_seconds"]
@@ -824,9 +845,12 @@ def portability_resource_plan(campaign_root: Path) -> dict[str, Any]:
         for key, item in unique_coordinates.items()
         if key.startswith(("width32-token-disabled", "width64-token-disabled"))
     ]
-    preparation_checkpoint_storage = sum(preparation_parameters) * 12 * (
-        updates + 1
-    ) * len(protocol["recipient_seeds"])
+    preparation_checkpoint_storage = (
+        sum(preparation_parameters)
+        * 12
+        * (updates + 1)
+        * len(protocol["recipient_seeds"])
+    )
     return {
         "campaign_id": protocol["campaign_id"],
         "scale": protocol["scale"],
@@ -862,6 +886,8 @@ def portability_resource_plan(campaign_root: Path) -> dict[str, Any]:
             "This resource plan does not establish behavioral transfer.",
         ],
     }
+
+
 def record_portability_failure(
     campaign_root: Path,
     *,

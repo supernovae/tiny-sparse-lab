@@ -149,7 +149,9 @@ class ResearchEntry(_Versioned):
             )
         if self.id == _RUNNER_ONLY_ENTRY_ID:
             if self.recipe is not None:
-                raise ValueError("runner-only learned portability entry must not declare a recipe")
+                raise ValueError(
+                    "runner-only learned portability entry must not declare a recipe"
+                )
             if (
                 not self.evaluation_policy.milestones_supported
                 or self.evaluation_policy.primary_thresholds
@@ -159,7 +161,9 @@ class ResearchEntry(_Versioned):
                     "learned portability entry must declare its milestone policy and held-out threshold"
                 )
         elif self.recipe is None:
-            raise ValueError("only the learned portability runner entry may omit a recipe")
+            raise ValueError(
+                "only the learned portability runner entry may omit a recipe"
+            )
         elif (
             self.evaluation_policy.milestones_supported
             or self.evaluation_policy.primary_thresholds
@@ -557,6 +561,8 @@ def load_research(reference: str | Path) -> ResearchEntry:
     if recipe_path is not None:
         _validate_recipe_file(recipe_path, entry.id)
     return entry
+
+
 def load_recipe(
     entry: ResearchEntry, *, local_root: Path | None = None
 ) -> ResearchRecipe:

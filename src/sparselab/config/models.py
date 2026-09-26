@@ -257,9 +257,10 @@ class TrainingConfig(StrictModel):
             raise ValueError(
                 "training.trainable_parameters must be a nonempty tuple of unique canonical names"
             )
-        if self.portability_manifest_path is not None and not str(
-            self.portability_manifest_path
-        ).strip():
+        if (
+            self.portability_manifest_path is not None
+            and not str(self.portability_manifest_path).strip()
+        ):
             raise ValueError("training.portability_manifest_path must not be blank")
         return self
 

@@ -1,6 +1,9 @@
+# Invalid persisted audit state remains a ValueError/RuntimeError contract.
+# ruff: noqa: TRY004
 """PyTorch implementation of the engine-neutral training boundary."""
 
 from __future__ import annotations
+
 import hashlib
 import json
 import random
@@ -39,8 +42,8 @@ from sparselab.engines.base import (
 from sparselab.engram.semantic import SemanticQueryBatch
 from sparselab.memory import MemoryMonitor
 from sparselab.model.inspection import architecture_metrics
-from sparselab.model.transformer import DenseLM
 from sparselab.model.norm import RMSNorm
+from sparselab.model.transformer import DenseLM
 from sparselab.research.portability import (
     PortabilityRun,
     apply_trainable_parameter_filter,
@@ -338,9 +341,7 @@ def _initialize_learned_parameters(
             },
             "dense-128": {"source-backbone": "source-backbone"},
             "native-64": {"native-memory": "native-memory"},
-            "preparation-64": {
-                "preparation-backbone": "preparation-backbone"
-            },
+            "preparation-64": {"preparation-backbone": "preparation-backbone"},
             "adapter-64": {"recipient-adapter": "recipient-adapter"},
             "adapter-128": {"recipient-adapter": "recipient-adapter"},
         }
@@ -355,17 +356,9 @@ def _initialize_learned_parameters(
             "memory.gate.weight",
         }:
             continue
-        if role == "source":
+        if role == "source" or role == "calibration" and condition == "source-byte-128":
             family = (
-                "source-memory"
-                if name.startswith("memory.")
-                else "source-backbone"
-            )
-        elif role == "calibration" and condition == "source-byte-128":
-            family = (
-                "source-memory"
-                if name.startswith("memory.")
-                else "source-backbone"
+                "source-memory" if name.startswith("memory.") else "source-backbone"
             )
         elif role == "calibration":
             family = next(iter(role_families[condition].values()))
@@ -390,10 +383,14 @@ def _initialize_learned_parameters(
                 generator = torch.Generator(device="cpu").manual_seed(tensor_seed)
                 values = torch.empty(parameter.shape, dtype=torch.float32, device="cpu")
                 torch.nn.init.normal_(values, mean=0.0, std=0.02, generator=generator)
-                parameter.copy_(values.to(device=parameter.device, dtype=parameter.dtype))
+                parameter.copy_(
+                    values.to(device=parameter.device, dtype=parameter.dtype)
+                )
         initialized += 1
     if interface_only and initialized != 2:
-        raise ValueError("portable recipient initialization lacks its output/gate interface")
+        raise ValueError(
+            "portable recipient initialization lacks its output/gate interface"
+        )
 
 
 class PyTorchEngine:
@@ -445,16 +442,18 @@ class PyTorchEngine:
             and type(portability_run.payload.get("version")) is int
             and portability_run.payload["version"] == 2
         )
-        if portability_run is not None and initial_weights is not None and not (
-            learned_v2 and resume_portability
+        if (
+            portability_run is not None
+            and initial_weights is not None
+            and not (learned_v2 and resume_portability)
         ):
             raise ValueError(
                 "portability initialization must come from its verified manifest"
             )
-        if resume_portability and not (
-            learned_v2 and initial_weights is not None
-        ):
-            raise ValueError("learned portability resume requires a verified v2 snapshot")
+        if resume_portability and not (learned_v2 and initial_weights is not None):
+            raise ValueError(
+                "learned portability resume requires a verified v2 snapshot"
+            )
         device = torch_device_for(runtime.backend, config.runtime.device_index)
         initialization_rng = (
             _rng_state(device, runtime.backend)
@@ -589,7 +588,9 @@ class PyTorchEngine:
         ):
             return
         descriptor = run.payload["world_manifest"]
-        if not isinstance(descriptor, dict) or not isinstance(descriptor.get("path"), str):
+        if not isinstance(descriptor, dict) or not isinstance(
+            descriptor.get("path"), str
+        ):
             raise ValueError("learned portability manifest lacks a world descriptor")
         data_path = run.root / descriptor["path"]
         try:
@@ -601,7 +602,9 @@ class PyTorchEngine:
                 for line in facts_path.read_text(encoding="utf-8").splitlines()
             ]
         except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
-            raise ValueError("verified learned portability facts cannot be read") from error
+            raise ValueError(
+                "verified learned portability facts cannot be read"
+            ) from error
         training_ids = set(run.payload["training_fact_ids"])
         tokenizer = load_tokenizer(config.tokenizer.path)
         for fact in facts:
@@ -612,7 +615,9 @@ class PyTorchEngine:
                 fact.get("assigned_symbol"),
                 fact.get("fact_id"),
             )
-            token_id = tokenizer.token_to_id(symbol) if isinstance(symbol, str) else None
+            token_id = (
+                tokenizer.token_to_id(symbol) if isinstance(symbol, str) else None
+            )
             if (
                 type(row) is not int
                 or not isinstance(fact_id, str)
@@ -620,7 +625,9 @@ class PyTorchEngine:
                 or tokenizer.encode(symbol, add_special_tokens=False).ids != [token_id]
                 or row in self._learned_fact_targets
             ):
-                raise ValueError("learned portability factual target contract is invalid")
+                raise ValueError(
+                    "learned portability factual target contract is invalid"
+                )
             self._learned_fact_targets[row] = token_id
             self._learned_fact_ids_by_row[row] = fact_id
             self._learned_fact_exposures[row] = 0
@@ -632,7 +639,9 @@ class PyTorchEngine:
         with torch.no_grad():
             for row in self._learned_fact_targets:
                 value = memory.table.weight[row].detach().to("cpu").contiguous()
-                self._learned_initial_table_rows[row] = bytes(value.view(torch.uint8).numpy())
+                self._learned_initial_table_rows[row] = bytes(
+                    value.view(torch.uint8).numpy()
+                )
         self._learned_audit_parameter = memory.table.weight
 
     def _learned_audit_state(self) -> dict[str, object]:
@@ -658,9 +667,7 @@ class PyTorchEngine:
         run = self.portability_run
         if run is None:
             raise RuntimeError("learned audit state lacks a portability run")
-        coordinate = json.dumps(
-            run.coordinate, sort_keys=True, separators=(",", ":")
-        )
+        coordinate = json.dumps(run.coordinate, sort_keys=True, separators=(",", ":"))
         self.optimizer.state[self._learned_audit_parameter][
             "sparselab_learned_audit_v1"
         ] = {
@@ -697,21 +704,27 @@ class PyTorchEngine:
             self._write_learned_audit_state()
         state = self._learned_audit_state()
         required = {
-            "coordinate_sha256", "data_manifest_sha256", "max_steps", "rows",
-            "tokens", "initial_rows", "exposures", "gradient_seen",
-            "applied_steps", "invalid_targets",
+            "coordinate_sha256",
+            "data_manifest_sha256",
+            "max_steps",
+            "rows",
+            "tokens",
+            "initial_rows",
+            "exposures",
+            "gradient_seen",
+            "applied_steps",
+            "invalid_targets",
         }
         if set(state) != required or not all(
             isinstance(state[key], torch.Tensor)
-            for key in required - {"coordinate_sha256", "data_manifest_sha256", "max_steps"}
+            for key in required
+            - {"coordinate_sha256", "data_manifest_sha256", "max_steps"}
         ):
             raise ValueError("learned audit optimizer state is malformed")
         run = self.portability_run
         if run is None:
             raise RuntimeError("learned audit state lacks a portability run")
-        coordinate = json.dumps(
-            run.coordinate, sort_keys=True, separators=(",", ":")
-        )
+        coordinate = json.dumps(run.coordinate, sort_keys=True, separators=(",", ":"))
         if (
             state["coordinate_sha256"]
             != hashlib.sha256(coordinate.encode("utf-8")).hexdigest()
@@ -727,9 +740,9 @@ class PyTorchEngine:
             raise ValueError("learned audit optimizer state factual inventory differs")
         initial = cast(torch.Tensor, state["initial_rows"]).cpu()
         expected_width = len(next(iter(self._learned_initial_table_rows.values())))
-        if (
-            initial.dtype != torch.uint8
-            or tuple(initial.shape) != (len(rows), expected_width)
+        if initial.dtype != torch.uint8 or tuple(initial.shape) != (
+            len(rows),
+            expected_width,
         ):
             raise ValueError("learned audit optimizer state baseline is malformed")
         self._learned_initial_table_rows = {
@@ -748,7 +761,9 @@ class PyTorchEngine:
         collisions = 0
         for batch in microbatches:
             if batch.byte_addresses is None:
-                raise ValueError("learned source/native update lacks byte-address sidecars")
+                raise ValueError(
+                    "learned source/native update lacks byte-address sidecars"
+                )
             if batch.byte_addresses.shape != batch.targets.shape:
                 raise ValueError("learned source/native byte-address sidecars misalign")
             for row, target in zip(
@@ -843,7 +858,8 @@ class PyTorchEngine:
         finite_tensors = all(
             bool(torch.isfinite(value).all())
             for value in self.model.state_dict().values()
-            if isinstance(value, torch.Tensor) and (value.is_floating_point() or value.is_complex())
+            if isinstance(value, torch.Tensor)
+            and (value.is_floating_point() or value.is_complex())
         )
         unavailable = {
             "full_fact_exposure": False,
@@ -865,21 +881,20 @@ class PyTorchEngine:
         applied_steps = cast(torch.Tensor, state["applied_steps"]).detach().cpu()
         if applied_steps.dtype != torch.bool or applied_steps.numel() != expected_steps:
             raise ValueError("learned audit optimizer update bitmap is malformed")
-        history_valid = (
-            bool(applied_steps.all())
-            and all(
-                isinstance(entry.get("gradient_parameter_names"), list)
-                and isinstance(entry.get("update_parameter_names"), list)
-                and entry["gradient_parameter_names"] == entry["update_parameter_names"]
-                and set(entry["gradient_parameter_names"]).issubset(
-                    {name for name, _ in self._portability_parameters}
-                )
-                and isinstance(entry.get("row_gradient_evidence"), dict)
-                for entry in self._portability_update_history
+        history_valid = bool(applied_steps.all()) and all(
+            isinstance(entry.get("gradient_parameter_names"), list)
+            and isinstance(entry.get("update_parameter_names"), list)
+            and entry["gradient_parameter_names"] == entry["update_parameter_names"]
+            and set(entry["gradient_parameter_names"]).issubset(
+                {name for name, _ in self._portability_parameters}
             )
+            and isinstance(entry.get("row_gradient_evidence"), dict)
+            for entry in self._portability_update_history
         )
         gradient_seen = cast(torch.Tensor, state["gradient_seen"]).detach().cpu()
-        if gradient_seen.dtype != torch.bool or gradient_seen.numel() != len(expected_rows):
+        if gradient_seen.dtype != torch.bool or gradient_seen.numel() != len(
+            expected_rows
+        ):
             raise ValueError("learned audit optimizer gradient coverage is malformed")
         gradient_rows = {
             row
@@ -896,9 +911,7 @@ class PyTorchEngine:
                     changed_rows.add(row)
             table_changed = bool(changed_rows)
         gradient_changed = expected_rows & gradient_rows & changed_rows
-        expected_fact_samples = (
-            expected_steps * self.config.training.micro_batch_size
-        )
+        expected_fact_samples = expected_steps * self.config.training.micro_batch_size
         expected_presentations, remainder = (
             divmod(expected_fact_samples, len(expected_rows))
             if expected_rows
@@ -931,10 +944,7 @@ class PyTorchEngine:
             "applied_update_count": int(applied_steps.sum().item()),
             "expected_update_count": expected_steps,
             "applied_update_steps": (
-                torch.nonzero(applied_steps, as_tuple=False)
-                .flatten()
-                .add(1)
-                .tolist()
+                torch.nonzero(applied_steps, as_tuple=False).flatten().add(1).tolist()
             ),
             "gradient_observed_factual_row_count": len(expected_rows & gradient_rows),
             "gradient_observed_factual_rows": [
@@ -955,9 +965,15 @@ class PyTorchEngine:
 
     def _source_memory_ablation(self) -> dict[str, float]:
         """Measure source-monitor memory dependence without retaining state changes."""
-        assert self.config is not None and self.device is not None and self.model is not None
+        assert (
+            self.config is not None
+            and self.device is not None
+            and self.model is not None
+        )
         from sparselab.evaluation.inference import InferenceRun
-        from sparselab.evaluation.learned_portability import evaluate_learned_portability
+        from sparselab.evaluation.learned_portability import (
+            evaluate_learned_portability,
+        )
 
         descriptor = self.portability_run.payload["world_manifest"]
         data_path = self.portability_run.root / descriptor["path"]
@@ -1006,12 +1022,8 @@ class PyTorchEngine:
         return {
             **evidence,
             "nonzero_row_indices": list(evidence["nonzero_row_indices"]),
-            "nonzero_row_gradient_norms": list(
-                evidence["nonzero_row_gradient_norms"]
-            ),
+            "nonzero_row_gradient_norms": list(evidence["nonzero_row_gradient_norms"]),
         }
-
-
 
     def train_update(
         self, microbatches: list[Microbatch], update_index: int, valid_targets: int
@@ -1332,9 +1344,13 @@ class PyTorchEngine:
         ):
             memory = model.memory
             if memory is None or not hasattr(memory, "table"):
-                raise TypeError("learned source/native run lacks a trainable byte table")
+                raise TypeError(
+                    "learned source/native run lacks a trainable byte table"
+                )
             if any(batch.byte_addresses is None for batch in microbatches):
-                raise ValueError("learned source/native update lacks byte-address sidecars")
+                raise ValueError(
+                    "learned source/native update lacks byte-address sidecars"
+                )
             input_rows = np.unique(
                 np.concatenate(
                     [
@@ -1343,30 +1359,24 @@ class PyTorchEngine:
                     ]
                 )
             )
-            row_indices = torch.as_tensor(
-                input_rows, dtype=torch.long, device=device
-            )
+            row_indices = torch.as_tensor(input_rows, dtype=torch.long, device=device)
             table_gradient = memory.table.weight.grad
             if table_gradient is None:
                 nonzero_indices: list[int] = []
                 nonzero_norms: list[float] = []
                 aggregate_norm = 0.0
             else:
-                selected_gradients = table_gradient.index_select(
-                    0, row_indices
-                ).float()
+                selected_gradients = table_gradient.index_select(0, row_indices).float()
                 row_norms = torch.linalg.vector_norm(selected_gradients, dim=1)
                 nonzero = row_norms > 0
                 nonzero_indices = row_indices[nonzero].detach().cpu().tolist()
                 nonzero_norms = row_norms[nonzero].detach().cpu().tolist()
                 aggregate_norm = float(
-                    torch.linalg.vector_norm(selected_gradients[nonzero])
-                    .detach()
-                    .cpu()
+                    torch.linalg.vector_norm(selected_gradients[nonzero]).detach().cpu()
                 )
             row_gradient_evidence = {
                 "step": update_index,
-                "distinct_input_rows": int(len(input_rows)),
+                "distinct_input_rows": len(input_rows),
                 "nonzero_row_indices": [int(value) for value in nonzero_indices],
                 "nonzero_row_gradient_norms": [float(value) for value in nonzero_norms],
                 "nonzero_row_gradient_count": len(nonzero_indices),
@@ -1444,8 +1454,10 @@ class PyTorchEngine:
             self._record_applied_factual_exposure(microbatches)
             state = self._learned_audit_state()
             steps = cast(torch.Tensor, state["applied_steps"])
-            if update_index < 1 or update_index > steps.numel() or bool(
-                steps[update_index - 1]
+            if (
+                update_index < 1
+                or update_index > steps.numel()
+                or bool(steps[update_index - 1])
             ):
                 raise RuntimeError("learned audit observed an invalid applied update")
             steps[update_index - 1] = True

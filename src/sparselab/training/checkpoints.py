@@ -416,7 +416,10 @@ def _learned_audit_contract(config: RunConfig) -> dict[str, object] | None:
     try:
         data = json.loads(data_path.read_text(encoding="utf-8"))
         facts_path = data_path.parent / data["facts"]["path"]
-        facts = [json.loads(line) for line in facts_path.read_text(encoding="utf-8").splitlines()]
+        facts = [
+            json.loads(line)
+            for line in facts_path.read_text(encoding="utf-8").splitlines()
+        ]
     except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
         raise ValueError("learned audit fact inventory is unreadable") from error
     from sparselab.data.tokenizer import load_tokenizer
@@ -451,9 +454,16 @@ def _check_learned_audit_slot(
     value: object, contract: dict[str, object], table_shape: tuple[int, ...]
 ) -> None:
     if not isinstance(value, dict) or set(value) != {
-        "coordinate_sha256", "data_manifest_sha256", "max_steps", "rows",
-        "tokens", "initial_rows", "exposures", "gradient_seen",
-        "applied_steps", "invalid_targets",
+        "coordinate_sha256",
+        "data_manifest_sha256",
+        "max_steps",
+        "rows",
+        "tokens",
+        "initial_rows",
+        "exposures",
+        "gradient_seen",
+        "applied_steps",
+        "invalid_targets",
     }:
         raise ValueError("learned audit optimizer slot is malformed")
     if any(
@@ -484,8 +494,13 @@ def _check_learned_audit_slot(
     }
     for name, (shape, dtype) in shapes.items():
         tensor = value[name]
-        if not isinstance(tensor, torch.Tensor) or tuple(tensor.shape) != shape or tensor.dtype != dtype:
+        if (
+            not isinstance(tensor, torch.Tensor)
+            or tuple(tensor.shape) != shape
+            or tensor.dtype != dtype
+        ):
             raise ValueError(f"learned audit optimizer slot has invalid {name}")
+
 
 def _check_native_state(
     native: dict[str, Any],
@@ -548,9 +563,7 @@ def _check_native_state(
     if (
         not isinstance(updated, list)
         or len(updated) != len(set(updated))
-        or set(updated) != {
-            names[parameter_id] for parameter_id in ordinary_state
-        }
+        or set(updated) != {names[parameter_id] for parameter_id in ordinary_state}
         or (step == 0 and ordinary_state)
     ):
         raise ValueError("optimizer updated-parameter inventory mismatch")
@@ -1072,7 +1085,7 @@ class CheckpointManager:
         try:
             _, step, _, generation = path.name.split("_")
             return int(step), int(generation)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return -1, -1
 
     def _verified_records(
@@ -1191,7 +1204,7 @@ class CheckpointManager:
                 inherited = choose_lineage_best(
                     inherited, _lineage_best(raw.get("lineage_best"))
                 )
-            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            except OSError, TypeError, ValueError, json.JSONDecodeError:
                 continue
         return choose_lineage_best(inherited, local)
 

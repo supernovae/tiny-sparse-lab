@@ -155,6 +155,7 @@ def _mlx_next_token(
     mx.eval(token)
     return int(token), next_key
 
+
 def _semantic_queries_for_context(
     queries: Any,
     *,
@@ -178,7 +179,9 @@ def _semantic_queries_for_context(
         return queries
     vectors = queries.vectors
     if vectors.shape[1] != prompt_length:
-        raise ValueError("sequence semantic queries must match the encoded prompt length")
+        raise ValueError(
+            "sequence semantic queries must match the encoded prompt length"
+        )
     prompt_start = min(active_start, prompt_length)
     prompt_end = min(active_start + active_length, prompt_length)
     generated_count = max(0, active_start + active_length - prompt_length)
@@ -186,9 +189,7 @@ def _semantic_queries_for_context(
     if generated_count:
         vector_parts.append(vectors[:, -1:, :].expand(-1, generated_count, -1))
     active_vectors = (
-        vector_parts[0]
-        if len(vector_parts) == 1
-        else torch.cat(vector_parts, dim=1)
+        vector_parts[0] if len(vector_parts) == 1 else torch.cat(vector_parts, dim=1)
     )
     active_mask = queries.mask
     if active_mask is not None and active_mask.ndim == 2:
@@ -196,9 +197,7 @@ def _semantic_queries_for_context(
         if generated_count:
             mask_parts.append(active_mask[:, -1:].expand(-1, generated_count))
         active_mask = (
-            mask_parts[0]
-            if len(mask_parts) == 1
-            else torch.cat(mask_parts, dim=1)
+            mask_parts[0] if len(mask_parts) == 1 else torch.cat(mask_parts, dim=1)
         )
     as_of = queries.as_of
     if isinstance(as_of, tuple):

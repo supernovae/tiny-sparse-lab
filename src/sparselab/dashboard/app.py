@@ -66,7 +66,7 @@ def metric_help(slug: str) -> str:
     try:
         resource = files(_HELP_PACKAGE).joinpath("help", f"{slug}.md")
         return resource.read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError):
+    except FileNotFoundError, OSError:
         return "No packaged guide is available for this metric."
 
 
@@ -140,7 +140,7 @@ def _selection_controls(root: Path) -> None:
     try:
         records = runs(root)
         st.session_state[key] = records
-    except (OSError, sqlite3.Error, ValueError):
+    except OSError, sqlite3.Error, ValueError:
         records = st.session_state.get(key, [])
     include_pilots = st.sidebar.checkbox(
         "Include smoke and warmup pilots", value=False, key="include_pilot_runs"

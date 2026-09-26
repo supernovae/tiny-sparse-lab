@@ -177,8 +177,8 @@ def _learned_curve_svg(title: str, curves: list[dict[str, object]]) -> str:
         y = top + plot_h * ratio
         accuracy = 1.0 - ratio
         marks.append(
-            f'<line x1="{left}" y1="{y:.2f}" x2="{width-right}" y2="{y:.2f}" stroke="#ddd"/>'
-            f'<text x="{left-10}" y="{y+4:.2f}" text-anchor="end">{accuracy:.2f}</text>'
+            f'<line x1="{left}" y1="{y:.2f}" x2="{width - right}" y2="{y:.2f}" stroke="#ddd"/>'
+            f'<text x="{left - 10}" y="{y + 4:.2f}" text-anchor="end">{accuracy:.2f}</text>'
         )
     tick_steps = sorted(set(all_steps))
     if len(tick_steps) > 9:
@@ -189,8 +189,8 @@ def _learned_curve_svg(title: str, curves: list[dict[str, object]]) -> str:
     for step in tick_steps:
         x = left + plot_w * math.log1p(step) / denominator
         marks.append(
-            f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top+plot_h}" stroke="#eee"/>'
-            f'<text x="{x:.2f}" y="{height-bottom+20}" text-anchor="middle">{step}</text>'
+            f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{top + plot_h}" stroke="#eee"/>'
+            f'<text x="{x:.2f}" y="{height - bottom + 20}" text-anchor="middle">{step}</text>'
         )
     for index, curve in enumerate(curves):
         label = str(curve.get("label", f"series-{index + 1}"))
@@ -223,9 +223,7 @@ def _learned_curve_svg(title: str, curves: list[dict[str, object]]) -> str:
             segments.append(current)
         for segment in segments:
             if len(segment) >= 2:
-                coordinates = " ".join(
-                    f"{x:.2f},{y:.2f}" for x, y in segment
-                )
+                coordinates = " ".join(f"{x:.2f},{y:.2f}" for x, y in segment)
                 marks.append(
                     f'<polyline points="{coordinates}" fill="none" stroke="{color}" stroke-width="1.6"/>'
                 )
@@ -237,24 +235,22 @@ def _learned_curve_svg(title: str, curves: list[dict[str, object]]) -> str:
         if index < 42:
             legend_x = width - right + (index // 21) * 106
             marks.append(
-                f'<line x1="{legend_x}" y1="{legend_y-4}" x2="{legend_x+14}" y2="{legend_y-4}" stroke="{color}" stroke-width="2"/>'
-                f'<text x="{legend_x+19}" y="{legend_y}">{html.escape(_chart_label(label))}</text>'
+                f'<line x1="{legend_x}" y1="{legend_y - 4}" x2="{legend_x + 14}" y2="{legend_y - 4}" stroke="{color}" stroke-width="2"/>'
+                f'<text x="{legend_x + 19}" y="{legend_y}">{html.escape(_chart_label(label))}</text>'
             )
     marks.extend(
         [
-            f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top+plot_h}" stroke="#555"/>',
-            f'<line x1="{left}" y1="{top+plot_h}" x2="{width-right}" y2="{top+plot_h}" stroke="#555"/>',
-            f'<text x="{left+plot_w/2:.2f}" y="{height-10}" text-anchor="middle">Training updates (log1p scale)</text>',
-            f'<text x="16" y="{top+plot_h/2:.2f}" transform="rotate(-90 16 {top+plot_h/2:.2f})" text-anchor="middle">Accuracy</text>',
+            f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_h}" stroke="#555"/>',
+            f'<line x1="{left}" y1="{top + plot_h}" x2="{width - right}" y2="{top + plot_h}" stroke="#555"/>',
+            f'<text x="{left + plot_w / 2:.2f}" y="{height - 10}" text-anchor="middle">Training updates (log1p scale)</text>',
+            f'<text x="16" y="{top + plot_h / 2:.2f}" transform="rotate(-90 16 {top + plot_h / 2:.2f})" text-anchor="middle">Accuracy</text>',
         ]
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">'
         f"<title>{html.escape(title)}</title>"
-        "<style>text{font:11px sans-serif}</style>"
-        + "".join(marks)
-        + "</svg>\n"
+        "<style>text{font:11px sans-serif}</style>" + "".join(marks) + "</svg>\n"
     )
 
 

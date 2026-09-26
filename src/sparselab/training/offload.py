@@ -289,7 +289,7 @@ def _storage_key(tensor: torch.Tensor) -> tuple[object, ...] | None:
             StorageWeakRef(storage),
             storage.nbytes(),
         )
-    except (AttributeError, RuntimeError):
+    except AttributeError, RuntimeError:
         return None
 
 

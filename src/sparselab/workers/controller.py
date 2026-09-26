@@ -137,7 +137,7 @@ class Controller:
                             definition, answer.get("capabilities", answer)
                         )
                     )
-                except (OSError, TimeoutError, RemoteProtocolError, ProtocolError):
+                except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
                     # A transport failure only changes availability; it cannot turn an
                     # executing receipt into failure or completion.
                     capabilities_data = {**capabilities_data, "status": "unknown"}
@@ -277,7 +277,7 @@ class Controller:
                 "cancel",
                 {"attempt_id": result["attempt_id"], "reason": "user"},
             )
-        except (OSError, TimeoutError, RemoteProtocolError, ProtocolError):
+        except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
             # The durable request is reconciled on a later poll; no local
             # transport failure can be represented as acknowledgement.
             return result
@@ -811,7 +811,7 @@ class Controller:
             result = self._rpc_result(
                 worker, "status", {"attempt_id": attempt["attempt_id"]}
             )
-        except (OSError, TimeoutError, RemoteProtocolError, ProtocolError):
+        except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
             # A missing reply is deliberately indistinguishable from a delivery
             # failure.  The durable ASSIGNED row remains eligible for a later
             # same-ID reconciliation, not a new optimizer attempt.
@@ -842,7 +842,7 @@ class Controller:
                     {"attempt_id": attempt["attempt_id"], "reason": "user"},
                 )
             self._launch(attempt, capability)
-        except (OSError, TimeoutError, RemoteProtocolError, ProtocolError):
+        except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
             return False
         return True
 
@@ -885,7 +885,7 @@ class Controller:
             try:
                 self._launch(attempt, capability)
                 assigned += 1
-            except (OSError, TimeoutError, RemoteProtocolError, ProtocolError):
+            except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
                 # The CAS assignment is retained; the next tick performs the
                 # same-ID receipt reconciliation before any replay.
                 continue

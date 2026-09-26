@@ -1,9 +1,12 @@
+# Existing learned-data manifests use ValueError for malformed schemas.
+# ruff: noqa: TRY004
 """Deterministic, leakage-audited inputs for learned Engram portability v1.
 
 This module deliberately produces ordinary assistant-supervised conversations rather
 than a compiled memory artifact.  The scorer is the only published label channel for
 queries, so consumers cannot accidentally learn labels from evaluation inputs.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -12,7 +15,6 @@ import random
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from tokenizers import Tokenizer
@@ -37,12 +39,27 @@ _MAX_NONCE = 0xFFFF
 _TEMPLATES: dict[str, dict[str, str]] = {
     "source_lookup": {"role": "source_training", "text": "Lookup the stored symbol."},
     "source_recall": {"role": "source_training", "text": "Recall the stored symbol."},
-    "adapter_return": {"role": "recipient_calibration", "text": "Return the stored symbol."},
-    "adapter_give": {"role": "recipient_calibration", "text": "Give the stored symbol."},
+    "adapter_return": {
+        "role": "recipient_calibration",
+        "text": "Return the stored symbol.",
+    },
+    "adapter_give": {
+        "role": "recipient_calibration",
+        "text": "Give the stored symbol.",
+    },
     "source_monitor": {"role": "source_gate", "text": "Which symbol is assigned?"},
-    "final_report": {"role": "held_out_evaluation", "text": "Report the assigned symbol."},
-    "final_state": {"role": "held_out_evaluation", "text": "State the assigned symbol."},
-    "preparation_copy": {"role": "preparation", "text": "Copy the supplied symbol {symbol}."},
+    "final_report": {
+        "role": "held_out_evaluation",
+        "text": "Report the assigned symbol.",
+    },
+    "final_state": {
+        "role": "held_out_evaluation",
+        "text": "State the assigned symbol.",
+    },
+    "preparation_copy": {
+        "role": "preparation",
+        "text": "Copy the supplied symbol {symbol}.",
+    },
 }
 
 
@@ -101,8 +118,13 @@ def _message(
     return f"{wording}\n{filler}{_suffix(key)}"
 
 
-def _prompt(template_id: str, key: str, *, answer: str | None = None, filler: str = "") -> str:
-    return format_chat_prompt([], _message(template_id, key, answer=answer, filler=filler))
+def _prompt(
+    template_id: str, key: str, *, answer: str | None = None, filler: str = ""
+) -> str:
+    return format_chat_prompt(
+        [], _message(template_id, key, answer=answer, filler=filler)
+    )
+
 
 def _query_prompt(
     tokenizer: Tokenizer,
@@ -125,7 +147,9 @@ def _query_prompt(
     return prompt
 
 
-def _answer_prefix(template_id: str, key: str, *, answer: str | None = None, filler: str = "") -> str:
+def _answer_prefix(
+    template_id: str, key: str, *, answer: str | None = None, filler: str = ""
+) -> str:
     return _prompt(template_id, key, answer=answer, filler=filler) + " "
 
 
@@ -146,7 +170,9 @@ def _assert_suffix_contract(prefix: str, key: str) -> None:
 def _token_ids(tokenizer: Tokenizer, text: str) -> list[int]:
     encoded = tokenizer.encode(text, add_special_tokens=False)
     values = list(encoded.ids)
-    if b"".join(token_bytes(tokenizer, value) for value in values) != text.encode("utf-8"):
+    if b"".join(token_bytes(tokenizer, value) for value in values) != text.encode(
+        "utf-8"
+    ):
         raise ValueError("tokenizer does not reconstruct serialized UTF-8 bytes")
     return values
 
@@ -160,7 +186,9 @@ def _address_stream(tokenizer: Tokenizer, text: str) -> list[int]:
     return rows
 
 
-def _padded_record(tokenizer: Tokenizer, template_id: str, key: str, answer: str) -> tuple[dict[str, object], dict[str, object]]:
+def _padded_record(
+    tokenizer: Tokenizer, template_id: str, key: str, answer: str
+) -> tuple[dict[str, object], dict[str, object]]:
     """Return one exactly-127-token document and its precise answer-side audit."""
     base = _answer_prefix(template_id, key, answer=answer)
     base_document = base + answer
@@ -182,7 +210,9 @@ def _padded_record(tokenizer: Tokenizer, template_id: str, key: str, answer: str
     stream = _address_stream(tokenizer, document)
     address = _address(prefix)
     if stream[answer_position] != address:
-        raise ValueError("prepared answer target does not use the manifest byte address")
+        raise ValueError(
+            "prepared answer target does not use the manifest byte address"
+        )
     return _conversation(
         _message(template_id, key, answer=answer, filler=filler), answer
     ), {
@@ -198,9 +228,7 @@ def _candidate_access_rows(
     tokenizer: Tokenizer, template_id: str, key: str
 ) -> set[int]:
     """Return prompt rows plus the possible one-token answer-ending rows."""
-    conversation, audit = _padded_record(
-        tokenizer, template_id, key, _SYMBOLS[0]
-    )
+    conversation, audit = _padded_record(tokenizer, template_id, key, _SYMBOLS[0])
     messages = conversation["messages"]
     assert isinstance(messages, list) and isinstance(messages[0], dict)
     prefix = format_chat_prompt([], str(messages[0]["content"])) + " "
@@ -265,25 +293,31 @@ def _pack_split(
         mask[answer_position + 1] = True
         supervision.extend(mask)
         addresses.extend(stream + [0])
-        block_map.append({
-            "split": name,
-            "block_index": block,
-            "record_id": record_id,
-            "fact_id": audit.get("fact_id"),
-            "ownership": audit.get("ownership"),
-            "template_id": audit.get("template_id"),
-            "address": audit["address"],
-            "answer_input_position": answer_position,
-            "answer_target_position": audit["answer_target_position"],
-            "whole_prefix_addresses": audit["whole_prefix_addresses"],
-            "token_count_before_eos": 127,
-        })
+        block_map.append(
+            {
+                "split": name,
+                "block_index": block,
+                "record_id": record_id,
+                "fact_id": audit.get("fact_id"),
+                "ownership": audit.get("ownership"),
+                "template_id": audit.get("template_id"),
+                "address": audit["address"],
+                "answer_input_position": answer_position,
+                "answer_target_position": audit["answer_target_position"],
+                "whole_prefix_addresses": audit["whole_prefix_addresses"],
+                "token_count_before_eos": 127,
+            }
+        )
     # One unscored generic document is enough to preserve every real 128-token block.
     sentinel, _ = _sentinel(tokenizer, name)
     sentinel_user = sentinel["messages"][0]
     sentinel_assistant = sentinel["messages"][1]
     assert isinstance(sentinel_user, dict) and isinstance(sentinel_assistant, dict)
-    sentinel_doc = format_chat_prompt([], str(sentinel_user["content"])) + " " + str(sentinel_assistant["content"])
+    sentinel_doc = (
+        format_chat_prompt([], str(sentinel_user["content"]))
+        + " "
+        + str(sentinel_assistant["content"])
+    )
     sentinel_ids = _token_ids(tokenizer, sentinel_doc)
     values.extend(sentinel_ids + [eos])
     supervision.extend([False] * 128)
@@ -303,13 +337,21 @@ def _pack_split(
 
 
 def _descriptor(path: Path, root: Path) -> dict[str, object]:
-    return {"path": path.relative_to(root).as_posix(), "sha256": sha256_file(path), "size_bytes": path.stat().st_size}
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "sha256": sha256_file(path),
+        "size_bytes": path.stat().st_size,
+    }
 
 
 def _verify_existing(root: Path, *, seed: int, fact_count: int) -> Path:
     manifest_path = root / "manifest.json"
     try:
-        if root.is_symlink() or manifest_path.is_symlink() or not manifest_path.is_file():
+        if (
+            root.is_symlink()
+            or manifest_path.is_symlink()
+            or not manifest_path.is_file()
+        ):
             raise ValueError("manifest is missing or symlinked")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if not isinstance(manifest, dict):
@@ -369,18 +411,20 @@ def _verify_existing(root: Path, *, seed: int, fact_count: int) -> Path:
         if not isinstance(ownership_file, dict):
             raise ValueError("ownership manifest file descriptor is missing")
         ownership_path = root / str(ownership_file.get("path"))
-        if (
-            _descriptor(ownership_path, root) != ownership_file
-            or json.loads(ownership_path.read_text(encoding="utf-8"))
-            != manifest.get("ownership")
-        ):
+        if _descriptor(ownership_path, root) != ownership_file or json.loads(
+            ownership_path.read_text(encoding="utf-8")
+        ) != manifest.get("ownership"):
             raise ValueError("ownership file differs from manifest")
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise FileExistsError(f"existing learned portability data is invalid: {root}") from error
+        raise FileExistsError(
+            f"existing learned portability data is invalid: {root}"
+        ) from error
     return manifest_path
 
 
-def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fact_count: int) -> Path:
+def materialize_learned_portability_data(
+    root: Path, *, seed: int = 20260925, fact_count: int
+) -> Path:
     """Materialize immutable learned-association data and return ``manifest.json``.
 
     ``fact_count`` must give every ownership partition an independently balanced
@@ -393,7 +437,9 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
         or not isinstance(fact_count, int)
         or fact_count not in {128, 512, 1024, 2048}
     ):
-        raise ValueError("learned portability data requires a supported integer seed and fact count")
+        raise ValueError(
+            "learned portability data requires a supported integer seed and fact count"
+        )
     if root.exists() or root.is_symlink():
         return _verify_existing(root, seed=seed, fact_count=fact_count)
     root.parent.mkdir(parents=True, exist_ok=True)
@@ -401,13 +447,19 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
     try:
         # Key/nonce ownership is fixed before labels.  Preparation is allocated first
         # so source-monitor/held-out streams can fail closed on any leak.
-        partitions = [("calibration", fact_count // 4), ("source_monitor", fact_count // 4), ("held_out", fact_count // 2)]
-        keys: dict[str, tuple[str, int]] = {}
+        partitions = [
+            ("calibration", fact_count // 4),
+            ("source_monitor", fact_count // 4),
+            ("held_out", fact_count // 2),
+        ]
+
         occupied_targets: set[int] = set()
         conservative_forbidden: set[int] = set()
 
         prep_specs = [("preparation_train", 512), ("preparation_validation", 128)]
-        prep_keys: dict[str, list[tuple[str, int]]] = {name: [] for name, _ in prep_specs}
+        prep_keys: dict[str, list[tuple[str, int]]] = {
+            name: [] for name, _ in prep_specs
+        }
         for purpose, count in prep_specs:
             for index in range(count):
                 for nonce in range(_MAX_NONCE + 1):
@@ -415,29 +467,87 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
                     # Every possible preparation symbol is audited as a causal input.
                     rows: set[int] = set()
                     for symbol in _SYMBOLS:
-                        _, audit = _padded_record_placeholder(tokenizer=None, template_id="preparation_copy", key=key, answer=symbol)
+                        _, audit = _padded_record_placeholder(
+                            tokenizer=None,
+                            template_id="preparation_copy",
+                            key=key,
+                            answer=symbol,
+                        )
                         rows.add(int(audit["address"]))
-                    if len(rows) == 1 and next(iter(rows)) and next(iter(rows)) not in occupied_targets:
+                    if (
+                        len(rows) == 1
+                        and next(iter(rows))
+                        and next(iter(rows)) not in occupied_targets
+                    ):
                         prep_keys[purpose].append((key, nonce))
                         occupied_targets.add(next(iter(rows)))
                         break
                 else:
-                    raise ValueError("addressing-capacity error while selecting preparation nonce")
+                    raise ValueError(
+                        "addressing-capacity error while selecting preparation nonce"
+                    )
 
         # Train tokenizer only on preparation text, with exact complete-corpus limits.
         tokenizer_train_rows: list[dict[str, object]] = []
         tokenizer_validation_rows: list[dict[str, object]] = []
-        for purpose, target in (("preparation_train", tokenizer_train_rows), ("preparation_validation", tokenizer_validation_rows)):
+        for purpose, target in (
+            ("preparation_train", tokenizer_train_rows),
+            ("preparation_validation", tokenizer_validation_rows),
+        ):
             for index, (key, _) in enumerate(prep_keys[purpose]):
-                target.append(_conversation(_message("preparation_copy", key, answer=_SYMBOLS[index % len(_SYMBOLS)]), _SYMBOLS[index % len(_SYMBOLS)]))
-        _write_jsonl(staging / "tokenizer_training_conversations.jsonl", tokenizer_train_rows)
-        _write_jsonl(staging / "tokenizer_validation_conversations.jsonl", tokenizer_validation_rows)
-        train_bytes = (staging / "tokenizer_training_conversations.jsonl").stat().st_size
-        tokenizer_path = train_tokenizer(TokenizerTrainConfig(schema_version=1, vocab_size=260, min_frequency=1, max_documents=len(tokenizer_train_rows), output_dir=staging / "tokenizer", dataset=DatasetConfig(source="local_chat", cache_dir=staging / "cache", train_max_documents=len(tokenizer_train_rows), validation_max_documents=len(tokenizer_validation_rows), train_max_tokens=train_bytes, validation_max_tokens=(staging / "tokenizer_validation_conversations.jsonl").stat().st_size, train_path=staging / "tokenizer_training_conversations.jsonl", validation_path=staging / "tokenizer_validation_conversations.jsonl", license="CC0-1.0")))
+                target.append(
+                    _conversation(
+                        _message(
+                            "preparation_copy",
+                            key,
+                            answer=_SYMBOLS[index % len(_SYMBOLS)],
+                        ),
+                        _SYMBOLS[index % len(_SYMBOLS)],
+                    )
+                )
+        _write_jsonl(
+            staging / "tokenizer_training_conversations.jsonl", tokenizer_train_rows
+        )
+        _write_jsonl(
+            staging / "tokenizer_validation_conversations.jsonl",
+            tokenizer_validation_rows,
+        )
+        train_bytes = (
+            (staging / "tokenizer_training_conversations.jsonl").stat().st_size
+        )
+        tokenizer_path = train_tokenizer(
+            TokenizerTrainConfig(
+                schema_version=1,
+                vocab_size=260,
+                min_frequency=1,
+                max_documents=len(tokenizer_train_rows),
+                output_dir=staging / "tokenizer",
+                dataset=DatasetConfig(
+                    source="local_chat",
+                    cache_dir=staging / "cache",
+                    train_max_documents=len(tokenizer_train_rows),
+                    validation_max_documents=len(tokenizer_validation_rows),
+                    train_max_tokens=train_bytes,
+                    validation_max_tokens=(
+                        staging / "tokenizer_validation_conversations.jsonl"
+                    )
+                    .stat()
+                    .st_size,
+                    train_path=staging / "tokenizer_training_conversations.jsonl",
+                    validation_path=staging
+                    / "tokenizer_validation_conversations.jsonl",
+                    license="CC0-1.0",
+                ),
+            )
+        )
         tokenizer = load_tokenizer(tokenizer_path)
         if tokenizer.get_vocab_size() != 260:
-            raise ValueError("learned portability tokenizer is not the required 260-entry BPE")
-        model_payload = json.loads(tokenizer_path.read_text(encoding="utf-8")).get("model", {})
+            raise ValueError(
+                "learned portability tokenizer is not the required 260-entry BPE"
+            )
+        model_payload = json.loads(tokenizer_path.read_text(encoding="utf-8")).get(
+            "model", {}
+        )
         if model_payload.get("merges") != []:
             raise ValueError("260-entry ByteLevel tokenizer must have no merge rules")
         for symbol in _SYMBOLS:
@@ -476,16 +586,24 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
                         )
                     break
             else:
-                raise ValueError("addressing-capacity error while selecting calibration nonce")
+                raise ValueError(
+                    "addressing-capacity error while selecting calibration nonce"
+                )
         _, calibration_sentinel_audit = _sentinel(tokenizer, "adapter_calibration")
         conservative_forbidden.update(
             calibration_sentinel_audit["whole_prefix_addresses"]
         )
 
-        fact_keys: dict[str, list[tuple[str, int]]] = {"calibration": calibration_keys, "source_monitor": [], "held_out": []}
+        fact_keys: dict[str, list[tuple[str, int]]] = {
+            "calibration": calibration_keys,
+            "source_monitor": [],
+            "held_out": [],
+        }
         for ownership, count in partitions[1:]:
             for index in range(count):
-                ordinal = len(calibration_keys) + sum(len(fact_keys[name]) for name in ("source_monitor", "held_out"))
+                ordinal = len(calibration_keys) + sum(
+                    len(fact_keys[name]) for name in ("source_monitor", "held_out")
+                )
                 for nonce in range(_MAX_NONCE + 1):
                     key = _key(seed, fact_count, "fact", ordinal, nonce)
                     address = _address(_answer_prefix("adapter_return", key))
@@ -500,7 +618,9 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
                         occupied_targets.add(address)
                         break
                 else:
-                    raise ValueError("addressing-capacity error while selecting source/held-out nonce")
+                    raise ValueError(
+                        "addressing-capacity error while selecting source/held-out nonce"
+                    )
 
         facts: list[dict[str, object]] = []
         labels: dict[str, str] = {}
@@ -508,7 +628,9 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
             entries = fact_keys[ownership]
             assigned = list(_SYMBOLS) * (len(entries) // len(_SYMBOLS))
             _rng(seed, fact_count, f"labels|{ownership}").shuffle(assigned)
-            for index, ((key, nonce), symbol) in enumerate(zip(entries, assigned, strict=True)):
+            for index, ((key, nonce), symbol) in enumerate(
+                zip(entries, assigned, strict=True)
+            ):
                 fact_id = f"fact-{len(facts):04d}"
                 address = _address(_answer_prefix("adapter_return", key))
                 roles = ["source_training"]
@@ -518,11 +640,26 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
                     roles.append("recipient_calibration")
                 else:
                     roles.append("held_out_evaluation")
-                fact = {"fact_id": fact_id, "ownership": ownership, "key": key, "nonce": nonce, "target_row": address, "assigned_symbol": symbol, "provenance": {"source": "generated", "license": "CC0-1.0", "namespace": _NAMESPACE}, "permitted_roles": roles}
+                fact = {
+                    "fact_id": fact_id,
+                    "ownership": ownership,
+                    "key": key,
+                    "nonce": nonce,
+                    "target_row": address,
+                    "assigned_symbol": symbol,
+                    "provenance": {
+                        "source": "generated",
+                        "license": "CC0-1.0",
+                        "namespace": _NAMESPACE,
+                    },
+                    "permitted_roles": roles,
+                }
                 fact["content_digest_sha256"] = _digest(fact)
                 facts.append(fact)
                 labels[fact_id] = symbol
-        if len({int(row["target_row"]) for row in facts}) != fact_count or 0 in {int(row["target_row"]) for row in facts}:
+        if len({int(row["target_row"]) for row in facts}) != fact_count or 0 in {
+            int(row["target_row"]) for row in facts
+        }:
             raise ValueError("fact target rows must be unique and nonzero")
 
         # Create padded v2 inputs; source sees all facts/two literal templates.
@@ -564,7 +701,9 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
                 )
             if ownership == "calibration":
                 for template in ("adapter_return", "adapter_give"):
-                    conversation, audit = _padded_record(tokenizer, template, key, symbol)
+                    conversation, audit = _padded_record(
+                        tokenizer, template, key, symbol
+                    )
                     record_id = f"calibration:{fact_id}:{template}"
                     calibration_rows.append(conversation)
                     packed["adapter_calibration"].append(
@@ -627,8 +766,13 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
         _write_jsonl(staging / "preparation_facts.jsonl", preparation_facts)
         _write_jsonl(staging / "source_train.jsonl", source_rows)
         _write_jsonl(staging / "adapter_calibration.jsonl", calibration_rows)
-        _write_jsonl(staging / "preparation_train.jsonl", preparation_rows["preparation_train"])
-        _write_jsonl(staging / "preparation_validation.jsonl", preparation_rows["preparation_validation"])
+        _write_jsonl(
+            staging / "preparation_train.jsonl", preparation_rows["preparation_train"]
+        )
+        _write_jsonl(
+            staging / "preparation_validation.jsonl",
+            preparation_rows["preparation_validation"],
+        )
         block_map: list[dict[str, object]] = []
         for split, rows in packed.items():
             block_map.extend(_pack_split(staging, tokenizer, split, rows))
@@ -637,7 +781,12 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
         queries: list[dict[str, object]] = []
         scorer: list[dict[str, object]] = []
         for fact in facts:
-            fact_id, key, symbol, ownership = str(fact["fact_id"]), str(fact["key"]), str(fact["assigned_symbol"]), str(fact["ownership"])
+            fact_id, key, symbol, ownership = (
+                str(fact["fact_id"]),
+                str(fact["key"]),
+                str(fact["assigned_symbol"]),
+                str(fact["ownership"]),
+            )
             template_ids = ["source_lookup", "source_recall"]
             if ownership == "source_monitor":
                 template_ids.append("source_monitor")
@@ -651,9 +800,23 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
                 _assert_suffix_contract(answer_prefix, key)
                 address = _address(answer_prefix)
                 case_id = f"case:{fact_id}:{template_id}"
-                queries.append({"case_id": case_id, "fact_id": fact_id, "ownership": ownership, "template_id": template_id, "prompt": prompt, "answer_prefix": answer_prefix, "address": address})
-                scorer.append({"case_id": case_id, "fact_id": fact_id, "expected_symbol": symbol})
-        if {str(row["case_id"]) for row in queries} != {str(row["case_id"]) for row in scorer}:
+                queries.append(
+                    {
+                        "case_id": case_id,
+                        "fact_id": fact_id,
+                        "ownership": ownership,
+                        "template_id": template_id,
+                        "prompt": prompt,
+                        "answer_prefix": answer_prefix,
+                        "address": address,
+                    }
+                )
+                scorer.append(
+                    {"case_id": case_id, "fact_id": fact_id, "expected_symbol": symbol}
+                )
+        if {str(row["case_id"]) for row in queries} != {
+            str(row["case_id"]) for row in scorer
+        }:
             raise ValueError("query and scorer IDs must match exactly")
         if any("expected" in key or "symbol" in key for row in queries for key in row):
             raise ValueError("query records must not contain labels")
@@ -715,9 +878,7 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
             name: {
                 "count": count,
                 "fact_ids": [
-                    str(row["fact_id"])
-                    for row in facts
-                    if row["ownership"] == name
+                    str(row["fact_id"]) for row in facts if row["ownership"] == name
                 ],
                 "permitted_roles": sorted(
                     {
@@ -810,7 +971,9 @@ def materialize_learned_portability_data(root: Path, *, seed: int = 20260925, fa
             shutil.rmtree(staging, ignore_errors=True)
 
 
-def _padded_record_placeholder(tokenizer: Tokenizer | None, template_id: str, key: str, answer: str) -> tuple[None, dict[str, object]]:
+def _padded_record_placeholder(
+    tokenizer: Tokenizer | None, template_id: str, key: str, answer: str
+) -> tuple[None, dict[str, object]]:
     """Address-only helper used before tokenizer construction.
 
     The address is solely an answer-prefix byte hash, so its pre-tokenizer audit is

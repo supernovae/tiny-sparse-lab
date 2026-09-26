@@ -225,6 +225,7 @@ def test_temporal_filter_is_inclusive_and_distinguishes_miss_from_unknown(
     assert unknown.status == "unknown"
     assert unknown.trace.candidate_count == 2
 
+
 def test_temporal_as_of_flows_through_batched_adapter_queries(tmp_path) -> None:
     retriever = _retriever(
         tmp_path / "query-batch-temporal",

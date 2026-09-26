@@ -157,7 +157,7 @@ def _cache_is_valid(
                 )
             )
         return payload.get("byte_addressing") is None
-    except (AttributeError, OSError, KeyError, TypeError, ValueError):
+    except AttributeError, OSError, KeyError, TypeError, ValueError:
         return False
 
 

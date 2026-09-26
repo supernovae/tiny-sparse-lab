@@ -98,6 +98,7 @@ def test_resume_uses_parent_owned_asset_paths_without_changing_settings(
     with pytest.raises(ValueError, match="saved coordinate"):
         _resume_config_for_checkpoint(root, changed, checkpoint)
 
+
 def test_learned_config_keeps_document_sentinel_and_bounds_checkpoints(
     tmp_path: Path,
 ) -> None:
@@ -126,13 +127,20 @@ def test_learned_config_keeps_document_sentinel_and_bounds_checkpoints(
 
     config = _learned_config(
         root,
-        {"role": "source", "condition": "source-real", "recipient": "source", "seed": 17},
+        {
+            "role": "source",
+            "condition": "source-real",
+            "recipient": "source",
+            "seed": 17,
+        },
         manifest_path,
         max_steps=32768,
         backend_override="cpu",
     )
 
-    assert config.dataset.train_max_documents == len(train_path.read_text().splitlines())
+    assert config.dataset.train_max_documents == len(
+        train_path.read_text().splitlines()
+    )
     assert config.dataset.validation_max_documents == len(
         validation_path.read_text().splitlines()
     )

@@ -32,7 +32,7 @@ def boot_identity() -> str:
 def process_start(pid: int | None = None) -> float | None:
     try:
         return psutil.Process(pid).create_time()
-    except (psutil.Error, TypeError):
+    except psutil.Error, TypeError:
         return None
 
 
@@ -43,7 +43,7 @@ def process_matches(
         return False
     try:
         expected = float(expected_start) if expected_start is not None else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     actual = process_start(pid)
     return actual is not None and expected is not None and abs(actual - expected) < 0.01

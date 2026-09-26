@@ -534,7 +534,7 @@ def _checkpoint_paths(run: Path, selected: str | None) -> list[tuple[str, int | 
             generation = value.get("generation_id")
             if type(step) is int and type(generation) is int:
                 generations.append((step, generation, path.name))
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        except OSError, ValueError, TypeError, json.JSONDecodeError:
             continue
     return [(name, step) for step, _, name in sorted(generations)]
 

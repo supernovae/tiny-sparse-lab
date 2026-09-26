@@ -9,30 +9,36 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from sparselab.data.learned_portability import materialize_learned_portability_data
+from sparselab.data.tokenizer import load_tokenizer
 from sparselab.evaluation.inference import InferenceRun
 from sparselab.evaluation.learned_portability import evaluate_learned_portability
 from sparselab.model.memory import ByteAddressMemory
-from sparselab.data.learned_portability import materialize_learned_portability_data
-from sparselab.data.tokenizer import load_tokenizer
 
 
 class _AlwaysA(torch.nn.Module):
     def __init__(self, vocab_size: int, answer_id: int) -> None:
         super().__init__()
         self.config = SimpleNamespace(
-            memory="byte", memory_table_size=65521, memory_ngram_size=32, max_seq_len=128
+            memory="byte",
+            memory_table_size=65521,
+            memory_ngram_size=32,
+            max_seq_len=128,
         )
         self.memory = ByteAddressMemory(2, 65521, 2)
         self.vocab_size = vocab_size
         self.answer_id = answer_id
 
-    def forward(self, input_ids: torch.Tensor, *, byte_addresses: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, input_ids: torch.Tensor, *, byte_addresses: torch.Tensor
+    ) -> torch.Tensor:
         hidden = torch.zeros((*input_ids.shape, 2), device=input_ids.device)
         self.memory(hidden, byte_addresses)
-        logits = torch.zeros((*input_ids.shape, self.vocab_size), device=input_ids.device)
+        logits = torch.zeros(
+            (*input_ids.shape, self.vocab_size), device=input_ids.device
+        )
         logits[..., self.answer_id] = 1.0
         return logits
-
 
 
 def _fixture(root: Path) -> tuple[InferenceRun, Path]:
@@ -54,7 +60,10 @@ def _fixture(root: Path) -> tuple[InferenceRun, Path]:
     )
     return loaded, manifest_path
 
-def test_scores_full_vocabulary_symbol_and_preserves_inference_state(tmp_path: Path) -> None:
+
+def test_scores_full_vocabulary_symbol_and_preserves_inference_state(
+    tmp_path: Path,
+) -> None:
     loaded, manifest = _fixture(tmp_path)
     loaded.model.train()
     before = torch.get_rng_state()
@@ -69,6 +78,7 @@ def test_scores_full_vocabulary_symbol_and_preserves_inference_state(tmp_path: P
     assert {row["predicted_answer"] for row in result["results"]} == {"A"}
     assert loaded.model.training
     assert torch.equal(before, torch.get_rng_state())
+
 
 @pytest.mark.parametrize("special", ("<pad>", "<bos>", "<eos>", "<unk>"))
 def test_control_token_argmax_is_scored_as_an_incorrect_prediction(
