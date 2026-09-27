@@ -38,11 +38,13 @@ The latest worker UI check captured actual rendered curve pixels; standard brows
 
 Requirements: Python 3.14 and [uv](https://docs.astral.sh/uv/). Run commands from the repository root.
 
+SparseLab-managed temporary files use `sparselab-work/` under the nearest project root by default. Override it with `sparselab --work-dir PATH COMMAND` (the option precedes the command) or `SPARSELAB_WORK_DIR`; relative paths resolve from the current working directory. The setting controls implicit scratch only. Explicit stores, run directories, and outputs remain separately selectable; point those under `sparselab-work/` too if you want them kept out of version control.
+
 ```sh
 uv sync --locked --dev
 uv run sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output /tmp/sparselab-stage-runtime
+uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-smoke
 uv run sparselab train configs/runtime_smoke_cpu.yaml --run-id runtime-full
 uv run sparselab eval runtime-full
 uv run sparselab generate runtime-full --prompt "Once upon a time" --max-new-tokens 24
@@ -83,9 +85,9 @@ Keep `--extra mlx` on subsequent `uv run` commands, or invoke the installed `.ve
 ### Queue independent experiments
 
 ```sh
-uv run sparselab worker register local-cpu --backend cpu --store /tmp/sparselab-controller
-uv run sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker local-cpu --store /tmp/sparselab-controller
-uv run sparselab controller run --store /tmp/sparselab-controller
+uv run sparselab worker register local-cpu --backend cpu --store sparselab-work/controller
+uv run sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker local-cpu --store sparselab-work/controller
+uv run sparselab controller run --store sparselab-work/controller
 ```
 
 The controller runs in the foreground; use another terminal for `experiment list`, `experiment cancel RUN_ID`, or `experiment resume RUN_ID` with the same `--store`. An interrupted controller does not stop an already launched worker or authorize another optimizer execution. `sparselab run CONFIG --store ROOT` registers a local endpoint and composes dispatch/warmup/training without requiring a separate controller terminal. See [worker operation and failure semantics](docs/workers.md), including vendor-provisioned SSH environments, transfer deadlines, explicit matrices, and hardware limits.
@@ -94,10 +96,10 @@ Inspect the checked-in three-seed matrix without preparing data or changing the 
 
 ```sh
 uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
-  --dry-run --store /tmp/sparselab-controller
+  --dry-run --store sparselab-work/controller
 ```
 
-Remove `--dry-run` to enqueue its three independent runs. Launch the dashboard with `--runs-dir /tmp/sparselab-controller` to inspect imported results; worker databases and WAL files stay on their own hosts.
+Remove `--dry-run` to enqueue its three independent runs. Launch the dashboard with `--runs-dir sparselab-work/controller` to inspect imported results; worker databases and WAL files stay on their own hosts.
 
 ## Why does training use so much memory?
 

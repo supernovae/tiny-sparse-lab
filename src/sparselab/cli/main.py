@@ -64,6 +64,7 @@ from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
+from sparselab.workdir import WORK_DIR_ENV, ensure_work_dir
 
 if TYPE_CHECKING:
     from sparselab.research.lifecycle import LifecycleRegistry
@@ -1146,7 +1147,7 @@ def _research_scaffold(args: argparse.Namespace) -> None:
 
     registry, _ = _lifecycle_registry(args)
     with tempfile.TemporaryDirectory(
-        prefix="sparselab-scaffold-preview-"
+        prefix="sparselab-scaffold-preview-", dir=ensure_work_dir(args.work_dir)
     ) as preview_root:
         preview = scaffold_research(
             args.reference,
@@ -1692,6 +1693,12 @@ def build_parser() -> argparse.ArgumentParser:
     runs_dir_default = str(project_root / "runs")
     parser = argparse.ArgumentParser(
         prog="sparselab", description="Tiny Sparse Lab educational transformer tools."
+    )
+    parser.add_argument(
+        "--work-dir",
+        type=Path,
+        default=None,
+        help="Scratch directory (default: sparselab-work/ under the nearest project; SPARSELAB_WORK_DIR overrides)",
     )
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -2290,4 +2297,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.work_dir is not None:
+        os.environ[WORK_DIR_ENV] = str(args.work_dir)
     args.handler(args)

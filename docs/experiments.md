@@ -22,10 +22,10 @@ The checked-in matrix expands the CPU runtime smoke configuration over seeds 7, 
 
 ```sh
 uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
-  --dry-run --store /tmp/sparselab-controller
+  --dry-run --store sparselab-work/controller
 ```
 
-Dry-run prints all resolved coordinates and hashes without downloading/preparing data, creating the store, or enqueueing. For execution, prepare the tokenizer, register an eligible worker, remove `--dry-run`, and run `sparselab controller run --store /tmp/sparselab-controller`. Every coordinate gets distinct experiment/attempt/run IDs. Preparation must succeed for all coordinates before the enqueue transaction.
+Dry-run prints all resolved coordinates and hashes without downloading/preparing data, creating the store, or enqueueing. For execution, prepare the tokenizer, register an eligible worker, remove `--dry-run`, and run `sparselab controller run --store sparselab-work/controller`. Every coordinate gets distinct experiment/attempt/run IDs. Preparation must succeed for all coordinates before the enqueue transaction.
 
 Matrix v1 uses an explicit base config and insertion-ordered axes with labeled dotted-path patches. Duplicate labels, conflicting patches, invalid configs, and excessive expansion are rejected. Labels such as “50M” or “MoE” never infer a model. Workers execute independent optimizers, not distributed gradients; unsupported requirements remain queued with a reason. See [worker contracts and matrix format](workers.md#explicit-matrices).
 
@@ -86,18 +86,18 @@ The plan expands every config, hashes the inputs, reports parameter inventory an
 Submit the immutable run inventory to the existing independent-worker controller, then run that controller in a separate terminal:
 
 ```sh
-uv run sparselab worker register cpu-one --backend cpu --store /tmp/sparselab-study
+uv run sparselab worker register cpu-one --backend cpu --store sparselab-work/studies/ffn
 uv run sparselab study submit experiments/ffn-study.yaml \
-  --worker cpu-one --store /tmp/sparselab-study \
-  --receipt /tmp/sparselab-study/ffn-receipt.json
-uv run sparselab controller run --store /tmp/sparselab-study
+  --worker cpu-one --store sparselab-work/studies/ffn \
+  --receipt sparselab-work/studies/ffn/ffn-receipt.json
+uv run sparselab controller run --store sparselab-work/studies/ffn
 ```
 
 After all coordinates finish, collect held-out validation loss/perplexity and each card against the run checkpoint:
 
 ```sh
 uv run sparselab study collect experiments/ffn-study.yaml \
-  /tmp/sparselab-study/ffn-receipt.json --runs-dir /tmp/sparselab-study
+  sparselab-work/studies/ffn/ffn-receipt.json --runs-dir sparselab-work/studies/ffn
 ```
 
 Collection verifies the receipt against the current study and each run's resolved config, records checkpoint identities, and emits a content-addressed report beside the receipt. Missing runs or invalid evaluations stay explicitly inconclusive; they are not dropped from the denominator silently. `--checkpoint NAME` selects the same named checkpoint for every run; the default is each run's latest checkpoint. Paired deltas are descriptive, not statistical significance or a universal architecture ranking.

@@ -76,7 +76,7 @@ A smaller `training.micro_batch_size` reduces activation dimensions. Increasing 
 
 ```sh
 uv run sparselab inspect configs/runtime_smoke_cpu.yaml \
-  --write-proposal /tmp/runtime-proposal.yaml
+  --write-proposal sparselab-work/runtime-proposal.yaml
 ```
 
 The adjacent decision report describes each ordered candidate and before/after estimated peak. A proposed config is only effective if a user deliberately supplies it to a later command. The planner does not claim savings from unsupported activation offload, optimizer-state offload, selective checkpointing, or unvalidated precision.

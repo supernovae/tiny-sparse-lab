@@ -8,7 +8,7 @@ A known-good baseline is a reviewed, reproducible, explicitly bounded lifecycle 
 
 It contains no MLA, MoE, sparse attention, or memory. It is deliberately a cheap offline lifecycle/acquisition reference, not useful chat or an architecture-quality claim. The single run completed at step 1536 and 391424 target tokens. Initial held-out loss was 6.176402; terminal loss was 7.056087, so the required validation gate failed. Acquisition retention passed at 24/24; held-out recall was 8/12 and context override 0/8. The report bundle `1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00` contains one complete run and zero comparisons. The candidate remains unpromoted; no retry was run. The smaller `capability_recall_dense_cpu.yaml` is not this baseline because its diagnostic prompts include answers.
 
-From the repository root, choose a fresh `<capture>` path; do not overwrite existing artifacts.
+From the repository root, use a fresh `sparselab-work/captures/dense-small-v1-<timestamp>` path for `<capture>`; do not overwrite existing artifacts.
 
 The tokenizer is written to `artifacts/tokenizer_chat_recall_dense_small_v1`, preserving the existing `artifacts/tokenizer_chat_recall` output. This dedicated path was checked absent before capture. `tokenizer train` reuses only an exact current training-contract match and refuses mismatched existing output; if this path has appeared with a mismatched manifest, choose a fresh output path and update the frozen config rather than deleting or replacing it.
 

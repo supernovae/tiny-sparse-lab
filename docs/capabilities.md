@@ -17,7 +17,7 @@ uv run sparselab capability compare chat-dense chat-engram chat-alias-retention-
 uv run sparselab capability evaluate chat-dense chat-alias-recall-v1
 uv run sparselab capability compare chat-dense chat-engram chat-alias-recall-v1 --vary memory
 uv run sparselab capability compare chat-dense chat-engram chat-context-override-v1 --vary memory
-uv run sparselab chat chat-engram --system "Answer the requested alias with only its value." --max-new-tokens 12 --transcript /tmp/chat-engram.json
+uv run sparselab chat chat-engram --system "Answer the requested alias with only its value." --max-new-tokens 12 --transcript sparselab-work/chat-engram.json
 ```
 
 These configurations deliberately train small models on a bounded task rather than promise general conversation. The dataset and evaluator share the ordinary `User:` / `Assistant:` formatter. There is no lookup-tool shortcut at inference: responses come from trained model logits. The tokenizer is trained on the training split only.

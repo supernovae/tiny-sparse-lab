@@ -2,23 +2,26 @@
 
 One worker executes a whole experiment with its own optimizer, RNG, local database, checkpoints, and immutable inputs. The controller owns a separate local queue and read-only-result projection. Local and SSH workers use the same versioned, finite stdio endpoint; neither is a persistent GPU daemon. This is independent experiment scheduling, not distributed training.
 
+The global `--work-dir PATH` option (before the command) or `SPARSELAB_WORK_DIR` redirects implicit local temporary files to a configurable directory. Its default is `sparselab-work/` below the nearest project root. Local worker child processes inherit the controller's temporary-directory environment; SSH workers resolve their own default on the remote host, so set the variable in the remote environment for a separate override.
+
+
 ## Local operation
 
 Prepare the tokenizer and use a concrete configuration whose backend and precision the worker supports:
 
 ```sh
-sparselab worker register cpu-one --backend cpu --store /tmp/sparselab-controller
-sparselab worker status cpu-one --json --store /tmp/sparselab-controller
-sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker cpu-one --store /tmp/sparselab-controller
-sparselab controller run --store /tmp/sparselab-controller
+sparselab worker register cpu-one --backend cpu --store sparselab-work/controller
+sparselab worker status cpu-one --json --store sparselab-work/controller
+sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker cpu-one --store sparselab-work/controller
+sparselab controller run --store sparselab-work/controller
 ```
 
 Run the controller in its own terminal. From another terminal, use the same `--store`:
 
 ```sh
-sparselab experiment list --json --store /tmp/sparselab-controller
-sparselab experiment cancel RUN_ID --store /tmp/sparselab-controller
-sparselab experiment resume RUN_ID --worker cpu-one --store /tmp/sparselab-controller
+sparselab experiment list --json --store sparselab-work/controller
+sparselab experiment cancel RUN_ID --store sparselab-work/controller
+sparselab experiment resume RUN_ID --worker cpu-one --store sparselab-work/controller
 ```
 
 `--worker NAME` is a hard binding. Without one, queued submissions use eligible idle registered workers; a preferred worker is only a tie-breaker. Eligibility checks engine, backend, features, tested precision, required schema/codecs, source identity, and measured memory requirements. Unknown capacity never satisfies a numeric minimum. No eligible worker means `QUEUED` with a reason, not a silently changed configuration.
@@ -34,7 +37,7 @@ The following is an example for an already provisioned host, not evidence that s
 ```sh
 sparselab worker register amd --backend rocm --ssh amd-host \
   --python /opt/sparselab/bin/python --root /srv/sparselab/amd \
-  --store /tmp/sparselab-controller
+  --store sparselab-work/controller
 ```
 
 The SSH alias must already be configured in the user's SSH environment. Transport uses strict host-key checking and `BatchMode=yes`; it does not store passwords, accept unknown host keys, install software remotely, or execute commands from experiment configurations. Interpreter and worker-root paths are absolute. The endpoint runs a fixed, shell-quoted agent command. Worker roots are private and bound to an immutable registration.
@@ -78,8 +81,8 @@ Native state codecs are engine-specific: PyTorch uses `pytorch_native/v2`; MLX u
 A version-1 matrix names a base configuration and insertion-ordered axes. Each option has a label and explicit dotted-path `set` patch. Expansion rejects duplicate labels, overlapping paths, unknown keys, invalid resulting configurations, and more than 1000 coordinates unless `--max-runs` is explicitly increased.
 
 ```sh
-sparselab experiment submit --matrix MATRIX.yaml --dry-run --store /tmp/sparselab-controller
-sparselab experiment submit --matrix MATRIX.yaml --store /tmp/sparselab-controller
+sparselab experiment submit --matrix MATRIX.yaml --dry-run --store sparselab-work/controller
+sparselab experiment submit --matrix MATRIX.yaml --store sparselab-work/controller
 ```
 
 Dry-run resolves the complete coordinates, configuration hashes, and scheduling constraints without creating the controller store, preparing data, probing devices, or enqueueing. Non-dry-run preparation must succeed for every coordinate before the queue transaction. Each coordinate receives independent IDs and retains the matrix digest and labels in its spec and resulting manifest.

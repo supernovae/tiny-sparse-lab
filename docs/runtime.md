@@ -51,8 +51,8 @@ MPS and MLX use unified memory. Their device recommendation/driver allocation an
 
 ```sh
 uv run sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output /tmp/sparselab-stage
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output /tmp/sparselab-stage-warmup
+uv run sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
+uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
 ```
 
 A stage bundle is an immutable, verified copy of the effective inputs. `inspect` records only preflight inspection; `validate` additionally validates backend and artifacts; `smoke` and `warmup` run short, disposable subprocess pilots. Pilots do not advance the eventual training run's optimizer, schedule, cursor, counters, or RNG. A stage output must be new, or an identical complete bundle is re-verified and reused. If estimation or a pilot exceeds its safe ceiling, staging writes a proposal and stops; it does not rewrite the requested config.
@@ -99,7 +99,7 @@ uv run --locked --python 3.14 python -c 'import torch; print(torch.__version__, 
 uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run --locked pytest -m 'not cuda and not rocm and not xpu and not network'
 RUN_ID="rocm-wsl2-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
-STAGE_DIR="/tmp/sparselab-rocm-warmup-$RUN_ID"
+STAGE_DIR="sparselab-work/stages/rocm-wsl2-$RUN_ID"
 uv run --locked sparselab stage configs/runtime_smoke_rocm.yaml --through warmup --output "$STAGE_DIR"
 uv run --locked sparselab train configs/runtime_smoke_rocm.yaml --run-id "$RUN_ID"
 uv run --locked sparselab eval "$RUN_ID" --backend rocm --runs-dir runs-rocm
