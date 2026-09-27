@@ -138,6 +138,8 @@ None of these creates distributed training. Inference KV caches are request-loca
 
 Learn one mechanism or scaffold a declared controlled study without downloading data or starting a run: [research workbench](docs/research/README.md). It distinguishes configuration-only scaffolding from the explicit tokenizer/data/training commands, and explains static reports and read-only dashboard browsing.
 
+For the higher-level workflow—how to level-set a baseline, turn a limitation into a smaller question, preserve real failures, and decide whether to fix, stop, replicate, scale, branch, or promote—use the [experiment learning cycle](docs/research/experiment-learning-cycle.md).
+
 Copyable starting points and real campaign records have distinct homes under
 [`experiments/`](experiments/). Mutable execution output belongs in the ignored
 `sparselab-work/experiments/` tree.
