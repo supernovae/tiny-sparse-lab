@@ -1,6 +1,6 @@
 # Repository review: from mechanism demos to measured small models
 
-This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [capability backlog](../TODO.md) for current capabilities and remaining verification.
+This page preserves the original review and exploratory results; they are not an untouched-test claim. The completed follow-up section below records newer runtime, worker, context/Engram, and domain-adaptation work. Use the [README](../README.md) and [research roadmap](research/roadmap.md) for current capabilities and remaining scientific questions; [`TODO.md`](../TODO.md) contains implementation work only.
 
 ## Project contract
 
@@ -84,4 +84,4 @@ The [scientific acceptance record](../artifacts/acceptance/scientific_studies_20
 
 Further curriculum or scale experiments need a new explicit hypothesis and frozen evaluation; inspected cases must not become “untouched” again. Generic statistically justified model selection and open-ended response grading are not established by these studies. Native CUDA/HIP work, actual ROCm/XPU acceptance, and overlapping real Mac/AMD/Intel execution remain hardware-blocked. Distributed training remains outside the current scope.
 
-See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), and the [capability backlog](../TODO.md).
+See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), the [research roadmap](research/roadmap.md), and the [implementation backlog](../TODO.md).

@@ -17,7 +17,14 @@ FineWeb-Edu is pinned to revision `87f09149ef4734204d70ed1d046ddc9ca3f2b8f9` and
 
 A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `study.yaml`, hashed standalone configs, and metadata. It does **not** execute them. Follow the generated README to train the tokenizer, prepare each required config's data, inspect/probe/train, or explicitly submit and collect a study. See [lesson paths](lesson-paths.md), [the catalog notes](engram-ffn-substitution.md), [evidence and reporting](evidence-and-reporting.md), and [dashboard browsing](dashboard.md).
 
-The [research roadmap](roadmap.md) tracks capability evidence and open work. Verified semantic retrieval accepts pre-encoded vectors; a teacher-representation compiler and natural-language query encoder are not shipped.
+The [research roadmap](roadmap.md) tracks capability evidence and open scientific
+questions. Use [`experiments/samples/`](../../experiments/samples/) for copyable
+teaching material and [`experiments/research/`](../../experiments/research/) for
+real campaign definitions and iteration records. Mutable execution output belongs
+under the ignored `sparselab-work/experiments/` tree. Missing code belongs in
+[`TODO.md`](../../TODO.md). Verified semantic retrieval accepts pre-encoded
+vectors; a teacher-representation compiler and natural-language query encoder are
+not shipped.
 
 ## Known-good decision records
 

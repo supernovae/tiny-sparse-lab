@@ -1,181 +1,81 @@
-# Capability status and open verification backlog
+# Implementation backlog
 
-The lifecycle coordination layer records findings, reviewed baseline decisions,
-and explicit blockers; it does not close the scientific work below.
-See [known-good baselines](docs/research/known-good-baselines.md) for the bounded
-dense candidate, its failed held-out-validation gate, evidence record, and promotion workflow.
+This file tracks only repository changes that require code. Scientific questions,
+campaign status, and proposed experiments belong in
+[`docs/research/roadmap.md`](docs/research/roadmap.md), the versioned research
+lifecycle, or a checked-in [`experiments/research/`](experiments/research/)
+record. Completed work remains discoverable in Git history and evidence records;
+it is not retained here as a second changelog.
 
-This is the living checklist for what SparseLab can execute, what has been smoke-tested, and what still needs evidence before stronger capability claims. A passing test or smoke run proves a code path, not useful model behavior. Completed acceptance records remain below as a historical evidence ledger; the current open work is organized by capabilities, not release phases. See the [capability roadmap](docs/research/roadmap.md).
+When a task moves to GitHub, use the **Code task** issue template and replace the
+item below with its issue link. A code item is complete only when its tests and
+documentation land. An experiment result, including a negative result, does not
+close a code item unless the named software acceptance criteria also pass.
 
-## Current capability snapshot
+## Runtime forecasting and progress
 
-| Capability | Implemented and exercised | What remains unproven |
-|---|---|---|
-| Training and runtime | CPU, MPS, and MLX/Metal training, evaluation, checkpoint recovery, inference, and independent-worker paths have acceptance evidence. | Fit, throughput, or reliability at larger workloads and on untested vendor hardware. |
-| Learning and experiment workbench | Packaged lessons/catalog, explicit scaffolds, paired and factorial comparisons, static reports, and read-only dashboard paths exist. CPU/offline smoke, nano, and MPS/FineWeb-Edu micro studies are recorded. | A smoke is not a quality result; time-to-target, complete cost accounting, and broader independent task results remain open. |
-| Token/byte Engram | Trainable tables are integrated with the model/training/checkpoint paths; byte-address smoke and controlled lexical-memory studies exist. | No consistent held-out benefit or general knowledge-transfer result; results vary by task and budget. |
-| Portable byte Engram | Three-seed N=2,048 source gates and byte-exact export-to-recipient tables verified at widths 64/128; adapters update only the recipient-local projection/gate. | Zero-shot equals baseline at 3.125%; real adapters average 71.7% on one held-out wording but 3.125% on a second. One of six misses 50%; broader task/architecture transfer remains unproven. |
-| Semantic EngramPack | **implemented** verified exact retrieval from caller-supplied vectors, direct PyTorch `DenseLM` adapters, structured synthetic-world controls, and verified semantic query/mask allocation sidecars consumed by `PyTorchEngine`. | **still unproven** useful recipient behavior, natural-language query production, replacement-world transfer, and cross-width portability. No standard text-query pipeline. |
-| Other architectures | PyTorch attention, MLA, local MoE, and memory paths have tests and integration runs; native MLX sparse attention has component measurements. | Most evidence is mechanism correctness or small, task-specific studies—not general quality or speed superiority. |
-| Useful local models | A measured synthetic instruction starter and narrow capability cards provide honest failure examples. | No independently evaluated, useful real-world task model has been established. |
+- [ ] Replace preprocessing heartbeat-only events with a common, versioned
+  progress record containing phase, completed/total work when known, elapsed
+  time, last meaningful progress, and raw counters. Preserve JSON Lines on
+  stderr and do not change scientific inputs or stdout result payloads.
+- [ ] Add phase-aware planning, warmup-calibrated, live, and final-observed
+  timing records. Keep estimates separate from observations, represent missing
+  telemetry as unavailable rather than zero, and persist prediction snapshots at
+  a bounded cadence.
+- [ ] Add training target progress, robust recent/long-window throughput, a
+  non-negative live ETA range, and explicit unstable/stalled states. Keep
+  optimizer-only time separate from validation, checkpoint, preparation,
+  evaluation, and report overhead.
+- [ ] Add a read-only runtime-estimate/status CLI JSON contract and surface the
+  same records in the dashboard without making the dashboard a scheduler.
+- [ ] Add explainable historical calibration that refuses incompatible backend,
+  precision, architecture, optimizer, sequence-length, recomputation, or
+  offload observations and identifies every contributing run.
 
-The latest workstation regression run was `uv run --locked pytest -q` (**547 passed, 2 skipped in 158.29s**). This validates software paths; it does not change any model-capability status above.
+The bounded implementation brief is
+[`docs/prompts/runtime-forecasting-and-throughput.md`](docs/prompts/runtime-forecasting-and-throughput.md).
 
-## Engram portability evidence ledger
+## Throughput and resource proposals
 
-Evidence labels are deliberately separate: **implemented** means a code path exists; **smoke-tested only** means the path ran without establishing useful behavior; **experimentally measured** means bounded behavioral measurements exist; **still unproven** means the claim lacks adequate evidence; **hardware-blocked** means the required target is unavailable; **deferred** means excluded until a named prerequisite is met. A mechanism can be implemented or smoke-tested while its behavioral claim remains still unproven.
+- [ ] Extend disposable staging to benchmark safe microbatch/accumulation
+  candidates that preserve the declared effective batch, rank candidates by
+  measured target throughput and headroom, and write a separate proposal rather
+  than mutating the requested config.
+- [ ] Record why a candidate was selected or rejected, including OOM, unsupported
+  precision, excessive memory pressure, unstable timing, and insufficient
+  observations. Initialization/transient steps must not dominate the result.
+- [ ] Add optional bottleneck observations that distinguish accelerator-bound,
+  input/host-bound, memory-pressure, and unknown cases. Low CPU or less than
+  100% device utilization is diagnostic evidence, not itself a failure.
 
-| Question | Current evidence |
-|---|---|
-| Token-address portability | **implemented** address identity is tokenizer-dependent; a tokenizer match is an address invariant, not hidden-coordinate alignment. Cross-tokenizer behavior is **still unproven**. |
-| Raw-byte address portability | **implemented** terminal byte addressing; **experimentally measured** N=2,048 source learning with all target rows covered and zero true distinct-key aliases. The historical two-case transfer comparison remains negative; broader address distributions and non-synthetic tasks are untested. |
-| Immutable-artifact portability | **experimentally measured (N=2,048):** all three exported tables match final source checkpoints and same-seed width-64/128 recipient tensors (nine exact comparisons). This establishes exact reuse within this DenseLM family, not useful zero-shot behavior or cross-architecture compatibility. |
-| Dimensional/interface portability | Structured semantic K=32, V=8 differs from recipient width by design; interface compatibility is **implemented**, useful transfer is **still unproven**. |
-| Behavioral portability | **experimentally measured, bounded:** source gates pass; recipient adapters average 71.70% on one held-out wording but 3.125% on a second; the preregistered all-six ≥50% criterion fails one group. Robust wording, task, and general-language transfer remain unproven. |
-| Zero-shot portability | **experimentally measured:** all six real-zero-shot recipients scored 3.125%, equal to baseline, on both final wordings despite exact table reuse. Useful zero-shot recipient behavior was not demonstrated. |
-| Adapter-tuned portability | **experimentally measured, partial:** mean held-out gain is 68.57 percentage points on “Report the assigned symbol”; all six remain at 3.125% on “State the assigned symbol.” The strict all-six ≥50% criterion failed at width64/seed73; broad phrase/recipient transfer remains unproven. |
-| Cross-hidden-width portability | **experimentally measured within DenseLM:** same-seed source bytes were used at widths 64/128; adapter `final_report` means were 61.88%/81.51%. Three paired seeds, seed variation, and second-wording failure do not establish robust width-independent or cross-architecture behavior. |
-| Cross-scale portability | **still unproven**. |
-| Cross-architecture portability | **still unproven**; initial DenseLM recipients all use dense attention. |
-| Knowledge-swap portability | **still unproven** on neural recipients. Exact structured traversal is retrieval-only and cannot count as learned recipient behavior. |
+## Workspace reliability
 
-**Bounded local MiniLM pilot — experimentally measured, limited scope:** widths 32/64, seeds 17/41/73, six rows; correct-pack answer accuracy 1.0, baseline/random/disabled 0.125, incomplete 0.5625, conflicting 0.0. Pack ID `2eae0ee0fe90b06bf06c31683b9e41e735ee80c73df49f7e1987c42310e7dc51`. Joint training ran 200 updates on 16 facts with precomputed MiniLM query vectors; held-out wording referred to training facts. This is not frozen-backbone adaptation, unseen-world swapping, micro-scale evidence, or ordinary language generation.
+- [ ] Add a named-workspace preflight that reports filesystem capacity and inode
+  headroom before long preparation or training operations, includes projected
+  checkpoint/cache growth where available, and fails before partial publication
+  when the configured work area is clearly insufficient.
+- [ ] Ensure every remaining temporary-file path honors `--work-dir` or
+  `SPARSELAB_WORK_DIR`; add regression coverage for subprocesses and external
+  tool fallbacks. Long-running workflows must not depend on the platform's
+  anonymous `/tmp` capacity.
+- [ ] Add bounded retention/cleanup proposals for campaign-owned checkpoints and
+  caches. Never delete unowned paths or required registered checkpoints, and
+  keep cleanup a separate explicit action.
 
-**Portability runner full smoke matrix — experimentally executed; useful behavior remains unproven:** campaign `/tmp/engram-portability-v1-final-matrix`, report `portability_evidence-a39168d1a7d8b69c.json`. All 120 declared arms ran at smoke scale for two updates across seeds 17/41/73: 42 token, 42 byte, 36 semantic, widths 32/64, all declared controls. The report contains 324 immutable checkpoint observations; 102 training audits passed and the 18 `frozen-only` arms used step-zero recipient checkpoints. No arm failed; all 120 were right-censored at the predeclared 0.95 development threshold. Development and final exact answer/path accuracy were 0.0 for every arm. The 468 saved A/B/A probes reproduced exact A answers and paths; a post-fix semantic-arm smoke also verified exact-comparison reporting. A semantic adapter arm recorded 520 retrieval hits, four conflicts, four temporal misses, and 16 unknowns while answer accuracy stayed 0.0. The protocol uses direct structured token/byte compiles and supplied structured semantic vectors, not source-model-trained artifacts or a natural-language query producer. This is workflow/retrieval evidence only, not useful transfer.
+## Experiment ergonomics
 
-**Measured campaign resource envelope:** analytical maximum single-arm RAM estimate 69,222,400 bytes; total checkpoint-storage estimate 185,317,632 bytes (177,061,248 training, 8,256,384 preparation). Across the 120 saved arm receipts, observed median train-plus-checkpoint-observation wall time was 6.992303667 seconds per arm.
+- [ ] Make a scaffold capable of targeting the documented
+  `experiments/samples/<name>` or `experiments/research/<campaign>` layouts while
+  placing mutable assets under a named `sparselab-work/experiments/<campaign>`
+  root.
+- [ ] Emit a copyable command transcript and source/output path map in scaffolded
+  experiment README files so another user can reproduce the plan without
+  inheriting local absolute paths.
+- [ ] Validate that checked-in research records bind protocol/config identities
+  and evidence references while excluding checkpoints, caches, datasets, logs,
+  and other mutable run output.
 
-**Other measured negative/mixed evidence:** the two-case portable-byte comparison was negative. FineWeb-Edu micro has 18 MPS endpoints at 1,024 updates/262,144 targets; lexical-minus-none mean validation-loss deltas were −0.003625/ +0.006116/ −0.013402 for FFN widths 5120/2560/1280, with mixed per-seed signs and all stress cards zero. Neither result licenses a general portability or scaling claim.
+## Backend implementation
 
-**Separate unresolved mechanisms:** a reproducible text-query producer is **still unproven as a supported reproducible integration**. The local MiniLM producer is a prototype, not an absent mechanism; integration must bind encoder name, immutable revision, artifact digest, output dimension, normalization, representation-space ID, producer time/compute, and input provenance. Teacher-derived hidden-state compilation is **deferred** until ordinary semantic-pack portability has evidence.
-
-## Learned Engram portability — active
-
-These acceptance items belong to Experiment A: one source-learned raw-byte table, independent DenseLM recipients, and recipient-local interface calibration. Implementation checks and behavioral findings are separate; a source-gate failure leaves transfer unchecked.
-
-**Wiring smoke (2026-09-26 UTC):** `/tmp/omp-learned-portability-smoke.azUgCF` built, planned, executed, and reported in under 3,600 seconds. The 128-fact `smoke-wiring-only` run completed six source arms; all three source-real seeds failed `source_memory_accuracy_gate_failed`, so the source gate blocked export and all 48 dependent coordinates. This is a fail-closed wiring check, not a behavioral result. Report `07d3a75f9885aff7026f15ddfb484f972e5c6c053225b2d261807b4870f1b4a3`; evidence `b9bda5868308455da837bfe58465d93b95347ddd519f54b6568666cfc0e98851`.
-
-**Interrupted-run recovery regression (2026-09-26 UTC):** the first nano attempt at `/tmp/omp-learned-portability-nano-final.wNhMga` preserved an immutable failed attempt after resume compared campaign-owned paths against the parent's resolved config. The fix restores the parent's cache/data/tokenizer/portability-manifest paths while preserving child name/logging and rejecting scientific-setting drift. Focused tests: `uv run pytest tests/test_learned_portability_campaign.py -q` (**3 passed**); the helper also passed against that actual interrupted checkpoint. The full CLI continuation path after this fix has not yet been exercised; this root is excluded from behavioral conclusions.
-
-**N=512 source and identity diagnostic (2026-09-26 UTC):** source-real seeds 17/41/73 each completed 8,192 updates and 65,536 factual target exposures (512 facts × 128); audits observed gradients on and changed 512/512 factual rows, with full exposure and 1.0 source-monitor accuracy. Enabled-minus-disabled exact accuracy was 0.984375/0.96875/1.0; disabled-minus-enabled answer NLL was 7.2848/6.7569/6.8996. All three exported table tensors equal their final-checkpoint tensors, provenance hashes match package bytes, and checkpoint latest pointers bind their manifests. Seed-17 width-64 real-zero-shot/adapter owned copies equal the source package bytes and bind its run/checkpoint/table digests. All 12 source/preparation run manifests share source identity `a21862251866e439500744527df8b627ca74d4d3126ddca765ee9559e83cf684`. This root failed preparation-checkpoint binding before recipient observations; no width-128 learned-package copy exists, so it supports source learning/artifact identity only, not recipient transfer.
-
-**N=2048 diagnostic root (excluded from behavioral claims):** `/tmp/omp-learned-portability-nano-final2.UNaRNg` selected 2,048 facts on CPU and completed six source runs in 5,512.76 seconds; the source gate failed and blocked 48 dependents. `fact-2047` had 64/128 recorded source exposures: the 4,096-document cap omitted the trailing generic sentinel from the 4,097-row source file, so the packer excluded the final real block. The run also has mixed source identities (`864d06929ad635e423623c0f3b7a520b5e02181352c96a75b0ef953357206157` for source-real-s17; `71a352febbe3d626798baf064f070dbce2672b26a3deb5514814e2e7062ee41d` for the other five), because code changed during execution. Its report `9821d409f96b37802da4fe4bb050e1463600a3ff2aba7254a1cd0c9e11c6181d` and evidence `268873921c184d8b825274ea437a2535c1eae6a075c54177f7db49f70b470df0` remain diagnostic only. Configured input document limits now use the owned JSONL row counts; the regression covers the sentinel boundary.
-
-**N=2048 final3 run (storage-interrupted; incomplete):** `/tmp/omp-learned-portability-nano-final3.wOgq1U` selected CPU/N=2048. The resource projection admitted 6,995,557,242 bytes with 64,416,116,736 available, but `keep_periodic=true` retained every 32-step full checkpoint. Source-real s17/s41 completed with full exposure, valid update audits, and 1.0 source-monitor accuracy; dense-s17 scored 0.171875 as a negative control. Disk I/O failed during dense-s41, then copying the source-real-s73 bundle failed with `ENOSPC` after 3,104.58 seconds. The four run manifests share source identity `5de45ba9cd1caf9b5d242179d65ee32bc481a50a6f027b1524525dd9fe815745`; this incomplete root occupied 74,171,816 KiB and has no final report or recipient results. The initial storage workaround retained only latest-two/best checkpoints; final4 showed that this pruned required step 0. Final5 uses explicit registered checkpoint steps and budgets one extra generation for interruption. Focused tests passed (**4 passed**). User approved deletion of the superseded N=512 source/preparation-only root `/tmp/omp-learned-portability-nano.2f4gF9`, freeing 32 GiB. Final4 rebuilt/planned and completed with the step-0 retention failure recorded below; final5 `/tmp/omp-learned-portability-nano-final5.rTighq` was rebuilt/planned and its fresh 43,200-second run started.
-
-**N=2048 final4 schedule-retention diagnostic (2026-09-26 UTC):** `/tmp/omp-learned-portability-nano-final4.Vn1ka4` selected CPU/N=2048 and completed six source jobs, but all six post-training observation passes failed because `keep_periodic=false` pruned the required step-0 checkpoint. Outcomes: 6 failed, 48 blocked; all source gates remained pending, artifact/adapter conclusions blocked, representation not tested. One source identity was shared by all six runs (`0480528b5b8a3f564fcb779062dbf018f079524aa5fc7b2e3a0aeb53ca8f2104`). Report `067cf3b91a6f2a32caee8d9e73504d18f20a42f4475d7f01f722315031a70675` was identical on two renders; evidence artifact `a262bae14c69e380a8809d4934d6faeb1d4eb25b9eb584dd485208ec269669a5` has raw SHA-256 `b82c8d56b175efc6fd640010133e747c5a80777e722a843d1900b0e04494c790`. This is an implementation diagnostic, not behavioral evidence; final5 now retains the exact registered boundary checkpoints.
-
-**N=2048 final5 behavioral run (2026-09-26 UTC):** `/tmp/omp-learned-portability-nano-final5.rTighq` selected CPU/full at N=2,048; all 54 coordinates completed (42 trained, 12 observation-only), with 0 failed/blocked, in 9,583.7s. Current source identity `3953d5464572ec5c03d9852f756fc0ee00c8cb9446507f74cd5a61d5bd54d229` matches all 42 run manifests and 282 checkpoint manifests. Evidence `5f0b3b678a38db7a1a1f9c7d0fefc79b73842e3a6c215a8dce6fda4c410fa1ae` (raw SHA `fdbbbf354785adfadb3efb4a93e36763555f1744bb439b3258858030fd31be7b`); report bundle `b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed` repeated identically; all 1,066 assets verified.
-
-All three source-real gates passed. Each trained 32,768 updates; all 2,048 facts had exactly 128 target exposures (262,144 total), nonzero gradients on all 2,048 factual rows, and changed final bytes. Source-monitor accuracy was 512/512; enabled-minus-disabled accuracy was +0.96875 and disabled-minus-enabled NLL was 11.713/9.448/12.284 for seeds 17/41/73. Exported table bytes matched final source checkpoints and both recipient widths (9 exact tensor comparisons). All six preparation gates scored 128/128; each real-adapter changed only `memory.gate.weight` and `memory.output.weight`, with backbone/frozen assets unchanged.
-
-Recipient held-out accuracy: baseline, constant, random, permuted, and zero-shot controls all scored 3.125% on both final wordings. Real adapters averaged 71.70% (NLL 1.833) versus 3.125% (NLL 17.528) on “Report the assigned symbol”; five of six groups met 50%, and three crossed 75% at 8,192 updates. On “State the assigned symbol,” all six remained at 3.125% (NLL 12.424 versus 18.044 zero-shot). Native recipients averaged 99.97%/91.76% on the two wordings and crossed 75% in all groups at 8,192/32,768 updates. The preregistered all-groups ≥50% adapter criterion narrowly failed at width64/seed73 (49.12%); representation portability remains untested.
-
-
-- [x] Verify source joint SGD from a random byte table, actual nonzero addressed-row gradients, changed checkpoint rows, and complete fact exposure. **N=2048 final5:** seeds 17/41/73 each exposed all facts 128 times; all 2,048 factual rows had observed gradients and changed checkpoint bytes.
-- [x] Require the per-seed memory-sensitive source gate before exporting the fixed endpoint table; audit table-only package bytes, tensor digest, provenance, and recipient copies. **N=2048 final5:** all three gates passed; source-checkpoint/export/width64/128 recipient tensors matched exactly and provenance bound the source run.
-- [x] Prepare independent width-64/128 recipients and verify frozen-backbone adapter ownership, exact trainable inventory, and calibration/held-out row ownership. **N=2048 final5:** 6/6 preparations passed 128/128; all six adapters changed only projection/gate weights; calibration and held-out fact sets were disjoint.
-- [x] Evaluate baseline, constant, random, permuted, real zero-shot, real adapter, and native controls at the fixed schedules; report unrestricted exact-symbol accuracy and answer NLL. **N=2048 final5:** all 54 coordinates completed; report and state wordings remain separate.
-- [x] Preserve source-monitor and recipient-held-out partitions, final unseen wording, per-case records, integrity checks, and all three seed outcomes. **N=2048 final5:** checksummed evidence/report preserve every seed and observation; all report bundle assets verified.
-- [x] Report calibration and held-out curves separately, descriptive 0.75 attainment/censoring, measured training/evaluation costs, and same-byte cross-width benefit. **N=2048 final5:** 3/6 adapters crossed 0.75 on `final_report` by step 8,192; none crossed on `final_state`; total measured campaign time was 9,583.7s. Same bytes worked at both widths, but recipient gains were wording- and seed-dependent.
-- [ ] Optional follow-up only after a positive primary result: independently learn source B and test gradient-free A→B→A with the already calibrated recipients.
-
-## Compiled knowledge Engrams — staged/deferred, not the active implementation target
-
-- [ ] Retain structured synthetic memory and the bounded MiniLM pilot as historical evidence; neither is source-learned Engram portability.
-- [ ] Define licensed lexical/factual/relational builders: WordNet, corpus-mined N-grams, aliases/morphology; Wikidata CC0, generated worlds, formulas/constants/units; ConceptNet with provenance/license caveats; ATOMIC-style relations; Python stdlib and explicitly licensed Kubernetes/OpenShift or other technical specifications.
-- [ ] Preserve structured relation records instead of relabeling flattened lexical N-grams as semantic memory.
-- [ ] Compare learned baseline, compiled/frozen memory, and compiled memory with neural refinement; include random and SGD controls, unseen-pack replacement, and compiled initialization.
-- [ ] Measure tokens and neural FLOPs to a fixed capability threshold, with compilation and refinement cost reported separately; study multi-tier memory allocation.
-- [ ] Keep natural-language query integration and teacher-derived representations as separate deferred work, never prerequisites for Experiment A.
-
-**Historical limitation retained:** the bounded MiniLM pilot used identical synthetic token IDs per example; precomputed memory values supplied example-specific information. Its held-out wording reused training facts. It is preliminary bounded evidence that externally constructed memory can causally influence a jointly trained small recipient—not learned Engram portability, frozen-recipient adaptation, unseen-world swapping, or ordinary-language competence.
-
-
-## Open capability work
-
-- [ ] **still unproven** matched multi-seed lexical Engram behavior on a non-alias task with a training-only corpus, independent held-out cases, dense/no-memory controls, and collision/address diagnostics. Token and byte addressing remain separate.
-- [ ] **still unproven** robust portable byte-Engram behavior beyond the N=2,048 synthetic association study. Final5 establishes source acquisition and exact same-seed table reuse at widths 64/128, but zero-shot stayed at baseline and adapter accuracy failed one of six ≥50% groups and all six on the second held-out wording. Expand independent task/world and phrase diversity, new seeds/recipients, and architecture coverage.
-- [ ] **still unproven** semantic EngramPack useful recipient behavior. Exact encoder-space compatibility requires key/value encoder identities, dimensions, normalization, and representation-space ID—not a shared tokenizer.
-- [ ] **Allocation curve:** complete or explicitly bound the current 75-coordinate design; the recorded CPU smoke executed only one coordinate. Preserve per-task outcomes, all declared ownership/weight combinations, actual targets, and nonmonotonic results.
-- [ ] **Architecture evidence:** choose one task and compare one mechanism at a time—MLA, sparse attention, MoE, placement, or FFN width—with matched data, tokenizer, seed, endpoint, and backend. Keep task scores, parameter/cache estimates, synchronized update timing, and end-to-end wall time separate.
-- [ ] **Useful narrow model:** select one low-risk job, use permissioned non-synthetic examples, freeze an independent test set, and compare against a simple non-neural baseline. Predeclare acceptance criteria; include ambiguous/unknown cases, per-case errors, multiple seeds, and human review before describing the result as useful.
-- [ ] **Learning and cost curves:** define a versioned observation policy for held-out task scores at committed token/checkpoint boundaries, thresholds, censored runs, wall/device time, and measured memory. Preserve update time separately from setup, evaluation, and checkpoint overhead; do not label a smoke timing as time-to-quality.
-
-CUDA/HIP/ROCm/XPU, actual cross-host hardware, and distributed training retain their separate constraints below. They are not closed by CPU or Apple Silicon smoke results.
-
-## Earlier acceptance evidence
-
-## Local runtime
-
-- [x] Execute isolated smoke and warmup staging pilots. **Astra:** real isolated subprocess pilots, fresh-run RNG/state parity, portable-file staging, offline frozen assets, and failure/proposal regressions passed in the 91-test integration sweep.
-- [x] Implement capability-tested mixed precision and overflow recovery. **Astra:** real CPU BF16 full 4/128 versus part 2/64 plus resumed 4/128 matched model, optimizer, schedule, scaler, cursor and RNG bitwise with FP32 master weights (`/tmp/sparselab-mixed-supervision-cST7Ou/acceptance.json`); both overflow/retry regressions passed. Accelerator modes remain gated by actual disposable probes, not declarations.
-- [x] Complete memory monitoring, calibration, and synchronized timing. **Astra:** 79 focused runtime/memory/staging/store/conversation regressions passed; actual CPU RSS and MLX active/peak/cache records preserve missing-counter distinctions. Sampled MPS peaks never lower estimates or certify fit. [Evidence](artifacts/acceptance/memory_optimizer_2026_09_22.json).
-- [x] Complete explicit memory-policy search and proposal output. **Astra:** actual CLI low-memory/balanced proposals preserve effective batch and source bytes; loadable YAML/report hashes and overwrite refusal verified. Fault regressions preserve uncertainty margins and roll back failed publication. [Evidence](artifacts/acceptance/resource_policy_2026_09_22.json).
-- [x] Make recomputation diagnostics safe and memory-bounded. **Astra:** dense/MoE/combined gradient and update regressions, nonempty-chunk accounting, detached masked diagnostics, native MLX recomputation, and actual MPS offload composition passed. [Paired measurements](artifacts/acceptance/offload_2026_09_22.json).
-- [x] Complete lineage-best recovery and interruption acceptance. **Astra:** actual SIGTERM commits step 4,642/148,544 targets; corrupt explicit resume creates no child; recovery selects verified step 4,600 and commits child 4,601 without changing selected parent files. Older-parent lineage excludes future generations. [Recovery](artifacts/acceptance/signal_recovery_2026_09_22.json), [lineage](artifacts/acceptance/lineage_bound_2026_09_22.json).
-
-Checkpoint/recomputation contracts precede runtime integration; measured staging precedes worker scheduling. Existing canonical identities, immutable data verification, PyTorch-native v2 / MLX-native v1 checkpoint checks, writer leases, shape-only inspection, CPU/byte-data continuation, Adafactor continuation, and local MPS resume remain regression requirements rather than work to replace.
-
-## Persistence and interface
-
-- [x] Implement transactional metrics migration and durable event records. **Astra:** migration/history preservation, transactional rollback, contiguous/idempotent replication, strict 64-KiB envelopes, exact batch framing, and schema-corruption regressions passed; real staged training persisted the records.
-- [x] Complete the Runtime, Checkpoints, Memory, and Stages dashboard. **Astra:** populated CPU/MPS/MLX browser checks, mixed-optimizer comparison, live updates, persistent selection, full parent identity, 31 valid/1 corrupt generation, unchanged SQLite data version, stale-read recovery, UTC age, and independent metric scales. [Evidence/screenshots](artifacts/acceptance/dashboard_2026_09_22.json).
-- [x] Complete educational contracts and installed-wheel acceptance. **Astra:** core-only wheel outside checkout, 13 packaged guides, browser Learn, offline native verification without MLX, explicit SDK-required execution failure, and CPU inference/evaluation after owned external inputs were removed. [Wheel evidence](artifacts/acceptance/core_wheel_2026_09_22.json), [final frozen wheel](artifacts/acceptance/single_host_gate_2026_09_22.json).
-
-## Training and inference
-
-- [x] Implement verified KV-cached autoregressive generation. **Astra:** focused generation regressions cover cached/reference parity and bounded-window behavior; actual API/CLI CPU generation agrees. Native MLX remains explicitly full-prefix. [CLI evidence](artifacts/acceptance/host_cli_2026_09_22.json).
-- [x] Implement validated legacy-checkpoint and pretrained-weight import. **Astra:** 35 focused import/checkpoint/generation/recomputation tests pass, including independent Llama reference parity. Actual historical 50M import preserves exact logits and original files, rejects full resume, and commits a promoted update. Legacy inspect/verify reports weights-only scope. [Evidence](artifacts/acceptance/weight_import_2026_09_22.json).
-- [x] Curate licensed domain conversations and audit semantic leakage. **Astra:** CPython 3.14.7 independently confirms all 44 labels; normalized path/operation/argument identities have zero cross-split overlap; all 26 card cases match their source envelopes and all 28 frozen domain file identities verify. Acquisition is six selected training cases, not the entire split. [Evidence](artifacts/acceptance/domain_curation_2026_09_22.json).
-- [x] Implement assistant-only loss and versioned tool conversations. **Astra:** actual CPU and MLX commands commit exactly 13 supervised targets and evaluate 33 targets after excluding 19 masked blocks; held-out evidence binds the supervision digest. Mask-tamper regression and conversation/packing suites pass. [Evidence](artifacts/acceptance/assistant_only_2026_09_22.json).
-
-## Capability experiments
-
-- [x] Train context overrides and evaluate untouched assignments. **Astra:** all 24 preregistered endpoints and 72 fixed-order cards verify; all untouched outcomes remain 0/8. Independently rescored the archived responses without regenerating them. [Acceptance](artifacts/acceptance/scientific_studies_2026_09_22.json).
-- [x] Run preregistered multi-seed, multi-budget architecture comparisons. **Astra:** seeds 17/41/73, exact 24,576/49,152 targets and 199/398 updates; all 18 paired deltas independently checked, no endpoint/seed selection. [Results](docs/context-engram-study.md#execution-results--2026-09-22).
-- [x] Measure Engram collisions, addressing, and matched-parameter alternatives. **Astra:** four actual address streams recomputed over all 27 blocks; repeated-key reuse, excess-key aliases and unordered collision pairs distinguished. Dense-total is 160 parameters larger; diagnostic variants remain confounded. [Acceptance](artifacts/acceptance/scientific_studies_2026_09_22.json).
-- [x] Measure domain reliability and retention after adaptation. **Astra:** six exact 30,720-target endpoints, 18 cards, verified promotion lineage and six independently recomputed 30-block/2,880-target retention measures. Acquisition improves; development stays 0/8, adapted frozen total is 1/36, and retention worsens sharply. Original pre-execution infrastructure retries remain documented. [Results](docs/path-domain-corpus.md#2026-09-22-execution-record).
-
-Keep the previous failed override controls and negative Engram comparison. Do not select favorable seeds or silently turn development cases into an untouched test set.
-
-## Backend and performance
-
-- [x] Complete MLX checkpoint, inference, evidence, and recomputation parity. **Astra:** real Metal full versus interrupted/resumed states match bitwise; canonical PyTorch logits agree within 5.97e-7, generation/chat/evaluation preserve RNG, and cross-engine promotion commits a fresh update. Core-only offline verification is separate from SDK-required execution. [Evidence](artifacts/acceptance/host_cli_2026_09_22.json).
-- [x] Complete activation-offload probes and measured transfer comparisons. **Astra:** actual paired MPS baseline/offload/recomputation CLI runs, synchronized transfer measurements, parameter parity, host-budget rejection before run creation, and saved-storage lifetime/version regressions pass. Unified-memory capacity gain remains zero; discrete hardware claims remain blocked. [Evidence](artifacts/acceptance/offload_2026_09_22.json).
-- [x] Complete Adafactor accounting, education, and integration coverage. **Astra:** actual state is 3,436 bytes versus AdamW 86,444 bytes for the same tiny architecture, exactly matching factor/alias-aware estimates; Adafactor full/resumed states match bitwise. Browser Learn identifies relative learning-rate cap semantics. [Evidence](artifacts/acceptance/memory_optimizer_2026_09_22.json).
-- [x] Correct configured optimizer inventory across inference reports. **Astra:** reproduced missing AdamW step scalars and Adafactor inference mislabeled as AdamW-sized state; unified configured reports with canonical accounting. Real consumer values now 86,444/3,436 bytes; 35 accounting/inference/planner regressions pass. [Evidence](artifacts/acceptance/configured_accounting_2026_09_22.json).
-- [ ] Implement and benchmark native CUDA sparse attention. **Blocked:** no reachable CUDA target.
-- [x] Implement and benchmark native HIP sparse attention. Astra: online-softmax forward plus query-owned/key-owned backward JIT-built with `hipcc`; ROCm-gated output/input/projection-gradient comparisons pass on RX 7900 XTX, and a fixed-mask attention-only measurement records 0.829 ms HIP versus 67.809 ms eager PyTorch at B=2/H=4/T=128/D=32 (not end-to-end). [Implementation, measurements, and limits](docs/sparse-attention.md).
-- [x] Implement and benchmark native MLX sparse attention. Astra: custom Metal forward/dQ/dK-dV kernels; 10 native regressions pass, including sparse recomputation and wider-head gradients; matched Metal measurements at 32/128/512 tokens. [Evidence and limits](docs/sparse-attention.md#measured-metal-attention-component).
-- [x] Validate ROCm acceptance on actual target hardware. Recorded WSL2 ROCm 10 acceptance on an AMD Radeon RX 7900 XTX (`gfx1100`): ROCm probe, staged warmup, 20 steps / 640 targets, and checkpoint evaluation. [Evidence](artifacts/acceptance/rocm_wsl2_2026_09_25.json).
-- [ ] Validate XPU acceptance on actual target hardware. **Blocked:** no provisioned Intel host.
-
-The recorded WSL2 ROCm target and native HIP sparse-attention path are validated. CUDA, XPU, and untested cross-host claims remain open. No remote hosts are registered with the harness.
-
-## Independent orchestration
-
-- [x] Implement versioned local and SSH worker contracts. **Astra:** strict framing/version/identity and SSH quoting regressions pass; installed local CPU and actual MLX/Metal workers execute and ingest. Genuine source-mismatch worker stays queued without an executor. Actual SSH hardware execution remains unclaimed. [Gate evidence](artifacts/acceptance/independent_workers_2026_09_23.json).
-- [x] Implement physical-device leases and durable launch receipts. **Astra:** inherited physical-device exclusion regressions pass; three concurrent real logical CPU workers have distinct process/start identities, and replaying launch twice preserves the original PID/token/attempt. [Gate evidence](artifacts/acceptance/independent_workers_2026_09_23.json).
-- [x] Implement safe cancellation and verified artifact ingestion. **Astra:** real cancellation commits step 26,943; explicit child reaches 32,768 updates / 2,097,152 targets and matches uninterrupted model, optimizer, RNG, cursor, scaler, schedule and counters bitwise. Offline promotion verifies fresh optimizer/RNG and unchanged parent files; native MLX verifies without its SDK. [Gate evidence](artifacts/acceptance/independent_workers_2026_09_23.json).
-- [x] Implement the independent-experiment queue and explicit matrices. **Astra:** dry-run has no store/input side effects; actual installed CLI matrix enqueues three unique coordinates and all finish with verified ingestion at exactly 2 updates / 64 targets. Unsupported engine/capacity and a genuinely different source remain queued without execution. [Gate evidence](artifacts/acceptance/independent_workers_2026_09_23.json).
-- [x] Verify independent-worker recovery and concurrent execution. **Astra:** all three CPU workers advance while the stopped controller's counters remain fixed; reconnect yields contiguous deduplicated records and zero echo outbox. Identity-checked SIGKILL leaves the old attempt UNKNOWN; only an explicit new child resumes full state to 32,768 updates / 1,048,576 targets. [Gate evidence](artifacts/acceptance/independent_workers_2026_09_23.json).
-- [ ] Verify actual Mac, AMD, and Intel concurrency. **Blocked:** requires real overlapping runs and disconnect/recovery evidence from all three target hosts.
-
-Workers execute whole independent experiments. No shared optimizer, distributed backward, or cross-host SQLite WAL. Local logical workers must truthfully report CPU rather than pretend to be AMD/Intel/Apple accelerators.
-
-## Astra acceptance
-
-- [x] Verify every completed slice with Astra review. **Astra:** independently verified subagent reports, real artifact identities/counters and recovery behavior; reproduced and fixed final lifecycle/codec findings. At that acceptance revision, Ruff checks and 335 tests passed. Later regression results are summarized above. Earlier scientific and single-host gate evidence remains intact; hardware-dependent claims stay blocked.
-- [x] Complete the integrated single-host runtime acceptance gate. **Astra:** accepted after actual CPU FP32/BF16/Adafactor and native MLX continuation, MPS 20/640 full/resumed comparison and CPU-weight promotion, signal/corruption recovery, isolated warmup, dashboard, core-only wheel, and integrity regressions. The immutable execution wheel and hashed evidence index are retained. [Gate record](artifacts/acceptance/single_host_gate_2026_09_22.json).
-- [x] Complete end-to-end independent-worker acceptance. **Astra:** final installed core-only wheel, concurrent CPU runs, actual MLX worker, controller disconnect/replay, cancellation, explicit crash recovery, offline promotion/evaluation/inference, real CLI matrix, admission rejection and read-only dashboard checks passed. Actual browser WebGL curve pixels were captured and visually inspected; standard screenshots/runtime-table rasterization stalled, so runtime table values were verified with Streamlit's real app harness. [Gate record](artifacts/acceptance/independent_workers_2026_09_23.json), [rendered curves](artifacts/acceptance/workers_training_2026_09_23.svg).
-- [x] Publish verified changes and accurately record blocked gates. **Astra:** implementation, curated data, study results, acceptance records, rendered UI evidence and both frozen execution wheels were published to `origin/main` in [e8a60d8](https://github.com/supernovae/tiny-sparse-lab/commit/e8a60d8). At that acceptance point, 31 locally actionable tasks were complete and five actual-hardware gates remained blocked. The capability work now tracked at the top of this file extends beyond that historical acceptance.
-
-Evidence must include actual CLI scenarios, checkpoint/optimizer/RNG comparisons, negative integrity and recovery cases, populated browser verification, installed-wheel behavior, and real hardware measurements where claimed. Shape-only inspection is not a large-model training result. Sampled MPS peaks are lower bounds, not native allocator high-water measurements.
-
-## Excluded from this execution
-
-- [ ] Distributed MoE expert sharding, all-to-all dispatch, and multi-rank GPU training.
-- [ ] Homogeneous distributed data-parallel training.
-
-These remain future research items, explicitly outside the user's current non-distributed scope.
+- [ ] Implement native CUDA sparse attention, then add hardware-gated correctness
+  and component benchmarks. CPU or another accelerator cannot close this item.

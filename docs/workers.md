@@ -93,11 +93,11 @@ The read-only dashboard can use the controller root as `--runs-dir`. Compare act
 
 Logical workers named for Mac, AMD, or Intel roles must truthfully report CPU when executed on CPU. Real ROCm, XPU, and overlapping Mac/AMD/Intel acceptance remain blocked without those actual provisioned hosts. SSH framing and quoting tests do not establish remote driver or kernel performance.
 
-No worker shares optimizer state or exchanges gradients/expert tokens with another. There is no process group, all-reduce, expert all-to-all, tensor/model sharding, or heterogeneous distributed backward. The hardware and distributed research gates remain separate in `TODO.md`.
+No worker shares optimizer state or exchanges gradients/expert tokens with another. There is no process group, all-reduce, expert all-to-all, tensor/model sharding, or heterogeneous distributed backward. Missing implementation and hardware-validation paths remain in `TODO.md`; scientific questions stay in the research roadmap/lifecycle.
 
 ## Observed acceptance — 2026-09-23
 
-[Astra's gate record](../artifacts/acceptance/independent_workers_2026_09_23.json) binds the execution wheel, source identity, commands, native checkpoints, counters, independent checks and retained evidence hashes. The acceptance-time suite passed 335 tests and Ruff lint/format checks; later regression results are tracked in [TODO.md](../TODO.md).
+[Astra's gate record](../artifacts/acceptance/independent_workers_2026_09_23.json) binds the execution wheel, source identity, commands, native checkpoints, counters, independent checks and retained evidence hashes. The acceptance-time suite passed 335 tests and Ruff lint/format checks; later regression results remain with their evidence records and commits.
 
 - Three genuine CPU workers overlapped with FP32 AdamW, FP32 Adafactor and BF16 AdamW. Their updates continued while the controller was stopped; reconnect imported contiguous, deduplicated records with no echo outbox.
 - Replaying launch retained the original process identity. Cancellation stopped at update 26,943; an explicit child reached 32,768 updates / 2,097,152 targets. Its model, optimizer, RNG, cursor, scaler, schedule and counters matched an uninterrupted baseline bitwise. Wall-clock checkpoint cadence was not compared bitwise.
