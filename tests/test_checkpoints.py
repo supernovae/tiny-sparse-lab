@@ -12,6 +12,7 @@ import pytest
 import torch
 
 from sparselab.config.loading import load_config
+from sparselab.config.models import RunConfig
 from sparselab.engines.base import CanonicalTensor
 from sparselab.model.transformer import DenseLM
 from sparselab.training.checkpoints import (
@@ -23,7 +24,11 @@ from sparselab.training.checkpoints import (
     verify_legacy_checkpoint,
 )
 from sparselab.training.manifest import canonical_json, config_sha256
-from sparselab.training.optimizer import learning_rate_for_step, make_optimizer
+from sparselab.training.optimizer import (
+    learning_rate_for_step,
+    make_optimizer,
+    schedule_payload,
+)
 
 
 def _cpu_rng_state() -> dict[str, object]:
@@ -159,8 +164,14 @@ def test_checkpoint_allows_symlinked_ancestor_but_not_member(tmp_path: Path) -> 
     assert not manager.verify(generation).valid
 
 
-def _snapshot(step: int, loss: float | None = None) -> TrainingSnapshot:
+def _snapshot(
+    step: int, loss: float | None = None, *, decay_steps: int | None = None
+) -> TrainingSnapshot:
     config = load_config(Path("configs/smoke_cpu.yaml"))
+    if decay_steps is not None:
+        values = config.model_dump(mode="json")
+        values["optimizer"]["decay_steps"] = decay_steps
+        config = RunConfig.model_validate(values)
     model = DenseLM(config.model, config.attention)
     settings = config.optimizer
     optimizer = make_optimizer(
@@ -176,6 +187,7 @@ def _snapshot(step: int, loss: float | None = None) -> TrainingSnapshot:
                 settings.warmup_steps,
                 settings.peak,
                 settings.floor,
+                decay_steps=decay_steps,
             )
         model(inputs).square().mean().backward()
         optimizer.step()
@@ -184,14 +196,7 @@ def _snapshot(step: int, loss: float | None = None) -> TrainingSnapshot:
     return TrainingSnapshot(
         model=model.state_dict(),
         optimizer=optimizer_state,
-        schedule={
-            "kind": "warmup_cosine_v1",
-            "completed_updates": step,
-            "max_steps": config.training.max_steps,
-            "warmup_steps": settings.warmup_steps,
-            "peak": settings.peak,
-            "floor": settings.floor,
-        },
+        schedule=schedule_payload(config, step),
         step=step,
         tokens_seen=step * 8,
         cursor=(0, step),
@@ -209,6 +214,54 @@ def _snapshot(step: int, loss: float | None = None) -> TrainingSnapshot:
             )
         },
     )
+
+
+def test_explicit_decay_schedule_matches_legacy_through_horizon() -> None:
+    peak, floor, warmup, decay, maximum = 3e-4, 3e-5, 100, 4096, 16384
+    for step in (4095, 4096, 4097, 8192):
+        actual = learning_rate_for_step(
+            step, maximum, warmup, peak, floor, decay_steps=decay
+        )
+        expected = learning_rate_for_step(
+            min(step, decay), decay, warmup, peak, floor
+        )
+        assert actual == expected
+        if step >= decay:
+            assert actual == floor
+
+
+@pytest.mark.parametrize("mutation", ["kind", "decay_steps", "learning_rate"])
+def test_explicit_decay_checkpoint_verifies_schedule_and_optimizer_lr(
+    tmp_path: Path, mutation: str
+) -> None:
+    snapshot = _snapshot(6, decay_steps=5)
+    assert snapshot.schedule == {
+        "kind": "warmup_cosine_floor_v1",
+        "completed_updates": 6,
+        "max_steps": 40,
+        "warmup_steps": 4,
+        "peak": 0.003,
+        "floor": 0.0003,
+        "decay_steps": 5,
+    }
+    manager = CheckpointManager(tmp_path)
+    record = manager.save(snapshot)
+    assert manager.verify(tmp_path / "checkpoints" / record.relative_path).valid
+
+    if mutation == "kind":
+        snapshot.schedule["kind"] = "warmup_cosine_v1"
+    elif mutation == "decay_steps":
+        snapshot.schedule["decay_steps"] = 6
+    else:
+        snapshot.optimizer["param_groups"][0]["lr"] = 0.003
+    failure = (
+        "optimizer learning rate differs from saved schedule"
+        if mutation == "learning_rate"
+        else "schedule does not match configuration and completed updates"
+    )
+    with pytest.raises(ValueError, match=failure):
+        manager.save(snapshot)
+    assert manager.verify(tmp_path / "checkpoints" / record.relative_path).valid
 
 
 def test_selected_parent_excludes_later_same_step_and_future_best(tmp_path) -> None:

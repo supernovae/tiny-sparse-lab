@@ -166,6 +166,36 @@ def test_grouped_query_attention_rejects_mlx_run_configs() -> None:
         RunConfig.model_validate(values)
 
 
+def test_adamw_decay_horizon_preserves_legacy_serialization() -> None:
+    base = load_config(Path("configs/smoke_cpu.yaml"))
+    serialized = base.model_dump(mode="json")
+    for dump in (base.model_dump(mode="python"), serialized):
+        assert "decay_steps" not in dump["optimizer"]
+    assert "decay_steps" not in base.model_dump_json()
+    assert RunConfig.model_validate(serialized).model_dump(mode="json") == serialized
+
+    serialized["optimizer"]["decay_steps"] = 8
+    extended = RunConfig.model_validate(serialized)
+    assert extended.optimizer.decay_steps == 8
+    assert extended.model_dump(mode="json")["optimizer"]["decay_steps"] == 8
+
+
+@pytest.mark.parametrize("decay_steps", [0, 4, 41])
+def test_adamw_decay_horizon_requires_valid_bounds(decay_steps: int) -> None:
+    values = load_config(Path("configs/smoke_cpu.yaml")).model_dump(mode="json")
+    values["optimizer"]["decay_steps"] = decay_steps
+    with pytest.raises(ValueError, match="decay_steps"):
+        RunConfig.model_validate(values)
+
+
+def test_adamw_decay_horizon_rejects_mlx() -> None:
+    values = load_config(Path("configs/smoke_cpu.yaml")).model_dump(mode="json")
+    values["runtime"].update(engine="mlx", backend="metal")
+    values["optimizer"]["decay_steps"] = 8
+    with pytest.raises(ValueError, match="decay_steps is unsupported for MLX"):
+        RunConfig.model_validate(values)
+
+
 def test_portability_config_is_opt_in_and_requires_exact_controls() -> None:
     base = load_config(Path("configs/runtime_smoke_cpu.yaml"))
     legacy = base.model_dump(mode="json")

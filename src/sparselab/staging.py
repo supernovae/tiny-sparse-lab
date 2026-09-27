@@ -183,6 +183,10 @@ def pilot_config(config: RunConfig, purpose: str, root: Path) -> RunConfig:
         * config.training.seq_len,
     )
     payload["optimizer"]["warmup_steps"] = min(config.optimizer.warmup_steps, steps - 1)
+    if payload["optimizer"].get("decay_steps") is not None:
+        payload["optimizer"]["decay_steps"] = min(
+            payload["optimizer"]["decay_steps"], steps
+        )
     payload["logging"]["root_dir"] = str(root / "pilots" / purpose)
     if config.dataset.allocation_manifest_path is not None:
         payload["dataset"]["allocation_manifest_path"] = str(

@@ -1,0 +1,2034 @@
+{
+  "backend": "rocm",
+  "baseline_acceptance_sha256": "f59fd9e3a068202c6690ea0a5357887f251d8ed84cc37871023f4632fbcb0dfa",
+  "config_sha256": {
+    "17": "19d242150edcee119ed0d82e8a9398b07b92a72a7c30ccb7c2b3951ff2c4126d",
+    "42": "6f04259e478eba90f7dc71e54102555a81b59094d543f3e6de1ab06a464c8828",
+    "73": "573072284cdcf6a7ff060a999c7e58d790319f791052b28e240eb19547ee0c35"
+  },
+  "device": "AMD Radeon RX 7900 XTX",
+  "format": "dense_lm_token_budget_evidence_v1",
+  "framework": "2.13.0+rocm10.0.0",
+  "new_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2",
+  "original_source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650",
+  "preregistration_sha256": "3cd186fb2a6b6f305672f85157b355d1f9960145076abb4eb2091418093e9e7a",
+  "preserved_interrupted_attempt": {
+    "checkpoint_manifest_sha256": "01ffce96e15f19d4c75770517f9c3a709c6b11946868441bc3a56560651639fc",
+    "disposition": "not a protocol milestone: partial update at prepared-data epoch boundary; corrected before any accepted panel observation",
+    "run_id": "dense-lm-token-budget-v1-seed42-step8192",
+    "run_manifest_sha256": "f788f15157459a69b48ce6399acadfc11d3a41765ccace28de6f0e27d558ce41",
+    "step": 8192,
+    "targets": 8387968
+  },
+  "prompt_panel_sha256": "118839f291b8741d233ce19baff15f0dcb9cef52eb907208ff6ac9a81bc3408e",
+  "protocol_sha256": "28faabdda24b046b11a0c0c64f2587375703199c479fd8b3ba33052223ea7483",
+  "seeds": [
+    {
+      "milestones": [
+        {
+          "checkpoint": {
+            "cursor": [
+              0,
+              32768
+            ],
+            "digest": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+            "manifest_sha256": "53376abc14382e38b72a3f41efa2cf3aaacbbd1f6e3b67cf91499ad87d5bf816",
+            "path": "sparselab-work/experiments/dense-lm-v1/runs/dense-lm-v1-seed42-step4096/checkpoints/step_00004096_gen_000007",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_v1",
+              "max_steps": 4096,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 332.12285260034696,
+          "cumulative_run_wall_seconds": 517.0146459479947,
+          "metrics": null,
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 26,
+                  "distinct_token_ratio": 0.8125,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 6,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. He was so excited to see it. He asked his mom, \"What is that?\" His mom said, \"It's a big, scary bear. It",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 20,
+                  "distinct_token_ratio": 0.625,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 7,
+                  "repeated_token_excess": 12,
+                  "repeated_trigram_excess": 6,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was so happy.\n\n\"Thank you, Mia!\" Anna said. \"You are a good friend!\"\n\n\"Thank you, Mia!\" Ben said",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 14,
+                  "distinct_token_ratio": 0.4375,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 13,
+                  "repeated_token_excess": 18,
+                  "repeated_trigram_excess": 11,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was very happy.\n\nThe bird was so happy to have a new friend. The bird was happy to have a new friend. The bird was happy to have",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 22,
+                  "distinct_token_ratio": 0.6875,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 10,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam was scared. He ran away and the sun was gone.\n\nSam was sad and angry. He wanted to go home, but he was too scared.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 14,
+                  "distinct_token_ratio": 0.7368421052631579,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 5,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 19
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was so happy. They thanked the man for the delicious cake and the cake. The end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 26,
+                  "distinct_token_ratio": 0.8125,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 6,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock.\n\nThe little girl was so happy that she had found the perfect place to make the most beautiful world. She was so proud of her work and she was",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "3d85e447e29fb59f7a328bd5f6c41172239febc752b9251d4f741fc51817910f",
+            "mechanically_valid": true,
+            "path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00004096.json",
+            "sha256": "cd351c5657a308df3e96b0598d2e7eabdea539072771ed6b265fb113f6be84e1",
+            "validation": {
+              "batches": 64,
+              "loss": 2.4824737093453306,
+              "perplexity": 11.970840201098541,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "run_manifest_sha256": "3294db7b828c972d52cf6de611ab68391ed12c1cf22597952b19d8afe3bebbf2",
+          "step": 4096,
+          "targets": 4194304
+        },
+        {
+          "checkpoint": {
+            "cursor": [
+              1,
+              31141
+            ],
+            "digest": "4ab9400c3a2f1b540d011d6965561cf4328c4416840aae77ab8315edd963136a",
+            "manifest_sha256": "3752715162e1c20f65c45db4450f82cfcbab8692d0592d3fc9ea26e9379772d1",
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed42-step8192-corrected/checkpoints/step_00008192_gen_000022",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 8192,
+              "decay_steps": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_floor_v1",
+              "max_steps": 16384,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 669.6117227023133,
+          "cumulative_run_wall_seconds": 1018.3098941089993,
+          "interval": {
+            "command_wall_seconds": 513.1,
+            "end_to_end_seconds": 510.0976820060023,
+            "phases": {
+              "checkpoint": {
+                "availability": "observed",
+                "observation_count": 22,
+                "seconds": 23.86279441001534
+              },
+              "checkpoint_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              },
+              "evaluation": {
+                "availability": "not_observed",
+                "reason": "training records inline validation separately",
+                "seconds": null
+              },
+              "generation": {
+                "availability": "not_observed",
+                "reason": "generation is a separate inference operation",
+                "seconds": null
+              },
+              "optimizer_update": {
+                "availability": "observed",
+                "observation_count": 4096,
+                "seconds": 337.4888701019663
+              },
+              "planning": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.000529015000211075
+              },
+              "preparation": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.7056244079867611
+              },
+              "reporting": {
+                "availability": "observed",
+                "observation_count": 8348,
+                "seconds": 100.00389503405313
+              },
+              "unclassified_overhead": {
+                "availability": "derived_residual",
+                "seconds": 15.92633076000493
+              },
+              "validation": {
+                "availability": "observed",
+                "observation_count": 22,
+                "seconds": 32.1096382769756
+              },
+              "validation_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              }
+            },
+            "run_status": "interrupted"
+          },
+          "metrics": {
+            "memory/device_peak_allocated_bytes": {
+              "maximum": 1064241664.0,
+              "mean": 1064230016.0,
+              "minimum": 1016531456.0,
+              "samples": 4096
+            },
+            "memory/device_peak_reserved_bytes": {
+              "maximum": 1117782016.0,
+              "mean": 1117782016.0,
+              "minimum": 1117782016.0,
+              "samples": 4096
+            },
+            "optimizer/overflow_retries": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "minimum": 0.0,
+              "samples": 4096
+            },
+            "performance/step_seconds": {
+              "maximum": 0.5741427129978547,
+              "mean": 0.08239474367723787,
+              "minimum": 0.07180547299503814,
+              "samples": 4096
+            }
+          },
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 22,
+                  "distinct_token_ratio": 0.6875,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 4,
+                  "repeated_token_excess": 10,
+                  "repeated_trigram_excess": 3,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. He was so happy and he wanted to show it to his friends.\n\nThe rabbit was so happy and he started to play with the apple. He played",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 14,
+                  "distinct_token_ratio": 0.9333333333333333,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 15
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy. They played with the boat and had lots of fun.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 25,
+                  "distinct_token_ratio": 0.78125,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 7,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was very big.\n\nOne day, a little girl named Lily came to the park. She saw the big tree and wanted to play with it. She asked",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 20,
+                  "distinct_token_ratio": 0.625,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 3,
+                  "repeated_token_excess": 12,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam was scared. He ran to the door and saw a big, scary dog. Sam was scared and ran away.\n\nSam was sad and scared. He",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 7,
+                  "distinct_token_ratio": 0.7777777777777778,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 2,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 9
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was so happy.\n\nThe end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 23,
+                  "distinct_token_ratio": 0.71875,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 9,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock.\n\nThe little girl was so excited to see the beautiful flower. She ran around the garden and saw lots of beautiful flowers. She was so happy and excited",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "16b6e9c553d39296aecf22c172d12fbfedd4b0c62f4dc45af8c165c47e391ba8",
+            "mechanically_valid": true,
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/exercises/seed42-step8192/95c7f3c0cbed9f14a806aba12677103bb2cec8194b01fae1fa9a0799a92abcaa.json",
+            "sha256": "95c7f3c0cbed9f14a806aba12677103bb2cec8194b01fae1fa9a0799a92abcaa",
+            "validation": {
+              "batches": 64,
+              "loss": 2.3689821321670324,
+              "perplexity": 10.686509292271694,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-token-budget-v1-seed42-step8192-corrected",
+          "run_manifest_sha256": "7dcff40df17cfcfcda6b2d2a2b7dfd842f877638125e2cd23783370b5f280c34",
+          "step": 8192,
+          "targets": 8388608
+        },
+        {
+          "checkpoint": {
+            "cursor": [
+              3,
+              27887
+            ],
+            "digest": "c4ef91e5cd5e806494ca7523182e00182d249a639e6d026712494098907934b4",
+            "manifest_sha256": "c0c40d90eb93a26209f89f90ac6b2101f187d13ac8cde0d5c5cd1bc5111dd91d",
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed42-step16384/checkpoints/step_00016384_gen_000037",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 16384,
+              "decay_steps": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_floor_v1",
+              "max_steps": 16384,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 1353.1946146459159,
+          "cumulative_run_wall_seconds": 2060.9210887429945,
+          "interval": {
+            "command_wall_seconds": 1057.55,
+            "end_to_end_seconds": 1054.5543433420098,
+            "phases": {
+              "checkpoint": {
+                "availability": "observed",
+                "observation_count": 37,
+                "seconds": 41.68929673198727
+              },
+              "checkpoint_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              },
+              "evaluation": {
+                "availability": "not_observed",
+                "reason": "training records inline validation separately",
+                "seconds": null
+              },
+              "generation": {
+                "availability": "not_observed",
+                "reason": "generation is a separate inference operation",
+                "seconds": null
+              },
+              "optimizer_update": {
+                "availability": "observed",
+                "observation_count": 8192,
+                "seconds": 683.5828919436026
+              },
+              "planning": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.0005774849996669218
+              },
+              "preparation": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.7524753860052442
+              },
+              "reporting": {
+                "availability": "observed",
+                "observation_count": 16663,
+                "seconds": 236.4845057925122
+              },
+              "unclassified_overhead": {
+                "availability": "derived_residual",
+                "seconds": 29.204672055901028
+              },
+              "validation": {
+                "availability": "observed",
+                "observation_count": 43,
+                "seconds": 62.83992394700181
+              },
+              "validation_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              }
+            },
+            "run_status": "completed"
+          },
+          "metrics": {
+            "memory/device_peak_allocated_bytes": {
+              "maximum": 1064241664.0,
+              "mean": 1064235840.0,
+              "minimum": 1016531456.0,
+              "samples": 8192
+            },
+            "memory/device_peak_reserved_bytes": {
+              "maximum": 1117782016.0,
+              "mean": 1117782016.0,
+              "minimum": 1117782016.0,
+              "samples": 8192
+            },
+            "optimizer/overflow_retries": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "minimum": 0.0,
+              "samples": 8192
+            },
+            "performance/step_seconds": {
+              "maximum": 0.587024778011255,
+              "mean": 0.0834451772392093,
+              "minimum": 0.07272586000908632,
+              "samples": 8192
+            }
+          },
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 20,
+                  "distinct_token_ratio": 0.625,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 4,
+                  "repeated_token_excess": 12,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. He was so happy and he wanted to eat it. He took a bite and it was so yummy!\n\nThe rabbit was so happy he started to eat",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 14,
+                  "distinct_token_ratio": 0.9333333333333333,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 15
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy. They played with the boat and had a fun day.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 19,
+                  "distinct_token_ratio": 0.59375,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 6,
+                  "repeated_token_excess": 13,
+                  "repeated_trigram_excess": 3,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was blue.\n\n\"Look, a kite!\" Lily said. \"It is so pretty!\"\n\n\"Wow, it is so pretty!\" Ben said.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 19,
+                  "distinct_token_ratio": 0.6129032258064516,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 7,
+                  "repeated_token_excess": 12,
+                  "repeated_trigram_excess": 5,
+                  "special_token_share": 0.0,
+                  "token_count": 31
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam decided to go inside.\n\nSam said, \"Let's go home now!\"\n\nSam said, \"Okay, let's go home.\"\n\n",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 5,
+                  "distinct_token_ratio": 0.8333333333333334,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 6
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy. The end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 25,
+                  "distinct_token_ratio": 0.78125,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 7,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock.\n\nThe little girl was so excited to see the beautiful picture. She ran to the kitchen and opened the door. Inside was a big, red dress.",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "3ce1337afdd8b09c3d9cc1f1ff1f8bc319b9185b28df7ac316586e8c5e72df2a",
+            "mechanically_valid": true,
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/exercises/seed42-step16384/fe03c5457b8dba96431227bbbc5863302a69a20e0c965ed189610015c3dca917.json",
+            "sha256": "fe03c5457b8dba96431227bbbc5863302a69a20e0c965ed189610015c3dca917",
+            "validation": {
+              "batches": 64,
+              "loss": 2.2432657137309033,
+              "perplexity": 9.424057362382019,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-token-budget-v1-seed42-step16384",
+          "run_manifest_sha256": "f70d2263c66d8c4a50421c9053147a8e74db051b49ad6e4a9326a6070b3d610a",
+          "step": 16384,
+          "targets": 16777216
+        }
+      ],
+      "seed": 42
+    },
+    {
+      "milestones": [
+        {
+          "checkpoint": {
+            "cursor": [
+              0,
+              32768
+            ],
+            "digest": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+            "manifest_sha256": "781f2a2da6b4c82a7974b69b326c2d66830bc2a385fdffd60e16440bced0c0e3",
+            "path": "sparselab-work/experiments/dense-lm-v1/runs/dense-lm-v1-seed17-step4096/checkpoints/step_00004096_gen_000007",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_v1",
+              "max_steps": 4096,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 335.7877260907044,
+          "cumulative_run_wall_seconds": 519.4929069329955,
+          "metrics": null,
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 21,
+                  "distinct_token_ratio": 0.65625,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 5,
+                  "repeated_token_excess": 11,
+                  "repeated_trigram_excess": 2,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. The bird was very happy and said, \"I'm so happy!\" The bird said, \"Yes, I can help you.\"\n\nThe bird said,",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 26,
+                  "distinct_token_ratio": 0.8125,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 6,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy.\n\nThe next day, Mia and Tom were best friends. They played together in the park and had lots of fun. They had a",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 18,
+                  "distinct_token_ratio": 0.5806451612903226,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 6,
+                  "repeated_token_excess": 13,
+                  "repeated_trigram_excess": 2,
+                  "special_token_share": 0.0,
+                  "token_count": 31
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was very happy.\n\nThe little girl was so happy. She had a new friend and a new friend. She was very proud of her new friend.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 16,
+                  "distinct_token_ratio": 0.5,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 9,
+                  "repeated_token_excess": 16,
+                  "repeated_trigram_excess": 7,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam ran to the door.\n\nTom was so happy. He ran to the door and started to climb. He ran to the door and saw the window.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 5,
+                  "distinct_token_ratio": 0.8333333333333334,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 6
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy. The end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 16,
+                  "distinct_token_ratio": 0.9411764705882353,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 17
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock.\n\nThe little girl was so happy that she had made the best friend ever!",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "de183c2337018ab74908226f675219515e96d90a5f9363db5698343a10405ade",
+            "mechanically_valid": true,
+            "path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00004096.json",
+            "sha256": "4ad600478d5762f657f8819b061eaab67da7ef915a110dc330da9b41679bfb9d",
+            "validation": {
+              "batches": 64,
+              "loss": 2.484718531778414,
+              "perplexity": 11.997742796201965,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "run_manifest_sha256": "1b5f45cf994e346ee1dd67d47ffa232785bc283685820168420d69263be63375",
+          "step": 4096,
+          "targets": 4194304
+        },
+        {
+          "checkpoint": {
+            "cursor": [
+              1,
+              31141
+            ],
+            "digest": "cceec674afb974b5cf1b14b9a99d8d7c382f700fca132ea6148e468bc8cc3fcf",
+            "manifest_sha256": "2054f3fbf28a7eef31d95f55e8655ebe442d93f07c67d4ad74ddb0e86cf76dbe",
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed17-step8192/checkpoints/step_00008192_gen_000022",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 8192,
+              "decay_steps": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_floor_v1",
+              "max_steps": 16384,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 668.6011090168249,
+          "cumulative_run_wall_seconds": 1015.1189948199899,
+          "interval": {
+            "command_wall_seconds": 509.14,
+            "end_to_end_seconds": 506.1315579920047,
+            "phases": {
+              "checkpoint": {
+                "availability": "observed",
+                "observation_count": 22,
+                "seconds": 21.988664197022445
+              },
+              "checkpoint_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              },
+              "evaluation": {
+                "availability": "not_observed",
+                "reason": "training records inline validation separately",
+                "seconds": null
+              },
+              "generation": {
+                "availability": "not_observed",
+                "reason": "generation is a separate inference operation",
+                "seconds": null
+              },
+              "optimizer_update": {
+                "availability": "observed",
+                "observation_count": 4096,
+                "seconds": 332.81338292612054
+              },
+              "planning": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.0007460830092895776
+              },
+              "preparation": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.7205372019961942
+              },
+              "reporting": {
+                "availability": "observed",
+                "observation_count": 8348,
+                "seconds": 100.63275748192973
+              },
+              "unclassified_overhead": {
+                "availability": "derived_residual",
+                "seconds": 17.599814750938094
+              },
+              "validation": {
+                "availability": "observed",
+                "observation_count": 22,
+                "seconds": 32.37565535098838
+              },
+              "validation_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              }
+            },
+            "run_status": "interrupted"
+          },
+          "metrics": {
+            "memory/device_peak_allocated_bytes": {
+              "maximum": 1064241664.0,
+              "mean": 1064230016.0,
+              "minimum": 1016531456.0,
+              "samples": 4096
+            },
+            "memory/device_peak_reserved_bytes": {
+              "maximum": 1117782016.0,
+              "mean": 1117782016.0,
+              "minimum": 1117782016.0,
+              "samples": 4096
+            },
+            "optimizer/overflow_retries": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "minimum": 0.0,
+              "samples": 4096
+            },
+            "performance/step_seconds": {
+              "maximum": 0.5681753450044198,
+              "mean": 0.0812532673159474,
+              "minimum": 0.07121994999761228,
+              "samples": 4096
+            }
+          },
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 23,
+                  "distinct_token_ratio": 0.71875,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 9,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. He wanted to eat it, but he didn't know how. So, he decided to take a bite. He tried to open the apple, but it was",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 16,
+                  "distinct_token_ratio": 0.8888888888888888,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 2,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 18
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy. She thanked the boat for the fun day and went on her adventure.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 11,
+                  "distinct_token_ratio": 0.34375,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 17,
+                  "repeated_token_excess": 21,
+                  "repeated_trigram_excess": 15,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was very happy.\n\nThe sun was shining and the sun was shining. The sun was shining and the sun was shining. The sun was shining and the sun",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 19,
+                  "distinct_token_ratio": 0.6129032258064516,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 8,
+                  "repeated_token_excess": 12,
+                  "repeated_trigram_excess": 6,
+                  "special_token_share": 0.0,
+                  "token_count": 31
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam decided to go back home.\n\nSam was so happy that he had found a new friend. He was so happy that he had a new friend.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 5,
+                  "distinct_token_ratio": 0.8333333333333334,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 6
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy. The end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 21,
+                  "distinct_token_ratio": 0.65625,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 6,
+                  "repeated_token_excess": 11,
+                  "repeated_trigram_excess": 4,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock. The little girl was so happy that she had found the most amazing thing. She thanked the little girl for the wonderful adventure and the little girl was so happy.",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "d104c2847e89f6601cd6011fe4decab78a6a2fd37962a8f0ee9a519f4afc0be0",
+            "mechanically_valid": true,
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/exercises/seed17-step8192/22e1a29128d09ad3c9be917dc6f40736b17ea4a91f9fd6cb40169ef5122b3b13.json",
+            "sha256": "22e1a29128d09ad3c9be917dc6f40736b17ea4a91f9fd6cb40169ef5122b3b13",
+            "validation": {
+              "batches": 64,
+              "loss": 2.3696841484413222,
+              "perplexity": 10.694014029625887,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-token-budget-v1-seed17-step8192",
+          "run_manifest_sha256": "7c83e10ce90d1a2a420ee38cca50b8f8621eb8c0341c8439a392259407526a81",
+          "step": 8192,
+          "targets": 8388608
+        },
+        {
+          "checkpoint": {
+            "cursor": [
+              3,
+              27887
+            ],
+            "digest": "1e8d6181e34aa3572771358c3021187a740aaab5b54f4d4478da754fc59b0e08",
+            "manifest_sha256": "a72451b1dcfb0d9034f85903afb02a8b955727c00507a969f39f4cafe694be5d",
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed17-step16384/checkpoints/step_00016384_gen_000036",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 16384,
+              "decay_steps": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_floor_v1",
+              "max_steps": 16384,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 1343.0094431316757,
+          "cumulative_run_wall_seconds": 2013.213480128994,
+          "interval": {
+            "command_wall_seconds": 1013.25,
+            "end_to_end_seconds": 1010.4925476609933,
+            "phases": {
+              "checkpoint": {
+                "availability": "observed",
+                "observation_count": 36,
+                "seconds": 40.66457336001622
+              },
+              "checkpoint_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              },
+              "evaluation": {
+                "availability": "not_observed",
+                "reason": "training records inline validation separately",
+                "seconds": null
+              },
+              "generation": {
+                "availability": "not_observed",
+                "reason": "generation is a separate inference operation",
+                "seconds": null
+              },
+              "optimizer_update": {
+                "availability": "observed",
+                "observation_count": 8192,
+                "seconds": 674.4083341148507
+              },
+              "planning": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.0007304619939532131
+              },
+              "preparation": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.7210092510067625
+              },
+              "reporting": {
+                "availability": "observed",
+                "observation_count": 16659,
+                "seconds": 203.3316495592153
+              },
+              "unclassified_overhead": {
+                "availability": "derived_residual",
+                "seconds": 28.467078766901977
+              },
+              "validation": {
+                "availability": "observed",
+                "observation_count": 43,
+                "seconds": 62.89917214700836
+              },
+              "validation_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              }
+            },
+            "run_status": "completed"
+          },
+          "metrics": {
+            "memory/device_peak_allocated_bytes": {
+              "maximum": 1064241664.0,
+              "mean": 1064235840.0,
+              "minimum": 1016531456.0,
+              "samples": 8192
+            },
+            "memory/device_peak_reserved_bytes": {
+              "maximum": 1117782016.0,
+              "mean": 1117782016.0,
+              "minimum": 1117782016.0,
+              "samples": 8192
+            },
+            "optimizer/overflow_retries": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "minimum": 0.0,
+              "samples": 8192
+            },
+            "performance/step_seconds": {
+              "maximum": 0.5902008109987946,
+              "mean": 0.08232523609800424,
+              "minimum": 0.07136776400147937,
+              "samples": 8192
+            }
+          },
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 21,
+                  "distinct_token_ratio": 0.65625,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 3,
+                  "repeated_token_excess": 11,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. He was so excited! He wanted to pick it up, but it was too high. He tried and tried, but he couldn't reach it. He tried",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 25,
+                  "distinct_token_ratio": 0.78125,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 7,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy.\n\nBut then, Mia saw a big boat on the water. She was curious and wanted to see what it was. She ran to",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 22,
+                  "distinct_token_ratio": 0.6875,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 4,
+                  "repeated_token_excess": 10,
+                  "repeated_trigram_excess": 2,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was blue. The kite was very happy.\n\nOne day, the kite saw a big tree. The kite wanted to go down the hill. The kite flew",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 25,
+                  "distinct_token_ratio": 0.78125,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 7,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam was happy to see the rain.\n\nSam said, \"Thank you, Sam. You are a good friend.\" Sam smiled and said, \"You're",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 5,
+                  "distinct_token_ratio": 0.8333333333333334,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 6
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy. The end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 19,
+                  "distinct_token_ratio": 0.59375,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 6,
+                  "repeated_token_excess": 13,
+                  "repeated_trigram_excess": 2,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock. The little girl was so happy and thanked the little girl.\n\nThe little girl smiled and said, \"Thank you, little girl. I was so happy",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "4f77b5c1168dfe48245689b8483be947eb557ecaac0e3554331e965f59c77227",
+            "mechanically_valid": true,
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/exercises/seed17-step16384/514432a2e2e3a126a3d3b7f32cdea55ea90bbc2e269dab29e15e387aad485ba1.json",
+            "sha256": "514432a2e2e3a126a3d3b7f32cdea55ea90bbc2e269dab29e15e387aad485ba1",
+            "validation": {
+              "batches": 64,
+              "loss": 2.243805243311096,
+              "perplexity": 9.429143291975814,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-token-budget-v1-seed17-step16384",
+          "run_manifest_sha256": "75afa7694076c43f8bd5f94e74a49f6098246e2a4a7bf7049aef74aae9a27f8a",
+          "step": 16384,
+          "targets": 16777216
+        }
+      ],
+      "seed": 17
+    },
+    {
+      "milestones": [
+        {
+          "checkpoint": {
+            "cursor": [
+              0,
+              32768
+            ],
+            "digest": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+            "manifest_sha256": "cd248c47746f928bd11c6e5588e4f46449d292e63e79bd59c06fb7ddb7ab9013",
+            "path": "sparselab-work/experiments/dense-lm-v1/runs/dense-lm-v1-seed73-step4096/checkpoints/step_00004096_gen_000007",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_v1",
+              "max_steps": 4096,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 335.7124802007893,
+          "cumulative_run_wall_seconds": 521.1990932389963,
+          "metrics": null,
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 25,
+                  "distinct_token_ratio": 0.8064516129032258,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 6,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 31
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. The little girl was so excited to see the butterfly. She ran to the butterfly and said, \"Hello, little bird! I am so happy!\"\n\n",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 24,
+                  "distinct_token_ratio": 0.75,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 8,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy.\n\nOne day, Mia and her mom went to the park. They saw a big tree with a big tree. Mia wanted to climb",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 21,
+                  "distinct_token_ratio": 0.65625,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 3,
+                  "repeated_token_excess": 11,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was very big.\n\nThe little girl was very happy. She had a new friend and a new friend. They played together every day. The little girl and",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 20,
+                  "distinct_token_ratio": 0.6451612903225806,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 7,
+                  "repeated_token_excess": 11,
+                  "repeated_trigram_excess": 6,
+                  "special_token_share": 0.0,
+                  "token_count": 31
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam started to cry. He said, \"I'm sorry, Sam. I just wanted to play with you. I just wanted to play with you.\"\n\n",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 6,
+                  "distinct_token_ratio": 0.75,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 2,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 8
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy.\n\nThe end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 23,
+                  "distinct_token_ratio": 0.71875,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 9,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock.\n\nThe little girl was so excited to see the little girl and she ran to the kitchen. She saw a big, red dress and a big smile.",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "76fd31e15ec4a5c3776301a082db8b35360992011c647259ce5f94dd2619b46d",
+            "mechanically_valid": true,
+            "path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00004096.json",
+            "sha256": "a51fcec2a585deff23634f98581e691fd14d62543c5d132b8ae7dc070ae02b83",
+            "validation": {
+              "batches": 64,
+              "loss": 2.470433681211826,
+              "perplexity": 11.827575136663784,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "run_manifest_sha256": "9d1d5ade36aa6d7e30a3a56673b245a27480506b76861a68e2a6b80e349380a5",
+          "step": 4096,
+          "targets": 4194304
+        },
+        {
+          "checkpoint": {
+            "cursor": [
+              1,
+              31141
+            ],
+            "digest": "6c1d5ced0888d3349f52f63faafe4b16b1e83257d6767a6e82d133a6f5b10a0d",
+            "manifest_sha256": "b8b92183be50963c98bdb848e677cd4f4893bc92cba14afb0ef2ea8a2b671c99",
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed73-step8192/checkpoints/step_00008192_gen_000022",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 8192,
+              "decay_steps": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_floor_v1",
+              "max_steps": 16384,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 671.9533030539023,
+          "cumulative_run_wall_seconds": 1019.1038740450022,
+          "interval": {
+            "command_wall_seconds": 512.31,
+            "end_to_end_seconds": 509.17891430298914,
+            "phases": {
+              "checkpoint": {
+                "availability": "observed",
+                "observation_count": 22,
+                "seconds": 20.94364342901099
+              },
+              "checkpoint_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              },
+              "evaluation": {
+                "availability": "not_observed",
+                "reason": "training records inline validation separately",
+                "seconds": null
+              },
+              "generation": {
+                "availability": "not_observed",
+                "reason": "generation is a separate inference operation",
+                "seconds": null
+              },
+              "optimizer_update": {
+                "availability": "observed",
+                "observation_count": 4096,
+                "seconds": 336.24082285311306
+              },
+              "planning": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.0008780619973549619
+              },
+              "preparation": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.722084556997288
+              },
+              "reporting": {
+                "availability": "observed",
+                "observation_count": 8348,
+                "seconds": 100.62522716891544
+              },
+              "unclassified_overhead": {
+                "availability": "derived_residual",
+                "seconds": 18.473490704942378
+              },
+              "validation": {
+                "availability": "observed",
+                "observation_count": 22,
+                "seconds": 32.17276752801263
+              },
+              "validation_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              }
+            },
+            "run_status": "interrupted"
+          },
+          "metrics": {
+            "memory/device_peak_allocated_bytes": {
+              "maximum": 1064241664.0,
+              "mean": 1064230016.0,
+              "minimum": 1016531456.0,
+              "samples": 4096
+            },
+            "memory/device_peak_reserved_bytes": {
+              "maximum": 1117782016.0,
+              "mean": 1117782016.0,
+              "minimum": 1117782016.0,
+              "samples": 4096
+            },
+            "optimizer/overflow_retries": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "minimum": 0.0,
+              "samples": 4096
+            },
+            "performance/step_seconds": {
+              "maximum": 0.5676099250122206,
+              "mean": 0.0820900446418733,
+              "minimum": 0.07269606900808867,
+              "samples": 4096
+            }
+          },
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 18,
+                  "distinct_token_ratio": 0.5625,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 9,
+                  "repeated_token_excess": 14,
+                  "repeated_trigram_excess": 7,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. The rabbit was so happy and said, \"Thank you, little rabbit! I'm so happy to help you.\" The rabbit was so happy and said, \"",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 15,
+                  "distinct_token_ratio": 0.9375,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 1,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 16
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy. They had a great time and were the best of friends.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 25,
+                  "distinct_token_ratio": 0.78125,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 1,
+                  "repeated_token_excess": 7,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was so big that it could fly.\n\nThe little girl was so excited. She ran around the garden, looking for something new. She saw a big,",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 24,
+                  "distinct_token_ratio": 0.75,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 3,
+                  "repeated_token_excess": 8,
+                  "repeated_trigram_excess": 2,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam was happy to see his mom.\n\n\"Mom, can I have some ice cream?\" Sam asked.\n\n\"Yes, please!\" Sam said.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 6,
+                  "distinct_token_ratio": 0.75,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 2,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 8
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy.\n\nThe end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 19,
+                  "distinct_token_ratio": 0.59375,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 9,
+                  "repeated_token_excess": 13,
+                  "repeated_trigram_excess": 7,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock. The little girl was so excited! She ran around the room and started to play.\n\nThe little girl was so excited. She ran around the room and",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "4159d343fddb4711f9866c497437b282937248873065c8a32c3ff70b6d124b29",
+            "mechanically_valid": true,
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/exercises/seed73-step8192/5fa49042034d81afceeb6a326c096828ee6c0b3327aa1c2aeb254def3860531f.json",
+            "sha256": "5fa49042034d81afceeb6a326c096828ee6c0b3327aa1c2aeb254def3860531f",
+            "validation": {
+              "batches": 64,
+              "loss": 2.360010714446962,
+              "perplexity": 10.591064929229313,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-token-budget-v1-seed73-step8192",
+          "run_manifest_sha256": "6b2e477d8c356c75248bc2e9dd9fd0c739d50a6b01467a077bfd80eea315e2eb",
+          "step": 8192,
+          "targets": 8388608
+        },
+        {
+          "checkpoint": {
+            "cursor": [
+              3,
+              27887
+            ],
+            "digest": "fe37fd2b1c8cdf62f42a104a17a0f77f70d39ce45a09fe17f8227f726d37e383",
+            "manifest_sha256": "ddcd97c68badc7a0ebb5bd375120a3920d226b78d3f6d8697a2a5d0dd2bba707",
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed73-step16384/checkpoints/step_00016384_gen_000040",
+            "resume_level": "full",
+            "schedule": {
+              "completed_updates": 16384,
+              "decay_steps": 4096,
+              "floor": 3e-05,
+              "kind": "warmup_cosine_floor_v1",
+              "max_steps": 16384,
+              "peak": 0.0003,
+              "warmup_steps": 10
+            }
+          },
+          "cumulative_optimizer_seconds": 1346.761979246352,
+          "cumulative_run_wall_seconds": 2018.7845435710042,
+          "interval": {
+            "command_wall_seconds": 1015.97,
+            "end_to_end_seconds": 1013.1714392719878,
+            "phases": {
+              "checkpoint": {
+                "availability": "observed",
+                "observation_count": 40,
+                "seconds": 40.05377356304962
+              },
+              "checkpoint_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              },
+              "evaluation": {
+                "availability": "not_observed",
+                "reason": "training records inline validation separately",
+                "seconds": null
+              },
+              "generation": {
+                "availability": "not_observed",
+                "reason": "generation is a separate inference operation",
+                "seconds": null
+              },
+              "optimizer_update": {
+                "availability": "observed",
+                "observation_count": 8192,
+                "seconds": 674.8086761924496
+              },
+              "planning": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.00096186000155285
+              },
+              "preparation": {
+                "availability": "observed",
+                "observation_count": 1,
+                "seconds": 0.7321555119997356
+              },
+              "reporting": {
+                "availability": "observed",
+                "observation_count": 16675,
+                "seconds": 205.0346480438311
+              },
+              "unclassified_overhead": {
+                "availability": "derived_residual",
+                "seconds": 29.862992189679062
+              },
+              "validation": {
+                "availability": "observed",
+                "observation_count": 43,
+                "seconds": 62.67823191097705
+              },
+              "validation_attempt": {
+                "availability": "unavailable",
+                "observation_count": 0,
+                "seconds": null
+              }
+            },
+            "run_status": "completed"
+          },
+          "metrics": {
+            "memory/device_peak_allocated_bytes": {
+              "maximum": 1064241664.0,
+              "mean": 1064235840.0,
+              "minimum": 1016531456.0,
+              "samples": 8192
+            },
+            "memory/device_peak_reserved_bytes": {
+              "maximum": 1117782016.0,
+              "mean": 1117782016.0,
+              "minimum": 1117782016.0,
+              "samples": 8192
+            },
+            "optimizer/overflow_retries": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "minimum": 0.0,
+              "samples": 8192
+            },
+            "performance/step_seconds": {
+              "maximum": 0.5664070009952411,
+              "mean": 0.08237410598052364,
+              "minimum": 0.07242818200029433,
+              "samples": 8192
+            }
+          },
+          "observation": {
+            "cases": [
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 15,
+                  "distinct_token_ratio": 0.46875,
+                  "empty": false,
+                  "prompt_token_count": 14,
+                  "repeated_bigram_excess": 12,
+                  "repeated_token_excess": 17,
+                  "repeated_trigram_excess": 10,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "simple-continuation",
+                "output": "Once upon a time, a little rabbit found a shiny red apple. The rabbit was very happy and said, \"Thank you, little rabbit!\" The rabbit was very happy and said, \"Thank you, rabbit!\"\n\nThe",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 12,
+                  "distinct_token_ratio": 0.8,
+                  "empty": false,
+                  "prompt_token_count": 21,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 3,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 15
+                },
+                "id": "named-character-continuity",
+                "output": "Mia and her brother Leo built a small boat together. Mia carried the boat to the pond, and Leo was very happy. They had a lot of fun and were very happy.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 19,
+                  "distinct_token_ratio": 0.76,
+                  "empty": false,
+                  "prompt_token_count": 18,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 6,
+                  "repeated_trigram_excess": 1,
+                  "special_token_share": 0.0,
+                  "token_count": 25
+                },
+                "id": "color-object-continuity",
+                "output": "A blue kite flew over the green meadow. The kite was blue, and the meadow was very pretty.\n\nThe little girl was so happy. She had a new friend, and she was always so happy.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 8,
+                  "distinct_token_ratio": 1.0,
+                  "empty": false,
+                  "prompt_token_count": 17,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 0,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 8
+                },
+                "id": "temporal-causal-continuation",
+                "output": "After the rain stopped, Sam opened the door. The path was wet, so Sam was happy to see the sun again.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 6,
+                  "distinct_token_ratio": 0.75,
+                  "empty": false,
+                  "prompt_token_count": 12,
+                  "repeated_bigram_excess": 0,
+                  "repeated_token_excess": 2,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 8
+                },
+                "id": "ordinary-sentence-completion",
+                "output": "The baker put warm bread on the table, and everyone was happy.\n\nThe end.",
+                "repeatable": true
+              },
+              {
+                "boundary_valid": true,
+                "diagnostics": {
+                  "contains_bos": false,
+                  "contains_eos": false,
+                  "decode_error": false,
+                  "distinct_token_count": 22,
+                  "distinct_token_ratio": 0.6875,
+                  "empty": false,
+                  "prompt_token_count": 15,
+                  "repeated_bigram_excess": 2,
+                  "repeated_token_excess": 10,
+                  "repeated_trigram_excess": 0,
+                  "special_token_share": 0.0,
+                  "token_count": 32
+                },
+                "id": "odd-out-of-domain",
+                "output": "A tiny moon made of brass hummed quietly beside the library clock. The little girl was so excited! She ran to the kitchen and started to draw.\n\nThe moon was so big and bright. She was so happy to",
+                "repeatable": true
+              }
+            ],
+            "deterministic": true,
+            "identity": "7c5f5796e950767a4872ba2bc48fe3ef09d98bff275dfd24d68e65126d7b0a0b",
+            "mechanically_valid": true,
+            "path": "sparselab-work/experiments/dense-lm-token-budget-v1/exercises/seed73-step16384/107d68bb1f2e12502339898c7eed77c3e939f8e9e98986a4b4fa771fb6a619fb.json",
+            "sha256": "107d68bb1f2e12502339898c7eed77c3e939f8e9e98986a4b4fa771fb6a619fb",
+            "validation": {
+              "batches": 64,
+              "loss": 2.2341347169969414,
+              "perplexity": 9.338397998226627,
+              "perplexity_unavailable_reason": null,
+              "valid_targets": 65408
+            }
+          },
+          "run_id": "dense-lm-token-budget-v1-seed73-step16384",
+          "run_manifest_sha256": "64b08f985120aa615a99fd01f916e133bec8322f49f2c2210159f0ffa85d933b",
+          "step": 16384,
+          "targets": 16777216
+        }
+      ],
+      "seed": 73
+    }
+  ],
+  "training_packed_tokens": 4402585,
+  "validation_targets_per_exercise": 65408,
+  "work_dir": "sparselab-work/experiments/dense-lm-token-budget-v1"
+}

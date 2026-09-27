@@ -270,6 +270,9 @@ class AdamWConfig(StrictModel):
     peak: float = Field(default=3e-4, gt=0)
     floor: float = Field(default=3e-5, ge=0)
     warmup_steps: int = Field(default=10, ge=0)
+    decay_steps: int | None = Field(
+        default=None, strict=True, gt=0, exclude_if=lambda value: value is None
+    )
     weight_decay: float = Field(default=0.1, ge=0)
     betas: tuple[float, float] = (0.9, 0.95)
     eps: float = Field(default=1e-8, gt=0)
@@ -420,6 +423,20 @@ class RunConfig(StrictModel):
             raise ValueError(
                 "optimizer.warmup_steps must be smaller than training.max_steps"
             )
+        if (
+            isinstance(self.optimizer, AdamWConfig)
+            and self.optimizer.decay_steps is not None
+        ):
+            if not (
+                self.optimizer.warmup_steps
+                < self.optimizer.decay_steps
+                <= self.training.max_steps
+            ):
+                raise ValueError(
+                    "optimizer.decay_steps must exceed warmup_steps and not exceed training.max_steps"
+                )
+            if self.runtime.engine == "mlx":
+                raise ValueError("optimizer.decay_steps is unsupported for MLX")
         if self.optimizer.floor > self.optimizer.peak:
             raise ValueError("optimizer.floor cannot exceed optimizer.peak")
         if isinstance(self.optimizer, AdamWConfig) and any(

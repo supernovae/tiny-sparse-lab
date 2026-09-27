@@ -18,7 +18,7 @@ import numpy as np
 import torch
 from torch.nn import functional
 
-from sparselab.config.models import RunConfig
+from sparselab.config.models import AdamWConfig, RunConfig
 from sparselab.data.allocation import (
     OWNER_HYBRID,
     OWNER_LEXICAL,
@@ -1054,6 +1054,11 @@ class PyTorchEngine:
             config.optimizer.warmup_steps,
             config.optimizer.peak,
             config.optimizer.floor,
+            decay_steps=(
+                config.optimizer.decay_steps
+                if isinstance(config.optimizer, AdamWConfig)
+                else None
+            ),
         )
         synchronize(device)
         started = time.perf_counter()

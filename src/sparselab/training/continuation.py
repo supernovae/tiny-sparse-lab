@@ -42,6 +42,42 @@ def _resume_settings(config: RunConfig) -> str:
     return config_sha256(settings)
 
 
+def _budget_extension(source: RunConfig, target: RunConfig, snapshot: TrainingSnapshot) -> dict[str, object]:
+    """Validate the sole scientific difference allowed for full-state extension."""
+    old = source.training
+    new = target.training
+    targets_per_step = old.seq_len * old.micro_batch_size * old.gradient_accumulation
+    if (
+        source.optimizer.name != "adamw"
+        or target.optimizer.name != "adamw"
+        or source.optimizer.decay_steps is not None
+        or target.optimizer.decay_steps != old.max_steps
+        or snapshot.schedule.get("kind") != "warmup_cosine_v1"
+        or snapshot.step != old.max_steps
+        or snapshot.tokens_seen != old.max_tokens
+        or old.max_tokens != old.max_steps * targets_per_step
+        or new.max_tokens != new.max_steps * targets_per_step
+        or new.max_steps <= old.max_steps
+        or new.max_tokens <= old.max_tokens
+    ):
+        raise ValueError("budget extension requires a terminal, whole-update AdamW parent and strictly larger whole-update caps")
+    comparable = target.model_dump(mode="json")
+    comparable["training"]["max_steps"] = old.max_steps
+    comparable["training"]["max_tokens"] = old.max_tokens
+    comparable["optimizer"].pop("decay_steps")
+    if _resume_settings(RunConfig.model_validate(comparable)) != _resume_settings(source):
+        raise ValueError("budget extension changes settings other than the budget and decay horizon")
+    return {
+        "kind": "budget_extension",
+        "parent_checkpoint_sha256": snapshot.checkpoint_sha256,
+        "old_max_steps": old.max_steps,
+        "old_max_tokens": old.max_tokens,
+        "new_max_steps": new.max_steps,
+        "new_max_tokens": new.max_tokens,
+        "decay_steps": target.optimizer.decay_steps,
+    }
+
+
 def _verify_artifacts(root: Path, manifest: dict[str, Any], *, resume: bool) -> None:
     records = manifest.get("artifacts", [])
     names: set[str] = set()
@@ -102,13 +138,26 @@ def load_continuation(
     current_source: dict[str, object],
     *,
     resume: Path | None,
+    extend_budget: Path | None = None,
     promote: Path | None,
     recover: Path | None,
     allow_runtime_drift: bool,
 ) -> Continuation:
-    selected = resume or promote
+    selected = extend_budget or resume or promote
     if selected is None and recover is None:
         return Continuation()
+    if extend_budget is not None:
+        if any(path is not None for path in (resume, promote, recover)):
+            raise ValueError("extend-budget, resume, promote, and recover are mutually exclusive")
+        if (
+            extend_budget.is_symlink()
+            or not extend_budget.is_dir()
+            or extend_budget.parent.name != "checkpoints"
+            or not extend_budget.name.startswith("step_")
+            or "_gen_" not in extend_budget.name
+            or extend_budget.resolve() != (extend_budget.parent.resolve() / extend_budget.name)
+        ):
+            raise ValueError("extend-budget requires an immutable full-state generation directory")
     if recover is not None:
         root = recover.resolve()
     else:
@@ -184,10 +233,13 @@ def load_continuation(
             raise ValueError(
                 "checkpoint scientific identity differs from its source run manifest"
             )
-        if _resume_settings(saved_config) != _resume_settings(config):
-            raise ValueError(
-                "resume configuration differs from checkpoint; use promotion for changed scientific settings"
-            )
+        if extend_budget is None:
+            if _resume_settings(saved_config) != _resume_settings(config):
+                raise ValueError(
+                    "resume configuration differs from checkpoint; use promotion for changed scientific settings"
+                )
+        else:
+            extension = _budget_extension(saved_config, config, snapshot)
         if snapshot.engine != runtime.engine or snapshot.backend != runtime.backend:
             raise ValueError("full resume requires the same engine and backend")
         drift: list[dict[str, object]] = []
@@ -233,6 +285,8 @@ def load_continuation(
                     "reason": "explicit --allow-runtime-drift",
                 }
             )
+        if extend_budget is not None:
+            decisions.append({**extension, "source_drift": drift})
         return Continuation(
             "RESUMED",
             snapshot,

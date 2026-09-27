@@ -46,6 +46,15 @@ cards remain descriptive, not evidence of chat quality. The canonical lifecycle
 and report bundle bind the retained evidence; unrelated historical Engram errors
 remain visible in global validation.
 
+The completed [dense-lm-token-budget-v1 campaign](../../experiments/research/dense-lm-token-budget-v1/results.md)
+continues that reference with its optimizer state and original learning-rate
+decay horizon through two larger target budgets on all three seeds. Validation
+loss decreased at both milestones, but some fixed outputs developed new
+contradictions or repetition. Start with the [plain-language review](dense-lm-token-budget-review.md);
+the [preregistration](../../experiments/research/dense-lm-token-budget-v1/preregistration.md)
+and [acceptance observations](../../artifacts/acceptance/dense_lm_token_budget_v1.json)
+bind the controls and raw outcomes. No extended checkpoint was promoted.
+
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
 

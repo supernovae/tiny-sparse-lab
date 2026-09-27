@@ -60,6 +60,16 @@ uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml
 
 Resume creates a child run and retains parent telemetry. It rejects changed model, optimizer, data, tokenizer, budget, engine, or backend configuration. Source or runtime identity drift requires `--allow-runtime-drift` and is recorded as `best_effort`; the flag never bypasses scientific compatibility. Recovery applies the same checks. Completed budgets cannot be resumed. Run-owned data, tokenizer, and memory-package artifacts—including their manifests—are verified before continuation.
 
+An explicit PyTorch/AdamW `--extend-budget CHECKPOINT` is different from ordinary
+resume: only a verified terminal full-state generation may grow both whole-update
+caps, with `optimizer.decay_steps` fixed to the parent's original step limit.
+It retains optimizer moments, cursor, RNG, and the old cosine schedule's floor;
+it does not restart a new longer cosine. An interrupted extended child then
+uses ordinary `--resume` with its unchanged extended config. The
+[checkpointing contract](checkpointing.md#explicit-terminal-budget-extension)
+specifies the compatibility checks; the [dense-LM budget study](../experiments/research/dense-lm-token-budget-v1/results.md)
+records one executed ROCm continuation rather than a generic performance guarantee.
+
 Current run manifests retain `manifest_version: 1` with `identity_version: run-identity-v2`. Requested/effective configuration digests exclude machine-local paths; architecture identity covers model and attention semantics separately. Historical identity-less manifests keep their original digest interpretation. A child's `parent_run_id` and `checkpoint_sha256` bind the exact selected parent generation, not a moving pointer.
 
 Full PyTorch continuation uses checkpoint directory format 2 with native state codec version 2. Verification checks the resolved RunConfig and its digests, canonical tensors/aliases/trainability, named optimizer coverage and moment shapes, completed-update schedule and learning rate, counters/cursor, and safe host/selected-device RNG envelopes. Saving streams model weights by shard rather than cloning the whole model to CPU first. Older format-2 native envelopes remain weights-only: use `checkpoint verify --weights-only` for inference/promotion eligibility, not as proof that full optimizer continuation is supported.

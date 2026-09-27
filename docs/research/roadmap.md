@@ -58,18 +58,19 @@ questions are:
 - **Learning and cost evidence:** add a versioned observation protocol for held-out outcomes, actual token/checkpoint boundaries, threshold censoring, wall/device time, and memory. Update duration is not end-to-end experiment time.
 - **Hardware:** CPU/Apple evidence cannot close CUDA/HIP/ROCm/XPU or real cross-host execution gates.
 
-## Proposed dense-lm-v1 descendants
+## Dense-lm-v1 descendants
 
 The canonical lifecycle now promotes dense-lm-v1 as a bounded three-seed learning reference: seeds 42, 17, and 73 each completed 4,096 steps / 4,194,304 tokens; all fixed terminal gates passed; and endpoints were reached while learning, with no plateau observed. Terminal losses were 2.4824737093453306, 2.484718531778414, and 2.470433681211826, respectively. These results do not establish chat quality; OOD capability cards remain descriptive. Candidate validation passes independently; the unrelated Engram global validation error remains visible.
 
-The following are proposed descendants only, not executed work:
+The [dense-lm-token-budget-v1 study](../../experiments/research/dense-lm-token-budget-v1/results.md) has now executed all preregistered milestones for seeds 42, 17, and 73. Held-out loss fell at 8.39M and 16.78M target exposures on each seed, but fixed greedy outputs retained or developed contradictions and repetition; no plateau or promotion is established. The training array and optimizer state were continued, not replaced with new data or a restarted cosine schedule. Full [observations](../../artifacts/acceptance/dense_lm_token_budget_v1.json), including the preserved interrupted seed-42 attempt, are available for review.
 
-- **Token budget:** test a larger budget while preserving the baseline conditions and binding protocol/evidence before execution.
+The following descendants remain proposals, not executed work:
+
 - **Scale:** test model scale while preserving the baseline conditions and binding protocol/evidence before execution.
 - **Generation degeneration:** characterize degeneration across declared conditions while preserving the baseline conditions and binding protocol/evidence before execution.
 - **MLA, Engram, FFN thinning, MoE, and sparse attention:** evaluate each as a separate controlled descendant, preserving baseline conditions and binding protocol/evidence before execution.
 
-Every descendant must retain the baseline conditions for factors not explicitly varied, declare and bind its protocol and evidence before execution, and remain a proposal until actually run and reviewed.
+Every further descendant must retain the baseline conditions for factors not explicitly varied, declare and bind its protocol and evidence before execution, and remain a proposal until actually run and reviewed.
 
 ## Deferred capability: teacher-derived semantic representations
 

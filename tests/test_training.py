@@ -425,6 +425,21 @@ def test_non_multiple_token_budget_commits_exactly_77_targets(tmp_path: Path) ->
     assert snapshot.cursor == (0, 5)
 
 
+def test_whole_update_crosses_epoch_without_losing_targets(tmp_path: Path) -> None:
+    raw = config(tmp_path).model_dump(mode="json")
+    raw["dataset"]["train_max_tokens"] = 256
+    raw["training"].update(max_steps=10, max_tokens=320)
+    raw["checkpoint"]["steps"] = [0, 10]
+    raw["evaluation"].update(every_steps=10, max_batches=1)
+    bounded = RunConfig.model_validate(raw)
+    train(bounded, run_id="cross-epoch")
+    root = bounded.logging.root_dir / "cross-epoch"
+    snapshot = CheckpointManager(root).load(root / "checkpoints/latest.json")
+    assert (snapshot.step, snapshot.tokens_seen) == (10, 320)
+    assert snapshot.cursor[0] == 1
+    assert CheckpointManager(root).verify(root / "checkpoints/latest.json").valid
+
+
 def test_allow_runtime_drift_does_not_allow_dataset_change(tmp_path: Path) -> None:
     original = config(tmp_path / "original")
     train(original, run_id="part", stop_after_step=5)
@@ -508,6 +523,72 @@ def test_source_drift_requires_explicit_best_effort_resume(
     assert decision["resume_level"] == "best_effort"
     assert decision["changes"][0]["requested"] == previous_source["sha256"]
     assert decision["changes"][0]["effective"] == changed_source["sha256"]
+
+
+def test_budget_extension_preserves_full_state_and_parent(tmp_path: Path) -> None:
+    raw = config(tmp_path).model_dump(mode="json")
+    raw["training"].update(max_steps=4, max_tokens=128)
+    raw["checkpoint"]["steps"] = [0, 4]
+    raw["evaluation"].update(every_steps=4, max_batches=1)
+    parent_config = RunConfig.model_validate(raw)
+    train(parent_config, run_id="parent")
+    parent_run = parent_config.logging.root_dir / "parent"
+    generation = next((parent_run / "checkpoints").glob("step_00000004_gen_*"))
+    before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in generation.iterdir()}
+    parent = CheckpointManager(parent_run).load(generation)
+    raw["name"] = "budget-extension"
+    raw["training"].update(max_steps=8, max_tokens=256)
+    raw["optimizer"]["decay_steps"] = 4
+    raw["checkpoint"]["steps"] = [0, 4, 8]
+    extended = RunConfig.model_validate(raw)
+    with pytest.raises(ValueError, match="configuration differs"):
+        train(extended, run_id="strict-rejected", resume=generation)
+    assert not (extended.logging.root_dir / "strict-rejected").exists()
+    with pytest.raises(ValueError, match="generation directory"):
+        train(extended, run_id="pointer-rejected", extend_budget=parent_run / "checkpoints/latest.json")
+    assert not (extended.logging.root_dir / "pointer-rejected").exists()
+    train(extended, run_id="extended", extend_budget=generation, stop_after_step=5)
+    child_run = extended.logging.root_dir / "extended"
+    child = CheckpointManager(child_run).load(child_run / "checkpoints/latest.json")
+    assert (child.step, child.tokens_seen, child.schedule["kind"]) == (5, 160, "warmup_cosine_floor_v1")
+    assert child.cursor == (0, 10)
+    assert child.parent_checkpoint_sha256 == parent.checkpoint_sha256
+    assert CheckpointManager(child_run).verify(child_run / "checkpoints/latest.json").valid
+    assert {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in generation.iterdir()} == before
+    decision = next(item for item in read_manifest(child_run / "manifest.json")["resource_decisions"] if item["kind"] == "budget_extension")
+    assert (decision["old_max_tokens"], decision["new_max_tokens"], decision["decay_steps"]) == (128, 256, 4)
+    train(extended, run_id="resumed", resume=child_run / "checkpoints/latest.json")
+    finished = CheckpointManager(extended.logging.root_dir / "resumed").load(extended.logging.root_dir / "resumed/checkpoints/latest.json")
+    assert (finished.step, finished.tokens_seen) == (8, 256)
+
+
+def test_budget_extension_rejects_other_changes_before_child(tmp_path: Path) -> None:
+    raw = config(tmp_path).model_dump(mode="json")
+    raw["training"].update(max_steps=4, max_tokens=128)
+    raw["checkpoint"]["steps"] = [0, 4]
+    raw["evaluation"].update(every_steps=4, max_batches=1)
+    original = RunConfig.model_validate(raw)
+    train(original, run_id="parent")
+    checkpoints = original.logging.root_dir / "parent/checkpoints"
+    terminal = next(checkpoints.glob("step_00000004_gen_*"))
+    nonterminal = next(checkpoints.glob("step_00000000_gen_*"))
+    raw["training"].update(max_steps=8, max_tokens=256)
+    raw["optimizer"]["decay_steps"] = 4
+    raw["checkpoint"]["steps"] = [0, 4, 8]
+    valid = RunConfig.model_validate(raw)
+    invalid = [
+        (nonterminal, valid),
+        (terminal, valid.model_copy(update={"dataset": valid.dataset.model_copy(update={"synthetic_seed": 99})})),
+        (terminal, valid.model_copy(update={"training": valid.training.model_copy(update={"max_tokens": 128})})),
+        (terminal, valid.model_copy(update={"training": valid.training.model_copy(update={"micro_batch_size": 1})})),
+        (terminal, valid.model_copy(update={"optimizer": valid.optimizer.model_copy(update={"peak": 0.004})})),
+        (terminal, valid.model_copy(update={"runtime": valid.runtime.model_copy(update={"backend": "rocm"})})),
+    ]
+    for index, (generation, changed) in enumerate(invalid):
+        run_id = f"rejected-{index}"
+        with pytest.raises(ValueError):
+            train(changed, run_id=run_id, extend_budget=generation)
+        assert not (valid.logging.root_dir / run_id).exists()
 
 
 def test_preexisting_cancel_marker_commits_no_update(tmp_path: Path) -> None:

@@ -22,7 +22,7 @@ import torch
 from safetensors import SafetensorError
 from safetensors.torch import load_file, save_file
 
-from sparselab.config.models import RunConfig
+from sparselab.config.models import AdamWConfig, RunConfig
 from sparselab.engines.base import CanonicalTensor, WeightSource
 from sparselab.model.inspection import TensorSpec, named_tensor_inventory
 from sparselab.training.manifest import (
@@ -46,7 +46,7 @@ from sparselab.training.mlx_checkpoints import (
 from sparselab.training.mlx_checkpoints import (
     write_native_state as write_mlx_native_state,
 )
-from sparselab.training.optimizer import learning_rate_for_step
+from sparselab.training.optimizer import learning_rate_for_step, schedule_payload
 
 FORMAT_VERSION = 2
 SHARD_BYTES = 256 * 1024 * 1024
@@ -338,14 +338,7 @@ def _check_common_native_state(
         or any(type(value) is not int or value < 0 for value in cursor)
     ):
         raise ValueError("invalid native data cursor")
-    schedule = {
-        "kind": "warmup_cosine_v1",
-        "completed_updates": step,
-        "max_steps": config.training.max_steps,
-        "warmup_steps": config.optimizer.warmup_steps,
-        "peak": config.optimizer.peak,
-        "floor": config.optimizer.floor,
-    }
+    schedule = schedule_payload(config, step)
     if native["schedule"] != schedule:
         raise ValueError("schedule does not match configuration and completed updates")
     learning_rate = (
@@ -355,6 +348,11 @@ def _check_common_native_state(
             config.optimizer.warmup_steps,
             config.optimizer.peak,
             config.optimizer.floor,
+            decay_steps=(
+                config.optimizer.decay_steps
+                if isinstance(config.optimizer, AdamWConfig)
+                else None
+            ),
         )
         if step
         else config.optimizer.peak

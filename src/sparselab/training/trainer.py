@@ -72,6 +72,7 @@ from sparselab.training.manifest import (
     write_manifest,
 )
 from sparselab.training.metrics import ExperimentStore
+from sparselab.training.optimizer import schedule_payload
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.training.throughput import summarize_training_progress
 
@@ -313,14 +314,7 @@ def _save(
         model={},
         weight_source=engine.export_weights(),
         optimizer=state.optimizer,
-        schedule={
-            "kind": "warmup_cosine_v1",
-            "completed_updates": step,
-            "max_steps": config.training.max_steps,
-            "warmup_steps": config.optimizer.warmup_steps,
-            "peak": config.optimizer.peak,
-            "floor": config.optimizer.floor,
-        },
+        schedule=schedule_payload(config, step),
         step=step,
         tokens_seen=tokens,
         cursor=(cursor.epoch, cursor.next_block),
@@ -401,6 +395,7 @@ def train(
     config: RunConfig,
     *,
     resume: Path | None = None,
+    extend_budget: Path | None = None,
     promote: Path | None = None,
     recover: Path | None = None,
     run_id: str | None = None,
@@ -426,6 +421,7 @@ def train(
     return _train_impl(
         config,
         resume=resume,
+        extend_budget=extend_budget,
         promote=promote,
         recover=recover,
         run_id=run_id,
@@ -448,6 +444,7 @@ def _train_impl(
     *,
     resume: Path | None = None,
     promote: Path | None = None,
+    extend_budget: Path | None = None,
     recover: Path | None = None,
     run_id: str | None = None,
     stop_after_step: int | None = None,
@@ -535,9 +532,9 @@ def _train_impl(
                     "requested execution override changes scientific configuration"
                 )
             requested_config = original.model_dump(mode="json")
-        choices = [path for path in (resume, promote, recover) if path is not None]
+        choices = [path for path in (resume, promote, recover, extend_budget) if path is not None]
         if len(choices) > 1:
-            raise ValueError("resume, promote, and recover are mutually exclusive")
+            raise ValueError("resume, promote, recover, and extend-budget are mutually exclusive")
         if purpose not in {"training", "smoke", "warmup"}:
             raise ValueError("invalid execution purpose")
         if purpose != "training" and (choices or stage_bundle is None):
@@ -588,11 +585,11 @@ def _train_impl(
             }
         )
         current_source = source_identity()
-        if promote is None and (resume is not None or recover is not None):
+        if promote is None and (resume is not None or recover is not None or extend_budget is not None):
             continuation_root = (
                 recover.resolve()
                 if recover is not None
-                else resume.parent.parent.resolve()  # type: ignore[union-attr]
+                else (resume or extend_budget).parent.parent.resolve()  # type: ignore[union-attr]
             )
             owned_manifest = continuation_root / "portability_manifest.json"
             if _portability_manifest_v2(owned_manifest) is not None:
@@ -602,6 +599,7 @@ def _train_impl(
             runtime,
             current_source,
             resume=resume,
+            extend_budget=extend_budget,
             promote=promote,
             recover=recover,
             allow_runtime_drift=allow_runtime_drift,
@@ -1515,21 +1513,28 @@ def _train_impl(
                     )
                     finish_run("interrupted", reason)
                     return run_id
-                order = epoch_order(len(dataset), config.seed, cursor.epoch)
                 remaining = config.training.max_tokens - tokens
                 window_size = (
                     config.training.micro_batch_size
                     * config.training.gradient_accumulation
                 )
-                candidate_indices = order[
-                    cursor.next_block : cursor.next_block + window_size
-                ].tolist()
-                if not candidate_indices:
-                    cursor = BatchCursor(cursor.epoch + 1, 0)
-                    continue
+                candidates: list[tuple[int, BatchCursor]] = []
+                next_cursor = cursor
+                while len(candidates) < window_size:
+                    order = epoch_order(len(dataset), config.seed, next_cursor.epoch)
+                    count = min(window_size - len(candidates), len(order) - next_cursor.next_block)
+                    if count == 0:
+                        next_cursor = BatchCursor(next_cursor.epoch + 1, 0)
+                        continue
+                    candidates.extend(
+                        (int(order[offset]), BatchCursor(next_cursor.epoch, offset + 1))
+                        for offset in range(next_cursor.next_block, next_cursor.next_block + count)
+                    )
+                    next_cursor = BatchCursor(next_cursor.epoch, next_cursor.next_block + count)
                 records = []
                 valid_targets = 0
-                for index in candidate_indices:
+                committed_cursor = cursor
+                for index, candidate_cursor in candidates:
                     inputs, targets, addresses, owners, queries, query_mask = (
                         dataset.numpy_microblock(index)
                     )
@@ -1541,6 +1546,7 @@ def _train_impl(
                     records.append(
                         (inputs, labels, addresses, owners, queries, query_mask)
                     )
+                    committed_cursor = candidate_cursor
                     valid_targets += allowed
                     if valid_targets == remaining:
                         break
@@ -1613,7 +1619,7 @@ def _train_impl(
                     )
                 cumulative_updates += retry_seconds
                 step, tokens = step + 1, tokens + update.committed_targets
-                cursor = BatchCursor(cursor.epoch, cursor.next_block + len(records))
+                cursor = committed_cursor
                 update_elapsed = max(time.perf_counter() - started, 0.0)
                 last_optimizer_update_elapsed = update_elapsed
                 if update_elapsed - progress_samples[-1][0] >= 5.0:

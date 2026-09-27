@@ -13,7 +13,7 @@ Tiny Sparse Lab is a reference laboratory, not a production training service. On
 | Decoder and inference | RMSNorm/RoPE causal decoder, SwiGLU, tied/untied embeddings, generation/chat, and checkpoint-bound transcripts. Supported PyTorch paths use a bounded request-local KV cache; MLX uses full-prefix decoding. |
 | Architectural experiments | PyTorch dense, sliding-window, block-sparse, and MLA attention; local Top-K MoE; token, byte-addressed, and portable Engram memory. MLX supports dense and native block-sparse attention, not blanket architecture parity. |
 | Training and objectives | Exact target-counted gradient accumulation, whole-transcript or assistant-only conversation loss, block recomputation, periodic validation, and safe-boundary interruption. Versioned tool-call transcripts are training data, not executable tools. |
-| Checkpoints and continuation | Immutable, hash-verified generations; offline verification; explicit recovery; full-state same-engine/backend child resume; compatible weight promotion with fresh training state. Validated legacy and narrow Llama safetensor import are separate from resume. |
+| Checkpoints and continuation | Immutable, hash-verified generations; offline verification; explicit recovery; full-state same-engine/backend child resume; guarded terminal AdamW budget extension with its original decay horizon; compatible weight promotion with fresh training state. Validated legacy and narrow Llama safetensor import are separate from resume. |
 | Runtime and memory | Discovery, disposable precision probes, shape-only capacity estimates, explicit config proposals, isolated smoke/warmup pilots, and measured memory/timing. PyTorch supports capability-checked mixed precision, activation offload, and Adafactor alongside default AdamW. |
 | Independent workers | Local/SSH stdio protocol, capability-filtered durable queues, physical-device leases, sealed inputs, cancellation, explicit child resume, verified artifact/metric ingestion, and explicit Cartesian matrices. |
 | Evidence and dashboard | Checkpoint-bound evaluation/capability cards, recorded comparisons, and read-only live Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, Learn, and Research pages. |
@@ -29,6 +29,7 @@ The dated **2026-09-22/23 acceptance records** capture **335 passing tests**, Ru
 | [Independent-worker acceptance](artifacts/acceptance/independent_workers_2026_09_23.json) | Three overlapping logical CPU workers, progress through controller loss, idempotent launch replay, cancellation and bitwise child-resume comparison, forced executor loss, CLI matrices, source/capacity rejection, and an actual MLX worker. |
 | [Scientific studies](artifacts/acceptance/scientific_studies_2026_09_22.json) | Preregistered multi-seed/multi-budget context/Engram comparisons and domain adaptation with retention checks. Untouched context overrides remained **0/8** at every endpoint; adaptation did not establish reliable held-out domain behavior and caused severe forgetting. |
 | [Research workbench evidence](docs/research/sample-report.md) | Completed CPU/offline smoke and nano campaigns plus an MPS/FineWeb-Edu micro study; the observed alias-card scores were zero. The MLA report smoke exercised factorial, nondominance, allocation, and boundary outputs, not model quality or speedup. |
+| [Dense-LM token-budget study](experiments/research/dense-lm-token-budget-v1/results.md) | On one ROCm device, three full-state continuations of the fixed TinyStories reference lowered held-out loss at 8.39M and 16.78M target exposures. Some fixed-prompt continuations worsened or contradicted the prompt; no broader text-quality claim or automatic promotion follows. |
 
 The [research roadmap](docs/research/roadmap.md) separates implemented paths,
 smoke evidence, task-level results, and open questions about
@@ -146,6 +147,9 @@ Published reports: [FFN-substitution smoke](artifacts/research-reports/fbdb00217
 
 The [project review](docs/project-review.md) preserves the original local learning observations and failed controls. The completed [context/Engram study](docs/context-engram-study.md#execution-results--2026-09-22) and [domain adaptation study](docs/path-domain-corpus.md#2026-09-22-execution-record) add multi-seed outcomes, collision measurements, and retention checks without selecting favorable endpoints. The [capability workflow](docs/capabilities.md) explains held-out narrow claims; [instruction training](docs/instruction-training.md) explains licensed local conversations and assistant-only/tool-transcript supervision.
 
+For a non-specialist account of what changed, what the measurements mean, and
+why lower loss did not settle text quality, see the [token-budget review](docs/research/dense-lm-token-budget-review.md).
+
 ## Documentation
 
 - [Using SparseLab](docs/using-sparselab.md) — commands, local artifacts, and dashboard.
@@ -157,6 +161,7 @@ The [project review](docs/project-review.md) preserves the original local learni
 - [Architecture](docs/architecture.md), [MoE](docs/moe.md), [sparse attention](docs/sparse-attention.md), [MLA](docs/mla.md), and [Engram](docs/engram.md) — reference mechanisms.
 - [Training and resume](docs/training.md), [metrics](docs/metrics.md), [experiments](docs/experiments.md), and [evidence](docs/evidence.md) — local lifecycle and comparison practice.
 - [Context/Engram study](docs/context-engram-study.md) and [domain corpus/adaptation](docs/path-domain-corpus.md) — frozen inputs, executed comparisons, negative results, and limitations.
+- [Dense-LM token-budget review](docs/research/dense-lm-token-budget-review.md) and [measured results](experiments/research/dense-lm-token-budget-v1/results.md) — plain-language findings, frozen protocol, full observations, and limitations.
 - [Research roadmap](docs/research/roadmap.md) — capability evidence, unresolved questions, and proposed experiments.
 - [Implementation backlog](TODO.md) — pending changes that require code.
 - [Agent guidance](AGENTS.md) — safe workspaces, performance calibration, experiment boundaries, and verification.

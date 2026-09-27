@@ -609,6 +609,7 @@ def _train(args: argparse.Namespace) -> None:
         train(
             config,
             resume=Path(args.resume) if args.resume else None,
+            extend_budget=Path(args.extend_budget) if args.extend_budget else None,
             promote=Path(args.promote) if args.promote else None,
             recover=Path(args.recover) if args.recover else None,
             run_id=args.run_id,
@@ -2049,6 +2050,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     training.add_argument("--run-id")
     training.add_argument("--resume")
+    training.add_argument("--extend-budget")
     training.add_argument("--promote")
     training.add_argument("--recover")
     training.add_argument("--allow-runtime-drift", action="store_true")

@@ -24,6 +24,26 @@ Full resume requires the same engine/backend, architecture semantics, tokenizer/
 
 Use `--recover RUN_DIR` only to seek the latest valid finalized generation after interruption/corruption. It creates a child after checking compatible state; it is not permission to overwrite the existing run. Old or incomplete historical artifacts that lack required continuation state are not full-resumable.
 
+## Explicit terminal budget extension
+
+`train --extend-budget CHECKPOINT` takes an immutable full-state generation
+directory, not `latest.json` or a weights-only promotion. It is mutually
+exclusive with `--resume`, `--recover`, and `--promote`. The parent must be
+terminal at both its configured update and target caps; both old and new target
+caps must equal `max_steps × seq_len × micro_batch_size × gradient_accumulation`.
+The new caps must both grow, and the new AdamW `optimizer.decay_steps` must equal
+the parent's `training.max_steps`. Only name, logging, checkpoint paths, these
+two caps, and that explicit decay horizon may differ. Engine/backend and
+artifact identity remain verified; source/runtime drift still needs explicit
+`--allow-runtime-drift` and appears in the child's `budget_extension` decision.
+
+The child restores weights, AdamW moments and learning rate, scaler, cursor,
+RNG, counters and lineage; it continues at the original cosine floor rather
+than restarting a longer cosine. A subsequent interrupted child uses ordinary
+strict `--resume` with its **unchanged** extended config. The source checkpoint
+and run store remain immutable. This mode is PyTorch-only; explicit AdamW decay
+horizons are not supported by MLX.
+
 ## Promotion is weights-only continuation
 
 `--promote CHECKPOINT` creates a child with compatible canonical model weights but **fresh** optimizer, schedule, scaler, RNG, cursor, and zero committed counters. Its destination config supplies the new data/budget/runtime choices. Promotion still requires the same architecture semantics, tokenizer contents, and portable package identity when present; equal tensor shapes alone are insufficient. It does not resize a backbone or turn dense weights into MoE.
