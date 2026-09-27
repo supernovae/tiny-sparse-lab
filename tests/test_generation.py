@@ -16,7 +16,11 @@ from sparselab.config.models import AttentionConfig, ModelConfig, RunConfig
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.packing import prepare_data
 from sparselab.evaluation.chat import chat_turn
-from sparselab.evaluation.generation import _prompt_byte_addresses, generate
+from sparselab.evaluation.generation import (
+    _prompt_byte_addresses,
+    generate,
+    generate_with_token_ids,
+)
 from sparselab.model.attention.dense import DenseAttention
 from sparselab.model.portable_engram import export_portable_engram
 from sparselab.model.transformer import DenseLM
@@ -141,6 +145,71 @@ def test_generation_stops_on_eos_without_echoing_new_prompt_text() -> None:
         == "User: hello\n\nAssistant:"
     )
 
+
+@pytest.mark.parametrize("temperature,top_k", [(0.0, 0), (1.0, 2)])
+def test_generation_returns_actual_tokens_without_changing_legacy_text(
+    temperature: float, top_k: int
+) -> None:
+    tokenizer = _tokenizer()
+    first, second = _ids(tokenizer, "hi")
+    eos = tokenizer.token_to_id("<eos>")
+    assert eos is not None
+    script = [{first: 3.0, second: 2.0}, {eos: 10.0}]
+    options = {"temperature": temperature, "top_k": top_k, "seed": 42}
+    text, generated = generate_with_token_ids(
+        _ScriptedModel(tokenizer, script),
+        tokenizer,
+        "hello",
+        16,
+        4,
+        torch.device("cpu"),
+        **options,
+    )
+
+    assert generated in ([first], [second])
+    assert text == "hello" + tokenizer.decode(generated, skip_special_tokens=True)
+    assert text == generate(
+        _ScriptedModel(tokenizer, script),
+        tokenizer,
+        "hello",
+        16,
+        4,
+        torch.device("cpu"),
+        **options,
+    )
+    assert generate_with_token_ids(
+        _ScriptedModel(tokenizer, [{eos: 10.0}]),
+        tokenizer,
+        "hello",
+        16,
+        4,
+        torch.device("cpu"),
+    ) == ("hello", [])
+
+
+def test_generation_ids_retain_tokens_hidden_by_text_stop_sequence() -> None:
+    tokenizer = _tokenizer()
+    token = _ids(tokenizer, "h")[0]
+    text, generated = generate_with_token_ids(
+        _ScriptedModel(tokenizer, [{token: 10.0}]),
+        tokenizer,
+        "hello",
+        16,
+        4,
+        torch.device("cpu"),
+        stop_sequences=("h",),
+    )
+
+    assert text == "hello"
+    assert generated == [token]
+    assert generate_with_token_ids(
+        _ScriptedModel(tokenizer, [{token: 10.0}]),
+        tokenizer,
+        "hello",
+        16,
+        0,
+        torch.device("cpu"),
+    ) == ("hello", [])
 
 def test_byte_memory_uses_raw_leading_space_and_unicode_bytes_for_causal_addresses() -> (
     None

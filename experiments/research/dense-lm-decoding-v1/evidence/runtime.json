@@ -1,0 +1,24 @@
+{
+  "format": "dense_lm_decoding_runtime_v1",
+  "backend": "rocm",
+  "device": "AMD Radeon RX 7900 XTX",
+  "framework": "2.13.0+rocm10.0.0",
+  "observations": "GPU peaks were printed by each completed run.py checkpoint process after reset_peak_memory_stats following checkpoint load. Per-cell synchronized generation seconds are in summary.json. Command wall includes checkpoint loading, identity verification, Python startup and evidence flushing; no model training occurred.",
+  "development": {
+    "first_checkpoint_command_wall_seconds": 51.67,
+    "remaining_five_and_selection_command_wall_seconds": 300.29,
+    "peak_bytes_by_model": {
+      "30m": {"allocated": 205945856, "reserved": 220200960},
+      "50m": {"allocated": 287200256, "reserved": 320864256}
+    },
+    "checkpoints_per_model": 3
+  },
+  "test": {
+    "six_checkpoints_and_blind_bundle_command_wall_seconds": 524.58,
+    "peak_bytes_by_model": {
+      "30m": {"allocated": 205741056, "reserved": 220200960},
+      "50m": {"allocated": 286927872, "reserved": 320864256}
+    },
+    "checkpoints_per_model": 3
+  }
+}

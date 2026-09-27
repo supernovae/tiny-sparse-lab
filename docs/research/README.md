@@ -69,6 +69,16 @@ remain distinct from the token-budget Finding and promoted `dense-lm-v1` baselin
 No checkpoint was automatically promoted; generation/degeneration controls are a
 separate [proposal](roadmap.md#dense-lm-v1-descendants).
 
+The separate [dense-lm-decoding-v1 experiment](../../experiments/research/dense-lm-decoding-v1/results.md)
+generates from the retained mature 30M/50M checkpoints without training. It keeps
+the six-prompt greedy regression decoder intact, chooses one sampled policy using
+only 22 authored development prompts, and compares greedy with the frozen policy
+on 55 independent evaluation prompts. Sampling lowers repetition but often
+drifts from the prompt; 50M's independent mechanical outcomes are mixed.
+[Every generation and checkpoint binding](../../experiments/research/dense-lm-decoding-v1/evidence/summary.json)
+is retained. A [blinded review bundle](../../experiments/research/dense-lm-decoding-v1/review.md)
+exists, but no human voted, so subjective quality remains unavailable.
+
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
 

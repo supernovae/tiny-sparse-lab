@@ -1,0 +1,28 @@
+{
+  "format": "dense_lm_decoding_prompts_v1",
+  "split": "development",
+  "prompts": [
+    {"id": "dev-entity-continuity-01", "category": "entity_continuity", "text": "A sleepy hedgehog curled up under the fern. When the wind shook the leaves, the hedgehog", "anchors": {"objects": ["hedgehog", "fern"]}},
+    {"id": "dev-entity-continuity-02", "category": "entity_continuity", "text": "The old gardener carried a basket of pears to the porch. Before going inside, the gardener", "anchors": {"objects": ["gardener", "basket of pears", "porch"]}},
+    {"id": "dev-named-character-continuity-01", "category": "named_character_continuity", "text": "Nora showed her cousin Eli a paper lantern. Eli held it while Nora", "anchors": {"names": ["Nora", "Eli"], "objects": ["paper lantern"]}},
+    {"id": "dev-named-character-continuity-02", "category": "named_character_continuity", "text": "Tess and Omar searched the orchard for a lost mitten. Tess looked beneath the trees, and Omar", "anchors": {"names": ["Tess", "Omar"], "objects": ["lost mitten", "orchard"]}},
+    {"id": "dev-object-continuity-01", "category": "object_continuity", "text": "A child found a wooden whistle beside the gate. She put the whistle in her pocket before", "anchors": {"objects": ["wooden whistle", "gate"]}},
+    {"id": "dev-object-continuity-02", "category": "object_continuity", "text": "The cobbler set a tiny silver bell on his workbench. He reached for the bell when", "anchors": {"objects": ["tiny silver bell", "workbench"]}},
+    {"id": "dev-color-attribute-continuity-01", "category": "color_attribute_continuity", "text": "A yellow scarf hung from the chair in the quiet room. The scarf was yellow, even when", "anchors": {"attributes": [{"object": "scarf", "value": "yellow"}], "objects": ["scarf", "chair"]}},
+    {"id": "dev-color-attribute-continuity-02", "category": "color_attribute_continuity", "text": "The little cart had purple wheels and stood beside a white fence. Its wheels were purple as", "anchors": {"attributes": [{"object": "wheels", "value": "purple"}, {"object": "fence", "value": "white"}], "objects": ["cart", "wheels", "fence"]}},
+    {"id": "dev-temporal-ordering-01", "category": "temporal_ordering", "text": "First the child washed the mud from her hands. Then she dried them on a towel and", "anchors": {"objects": ["towel"]}},
+    {"id": "dev-temporal-ordering-02", "category": "temporal_ordering", "text": "Before the guests came, the host laid out cups. When the guests arrived, the host", "anchors": {"objects": ["cups"]}},
+    {"id": "dev-cause-effect-01", "category": "cause_effect", "text": "The window was open, so cold air blew into the bedroom. The child felt chilly and", "anchors": {"objects": ["window"]}},
+    {"id": "dev-cause-effect-02", "category": "cause_effect", "text": "The wheel of the toy wagon came loose on the path. The children stopped pulling the wagon and", "anchors": {"objects": ["toy wagon", "wheel"]}},
+    {"id": "dev-location-permanence-01", "category": "location_permanence", "text": "Grandma left her knitting in the hallway cupboard. Later, when she needed it, she went to the", "anchors": {"objects": ["knitting", "hallway cupboard"]}},
+    {"id": "dev-location-permanence-02", "category": "location_permanence", "text": "The kitten hid its favorite string beneath the sofa. After a nap, the kitten went back to", "anchors": {"objects": ["kitten", "string", "sofa"]}},
+    {"id": "dev-ordinary-continuation-01", "category": "ordinary_continuation", "text": "In the morning, a girl helped plant beans in the garden. She pressed the seeds into the soil and"},
+    {"id": "dev-ordinary-continuation-02", "category": "ordinary_continuation", "text": "A friendly dog waited by the front steps while its family got ready for a walk. Soon they"},
+    {"id": "dev-dialogue-continuation-01", "category": "dialogue_continuation", "text": "\"May I help carry the blankets?\" asked June. Her grandfather smiled and said," , "anchors": {"names": ["June"], "objects": ["blankets"]}},
+    {"id": "dev-dialogue-continuation-02", "category": "dialogue_continuation", "text": "\"I can hear the music from here,\" said Basil. \"Shall we go closer?\" asked his friend. Basil replied," , "anchors": {"names": ["Basil"]}},
+    {"id": "dev-natural-ending-01", "category": "natural_ending", "text": "The children put away the chalk after drawing on the sidewalk. They admired their pictures one last time, then"},
+    {"id": "dev-natural-ending-02", "category": "natural_ending", "text": "The little duck reached the reeds before sunset. Its family was waiting there, and together they"},
+    {"id": "dev-unusual-grammatical-01", "category": "unusual_grammatical", "text": "Under the bench, behind a pair of boots, sat a very small frog. Only when the boots moved did the frog", "anchors": {"objects": ["bench", "boots", "frog"]}},
+    {"id": "dev-unusual-grammatical-02", "category": "unusual_grammatical", "text": "What the old clock needed was a new spring. Not until the clockmaker found one could the clock", "anchors": {"objects": ["old clock", "new spring"]}}
+  ]
+}

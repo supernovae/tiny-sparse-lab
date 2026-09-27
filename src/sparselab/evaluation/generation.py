@@ -239,12 +239,55 @@ def generate(
     | Mapping[str, SemanticQueryBatch]
     | None = None,
 ) -> str:
+    """Continue ``prompt`` using locally seeded sampled decoding."""
+    text, _ = generate_with_token_ids(
+        model,
+        tokenizer,
+        prompt,
+        max_seq_len,
+        max_new_tokens,
+        device,
+        temperature=temperature,
+        top_k=top_k,
+        seed=seed,
+        stop_sequences=stop_sequences,
+        strict_context=strict_context,
+        use_cache=use_cache,
+        engine=engine,
+        semantic_queries=semantic_queries,
+    )
+    return text
+
+
+def generate_with_token_ids(
+    model: Any,
+    tokenizer: Tokenizer,
+    prompt: str,
+    max_seq_len: int,
+    max_new_tokens: int,
+    device: torch.device | str,
+    *,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    seed: int = 0,
+    stop_sequences: Sequence[str] = (),
+    strict_context: bool = False,
+    use_cache: bool = True,
+    engine: MLXEngine | None = None,
+    semantic_queries: SemanticQueryBatch
+    | Mapping[str, SemanticQueryBatch]
+    | None = None,
+) -> tuple[str, list[int]]:
     """Continue ``prompt`` using locally seeded sampled decoding.
 
     Semantic inputs are already-encoded, identity-checked query batches. Sequence
     queries track context truncation and repeat their final position across generated
     tokens; cached and full-prefix PyTorch paths preserve the same query trajectory.
     Native MLX does not implement semantic attachments.
+
+    Returned IDs are sampled completion tokens (not prompt or EOS), before any
+    text-only stop-sequence trimming. They preserve the exact decoding trajectory
+    even if decoding cannot be reversed by encoding the displayed text.
     """
     _validate_generation_options(
         max_seq_len, max_new_tokens, temperature, top_k, seed, stop_sequences
@@ -273,7 +316,7 @@ def generate(
     if strict_context and len(ids) + max_new_tokens > max_seq_len:
         raise ValueError("prompt and requested completion exceed max_seq_len")
     if max_new_tokens == 0:
-        return prompt
+        return prompt, []
 
     source_bytes = bytearray(prompt.encode("utf-8")) if byte_memory else None
     addresses = (
@@ -430,4 +473,4 @@ def generate(
     completion = tokenizer.decode(generated, skip_special_tokens=True)
     for stop in stop_sequences:
         completion = completion.split(stop, 1)[0]
-    return prompt + completion
+    return prompt + completion, generated

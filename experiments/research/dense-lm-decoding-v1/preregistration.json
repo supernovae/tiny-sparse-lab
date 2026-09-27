@@ -1,0 +1,109 @@
+{
+  "format": "dense_lm_decoding_preregistration_v1",
+  "frozen_sha256": {
+    "experiments/research/dense-lm-decoding-v1/protocol.md": "4a6366e6a75f03c095dc4175e6742b2270a16455701f9fc4396e28ef067849f4",
+    "experiments/research/dense-lm-decoding-v1/development.json": "0a5ea9633cae160433e64d574d879cf72724d56462f26486386365a74d646eb4",
+    "experiments/research/dense-lm-decoding-v1/test.json": "7ffc8b0645b9f77764c2de045efaaa25d47ec4f7454243207b737a7d84d8d077",
+    "experiments/research/dense-lm-decoding-v1/run.py": "415cd35bf72874986b6e0254e3e208d07923ea89b10744cfb00c447ede1d111b",
+    "data/dense_lm_v1_prompts.json": "118839f291b8741d233ce19baff15f0dcb9cef52eb907208ff6ac9a81bc3408e",
+    "artifacts/acceptance/dense_lm_token_budget_v1.json": "41ddc5be2290bbd568419adc9786bb1b00483623598c2926e130f4919593e51b",
+    "experiments/research/dense-lm-scale-v1/evidence.json": "2533446ea7b6cd13524853a703493cb78ebac9b9b287e948f92ae096c1809db9",
+    "src/sparselab/evaluation/generation.py": "da1db84d5e756a2acf1f40dcc93cad1a43dd67a8eabafda24bb14d273ccedaa2",
+    "tests/test_generation.py": "14a03184e257a1bb2867035573d85eb4edc155588cc9ef4608d77885960ae706"
+  },
+  "source_revision_before_study": "b01400a2491e74bd265d2560fd6e01e5afa0c1d5",
+  "inference_source_identity_sha256": "3efb23165206ff32499cc1a28cc9a382cad4814e11f918ce08b35d8d4f63f699",
+  "tokenizer_sha256": "6bd2b7c7086c85bcac66ba5d17a2f822805fab9f1c6fe7973d8569f4fb22b44e",
+  "data_sha256": {
+    "train": "1e9eb838ee865c5cbb9bc869e3c3dc4d00c1b908f432f9e84dd605d974339a46",
+    "validation": "3dac074c832502f92cf00d516c4fb83b5732b8e651e84b658fa7dfe69f4a56fd"
+  },
+  "policies": [
+    {
+      "name": "regression_decoder",
+      "temperature": 0,
+      "top_k": 0
+    },
+    {
+      "name": "temperature_0_8",
+      "temperature": 0.8,
+      "top_k": 0
+    },
+    {
+      "name": "top_k_40",
+      "temperature": 0.8,
+      "top_k": 40
+    }
+  ],
+  "sample_seeds": [
+    11,
+    29
+  ],
+  "max_new_tokens": 48,
+  "context_length": 256,
+  "dev_cells_per_checkpoint": 110,
+  "test_cells_per_checkpoint": 165,
+  "selection_rule": "lexicographic empty_or_pathological count, explicit anchor contradictions, repeated trigram / emitted tokens, repeated bigram / emitted tokens; top_k_40 tie-break",
+  "checkpoints": [
+    {
+      "model": "30m",
+      "seed": 42,
+      "run_id": "dense-lm-token-budget-v1-seed42-step16384",
+      "generation": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed42-step16384/checkpoints/step_00016384_gen_000037",
+      "digest": "c4ef91e5cd5e806494ca7523182e00182d249a639e6d026712494098907934b4",
+      "manifest_sha256": "c0c40d90eb93a26209f89f90ac6b2101f187d13ac8cde0d5c5cd1bc5111dd91d",
+      "run_manifest_sha256": "f70d2263c66d8c4a50421c9053147a8e74db051b49ad6e4a9326a6070b3d610a",
+      "training_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2"
+    },
+    {
+      "model": "50m",
+      "seed": 42,
+      "run_id": "dense-lm-scale-v1-seed42-step16384",
+      "generation": "sparselab-work/experiments/dense-lm-scale-v1/runs/dense-lm-scale-v1-seed42-step16384/checkpoints/step_00016384_gen_000081",
+      "digest": "73d98eec5f8302bdbf278a656b957ab84d46ad93246f1caf3152869d6971b7d4",
+      "manifest_sha256": "44aac3c77378a0da456be9ecd801ba2c293579efc6d184219704b07b7e8dbfcf",
+      "run_manifest_sha256": "1a224545ecc3baa4b09f2530b1e435c1595179272279385d5a79d04f3e35f388",
+      "training_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2"
+    },
+    {
+      "model": "30m",
+      "seed": 17,
+      "run_id": "dense-lm-token-budget-v1-seed17-step16384",
+      "generation": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed17-step16384/checkpoints/step_00016384_gen_000036",
+      "digest": "1e8d6181e34aa3572771358c3021187a740aaab5b54f4d4478da754fc59b0e08",
+      "manifest_sha256": "a72451b1dcfb0d9034f85903afb02a8b955727c00507a969f39f4cafe694be5d",
+      "run_manifest_sha256": "75afa7694076c43f8bd5f94e74a49f6098246e2a4a7bf7049aef74aae9a27f8a",
+      "training_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2"
+    },
+    {
+      "model": "50m",
+      "seed": 17,
+      "run_id": "dense-lm-scale-v1-seed17-step16384",
+      "generation": "sparselab-work/experiments/dense-lm-scale-v1/runs/dense-lm-scale-v1-seed17-step16384/checkpoints/step_00016384_gen_000086",
+      "digest": "edec5b52ef7fd5763001af3067a3ecd999d15fd54e4a44ba390bfa5e5c4b6bbb",
+      "manifest_sha256": "76206dad4b442c6fc998b40555abc42e5bf8dd4552ba81b448242c70bcf505ed",
+      "run_manifest_sha256": "136d9a975c695c317391721e4840b404f75a486750bf8319d8c65817f2539524",
+      "training_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2"
+    },
+    {
+      "model": "30m",
+      "seed": 73,
+      "run_id": "dense-lm-token-budget-v1-seed73-step16384",
+      "generation": "sparselab-work/experiments/dense-lm-token-budget-v1/runs/dense-lm-token-budget-v1-seed73-step16384/checkpoints/step_00016384_gen_000040",
+      "digest": "fe37fd2b1c8cdf62f42a104a17a0f77f70d39ce45a09fe17f8227f726d37e383",
+      "manifest_sha256": "ddcd97c68badc7a0ebb5bd375120a3920d226b78d3f6d8697a2a5d0dd2bba707",
+      "run_manifest_sha256": "64b08f985120aa615a99fd01f916e133bec8322f49f2c2210159f0ffa85d933b",
+      "training_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2"
+    },
+    {
+      "model": "50m",
+      "seed": 73,
+      "run_id": "dense-lm-scale-v1-seed73-step16384",
+      "generation": "sparselab-work/experiments/dense-lm-scale-v1/runs/dense-lm-scale-v1-seed73-step16384/checkpoints/step_00016384_gen_000085",
+      "digest": "4d73fb47682c5c1484b72151e2a3afb70a9883e794930f6bd68a1aa790aa5d18",
+      "manifest_sha256": "5d1a85f2fc1c0515384c360b8ced3868dd9f7195965a6141611c0825645ef75b",
+      "run_manifest_sha256": "4e26d2ebafbe7f8fec68d8b6a78572f1ccf67c1adcdef0ebd107af505fa37c4f",
+      "training_source_identity_sha256": "fb979d47fa049275d78ddfe3c965cac8a6209384e74defdd491118e53a65f1a2"
+    }
+  ]
+}

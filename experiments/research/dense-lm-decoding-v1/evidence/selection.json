@@ -1,0 +1,33 @@
+{
+  "development_sha256": {
+    "30m-seed17.jsonl": "3331202307a8bb99b5a8c3101fb25b8328a945ea8138c6cce12792ced9e806ee",
+    "30m-seed42.jsonl": "70ea38aef37e4eae7a5dd74765889b2340f6ff416ca78434fe6649cd5dfd11c7",
+    "30m-seed73.jsonl": "e92c5d21b5d3b15d0840cb10f8519aa673765ffb913204e91717521fcf0e840f",
+    "50m-seed17.jsonl": "6ad0395d6cd5f1ff215bb76ad270260dbfe0cdccf8f0214eeeded1afc60fd588",
+    "50m-seed42.jsonl": "a18e43b3229186598fcc77705e29aeb25f867449fa88cfd50afa2bf68700e1af",
+    "50m-seed73.jsonl": "c6a56b1c23fcd02ad9bef19ae69133948d2ecccca12b4e8b6cf5fb1b0a667e5d"
+  },
+  "format": "dense_lm_decoder_selection_v1",
+  "preregistration_sha256": "b1e7f667e51215f18f1adea1e5f2ea37e26ae05bdc3bf3856bbccfe2050e6de2",
+  "scores": {
+    "temperature_0_8": {
+      "emitted_tokens": 11444,
+      "empty_or_pathological": 0,
+      "explicit_contradictions": 1,
+      "repeated_bigram_excess": 470,
+      "repeated_bigram_rate": 0.04106955609926599,
+      "repeated_trigram_excess": 135,
+      "repeated_trigram_rate": 0.011796574624257252
+    },
+    "top_k_40": {
+      "emitted_tokens": 11355,
+      "empty_or_pathological": 0,
+      "explicit_contradictions": 1,
+      "repeated_bigram_excess": 555,
+      "repeated_bigram_rate": 0.0488771466314399,
+      "repeated_trigram_excess": 161,
+      "repeated_trigram_rate": 0.014178775869660942
+    }
+  },
+  "selected": "temperature_0_8"
+}
