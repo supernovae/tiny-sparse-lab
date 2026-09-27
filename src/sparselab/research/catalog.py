@@ -83,6 +83,7 @@ class EvaluationPolicy(StrictModel):
 class ResearchEntry(_Versioned):
     format: Literal["sparselab-research-entry"]
     version: Literal[1]
+    classification: Literal["recipe_study", "learning_reference"] = "recipe_study"
     id: StrictStr
     title: StrictStr
     question: StrictStr
@@ -147,7 +148,17 @@ class ResearchEntry(_Versioned):
             raise ValueError(
                 "research title, question, hypothesis, interpretation, hardware, and runtime text must be nonempty"
             )
-        if self.id == _RUNNER_ONLY_ENTRY_ID:
+        if self.classification == "learning_reference":
+            if self.recipe is not None:
+                raise ValueError("learning reference entries must not declare a recipe")
+            if (
+                self.evaluation_policy.milestones_supported
+                or self.evaluation_policy.primary_thresholds
+            ):
+                raise ValueError(
+                    "learning reference entries do not declare recipe thresholds"
+                )
+        elif self.id == _RUNNER_ONLY_ENTRY_ID:
             if self.recipe is not None:
                 raise ValueError(
                     "runner-only learned portability entry must not declare a recipe"
@@ -162,7 +173,7 @@ class ResearchEntry(_Versioned):
                 )
         elif self.recipe is None:
             raise ValueError(
-                "only the learned portability runner entry may omit a recipe"
+                "only runner or learning reference entries may omit a recipe"
             )
         elif (
             self.evaluation_policy.milestones_supported

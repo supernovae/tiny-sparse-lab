@@ -58,6 +58,19 @@ questions are:
 - **Learning and cost evidence:** add a versioned observation protocol for held-out outcomes, actual token/checkpoint boundaries, threshold censoring, wall/device time, and memory. Update duration is not end-to-end experiment time.
 - **Hardware:** CPU/Apple evidence cannot close CUDA/HIP/ROCm/XPU or real cross-host execution gates.
 
+## Proposed dense-lm-v1 descendants
+
+The canonical lifecycle now promotes dense-lm-v1 as a bounded three-seed learning reference: seeds 42, 17, and 73 each completed 4,096 steps / 4,194,304 tokens; all fixed terminal gates passed; and endpoints were reached while learning, with no plateau observed. Terminal losses were 2.4824737093453306, 2.484718531778414, and 2.470433681211826, respectively. These results do not establish chat quality; OOD capability cards remain descriptive. Candidate validation passes independently; the unrelated Engram global validation error remains visible.
+
+The following are proposed descendants only, not executed work:
+
+- **Token budget:** test a larger budget while preserving the baseline conditions and binding protocol/evidence before execution.
+- **Scale:** test model scale while preserving the baseline conditions and binding protocol/evidence before execution.
+- **Generation degeneration:** characterize degeneration across declared conditions while preserving the baseline conditions and binding protocol/evidence before execution.
+- **MLA, Engram, FFN thinning, MoE, and sparse attention:** evaluate each as a separate controlled descendant, preserving baseline conditions and binding protocol/evidence before execution.
+
+Every descendant must retain the baseline conditions for factors not explicitly varied, declare and bind its protocol and evidence before execution, and remain a proposal until actually run and reviewed.
+
 ## Deferred capability: teacher-derived semantic representations
 
 **Status: not implemented.** Verified semantic retrieval consumes already encoded canonical vectors; it does not encode prompt text. Current toy worlds use structured keys, not natural-language embeddings. Standard training and generation do not construct semantic query batches. These interfaces and tests establish bounded retrieval mechanics only.

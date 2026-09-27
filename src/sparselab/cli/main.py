@@ -1266,12 +1266,20 @@ def _research_baseline_describe(args: argparse.Namespace) -> None:
 
 
 def _research_validate(args: argparse.Namespace) -> None:
-    from sparselab.research.lifecycle import validate_lifecycle
+    from sparselab.research.lifecycle import validate_baseline, validate_lifecycle
 
     registry, evidence_root = _lifecycle_registry(args)
-    payload = validate_lifecycle(registry, evidence_root=evidence_root)
+    if args.baseline is None:
+        payload = validate_lifecycle(registry, evidence_root=evidence_root)
+        valid = payload["valid"]
+    else:
+        payload = validate_baseline(
+            registry, args.baseline, evidence_root=evidence_root
+        )
+        baseline = payload["baseline"]
+        valid = isinstance(baseline, dict) and baseline.get("valid") is True
     print(json.dumps(payload, indent=2, sort_keys=True))
-    if not payload["valid"]:
+    if not valid:
         raise SystemExit(1)
 
 
@@ -2123,6 +2131,10 @@ def build_parser() -> argparse.ArgumentParser:
     baseline_describe.set_defaults(handler=_research_baseline_describe)
     research_validate = research_commands.add_parser("validate")
     lifecycle_arguments(research_validate)
+    research_validate.add_argument(
+        "--baseline",
+        help="validate one established baseline independently of global registry health",
+    )
     research_validate.set_defaults(handler=_research_validate)
     research_tasks = research_commands.add_parser(
         "tasks", help="Build provenance-bound train and held-out task artifacts."

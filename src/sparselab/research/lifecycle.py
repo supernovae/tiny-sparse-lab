@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
@@ -134,16 +135,18 @@ class Budget(StrictModel):
 
 
 class SourceRevision(StrictModel):
-    git_commit: StrictStr
-    git_dirty: StrictBool
+    git_commit: StrictStr | None = None
+    git_dirty: StrictBool | None = None
     source_identity_sha256: StrictStr
 
     @model_validator(mode="after")
     def valid_digest(self) -> SourceRevision:
         if not _SHA256.fullmatch(self.source_identity_sha256):
             raise ValueError("source_identity_sha256 must be a lowercase SHA-256")
-        if not self.git_commit.strip():
-            raise ValueError("git_commit must be nonempty")
+        if (self.git_commit is None) != (self.git_dirty is None):
+            raise ValueError("git_commit and git_dirty must both be captured or absent")
+        if self.git_commit is not None and not self.git_commit.strip():
+            raise ValueError("git_commit must be nonempty when captured")
         return self
 
 
@@ -163,6 +166,12 @@ class Baseline(StrictModel):
     id: StrictStr
     title: StrictStr
     purpose: StrictStr
+    purpose_classification: Literal["capability_baseline", "learning_reference"] = (
+        "capability_baseline"
+    )
+    endpoint_state: Literal[
+        "not_assessed", "endpoint_reached_while_learning", "plateau_observed"
+    ] = "not_assessed"
     status: Literal["candidate", "known_good", "superseded"]
     configuration: FileIdentity
     tokenizer_configuration: FileIdentity
@@ -177,7 +186,6 @@ class Baseline(StrictModel):
     reproduction: StrictStr
     promoted_from: StrictStr | None = None
     supersedes: StrictStr | None = None
-
     @model_validator(mode="after")
     def baseline_constraints(self) -> Baseline:
         _valid_id(self.id, "baseline id")
@@ -194,10 +202,18 @@ class Baseline(StrictModel):
             raise ValueError(
                 "required_evidence roles must have nonempty reference lists"
             )
-        if any(not item.strip() for item in self.limitations):
-            raise ValueError("baseline limitations must be nonempty prose")
-        if not self.capability_expectations:
-            raise ValueError("baseline capability expectations must be nonempty")
+        if not self.capability_expectations and (
+            self.purpose_classification != "learning_reference"
+        ):
+            raise ValueError(
+                "capability baselines require nonempty capability expectations"
+            )
+        if self.purpose_classification == "learning_reference" and (
+            self.capability_expectations
+        ):
+            raise ValueError(
+                "learning references must not declare capability acceptance gates"
+            )
         _unique(
             [item.card for item in self.capability_expectations],
             "baseline capability cards",
@@ -1313,12 +1329,12 @@ def _check_baseline_evidence(
     copied_manifest_count = sum(
         _is_run_manifest(reference, availability) for reference in copied_manifests
     )
-    if copied_manifest_count != 1:
+    if copied_manifest_count != len(baseline.seeds):
         diagnostics.append(
             _diagnostic(
                 "error",
                 "baseline_manifest_missing",
-                "Training role must include exactly one copied, byte-verified RunManifest.",
+                "Training role must include one copied, byte-verified RunManifest per seed.",
                 baseline.id,
             )
         )
@@ -1794,6 +1810,641 @@ def _report_for_baseline(
     return None, None
 
 
+def _validate_learning_reference_capture(
+    baseline: Baseline,
+    registry: LifecycleRegistry,
+    availability: dict[str, dict[str, object]],
+    diagnostics: list[dict[str, object]],
+) -> None:
+    report, _ = _report_for_baseline(baseline, registry, availability)
+    if not isinstance(report, dict):
+        return
+    inputs = report.get("inputs")
+    runs = report.get("runs")
+    local_validation = report.get("local_validation")
+    if report.get("comparisons") != []:
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "baseline_report_comparisons_invalid",
+                "Learning reference report must contain no comparison pairs.",
+                baseline.id,
+            )
+        )
+        return
+    if (
+        not isinstance(inputs, dict)
+        or inputs.get("verification_scope")
+        != "report_plus_local_checkpoint_validation"
+    ):
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "baseline_report_scope_invalid",
+                "Learning reference report must include local checkpoint validation.",
+                baseline.id,
+            )
+        )
+        return
+    if not isinstance(runs, list) or len(runs) != len(baseline.seeds):
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "baseline_endpoint_invalid",
+                "Learning reference report must contain one run per declared seed.",
+                baseline.id,
+            )
+        )
+        return
+    configuration_path = availability.get("__baseline_configuration__", {}).get(
+        "path"
+    )
+    study_path = availability.get("__baseline_integration_study__", {}).get("path")
+    try:
+        if not isinstance(configuration_path, str) or not isinstance(study_path, str):
+            raise TypeError("baseline configuration or integration study is unavailable")
+        configuration = load_config(Path(configuration_path))
+        base_config = configuration.model_dump(mode="json")
+        study = plan_study(Path(study_path))
+        if (
+            len(study.expanded) != len(baseline.seeds)
+            or study.comparisons
+            or study.pairs
+        ):
+            raise ValueError(
+                "integration study must plan one unpaired run per declared seed"
+            )
+        if inputs.get("study_sha256") != study.study_sha256:
+            raise ValueError(
+                "static report study identity differs from baseline integration study"
+            )
+    except (OSError, ValueError, TypeError) as error:
+        diagnostics.append(
+            _diagnostic("error", "baseline_config_mismatch", str(error), baseline.id)
+        )
+        return
+
+    run_by_seed: dict[int, dict[str, object]] = {}
+    shared_tokenizer: str | None = None
+    shared_data: dict[str, object] | None = None
+    for run in runs:
+        if not isinstance(run, dict):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_endpoint_invalid",
+                    "Learning reference report contains a malformed run.",
+                    baseline.id,
+                )
+            )
+            continue
+        run_id = run.get("run_id")
+        identity = run.get("identity")
+        endpoint = run.get("endpoint_status")
+        config_identity = identity.get("config") if isinstance(identity, dict) else None
+        seed = config_identity.get("seed") if isinstance(config_identity, dict) else None
+        if (
+            not isinstance(run_id, str)
+            or not isinstance(identity, dict)
+            or not isinstance(endpoint, dict)
+            or endpoint.get("status") != "complete"
+            or not isinstance(seed, int)
+            or isinstance(seed, bool)
+            or seed in run_by_seed
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_endpoint_invalid",
+                    "Learning reference report has a duplicate, incomplete, or unbound seed.",
+                    baseline.id,
+                    str(run_id),
+                )
+            )
+            continue
+        run_by_seed[seed] = run
+        if seed not in baseline.seeds:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_seed_mismatch",
+                    "Report run seed is not declared by the baseline.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+            continue
+        try:
+            expected_config = copy.deepcopy(base_config)
+            expected_config["seed"] = seed
+            logging = expected_config.get("logging")
+            captured_logging = config_identity.get("logging")
+            if not isinstance(logging, dict) or not isinstance(captured_logging, dict):
+                raise TypeError("configuration logging identity is malformed")
+            logging["root_dir"] = captured_logging.get("root_dir")
+            if config_sha256(expected_config) != config_sha256(config_identity):
+                raise ValueError(
+                    "run configuration differs from the frozen learning reference"
+                )
+        except (ValueError, TypeError) as error:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_config_mismatch",
+                    str(error),
+                    baseline.id,
+                    run_id,
+                )
+            )
+        training_config = config_identity.get("training")
+        if not isinstance(training_config, dict) or (
+            config_identity.get("seed") != seed
+            or training_config.get("max_steps") != baseline.budget.max_steps
+            or training_config.get("max_tokens") != baseline.budget.max_tokens
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_config_mismatch",
+                    "Run configuration omits the declared seed or training budget.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        if (
+            endpoint.get("configured_max_steps") != baseline.budget.max_steps
+            or endpoint.get("configured_max_tokens") != baseline.budget.max_tokens
+            or endpoint.get("step") != baseline.budget.max_steps
+            or endpoint.get("tokens_seen") != baseline.budget.max_tokens
+            or identity.get("run_id") != run_id
+            or identity.get("step") != endpoint.get("step")
+            or identity.get("tokens_seen") != endpoint.get("tokens_seen")
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_budget_mismatch",
+                    "Run did not reach the exact declared step and token budgets.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        runtime = identity.get("runtime")
+        config_runtime = config_identity.get("runtime")
+        if (
+            not isinstance(runtime, dict)
+            or not isinstance(config_runtime, dict)
+            or runtime.get("backend") != config_runtime.get("backend")
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_runtime_mismatch",
+                    "Run backend differs from its effective configuration.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        if (
+            identity.get("source_identity_sha256")
+            != baseline.source_revision.source_identity_sha256
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_source_identity_mismatch",
+                    "Run source package identity differs from the baseline.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        tokenizer = identity.get("tokenizer_sha256")
+        data = identity.get("data_sha256")
+        if not isinstance(tokenizer, str) or not _SHA256.fullmatch(tokenizer):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_tokenizer_identity_missing",
+                    "Run tokenizer identity is missing or malformed.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        elif shared_tokenizer is None:
+            shared_tokenizer = tokenizer
+        elif shared_tokenizer != tokenizer:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_tokenizer_identity_mismatch",
+                    "Replicated runs do not share one tokenizer identity.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        if (
+            not isinstance(data, dict)
+            or any(not _SHA256.fullmatch(str(data.get(key, ""))) for key in ("train", "validation"))
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_data_identity_missing",
+                    "Run data identity is missing or malformed.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        elif shared_data is None:
+            shared_data = data
+        elif shared_data != data:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_data_identity_mismatch",
+                    "Replicated runs do not share one train/validation data identity.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        validation_row = (
+            local_validation.get(run_id) if isinstance(local_validation, dict) else None
+        )
+        experiment_evidence = (
+            validation_row.get("experiment_evidence")
+            if isinstance(validation_row, dict)
+            else None
+        )
+        checkpoints = (
+            experiment_evidence.get("checkpoints")
+            if isinstance(experiment_evidence, dict)
+            else None
+        )
+        checkpoint_rows = checkpoints if isinstance(checkpoints, list) else []
+        initial = next(
+            (
+                row
+                for row in checkpoint_rows
+                if isinstance(row, dict)
+                and row.get("step") == 0
+                and row.get("verified") is True
+            ),
+            None,
+        )
+        terminal = next(
+            (
+                row
+                for row in checkpoint_rows
+                if isinstance(row, dict)
+                and row.get("step") == endpoint.get("step")
+                and row.get("digest") == identity.get("checkpoint_sha256")
+                and row.get("verified") is True
+            ),
+            None,
+        )
+        if (
+            not isinstance(validation_row, dict)
+            or validation_row.get("status") != "validated"
+            or not isinstance(experiment_evidence, dict)
+            or experiment_evidence.get("verified_checkpoints") is not True
+            or initial is None
+            or terminal is None
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "baseline_checkpoint_validation_failed",
+                    "Each seed needs verified initial and terminal checkpoint records.",
+                    baseline.id,
+                    run_id,
+                )
+            )
+        else:
+            initial_loss = initial.get("validation_loss")
+            terminal_loss = terminal.get("validation_loss")
+            reported_loss = (
+                run.get("validation", {}).get("loss")
+                if isinstance(run.get("validation"), dict)
+                else None
+            )
+            if (
+                not isinstance(initial_loss, (int, float))
+                or isinstance(initial_loss, bool)
+                or not math.isfinite(initial_loss)
+                or not isinstance(terminal_loss, (int, float))
+                or isinstance(terminal_loss, bool)
+                or not math.isfinite(terminal_loss)
+                or terminal_loss >= initial_loss
+                or reported_loss != terminal_loss
+            ):
+                diagnostics.append(
+                    _diagnostic(
+                        "error",
+                        "baseline_validation_gate_failed",
+                        "Each seed needs a finite terminal held-out loss below its initial loss.",
+                        baseline.id,
+                        run_id,
+                    )
+                )
+    if list(run_by_seed) != baseline.seeds:
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "baseline_seed_mismatch",
+                "Report runs must appear once each in the declared seed order.",
+                baseline.id,
+            )
+        )
+        return
+
+    _validate_learning_reference_manifests(
+        baseline, registry, availability, run_by_seed, diagnostics
+    )
+    _validate_learning_reference_acceptance(
+        baseline, registry, availability, report, run_by_seed, diagnostics
+    )
+
+
+def _validate_learning_reference_manifests(
+    baseline: Baseline,
+    registry: LifecycleRegistry,
+    availability: dict[str, dict[str, object]],
+    runs_by_seed: dict[int, dict[str, object]],
+    diagnostics: list[dict[str, object]],
+) -> None:
+    evidence_map = {item.id: item for item in registry.evidence}
+    for evidence_id in baseline.required_evidence.get("training", []):
+        reference = evidence_map.get(evidence_id)
+        if reference is None or not _is_run_manifest(reference, availability):
+            continue
+        path = availability.get(evidence_id, {}).get("path")
+        if not isinstance(path, str):
+            continue
+        try:
+            manifest = read_manifest(Path(path))
+        except (OSError, ValueError, TypeError) as error:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "copied_manifest_invalid",
+                    str(error),
+                    baseline.id,
+                    evidence_id,
+                )
+            )
+            continue
+        run_id = manifest.get("run_id")
+        matches = [
+            run
+            for run in runs_by_seed.values()
+            if run.get("run_id") == run_id
+        ]
+        if len(matches) != 1:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "copied_manifest_run_mismatch",
+                    "Copied RunManifest does not match exactly one reported seed.",
+                    baseline.id,
+                    evidence_id,
+                )
+            )
+            continue
+        run = matches[0]
+        identity = run.get("identity")
+        runtime = identity.get("runtime") if isinstance(identity, dict) else None
+        backend = runtime.get("backend") if isinstance(runtime, dict) else None
+        if not isinstance(identity, dict) or baseline.source_revision is None:
+            continue
+        _validate_copied_manifest(
+            reference,
+            availability,
+            run_id=str(run_id),
+            report_identity=identity,
+            backend=backend,
+            source_revision=baseline.source_revision,
+            diagnostics=diagnostics,
+            baseline_id=baseline.id,
+        )
+
+
+def _validate_learning_reference_acceptance(
+    baseline: Baseline,
+    registry: LifecycleRegistry,
+    availability: dict[str, dict[str, object]],
+    report: dict[str, object],
+    runs_by_seed: dict[int, dict[str, object]],
+    diagnostics: list[dict[str, object]],
+) -> None:
+    evidence_map = {item.id: item for item in registry.evidence}
+    role_ids = {
+        evidence_id
+        for references in baseline.required_evidence.values()
+        for evidence_id in references
+    }
+    acceptances: list[dict[str, object]] = []
+    for evidence_id in role_ids:
+        reference = evidence_map.get(evidence_id)
+        if (
+            reference is None
+            or reference.kind != "acceptance"
+            or availability.get(evidence_id, {}).get("status") != "verified"
+        ):
+            continue
+        raw, _ = _load_evidence_json(reference, availability)
+        if isinstance(raw, dict) and isinstance(raw.get("checks"), dict):
+            acceptances.append(raw)
+    if len(acceptances) != 1:
+        return
+    acceptance = acceptances[0]
+    captured = acceptance.get("seed_runs")
+    if not isinstance(captured, list) or len(captured) != len(runs_by_seed):
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "acceptance_seed_identity_missing",
+                "Canonical acceptance must bind every replicated seed.",
+                baseline.id,
+            )
+        )
+        return
+    captured_by_seed = {
+        item.get("seed"): item for item in captured if isinstance(item, dict)
+    }
+    for seed, run in runs_by_seed.items():
+        identity = run.get("identity")
+        endpoint = run.get("endpoint_status")
+        row = captured_by_seed.get(seed)
+        if not isinstance(identity, dict) or not isinstance(endpoint, dict):
+            continue
+        expected = {
+            "seed": seed,
+            "run_id": run.get("run_id"),
+            "config_sha256": run.get("config_sha256"),
+            "checkpoint_sha256": identity.get("checkpoint_sha256"),
+            "source_identity_sha256": identity.get("source_identity_sha256"),
+            "tokenizer_sha256": identity.get("tokenizer_sha256"),
+            "data_sha256": identity.get("data_sha256"),
+            "backend": identity.get("runtime", {}).get("backend")
+            if isinstance(identity.get("runtime"), dict)
+            else None,
+            "step": endpoint.get("step"),
+            "tokens_seen": endpoint.get("tokens_seen"),
+        }
+        if not isinstance(row, dict) or any(
+            row.get(key) != value for key, value in expected.items()
+        ):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "acceptance_seed_identity_mismatch",
+                    "Canonical acceptance seed identity differs from its static report run.",
+                    baseline.id,
+                    str(seed),
+                )
+            )
+    primary_seed = baseline.seeds[0]
+    primary = captured_by_seed.get(primary_seed)
+    if not isinstance(primary, dict):
+        return
+    primary_run = runs_by_seed.get(primary_seed)
+    run_identity = primary_run.get("identity") if isinstance(primary_run, dict) else None
+    endpoint = primary_run.get("endpoint_status") if isinstance(primary_run, dict) else None
+    runtime = run_identity.get("runtime") if isinstance(run_identity, dict) else None
+    primary_identity = acceptance.get("identity")
+    expected_identity = {
+        "run_id": primary.get("run_id"),
+        "config_sha256": primary.get("config_sha256"),
+        "tokenizer_sha256": run_identity.get("tokenizer_sha256")
+        if isinstance(run_identity, dict)
+        else None,
+        "data_sha256": run_identity.get("data_sha256")
+        if isinstance(run_identity, dict)
+        else None,
+        "source_identity_sha256": run_identity.get("source_identity_sha256")
+        if isinstance(run_identity, dict)
+        else None,
+        "checkpoint_sha256": primary.get("checkpoint_sha256"),
+        "backend": runtime.get("backend") if isinstance(runtime, dict) else None,
+    }
+    if not isinstance(primary_identity, dict) or any(
+        primary_identity.get(key) != value
+        for key, value in expected_identity.items()
+    ):
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "acceptance_report_identity_mismatch",
+                "Acceptance identity must bind the first declared seed and all package/data identities.",
+                baseline.id,
+            )
+        )
+    counters = acceptance.get("counters")
+    if (
+        not isinstance(endpoint, dict)
+        or not isinstance(counters, dict)
+        or counters.get("step") != endpoint.get("step")
+        or counters.get("tokens_seen") != endpoint.get("tokens_seen")
+    ):
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "acceptance_budget_counters_mismatch",
+                "Acceptance counters differ from the primary static-report endpoint.",
+                baseline.id,
+            )
+        )
+    if (
+        acceptance.get("source_revision")
+        != baseline.source_revision.model_dump(mode="json")
+    ):
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "baseline_source_identity_mismatch",
+                "Acceptance source revision differs from the promoted baseline.",
+                baseline.id,
+            )
+        )
+    checks = acceptance.get("checks")
+    if not isinstance(checks, dict):
+        return
+    for name in _INTEGRATION_CHECKS:
+        check = checks.get(name)
+        identities = check.get("seed_identities") if isinstance(check, dict) else None
+        if not isinstance(identities, list) or len(identities) != len(captured):
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "acceptance_check_seed_identity_missing",
+                    f"Acceptance check {name} must bind every seed.",
+                    baseline.id,
+                    name,
+                )
+            )
+            continue
+        expected_rows = [
+            {
+                "seed": row.get("seed"),
+                "run_id": row.get("run_id"),
+                "checkpoint_sha256": row.get("checkpoint_sha256"),
+            }
+            for row in captured
+            if isinstance(row, dict)
+        ]
+        if identities != expected_rows:
+            diagnostics.append(
+                _diagnostic(
+                    "error",
+                    "acceptance_check_seed_identity_mismatch",
+                    f"Acceptance check {name} seed identities differ from the captured runs.",
+                    baseline.id,
+                    name,
+                )
+            )
+
+    generation_refs = baseline.required_evidence.get("generation", [])
+    generation_captures: dict[str, dict[str, object]] = {}
+    for evidence_id in generation_refs:
+        reference = evidence_map.get(evidence_id)
+        if (
+            reference is None
+            or reference.kind != "acceptance"
+            or availability.get(evidence_id, {}).get("status") != "verified"
+        ):
+            continue
+        payload, _ = _load_evidence_json(reference, availability)
+        if not isinstance(payload, dict):
+            continue
+        identity = payload.get("identity")
+        run_id = identity.get("run_id") if isinstance(identity, dict) else None
+        if not isinstance(run_id, str):
+            continue
+        if payload.get("format") == "sparselab-generation-capture":
+            generation_captures[run_id] = payload
+    expected_run_ids = {
+        str(run.get("run_id")) for run in runs_by_seed.values()
+    }
+    if set(generation_captures) != expected_run_ids:
+        diagnostics.append(
+            _diagnostic(
+                "error",
+                "baseline_generation_capture_count",
+                "Generation role must contain one bound fixed-prompt capture per seed.",
+                baseline.id,
+            )
+        )
+        return
+    for run in runs_by_seed.values():
+        run_id = str(run.get("run_id"))
+        identity = run.get("identity")
+        if not isinstance(identity, dict):
+            continue
+        _validate_generation_capture(
+            generation_captures[run_id], baseline, identity, run_id, diagnostics
+        )
+
+
 def _validate_baseline_capture(
     baseline: Baseline,
     registry: LifecycleRegistry,
@@ -1810,6 +2461,11 @@ def _validate_baseline_capture(
                 "Established baseline lacks its captured source revision.",
                 baseline.id,
             )
+        )
+        return
+    if baseline.purpose_classification == "learning_reference":
+        _validate_learning_reference_capture(
+            baseline, registry, availability, diagnostics
         )
         return
     report, _ = _report_for_baseline(baseline, registry, availability)
@@ -2104,10 +2760,20 @@ def _validate_generation_capture(
     model = report_identity.get("config")
     model = model.get("model") if isinstance(model, dict) else None
     max_seq_len = model.get("max_seq_len") if isinstance(model, dict) else None
+    expected_seed = (
+        42042 if baseline.purpose_classification == "learning_reference" else 0
+    )
+    token_limit_valid = (
+        isinstance(options, dict)
+        and type(options.get("max_new_tokens")) is int
+        and (
+            options["max_new_tokens"] == 32
+            if baseline.purpose_classification == "learning_reference"
+            else 1 <= options["max_new_tokens"] <= 32
+        )
+    )
     if (
-        not isinstance(options, dict)
-        or type(options.get("max_new_tokens")) is not int
-        or not 1 <= options["max_new_tokens"] <= 32
+        not token_limit_valid
         or not isinstance(max_seq_len, int)
         or isinstance(max_seq_len, bool)
         or options["max_new_tokens"] > max_seq_len
@@ -2116,13 +2782,13 @@ def _validate_generation_capture(
         or type(options.get("top_k")) is not int
         or options["top_k"] != 0
         or type(options.get("seed")) is not int
-        or options["seed"] != 0
+        or options["seed"] != expected_seed
     ):
         diagnostics.append(
             _diagnostic(
                 "error",
                 "baseline_generation_options_invalid",
-                "Generation must use fixed greedy options, seed 0, and at most 32 new tokens.",
+                "Generation must use the captured fixed greedy options and fit max_seq_len.",
                 baseline.id,
                 run_id,
             )
@@ -2732,9 +3398,18 @@ def _validate_baseline_artifact_identities(
                     load_tokenizer_config(path)
                 else:
                     study = plan_study(path)
-                    if len(study.expanded) != 1 or study.comparisons or study.pairs:
+                    expected_runs = (
+                        len(baseline.seeds)
+                        if baseline.purpose_classification == "learning_reference"
+                        else 1
+                    )
+                    if (
+                        len(study.expanded) != expected_runs
+                        or study.comparisons
+                        or study.pairs
+                    ):
                         raise ValueError(
-                            "baseline integration study must plan exactly one run and zero comparisons"
+                            "baseline integration study must plan one unpaired run per seed"
                         )
             except (OSError, ValueError, TypeError) as error:
                 diagnostics.append(
@@ -2872,6 +3547,100 @@ def validate_lifecycle(
         "diagnostics": _sort_diagnostics(diagnostics),
         "availability": public_availability,
     }
+def _baseline_scoped_diagnostics(
+    registry: LifecycleRegistry,
+    baseline_id: str,
+    diagnostics: list[dict[str, object]],
+) -> tuple[Baseline, list[dict[str, object]]]:
+    baseline = next(
+        (item for item in registry.baselines if item.id == baseline_id), None
+    )
+    if baseline is None:
+        raise ValueError(f"unknown baseline: {baseline_id}")
+    entries = [item for item in registry.entries if item.baseline_id == baseline_id]
+    entry_ids = {item.entry for item in entries}
+    finding_ids = {
+        finding_id for item in entries for finding_id in item.finding_ids
+    }
+    finding_ids.update(
+        finding.id
+        for finding in registry.findings
+        if finding.entry in entry_ids
+    )
+    promotions = [
+        item
+        for item in registry.promotions
+        if item.to_baseline == baseline_id or item.id == baseline.promoted_from
+    ]
+    finding_ids.update(
+        finding_id for promotion in promotions for finding_id in promotion.finding_ids
+    )
+    evidence_ids = {
+        evidence_id
+        for references in baseline.required_evidence.values()
+        for evidence_id in references
+    }
+    evidence_ids.update(
+        evidence_id for finding in registry.findings if finding.id in finding_ids
+        for evidence_id in finding.evidence_ids
+    )
+    evidence_ids.update(
+        evidence_id
+        for promotion in promotions
+        for evidence_id in (
+            promotion.evidence_ids
+            + promotion.integration_evidence_ids
+            + promotion.resource_tradeoff.evidence_ids
+            + [reference for row in promotion.regressions for reference in row.evidence_ids]
+        )
+    )
+    scope = {
+        baseline_id,
+        *entry_ids,
+        *finding_ids,
+        *evidence_ids,
+        *(item.id for item in promotions),
+    }
+    scoped = [
+        item
+        for item in diagnostics
+        if any(
+            reference in scope
+            for reference in item.get("reference_ids", [])
+            if isinstance(reference, str)
+        )
+    ]
+    return baseline, _sort_diagnostics(scoped)
+
+
+def validate_baseline(
+    registry: LifecycleRegistry,
+    baseline_id: str,
+    *,
+    evidence_root: Path,
+) -> dict[str, object]:
+    """Return candidate-scoped validity alongside unfiltered registry health."""
+    global_result = validate_lifecycle(registry, evidence_root=evidence_root)
+    baseline, diagnostics = _baseline_scoped_diagnostics(
+        registry, baseline_id, global_result["diagnostics"]
+    )
+    established = baseline.status in {"known_good", "superseded"}
+    return {
+        "global_registry": {
+            "valid": global_result["valid"],
+            "diagnostics": global_result["diagnostics"],
+        },
+        "baseline": {
+            "id": baseline.id,
+            "status": baseline.status,
+            "valid": established
+            and not any(item.get("severity") == "error" for item in diagnostics),
+            "diagnostics": diagnostics,
+        },
+        "availability": global_result["availability"],
+    }
+
+
 
 
 def _sort_diagnostics(diagnostics: list[dict[str, object]]) -> list[dict[str, object]]:

@@ -1,55 +1,39 @@
 {
-  "format": "sparselab-research-lifecycle",
-  "version": 1,
-  "evidence": [
-    {"id":"dense-run-config","kind":"source","artifact":{"relative_path":"configs/chat_recall_dense_cpu.yaml","sha256":"daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d","size_bytes":1322}},
-    {"id":"dense-tokenizer-config","kind":"source","artifact":{"relative_path":"configs/tokenizer_chat_recall.yaml","sha256":"78f09c9543818aefed018000f777c71df7edcb5191e8dac062ccd5ec99936be0","size_bytes":329}},
-    {"id":"dense-study-config","kind":"source","artifact":{"relative_path":"configs/references/dense-small-v1/study.yaml","sha256":"d6c7a64adfc2f1f55b6119cf0665630ac45ff27d164fc5734851e89b64d73a58","size_bytes":163}},
-    {"id":"dense-matrix-config","kind":"source","artifact":{"relative_path":"configs/references/dense-small-v1/matrix.yaml","sha256":"55b04633f6361bae2274898d17c1becadff4916bf66c76fe00000c7c3154ba90","size_bytes":117}},
-    {"id":"ffn-smoke-report","kind":"report_bundle","identity":"fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b","artifact":{"relative_path":"artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/manifest.json","sha256":"647068bdfebd5d48eec29cc113fd944463abc1c4471dd37faf719364b82ea73d","size_bytes":7161}},
-    {"id":"ffn-nano-report","kind":"report_bundle","identity":"a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf","artifact":{"relative_path":"artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json","sha256":"516578fc96d455be60357c177420f92b5582610475e5b611aad979878e2642f4","size_bytes":7161}},
-    {"id":"ffn-repeat-report","kind":"report_bundle","identity":"9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2","artifact":{"relative_path":"artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/manifest.json","sha256":"2764e49d0ad3419158bfdf34c62b56ae2611012ee42899bdf3ade7993cb887ec","size_bytes":9777}},
-    {"id":"ffn-analysis-notes","kind":"document","artifact":{"relative_path":"docs/research/sample-report.md","sha256":"846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626","size_bytes":12070}},
-    {"id":"context-study-acceptance","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/scientific_studies_2026_09_22.json","sha256":"29b1fffd5a0987adce54f7af8c1de1293d4a079f11ab2adde2dad1c95d567e69","size_bytes":57057}},
-    {"id":"context-study-notes","kind":"document","artifact":{"relative_path":"docs/context-engram-study.md","sha256":"1511ed7ea65d14d82c25c31d64606f68791682ba7ca22fa778d77c0aac992733","size_bytes":20363}},
-    {"id":"allocation-smoke-notes","kind":"document","artifact":{"relative_path":"docs/path-domain-corpus.md","sha256":"842caf734a628a9d7597dd10eaed2468adf9601719e6d7cbe62b2a4115bd6641","size_bytes":16204}},
-    {"id":"portable-adapter-notes","kind":"document","artifact":{"relative_path":"docs/portable-engram.md","sha256":"b121d78ad3db4e15d94371f0e252985b1a9253aeacfdea0a68277b38b2210747","size_bytes":5957}},
-    {"id":"learned-portability-report","kind":"report_bundle","identity":"b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed","artifact":{"relative_path":"artifacts/research-reports/b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed/manifest.json","sha256":"8fd43c8d9866ce65813cbbebfabcb0c941fa18fbb273fa9fd4fe5dbfbf551071","size_bytes":214036}},
-    {"id":"learned-portability-notes","kind":"document","artifact":{"relative_path":"docs/research/learned-engram-portability.md","sha256":"1b9080de8c55d41a492d3ef03679d04fe2c1076236d42309207cd73eea1373f1","size_bytes":18630}},
-    {"id":"mla-analysis-notes","kind":"document","artifact":{"relative_path":"docs/research/sample-report.md","sha256":"846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626","size_bytes":12070}},
-    {"id":"dense-small-v1-report","kind":"report_bundle","identity":"1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00","artifact":{"relative_path":"artifacts/research-reports/1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00/manifest.json","sha256":"4ed0de0be899d21acd91b5702955c02be6ae475ce3bf0a69e9eabafe142dc861","size_bytes":2230}},
-    {"id":"dense-small-v1-acceptance","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/dense_small_v1_2026_09_26.json","sha256":"072c026a042b07e91c90b6dd0fe6dfa99247a6211e2e9c81da654ad4be8d82e1","size_bytes":3581}},
-    {"id":"dense-small-v1-run-manifest","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/dense_small_v1_run_manifest_20260926.json","sha256":"81254972e4b56a25c9e2a3b4bf40201ff59d0b01039740a79dd13e122884a406","size_bytes":31423}},
-    {"id":"dense-small-v1-acquisition-chat","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/dense_small_v1_2026_09_26/acquisition-chat.json","sha256":"4707740c4309a1e8cd59bae8dfe6de0e5c3675ae25541256c92ef2871f0be6f2","size_bytes":5674}}
-  ],
   "baselines": [
     {
-      "id":"dense-small-v1",
-      "title":"Dense synthetic alias reference lifecycle",
-      "purpose":"Bounded single-arm CPU/offline reference for training, validation, capability, generation, resource, and static-report lifecycle; not a useful-chat or architecture-quality claim.",
-      "status":"candidate",
-      "configuration":{"relative_path":"configs/chat_recall_dense_cpu.yaml","sha256":"daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d","size_bytes":1322},
-      "tokenizer_configuration":{"relative_path":"configs/tokenizer_chat_recall.yaml","sha256":"78f09c9543818aefed018000f777c71df7edcb5191e8dac062ccd5ec99936be0","size_bytes":329},
-      "profile":{"scale":"smoke","data":"offline","note":"existing 64×2 dense chat-recall configuration, FFN 192, extended fixed acquisition budget; not the generic smoke profile"},
-      "seeds":[42],
-      "budget":{"max_steps":1536,"max_tokens":393216},
-      "source_revision":{"git_commit":"94dba3d87fa17099b3fb81d9d9f85f54f8aeee4f","git_dirty":true,"source_identity_sha256":"6c245a4044259170539af51bcde95f1e3e8cc824f6f6d1d597b2ecd00cbfd8b0"},
-      "required_evidence":{
-        "preparation":["dense-small-v1-acceptance"],
-        "training":["dense-small-v1-run-manifest","dense-small-v1-acceptance"],
-        "checkpoint":["dense-small-v1-run-manifest","dense-small-v1-acceptance"],
-        "validation":["dense-small-v1-report","dense-small-v1-acceptance"],
-        "capability":["dense-small-v1-report","dense-small-v1-acquisition-chat","dense-small-v1-acceptance"],
-        "generation":["dense-small-v1-acquisition-chat","dense-small-v1-acceptance"],
-        "resources":["dense-small-v1-run-manifest","dense-small-v1-acceptance"],
-        "static_report":["dense-small-v1-report","dense-small-v1-acceptance"]
+      "budget": {
+        "max_steps": 1536,
+        "max_tokens": 393216
       },
-      "capability_expectations":[
-        {"card":"chat-alias-retention-v1","role":"acquisition","expectation":"At least 12/24 full-answer correct under the frozen training-seen retention card."},
-        {"card":"chat-alias-recall-v1","role":"held_out","expectation":"Record every held-out wording case; no minimum score is required for lifecycle validity."},
-        {"card":"chat-context-override-v1","role":"held_out","expectation":"Record every context-override case; no minimum score is required for lifecycle validity."}
+      "capability_expectations": [
+        {
+          "card": "chat-alias-retention-v1",
+          "expectation": "At least 12/24 full-answer correct under the frozen training-seen retention card.",
+          "role": "acquisition"
+        },
+        {
+          "card": "chat-alias-recall-v1",
+          "expectation": "Record every held-out wording case; no minimum score is required for lifecycle validity.",
+          "role": "held_out"
+        },
+        {
+          "card": "chat-context-override-v1",
+          "expectation": "Record every context-override case; no minimum score is required for lifecycle validity.",
+          "role": "held_out"
+        }
       ],
-      "limitations":[
+      "configuration": {
+        "relative_path": "configs/chat_recall_dense_cpu.yaml",
+        "sha256": "daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d",
+        "size_bytes": 1322
+      },
+      "id": "dense-small-v1",
+      "integration_study": {
+        "relative_path": "configs/references/dense-small-v1/study.yaml",
+        "sha256": "d6c7a64adfc2f1f55b6119cf0665630ac45ff27d164fc5734851e89b64d73a58",
+        "size_bytes": 163
+      },
+      "limitations": [
         "One CPU seed and finite synthetic offline chat-recall data do not establish independent replication or useful general chat.",
         "The baseline is a lifecycle and acquisition reference, not evidence of a memory, attention, FFN, efficiency, or quality advantage.",
         "The fixed 1536-step limit bound this run at step 1536 with 391424 of the 393216-token ceiling observed.",
@@ -57,139 +41,1778 @@
         "The sole seed's held-out validation loss rose from 6.176402 to 7.056087; the required validation gate failed, so the candidate was not promoted. No retry was run.",
         "Acquisition retention was 24/24; held-out recall was 8/12 and context override 0/8. These finite synthetic outcomes do not establish independent or general capability."
       ],
-      "integration_study":{"relative_path":"configs/references/dense-small-v1/study.yaml","sha256":"d6c7a64adfc2f1f55b6119cf0665630ac45ff27d164fc5734851e89b64d73a58","size_bytes":163},
-      "reproduction":"configs/references/dense-small-v1/study.yaml"
+      "profile": {
+        "data": "offline",
+        "note": "existing 64×2 dense chat-recall configuration, FFN 192, extended fixed acquisition budget; not the generic smoke profile",
+        "scale": "smoke"
+      },
+      "purpose": "Bounded single-arm CPU/offline reference for training, validation, capability, generation, resource, and static-report lifecycle; not a useful-chat or architecture-quality claim.",
+      "reproduction": "configs/references/dense-small-v1/study.yaml",
+      "required_evidence": {
+        "capability": [
+          "dense-small-v1-report",
+          "dense-small-v1-acquisition-chat",
+          "dense-small-v1-acceptance"
+        ],
+        "checkpoint": [
+          "dense-small-v1-run-manifest",
+          "dense-small-v1-acceptance"
+        ],
+        "generation": [
+          "dense-small-v1-acquisition-chat",
+          "dense-small-v1-acceptance"
+        ],
+        "preparation": [
+          "dense-small-v1-acceptance"
+        ],
+        "resources": [
+          "dense-small-v1-run-manifest",
+          "dense-small-v1-acceptance"
+        ],
+        "static_report": [
+          "dense-small-v1-report",
+          "dense-small-v1-acceptance"
+        ],
+        "training": [
+          "dense-small-v1-run-manifest",
+          "dense-small-v1-acceptance"
+        ],
+        "validation": [
+          "dense-small-v1-report",
+          "dense-small-v1-acceptance"
+        ]
+      },
+      "seeds": [
+        42
+      ],
+      "source_revision": {
+        "git_commit": "94dba3d87fa17099b3fb81d9d9f85f54f8aeee4f",
+        "git_dirty": true,
+        "source_identity_sha256": "6c245a4044259170539af51bcde95f1e3e8cc824f6f6d1d597b2ecd00cbfd8b0"
+      },
+      "status": "candidate",
+      "title": "Dense synthetic alias reference lifecycle",
+      "tokenizer_configuration": {
+        "relative_path": "configs/tokenizer_chat_recall.yaml",
+        "sha256": "78f09c9543818aefed018000f777c71df7edcb5191e8dac062ccd5ec99936be0",
+        "size_bytes": 329
+      }
+    },
+    {
+      "budget": {
+        "max_steps": 4096,
+        "max_tokens": 4194304
+      },
+      "capability_expectations": [],
+      "configuration": {
+        "relative_path": "configs/dense_lm_v1.yaml",
+        "sha256": "354a2c5d55d74ccf6c0b27c50bfe8c6d98ff0cfc53bfcc4ec2c26e64c564643f",
+        "size_bytes": 1467
+      },
+      "endpoint_state": "endpoint_reached_while_learning",
+      "id": "dense-lm-v1",
+      "integration_study": {
+        "relative_path": "configs/references/dense-lm-v1/study.yaml",
+        "sha256": "17dfe5d60b7605130f623ca7bdcb26d9cfd05bc1ba39bb440df9897f4a08c5ab",
+        "size_bytes": 179
+      },
+      "limitations": [
+        "The three fixed-step endpoints were reached while held-out loss was still decreasing; no plateau or convergence claim is supported.",
+        "All chat capability cards are out-of-domain for TinyStories and are descriptive only; no chat-quality gate or aggregate score is used.",
+        "This evidence is from one AMD Radeon RX 7900 XTX ROCm/WSL2 machine; cross-device portability, energy, and full end-to-end runtime are unproven.",
+        "Git commit and dirty fields were absent from retained RunManifest files; source package identity is present and bound, but no Git revision is inferred.",
+        "Only seed 42's step 2048 to 3072 resume transition has a separately detailed state/weight equivalence proof; other seeds have full PyTorch resume chains without that separately detailed proof."
+      ],
+      "profile": {
+        "data": "tinystories",
+        "note": "Frozen 29,893,120-parameter dense model, fp32 ROCm, 4096 steps and 4,194,304 tokens per seed; the scale label is a catalog profile label, not a claim of useful production scale.",
+        "scale": "smoke"
+      },
+      "promoted_from": "promote-dense-lm-v1",
+      "purpose": "Bounded replicated learning and runtime reference; not a capability-quality or architecture-superiority claim.",
+      "purpose_classification": "learning_reference",
+      "reproduction": "configs/references/dense-lm-v1/study.yaml",
+      "required_evidence": {
+        "capability": [
+          "dense-lm-v1-seed42-observation-step4096",
+          "dense-lm-v1-seed17-observation-step4096",
+          "dense-lm-v1-seed73-observation-step4096",
+          "dense-lm-v1-report",
+          "dense-lm-v1-acceptance"
+        ],
+        "checkpoint": [
+          "dense-lm-v1-seed42-checkpoint-step0",
+          "dense-lm-v1-seed42-checkpoint-step200",
+          "dense-lm-v1-seed42-checkpoint-step400",
+          "dense-lm-v1-seed42-checkpoint-step1024",
+          "dense-lm-v1-seed42-checkpoint-step2048",
+          "dense-lm-v1-seed42-checkpoint-step3072",
+          "dense-lm-v1-seed42-checkpoint-step4096",
+          "dense-lm-v1-seed17-checkpoint-step0",
+          "dense-lm-v1-seed17-checkpoint-step200",
+          "dense-lm-v1-seed17-checkpoint-step400",
+          "dense-lm-v1-seed17-checkpoint-step1024",
+          "dense-lm-v1-seed17-checkpoint-step2048",
+          "dense-lm-v1-seed17-checkpoint-step3072",
+          "dense-lm-v1-seed17-checkpoint-step4096",
+          "dense-lm-v1-seed73-checkpoint-step0",
+          "dense-lm-v1-seed73-checkpoint-step200",
+          "dense-lm-v1-seed73-checkpoint-step400",
+          "dense-lm-v1-seed73-checkpoint-step1024",
+          "dense-lm-v1-seed73-checkpoint-step2048",
+          "dense-lm-v1-seed73-checkpoint-step3072",
+          "dense-lm-v1-seed73-checkpoint-step4096",
+          "dense-lm-v1-acceptance"
+        ],
+        "generation": [
+          "dense-lm-v1-seed42-generation",
+          "dense-lm-v1-seed17-generation",
+          "dense-lm-v1-seed73-generation",
+          "dense-lm-v1-acceptance"
+        ],
+        "preparation": [
+          "dense-lm-v1-config",
+          "dense-lm-v1-tokenizer-config",
+          "dense-lm-v1-study",
+          "dense-lm-v1-matrix",
+          "dense-lm-v1-catalog-entry",
+          "dense-lm-v1-seed42-stage-evidence",
+          "dense-lm-v1-seed42-progress",
+          "dense-lm-v1-seed17-stage-evidence",
+          "dense-lm-v1-seed17-progress",
+          "dense-lm-v1-seed73-stage-evidence",
+          "dense-lm-v1-seed73-progress",
+          "dense-lm-v1-acceptance"
+        ],
+        "resources": [
+          "dense-lm-v1-seed42-runtime-telemetry",
+          "dense-lm-v1-seed17-runtime-telemetry",
+          "dense-lm-v1-seed73-runtime-telemetry",
+          "dense-lm-v1-acceptance"
+        ],
+        "static_report": [
+          "dense-lm-v1-report",
+          "dense-lm-v1-acceptance"
+        ],
+        "training": [
+          "dense-lm-v1-seed42-run-manifest",
+          "dense-lm-v1-seed17-run-manifest",
+          "dense-lm-v1-seed73-run-manifest",
+          "dense-lm-v1-acceptance"
+        ],
+        "validation": [
+          "dense-lm-v1-seed42-observation-step0",
+          "dense-lm-v1-seed42-observation-step4096",
+          "dense-lm-v1-seed17-observation-step0",
+          "dense-lm-v1-seed17-observation-step4096",
+          "dense-lm-v1-seed73-observation-step0",
+          "dense-lm-v1-seed73-observation-step4096",
+          "dense-lm-v1-report",
+          "dense-lm-v1-acceptance"
+        ]
+      },
+      "seeds": [
+        42,
+        17,
+        73
+      ],
+      "source_revision": {
+        "git_commit": null,
+        "git_dirty": null,
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "status": "known_good",
+      "title": "Dense LM v1 three-seed learning reference",
+      "tokenizer_configuration": {
+        "relative_path": "configs/tokenizer_dense_lm_v1.yaml",
+        "sha256": "301dab69b01c8a2c4cb57a8dfca78963ef2bc661425178c15e20c43fa58780d8",
+        "size_bytes": 355
+      }
     }
   ],
   "entries": [
     {
-      "entry":"engram-ffn-substitution-v1","entry_sha256":"c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"not_supported_locally","finding_ids":["ffn-smoke-outcomes","ffn-nano-outcomes","ffn-same-seed-repeat"]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":["ffn-smoke-outcomes","ffn-nano-outcomes","ffn-same-seed-repeat"],
-      "next_test":{"action":"Test narrower-FFN compensation on an independently authored compositional task population; retain the existing controls and all card outcomes before considering a wider run.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":["independent-composition-set-not-frozen"],"eligible_scales":["smoke"],"reopens":["ffn-smoke-outcomes","ffn-nano-outcomes","ffn-same-seed-repeat"],"design_change":"Replace the finite chat-recall task population with a separately frozen compositional train/dev/card corpus; the historical same-seed rerun is not an independent replication."},
-      "blockers":[{"id":"independent-composition-set-not-frozen","description":"The current reports use a finite synthetic alias/recall curriculum and do not establish composition or independent-task generalization.","resolution":"Freeze and hash a new independent train/dev/card corpus and scorer before any outcome-based setting changes.","evidence_ids":["ffn-smoke-report","ffn-nano-report","ffn-repeat-report"]}]
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "The current reports use a finite synthetic alias/recall curriculum and do not establish composition or independent-task generalization.",
+          "evidence_ids": [
+            "ffn-smoke-report",
+            "ffn-nano-report",
+            "ffn-repeat-report"
+          ],
+          "id": "independent-composition-set-not-frozen",
+          "resolution": "Freeze and hash a new independent train/dev/card corpus and scorer before any outcome-based setting changes."
+        }
+      ],
+      "entry": "engram-ffn-substitution-v1",
+      "entry_sha256": "c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6",
+      "finding_ids": [
+        "ffn-smoke-outcomes",
+        "ffn-nano-outcomes",
+        "ffn-same-seed-repeat"
+      ],
+      "maturity": {
+        "capability": {
+          "finding_ids": [
+            "ffn-smoke-outcomes",
+            "ffn-nano-outcomes",
+            "ffn-same-seed-repeat"
+          ],
+          "state": "not_supported_locally"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Test narrower-FFN compensation on an independently authored compositional task population; retain the existing controls and all card outcomes before considering a wider run.",
+        "blocker_ids": [
+          "independent-composition-set-not-frozen"
+        ],
+        "cost_class": "mechanism",
+        "design_change": "Replace the finite chat-recall task population with a separately frozen compositional train/dev/card corpus; the historical same-seed rerun is not an independent replication.",
+        "eligible_scales": [
+          "smoke"
+        ],
+        "prerequisites": [],
+        "reopens": [
+          "ffn-smoke-outcomes",
+          "ffn-nano-outcomes",
+          "ffn-same-seed-repeat"
+        ],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"engram-placement-v1","entry_sha256":"a3b2c3cfc41d1f6d76d1b69147572c7ddc2a218b312bcfeef0f6bdac5f998e36","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":["context-override-negative"],
-      "next_test":{"action":"Run a frozen no-memory/final-injection/embedding-injection comparison focused on untouched context overrides, with seed-matched configuration and held-out reports.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":["placement-factorial-not-frozen"],"eligible_scales":["smoke"],"reopens":["context-override-negative"],"design_change":"The historical context study varied memory condition and budget but did not vary the cataloged injection-placement axis; preregister placement as the changed field."},
-      "blockers":[{"id":"placement-factorial-not-frozen","description":"The accepted context-override study is relevant historical Engram evidence but does not directly compare injection placement.","resolution":"Freeze no-memory, final, and embedding placement arms with matched training conditions and the existing held-out override distinction.","evidence_ids":["context-study-acceptance","context-study-notes"]}]
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "The accepted context-override study is relevant historical Engram evidence but does not directly compare injection placement.",
+          "evidence_ids": [
+            "context-study-acceptance",
+            "context-study-notes"
+          ],
+          "id": "placement-factorial-not-frozen",
+          "resolution": "Freeze no-memory, final, and embedding placement arms with matched training conditions and the existing held-out override distinction."
+        }
+      ],
+      "entry": "engram-placement-v1",
+      "entry_sha256": "a3b2c3cfc41d1f6d76d1b69147572c7ddc2a218b312bcfeef0f6bdac5f998e36",
+      "finding_ids": [
+        "context-override-negative"
+      ],
+      "maturity": {
+        "capability": {
+          "finding_ids": [],
+          "state": "untested"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Run a frozen no-memory/final-injection/embedding-injection comparison focused on untouched context overrides, with seed-matched configuration and held-out reports.",
+        "blocker_ids": [
+          "placement-factorial-not-frozen"
+        ],
+        "cost_class": "mechanism",
+        "design_change": "The historical context study varied memory condition and budget but did not vary the cataloged injection-placement axis; preregister placement as the changed field.",
+        "eligible_scales": [
+          "smoke"
+        ],
+        "prerequisites": [],
+        "reopens": [
+          "context-override-negative"
+        ],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"learned-engram-portability-v1","entry_sha256":"15a814c5cc8bdc15e229b3e52c22686f1da11391688517527a04dce5535e8ef1","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"mixed","finding_ids":["learned-portability-endpoint"]},"efficiency":{"state":"unmeasured","finding_ids":[]},"portability":{"state":"artifact_verified","finding_ids":["learned-portability-endpoint"]}},
-      "finding_ids":["learned-portability-endpoint"],
-      "next_test":{"action":"Preregister an independent held-out wording family and repeat only under the sealed source/recipient controls; do not tune against the reported final-state failure.","stage":"mechanism","cost_class":"short","prerequisites":["learned-portability-endpoint"],"blocker_ids":["independent-wording-suite-not-frozen"],"eligible_scales":["nano"],"reopens":["learned-portability-endpoint"],"design_change":"Use a separately authored recipient-held-out wording family and retain the current final-state wording as a non-tuned reference; the existing supportive criterion failed and representation portability was not tested."},
-      "blockers":[{"id":"independent-wording-suite-not-frozen","description":"Adapter gains were wording-specific: the supportive six-group criterion failed narrowly and the second final wording remained at chance.","resolution":"Freeze an independent recipient-held-out wording family and its score rule before another campaign.","evidence_ids":["learned-portability-report","learned-portability-notes"]}]
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "Adapter gains were wording-specific: the supportive six-group criterion failed narrowly and the second final wording remained at chance.",
+          "evidence_ids": [
+            "learned-portability-report",
+            "learned-portability-notes"
+          ],
+          "id": "independent-wording-suite-not-frozen",
+          "resolution": "Freeze an independent recipient-held-out wording family and its score rule before another campaign."
+        }
+      ],
+      "entry": "learned-engram-portability-v1",
+      "entry_sha256": "15a814c5cc8bdc15e229b3e52c22686f1da11391688517527a04dce5535e8ef1",
+      "finding_ids": [
+        "learned-portability-endpoint"
+      ],
+      "maturity": {
+        "capability": {
+          "finding_ids": [
+            "learned-portability-endpoint"
+          ],
+          "state": "mixed"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        },
+        "portability": {
+          "finding_ids": [
+            "learned-portability-endpoint"
+          ],
+          "state": "artifact_verified"
+        }
+      },
+      "next_test": {
+        "action": "Preregister an independent held-out wording family and repeat only under the sealed source/recipient controls; do not tune against the reported final-state failure.",
+        "blocker_ids": [
+          "independent-wording-suite-not-frozen"
+        ],
+        "cost_class": "short",
+        "design_change": "Use a separately authored recipient-held-out wording family and retain the current final-state wording as a non-tuned reference; the existing supportive criterion failed and representation portability was not tested.",
+        "eligible_scales": [
+          "nano"
+        ],
+        "prerequisites": [
+          "learned-portability-endpoint"
+        ],
+        "reopens": [
+          "learned-portability-endpoint"
+        ],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"engram-portability-v1","entry_sha256":"90df9ba8eb38216dd9c7fc980870149116eacb924802204f069c253910cfd1bf","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"not_supported_locally","finding_ids":["portable-adapter-two-case-negative"]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":["portable-adapter-two-case-negative"],
-      "next_test":{"action":"Extend the negative two-case comparison to multiple recipient configurations and held-out cases, retaining baseline, random, frozen-only, and trained-adapter controls.","stage":"mechanism","cost_class":"short","prerequisites":[],"blocker_ids":["multi-recipient-transfer-not-frozen"],"eligible_scales":["micro"],"reopens":["portable-adapter-two-case-negative"],"design_change":"Expand the held-out denominator and recipient configurations; do not change the reported two-case result or claim general transfer from it."},
-      "blockers":[{"id":"multi-recipient-transfer-not-frozen","description":"The documented two-case adapter result is negative and too narrow to establish general transfer.","resolution":"Freeze a multi-recipient held-out protocol with exact source-table identity and unchanged frozen-table controls.","evidence_ids":["portable-adapter-notes"]}]
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "The documented two-case adapter result is negative and too narrow to establish general transfer.",
+          "evidence_ids": [
+            "portable-adapter-notes"
+          ],
+          "id": "multi-recipient-transfer-not-frozen",
+          "resolution": "Freeze a multi-recipient held-out protocol with exact source-table identity and unchanged frozen-table controls."
+        }
+      ],
+      "entry": "engram-portability-v1",
+      "entry_sha256": "90df9ba8eb38216dd9c7fc980870149116eacb924802204f069c253910cfd1bf",
+      "finding_ids": [
+        "portable-adapter-two-case-negative"
+      ],
+      "maturity": {
+        "capability": {
+          "finding_ids": [
+            "portable-adapter-two-case-negative"
+          ],
+          "state": "not_supported_locally"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Extend the negative two-case comparison to multiple recipient configurations and held-out cases, retaining baseline, random, frozen-only, and trained-adapter controls.",
+        "blocker_ids": [
+          "multi-recipient-transfer-not-frozen"
+        ],
+        "cost_class": "short",
+        "design_change": "Expand the held-out denominator and recipient configurations; do not change the reported two-case result or claim general transfer from it.",
+        "eligible_scales": [
+          "micro"
+        ],
+        "prerequisites": [],
+        "reopens": [
+          "portable-adapter-two-case-negative"
+        ],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"memory-allocation-curve-v1","entry_sha256":"a53622a1899ec79e9dcf03c958a45e0d832cdb2fe732ffa03b3789683648dc14","baseline_id":null,"stage":"mechanism",
-      "maturity":{},"finding_ids":["allocation-single-coordinate-smoke"],
-      "next_test":{"action":"Complete the predeclared ownership-profile and neural-weight curve; retain every checkpoint and separate token, target, and weighted-supervision counters.","stage":"mechanism","cost_class":"campaign","prerequisites":[],"blocker_ids":["allocation-curve-unexecuted"],"eligible_scales":["smoke"],"reopens":["allocation-single-coordinate-smoke"],"design_change":"Move from one iso-total coordinate to the fully declared 75-coordinate curve without selecting an optimum from the smoke observation."},
-      "blockers":[{"id":"allocation-curve-unexecuted","description":"Only iso-total/s17/n50/w50 is described as executed; the 75-coordinate scaffold remains incomplete.","resolution":"Execute and validate every frozen coordinate or retain explicit partial/blocked status for each omitted coordinate.","evidence_ids":["allocation-smoke-notes"]}]
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "Only iso-total/s17/n50/w50 is described as executed; the 75-coordinate scaffold remains incomplete.",
+          "evidence_ids": [
+            "allocation-smoke-notes"
+          ],
+          "id": "allocation-curve-unexecuted",
+          "resolution": "Execute and validate every frozen coordinate or retain explicit partial/blocked status for each omitted coordinate."
+        }
+      ],
+      "entry": "memory-allocation-curve-v1",
+      "entry_sha256": "a53622a1899ec79e9dcf03c958a45e0d832cdb2fe732ffa03b3789683648dc14",
+      "finding_ids": [
+        "allocation-single-coordinate-smoke"
+      ],
+      "maturity": {},
+      "next_test": {
+        "action": "Complete the predeclared ownership-profile and neural-weight curve; retain every checkpoint and separate token, target, and weighted-supervision counters.",
+        "blocker_ids": [
+          "allocation-curve-unexecuted"
+        ],
+        "cost_class": "campaign",
+        "design_change": "Move from one iso-total coordinate to the fully declared 75-coordinate curve without selecting an optimum from the smoke observation.",
+        "eligible_scales": [
+          "smoke"
+        ],
+        "prerequisites": [],
+        "reopens": [
+          "allocation-single-coordinate-smoke"
+        ],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"engram-mla-compression-v1","entry_sha256":"25ff4128a42d90936ce461b1a1217c28d427becf65514961c7ff3199418d9f0e","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":["mla-analysis-pipeline-smoke"],
-      "next_test":{"action":"Run a behavior-focused matched MLA-latent-width and memory matrix; keep held-out loss and every capability-card category separate from report-pipeline validation.","stage":"mechanism","cost_class":"short","prerequisites":[],"blocker_ids":["mla-behavior-campaign-not-run"],"eligible_scales":["nano"],"reopens":["mla-analysis-pipeline-smoke"],"design_change":"Replace the engineering-only smoke endpoint with a preregistered behavior evaluation; do not reinterpret mixed interactions or zero cards as an MLA quality conclusion."},
-      "blockers":[{"id":"mla-behavior-campaign-not-run","description":"The 12-run CPU/offline exercise validated analysis paths only and reported 36 zero card scores.","resolution":"Freeze and execute the behavior-focused matrix while retaining all seeds, declared contrasts, and card categories.","evidence_ids":["mla-analysis-notes"]}]
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "The 12-run CPU/offline exercise validated analysis paths only and reported 36 zero card scores.",
+          "evidence_ids": [
+            "mla-analysis-notes"
+          ],
+          "id": "mla-behavior-campaign-not-run",
+          "resolution": "Freeze and execute the behavior-focused matrix while retaining all seeds, declared contrasts, and card categories."
+        }
+      ],
+      "entry": "engram-mla-compression-v1",
+      "entry_sha256": "25ff4128a42d90936ce461b1a1217c28d427becf65514961c7ff3199418d9f0e",
+      "finding_ids": [
+        "mla-analysis-pipeline-smoke"
+      ],
+      "maturity": {
+        "capability": {
+          "finding_ids": [],
+          "state": "untested"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Run a behavior-focused matched MLA-latent-width and memory matrix; keep held-out loss and every capability-card category separate from report-pipeline validation.",
+        "blocker_ids": [
+          "mla-behavior-campaign-not-run"
+        ],
+        "cost_class": "short",
+        "design_change": "Replace the engineering-only smoke endpoint with a preregistered behavior evaluation; do not reinterpret mixed interactions or zero cards as an MLA quality conclusion.",
+        "eligible_scales": [
+          "nano"
+        ],
+        "prerequisites": [],
+        "reopens": [
+          "mla-analysis-pipeline-smoke"
+        ],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"engram-sparse-budget-v1","entry_sha256":"710aeecdda9313ea43fadf98de2ea2c000ac8a9e8ce7858940c5b4064128c292","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":[],
-      "next_test":{"action":"Run the declared dense/block-sparse and memory/no-memory contrasts; report task outcomes and synchronized end-to-end measurements separately from attention-component timing.","stage":"mechanism","cost_class":"short","prerequisites":[],"blocker_ids":[],"eligible_scales":["smoke"],"reopens":[],"design_change":null},
-      "blockers":[]
+      "baseline_id": null,
+      "blockers": [],
+      "entry": "engram-sparse-budget-v1",
+      "entry_sha256": "710aeecdda9313ea43fadf98de2ea2c000ac8a9e8ce7858940c5b4064128c292",
+      "finding_ids": [],
+      "maturity": {
+        "capability": {
+          "finding_ids": [],
+          "state": "untested"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Run the declared dense/block-sparse and memory/no-memory contrasts; report task outcomes and synchronized end-to-end measurements separately from attention-component timing.",
+        "blocker_ids": [],
+        "cost_class": "short",
+        "design_change": null,
+        "eligible_scales": [
+          "smoke"
+        ],
+        "prerequisites": [],
+        "reopens": [],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"engram-moe-capacity-v1","entry_sha256":"f52ece6c6aef296429b119573f249c5381a16e0db7a341bac75cef7c5f45fdd2","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":[],
-      "next_test":{"action":"Run the declared dense-2x/dense-4x/MoE and memory/no-memory smoke matrix; retain separate LM, card, and routing diagnostics.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":[],"eligible_scales":["smoke"],"reopens":[],"design_change":null},
-      "blockers":[]
+      "baseline_id": null,
+      "blockers": [],
+      "entry": "engram-moe-capacity-v1",
+      "entry_sha256": "f52ece6c6aef296429b119573f249c5381a16e0db7a341bac75cef7c5f45fdd2",
+      "finding_ids": [],
+      "maturity": {
+        "capability": {
+          "finding_ids": [],
+          "state": "untested"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Run the declared dense-2x/dense-4x/MoE and memory/no-memory smoke matrix; retain separate LM, card, and routing diagnostics.",
+        "blocker_ids": [],
+        "cost_class": "mechanism",
+        "design_change": null,
+        "eligible_scales": [
+          "smoke"
+        ],
+        "prerequisites": [],
+        "reopens": [],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     },
     {
-      "entry":"lexical-memory-heavy-v1","entry_sha256":"52dc839a8be570148cb263633354b085b80be915c21e0b04261c3004de9af02d","baseline_id":null,"stage":"mechanism",
-      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
-      "finding_ids":[],
-      "next_test":{"action":"Run the declared no/small/large/huge lexical-table smoke sweep and report table bytes, LM loss, and each card separately.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":[],"eligible_scales":["smoke"],"reopens":[],"design_change":null},
-      "blockers":[]
+      "baseline_id": null,
+      "blockers": [],
+      "entry": "lexical-memory-heavy-v1",
+      "entry_sha256": "52dc839a8be570148cb263633354b085b80be915c21e0b04261c3004de9af02d",
+      "finding_ids": [],
+      "maturity": {
+        "capability": {
+          "finding_ids": [],
+          "state": "untested"
+        },
+        "efficiency": {
+          "finding_ids": [],
+          "state": "unmeasured"
+        }
+      },
+      "next_test": {
+        "action": "Run the declared no/small/large/huge lexical-table smoke sweep and report table bytes, LM loss, and each card separately.",
+        "blocker_ids": [],
+        "cost_class": "mechanism",
+        "design_change": null,
+        "eligible_scales": [
+          "smoke"
+        ],
+        "prerequisites": [],
+        "reopens": [],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
+    },
+    {
+      "baseline_id": "dense-lm-v1",
+      "blockers": [],
+      "entry": "dense-lm-v1",
+      "entry_sha256": "0a5144f0b2542af52160bc7c85a0d8756fcea37d154fcea2d05e95da26528749",
+      "finding_ids": [
+        "dense-lm-v1-replicated-learning"
+      ],
+      "maturity": {
+        "capability": null,
+        "efficiency": null,
+        "implementation": null,
+        "portability": null
+      },
+      "next_test": null,
+      "stage": "promote"
+    }
+  ],
+  "evidence": [
+    {
+      "artifact": {
+        "relative_path": "configs/chat_recall_dense_cpu.yaml",
+        "sha256": "daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d",
+        "size_bytes": 1322
+      },
+      "id": "dense-run-config",
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/tokenizer_chat_recall.yaml",
+        "sha256": "78f09c9543818aefed018000f777c71df7edcb5191e8dac062ccd5ec99936be0",
+        "size_bytes": 329
+      },
+      "id": "dense-tokenizer-config",
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/references/dense-small-v1/study.yaml",
+        "sha256": "d6c7a64adfc2f1f55b6119cf0665630ac45ff27d164fc5734851e89b64d73a58",
+        "size_bytes": 163
+      },
+      "id": "dense-study-config",
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/references/dense-small-v1/matrix.yaml",
+        "sha256": "55b04633f6361bae2274898d17c1becadff4916bf66c76fe00000c7c3154ba90",
+        "size_bytes": 117
+      },
+      "id": "dense-matrix-config",
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/manifest.json",
+        "sha256": "647068bdfebd5d48eec29cc113fd944463abc1c4471dd37faf719364b82ea73d",
+        "size_bytes": 7161
+      },
+      "id": "ffn-smoke-report",
+      "identity": "fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b",
+      "kind": "report_bundle"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json",
+        "sha256": "516578fc96d455be60357c177420f92b5582610475e5b611aad979878e2642f4",
+        "size_bytes": 7161
+      },
+      "id": "ffn-nano-report",
+      "identity": "a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf",
+      "kind": "report_bundle"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/manifest.json",
+        "sha256": "2764e49d0ad3419158bfdf34c62b56ae2611012ee42899bdf3ade7993cb887ec",
+        "size_bytes": 9777
+      },
+      "id": "ffn-repeat-report",
+      "identity": "9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2",
+      "kind": "report_bundle"
+    },
+    {
+      "artifact": {
+        "relative_path": "docs/research/sample-report.md",
+        "sha256": "846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626",
+        "size_bytes": 12070
+      },
+      "id": "ffn-analysis-notes",
+      "kind": "document"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/scientific_studies_2026_09_22.json",
+        "sha256": "29b1fffd5a0987adce54f7af8c1de1293d4a079f11ab2adde2dad1c95d567e69",
+        "size_bytes": 57057
+      },
+      "id": "context-study-acceptance",
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "docs/context-engram-study.md",
+        "sha256": "1511ed7ea65d14d82c25c31d64606f68791682ba7ca22fa778d77c0aac992733",
+        "size_bytes": 20363
+      },
+      "id": "context-study-notes",
+      "kind": "document"
+    },
+    {
+      "artifact": {
+        "relative_path": "docs/path-domain-corpus.md",
+        "sha256": "842caf734a628a9d7597dd10eaed2468adf9601719e6d7cbe62b2a4115bd6641",
+        "size_bytes": 16204
+      },
+      "id": "allocation-smoke-notes",
+      "kind": "document"
+    },
+    {
+      "artifact": {
+        "relative_path": "docs/portable-engram.md",
+        "sha256": "b121d78ad3db4e15d94371f0e252985b1a9253aeacfdea0a68277b38b2210747",
+        "size_bytes": 5957
+      },
+      "id": "portable-adapter-notes",
+      "kind": "document"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/research-reports/b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed/manifest.json",
+        "sha256": "8fd43c8d9866ce65813cbbebfabcb0c941fa18fbb273fa9fd4fe5dbfbf551071",
+        "size_bytes": 214036
+      },
+      "id": "learned-portability-report",
+      "identity": "b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed",
+      "kind": "report_bundle"
+    },
+    {
+      "artifact": {
+        "relative_path": "docs/research/learned-engram-portability.md",
+        "sha256": "1b9080de8c55d41a492d3ef03679d04fe2c1076236d42309207cd73eea1373f1",
+        "size_bytes": 18630
+      },
+      "id": "learned-portability-notes",
+      "kind": "document"
+    },
+    {
+      "artifact": {
+        "relative_path": "docs/research/sample-report.md",
+        "sha256": "846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626",
+        "size_bytes": 12070
+      },
+      "id": "mla-analysis-notes",
+      "kind": "document"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/research-reports/1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00/manifest.json",
+        "sha256": "4ed0de0be899d21acd91b5702955c02be6ae475ce3bf0a69e9eabafe142dc861",
+        "size_bytes": 2230
+      },
+      "id": "dense-small-v1-report",
+      "identity": "1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00",
+      "kind": "report_bundle"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_small_v1_2026_09_26.json",
+        "sha256": "072c026a042b07e91c90b6dd0fe6dfa99247a6211e2e9c81da654ad4be8d82e1",
+        "size_bytes": 3581
+      },
+      "id": "dense-small-v1-acceptance",
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_small_v1_run_manifest_20260926.json",
+        "sha256": "81254972e4b56a25c9e2a3b4bf40201ff59d0b01039740a79dd13e122884a406",
+        "size_bytes": 31423
+      },
+      "id": "dense-small-v1-run-manifest",
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_small_v1_2026_09_26/acquisition-chat.json",
+        "sha256": "4707740c4309a1e8cd59bae8dfe6de0e5c3675ae25541256c92ef2871f0be6f2",
+        "size_bytes": 5674
+      },
+      "id": "dense-small-v1-acquisition-chat",
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/research-reports/3f6deec6c11b70750f92219e23fb37c017922017c4730b775b245f27be82c3f0/manifest.json",
+        "sha256": "dbd7e98f5b294ef49fc43c3b766cf35bf6f6e8cf569b087f7a9d35b46a1428ad",
+        "size_bytes": 2227
+      },
+      "id": "dense-lm-v1-report",
+      "identity": "3f6deec6c11b70750f92219e23fb37c017922017c4730b775b245f27be82c3f0",
+      "kind": "report_bundle"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/dense_lm_v1.yaml",
+        "sha256": "354a2c5d55d74ccf6c0b27c50bfe8c6d98ff0cfc53bfcc4ec2c26e64c564643f",
+        "size_bytes": 1467
+      },
+      "id": "dense-lm-v1-config",
+      "identity": null,
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/tokenizer_dense_lm_v1.yaml",
+        "sha256": "301dab69b01c8a2c4cb57a8dfca78963ef2bc661425178c15e20c43fa58780d8",
+        "size_bytes": 355
+      },
+      "id": "dense-lm-v1-tokenizer-config",
+      "identity": null,
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/references/dense-lm-v1/study.yaml",
+        "sha256": "17dfe5d60b7605130f623ca7bdcb26d9cfd05bc1ba39bb440df9897f4a08c5ab",
+        "size_bytes": 179
+      },
+      "id": "dense-lm-v1-study",
+      "identity": null,
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "configs/references/dense-lm-v1/matrix.yaml",
+        "sha256": "88dcec155b9561ca6ec9180b0cda726e50bc2bd1055d3889cc9ff66ca9f8c235",
+        "size_bytes": 389
+      },
+      "id": "dense-lm-v1-matrix",
+      "identity": null,
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "src/sparselab/research/resources/catalog/dense-lm-v1.json",
+        "sha256": "0a5144f0b2542af52160bc7c85a0d8756fcea37d154fcea2d05e95da26528749",
+        "size_bytes": 3683
+      },
+      "id": "dense-lm-v1-catalog-entry",
+      "identity": null,
+      "kind": "source"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/run-manifest.json",
+        "sha256": "3294db7b828c972d52cf6de611ab68391ed12c1cf22597952b19d8afe3bebbf2",
+        "size_bytes": 32213
+      },
+      "id": "dense-lm-v1-seed42-run-manifest",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/stage-evidence.json",
+        "sha256": "3152ab17821272d426f5c56f4d7f8729d987a12bbbe8401618d5f48176704913",
+        "size_bytes": 10670
+      },
+      "id": "dense-lm-v1-seed42-stage-evidence",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/progress.json",
+        "sha256": "38e05a37c5d66f0f47152fc87573dba445996746891e11affc9fc762c6b18ca6",
+        "size_bytes": 6265
+      },
+      "id": "dense-lm-v1-seed42-progress",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00000000.json",
+        "sha256": "4309de46b1f53e2963c5e630c90a8cc18a8b16aea0009fe4895d7dbf8abb1d97",
+        "size_bytes": 29127
+      },
+      "id": "dense-lm-v1-seed42-observation-step0",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00000200.json",
+        "sha256": "031bef74aff382971d1b5a70219e28cc60fe9137c1de46889cf9357a000a0797",
+        "size_bytes": 28831
+      },
+      "id": "dense-lm-v1-seed42-observation-step200",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00000400.json",
+        "sha256": "9351e57b970c5c69f346d08bfeb604581faac4f76c48852e06f2fe651957d217",
+        "size_bytes": 28868
+      },
+      "id": "dense-lm-v1-seed42-observation-step400",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00001024.json",
+        "sha256": "c51bb34b768954059c59f435dc1848b848d9fb2bf7974eccae33f3bd35c0d1e3",
+        "size_bytes": 28873
+      },
+      "id": "dense-lm-v1-seed42-observation-step1024",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00002048.json",
+        "sha256": "9e8fff541919903a739f92f4120986f5c5e77a6ef06930206c9aab123aa2cc6d",
+        "size_bytes": 28950
+      },
+      "id": "dense-lm-v1-seed42-observation-step2048",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00003072.json",
+        "sha256": "92c1e4053a5d9a080e3787e94bd7f648557e336322b2ff1c14d1603e453cbc14",
+        "size_bytes": 28841
+      },
+      "id": "dense-lm-v1-seed42-observation-step3072",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/observations/step-00004096.json",
+        "sha256": "cd351c5657a308df3e96b0598d2e7eabdea539072771ed6b265fb113f6be84e1",
+        "size_bytes": 28858
+      },
+      "id": "dense-lm-v1-seed42-observation-step4096",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/generation.json",
+        "sha256": "ec8b0abd894d7f0ebdfe0927e8475f680681357909dd4a6520e3d9c69c0fba2b",
+        "size_bytes": 2051
+      },
+      "id": "dense-lm-v1-seed42-generation",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00000000/manifest.json",
+        "sha256": "0c78570ee0cc755496ff1d9595f50f3830cbff529b8dc7afe0095f23d155a3fe",
+        "size_bytes": 9922
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step0",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00000200/manifest.json",
+        "sha256": "ee33dbbf4ea2d75b36e5da5163a1074719be000702ad066f99ea452606e93882",
+        "size_bytes": 10088
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step200",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00000400/manifest.json",
+        "sha256": "822886f40110a6794fc48e6b907d48c211747c1e0fa235f0263190aecc07a093",
+        "size_bytes": 10152
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step400",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00001024/manifest.json",
+        "sha256": "3838815794f8bb4c59a9b84269974ef503a067bbff98381e24ea6cc918536ee9",
+        "size_bytes": 10164
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step1024",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00002048/manifest.json",
+        "sha256": "8f1233849d9b0898fc374158bb8efa041951867ab911ef2b2837faec47042442",
+        "size_bytes": 10164
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step2048",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00003072/manifest.json",
+        "sha256": "2ea1bb86fb3031f93640359c4e194533e799875f82ac0dfbae6f610435e98de8",
+        "size_bytes": 10164
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step3072",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/checkpoints/step-00004096/manifest.json",
+        "sha256": "53376abc14382e38b72a3f41efa2cf3aaacbbd1f6e3b67cf91499ad87d5bf816",
+        "size_bytes": 10166
+      },
+      "id": "dense-lm-v1-seed42-checkpoint-step4096",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed42/runtime-telemetry.json",
+        "sha256": "4b5df9443e36f24b92c7097556023172cb9be8782d0457f25d68d6a95e7cb921",
+        "size_bytes": 581
+      },
+      "id": "dense-lm-v1-seed42-runtime-telemetry",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/run-manifest.json",
+        "sha256": "1b5f45cf994e346ee1dd67d47ffa232785bc283685820168420d69263be63375",
+        "size_bytes": 32180
+      },
+      "id": "dense-lm-v1-seed17-run-manifest",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/stage-evidence.json",
+        "sha256": "f506500fe615b6e60f4738e545b1c4025f3f60154258ca468e2cee5a537a62e8",
+        "size_bytes": 10637
+      },
+      "id": "dense-lm-v1-seed17-stage-evidence",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/progress.json",
+        "sha256": "c5730561d18a834bf8772727f4cf02917bef0be15965f3b488b4b8e3e49d039a",
+        "size_bytes": 6261
+      },
+      "id": "dense-lm-v1-seed17-progress",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00000000.json",
+        "sha256": "691cc0afe4c65166eba88497187e00bcb80737ffa4299b8faf5c786a6d03f070",
+        "size_bytes": 30979
+      },
+      "id": "dense-lm-v1-seed17-observation-step0",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00000200.json",
+        "sha256": "782d27a2d132e66c5c25207184620c54dc7c9e684caa52fec581ef82dcd4f103",
+        "size_bytes": 29250
+      },
+      "id": "dense-lm-v1-seed17-observation-step200",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00000400.json",
+        "sha256": "e24dbc0469673fa183731d6dc004159a405ae3d40a48d14501d131c45e528a29",
+        "size_bytes": 28783
+      },
+      "id": "dense-lm-v1-seed17-observation-step400",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00001024.json",
+        "sha256": "08eac4369ccfd94f7f7ab3b796bae4a08d3110d690907580d97e24de2559c75b",
+        "size_bytes": 28684
+      },
+      "id": "dense-lm-v1-seed17-observation-step1024",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00002048.json",
+        "sha256": "88fb787b7e933edad5a1b0c874f50440678f05b919f32236f35a7d426b35a49a",
+        "size_bytes": 29071
+      },
+      "id": "dense-lm-v1-seed17-observation-step2048",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00003072.json",
+        "sha256": "b90efaa205259441f128ef7242653daeea42cf2a45984833fe7404eb69f3dd35",
+        "size_bytes": 28694
+      },
+      "id": "dense-lm-v1-seed17-observation-step3072",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/observations/step-00004096.json",
+        "sha256": "4ad600478d5762f657f8819b061eaab67da7ef915a110dc330da9b41679bfb9d",
+        "size_bytes": 28789
+      },
+      "id": "dense-lm-v1-seed17-observation-step4096",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/generation.json",
+        "sha256": "12ef56c58450019984f9aa141f070b6fbd0de060b8b988509d72597cebfa7ab7",
+        "size_bytes": 1938
+      },
+      "id": "dense-lm-v1-seed17-generation",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00000000/manifest.json",
+        "sha256": "d75862c9a7d2b92436e91dea6e4cdb47713fe87db215ad265eaffd040d6856b1",
+        "size_bytes": 9921
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step0",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00000200/manifest.json",
+        "sha256": "931c92b3c2f33343504668651bdc02e0bd0be8c0246099bcd382efb09e3a0044",
+        "size_bytes": 10087
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step200",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00000400/manifest.json",
+        "sha256": "864c94020e19d70ba0eb1dac0f8be09d70389dcaa7fe846b92298481a7b014d8",
+        "size_bytes": 10153
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step400",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00001024/manifest.json",
+        "sha256": "e81b35de5338cd452bcedb1764dcdd9b0e4c727ba6d8f5783ea859e82b78a598",
+        "size_bytes": 10164
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step1024",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00002048/manifest.json",
+        "sha256": "372fe798f4a6385df61679b6684ae6aed8603555d0cc549d24490c2425c1bb5b",
+        "size_bytes": 10165
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step2048",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00003072/manifest.json",
+        "sha256": "975b517cddab7f1e91f832ce7a0162e2cf305563d753ef552483e1a2fb99c81a",
+        "size_bytes": 10166
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step3072",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/checkpoints/step-00004096/manifest.json",
+        "sha256": "781f2a2da6b4c82a7974b69b326c2d66830bc2a385fdffd60e16440bced0c0e3",
+        "size_bytes": 10164
+      },
+      "id": "dense-lm-v1-seed17-checkpoint-step4096",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed17/runtime-telemetry.json",
+        "sha256": "e9a6f5e54312666791e0c3576edbaee4fe02ad5dfb8f0f04e74a2468ae8458e9",
+        "size_bytes": 580
+      },
+      "id": "dense-lm-v1-seed17-runtime-telemetry",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/run-manifest.json",
+        "sha256": "9d1d5ade36aa6d7e30a3a56673b245a27480506b76861a68e2a6b80e349380a5",
+        "size_bytes": 32180
+      },
+      "id": "dense-lm-v1-seed73-run-manifest",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/stage-evidence.json",
+        "sha256": "3fd5624c21a2764bb9ea2223efda33a731efcb5e4b14f041ad8a5f16d7e3d15b",
+        "size_bytes": 10637
+      },
+      "id": "dense-lm-v1-seed73-stage-evidence",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/progress.json",
+        "sha256": "d418e825067f69477544df2ec649362ec80c0907a349a09efdd3d111472c5ea3",
+        "size_bytes": 6261
+      },
+      "id": "dense-lm-v1-seed73-progress",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00000000.json",
+        "sha256": "64c36e1bb32ed7c8a2501bf094debab1d39f7d0f2e35455eaccaf1ead95cb4a8",
+        "size_bytes": 30133
+      },
+      "id": "dense-lm-v1-seed73-observation-step0",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00000200.json",
+        "sha256": "c910c18b3277e68ad4b3da6ef7a3bc5c35996f9fed4ced0cccb419199890e8a8",
+        "size_bytes": 28669
+      },
+      "id": "dense-lm-v1-seed73-observation-step200",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00000400.json",
+        "sha256": "d3c8dcc15c521c1d42958f4b22e3d7c893aa4e76b76342ec1e372f142a5613db",
+        "size_bytes": 28984
+      },
+      "id": "dense-lm-v1-seed73-observation-step400",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00001024.json",
+        "sha256": "baa646ac7b96cce26930a40025951506ce75e7673a75ddb68cf5297a3c520735",
+        "size_bytes": 28811
+      },
+      "id": "dense-lm-v1-seed73-observation-step1024",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00002048.json",
+        "sha256": "4e636598f7e5fe45cd7a099bc78262e266a7f88f92b54028eae5540fc83c3236",
+        "size_bytes": 28828
+      },
+      "id": "dense-lm-v1-seed73-observation-step2048",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00003072.json",
+        "sha256": "a2bf24ffda5f81b0ec6fb6319f87b509606e14d836b00af62670691030bc7ee4",
+        "size_bytes": 28858
+      },
+      "id": "dense-lm-v1-seed73-observation-step3072",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/observations/step-00004096.json",
+        "sha256": "a51fcec2a585deff23634f98581e691fd14d62543c5d132b8ae7dc070ae02b83",
+        "size_bytes": 28893
+      },
+      "id": "dense-lm-v1-seed73-observation-step4096",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/generation.json",
+        "sha256": "6f99db21c32e22c74b04be31b5f8ecbe191a46dbdb0ebc875f10cc5c70639a8a",
+        "size_bytes": 2016
+      },
+      "id": "dense-lm-v1-seed73-generation",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00000000/manifest.json",
+        "sha256": "69c94cae10e8f22960aefc32310915a7ecbb9a742e5c6932094422c70572f2d8",
+        "size_bytes": 9922
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step0",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00000200/manifest.json",
+        "sha256": "0f31f1dd351ace9e5e6d860bb0d8e33c5b604770943f9a876a7f9a5967da611f",
+        "size_bytes": 10088
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step200",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00000400/manifest.json",
+        "sha256": "ca785fb5bc1f53769870bd3fd336026b4f5e28c1bdb3480bfef923d5e3199f22",
+        "size_bytes": 10153
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step400",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00001024/manifest.json",
+        "sha256": "483898b65580bc65298154751b3020b8c62a2baaa3565556e5c2fad377879b7b",
+        "size_bytes": 10165
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step1024",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00002048/manifest.json",
+        "sha256": "37a216ccc42507bc729da4dd88611471179f1ec80082025245a719145479c399",
+        "size_bytes": 10166
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step2048",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00003072/manifest.json",
+        "sha256": "829a12b1612ee85fc572de9439028d96c77428564b10416067c6b0c0da1e1255",
+        "size_bytes": 10165
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step3072",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/checkpoints/step-00004096/manifest.json",
+        "sha256": "cd248c47746f928bd11c6e5588e4f46449d292e63e79bd59c06fb7ddb7ab9013",
+        "size_bytes": 10164
+      },
+      "id": "dense-lm-v1-seed73-checkpoint-step4096",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1/seed73/runtime-telemetry.json",
+        "sha256": "9c7f3f3f96065f39205b5862db5b9f58c1fc76883eeec4b88a237d7c008f3dbc",
+        "size_bytes": 581
+      },
+      "id": "dense-lm-v1-seed73-runtime-telemetry",
+      "identity": null,
+      "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "artifacts/acceptance/dense_lm_v1.json",
+        "sha256": "f59fd9e3a068202c6690ea0a5357887f251d8ed84cc37871023f4632fbcb0dfa",
+        "size_bytes": 31285
+      },
+      "id": "dense-lm-v1-acceptance",
+      "identity": null,
+      "kind": "acceptance"
     }
   ],
   "findings": [
     {
-      "id":"ffn-smoke-outcomes","entry":"engram-ffn-substitution-v1","recorded_at":"2026-09-26","evidence_ids":["ffn-smoke-report","ffn-analysis-notes"],
-      "tested_conditions":["CPU/PyTorch FP32, smoke/offline, 18 runs across three seeds and three FFN widths; every run reached 32 updates / 4096 tokens."],
-      "observation":"All 18 runs scored zero on each of the three capability cards. Lexical-memory held-out loss deltas were lower at 4x and 2x FFN width but mixed at 1x; this smoke showed no consistent held-out-loss benefit.",
-      "supported_claims":["Lookup did not demonstrate capability-card compensation for narrower FFN width at this smoke endpoint.","The measured held-out-loss direction varied with FFN width under this finite offline task."],
-      "unsupported_claims":["This does not establish general model quality, long-training outcomes, or behavior on other task populations.","It does not establish speed, efficiency, statistical significance, or a universal FFN replacement claim."],
-      "disposition":"learning","decided_by":"research lifecycle review","rationale":"The verified report records all declared outcomes, but all cards were zero and the bounded validation-loss effects do not support a general compensation claim.","next_action":"Reopen only with an independently frozen compositional task population and unchanged outcome reporting.","reopen_conditions":["A separately authored compositional train/dev/card corpus and scorer are frozen before training."],"design_identity":{"study_sha256":"b3ef825fcf29f9577fbb467781699d90ea65505555ef7add46fdef274394a7d7","protocol_sha256":null}
+      "decided_by": "research lifecycle review",
+      "design_identity": {
+        "protocol_sha256": null,
+        "study_sha256": "b3ef825fcf29f9577fbb467781699d90ea65505555ef7add46fdef274394a7d7"
+      },
+      "disposition": "learning",
+      "entry": "engram-ffn-substitution-v1",
+      "evidence_ids": [
+        "ffn-smoke-report",
+        "ffn-analysis-notes"
+      ],
+      "id": "ffn-smoke-outcomes",
+      "next_action": "Reopen only with an independently frozen compositional task population and unchanged outcome reporting.",
+      "observation": "All 18 runs scored zero on each of the three capability cards. Lexical-memory held-out loss deltas were lower at 4x and 2x FFN width but mixed at 1x; this smoke showed no consistent held-out-loss benefit.",
+      "rationale": "The verified report records all declared outcomes, but all cards were zero and the bounded validation-loss effects do not support a general compensation claim.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "A separately authored compositional train/dev/card corpus and scorer are frozen before training."
+      ],
+      "supported_claims": [
+        "Lookup did not demonstrate capability-card compensation for narrower FFN width at this smoke endpoint.",
+        "The measured held-out-loss direction varied with FFN width under this finite offline task."
+      ],
+      "tested_conditions": [
+        "CPU/PyTorch FP32, smoke/offline, 18 runs across three seeds and three FFN widths; every run reached 32 updates / 4096 tokens."
+      ],
+      "unsupported_claims": [
+        "This does not establish general model quality, long-training outcomes, or behavior on other task populations.",
+        "It does not establish speed, efficiency, statistical significance, or a universal FFN replacement claim."
+      ]
     },
     {
-      "id":"ffn-nano-outcomes","entry":"engram-ffn-substitution-v1","recorded_at":"2026-09-26","evidence_ids":["ffn-nano-report","ffn-analysis-notes"],
-      "tested_conditions":["CPU/PyTorch FP32, nano/offline, 18 runs across three seeds and three FFN widths; all runs reached 128 updates / 32640 tokens."],
-      "observation":"At 1x FFN width, lexical memory had higher held-out validation loss in all three seed pairs; all 18 runs scored zero on each capability card. The report found no consistent same-width held-out-loss improvement.",
-      "supported_claims":["The nano protocol provides no evidence that lookup compensated for a narrower FFN at the measured endpoint.","The 1x lexical-memory loss delta was positive for all three recorded seeds."],
-      "unsupported_claims":["Three seeds on finite offline chat-recall do not establish behavior on independent compositional tasks.","This does not establish a general negative result for longer training or other model/data scales."],
-      "disposition":"learning","decided_by":"research lifecycle review","rationale":"This is the closest existing scale evidence, but zero card outcomes and narrow synthetic data limit the interpretation.","next_action":"Use only as a prior; any new task population must be frozen independently.","reopen_conditions":["A separately authored compositional train/dev/card corpus and scorer are frozen before training."],"design_identity":{"study_sha256":"11d03ab3808a557189b1d0ba90352eaf6b636d68906e8ebccaa1132b88452b33","protocol_sha256":null}
+      "decided_by": "research lifecycle review",
+      "design_identity": {
+        "protocol_sha256": null,
+        "study_sha256": "11d03ab3808a557189b1d0ba90352eaf6b636d68906e8ebccaa1132b88452b33"
+      },
+      "disposition": "learning",
+      "entry": "engram-ffn-substitution-v1",
+      "evidence_ids": [
+        "ffn-nano-report",
+        "ffn-analysis-notes"
+      ],
+      "id": "ffn-nano-outcomes",
+      "next_action": "Use only as a prior; any new task population must be frozen independently.",
+      "observation": "At 1x FFN width, lexical memory had higher held-out validation loss in all three seed pairs; all 18 runs scored zero on each capability card. The report found no consistent same-width held-out-loss improvement.",
+      "rationale": "This is the closest existing scale evidence, but zero card outcomes and narrow synthetic data limit the interpretation.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "A separately authored compositional train/dev/card corpus and scorer are frozen before training."
+      ],
+      "supported_claims": [
+        "The nano protocol provides no evidence that lookup compensated for a narrower FFN at the measured endpoint.",
+        "The 1x lexical-memory loss delta was positive for all three recorded seeds."
+      ],
+      "tested_conditions": [
+        "CPU/PyTorch FP32, nano/offline, 18 runs across three seeds and three FFN widths; all runs reached 128 updates / 32640 tokens."
+      ],
+      "unsupported_claims": [
+        "Three seeds on finite offline chat-recall do not establish behavior on independent compositional tasks.",
+        "This does not establish a general negative result for longer training or other model/data scales."
+      ]
     },
     {
-      "id":"ffn-same-seed-repeat","entry":"engram-ffn-substitution-v1","recorded_at":"2026-09-26","evidence_ids":["ffn-repeat-report","ffn-analysis-notes"],
-      "tested_conditions":["CPU/PyTorch FP32; same nano study, matrix, data-profile, and scale identities; new run IDs, same coordinate seeds."],
-      "observation":"The repeated execution reproduced prior held-out validation loss at all 18 coordinates exactly; it adds no independent-seed evidence.",
-      "supported_claims":["The recorded nano metric was reproducible for this same-seed execution under identical inputs."],
-      "unsupported_claims":["A same-seed rerun is not an independent replication and does not increase the number of independent seeds."],
-      "disposition":"learning","decided_by":"research lifecycle review","rationale":"Retain reproducibility evidence without treating duplicate seed coordinates as new scientific support.","next_action":"Do not count this report as independent replication; reopen only under a new task population or seed plan.","reopen_conditions":["An independent seed or independently frozen task population is available."],"design_identity":{"study_sha256":"11d03ab3808a557189b1d0ba90352eaf6b636d68906e8ebccaa1132b88452b33","protocol_sha256":null}
+      "decided_by": "research lifecycle review",
+      "design_identity": {
+        "protocol_sha256": null,
+        "study_sha256": "11d03ab3808a557189b1d0ba90352eaf6b636d68906e8ebccaa1132b88452b33"
+      },
+      "disposition": "learning",
+      "entry": "engram-ffn-substitution-v1",
+      "evidence_ids": [
+        "ffn-repeat-report",
+        "ffn-analysis-notes"
+      ],
+      "id": "ffn-same-seed-repeat",
+      "next_action": "Do not count this report as independent replication; reopen only under a new task population or seed plan.",
+      "observation": "The repeated execution reproduced prior held-out validation loss at all 18 coordinates exactly; it adds no independent-seed evidence.",
+      "rationale": "Retain reproducibility evidence without treating duplicate seed coordinates as new scientific support.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "An independent seed or independently frozen task population is available."
+      ],
+      "supported_claims": [
+        "The recorded nano metric was reproducible for this same-seed execution under identical inputs."
+      ],
+      "tested_conditions": [
+        "CPU/PyTorch FP32; same nano study, matrix, data-profile, and scale identities; new run IDs, same coordinate seeds."
+      ],
+      "unsupported_claims": [
+        "A same-seed rerun is not an independent replication and does not increase the number of independent seeds."
+      ]
     },
     {
-      "id":"context-override-negative","entry":"engram-placement-v1","recorded_at":"2026-09-26","evidence_ids":["context-study-acceptance","context-study-notes"],
-      "tested_conditions":["Accepted CPU/PyTorch study with three seeds, two exact-target budgets, 24 completed endpoints, and 72 preregistered card evaluations."],
-      "observation":"Untouched context-override outcomes were 0/8 at every one of the 24 endpoints. Training-seen acquisition varied, but did not establish held-out override acquisition. The study varied memory condition and budget; it did not compare injection placement.",
-      "supported_claims":["The accepted study found no untouched override acquisition under its frozen protocol.","The result is relevant historical Engram evidence but is not a placement-axis comparison."],
-      "unsupported_claims":["This does not establish that embedding and final injection are equivalent or ineffective.","It does not establish general chat quality, significance, or an Engram advantage."],
-      "disposition":"learning","decided_by":"research lifecycle review","rationale":"The acceptance record verifies completed endpoints and response scoring; the current catalog placement question remains untested.","next_action":"Test placement directly with frozen no-memory, final-injection, and embedding-injection arms.","reopen_conditions":["A matched placement factorial with untouched held-out override cases is preregistered."],"design_identity":null
+      "decided_by": "research lifecycle review",
+      "design_identity": null,
+      "disposition": "learning",
+      "entry": "engram-placement-v1",
+      "evidence_ids": [
+        "context-study-acceptance",
+        "context-study-notes"
+      ],
+      "id": "context-override-negative",
+      "next_action": "Test placement directly with frozen no-memory, final-injection, and embedding-injection arms.",
+      "observation": "Untouched context-override outcomes were 0/8 at every one of the 24 endpoints. Training-seen acquisition varied, but did not establish held-out override acquisition. The study varied memory condition and budget; it did not compare injection placement.",
+      "rationale": "The acceptance record verifies completed endpoints and response scoring; the current catalog placement question remains untested.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "A matched placement factorial with untouched held-out override cases is preregistered."
+      ],
+      "supported_claims": [
+        "The accepted study found no untouched override acquisition under its frozen protocol.",
+        "The result is relevant historical Engram evidence but is not a placement-axis comparison."
+      ],
+      "tested_conditions": [
+        "Accepted CPU/PyTorch study with three seeds, two exact-target budgets, 24 completed endpoints, and 72 preregistered card evaluations."
+      ],
+      "unsupported_claims": [
+        "This does not establish that embedding and final injection are equivalent or ineffective.",
+        "It does not establish general chat quality, significance, or an Engram advantage."
+      ]
     },
     {
-      "id":"allocation-single-coordinate-smoke","entry":"memory-allocation-curve-v1","recorded_at":"2026-09-26","evidence_ids":["allocation-smoke-notes"],
-      "tested_conditions":["Documented CPU iso-total/s17/n50/w50 smoke; 32 updates and five observed checkpoints; one of 75 scaffolded coordinates."],
-      "observation":"All recorded acquisition, development, and frozen card scores were zero at each checkpoint; validation loss was nonmonotonic. The full 75-coordinate sweep was not executed.",
-      "supported_claims":["This one documented coordinate did not establish an ownership optimum or capability-card success.","The available notes report no FLOP, latency, energy, or saved-token measurements."],
-      "unsupported_claims":["The source note is not a validated report bundle and cannot support a measured replication gate.","One coordinate cannot establish allocation-dependent retention or a full curve."],
-      "disposition":"inconclusive","decided_by":"research lifecycle review","rationale":"The one-coordinate smoke is an explicit partial observation; its source note is not sufficient to promote a scientific curve claim.","next_action":"Complete the frozen ownership curve and preserve missing or blocked coordinates.","reopen_conditions":["All 75 planned coordinates are executed or individually retained as partial/blocked with reasons."],"design_identity":null
+      "decided_by": "research lifecycle review",
+      "design_identity": null,
+      "disposition": "inconclusive",
+      "entry": "memory-allocation-curve-v1",
+      "evidence_ids": [
+        "allocation-smoke-notes"
+      ],
+      "id": "allocation-single-coordinate-smoke",
+      "next_action": "Complete the frozen ownership curve and preserve missing or blocked coordinates.",
+      "observation": "All recorded acquisition, development, and frozen card scores were zero at each checkpoint; validation loss was nonmonotonic. The full 75-coordinate sweep was not executed.",
+      "rationale": "The one-coordinate smoke is an explicit partial observation; its source note is not sufficient to promote a scientific curve claim.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "All 75 planned coordinates are executed or individually retained as partial/blocked with reasons."
+      ],
+      "supported_claims": [
+        "This one documented coordinate did not establish an ownership optimum or capability-card success.",
+        "The available notes report no FLOP, latency, energy, or saved-token measurements."
+      ],
+      "tested_conditions": [
+        "Documented CPU iso-total/s17/n50/w50 smoke; 32 updates and five observed checkpoints; one of 75 scaffolded coordinates."
+      ],
+      "unsupported_claims": [
+        "The source note is not a validated report bundle and cannot support a measured replication gate.",
+        "One coordinate cannot establish allocation-dependent retention or a full curve."
+      ]
     },
     {
-      "id":"portable-adapter-two-case-negative","entry":"engram-portability-v1","recorded_at":"2026-09-26","evidence_ids":["portable-adapter-notes"],
-      "tested_conditions":["Documented two-case held-out byte-addressed portable-adapter comparison against baseline and random frozen-table controls."],
-      "observation":"Baseline, random frozen-table, and trained portable-adapter runs each had zero exact matches and reciprocal rank 0.75. Mean expected-value log probability was -5.0596, -4.9939, and -5.1395 respectively; the trained adapter did not outperform random under this protocol.",
-      "supported_claims":["The documented two-case comparison did not demonstrate adapter benefit over its random-table control."],
-      "unsupported_claims":["Two cases do not establish general transfer failure or success across recipient configurations.","The documentation is not a static report bundle or independent multi-recipient validation."],
-      "disposition":"rejected","decided_by":"research lifecycle review","rationale":"The reported adapter result is negative against the random-table control, and the sample is too small for a broader portability conclusion.","next_action":"Extend the held-out denominator and recipient configurations without changing the archived result.","reopen_conditions":["A preregistered multi-recipient protocol with additional held-out cases and matched frozen controls is available."],"design_identity":null
+      "decided_by": "research lifecycle review",
+      "design_identity": null,
+      "disposition": "rejected",
+      "entry": "engram-portability-v1",
+      "evidence_ids": [
+        "portable-adapter-notes"
+      ],
+      "id": "portable-adapter-two-case-negative",
+      "next_action": "Extend the held-out denominator and recipient configurations without changing the archived result.",
+      "observation": "Baseline, random frozen-table, and trained portable-adapter runs each had zero exact matches and reciprocal rank 0.75. Mean expected-value log probability was -5.0596, -4.9939, and -5.1395 respectively; the trained adapter did not outperform random under this protocol.",
+      "rationale": "The reported adapter result is negative against the random-table control, and the sample is too small for a broader portability conclusion.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "A preregistered multi-recipient protocol with additional held-out cases and matched frozen controls is available."
+      ],
+      "supported_claims": [
+        "The documented two-case comparison did not demonstrate adapter benefit over its random-table control."
+      ],
+      "tested_conditions": [
+        "Documented two-case held-out byte-addressed portable-adapter comparison against baseline and random frozen-table controls."
+      ],
+      "unsupported_claims": [
+        "Two cases do not establish general transfer failure or success across recipient configurations.",
+        "The documentation is not a static report bundle or independent multi-recipient validation."
+      ]
     },
     {
-      "id":"learned-portability-endpoint","entry":"learned-engram-portability-v1","recorded_at":"2026-09-26","evidence_ids":["learned-portability-report","learned-portability-notes"],
-      "tested_conditions":["Sealed CPU nano N=2048 protocol; three source seeds; six recipient width/seed groups; 54 completed coordinates, 42 trained and 12 observation-only."],
-      "observation":"All source gates passed and the same learned table bytes were verified across recipient widths. Real adapters averaged 71.70% on one held-out wording, but the preregistered all-six-group >=0.50 criterion failed narrowly at width64/seed73; all six adapters scored 3.125% on the second final wording. Representation portability was not tested.",
-      "supported_claims":["The report verifies source acquisition and byte-exact artifact reuse under the sealed protocol.","Recipient-local calibration improved one held-out wording on average but did not satisfy the supportive criterion or generalize to the second final wording."],
-      "unsupported_claims":["This does not establish robust wording transfer, ordinary-language quality, or representation portability.","The single bounded synthetic task does not establish general transfer to other architectures or domains."],
-      "disposition":"learning","decided_by":"research lifecycle review","rationale":"The verified report separates successful source/artifact gates from the failed supportive adapter criterion and wording-specific outcomes.","next_action":"Reopen only with an independent wording family frozen before training; do not tune to the second-wording failure.","reopen_conditions":["An independent held-out wording suite and score rule are frozen before a new campaign."],"design_identity":{"study_sha256":null,"protocol_sha256":"a8fe6285322e49cb00be04a01b98a0c98ee28d27337123bd67fce9abf7ac08d1"}
+      "decided_by": "research lifecycle review",
+      "design_identity": {
+        "protocol_sha256": "a8fe6285322e49cb00be04a01b98a0c98ee28d27337123bd67fce9abf7ac08d1",
+        "study_sha256": null
+      },
+      "disposition": "learning",
+      "entry": "learned-engram-portability-v1",
+      "evidence_ids": [
+        "learned-portability-report",
+        "learned-portability-notes"
+      ],
+      "id": "learned-portability-endpoint",
+      "next_action": "Reopen only with an independent wording family frozen before training; do not tune to the second-wording failure.",
+      "observation": "All source gates passed and the same learned table bytes were verified across recipient widths. Real adapters averaged 71.70% on one held-out wording, but the preregistered all-six-group >=0.50 criterion failed narrowly at width64/seed73; all six adapters scored 3.125% on the second final wording. Representation portability was not tested.",
+      "rationale": "The verified report separates successful source/artifact gates from the failed supportive adapter criterion and wording-specific outcomes.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "An independent held-out wording suite and score rule are frozen before a new campaign."
+      ],
+      "supported_claims": [
+        "The report verifies source acquisition and byte-exact artifact reuse under the sealed protocol.",
+        "Recipient-local calibration improved one held-out wording on average but did not satisfy the supportive criterion or generalize to the second final wording."
+      ],
+      "tested_conditions": [
+        "Sealed CPU nano N=2048 protocol; three source seeds; six recipient width/seed groups; 54 completed coordinates, 42 trained and 12 observation-only."
+      ],
+      "unsupported_claims": [
+        "This does not establish robust wording transfer, ordinary-language quality, or representation portability.",
+        "The single bounded synthetic task does not establish general transfer to other architectures or domains."
+      ]
     },
     {
-      "id":"mla-analysis-pipeline-smoke","entry":"engram-mla-compression-v1","recorded_at":"2026-09-26","evidence_ids":["mla-analysis-notes"],
-      "tested_conditions":["Documented CPU/offline analysis smoke; 12 runs across dense/MLA-half, memory absent/present, and three seeds; 32 updates per run."],
-      "observation":"All 36 capability-card scores were zero and the three-seed validation-loss interaction signs were mixed. The exercise validated report-analysis paths; it did not test an attention or memory quality claim.",
-      "supported_claims":["The documented smoke exercised factorial, nondominance, allocation, and boundary-sweep report paths."],
-      "unsupported_claims":["This does not establish MLA/memory benefit, a synergy statistic, speed, or paper-equivalent cache compression.","The document is not a verified static report bundle for this study."],
-      "disposition":"learning","decided_by":"research lifecycle review","rationale":"Retain the engineering validation separately from behavioral conclusions.","next_action":"Run a behavior-focused matched matrix with frozen endpoints and all capability categories.","reopen_conditions":["A behavior-focused protocol and matched matrix are frozen before training."],"design_identity":null
+      "decided_by": "research lifecycle review",
+      "design_identity": null,
+      "disposition": "learning",
+      "entry": "engram-mla-compression-v1",
+      "evidence_ids": [
+        "mla-analysis-notes"
+      ],
+      "id": "mla-analysis-pipeline-smoke",
+      "next_action": "Run a behavior-focused matched matrix with frozen endpoints and all capability categories.",
+      "observation": "All 36 capability-card scores were zero and the three-seed validation-loss interaction signs were mixed. The exercise validated report-analysis paths; it did not test an attention or memory quality claim.",
+      "rationale": "Retain the engineering validation separately from behavioral conclusions.",
+      "recorded_at": "2026-09-26",
+      "reopen_conditions": [
+        "A behavior-focused protocol and matched matrix are frozen before training."
+      ],
+      "supported_claims": [
+        "The documented smoke exercised factorial, nondominance, allocation, and boundary-sweep report paths."
+      ],
+      "tested_conditions": [
+        "Documented CPU/offline analysis smoke; 12 runs across dense/MLA-half, memory absent/present, and three seeds; 32 updates per run."
+      ],
+      "unsupported_claims": [
+        "This does not establish MLA/memory benefit, a synergy statistic, speed, or paper-equivalent cache compression.",
+        "The document is not a verified static report bundle for this study."
+      ]
+    },
+    {
+      "decided_by": "SparseLab evidence review",
+      "design_identity": {
+        "protocol_sha256": null,
+        "study_sha256": "5c1f752eac0cd7ec969da98349db21a266c37e3da66fb987bd01db4b7750ff79"
+      },
+      "disposition": "promote",
+      "entry": "dense-lm-v1",
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "id": "dense-lm-v1-replicated-learning",
+      "next_action": "Use this reference as a control for separately proposed descendants; do not launch them under this acceptance.",
+      "observation": "All three retained runs reached the exact fixed endpoint with verified initial and terminal checkpoints and lower terminal held-out loss; the fixed prompt exercise and integrity checks passed. The endpoints were reached while learning, not after a plateau.",
+      "rationale": "Promote only the bounded learning reference because candidate-specific identity, budget, validation, generation, runtime, and static-report evidence passes; unrelated registry findings remain global and unchanged.",
+      "recorded_at": "2026-09-27",
+      "reopen_conditions": [],
+      "supported_claims": [
+        "The frozen dense configuration produced replicated finite learning observations under the declared three-seed protocol.",
+        "The exact terminal checkpoints and fixed generation outputs are bound to retained source, tokenizer, data, configuration, and runtime identities."
+      ],
+      "tested_conditions": [
+        "Seeds 42, 17, 73; each 4096 steps and 4,194,304 tokens; common source/tokenizer/data identities; ROCm fp32."
+      ],
+      "unsupported_claims": [
+        "General language quality, chat capability, architecture superiority, convergence, cross-hardware efficiency, or an aggregate score."
+      ]
     }
   ],
-  "promotions": []
+  "format": "sparselab-research-lifecycle",
+  "promotions": [
+    {
+      "decided_by": "SparseLab evidence review",
+      "decision": "accepted",
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "finding_ids": [
+        "dense-lm-v1-replicated-learning"
+      ],
+      "from_baseline": null,
+      "id": "promote-dense-lm-v1",
+      "integration_evidence_ids": [
+        "dense-lm-v1-acceptance"
+      ],
+      "mechanism_change": "Establish a bounded three-seed dense language-model learning reference; no architecture mechanism is changed.",
+      "mode": "bootstrap",
+      "rationale": "The candidate-scoped evidence gates pass for all three retained seeds; unrelated historical Engram validation remains unchanged and globally visible.",
+      "regressions": [
+        {
+          "check": "lifecycle",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "budget",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "validation",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "acquisition",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "capability_controls",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "generation",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "resources",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        },
+        {
+          "check": "static_report",
+          "evidence_ids": [
+            "dense-lm-v1-report",
+            "dense-lm-v1-acceptance"
+          ],
+          "outcome": "passed"
+        }
+      ],
+      "resource_tradeoff": {
+        "description": "Measured endpoint-bounded update telemetry and peak device memory retained; energy and end-to-end cost unavailable.",
+        "evidence_ids": [
+          "dense-lm-v1-seed42-runtime-telemetry",
+          "dense-lm-v1-seed17-runtime-telemetry",
+          "dense-lm-v1-seed73-runtime-telemetry"
+        ]
+      },
+      "to_baseline": "dense-lm-v1",
+      "untested_capabilities": [
+        "General chat quality",
+        "Cross-hardware portability",
+        "Energy efficiency",
+        "Convergence or plateau",
+        "Architecture superiority"
+      ]
+    }
+  ],
+  "version": 1
 }

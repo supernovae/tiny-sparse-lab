@@ -9,6 +9,7 @@ import pytest
 from sparselab.research.lifecycle import (
     Baseline,
     LifecycleRegistry,
+    _baseline_scoped_diagnostics,
     _validate_chat_transcript_capture,
     _validate_generation_capture,
     next_experiments,
@@ -118,6 +119,84 @@ def _baseline() -> Baseline:
             "reproduction": "configs/study.yaml",
         }
     )
+
+
+def test_baseline_diagnostic_scope_keeps_unrelated_registry_errors_global() -> None:
+    baseline_data = _baseline().model_dump(mode="json")
+    baseline_data["required_evidence"] = {"training": ["dense-run-evidence"]}
+    registry = LifecycleRegistry.model_validate(
+        _root(baselines=[baseline_data])
+    )
+    diagnostics = [
+        {
+            "severity": "error",
+            "code": "candidate_error",
+            "message": "Candidate-specific failure.",
+            "reference_ids": ["dense-small-v1", "dense-run-evidence"],
+        },
+        {
+            "severity": "error",
+            "code": "unrelated_error",
+            "message": "Unrelated historical finding.",
+            "reference_ids": ["learned-engram-portability-v1"],
+        },
+    ]
+
+    baseline, scoped = _baseline_scoped_diagnostics(
+        registry, "dense-small-v1", diagnostics
+    )
+
+    assert baseline.id == "dense-small-v1"
+    assert [item["code"] for item in scoped] == ["candidate_error"]
+    assert [item["code"] for item in diagnostics] == [
+        "candidate_error",
+        "unrelated_error",
+    ]
+
+def test_learning_reference_requires_fixed_32_token_generation_panel() -> None:
+    baseline_data = _baseline().model_dump(mode="json")
+    baseline_data["purpose_classification"] = "learning_reference"
+    baseline_data["capability_expectations"] = []
+    baseline = Baseline.model_validate(baseline_data)
+    report_identity = {
+        "checkpoint_sha256": "c" * 64,
+        "tokenizer_sha256": "d" * 64,
+        "runtime": {"backend": "rocm"},
+        "config": {"model": {"max_seq_len": 128}},
+    }
+    capture = {
+        "format": "sparselab-generation-capture",
+        "version": 1,
+        "identity": {
+            "run_id": "run-42",
+            "checkpoint_sha256": "c" * 64,
+            "tokenizer_sha256": "d" * 64,
+            "backend": "rocm",
+        },
+        "options": {
+            "max_new_tokens": 32,
+            "temperature": 0.0,
+            "top_k": 0,
+            "seed": 42042,
+        },
+        "outputs": [{"prompt": "Prompt:", "output": "Prompt: fixed output"}],
+    }
+    diagnostics: list[dict[str, object]] = []
+
+    _validate_generation_capture(
+        capture, baseline, report_identity, "run-42", diagnostics
+    )
+
+    assert diagnostics == []
+    capture["options"]["seed"] = 0
+    _validate_generation_capture(
+        capture, baseline, report_identity, "run-42", diagnostics
+    )
+    assert [item["code"] for item in diagnostics] == [
+        "baseline_generation_options_invalid"
+    ]
+
+
 
 
 def test_generation_capture_binds_checkpoint_and_caps_fixed_greedy_options() -> None:

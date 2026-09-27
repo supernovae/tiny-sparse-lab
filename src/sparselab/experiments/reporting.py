@@ -1528,9 +1528,17 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
     metadata = research.get("metadata") if isinstance(research, dict) else None
     entry = metadata.get("entry") if isinstance(metadata, dict) else None
     entry = entry if isinstance(entry, dict) else {}
-    title = html.escape(str(entry.get("title") or "Static study report"))
-    question = html.escape(str(entry.get("question", "")))
-    hypothesis = html.escape(str(entry.get("hypothesis", "")))
+    reference = report.get("reference_summary")
+    reference = reference if isinstance(reference, dict) else {}
+    title = html.escape(
+        str(reference.get("title") or entry.get("title") or "Static study report")
+    )
+    question = html.escape(
+        str(reference.get("question") or entry.get("question") or "")
+    )
+    hypothesis = html.escape(
+        str(reference.get("hypothesis") or entry.get("hypothesis") or "")
+    )
     run_rows: list[str] = []
     for run in report.get("runs", []):
         if not isinstance(run, dict):
@@ -1542,13 +1550,13 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
         scores = []
         capabilities = run.get("capabilities")
         if isinstance(capabilities, dict):
-            for reference, value in sorted(capabilities.items()):
+            for card_reference, value in sorted(capabilities.items()):
                 if not isinstance(value, dict):
                     continue
                 result = value.get("result", value)
                 score = result.get("score") if isinstance(result, dict) else None
                 if isinstance(score, (int, float)) and not isinstance(score, bool):
-                    scores.append(f"{reference}: {float(score):.6g}")
+                    scores.append(f"{card_reference}: {float(score):.6g}")
         columns = (
             run.get("run_id", ""),
             endpoint.get("status", "unavailable"),
@@ -1564,7 +1572,7 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
         )
     runs_table = (
         "<table><thead><tr><th>Run</th><th>Endpoint</th><th>Step</th>"
-        "<th>Tokens</th><th>Validation loss</th><th>Card scores</th></tr></thead>"
+        f"<th>Tokens</th><th>Validation loss</th><th>{'OOD card scores (descriptive)' if reference else 'Card scores'}</th></tr></thead>"
         f"<tbody>{''.join(run_rows)}</tbody></table>"
     )
     raw_cases = "".join(
@@ -1597,6 +1605,17 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
             f"<section><h2>{html.escape(heading)}</h2>"
             f"<pre>{html.escape(content)}</pre></section>"
         )
+    reference_sections = "".join(
+        block(heading, reference.get(key, {}))
+        for key, heading in (
+            ("learning", "Learning observations"),
+            ("generation", "Generation observations"),
+            ("runtime", "Runtime and resources"),
+            ("integrity", "Integrity and identities"),
+            ("limitations", "Reference limitations"),
+        )
+        if key in reference
+    )
 
     return (
         '<!doctype html><html><head><meta charset="utf-8">'
@@ -1607,7 +1626,7 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
         f"<h1>{title}</h1><p>Observed evidence only; no winner or efficiency claim is inferred.</p>"
         f"<h2>Question</h2><p>{question}</p><h2>Hypothesis</h2><p>{hypothesis}</p>"
         "<h2>Runs and endpoints</h2>"
-        f"{runs_table}<h2>Observed comparisons</h2>"
+        f"{runs_table}{reference_sections}<h2>Observed comparisons</h2>"
         f"{block('Comparisons', report.get('comparisons', []))}"
         f"{block('Research analyses', report.get('research_analysis', {}))}"
         f"{block('Architectural quantities and cache layouts', report.get('architectural_quantities', []))}"

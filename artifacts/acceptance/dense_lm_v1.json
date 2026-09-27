@@ -1,0 +1,726 @@
+{
+  "baseline_id": "dense-lm-v1",
+  "checkpoint_chains": {
+    "17": [
+      {
+        "checkpoint_sha256": "b8a28bbdd33cfc728604e99a8f1a20e0c787ca70a349f843d21771fd508edd67",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step0",
+        "manifest_sha256": "d75862c9a7d2b92436e91dea6e4cdb47713fe87db215ad265eaffd040d6856b1",
+        "parent_checkpoint_sha256": null,
+        "step": 0
+      },
+      {
+        "checkpoint_sha256": "1b62238aa88df85383fe335894e9adc5f4a34e40464fa6da35b00c986f1fb010",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step200",
+        "manifest_sha256": "931c92b3c2f33343504668651bdc02e0bd0be8c0246099bcd382efb09e3a0044",
+        "parent_checkpoint_sha256": null,
+        "step": 200
+      },
+      {
+        "checkpoint_sha256": "597578035db2d9bdf2ff024529c3140498a9b8845f570aefa07bf9c1ad3e2b86",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step400",
+        "manifest_sha256": "864c94020e19d70ba0eb1dac0f8be09d70389dcaa7fe846b92298481a7b014d8",
+        "parent_checkpoint_sha256": "1b62238aa88df85383fe335894e9adc5f4a34e40464fa6da35b00c986f1fb010",
+        "step": 400
+      },
+      {
+        "checkpoint_sha256": "0ad84131d964e620ade491548f47dfcdc722e568f4082fe465c1ab217b55b640",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step1024",
+        "manifest_sha256": "e81b35de5338cd452bcedb1764dcdd9b0e4c727ba6d8f5783ea859e82b78a598",
+        "parent_checkpoint_sha256": "597578035db2d9bdf2ff024529c3140498a9b8845f570aefa07bf9c1ad3e2b86",
+        "step": 1024
+      },
+      {
+        "checkpoint_sha256": "7d1345d1001c066d69b81c9d81bb650b7225070da7df7122a7bf3715039f3569",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step2048",
+        "manifest_sha256": "372fe798f4a6385df61679b6684ae6aed8603555d0cc549d24490c2425c1bb5b",
+        "parent_checkpoint_sha256": "0ad84131d964e620ade491548f47dfcdc722e568f4082fe465c1ab217b55b640",
+        "step": 2048
+      },
+      {
+        "checkpoint_sha256": "3482304d0901146ca58c22e48f281169042c84c4141f61b9e58f1fcfdaf8f9c9",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step3072",
+        "manifest_sha256": "975b517cddab7f1e91f832ce7a0162e2cf305563d753ef552483e1a2fb99c81a",
+        "parent_checkpoint_sha256": "7d1345d1001c066d69b81c9d81bb650b7225070da7df7122a7bf3715039f3569",
+        "step": 3072
+      },
+      {
+        "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+        "manifest_evidence_id": "dense-lm-v1-seed17-checkpoint-step4096",
+        "manifest_sha256": "781f2a2da6b4c82a7974b69b326c2d66830bc2a385fdffd60e16440bced0c0e3",
+        "parent_checkpoint_sha256": "3482304d0901146ca58c22e48f281169042c84c4141f61b9e58f1fcfdaf8f9c9",
+        "step": 4096
+      }
+    ],
+    "42": [
+      {
+        "checkpoint_sha256": "eccfeec14c6d421845e5c6e020772a878ec6951a2a551f20523f383e72ee129f",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step0",
+        "manifest_sha256": "0c78570ee0cc755496ff1d9595f50f3830cbff529b8dc7afe0095f23d155a3fe",
+        "parent_checkpoint_sha256": null,
+        "step": 0
+      },
+      {
+        "checkpoint_sha256": "a4dff582e5d945f4aa5fc37075ebdd9dcbd0a680ef98000bd17a5d85285aa42e",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step200",
+        "manifest_sha256": "ee33dbbf4ea2d75b36e5da5163a1074719be000702ad066f99ea452606e93882",
+        "parent_checkpoint_sha256": null,
+        "step": 200
+      },
+      {
+        "checkpoint_sha256": "7e911a44d36e44ee0bd7052427943242eacbae945ce3c7f8b7835e2682c7f935",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step400",
+        "manifest_sha256": "822886f40110a6794fc48e6b907d48c211747c1e0fa235f0263190aecc07a093",
+        "parent_checkpoint_sha256": "a4dff582e5d945f4aa5fc37075ebdd9dcbd0a680ef98000bd17a5d85285aa42e",
+        "step": 400
+      },
+      {
+        "checkpoint_sha256": "ecf95b1fca02b03594c7ec3c20a09a54f0d5e0b45fbe93625634ec02a4573e42",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step1024",
+        "manifest_sha256": "3838815794f8bb4c59a9b84269974ef503a067bbff98381e24ea6cc918536ee9",
+        "parent_checkpoint_sha256": "7e911a44d36e44ee0bd7052427943242eacbae945ce3c7f8b7835e2682c7f935",
+        "step": 1024
+      },
+      {
+        "checkpoint_sha256": "7f9441ec8234185bf8df472b6c3ff9995efdd0fbde37c246dba693558b2e6eaa",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step2048",
+        "manifest_sha256": "8f1233849d9b0898fc374158bb8efa041951867ab911ef2b2837faec47042442",
+        "parent_checkpoint_sha256": "ecf95b1fca02b03594c7ec3c20a09a54f0d5e0b45fbe93625634ec02a4573e42",
+        "step": 2048
+      },
+      {
+        "checkpoint_sha256": "49e2cc808b84792e408e6d4bc5c4238a98d08e586c288450890efef284d8f280",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step3072",
+        "manifest_sha256": "2ea1bb86fb3031f93640359c4e194533e799875f82ac0dfbae6f610435e98de8",
+        "parent_checkpoint_sha256": "7f9441ec8234185bf8df472b6c3ff9995efdd0fbde37c246dba693558b2e6eaa",
+        "step": 3072
+      },
+      {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "manifest_evidence_id": "dense-lm-v1-seed42-checkpoint-step4096",
+        "manifest_sha256": "53376abc14382e38b72a3f41efa2cf3aaacbbd1f6e3b67cf91499ad87d5bf816",
+        "parent_checkpoint_sha256": "49e2cc808b84792e408e6d4bc5c4238a98d08e586c288450890efef284d8f280",
+        "step": 4096
+      }
+    ],
+    "73": [
+      {
+        "checkpoint_sha256": "1bdec0d0e5586b50d82dfdeb952df7768aa8b364680ef1305b167b1dfb8db9dd",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step0",
+        "manifest_sha256": "69c94cae10e8f22960aefc32310915a7ecbb9a742e5c6932094422c70572f2d8",
+        "parent_checkpoint_sha256": null,
+        "step": 0
+      },
+      {
+        "checkpoint_sha256": "af2ed18aabb873cf22e8c878b58f3134f6dc3c9a5d816a2c18192d53d5fd771d",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step200",
+        "manifest_sha256": "0f31f1dd351ace9e5e6d860bb0d8e33c5b604770943f9a876a7f9a5967da611f",
+        "parent_checkpoint_sha256": null,
+        "step": 200
+      },
+      {
+        "checkpoint_sha256": "b2c96caac51e4420b835f11a4359b29713a765205c0057bb88707bd64559f89d",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step400",
+        "manifest_sha256": "ca785fb5bc1f53769870bd3fd336026b4f5e28c1bdb3480bfef923d5e3199f22",
+        "parent_checkpoint_sha256": "af2ed18aabb873cf22e8c878b58f3134f6dc3c9a5d816a2c18192d53d5fd771d",
+        "step": 400
+      },
+      {
+        "checkpoint_sha256": "70ed930db74e9d07baf45072f0e9c06674a1a7ed77a50426c98ae5769bbd972e",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step1024",
+        "manifest_sha256": "483898b65580bc65298154751b3020b8c62a2baaa3565556e5c2fad377879b7b",
+        "parent_checkpoint_sha256": "b2c96caac51e4420b835f11a4359b29713a765205c0057bb88707bd64559f89d",
+        "step": 1024
+      },
+      {
+        "checkpoint_sha256": "33e7380ca942b6fee40475fd3d07d0cfe86aecdfbe1ba39118669165880581a1",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step2048",
+        "manifest_sha256": "37a216ccc42507bc729da4dd88611471179f1ec80082025245a719145479c399",
+        "parent_checkpoint_sha256": "70ed930db74e9d07baf45072f0e9c06674a1a7ed77a50426c98ae5769bbd972e",
+        "step": 2048
+      },
+      {
+        "checkpoint_sha256": "51dccdda16a9cf03c1dbf587c5faea069a3dda41162c0fe64a67b8c7bcb62185",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step3072",
+        "manifest_sha256": "829a12b1612ee85fc572de9439028d96c77428564b10416067c6b0c0da1e1255",
+        "parent_checkpoint_sha256": "33e7380ca942b6fee40475fd3d07d0cfe86aecdfbe1ba39118669165880581a1",
+        "step": 3072
+      },
+      {
+        "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+        "manifest_evidence_id": "dense-lm-v1-seed73-checkpoint-step4096",
+        "manifest_sha256": "cd248c47746f928bd11c6e5588e4f46449d292e63e79bd59c06fb7ddb7ab9013",
+        "parent_checkpoint_sha256": "51dccdda16a9cf03c1dbf587c5faea069a3dda41162c0fe64a67b8c7bcb62185",
+        "step": 4096
+      }
+    ]
+  },
+  "checks": {
+    "acquisition": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "budget": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "capability_controls": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "generation": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "lifecycle": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "resources": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "static_report": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    },
+    "validation": {
+      "evidence_ids": [
+        "dense-lm-v1-report",
+        "dense-lm-v1-acceptance"
+      ],
+      "identity": {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+        "run_id": "dense-lm-v1-seed42-step4096",
+        "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+      },
+      "outcome": "passed",
+      "scope": "Identity, evidence completeness, and process integrity only; OOD chat-card outcomes are descriptive and not quality gates.",
+      "seed_identities": [
+        {
+          "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+          "run_id": "dense-lm-v1-seed42-step4096",
+          "seed": 42
+        },
+        {
+          "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+          "run_id": "dense-lm-v1-seed17-step4096",
+          "seed": 17
+        },
+        {
+          "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+          "run_id": "dense-lm-v1-seed73-step4096",
+          "seed": 73
+        }
+      ]
+    }
+  },
+  "classification": "learning_reference",
+  "counters": {
+    "step": 4096,
+    "tokens_seen": 4194304
+  },
+  "dashboard_screenshot": {
+    "interpretation": "A dashboard screenshot/rendering failure does not invalidate scientific evidence; no dashboard screenshot was used to pass this acceptance.",
+    "status": "not_a_science_gate"
+  },
+  "finding_id": "dense-lm-v1-replicated-learning",
+  "format": "sparselab-learning-reference-acceptance",
+  "identity": {
+    "backend": "rocm",
+    "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+    "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+    "data_sha256": {
+      "train": "1e9eb838ee865c5cbb9bc869e3c3dc4d00c1b908f432f9e84dd605d974339a46",
+      "validation": "3dac074c832502f92cf00d516c4fb83b5732b8e651e84b658fa7dfe69f4a56fd"
+    },
+    "run_id": "dense-lm-v1-seed42-step4096",
+    "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650",
+    "tokenizer_sha256": "6bd2b7c7086c85bcac66ba5d17a2f822805fab9f1c6fe7973d8569f4fb22b44e"
+  },
+  "learning_history": {
+    "17": [
+      {
+        "checkpoint_sha256": "b8a28bbdd33cfc728604e99a8f1a20e0c787ca70a349f843d21771fd508edd67",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step0",
+        "step": 0,
+        "tokens_seen": 0,
+        "validation_loss": 9.10938978101876
+      },
+      {
+        "checkpoint_sha256": "1b62238aa88df85383fe335894e9adc5f4a34e40464fa6da35b00c986f1fb010",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step200",
+        "step": 200,
+        "tokens_seen": 204800,
+        "validation_loss": 4.266430964908488
+      },
+      {
+        "checkpoint_sha256": "597578035db2d9bdf2ff024529c3140498a9b8845f570aefa07bf9c1ad3e2b86",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step400",
+        "step": 400,
+        "tokens_seen": 409600,
+        "validation_loss": 3.7023249363012742
+      },
+      {
+        "checkpoint_sha256": "0ad84131d964e620ade491548f47dfcdc722e568f4082fe465c1ab217b55b640",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step1024",
+        "step": 1024,
+        "tokens_seen": 1048576,
+        "validation_loss": 3.107222883668664
+      },
+      {
+        "checkpoint_sha256": "7d1345d1001c066d69b81c9d81bb650b7225070da7df7122a7bf3715039f3569",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step2048",
+        "step": 2048,
+        "tokens_seen": 2097152,
+        "validation_loss": 2.7521448825903367
+      },
+      {
+        "checkpoint_sha256": "3482304d0901146ca58c22e48f281169042c84c4141f61b9e58f1fcfdaf8f9c9",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step3072",
+        "step": 3072,
+        "tokens_seen": 3145728,
+        "validation_loss": 2.5625637002187234
+      },
+      {
+        "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+        "observation_evidence_id": "dense-lm-v1-seed17-observation-step4096",
+        "step": 4096,
+        "tokens_seen": 4194304,
+        "validation_loss": 2.484718531778414
+      }
+    ],
+    "42": [
+      {
+        "checkpoint_sha256": "eccfeec14c6d421845e5c6e020772a878ec6951a2a551f20523f383e72ee129f",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step0",
+        "step": 0,
+        "tokens_seen": 0,
+        "validation_loss": 9.113786604073184
+      },
+      {
+        "checkpoint_sha256": "a4dff582e5d945f4aa5fc37075ebdd9dcbd0a680ef98000bd17a5d85285aa42e",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step200",
+        "step": 200,
+        "tokens_seen": 204800,
+        "validation_loss": 4.195253958207521
+      },
+      {
+        "checkpoint_sha256": "7e911a44d36e44ee0bd7052427943242eacbae945ce3c7f8b7835e2682c7f935",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step400",
+        "step": 400,
+        "tokens_seen": 409600,
+        "validation_loss": 3.653844269754369
+      },
+      {
+        "checkpoint_sha256": "ecf95b1fca02b03594c7ec3c20a09a54f0d5e0b45fbe93625634ec02a4573e42",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step1024",
+        "step": 1024,
+        "tokens_seen": 1048576,
+        "validation_loss": 3.099473740489982
+      },
+      {
+        "checkpoint_sha256": "7f9441ec8234185bf8df472b6c3ff9995efdd0fbde37c246dba693558b2e6eaa",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step2048",
+        "step": 2048,
+        "tokens_seen": 2097152,
+        "validation_loss": 2.751929456707083
+      },
+      {
+        "checkpoint_sha256": "49e2cc808b84792e408e6d4bc5c4238a98d08e586c288450890efef284d8f280",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step3072",
+        "step": 3072,
+        "tokens_seen": 3145728,
+        "validation_loss": 2.568681276474447
+      },
+      {
+        "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+        "observation_evidence_id": "dense-lm-v1-seed42-observation-step4096",
+        "step": 4096,
+        "tokens_seen": 4194304,
+        "validation_loss": 2.4824737093453306
+      }
+    ],
+    "73": [
+      {
+        "checkpoint_sha256": "1bdec0d0e5586b50d82dfdeb952df7768aa8b364680ef1305b167b1dfb8db9dd",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step0",
+        "step": 0,
+        "tokens_seen": 0,
+        "validation_loss": 9.105278881095394
+      },
+      {
+        "checkpoint_sha256": "af2ed18aabb873cf22e8c878b58f3134f6dc3c9a5d816a2c18192d53d5fd771d",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step200",
+        "step": 200,
+        "tokens_seen": 204800,
+        "validation_loss": 4.184870572472739
+      },
+      {
+        "checkpoint_sha256": "b2c96caac51e4420b835f11a4359b29713a765205c0057bb88707bd64559f89d",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step400",
+        "step": 400,
+        "tokens_seen": 409600,
+        "validation_loss": 3.6209070500562337
+      },
+      {
+        "checkpoint_sha256": "70ed930db74e9d07baf45072f0e9c06674a1a7ed77a50426c98ae5769bbd972e",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step1024",
+        "step": 1024,
+        "tokens_seen": 1048576,
+        "validation_loss": 3.095392607896062
+      },
+      {
+        "checkpoint_sha256": "33e7380ca942b6fee40475fd3d07d0cfe86aecdfbe1ba39118669165880581a1",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step2048",
+        "step": 2048,
+        "tokens_seen": 2097152,
+        "validation_loss": 2.7419624963151965
+      },
+      {
+        "checkpoint_sha256": "51dccdda16a9cf03c1dbf587c5faea069a3dda41162c0fe64a67b8c7bcb62185",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step3072",
+        "step": 3072,
+        "tokens_seen": 3145728,
+        "validation_loss": 2.554596596734631
+      },
+      {
+        "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+        "observation_evidence_id": "dense-lm-v1-seed73-observation-step4096",
+        "step": 4096,
+        "tokens_seen": 4194304,
+        "validation_loss": 2.470433681211826
+      }
+    ]
+  },
+  "required_evidence": {
+    "capability": [
+      "dense-lm-v1-seed42-observation-step4096",
+      "dense-lm-v1-seed17-observation-step4096",
+      "dense-lm-v1-seed73-observation-step4096",
+      "dense-lm-v1-report",
+      "dense-lm-v1-acceptance"
+    ],
+    "checkpoint": [
+      "dense-lm-v1-seed42-checkpoint-step0",
+      "dense-lm-v1-seed42-checkpoint-step200",
+      "dense-lm-v1-seed42-checkpoint-step400",
+      "dense-lm-v1-seed42-checkpoint-step1024",
+      "dense-lm-v1-seed42-checkpoint-step2048",
+      "dense-lm-v1-seed42-checkpoint-step3072",
+      "dense-lm-v1-seed42-checkpoint-step4096",
+      "dense-lm-v1-seed17-checkpoint-step0",
+      "dense-lm-v1-seed17-checkpoint-step200",
+      "dense-lm-v1-seed17-checkpoint-step400",
+      "dense-lm-v1-seed17-checkpoint-step1024",
+      "dense-lm-v1-seed17-checkpoint-step2048",
+      "dense-lm-v1-seed17-checkpoint-step3072",
+      "dense-lm-v1-seed17-checkpoint-step4096",
+      "dense-lm-v1-seed73-checkpoint-step0",
+      "dense-lm-v1-seed73-checkpoint-step200",
+      "dense-lm-v1-seed73-checkpoint-step400",
+      "dense-lm-v1-seed73-checkpoint-step1024",
+      "dense-lm-v1-seed73-checkpoint-step2048",
+      "dense-lm-v1-seed73-checkpoint-step3072",
+      "dense-lm-v1-seed73-checkpoint-step4096",
+      "dense-lm-v1-acceptance"
+    ],
+    "generation": [
+      "dense-lm-v1-seed42-generation",
+      "dense-lm-v1-seed17-generation",
+      "dense-lm-v1-seed73-generation",
+      "dense-lm-v1-acceptance"
+    ],
+    "preparation": [
+      "dense-lm-v1-config",
+      "dense-lm-v1-tokenizer-config",
+      "dense-lm-v1-study",
+      "dense-lm-v1-matrix",
+      "dense-lm-v1-catalog-entry",
+      "dense-lm-v1-seed42-stage-evidence",
+      "dense-lm-v1-seed42-progress",
+      "dense-lm-v1-seed17-stage-evidence",
+      "dense-lm-v1-seed17-progress",
+      "dense-lm-v1-seed73-stage-evidence",
+      "dense-lm-v1-seed73-progress",
+      "dense-lm-v1-acceptance"
+    ],
+    "resources": [
+      "dense-lm-v1-seed42-runtime-telemetry",
+      "dense-lm-v1-seed17-runtime-telemetry",
+      "dense-lm-v1-seed73-runtime-telemetry",
+      "dense-lm-v1-acceptance"
+    ],
+    "static_report": [
+      "dense-lm-v1-report",
+      "dense-lm-v1-acceptance"
+    ],
+    "training": [
+      "dense-lm-v1-seed42-run-manifest",
+      "dense-lm-v1-seed17-run-manifest",
+      "dense-lm-v1-seed73-run-manifest",
+      "dense-lm-v1-acceptance"
+    ],
+    "validation": [
+      "dense-lm-v1-seed42-observation-step0",
+      "dense-lm-v1-seed42-observation-step4096",
+      "dense-lm-v1-seed17-observation-step0",
+      "dense-lm-v1-seed17-observation-step4096",
+      "dense-lm-v1-seed73-observation-step0",
+      "dense-lm-v1-seed73-observation-step4096",
+      "dense-lm-v1-report",
+      "dense-lm-v1-acceptance"
+    ]
+  },
+  "resume_proof": {
+    "required": "full-state resume; verify step, tokens_seen, optimizer/scheduler/scaler/RNG/data cursor, then continue to frozen budget",
+    "resume_at_step": 2048,
+    "seed": 42
+  },
+  "seed_runs": [
+    {
+      "backend": "rocm",
+      "checkpoint_sha256": "b6e77e30cc78731a74dd713471106c4b10afca2901da501b95d30e45c1b1b524",
+      "config_sha256": "123330408f4f88d8d814dd83cfa334cbf12540031fb83c13de8dd31df5f937fe",
+      "data_sha256": {
+        "train": "1e9eb838ee865c5cbb9bc869e3c3dc4d00c1b908f432f9e84dd605d974339a46",
+        "validation": "3dac074c832502f92cf00d516c4fb83b5732b8e651e84b658fa7dfe69f4a56fd"
+      },
+      "run_id": "dense-lm-v1-seed42-step4096",
+      "seed": 42,
+      "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650",
+      "step": 4096,
+      "terminal_validation_loss": 2.4824737093453306,
+      "tokenizer_sha256": "6bd2b7c7086c85bcac66ba5d17a2f822805fab9f1c6fe7973d8569f4fb22b44e",
+      "tokens_seen": 4194304
+    },
+    {
+      "backend": "rocm",
+      "checkpoint_sha256": "2f50048fb000ad9df616fa2cd82c0337da328d057b2fd867dd893e9ed681146c",
+      "config_sha256": "77ba22806ffc42ed0f224e26729e48bf90070e742eeede8919a5068dbb6f1143",
+      "data_sha256": {
+        "train": "1e9eb838ee865c5cbb9bc869e3c3dc4d00c1b908f432f9e84dd605d974339a46",
+        "validation": "3dac074c832502f92cf00d516c4fb83b5732b8e651e84b658fa7dfe69f4a56fd"
+      },
+      "run_id": "dense-lm-v1-seed17-step4096",
+      "seed": 17,
+      "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650",
+      "step": 4096,
+      "terminal_validation_loss": 2.484718531778414,
+      "tokenizer_sha256": "6bd2b7c7086c85bcac66ba5d17a2f822805fab9f1c6fe7973d8569f4fb22b44e",
+      "tokens_seen": 4194304
+    },
+    {
+      "backend": "rocm",
+      "checkpoint_sha256": "55bfbca54566d39fac7020d7cc6cdb46159ec207887740345fa25693cf63c26b",
+      "config_sha256": "ef67cd252b1b92c8888b379126647ce27373e8d35f84060aa2ccafdb59bdb627",
+      "data_sha256": {
+        "train": "1e9eb838ee865c5cbb9bc869e3c3dc4d00c1b908f432f9e84dd605d974339a46",
+        "validation": "3dac074c832502f92cf00d516c4fb83b5732b8e651e84b658fa7dfe69f4a56fd"
+      },
+      "run_id": "dense-lm-v1-seed73-step4096",
+      "seed": 73,
+      "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650",
+      "step": 4096,
+      "terminal_validation_loss": 2.470433681211826,
+      "tokenizer_sha256": "6bd2b7c7086c85bcac66ba5d17a2f822805fab9f1c6fe7973d8569f4fb22b44e",
+      "tokens_seen": 4194304
+    }
+  ],
+  "source_revision": {
+    "git_commit": null,
+    "git_dirty": null,
+    "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650"
+  },
+  "version": 1
+}

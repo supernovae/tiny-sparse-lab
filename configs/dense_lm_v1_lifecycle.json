@@ -1,7 +1,8 @@
 {
   "format": "sparselab_dense_lm_v1_lifecycle_contract",
-  "status": "three_seeds_passed_frozen_gates_formal_promotion_pending",
+  "status": "three_seeds_passed_frozen_gates_canonical_promotion_recorded",
   "candidate": "dense-lm-v1",
+  "authority_note": "Archival provenance only; canonical baseline status, acceptance, and promotion are defined by the sparselab-research-lifecycle registry and linked evidence.",
   "inputs": {
     "source_identity_sha256": "927dca9db1746ce2909013763980c7403b0b165ac59ef559a1f78b0eac4d6650",
     "configs": {
@@ -67,7 +68,7 @@
     "backend": "rocm",
     "precision": "fp32",
     "precision_selection": "FP32 remains frozen. Fresh source-identity-bound explicit ROCm FP32 pilots and BF16 warmup probe passed. Select the 29,893,120-parameter 25M candidate: measured 14,191.57 targets/s over 24 post-warmup updates versus 9,126.81 for 50M, with 1,134,559,232-byte peak reserved versus 1,530,920,960 bytes; neither required activation checkpointing or offload.",
-    "execution_status": "three_seeds_passed_frozen_gates_formal_promotion_pending",
+    "execution_status": "three_seeds_passed_frozen_gates",
     "model_selection": {
       "selected_config": "configs/dense_lm_v1.yaml",
       "selected_parameter_count": 29893120,

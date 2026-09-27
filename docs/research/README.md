@@ -33,12 +33,18 @@ declared next tests, and reviewed baseline promotions without changing catalog,
 study, run, or report artifacts. Start with the [known-good baseline
 guide](known-good-baselines.md) for the exact dense reference commands, gates,
 capture requirements, branch workflow, and the distinction between archival
-report verification and locally runnable checkpoint files. Use `sparselab
-research status --json`, `research next --json`, and `research validate --json`
-to inspect declarations and evidence availability; none runs experiments or
-decides promotion.
+report verification and locally runnable checkpoint files.
+Use `sparselab research status --json`, `research next --json`, and
+`research validate --json` to inspect declarations and global evidence
+availability. `research validate --baseline dense-lm-v1` reports
+candidate-specific validity while retaining global registry diagnostics; none of
+these commands runs experiments or decides promotion.
 
-The [dense-lm-v1 candidate lifecycle](dense-lm-v1.md) records an identity-frozen ROCm TinyStories reference, verified preprocessing repair, staged acceptance gates, and the current user-directed training pause. It is not yet trained or promoted.
+The [dense-lm-v1 lifecycle record](dense-lm-v1.md) documents a promoted bounded
+three-seed learning reference. All frozen terminal gates passed; OOD capability
+cards remain descriptive, not evidence of chat quality. The canonical lifecycle
+and report bundle bind the retained evidence; unrelated historical Engram errors
+remain visible in global validation.
 
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.

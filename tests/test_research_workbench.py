@@ -73,6 +73,7 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
     lessons = list_lessons()
 
     assert {entry.id for entry in entries} == {
+        "dense-lm-v1",
         "engram-ffn-substitution-v1",
         "engram-mla-compression-v1",
         "engram-moe-capacity-v1",
@@ -84,6 +85,11 @@ def test_packaged_catalog_profiles_and_strict_versions() -> None:
         "memory-allocation-curve-v1",
     }
     assert load_research("learned-engram-portability-v1").recipe is None
+    learning_reference = load_research("dense-lm-v1")
+    assert learning_reference.classification == "learning_reference"
+    assert learning_reference.recipe is None
+    assert learning_reference.evaluation_policy.primary_thresholds == []
+    assert not learning_reference.evaluation_policy.milestones_supported
     assert len(lessons) == 11
     profiles = load_profiles().scales
     assert set(profiles) == {"smoke", "nano", "micro", "tiny"}
