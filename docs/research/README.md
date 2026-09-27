@@ -57,6 +57,18 @@ the [preregistration](../../experiments/research/dense-lm-token-budget-v1/prereg
 and [acceptance observations](../../artifacts/acceptance/dense_lm_token_budget_v1.json)
 bind the controls and raw outcomes. No extended checkpoint was promoted.
 
+The completed [dense-lm-scale-v1 study](../../experiments/research/dense-lm-scale-v1/results.md)
+compares a 50.27M-parameter fully dense model against the mature 29.89M-parameter
+reference at the same 16.78M supervised targets on three ROCm seeds. The larger
+model reduced held-out loss at every shared post-initial validation point, but
+fixed-panel story continuity and repetition changed in both directions, at greater
+runtime and memory cost. Its [frozen protocol](../../experiments/research/dense-lm-scale-v1/protocol.md),
+[input registration](../../experiments/research/dense-lm-scale-v1/preregistration.md)
+and [per-seed evidence](../../experiments/research/dense-lm-scale-v1/evidence.json)
+remain distinct from the token-budget Finding and promoted `dense-lm-v1` baseline.
+No checkpoint was automatically promoted; generation/degeneration controls are a
+separate [proposal](roadmap.md#dense-lm-v1-descendants).
+
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
 

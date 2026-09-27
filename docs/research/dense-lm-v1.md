@@ -107,17 +107,18 @@ changing workspace organization does not rerun or revise that protocol.
 
 For a future authorized replicated study, all coordinates belong to one workspace.
 The following illustrates normal study submission and collection, not a command
-to rerun this promoted reference or reproduce its manual milestone controls:
+to rerun this promoted reference or reproduce its manual milestone controls. On a
+vendor-provisioned ROCm checkout, always use `--no-sync` to avoid replacing PyTorch.
 
 ```sh
 WORK=sparselab-work/experiments/dense-lm-v1
 export SPARSELAB_WORK_DIR="$WORK"
 mkdir -p "$WORK"
-uv run --locked sparselab study plan configs/references/dense-lm-v1/study.yaml
-uv run --locked sparselab worker register reference-rocm --backend rocm --store "$WORK/runs"
-uv run --locked sparselab study submit configs/references/dense-lm-v1/study.yaml \
+uv run --locked --no-sync sparselab study plan configs/references/dense-lm-v1/study.yaml
+uv run --locked --no-sync sparselab worker register reference-rocm --backend rocm --store "$WORK/runs"
+uv run --locked --no-sync sparselab study submit configs/references/dense-lm-v1/study.yaml \
   --worker reference-rocm --store "$WORK/runs" --receipt "$WORK/receipt.json"
-uv run --locked sparselab controller run --store "$WORK/runs"
+uv run --locked --no-sync sparselab controller run --store "$WORK/runs"
 ```
 
 Inspect effective configurations, exact frozen input identities, disk headroom,
@@ -127,7 +128,7 @@ record old paths. Resolve IDs from the one receipt and immutable run metadata.
 Only collect after terminal ingestion; use the same store:
 
 ```sh
-uv run --locked sparselab study collect configs/references/dense-lm-v1/study.yaml \
+uv run --locked --no-sync sparselab study collect configs/references/dense-lm-v1/study.yaml \
   "$WORK/receipt.json" --runs-dir "$WORK/runs" --backend rocm
 ```
 
@@ -142,7 +143,7 @@ For an exact selected checkpoint, put new local observations under the experimen
 root. Set `RUN_ID`, `STEP_GENERATION`, and `STEP` from verified run metadata:
 
 ```sh
-uv run --locked sparselab model exercise "$RUN_ID" \
+uv run --locked --no-sync sparselab model exercise "$RUN_ID" \
   --checkpoint "$WORK/runs/$RUN_ID/checkpoints/$STEP_GENERATION" \
   --runs-dir "$WORK/runs" --backend rocm \
   --prompt-panel data/dense_lm_v1_prompts.json \
