@@ -1605,6 +1605,7 @@ def _html(report: dict[str, object], charts: dict[str, str]) -> str:
             f"<section><h2>{html.escape(heading)}</h2>"
             f"<pre>{html.escape(content)}</pre></section>"
         )
+
     reference_sections = "".join(
         block(heading, reference.get(key, {}))
         for key, heading in (

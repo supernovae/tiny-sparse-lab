@@ -222,9 +222,7 @@ def test_explicit_decay_schedule_matches_legacy_through_horizon() -> None:
         actual = learning_rate_for_step(
             step, maximum, warmup, peak, floor, decay_steps=decay
         )
-        expected = learning_rate_for_step(
-            min(step, decay), decay, warmup, peak, floor
-        )
+        expected = learning_rate_for_step(min(step, decay), decay, warmup, peak, floor)
         assert actual == expected
         if step >= decay:
             assert actual == floor

@@ -327,12 +327,30 @@ mkdir -p "$WORK"
 export SPARSELAB_WORK_DIR="$WORK"
 ```
 
-## First: inspect one mechanism without a campaign
+## Path map
+
+| Path | Purpose |
+|---|---|
+| `base.yaml`, `matrix.yaml`, `study.yaml`, `configs/` | Versioned study definition and resolved configurations |
+| `tokenizer.yaml`, `research.json`, `research_sources/` | Input and recipe identities |
+| `$WORK/staging/` | Disposable capability pilots |
+| `$WORK/runs/`, `$WORK/receipt.json` | Mutable runs, checkpoints, and submission receipt |
+| `$WORK/local-reports/` | Local collected reports before deliberate publication |
+
+## First: exercise one mechanism without a campaign
 
 ```sh
+uv run --locked sparselab tokenizer train tokenizer.yaml
+uv run --locked sparselab data prepare configs/{first["config_sha256"]}.yaml
 uv run --locked sparselab inspect configs/{first["config_sha256"]}.yaml --json
+uv run --locked sparselab workspace preflight configs/{first["config_sha256"]}.yaml
+uv run --locked sparselab stage configs/{first["config_sha256"]}.yaml --through smoke --output "$WORK/staging/one-arm"
 uv run --locked sparselab learn probe configs/{first["config_sha256"]}.yaml --prompt \"A learner asks a short question.\"
 uv run --locked sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
+uv run --locked sparselab checkpoint verify "$WORK/runs/one-arm/checkpoints/latest.json" --json
+uv run --locked sparselab eval one-arm --runs-dir "$WORK/runs"
+uv run --locked sparselab generate one-arm --runs-dir "$WORK/runs" --prompt \"A learner asks\" --max-new-tokens 8
+uv run --locked sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm-resumed --runs-dir "$WORK/runs" --resume "$WORK/runs/one-arm/checkpoints/latest.json" --stop-after-step 3
 ```
 
 ## Fixed data, scale, and runtime
@@ -444,6 +462,13 @@ def scaffold_research(
         raise ValueError("recipe axes must exclude seed; scaffold owns matched seeds")
 
     destination, temporary = _destination(output)
+    workspace_name = (
+        destination.name
+        if destination.parent.name in {"samples", "research"}
+        and destination.parent.parent.name == "experiments"
+        else entry.id
+    )
+    workspace = study_workspace(workspace_name)
     try:
         base = _load_base()
         base = _apply_overlay(base, _scale_patch(scale, data, backend))
@@ -452,7 +477,7 @@ def scaffold_research(
             base,
             {
                 "logging.root_dir": Path(
-                    os.path.relpath(study_workspace(entry.id) / "runs", temporary)
+                    os.path.relpath(workspace / "runs", temporary)
                 ).as_posix()
             },
         )
@@ -541,9 +566,7 @@ def scaffold_research(
             len(planned.expanded),
             len(planned.pairs),
             len(scale_recipe.factorial_designs),
-            Path(
-                os.path.relpath(study_workspace(entry.id), destination.resolve())
-            ).as_posix(),
+            Path(os.path.relpath(workspace, destination.resolve())).as_posix(),
         )
         _write(temporary / "README.md", readme)
         source_inputs = {
@@ -1008,6 +1031,8 @@ uv run --locked sparselab engram pack verify artifacts/tutorial-pack
 
 **Selection:** `{scale}` / `{data}` / `{backend}`. This standalone path can be used without a campaign or worker.
 
+`model.yaml`, `tokenizer.yaml`, and `lesson.json` are the versioned source. `$WORK/staging/` holds disposable pilots and `$WORK/runs/` holds mutable runs and checkpoints.
+
 ## Predict, inspect, probe, change one knob
 
 Before running the probe, predict the output shape and diagnostic values from the shape walkthrough in `lesson.json`. Then inspect the concrete recipe and compare the observed forward. Change exactly one config knob and explain any mismatch.
@@ -1019,8 +1044,12 @@ export SPARSELAB_WORK_DIR="$WORK"
 uv run --locked sparselab tokenizer train tokenizer.yaml
 uv run --locked sparselab data prepare model.yaml
 uv run --locked sparselab inspect model.yaml --json
+uv run --locked sparselab workspace preflight model.yaml
+uv run --locked sparselab stage model.yaml --through smoke --output "$WORK/staging/lesson-{lesson.id}"
 uv run --locked sparselab learn probe model.yaml --prompt \"A short input asks about an object.\" --json
 uv run --locked sparselab train model.yaml --run-id lesson-{lesson.id} --runs-dir "$WORK/runs" --stop-after-step 2
+uv run --locked sparselab checkpoint verify "$WORK/runs/lesson-{lesson.id}/checkpoints/latest.json" --json
+uv run --locked sparselab eval lesson-{lesson.id} --runs-dir "$WORK/runs"
 ```
 
 Tokenizer fitting and dataset preparation are explicit; remote datasets may use the network or Hugging Face cache only at those commands. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.
@@ -1085,6 +1114,13 @@ def scaffold_lesson(
         package = None
 
     destination, temporary = _destination(output)
+    workspace_name = (
+        destination.name
+        if destination.parent.name in {"samples", "research"}
+        and destination.parent.parent.name == "experiments"
+        else f"lesson-{identifier}"
+    )
+    workspace = study_workspace(workspace_name)
     try:
         lesson_payload: dict[str, object] = {
             "format": "sparselab-lesson-scaffold",
@@ -1146,9 +1182,7 @@ def scaffold_lesson(
                 base,
                 {
                     "logging.root_dir": Path(
-                        os.path.relpath(
-                            study_workspace(f"lesson-{identifier}") / "runs", temporary
-                        )
+                        os.path.relpath(workspace / "runs", temporary)
                     ).as_posix()
                 },
             )
@@ -1206,7 +1240,7 @@ def scaffold_lesson(
                     artifact=False,
                     workspace=Path(
                         os.path.relpath(
-                            study_workspace(f"lesson-{identifier}"),
+                            workspace,
                             destination.resolve(),
                         )
                     ).as_posix(),

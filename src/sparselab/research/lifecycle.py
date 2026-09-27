@@ -186,6 +186,7 @@ class Baseline(StrictModel):
     reproduction: StrictStr
     promoted_from: StrictStr | None = None
     supersedes: StrictStr | None = None
+
     @model_validator(mode="after")
     def baseline_constraints(self) -> Baseline:
         _valid_id(self.id, "baseline id")
@@ -1834,8 +1835,7 @@ def _validate_learning_reference_capture(
         return
     if (
         not isinstance(inputs, dict)
-        or inputs.get("verification_scope")
-        != "report_plus_local_checkpoint_validation"
+        or inputs.get("verification_scope") != "report_plus_local_checkpoint_validation"
     ):
         diagnostics.append(
             _diagnostic(
@@ -1856,13 +1856,13 @@ def _validate_learning_reference_capture(
             )
         )
         return
-    configuration_path = availability.get("__baseline_configuration__", {}).get(
-        "path"
-    )
+    configuration_path = availability.get("__baseline_configuration__", {}).get("path")
     study_path = availability.get("__baseline_integration_study__", {}).get("path")
     try:
         if not isinstance(configuration_path, str) or not isinstance(study_path, str):
-            raise TypeError("baseline configuration or integration study is unavailable")
+            raise TypeError(
+                "baseline configuration or integration study is unavailable"
+            )
         configuration = load_config(Path(configuration_path))
         base_config = configuration.model_dump(mode="json")
         study = plan_study(Path(study_path))
@@ -1902,7 +1902,9 @@ def _validate_learning_reference_capture(
         identity = run.get("identity")
         endpoint = run.get("endpoint_status")
         config_identity = identity.get("config") if isinstance(identity, dict) else None
-        seed = config_identity.get("seed") if isinstance(config_identity, dict) else None
+        seed = (
+            config_identity.get("seed") if isinstance(config_identity, dict) else None
+        )
         if (
             not isinstance(run_id, str)
             or not isinstance(identity, dict)
@@ -2042,9 +2044,9 @@ def _validate_learning_reference_capture(
                     run_id,
                 )
             )
-        if (
-            not isinstance(data, dict)
-            or any(not _SHA256.fullmatch(str(data.get(key, ""))) for key in ("train", "validation"))
+        if not isinstance(data, dict) or any(
+            not _SHA256.fullmatch(str(data.get(key, "")))
+            for key in ("train", "validation")
         ):
             diagnostics.append(
                 _diagnostic(
@@ -2194,11 +2196,7 @@ def _validate_learning_reference_manifests(
             )
             continue
         run_id = manifest.get("run_id")
-        matches = [
-            run
-            for run in runs_by_seed.values()
-            if run.get("run_id") == run_id
-        ]
+        matches = [run for run in runs_by_seed.values() if run.get("run_id") == run_id]
         if len(matches) != 1:
             diagnostics.append(
                 _diagnostic(
@@ -2308,8 +2306,12 @@ def _validate_learning_reference_acceptance(
     if not isinstance(primary, dict):
         return
     primary_run = runs_by_seed.get(primary_seed)
-    run_identity = primary_run.get("identity") if isinstance(primary_run, dict) else None
-    endpoint = primary_run.get("endpoint_status") if isinstance(primary_run, dict) else None
+    run_identity = (
+        primary_run.get("identity") if isinstance(primary_run, dict) else None
+    )
+    endpoint = (
+        primary_run.get("endpoint_status") if isinstance(primary_run, dict) else None
+    )
     runtime = run_identity.get("runtime") if isinstance(run_identity, dict) else None
     primary_identity = acceptance.get("identity")
     expected_identity = {
@@ -2328,8 +2330,7 @@ def _validate_learning_reference_acceptance(
         "backend": runtime.get("backend") if isinstance(runtime, dict) else None,
     }
     if not isinstance(primary_identity, dict) or any(
-        primary_identity.get(key) != value
-        for key, value in expected_identity.items()
+        primary_identity.get(key) != value for key, value in expected_identity.items()
     ):
         diagnostics.append(
             _diagnostic(
@@ -2354,9 +2355,8 @@ def _validate_learning_reference_acceptance(
                 baseline.id,
             )
         )
-    if (
-        acceptance.get("source_revision")
-        != baseline.source_revision.model_dump(mode="json")
+    if acceptance.get("source_revision") != baseline.source_revision.model_dump(
+        mode="json"
     ):
         diagnostics.append(
             _diagnostic(
@@ -2422,9 +2422,7 @@ def _validate_learning_reference_acceptance(
             continue
         if payload.get("format") == "sparselab-generation-capture":
             generation_captures[run_id] = payload
-    expected_run_ids = {
-        str(run.get("run_id")) for run in runs_by_seed.values()
-    }
+    expected_run_ids = {str(run.get("run_id")) for run in runs_by_seed.values()}
     if set(generation_captures) != expected_run_ids:
         diagnostics.append(
             _diagnostic(
@@ -3547,6 +3545,8 @@ def validate_lifecycle(
         "diagnostics": _sort_diagnostics(diagnostics),
         "availability": public_availability,
     }
+
+
 def _baseline_scoped_diagnostics(
     registry: LifecycleRegistry,
     baseline_id: str,
@@ -3559,13 +3559,9 @@ def _baseline_scoped_diagnostics(
         raise ValueError(f"unknown baseline: {baseline_id}")
     entries = [item for item in registry.entries if item.baseline_id == baseline_id]
     entry_ids = {item.entry for item in entries}
-    finding_ids = {
-        finding_id for item in entries for finding_id in item.finding_ids
-    }
+    finding_ids = {finding_id for item in entries for finding_id in item.finding_ids}
     finding_ids.update(
-        finding.id
-        for finding in registry.findings
-        if finding.entry in entry_ids
+        finding.id for finding in registry.findings if finding.entry in entry_ids
     )
     promotions = [
         item
@@ -3581,7 +3577,9 @@ def _baseline_scoped_diagnostics(
         for evidence_id in references
     }
     evidence_ids.update(
-        evidence_id for finding in registry.findings if finding.id in finding_ids
+        evidence_id
+        for finding in registry.findings
+        if finding.id in finding_ids
         for evidence_id in finding.evidence_ids
     )
     evidence_ids.update(
@@ -3591,7 +3589,11 @@ def _baseline_scoped_diagnostics(
             promotion.evidence_ids
             + promotion.integration_evidence_ids
             + promotion.resource_tradeoff.evidence_ids
-            + [reference for row in promotion.regressions for reference in row.evidence_ids]
+            + [
+                reference
+                for row in promotion.regressions
+                for reference in row.evidence_ids
+            ]
         )
     )
     scope = {
@@ -3639,8 +3641,6 @@ def validate_baseline(
         },
         "availability": global_result["availability"],
     }
-
-
 
 
 def _sort_diagnostics(diagnostics: list[dict[str, object]]) -> list[dict[str, object]]:

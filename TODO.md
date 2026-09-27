@@ -19,23 +19,12 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Throughput and resource proposals
 
-- [ ] Extend disposable staging to benchmark safe microbatch/accumulation
-  candidates that preserve the declared effective batch, rank candidates by
-  measured target throughput and headroom, and write a separate proposal rather
-  than mutating the requested config.
-- [ ] Record why a candidate was selected or rejected, including OOM, unsupported
-  precision, excessive memory pressure, unstable timing, and insufficient
-  observations. Initialization/transient steps must not dominate the result.
 - [ ] Add optional bottleneck observations that distinguish accelerator-bound,
   input/host-bound, memory-pressure, and unknown cases. Low CPU or less than
   100% device utilization is diagnostic evidence, not itself a failure.
 
 ## Workspace reliability
 
-- [ ] Add a named-workspace preflight that reports filesystem capacity and inode
-  headroom before long preparation or training operations, includes projected
-  checkpoint/cache growth where available, and fails before partial publication
-  when the configured work area is clearly insufficient.
 - [ ] Ensure every remaining temporary-file path honors `--work-dir` or
   `SPARSELAB_WORK_DIR`; add regression coverage for subprocesses and external
   tool fallbacks. Long-running workflows must not depend on the platform's
@@ -46,13 +35,6 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Experiment ergonomics
 
-- [ ] Make a scaffold capable of targeting the documented
-  `experiments/samples/<name>` or `experiments/research/<campaign>` layouts while
-  placing mutable assets under a named `sparselab-work/experiments/<campaign>`
-  root.
-- [ ] Emit a copyable command transcript and source/output path map in scaffolded
-  experiment README files so another user can reproduce the plan without
-  inheriting local absolute paths.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.
@@ -61,3 +43,16 @@ close a code item unless the named software acceptance criteria also pass.
 
 - [ ] Implement native CUDA sparse attention, then add hardware-gated correctness
   and component benchmarks. CPU or another accelerator cannot close this item.
+- [ ] Keep single-device execution interfaces compatible with a future explicit
+  distributed training design. Define optimizer ownership, data partitioning,
+  checkpoint identity, and MoE expert placement before adding multi-device
+  backward or sharding; independent workers are not a substitute.
+
+## Spot-instance recovery
+
+- [ ] Add a separately configured spot-safety policy using observed checkpoint
+  write time, expected interruption notice, workspace capacity, and measured
+  restart cost. Keep the scientific config fixed and record the chosen cadence.
+- [ ] Validate abrupt worker loss, verified-generation selection, explicit child
+  resume, remote artifact transfer, and storage retention on a real spot-like
+  executor before claiming cost or recovery benefits.

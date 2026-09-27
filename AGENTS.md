@@ -100,6 +100,18 @@ from an agent's confidence or a passing smoke test.
 - Let the client and user choose models, reasoning effort, and concurrency.
 - Keep commits narrow and descriptive. Do not push, rewrite history, or delete
   remote branches unless the user explicitly asks.
+- Before a long remote or accelerator run, finish the lab code change, run its
+  focused tests and local readiness smoke, commit it, and push the tested branch
+  when the task authorizes publishing it. Record the commit, dirty-tree status,
+  installed package/source identity, and effective config with the run. Launch
+  from that fixed checkout; use another checkout for later lab development.
+- A runner using an already tested code revision can perform the focused
+  `sparselab readiness smoke` and config-specific `inspect`/`stage` gates at a
+  new session boundary. Repeat broad tests when code changes or a required gate
+  calls for them, rather than spending accelerator time on unrelated suites.
+- Keep periodic, best, latest, and immediately previous verified checkpoints
+  according to the declared config. Verify a finalized generation before a
+  child resume, and never edit or prune an active run's files.
 
 ## Verification
 

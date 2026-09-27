@@ -199,6 +199,25 @@ def test_research_scaffold_binds_configs_without_preparing_or_overwriting(
     assert marker.read_text(encoding="utf-8") == "user data"
 
 
+def test_canonical_research_scaffold_uses_campaign_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = tmp_path / "sparselab-work"
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(work))
+    output = scaffold_research(
+        "engram-ffn-substitution-v1",
+        tmp_path / "experiments/research/new-campaign",
+        scale="smoke",
+        data="offline",
+    )
+    config = load_config(output / "base.yaml")
+    assert config.logging.root_dir == work / "experiments/new-campaign/runs"
+    readme = (output / "README.md").read_text(encoding="utf-8")
+    assert "sparselab-work/experiments/new-campaign" in readme
+    assert "checkpoint verify" in readme
+    assert "| `$WORK/runs/`, `$WORK/receipt.json` |" in readme
+
+
 def test_fineweb_edu_scaffold_is_pinned_and_does_not_prepare_data(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
