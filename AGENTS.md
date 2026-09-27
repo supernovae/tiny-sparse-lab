@@ -6,14 +6,14 @@ from an agent's confidence or a passing smoke test.
 
 ## Start safely
 
-1. Read `README.md`, `TODO.md`, and the documentation nearest the code you will
-   change. For research work, also read `docs/research/README.md` and the relevant
-   protocol or lifecycle record.
-2. Inspect `git status` and recent commits. Preserve user changes and active run
-   directories. Do not edit configs, code, checkpoints, or manifests underneath
-   an experiment that is currently running.
-3. State whether the task is a code change, sample experiment, research
-   experiment, or evidence review. Do not quietly turn one category into another.
+1. Before substantial changes, read the relevant project guidance and nearby
+   documentation. Use `README.md` for project boundaries, `TODO.md` for code
+   work, and `docs/research/` for scientific work. Read only what the task needs.
+2. Inspect `git status` and relevant history before editing. Preserve user
+   changes and active run directories. Do not edit configs, code, checkpoints,
+   or manifests underneath an experiment that is currently running.
+3. For substantial work, identify whether it changes code, a sample experiment,
+   a research experiment, or evidence. Do not quietly turn one into another.
 
 ## Workspaces and storage
 
@@ -72,13 +72,15 @@ from an agent's confidence or a passing smoke test.
 
 ## Collaboration
 
-- Split work by owned files or read-only investigations. Use one writer per file
-  at a time, communicate shared assumptions, and review the integrated diff.
-- Give helper agents exact paths, invariants, and expected outputs. Ask them to
-  return evidence and uncertainties, not just conclusions.
-- Do not let parallel agents launch overlapping accelerator jobs on the same
-  physical device unless the experiment explicitly studies concurrency and the
-  worker lease path is in use.
+- Keep small, local tasks with one agent. For substantial independent work, use
+  parallel helpers when the benefit justifies their context and coordination cost.
+- Give helpers narrow objectives and relevant paths and invariants. Ask for
+  concise findings with evidence, changed paths, tests, and uncertainties.
+- Split writable work by owned files or components; use one writer per file and
+  review the integrated diff. Do not launch overlapping accelerator jobs on the
+  same physical device unless the experiment studies concurrency and the worker
+  lease path is in use.
+- Let the client and user choose models, reasoning effort, and concurrency.
 - Keep commits narrow and descriptive. Do not push, rewrite history, or delete
   remote branches unless the user explicitly asks.
 
