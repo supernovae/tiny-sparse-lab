@@ -100,7 +100,8 @@ def test_chat_finds_project_run_from_source_subdirectory(
     source = tmp_path / "src"
     source.mkdir()
     shutil.copytree(
-        trained_run.logging.root_dir / "original", tmp_path / "runs/original"
+        trained_run.logging.root_dir / "original",
+        tmp_path / "sparselab-work/runs/original",
     )
 
     from_root = _chat_cli(monkeypatch, capsys, tmp_path)
@@ -134,12 +135,13 @@ def test_chat_outside_a_project_uses_local_runs(
     trained_run, tmp_path, monkeypatch, capsys
 ):
     shutil.copytree(
-        trained_run.logging.root_dir / "original", tmp_path / "runs/original"
+        trained_run.logging.root_dir / "original",
+        tmp_path / "sparselab-work/runs/original",
     )
 
     response = _chat_cli(monkeypatch, capsys, tmp_path)
     pointer = json.loads(
-        (tmp_path / "runs/original/checkpoints/latest.json").read_text()
+        (tmp_path / "sparselab-work/runs/original/checkpoints/latest.json").read_text()
     )
 
     assert response["identity"]["checkpoint_sha256"] == pointer["manifest_sha256"]
