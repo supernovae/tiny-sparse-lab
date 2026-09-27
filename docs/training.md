@@ -19,6 +19,33 @@ uv run sparselab train configs/smoke_combined_cpu.yaml --run-id combined-smoke
 
 A smoke run validates a path through training, checkpointing, evaluation, and metrics. It is not a quality benchmark. Compare runs only when data, tokenizer, device, sequence length, token budget, optimizer, and seed are recorded and intentionally matched.
 
+## Runtime forecast and target progress
+
+Planning is available only from compatible historical optimizer timings; without
+matching runtime/device identity, the estimate is unavailable rather than
+inferred from model size. An optional disposable warmup adds a separate
+measurement without advancing training state:
+
+```sh
+uv run --locked sparselab inspect CONFIG --estimate-runtime --json
+uv run --locked sparselab stage CONFIG --through warmup --output sparselab-work/stages/warmup
+uv run --locked sparselab train CONFIG --stage-bundle sparselab-work/stages/warmup
+uv run --locked sparselab runtime status RUN_ID --runs-dir runs --json
+```
+
+Live progress uses completed supervised targets as its primary denominator.
+`optimizer_only_eta` forecasts remaining optimizer work; it is not a whole-job
+ETA. Preparation, validation, checkpoint, reporting, and end-to-end costs stay
+separate in the final observation. Evaluation and generation are unavailable in
+a training record unless observed as separate operations. Stalled target
+progress suspends ETA but does not terminate the run.
+
+Progress JSON Lines are emitted on stderr. `runtime status` and the dashboard
+read the latest bounded snapshot plus the final timing record without changing
+run state. The dashboard's Training and Runtime views are operational telemetry,
+not a scheduler or automatic tuning interface. See [runtime policy](runtime.md#runtime-forecasting-and-progress)
+for exact-history matching and interpretation limits.
+
 ## Checkpoint and resume workflow
 
 PyTorch checkpoints are immutable local generations under `runs/<run-id>/checkpoints/`; `latest.json` points to the newest validated generation. Verify a checkpoint before continuing it:

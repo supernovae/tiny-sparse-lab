@@ -36,6 +36,7 @@ class DashboardSnapshot:
     runs: tuple[RunRecord, ...]
     metrics: tuple[dict[str, object], ...]
     events: tuple[dict[str, object], ...]
+    runtime_progress: tuple[dict[str, object], ...]
     stages: tuple[dict[str, object], ...]
     checkpoints: tuple[dict[str, object], ...]
     manifests: dict[str, dict[str, object]]
@@ -166,6 +167,12 @@ def snapshot(root: Path) -> DashboardSnapshot:
             ),
             "run_id, step, created_at",
         )
+        runtime_progress_rows = _rows(
+            connection,
+            "runtime_progress_snapshots",
+            ("run_id", "step", "tokens_seen", "wall_time", "payload_json"),
+            "run_id",
+        )
         manifest_rows = _rows(
             connection, "manifests", ("run_id", "digest", "json"), "run_id"
         )
@@ -190,6 +197,7 @@ def snapshot(root: Path) -> DashboardSnapshot:
         metrics=metric_rows,
         events=event_rows,
         stages=stage_rows,
+        runtime_progress=runtime_progress_rows,
         checkpoints=checkpoint_rows,
         manifests=manifests,
     )

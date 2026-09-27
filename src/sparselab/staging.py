@@ -42,6 +42,10 @@ from sparselab.runtime import (
     select_device,
     validate_runtime,
 )
+from sparselab.runtime_forecasting import (
+    runtime_forecast_planning,
+    warmup_estimate,
+)
 from sparselab.training.checkpoints import _atomic_json, _safe_member
 from sparselab.training.manifest import (
     canonical_json,
@@ -557,6 +561,12 @@ def stage(
                 runtime = inspect_runtime(config)
                 inventory = parameter_inventory(config)
                 estimate = estimate_memory(config, runtime, inventory)
+                forecast = runtime_forecast_planning(
+                    config.logging.root_dir,
+                    config,
+                    runtime,
+                    total_targets=config.training.max_tokens,
+                )
                 source_digest = source_identity()["sha256"]
                 report.update(
                     inventory=asdict(inventory),
@@ -571,12 +581,26 @@ def stage(
                             trainable_parameters=config.training.trainable_parameters,
                         ).items()
                     },
+                    runtime_forecast={
+                        "schema_version": forecast["schema_version"],
+                        "runtime_signature": forecast["runtime_signature"],
+                        "planning": forecast["planning"],
+                        "warmup_calibrated": None,
+                    },
                 )
                 history.finish()
                 inputs_digest = None
+                calibration_identity: str | None = None
+                observations: list[dict[str, object]] = []
                 if _LEVELS[through] >= 2:
                     history.start(ExperimentStage.VALIDATED)
                     runtime = validate_runtime(config)
+                    forecast = runtime_forecast_planning(
+                        config.logging.root_dir,
+                        config,
+                        runtime,
+                        total_targets=config.training.max_tokens,
+                    )
                     calibration_identity = calibration_key(
                         config, runtime, source_digest=str(source_digest)
                     )
@@ -587,6 +611,12 @@ def stage(
                         config, runtime, inventory, observations
                     )
                     report.update(runtime=runtime.as_dict(), estimate=asdict(estimate))
+                    report["runtime_forecast"] = {
+                        "schema_version": forecast["schema_version"],
+                        "runtime_signature": forecast["runtime_signature"],
+                        "planning": forecast["planning"],
+                        "warmup_calibrated": None,
+                    }
                     effective = config.model_dump(mode="json")
                     effective["runtime"]["backend"] = runtime.backend
                     if effective["runtime"]["precision"] == "auto":
@@ -633,6 +663,10 @@ def stage(
                 ):
                     if _LEVELS[through] < level:
                         continue
+                    if calibration_identity is None:
+                        raise RuntimeError(
+                            "pilot stage lacks validated calibration identity"
+                        )
                     history.start(stage_name)
                     pilot = _run_pilot(
                         work,
@@ -663,6 +697,33 @@ def stage(
                         raise MemoryError(
                             f"{purpose} measured or calibrated memory exceeds safe ceiling"
                         )
+                    if purpose == "warmup":
+                        raw_updates = pilot["report"].get("update_observations", [])
+                        updates: list[tuple[int, float]] = []
+                        if isinstance(raw_updates, list):
+                            for item in raw_updates:
+                                targets = (
+                                    item.get("targets")
+                                    if isinstance(item, dict)
+                                    else None
+                                )
+                                update_seconds = (
+                                    item.get("update_seconds")
+                                    if isinstance(item, dict)
+                                    else None
+                                )
+                                if (
+                                    type(targets) is int
+                                    and isinstance(update_seconds, (int, float))
+                                    and not isinstance(update_seconds, bool)
+                                ):
+                                    updates.append((targets, float(update_seconds)))
+                        runtime_forecast = report["runtime_forecast"]
+                        runtime_forecast["warmup_calibrated"] = warmup_estimate(
+                            config.training.max_tokens,
+                            updates,
+                            pilot_run_id=str(pilot["run_id"]),
+                        )
                     history.finish(
                         payload={
                             "pilot_run_id": pilot["run_id"],
@@ -686,6 +747,7 @@ def stage(
                         "inputs_sha256": inputs_digest,
                         "stages": report["stages"],
                         "pilot_reports": reports,
+                        "runtime_forecast": report["runtime_forecast"],
                         "artifacts": _inventory(work),
                     },
                 )

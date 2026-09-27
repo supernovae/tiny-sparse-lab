@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -17,7 +16,7 @@ from tokenizers.trainers import BpeTrainer
 
 from sparselab.config.models import TokenizerTrainConfig
 from sparselab.data.datasets import iter_documents
-from sparselab.data.progress import heartbeat
+from sparselab.progress import progress_phase
 
 SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
 
@@ -73,7 +72,16 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
     selected_input_bytes = 0
     acquired = 0
     source_started = time.monotonic()
-    with heartbeat("tokenizer_dataset_initialization_and_source_iteration"):
+    with progress_phase(
+        "tokenizer_dataset_initialization_and_source_iteration",
+        completed_work=0,
+        unit="documents",
+        raw_counters={
+            "documents_acquired": 0,
+            "documents_retained": 0,
+            "source_bytes": 0,
+        },
+    ) as progress:
         while (
             acquired < config.max_documents and selected_input_bytes < input_byte_budget
         ):
@@ -95,23 +103,29 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
                 digest.update(encoded)
                 digest.update(b"\0")
                 selected_input_bytes += len(encoded)
+            if acquired % 500 == 0:
+                progress.update(
+                    completed_work=acquired,
+                    unit="documents",
+                    raw_counters={
+                        "documents_acquired": acquired,
+                        "documents_retained": len(selected),
+                        "source_bytes": selected_input_bytes,
+                    },
+                )
             if truncated:
                 break
-    source_elapsed = max(time.monotonic() - source_started, 1e-9)
-    print(
-        json.dumps(
-            {
-                "preprocessing": "tokenizer_source_selection",
+        source_elapsed = max(time.monotonic() - source_started, 1e-9)
+        progress.update(
+            completed_work=acquired,
+            unit="documents",
+            raw_counters={
                 "documents_acquired": acquired,
                 "documents_retained": len(selected),
                 "source_bytes": selected_input_bytes,
                 "source_bytes_per_second": selected_input_bytes / source_elapsed,
             },
-            sort_keys=True,
-        ),
-        file=sys.stderr,
-        flush=True,
-    )
+        )
     if not selected:
         raise ValueError("tokenizer training selected no non-empty documents")
     training_contract = {
@@ -148,40 +162,82 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         special_tokens=SPECIAL_TOKENS,
     )
     bpe_started = time.monotonic()
-    with heartbeat("tokenizer_bpe_training"):
+    with progress_phase(
+        "tokenizer_bpe_training",
+        completed_work=0,
+        total_work=1,
+        unit="trainer_calls",
+        raw_counters={
+            "documents": len(selected),
+            "source_bytes": selected_input_bytes,
+        },
+    ) as progress:
         tokenizer.train_from_iterator(selected, trainer=trainer)
-    actual = tokenizer.get_vocab_size()
-    print(
-        json.dumps(
-            {
-                "preprocessing": "tokenizer_bpe_training",
+        bpe_elapsed = max(time.monotonic() - bpe_started, 1e-9)
+        progress.update(
+            completed_work=1,
+            total_work=1,
+            unit="trainer_calls",
+            raw_counters={
                 "documents": len(selected),
                 "source_bytes": selected_input_bytes,
-                "bpe_input_bytes_per_second": selected_input_bytes
-                / max(time.monotonic() - bpe_started, 1e-9),
+                "bpe_input_bytes_per_second": selected_input_bytes / bpe_elapsed,
             },
-            sort_keys=True,
-        ),
-        file=sys.stderr,
-        flush=True,
-    )
+        )
+    actual = tokenizer.get_vocab_size()
     if actual != config.vocab_size:
         raise ValueError(
             f"BPE produced {actual} entries, requested {config.vocab_size}; increase document budget"
         )
     if [tokenizer.token_to_id(token) for token in SPECIAL_TOKENS] != [0, 1, 2, 3]:
         raise RuntimeError("tokenizer special token IDs are not the required 0..3")
-    with heartbeat("tokenizer_artifact_serialization_and_hash"):
+    with progress_phase(
+        "tokenizer_artifact_serialization",
+        completed_work=0,
+        unit="bytes",
+        raw_counters={"artifact": "tokenizer.json"},
+    ) as progress:
         output.mkdir(parents=True, exist_ok=False)
         temporary = output / "tokenizer.json.tmp"
         tokenizer.save(str(temporary))
         temporary.replace(json_path)
+        artifact_bytes = json_path.stat().st_size
+        progress.update(
+            completed_work=artifact_bytes,
+            total_work=artifact_bytes,
+            unit="bytes",
+            raw_counters={
+                "artifact": "tokenizer.json",
+                "artifact_bytes": artifact_bytes,
+            },
+        )
+    with progress_phase(
+        "tokenizer_artifact_hash",
+        completed_work=0,
+        unit="bytes",
+        raw_counters={"artifact": "tokenizer.json"},
+    ) as progress:
         content = json_path.read_bytes()
-    with heartbeat("tokenizer_manifest_serialization_and_hash"):
+        content_sha256 = hashlib.sha256(content).hexdigest()
+        progress.update(
+            completed_work=len(content),
+            total_work=len(content),
+            unit="bytes",
+            raw_counters={
+                "artifact": "tokenizer.json",
+                "artifact_bytes": len(content),
+            },
+        )
+    with progress_phase(
+        "tokenizer_manifest_serialization",
+        completed_work=0,
+        unit="bytes",
+        raw_counters={"artifact": "tokenizer_manifest.json"},
+    ) as progress:
         _atomic_json(
             manifest_path,
             {
-                "sha256": hashlib.sha256(content).hexdigest(),
+                "sha256": content_sha256,
                 "training_contract": training_contract,
                 "license": config.dataset.license
                 if config.dataset.source == "local_chat"
@@ -202,6 +258,16 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
                 "selected_input_bytes_utf8": selected_input_bytes,
                 "content_digest_sha256": digest.hexdigest(),
                 "tokenizers_version": __import__("tokenizers").__version__,
+            },
+        )
+        manifest_bytes = manifest_path.stat().st_size
+        progress.update(
+            completed_work=manifest_bytes,
+            total_work=manifest_bytes,
+            unit="bytes",
+            raw_counters={
+                "artifact": "tokenizer_manifest.json",
+                "artifact_bytes": manifest_bytes,
             },
         )
     return json_path

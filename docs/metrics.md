@@ -49,6 +49,23 @@ or a FLOP-saving claim.
 
 Unavailable readings are omitted with explanatory events, not written as zero. Engine/backend/worker/precision/optimizer names are manifest metadata rather than numeric metrics. Apple unified memory is one physical pool: do not add device recommendations and system RAM, or claim extra capacity from MPS host offload. See [memory accounting](memory.md), [runtime policy](runtime.md), and [offload](offload.md).
 
+## Runtime forecast and progress records
+
+| Record | Interpretation |
+|---|---|
+| `runtime_forecast.planning` | Optimizer-only estimate from the most recent exact-compatible historical observations; missing matches produce unavailable fields, not a theoretical time. |
+| `runtime_forecast.warmup_calibrated` | Separate estimate from measured disposable pilot updates; it is used only when the pilot and run signatures match. |
+| `runtime_forecast.live.optimizer_only_eta` | Raw low/high seconds and status for remaining optimizer work, based on completed supervised targets and robust recent/long windows. It excludes future non-optimizer phases. |
+| `runtime_final_observation.phases.*` | Actual seconds, availability, and observation count for preparation, planning, optimizer updates, validation, checkpointing, and reporting. Attempts are separate; evaluation and generation are `not_observed` unless measured by their own operation. |
+| `runtime_final_observation.end_to_end_seconds` | Observed whole-run wall time. `unclassified_overhead` is the residual after measured phase components, not an independently timed phase. |
+| `runtime_progress_snapshots` | One replaceable latest operational snapshot per run, outside the controller replication outbox. `runtime status` reads it and the separate final-observation event without modifying the database. |
+
+All durations and rates are raw numeric JSON values. A completed run has zero
+remaining optimizer ETA; unavailable or unobserved telemetry remains `null`
+with an availability/status reason. The dashboard presents the same runtime
+records as the status command. See [runtime policy](runtime.md#runtime-forecasting-and-progress)
+for matching rules, commands, and forecast limitations.
+
 ## Diagnostics and durable aggregation
 
 Architecture diagnostics (`engram/*`, per-layer MoE and attention values) are persisted from the **last nonempty training microbatch before validation**, not averaged over an accumulation window. They expose routing/address use; they do not prove successful retrieval. Scalar diagnostics do not archive full router tensors.

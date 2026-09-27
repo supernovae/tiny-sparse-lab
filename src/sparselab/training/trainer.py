@@ -12,9 +12,12 @@ import signal
 import socket
 import time
 import uuid
+from collections import deque
 from contextlib import ExitStack
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
+from statistics import median
 
 import numpy as np
 
@@ -40,7 +43,13 @@ from sparselab.memory import (
     parameter_inventory,
     validate_offload_headroom,
 )
+from sparselab.progress import ProgressReporter
 from sparselab.runtime import seed_everything
+from sparselab.runtime_forecasting import (
+    RUNTIME_OBSERVATION_KIND,
+    runtime_forecast_planning,
+    runtime_signature_key,
+)
 from sparselab.training.checkpoints import (
     CheckpointManager,
     CheckpointRecord,
@@ -64,6 +73,7 @@ from sparselab.training.manifest import (
 )
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.stages import ExperimentStage, StageHistory
+from sparselab.training.throughput import summarize_training_progress
 
 
 class _WallTimeExpired(Exception):
@@ -464,6 +474,7 @@ def _train_impl(
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
     deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
+    operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):
             raise ValueError("experiment_id and attempt_id must be supplied together")
@@ -615,6 +626,7 @@ def _train_impl(
                     ),
                 }
             )
+        preparation_started = time.perf_counter()
         seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
         if continuation == "RESUMED":
             assert source_run is not None
@@ -669,6 +681,34 @@ def _train_impl(
             )
         offload_headroom = validate_offload_headroom(config, runtime, memory_estimate)
         history.finish()
+        planning_started = time.perf_counter()
+        forecast = runtime_forecast_planning(
+            config.logging.root_dir,
+            config,
+            runtime,
+            total_targets=config.training.max_tokens,
+        )
+        planning_seconds = time.perf_counter() - planning_started
+        preparation_seconds = max(
+            planning_started - preparation_started,
+            0.0,
+        )
+        staged_forecast = staged.get("runtime_forecast") if staged else None
+        warmup_forecast = (
+            staged_forecast.get("warmup_calibrated")
+            if isinstance(staged_forecast, dict)
+            and staged_forecast.get("runtime_signature")
+            == forecast["runtime_signature"]
+            else None
+        )
+        runtime_forecast: dict[str, object] = {
+            "schema_version": forecast["schema_version"],
+            "runtime_signature": forecast["runtime_signature"],
+            "planning": forecast["planning"],
+            "warmup_calibrated": warmup_forecast,
+            "live": None,
+            "final_observed": None,
+        }
         if (
             continuation == "RESUMED"
             and config.model.memory_package_path is not None
@@ -737,6 +777,8 @@ def _train_impl(
             snapshot.rng = None
             snapshot.scaler = None
         del initial_weights, snapshot
+        initial_step = step
+        initial_cumulative_updates = cumulative_updates
         if continuation == "RESUMED" and (
             step >= config.training.max_steps or tokens >= config.training.max_tokens
         ):
@@ -823,6 +865,7 @@ def _train_impl(
                 "manifest_sha256": manifest_digest,
                 "memory_estimate": asdict(memory_estimate),
                 "purpose": purpose,
+                "runtime_forecast": runtime_forecast,
             },
             parent_run_id,
         )
@@ -848,29 +891,152 @@ def _train_impl(
         latest_record: CheckpointRecord | None = None
         local_best: CheckpointRecord | None = None
         observed_peaks: dict[str, float] = {}
+        phase_seconds: dict[str, float] = {
+            "preparation": preparation_seconds,
+            "planning": planning_seconds,
+        }
+        phase_counts: dict[str, int] = {"preparation": 1, "planning": 1}
+        progress_samples: deque[tuple[float, int]] = deque([(0.0, tokens)], maxlen=121)
+        last_optimizer_update_elapsed: float | None = None
+        optimizer_observations: deque[tuple[int, float]] = deque(maxlen=1000)
+
+        def add_phase_time(name: str, phase_started: float) -> None:
+            phase_seconds[name] = phase_seconds.get(name, 0.0) + max(
+                time.perf_counter() - phase_started, 0.0
+            )
+            phase_counts[name] = phase_counts.get(name, 0) + 1
+
+        def live_summary() -> dict[str, object]:
+            now = max(time.perf_counter() - started, 0.0)
+            points = list(progress_samples)
+            if last_optimizer_update_elapsed is not None and (
+                not points or last_optimizer_update_elapsed > points[-1][0]
+            ):
+                points.append((last_optimizer_update_elapsed, tokens))
+            summary = summarize_training_progress(
+                points,
+                total_targets=config.training.max_tokens,
+                now=now,
+                recent_window_seconds=60.0,
+                long_window_seconds=600.0,
+                stalled_after_seconds=300.0,
+            )
+            summary.update(
+                recent_window_seconds=60.0,
+                long_window_seconds=600.0,
+                stalled_after_seconds=300.0,
+            )
+            if last_optimizer_update_elapsed is None:
+                summary.update(
+                    state="INITIALIZING",
+                    eta_low_seconds=None,
+                    eta_high_seconds=None,
+                    eta_status="unavailable",
+                    eta_basis=None,
+                    optimizer_only_eta={
+                        "low_seconds": None,
+                        "high_seconds": None,
+                        "status": "unavailable",
+                        "basis": None,
+                    },
+                )
+            return summary
+
+        def persist_runtime_progress(record: dict[str, object]) -> None:
+            raw_counters = record.get("raw_counters")
+            counters = raw_counters if isinstance(raw_counters, dict) else {}
+            record_step = counters.get("optimizer_step", step)
+            record_targets = counters.get("completed_targets", tokens)
+            record_elapsed = record.get("elapsed_seconds", 0.0)
+            if type(record_step) is not int:
+                record_step = step
+            if type(record_targets) is not int:
+                record_targets = tokens
+            if isinstance(record_elapsed, (int, float)) and not isinstance(
+                record_elapsed, bool
+            ):
+                elapsed = float(record_elapsed)
+            else:
+                elapsed = 0.0
+            store.upsert_runtime_progress_snapshot(
+                run_id,
+                record_step,
+                record_targets,
+                cumulative_wall + elapsed,
+                record,
+            )
+
+        runtime_forecast["live"] = live_summary()
+        runtime_reporter = ProgressReporter(
+            "training",
+            operation_id=run_id,
+            run_id=run_id,
+            completed_work=tokens,
+            total_work=config.training.max_tokens,
+            unit="targets",
+            raw_counters={
+                "optimizer_step": step,
+                "completed_targets": tokens,
+                "optimizer_update_seconds": cumulative_updates,
+            },
+            derived=runtime_forecast,
+            on_record=persist_runtime_progress,
+        )
+        resources.callback(runtime_reporter.close, failed=True, state="FAILED")
 
         def elapsed_seconds() -> float:
             return cumulative_wall + time.perf_counter() - started
 
         def progress(status: str = "running") -> None:
-            _atomic_json(
-                run / "progress.json",
-                {
-                    "manifest_sha256": manifest_digest,
-                    "status": status,
-                    "step": step,
-                    "tokens_seen": tokens,
-                    "cumulative_wall_seconds": elapsed_seconds(),
-                    "cumulative_update_seconds": cumulative_updates,
-                    "current_stage": asdict(history.current)
-                    if history.current
-                    else None,
-                    "stages": [asdict(item) for item in history.records],
-                    "latest": asdict(latest_record) if latest_record else None,
-                    "best": asdict(local_best) if local_best else None,
-                    "lineage_best": lineage_best.as_dict() if lineage_best else None,
-                },
+            live = live_summary()
+            runtime_forecast["live"] = live
+            reporter_state = (
+                live["state"]
+                if status == "running"
+                else {
+                    "completed": "COMPLETE",
+                    "interrupted": "INTERRUPTED",
+                    "failed": "FAILED",
+                }.get(status, status.upper())
             )
+            runtime_reporter.update(
+                completed_work=tokens,
+                total_work=config.training.max_tokens,
+                unit="targets",
+                raw_counters={
+                    "optimizer_step": step,
+                    "completed_targets": tokens,
+                    "optimizer_update_seconds": cumulative_updates,
+                },
+                state=str(reporter_state),
+                derived=runtime_forecast,
+                emit=False,
+            )
+            reporting_started = time.perf_counter()
+            try:
+                _atomic_json(
+                    run / "progress.json",
+                    {
+                        "manifest_sha256": manifest_digest,
+                        "status": status,
+                        "step": step,
+                        "tokens_seen": tokens,
+                        "cumulative_wall_seconds": elapsed_seconds(),
+                        "cumulative_update_seconds": cumulative_updates,
+                        "current_stage": asdict(history.current)
+                        if history.current
+                        else None,
+                        "stages": [asdict(item) for item in history.records],
+                        "latest": asdict(latest_record) if latest_record else None,
+                        "best": asdict(local_best) if local_best else None,
+                        "lineage_best": lineage_best.as_dict()
+                        if lineage_best
+                        else None,
+                        "runtime_forecast": runtime_forecast,
+                    },
+                )
+            finally:
+                add_phase_time("reporting", reporting_started)
 
         def finish_stage(status: str = "complete", reason: str | None = None) -> None:
             record = history.finish(
@@ -918,47 +1084,87 @@ def _train_impl(
                 "tokens": float(tokens),
                 "minutes": elapsed,
             }
-            loss = float(validation["loss"]) if validation else None
-            record = _save(
-                manager,
-                engine,
-                config,
-                run_id,
-                cursor,
-                step,
-                tokens,
-                watermarks,
-                loss,
-                source_digest=str(current_source["sha256"]),
-                parent_digest=continuation_state.parent_checkpoint_sha256,
-                wall_seconds=elapsed,
-                update_seconds=cumulative_updates,
-                lineage_best=lineage_best,
+            loss_value = validation.get("loss") if validation else None
+            if validation is not None and not isinstance(loss_value, (int, float)):
+                raise TypeError("validation report loss must be numeric")
+            loss = float(loss_value) if isinstance(loss_value, (int, float)) else None
+            phase_reporter = ProgressReporter(
+                "checkpoint",
+                operation_id=run_id,
+                run_id=run_id,
+                completed_work=0,
+                total_work=1,
+                unit="checkpoint_writes",
+                raw_counters={"optimizer_step": step, "completed_targets": tokens},
             )
+            checkpoint_started = time.perf_counter()
+            try:
+                record = _save(
+                    manager,
+                    engine,
+                    config,
+                    run_id,
+                    cursor,
+                    step,
+                    tokens,
+                    watermarks,
+                    loss,
+                    source_digest=str(current_source["sha256"]),
+                    parent_digest=continuation_state.parent_checkpoint_sha256,
+                    wall_seconds=elapsed,
+                    update_seconds=cumulative_updates,
+                    lineage_best=lineage_best,
+                )
+            except BaseException:
+                add_phase_time("checkpoint_attempt", checkpoint_started)
+                phase_reporter.close(failed=True)
+                raise
+            add_phase_time("checkpoint", checkpoint_started)
+            phase_reporter.update(
+                completed_work=1,
+                total_work=1,
+                raw_counters={"optimizer_step": step, "completed_targets": tokens},
+            )
+            phase_reporter.close(state="COMPLETE")
             latest_record = record
             if loss is not None:
-                if local_best is None or loss < float(local_best.validation_loss):
+                if (
+                    local_best is None
+                    or local_best.validation_loss is None
+                    or loss < local_best.validation_loss
+                ):
                     local_best = record
                 lineage_best = choose_lineage_best(
                     lineage_best,
                     LineageBest(run_id, record.manifest_sha256, step, loss),
                 )
-                _write_validation_report(
-                    run, record, validation, config, str(current_source["sha256"])
+                assert validation is not None
+                reporting_started = time.perf_counter()
+                try:
+                    _write_validation_report(
+                        run, record, validation, config, str(current_source["sha256"])
+                    )
+                finally:
+                    add_phase_time("reporting", reporting_started)
+            reporting_started = time.perf_counter()
+            try:
+                store.record_checkpoint(run_id, record)
+                store.log_event(
+                    run_id,
+                    step,
+                    tokens,
+                    elapsed_seconds(),
+                    "checkpoint_saved",
+                    asdict(record),
                 )
-            store.record_checkpoint(run_id, record)
-            store.log_event(
-                run_id,
-                step,
-                tokens,
-                elapsed_seconds(),
-                "checkpoint_saved",
-                asdict(record),
-            )
+            finally:
+                add_phase_time("reporting", reporting_started)
             progress()
             return record
 
         def finish_run(status: str, reason: str | None = None) -> None:
+            final_reporting_started = time.perf_counter()
+            reporting_before = phase_seconds.get("reporting", 0.0)
             if isinstance(engine, PyTorchEngine) and engine.portability_run is not None:
                 audit_path = run / "portability_audit.json"
                 audit_version = (
@@ -972,7 +1178,6 @@ def _train_impl(
                         "run_status": status,
                         **engine.portability_audit(completed=status == "completed"),
                     }
-                # Any audit exception invalidates the run and must be recorded.
                 except Exception as error:  # noqa: BLE001
                     audit = {
                         "format": "sparselab-portability-audit",
@@ -983,18 +1188,22 @@ def _train_impl(
                     }
                     status = "failed"
                     reason = f"portability integrity audit failed: {error}"
-                _atomic_json(audit_path, audit)
-                store.log_event(
-                    run_id,
-                    step,
-                    tokens,
-                    elapsed_seconds(),
-                    "portability_audit_recorded",
-                    {
-                        "valid": audit["valid"],
-                        "sha256": sha256_file(audit_path),
-                    },
-                )
+                report_started = time.perf_counter()
+                try:
+                    _atomic_json(audit_path, audit)
+                    store.log_event(
+                        run_id,
+                        step,
+                        tokens,
+                        elapsed_seconds(),
+                        "portability_audit_recorded",
+                        {
+                            "valid": audit["valid"],
+                            "sha256": sha256_file(audit_path),
+                        },
+                    )
+                finally:
+                    add_phase_time("reporting", report_started)
             if status == "failed" and history.current is not None:
                 finish_stage("failed", reason)
             enter_stage(
@@ -1044,7 +1253,134 @@ def _train_impl(
                         "runtime": runtime.as_dict(),
                     },
                 )
+            if status == "completed" and len(optimizer_observations) >= 2:
+                signature = runtime_forecast["runtime_signature"]
+                if isinstance(signature, dict):
+                    rates = [
+                        targets / update_seconds
+                        for targets, update_seconds in optimizer_observations
+                    ]
+                    store.record_calibration(
+                        runtime_signature_key(signature),
+                        run_id,
+                        {
+                            "kind": RUNTIME_OBSERVATION_KIND,
+                            "schema_version": 1,
+                            "runtime_signature": signature,
+                            "optimizer_targets_per_second": median(rates),
+                            "observed_at_utc": datetime.now(UTC).isoformat(
+                                timespec="milliseconds"
+                            ),
+                            "calibration_update_count": len(optimizer_observations),
+                            "optimizer_targets_observed": sum(
+                                targets for targets, _ in optimizer_observations
+                            ),
+                            "optimizer_update_seconds_observed": sum(
+                                seconds for _, seconds in optimizer_observations
+                            ),
+                            "first_update_discarded": True,
+                            "sample_window": "last_1000_updates_after_initialization",
+                        },
+                    )
+            nested_reporting = phase_seconds.get("reporting", 0.0) - reporting_before
+            phase_seconds["reporting"] = phase_seconds.get("reporting", 0.0) + max(
+                time.perf_counter() - final_reporting_started - nested_reporting, 0.0
+            )
+            phase_counts["reporting"] = phase_counts.get("reporting", 0) + 1
+            optimizer_update_seconds = cumulative_updates - initial_cumulative_updates
+            update_count = max(step - initial_step, 0)
+            if update_count:
+                phase_seconds["optimizer_update"] = optimizer_update_seconds
+                phase_counts["optimizer_update"] = update_count
+            end_to_end_seconds = max(time.perf_counter() - operation_started, 0.0)
+            final_state = {
+                "completed": "COMPLETE",
+                "interrupted": "INTERRUPTED",
+                "failed": "FAILED",
+            }[status]
+            final_live = live_summary()
+            final_live.update(
+                state=final_state,
+                eta_low_seconds=0.0 if status == "completed" else None,
+                eta_high_seconds=0.0 if status == "completed" else None,
+                eta_status="complete" if status == "completed" else "unavailable",
+                eta_basis="configured_stop" if status == "completed" else None,
+                optimizer_only_eta={
+                    "low_seconds": 0.0 if status == "completed" else None,
+                    "high_seconds": 0.0 if status == "completed" else None,
+                    "status": "complete" if status == "completed" else "unavailable",
+                    "basis": "configured_stop" if status == "completed" else None,
+                },
+            )
+
+            def phase_observation(name: str) -> dict[str, object]:
+                count = phase_counts.get(name, 0)
+                return {
+                    "seconds": phase_seconds.get(name) if count else None,
+                    "availability": "observed" if count else "unavailable",
+                    "observation_count": count,
+                }
+
+            observed_components = (
+                "preparation",
+                "planning",
+                "optimizer_update",
+                "validation",
+                "checkpoint",
+                "reporting",
+            )
+            measured = sum(
+                phase_seconds[name]
+                for name in observed_components
+                if phase_counts.get(name, 0)
+            )
+            observed = {
+                "schema_version": 1,
+                "operation_id": run_id,
+                "run_id": run_id,
+                "run_status": status,
+                "reason": reason,
+                "observed_at_utc": datetime.now(UTC).isoformat(timespec="milliseconds"),
+                "completed_steps": step,
+                "completed_targets": tokens,
+                "total_targets": config.training.max_tokens,
+                "end_to_end_seconds": end_to_end_seconds,
+                "cumulative_run_wall_seconds": elapsed_seconds(),
+                "phases": {
+                    **{name: phase_observation(name) for name in observed_components},
+                    "validation_attempt": phase_observation("validation_attempt"),
+                    "checkpoint_attempt": phase_observation("checkpoint_attempt"),
+                    "evaluation": {
+                        "seconds": None,
+                        "availability": "not_observed",
+                        "reason": "training records inline validation separately",
+                    },
+                    "generation": {
+                        "seconds": None,
+                        "availability": "not_observed",
+                        "reason": "generation is a separate inference operation",
+                    },
+                    "unclassified_overhead": {
+                        "seconds": max(end_to_end_seconds - measured, 0.0),
+                        "availability": "derived_residual",
+                    },
+                },
+            }
+            runtime_forecast["live"] = final_live
+            runtime_forecast["final_observed"] = observed
+            store.log_event(
+                run_id,
+                step,
+                tokens,
+                elapsed_seconds(),
+                "runtime_final_observation",
+                observed,
+            )
             progress(status)
+            runtime_reporter.close(
+                failed=status == "failed",
+                state=final_state,
+            )
 
         def evaluation_batches():
             limit = config.evaluation.max_batches
@@ -1075,22 +1411,65 @@ def _train_impl(
                     _stack_optional(records, 5),
                 )
 
-        def evaluate_and_record(elapsed: float) -> dict[str, object] | None:
+        def evaluate_and_record() -> dict[str, object] | None:
             if wall_expired():
                 return None
             enter_stage(ExperimentStage.EVALUATING)
+            phase_reporter = ProgressReporter(
+                "validation",
+                operation_id=run_id,
+                run_id=run_id,
+                completed_work=0,
+                total_work=1,
+                unit="validation_passes",
+                raw_counters={"optimizer_step": step, "completed_targets": tokens},
+            )
+            validation_started = time.perf_counter()
             try:
-                result = engine.evaluate(evaluation_batches()).to_report()
+                evaluation_result = engine.evaluate(evaluation_batches()).to_report()
+                result: dict[str, object] = {}
+                result.update(evaluation_result)
             except _WallTimeExpired:
+                add_phase_time("validation_attempt", validation_started)
+                phase_reporter.close(state="INTERRUPTED")
                 finish_stage("interrupted", "wall_time_limit")
                 return None
-            metrics: dict[str, float] = {"validation/loss": float(result["loss"])}
-            if isinstance(result.get("perplexity"), (int, float)):
-                metrics["validation/perplexity"] = float(result["perplexity"])
-            store.log_metrics(run_id, step, tokens, elapsed, metrics)
-            store.log_event(
-                run_id, step, tokens, elapsed, "validation_completed", result
+            except BaseException:
+                add_phase_time("validation_attempt", validation_started)
+                phase_reporter.close(failed=True)
+                raise
+            add_phase_time("validation", validation_started)
+            phase_reporter.update(
+                completed_work=1,
+                total_work=1,
+                raw_counters={
+                    "optimizer_step": step,
+                    "completed_targets": tokens,
+                    "validation_batches": result.get("batches"),
+                },
             )
+            phase_reporter.close(state="COMPLETE")
+            loss_value = result.get("loss")
+            if not isinstance(loss_value, (int, float)):
+                raise TypeError("evaluation report loss must be numeric")
+            metrics: dict[str, float] = {"validation/loss": float(loss_value)}
+            perplexity = result.get("perplexity")
+            if isinstance(perplexity, (int, float)):
+                metrics["validation/perplexity"] = float(perplexity)
+            reporting_started = time.perf_counter()
+            try:
+                completion_elapsed = elapsed_seconds()
+                store.log_metrics(run_id, step, tokens, completion_elapsed, metrics)
+                store.log_event(
+                    run_id,
+                    step,
+                    tokens,
+                    completion_elapsed,
+                    "validation_completed",
+                    result,
+                )
+            finally:
+                add_phase_time("reporting", reporting_started)
             return result
 
         enter_stage(ExperimentStage.TRAINING)
@@ -1104,7 +1483,7 @@ def _train_impl(
             signal.signal(signal.SIGTERM, request_stop),
         )
         try:
-            initial_validation = evaluate_and_record(cumulative_wall)
+            initial_validation = evaluate_and_record()
             save_boundary(initial_validation)
             if wall_expired():
                 finish_run("interrupted", "wall_time_limit")
@@ -1119,7 +1498,7 @@ def _train_impl(
                     interrupted = True
                 if interrupted:
                     if latest_record is None or latest_record.step != step:
-                        validation = evaluate_and_record(elapsed_seconds())
+                        validation = evaluate_and_record()
                         if (
                             validation is None
                             and wall_expired()
@@ -1224,35 +1603,51 @@ def _train_impl(
                 metric_values["performance/tokens_per_second"] = valid_targets / max(
                     retry_seconds, 1e-9
                 )
+                if (
+                    step + 1 > first_update_step
+                    and update.committed_targets > 0
+                    and retry_seconds > 0
+                ):
+                    optimizer_observations.append(
+                        (update.committed_targets, retry_seconds)
+                    )
                 cumulative_updates += retry_seconds
                 step, tokens = step + 1, tokens + update.committed_targets
                 cursor = BatchCursor(cursor.epoch, cursor.next_block + len(records))
+                update_elapsed = max(time.perf_counter() - started, 0.0)
+                last_optimizer_update_elapsed = update_elapsed
+                if update_elapsed - progress_samples[-1][0] >= 5.0:
+                    progress_samples.append((update_elapsed, tokens))
                 elapsed = cumulative_wall + time.perf_counter() - started
-                store.log_metrics(run_id, step, tokens, elapsed, metric_values)
-                if isinstance(engine, PyTorchEngine):
-                    row_evidence = engine.portability_update_evidence()
-                    if row_evidence is not None:
+                for name, value in metric_values.items():
+                    if name.startswith("memory/") and "peak" in name:
+                        observed_peaks[name] = max(observed_peaks.get(name, 0.0), value)
+                unavailable = getattr(engine, "unavailable_memory_reasons", {})
+                reporting_started = time.perf_counter()
+                try:
+                    store.log_metrics(run_id, step, tokens, elapsed, metric_values)
+                    if isinstance(engine, PyTorchEngine):
+                        row_evidence = engine.portability_update_evidence()
+                        if row_evidence is not None:
+                            store.log_event(
+                                run_id,
+                                step,
+                                tokens,
+                                elapsed,
+                                "learned_engram_gradient_rows",
+                                row_evidence,
+                            )
+                    if unavailable and step == first_update_step:
                         store.log_event(
                             run_id,
                             step,
                             tokens,
                             elapsed,
-                            "learned_engram_gradient_rows",
-                            row_evidence,
+                            "memory_measurements_unavailable",
+                            unavailable,
                         )
-                for name, value in metric_values.items():
-                    if name.startswith("memory/") and "peak" in name:
-                        observed_peaks[name] = max(observed_peaks.get(name, 0.0), value)
-                unavailable = getattr(engine, "unavailable_memory_reasons", {})
-                if unavailable and step == first_update_step:
-                    store.log_event(
-                        run_id,
-                        step,
-                        tokens,
-                        elapsed,
-                        "memory_measurements_unavailable",
-                        unavailable,
-                    )
+                finally:
+                    add_phase_time("reporting", reporting_started)
                 progress()
                 if cancel_path is not None and cancel_path.exists():
                     interrupted = True
@@ -1266,11 +1661,19 @@ def _train_impl(
                 evaluation_due = not deadline_stopping and (
                     terminal or step % config.evaluation.every_steps == 0
                 )
-                validation = evaluate_and_record(elapsed) if evaluation_due else None
+                validation = evaluate_and_record() if evaluation_due else None
                 terminal = terminal or wall_expired()
-                new_best = validation is not None and (
-                    local_best is None
-                    or float(validation["loss"]) < float(local_best.validation_loss)
+                validation_loss = (
+                    validation.get("loss") if validation is not None else None
+                )
+                new_best = (
+                    validation is not None
+                    and isinstance(validation_loss, (int, float))
+                    and (
+                        local_best is None
+                        or local_best.validation_loss is None
+                        or float(validation_loss) < local_best.validation_loss
+                    )
                 )
                 if (
                     _checkpoint_due(config, step, tokens, elapsed, watermarks)

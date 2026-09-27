@@ -14,26 +14,8 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Runtime forecasting and progress
 
-- [ ] Replace preprocessing heartbeat-only events with a common, versioned
-  progress record containing phase, completed/total work when known, elapsed
-  time, last meaningful progress, and raw counters. Preserve JSON Lines on
-  stderr and do not change scientific inputs or stdout result payloads.
-- [ ] Add phase-aware planning, warmup-calibrated, live, and final-observed
-  timing records. Keep estimates separate from observations, represent missing
-  telemetry as unavailable rather than zero, and persist prediction snapshots at
-  a bounded cadence.
-- [ ] Add training target progress, robust recent/long-window throughput, a
-  non-negative live ETA range, and explicit unstable/stalled states. Keep
-  optimizer-only time separate from validation, checkpoint, preparation,
-  evaluation, and report overhead.
-- [ ] Add a read-only runtime-estimate/status CLI JSON contract and surface the
-  same records in the dashboard without making the dashboard a scheduler.
-- [ ] Add explainable historical calibration that refuses incompatible backend,
-  precision, architecture, optimizer, sequence-length, recomputation, or
-  offload observations and identifies every contributing run.
-
-The bounded implementation brief is
-[`docs/prompts/runtime-forecasting-and-throughput.md`](docs/prompts/runtime-forecasting-and-throughput.md).
+- [ ] [Runtime forecasting and progress (#3)](https://github.com/supernovae/tiny-sparse-lab/issues/3).
+  [Implementation brief](docs/prompts/runtime-forecasting-and-throughput.md).
 
 ## Throughput and resource proposals
 

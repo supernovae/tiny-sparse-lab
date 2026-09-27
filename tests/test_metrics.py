@@ -209,9 +209,63 @@ def test_v3_migrates_queue_tables_with_backup_and_preserves_history(tmp_path) ->
         con.execute("DROP TABLE attempts")
         con.execute("DROP TABLE experiments")
         con.execute("DROP TABLE workers")
+        con.execute("DROP TABLE runtime_progress_snapshots")
     migrated = ExperimentStore(tmp_path)
     assert (tmp_path / "experiments.sqlite3.v3.bak").is_file()
     with sqlite3.connect(migrated.path) as con:
         assert con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert con.execute("SELECT run_id FROM runs").fetchone()[0] == "run"
         assert con.execute("SELECT COUNT(*) FROM workers").fetchone()[0] == 0
+
+
+def test_runtime_progress_snapshot_replaces_latest_without_outbox_growth(
+    tmp_path,
+) -> None:
+    store = ExperimentStore(tmp_path)
+    _run(store)
+    first = {
+        "schema_version": 1,
+        "phase": "training",
+        "event": "heartbeat",
+        "state": "RUNNING",
+        "observed_at_utc": "2026-01-01T00:00:00+00:00",
+    }
+    latest = {
+        **first,
+        "event": "finished",
+        "state": "COMPLETE",
+        "completed_work": 64,
+    }
+
+    store.upsert_runtime_progress_snapshot("run", 1, 32, 1.0, first)
+    store.upsert_runtime_progress_snapshot("run", 2, 64, 2.0, latest)
+
+    assert [record["kind"] for record in store.export_records()["records"]] == [
+        "run_created"
+    ]
+    with sqlite3.connect(store.path) as con:
+        assert (
+            con.execute("SELECT COUNT(*) FROM runtime_progress_snapshots").fetchone()[0]
+            == 1
+        )
+    assert ExperimentStore.get_runtime_progress_records(tmp_path, "run") == [
+        {
+            "kind": "runtime_progress",
+            "step": 2,
+            "tokens_seen": 64,
+            "wall_time": 2.0,
+            "payload": latest,
+        }
+    ]
+
+    final = {"schema_version": 1, "run_status": "completed"}
+    store.log_event("run", 2, 64, 3.0, "runtime_final_observation", final)
+    records = ExperimentStore.get_runtime_progress_records(tmp_path, "run")
+    assert [record["kind"] for record in records] == [
+        "runtime_progress",
+        "runtime_final_observation",
+    ]
+    assert records[-1]["payload"] == final
+    assert ExperimentStore.get_runtime_progress_records(tmp_path, "run", limit=1) == [
+        records[-1]
+    ]

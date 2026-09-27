@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,7 @@ from sparselab.engines.mlx import validate as validate_mlx
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
 
 
@@ -549,3 +551,92 @@ def test_late_cancellation_checkpoints_the_last_committed_update(
     equal(observed.model, expected.model)
     equal(observed.optimizer, expected.optimizer)
     equal(observed.rng, expected.rng)
+
+
+def test_completed_training_calibrates_and_reuses_runtime_forecast(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    from sparselab.training import trainer
+
+    validate_runtime = trainer.PyTorchEngine.validate
+
+    def identified_runtime(engine, config: RunConfig):
+        return replace(
+            validate_runtime(engine, config),
+            device_name="Fixture CPU",
+            physical_device_id="fixture:cpu",
+        )
+
+    monkeypatch.setattr(trainer.PyTorchEngine, "validate", identified_runtime)
+    original = config(tmp_path)
+    short_training = original.training.model_copy(
+        update={"max_steps": 3, "max_tokens": 96}
+    )
+    short = original.model_copy(update={"training": short_training})
+
+    train(short, run_id="calibration")
+    train(short, run_id="forecast")
+    captured = capsys.readouterr()
+    progress_records = []
+    for line in captured.err.splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(record, dict)
+            and record.get("run_id") == "forecast"
+            and record.get("phase") == "training"
+        ):
+            progress_records.append(record)
+    assert progress_records[0]["event"] == "started"
+    assert progress_records[-1]["event"] == "finished"
+    assert progress_records[-1]["completed_work"] == 96
+    assert progress_records[-1]["total_work"] == 96
+
+    store = ExperimentStore(short.logging.root_dir)
+    calibrations = ExperimentStore.get_all_calibrations(short.logging.root_dir)
+    runtime_calibration = next(
+        row["observation"]
+        for row in calibrations
+        if row["run_id"] == "calibration"
+        and isinstance(row["observation"], dict)
+        and row["observation"].get("kind") == "runtime_optimizer_throughput_v1"
+    )
+    assert isinstance(runtime_calibration, dict)
+    assert runtime_calibration["first_update_discarded"] is True
+    assert runtime_calibration["calibration_update_count"] == 2
+
+    progress = next(
+        record["payload"]
+        for record in store.get_runtime_progress_records(
+            short.logging.root_dir, "forecast"
+        )
+        if record["kind"] == "runtime_progress"
+    )
+    assert isinstance(progress, dict)
+    derived = progress["derived"]
+    assert isinstance(derived, dict)
+    forecast = derived["planning"]
+    assert isinstance(forecast, dict)
+    assert forecast["availability"] == "available"
+    assert "calibration" in forecast["contributing_run_ids"]
+    live = derived["live"]
+    assert isinstance(live, dict)
+    optimizer_eta = live["optimizer_only_eta"]
+    assert isinstance(optimizer_eta, dict)
+    assert optimizer_eta["status"] == "complete"
+    assert optimizer_eta["low_seconds"] == optimizer_eta["high_seconds"] == 0.0
+
+    final = next(
+        record["payload"]
+        for record in store.get_runtime_progress_records(
+            short.logging.root_dir, "forecast"
+        )
+        if record["kind"] == "runtime_final_observation"
+    )
+    assert isinstance(final, dict)
+    phases = final["phases"]
+    assert isinstance(phases, dict)
+    assert phases["generation"]["availability"] == "not_observed"
+    assert phases["evaluation"]["availability"] == "not_observed"

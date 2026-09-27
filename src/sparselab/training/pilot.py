@@ -94,6 +94,22 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
         row[2] <= 0 for row in timings
     ):
         raise ValueError("pilot has invalid gradient or timing evidence")
+    update_observations = []
+    previous_targets = 0
+    for step, tokens_seen, update_seconds in timings:
+        completed_targets = int(tokens_seen) - previous_targets
+        if completed_targets < 0:
+            raise ValueError("pilot target counters are not cumulative")
+        update_observations.append(
+            {
+                "step": int(step),
+                "targets": completed_targets,
+                "update_seconds": float(update_seconds),
+            }
+        )
+        previous_targets = int(tokens_seen)
+    if previous_targets != snapshot.tokens_seen:
+        raise ValueError("pilot update targets disagree with checkpoint counters")
     native = max(
         (
             peaks[name]
@@ -149,6 +165,7 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
         "step": snapshot.step,
         "tokens_seen": snapshot.tokens_seen,
         "timed_updates": len(timings),
+        "update_observations": update_observations,
         "update_seconds": elapsed,
         "tokens_per_second": snapshot.tokens_seen / elapsed,
         "runtime": manifest["runtime"],

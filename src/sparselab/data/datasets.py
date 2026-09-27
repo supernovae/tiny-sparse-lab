@@ -11,9 +11,9 @@ from sparselab.data.chat_recall import iter_chat_recall
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.engram_recall import iter_engram_recall
 from sparselab.data.instruction_reference import iter_instruction_reference
-from sparselab.data.progress import heartbeat
 from sparselab.data.synthetic import iter_synthetic
 from sparselab.data.withheld_facts import training_documents
+from sparselab.progress import progress_phase
 
 TINYSTORIES_DATASET = "roneneldan/TinyStories"
 TINYSTORIES_REVISION = "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64"
@@ -52,7 +52,13 @@ def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
     }[config.source]
     subset = "default" if config.source == "tinystories" else config.dataset_config
     source_split = split if config.source == "tinystories" else "train"
-    with heartbeat(f"dataset_initialization_{config.source}_{split}"):
+    with progress_phase(
+        f"dataset_initialization_{config.source}_{split}",
+        completed_work=0,
+        total_work=1,
+        unit="dataset",
+        raw_counters={"source": config.source, "split": split},
+    ) as progress:
         dataset = load_dataset(
             dataset_name,
             name=subset,
@@ -63,6 +69,16 @@ def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
         )
         if split == "validation" and source_split == "train":
             dataset = dataset.skip(config.train_max_documents)
+        progress.update(
+            completed_work=1,
+            total_work=1,
+            unit="dataset",
+            raw_counters={
+                "source": config.source,
+                "split": split,
+                "initialized_datasets": 1,
+            },
+        )
     for record in dataset:
         if "text" not in record or not isinstance(record["text"], str):
             raise ValueError(
