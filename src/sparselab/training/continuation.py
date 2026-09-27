@@ -42,7 +42,9 @@ def _resume_settings(config: RunConfig) -> str:
     return config_sha256(settings)
 
 
-def _budget_extension(source: RunConfig, target: RunConfig, snapshot: TrainingSnapshot) -> dict[str, object]:
+def _budget_extension(
+    source: RunConfig, target: RunConfig, snapshot: TrainingSnapshot
+) -> dict[str, object]:
     """Validate the sole scientific difference allowed for full-state extension."""
     old = source.training
     new = target.training
@@ -60,13 +62,19 @@ def _budget_extension(source: RunConfig, target: RunConfig, snapshot: TrainingSn
         or new.max_steps <= old.max_steps
         or new.max_tokens <= old.max_tokens
     ):
-        raise ValueError("budget extension requires a terminal, whole-update AdamW parent and strictly larger whole-update caps")
+        raise ValueError(
+            "budget extension requires a terminal, whole-update AdamW parent and strictly larger whole-update caps"
+        )
     comparable = target.model_dump(mode="json")
     comparable["training"]["max_steps"] = old.max_steps
     comparable["training"]["max_tokens"] = old.max_tokens
     comparable["optimizer"].pop("decay_steps")
-    if _resume_settings(RunConfig.model_validate(comparable)) != _resume_settings(source):
-        raise ValueError("budget extension changes settings other than the budget and decay horizon")
+    if _resume_settings(RunConfig.model_validate(comparable)) != _resume_settings(
+        source
+    ):
+        raise ValueError(
+            "budget extension changes settings other than the budget and decay horizon"
+        )
     return {
         "kind": "budget_extension",
         "parent_checkpoint_sha256": snapshot.checkpoint_sha256,
@@ -148,16 +156,21 @@ def load_continuation(
         return Continuation()
     if extend_budget is not None:
         if any(path is not None for path in (resume, promote, recover)):
-            raise ValueError("extend-budget, resume, promote, and recover are mutually exclusive")
+            raise ValueError(
+                "extend-budget, resume, promote, and recover are mutually exclusive"
+            )
         if (
             extend_budget.is_symlink()
             or not extend_budget.is_dir()
             or extend_budget.parent.name != "checkpoints"
             or not extend_budget.name.startswith("step_")
             or "_gen_" not in extend_budget.name
-            or extend_budget.resolve() != (extend_budget.parent.resolve() / extend_budget.name)
+            or extend_budget.resolve()
+            != (extend_budget.parent.resolve() / extend_budget.name)
         ):
-            raise ValueError("extend-budget requires an immutable full-state generation directory")
+            raise ValueError(
+                "extend-budget requires an immutable full-state generation directory"
+            )
     if recover is not None:
         root = recover.resolve()
     else:
