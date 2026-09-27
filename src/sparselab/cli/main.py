@@ -13,6 +13,7 @@ import sys
 import tempfile
 from collections.abc import Iterable
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -63,6 +64,7 @@ from sparselab.memory import (
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
+from sparselab.runtime_forecasting import runtime_forecast_planning
 from sparselab.staging import inspect_runtime, stage
 from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
@@ -410,6 +412,8 @@ def _checkpoint_verify(args: argparse.Namespace) -> None:
 
 
 def _inspect(args: argparse.Namespace) -> None:
+    if args.estimate_runtime and args.write_proposal:
+        raise ValueError("--estimate-runtime is read-only; write proposals separately")
     config = load_config(Path(args.config))
     inventory = parameter_inventory(config)
     runtime = inspect_runtime(config)
@@ -431,7 +435,24 @@ def _inspect(args: argparse.Namespace) -> None:
     if args.write_proposal:
         paths = write_resource_proposal(proposal, Path(args.write_proposal))
         values["proposal_paths"] = [str(path) for path in paths]
-    if args.json:
+    if args.estimate_runtime:
+        forecast = runtime_forecast_planning(
+            config.logging.root_dir,
+            config,
+            runtime,
+            total_targets=config.training.max_tokens,
+        )
+        values["runtime_forecast"] = {
+            "schema_version": forecast["schema_version"],
+            "runtime_signature": forecast["runtime_signature"],
+            "planning": forecast["planning"],
+            "warmup_calibrated": None,
+            "live": None,
+            "final_observed": None,
+            "history_match": forecast["history_match"],
+            "history_limit": forecast["history_limit"],
+        }
+    if args.json or args.estimate_runtime:
         print(json.dumps(values, indent=2, sort_keys=True))
         return
     print("Model")
@@ -448,6 +469,104 @@ def _inspect(args: argparse.Namespace) -> None:
     print(f"Result: {estimate.result}")
     for assumption in estimate.assumptions:
         print(f"  {assumption}")
+
+
+def _runtime_status(args: argparse.Namespace) -> None:
+    run_id = args.run_id
+    records = ExperimentStore.get_runtime_progress_records(
+        Path(args.runs_dir), run_id, limit=args.limit
+    )
+    latest_record = next(
+        (item for item in reversed(records) if item["kind"] == "runtime_progress"),
+        None,
+    )
+    final_record = next(
+        (
+            item
+            for item in reversed(records)
+            if item["kind"] == "runtime_final_observation"
+        ),
+        None,
+    )
+    latest_payload = latest_record.get("payload") if latest_record is not None else None
+    latest = dict(latest_payload) if isinstance(latest_payload, dict) else None
+    final_payload = final_record.get("payload") if final_record is not None else None
+    final_observed = dict(final_payload) if isinstance(final_payload, dict) else None
+    snapshot_age_seconds: float | None = None
+    if latest is not None:
+        try:
+            observed = datetime.fromisoformat(str(latest["observed_at_utc"]))
+            if observed.tzinfo is None:
+                observed = observed.replace(tzinfo=UTC)
+            snapshot_age_seconds = max(
+                (datetime.now(UTC) - observed).total_seconds(), 0.0
+            )
+        except KeyError, TypeError, ValueError:
+            snapshot_age_seconds = None
+        if snapshot_age_seconds is not None:
+            derived = latest.get("derived")
+            derived_record = dict(derived) if isinstance(derived, dict) else {}
+            live_value = derived_record.get("live")
+            live = dict(live_value) if isinstance(live_value, dict) else {}
+            last_progress_age = live.get("last_meaningful_progress_age_seconds")
+            stall_after = live.get("stalled_after_seconds", 300.0)
+            if (
+                latest.get("state") not in {"COMPLETE", "FAILED", "INTERRUPTED"}
+                and isinstance(stall_after, (int, float))
+                and not isinstance(stall_after, bool)
+                and (
+                    snapshot_age_seconds
+                    + (
+                        float(last_progress_age)
+                        if isinstance(last_progress_age, (int, float))
+                        and not isinstance(last_progress_age, bool)
+                        else 0.0
+                    )
+                    >= float(stall_after)
+                )
+            ):
+                progress_age = (
+                    float(last_progress_age) + snapshot_age_seconds
+                    if isinstance(last_progress_age, (int, float))
+                    and not isinstance(last_progress_age, bool)
+                    else snapshot_age_seconds
+                )
+                live.update(
+                    state="NO_PROGRESS",
+                    last_meaningful_progress_age_seconds=progress_age,
+                    eta_low_seconds=None,
+                    eta_high_seconds=None,
+                    eta_status="suspended",
+                    eta_basis=None,
+                )
+                optimizer_eta = live.get("optimizer_only_eta")
+                if isinstance(optimizer_eta, dict):
+                    optimizer_eta = dict(optimizer_eta)
+                    optimizer_eta.update(
+                        low_seconds=None,
+                        high_seconds=None,
+                        status="suspended",
+                        basis=None,
+                    )
+                    live["optimizer_only_eta"] = optimizer_eta
+                derived_record["live"] = live
+                latest["derived"] = derived_record
+                latest["state"] = "NO_PROGRESS"
+    result = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "availability": "available"
+        if latest_record is not None or final_record is not None
+        else "unavailable",
+        "reason": None
+        if latest_record is not None or final_record is not None
+        else "no runtime records are available for this run",
+        "snapshot_age_seconds": snapshot_age_seconds,
+        "latest": latest,
+        "final_observed": final_observed,
+        "records": records,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
 
 
 def _data_prepare(args: argparse.Namespace) -> None:
@@ -1776,7 +1895,20 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("config")
     inspect.add_argument("--json", action="store_true")
     inspect.add_argument("--write-proposal")
+    inspect.add_argument(
+        "--estimate-runtime",
+        action="store_true",
+        help="Include a read-only, compatibility-filtered optimizer runtime forecast as JSON",
+    )
     inspect.set_defaults(handler=_inspect)
+    runtime = commands.add_parser("runtime")
+    runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
+    runtime_status = runtime_commands.add_parser("status")
+    runtime_status.add_argument("run_id")
+    runtime_status.add_argument("--runs-dir", default=runs_dir_default)
+    runtime_status.add_argument("--limit", type=int, default=50)
+    runtime_status.add_argument("--json", action="store_true", required=True)
+    runtime_status.set_defaults(handler=_runtime_status)
     tokenizer = commands.add_parser("tokenizer")
     tokenizer_commands = tokenizer.add_subparsers(
         dest="tokenizer_command", required=True

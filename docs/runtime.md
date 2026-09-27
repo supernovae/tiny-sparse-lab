@@ -59,6 +59,76 @@ A stage bundle is an immutable, verified copy of the effective inputs. `inspect`
 
 A direct `train` performs configured, inspected, and validated stages, but never silently runs pilots. Supplying `--stage-bundle DIR` adds verified pilot linkage to the resulting manifest; it does not use pilot weights as initialization.
 
+## Runtime forecasting and progress
+
+Runtime forecasts are operational aids, not scientific results or performance
+guarantees. SparseLab keeps four records distinct: a planning estimate from
+compatible historical optimizer throughput, an optional warmup-calibrated
+estimate from a disposable pilot, a live target-based ETA, and a final
+observation of actual phase costs. Missing evidence is `null`/unavailable, not
+zero.
+
+```sh
+uv run --locked sparselab inspect CONFIG --estimate-runtime --json
+uv run --locked sparselab stage CONFIG --through warmup --output sparselab-work/stages/forecast
+uv run --locked sparselab train CONFIG --stage-bundle sparselab-work/stages/forecast
+uv run --locked sparselab runtime status RUN_ID --runs-dir runs --json
+```
+
+`inspect --estimate-runtime` is read-only. Planning uses up to the 25 most
+recent observations whose full runtime signatures match: engine, backend and
+device identity; OS, framework/runtime and driver versions; precision; model
+and attention architecture; optimizer; sequence length, microbatch and
+accumulation; recomputation and offload. The JSON reports matching dimensions
+and rejection reasons. It does not convert theoretical work or parameter counts
+into wall time. Without compatible observations—or when device identity is
+unknown—the planning estimate remains unavailable.
+
+`stage --through warmup` adds a separate estimate from measured disposable
+optimizer updates. It does not change the requested training state. The first
+pilot update is excluded as initialization; the staged estimate is used only
+when its runtime signature exactly matches the eventual run. Without a warmup
+bundle, no warmup estimate is implied.
+
+Training progress counts completed supervised targets against the configured
+target budget and reports steps separately. Live throughput uses robust recent
+and longer windows; ETA is named `optimizer_only_eta`. Initial updates are not
+used as completed-run throughput calibration. Disagreeing windows are marked
+unstable. When targets stop advancing for the stall interval, state becomes
+`NO_PROGRESS` and ETA is suspended; the process is not killed.
+
+Versioned progress JSON Lines go to stderr, leaving existing stdout result
+payloads unchanged. Runtime status reads the latest bounded progress snapshot
+and the separate `runtime_final_observation` event. SQLite retains one
+replaceable progress snapshot per run outside the replication outbox. Status is
+read-only; if the snapshot is stale, it marks progress `NO_PROGRESS` and clears
+ETA in the returned view without rewriting stored state.
+
+The final observation keeps preparation, planning, optimizer updates,
+validation, checkpointing, reporting, and end-to-end wall time separate. Phase
+times with no observation, including evaluation or generation that did not run,
+remain unavailable rather than appearing as zero cost. The dashboard reads the
+same records and does not schedule runs or tune configuration.
+
+**Illustrative planning miss (hypothetical, not a recorded run):** compatible
+history predicts 2 hours of optimizer work, but the completed run observes 2.5
+hours. New contention or thermal throttling can change device throughput without
+changing the signature, so a compatible historical rate is not a guarantee.
+The final observation makes that error visible; only an eligible completed run
+with enough post-initialization updates can contribute to later calibration.
+
+In an implementation CPU smoke, no compatible history meant planning was
+unavailable. A separate warmup forecast for 640 targets was 0.0588 seconds
+(0.0582–0.0614); the 20-update run observed 0.0750 seconds of optimizer-update
+time. The bounded pilot had four measured update intervals after discarding its
+first update. This tiny smoke demonstrates forecast error, not general
+throughput or model quality.
+
+The existing `fast` resource proposal can preserve effective batch while
+changing microbatch/accumulation based on capacity rules. It is not an empirical
+throughput search. Measured candidate ranking and batch recommendations remain
+tracked separately in the [implementation backlog](../TODO.md#throughput-and-resource-proposals).
+
 ## Resource proposals
 
 Memory policy can propose an explicit complete config; it never changes the config supplied to training. `fast`, `balanced`, `low_memory`, and `max_fit` order candidate choices differently, but unsupported actions receive no imagined savings. In particular, changing micro-batch/accumulation can preserve an effective example batch, while changing precision or sequence length is scientifically significant and must remain visible.

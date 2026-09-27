@@ -93,9 +93,9 @@ class ExperimentStore:
                     f"experiment-store integrity check failed: {integrity}"
                 )
             if version == SCHEMA_VERSION:
-                # Schema 4 was not published before the controller queue landed.
-                # Bring an earlier local schema-4 queue projection forward
-                # transactionally without changing the public schema number.
+                # Schema 4 was not published before the controller queue and
+                # runtime snapshot projection landed. Bring earlier local
+                # schema-4 databases forward without changing the public version.
                 con.execute("BEGIN EXCLUSIVE")
                 try:
                     self._create_v4_tables(con)
@@ -159,6 +159,7 @@ class ExperimentStore:
             "checkpoints",
             "manifests",
             "calibration",
+            "runtime_progress_snapshots",
         ):
             if table not in tables:
                 continue
@@ -263,13 +264,11 @@ class ExperimentStore:
             raise ValueError("invalid experiment-store sequence metadata")
 
     def _create_v4_tables(self, con: sqlite3.Connection) -> None:
-        """Create the controller-local durable queue projection.
+        """Create controller queue tables and bounded runtime snapshots.
 
-        These tables deliberately contain no foreign keys into a remote worker
-        store: only the controller opens this database and projects remote
-        records through ``import_records``.  Receipt evidence and its controller
-        ingestion are distinct durable facts: a disconnect after a worker has
-        finished must not erase the finished receipt.
+        These projections are local to the store. Worker receipt evidence and
+        controller ingestion remain separate durable facts; runtime snapshots
+        are replaceable operational state outside the replication outbox.
         """
         _execute_ddl(
             con,
@@ -284,6 +283,10 @@ class ExperimentStore:
             "receipt_json TEXT,terminal_receipt_json TEXT,queued_reason TEXT,"
             "ingestion_status TEXT NOT NULL DEFAULT 'PENDING',ingestion_error TEXT,"
             "FOREIGN KEY(experiment_id) REFERENCES experiments(experiment_id));"
+            "CREATE TABLE IF NOT EXISTS runtime_progress_snapshots("
+            "run_id TEXT PRIMARY KEY,step INTEGER NOT NULL,tokens_seen INTEGER NOT NULL,"
+            "wall_time REAL NOT NULL,payload_json TEXT NOT NULL,"
+            "FOREIGN KEY(run_id) REFERENCES runs(run_id));"
             "CREATE INDEX IF NOT EXISTS attempts_status ON attempts(status);"
             "CREATE INDEX IF NOT EXISTS attempts_worker_status "
             "ON attempts(worker_id,status);",
@@ -316,6 +319,7 @@ class ExperimentStore:
             "workers",
             "experiments",
             "attempts",
+            "runtime_progress_snapshots",
         }
         present = {
             str(row[0])
@@ -340,6 +344,7 @@ class ExperimentStore:
             "workers": "worker_id record_json",
             "experiments": "experiment_id specification_json status submitted_at",
             "attempts": "attempt_id experiment_id run_id worker_id status receipt_json terminal_receipt_json queued_reason ingestion_status ingestion_error",
+            "runtime_progress_snapshots": "run_id step tokens_seen wall_time payload_json",
         }
         for table, names in columns.items():
             actual = {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
@@ -624,6 +629,158 @@ class ExperimentStore:
                     (key_hash,),
                 )
             ]
+
+    @staticmethod
+    def get_all_calibrations(root_dir: Path) -> list[dict[str, object]]:
+        """Read calibration observations without creating or migrating a store."""
+        path = root_dir / "experiments.sqlite3"
+        if not path.is_file():
+            return []
+        with closing(
+            sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        ) as con:
+            con.execute("PRAGMA query_only=ON")
+            version = con.execute("PRAGMA user_version").fetchone()[0]
+            if version > SCHEMA_VERSION:
+                raise ValueError("unsupported newer calibration store schema")
+            if not con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='calibration'"
+            ).fetchone():
+                return []
+            return [
+                {
+                    "key_hash": row[0],
+                    "run_id": row[1],
+                    "observation": _strict_json_loads(row[2]),
+                }
+                for row in con.execute(
+                    "SELECT key_hash,run_id,observation_json "
+                    "FROM calibration ORDER BY rowid"
+                )
+            ]
+
+    def upsert_runtime_progress_snapshot(
+        self,
+        run_id: str,
+        step: int,
+        tokens_seen: int,
+        wall_time: float,
+        record: Mapping[str, object],
+    ) -> None:
+        """Persist one replaceable operational snapshot per run, outside the outbox."""
+        if type(step) is not int or step < 0:
+            raise ValueError("runtime progress step must be a non-negative integer")
+        if type(tokens_seen) is not int or tokens_seen < 0:
+            raise ValueError(
+                "runtime progress target count must be a non-negative integer"
+            )
+        if isinstance(wall_time, bool) or not isinstance(wall_time, (int, float)):
+            raise TypeError("runtime progress wall time must be numeric")
+        if not math.isfinite(wall_time) or wall_time < 0:
+            raise ValueError(
+                "runtime progress wall time must be finite and non-negative"
+            )
+        encoded = _canonical_json(record)
+        if len(encoded.encode("utf-8")) > MAX_ENVELOPE_BYTES:
+            raise ValueError("runtime progress snapshot exceeds 64 KiB")
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO runtime_progress_snapshots"
+                "(run_id,step,tokens_seen,wall_time,payload_json) VALUES(?,?,?,?,?) "
+                "ON CONFLICT(run_id) DO UPDATE SET "
+                "step=excluded.step,tokens_seen=excluded.tokens_seen,"
+                "wall_time=excluded.wall_time,payload_json=excluded.payload_json",
+                (run_id, step, tokens_seen, wall_time, encoded),
+            )
+
+    @staticmethod
+    def get_runtime_progress_records(
+        root_dir: Path, run_id: str, *, limit: int = 50
+    ) -> list[dict[str, object]]:
+        """Read the latest replaceable snapshot and final timing record read-only."""
+        if type(limit) is not int or limit <= 0:
+            raise ValueError("runtime progress record limit must be positive")
+        path = root_dir / "experiments.sqlite3"
+        if not path.is_file():
+            return []
+        with closing(
+            sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        ) as con:
+            con.execute("PRAGMA query_only=ON")
+            version = con.execute("PRAGMA user_version").fetchone()[0]
+            if version > SCHEMA_VERSION:
+                raise ValueError("unsupported newer runtime progress store schema")
+            tables = {
+                row[0]
+                for row in con.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name IN ('events','runtime_progress_snapshots')"
+                )
+            }
+            if "runtime_progress_snapshots" in tables:
+                snapshot = con.execute(
+                    "SELECT step,tokens_seen,wall_time,payload_json "
+                    "FROM runtime_progress_snapshots WHERE run_id=?",
+                    (run_id,),
+                ).fetchone()
+                progress_rows = [] if snapshot is None else [snapshot]
+            elif "events" in tables:
+                progress_rows = con.execute(
+                    "SELECT step,tokens_seen,wall_time,payload_json FROM events "
+                    "WHERE run_id=? AND kind='runtime_progress' "
+                    "ORDER BY id DESC LIMIT ?",
+                    (run_id, limit),
+                ).fetchall()
+            else:
+                progress_rows = []
+            final = (
+                con.execute(
+                    "SELECT step,tokens_seen,wall_time,payload_json FROM events "
+                    "WHERE run_id=? AND kind='runtime_final_observation' "
+                    "ORDER BY id DESC LIMIT 1",
+                    (run_id,),
+                ).fetchone()
+                if "events" in tables
+                else None
+            )
+        records: list[dict[str, object]] = []
+        decoded_rows = [("runtime_progress", row) for row in reversed(progress_rows)]
+        if final is not None:
+            decoded_rows.append(("runtime_final_observation", final))
+        for kind, row in decoded_rows:
+            step, tokens_seen, wall_time, payload = row
+            if type(step) is not int or type(tokens_seen) is not int:
+                raise TypeError("runtime progress counters must be integers")
+            if step < 0 or tokens_seen < 0:
+                raise ValueError("runtime progress counters must be non-negative")
+            if isinstance(wall_time, bool) or not isinstance(wall_time, (int, float)):
+                raise TypeError("runtime progress wall time must be numeric")
+            if not math.isfinite(wall_time) or wall_time < 0:
+                raise ValueError(
+                    "runtime progress wall time must be finite and non-negative"
+                )
+            if not isinstance(payload, str):
+                raise TypeError("runtime progress payload must be JSON text")
+            decoded = _strict_json_loads(payload)
+            if not isinstance(decoded, dict):
+                raise TypeError("runtime progress record payload must be an object")
+            records.append(
+                {
+                    "kind": kind,
+                    "step": step,
+                    "tokens_seen": tokens_seen,
+                    "wall_time": float(wall_time),
+                    "payload": decoded,
+                }
+            )
+        records.sort(
+            key=lambda item: (
+                float(item["wall_time"])
+                if isinstance(item.get("wall_time"), (int, float))
+                else 0.0
+            )
+        )
+        return records[-limit:]
 
     def finish_run(
         self, run_id: str, status: str, checkpoint: str | None = None

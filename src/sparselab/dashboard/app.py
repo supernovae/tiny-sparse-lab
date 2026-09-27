@@ -298,9 +298,76 @@ def overview(view: DashboardSnapshot) -> None:
         st.dataframe(selected_events, width="stretch", hide_index=True)
 
 
+def _runtime_forecast_panel(view: DashboardSnapshot, selected_ids: list[str]) -> None:
+    progress_rows = _rows_for(view.runtime_progress, selected_ids)
+    final_by_run: dict[str, dict[str, object]] = {}
+    for event in _rows_for(view.events, selected_ids):
+        if event.get("kind") != "runtime_final_observation":
+            continue
+        try:
+            decoded = json.loads(str(event.get("payload_json", "{}")))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(decoded, dict):
+            final_by_run[str(event["run_id"])] = decoded
+    if not progress_rows and not final_by_run:
+        return
+
+    latest_by_run = {str(row["run_id"]): row for row in progress_rows}
+    run_ids = sorted(set(latest_by_run) | set(final_by_run))
+    summaries: list[dict[str, object]] = []
+    detail: dict[str, dict[str, object]] = {}
+    for run_id in run_ids:
+        row = latest_by_run.get(run_id)
+        payload: dict[str, object] = {}
+        if row is not None:
+            try:
+                decoded = json.loads(str(row.get("payload_json", "{}")))
+            except json.JSONDecodeError:
+                decoded = {}
+            if isinstance(decoded, dict):
+                payload = decoded
+        derived = _as_object(payload.get("derived"))
+        live = _as_object(derived.get("live"))
+        fraction = live.get("progress_fraction")
+        summaries.append(
+            {
+                "run_id": run_id,
+                "state": live.get("state", payload.get("state", "unavailable")),
+                "phase": payload.get("phase", "unavailable"),
+                "completed_targets": live.get("completed_targets"),
+                "total_targets": live.get("total_targets"),
+                "progress_percent": (
+                    round(float(fraction) * 100, 1)
+                    if isinstance(fraction, (int, float))
+                    else None
+                ),
+                "recent_targets_per_second": live.get("recent_targets_per_second"),
+                "long_targets_per_second": live.get("long_targets_per_second"),
+                "optimizer_only_eta_low_seconds": live.get("eta_low_seconds"),
+                "optimizer_only_eta_high_seconds": live.get("eta_high_seconds"),
+                "optimizer_only_eta_status": live.get("eta_status", "unavailable"),
+            }
+        )
+        detail[run_id] = {
+            "latest_progress": payload or None,
+            "final_observed": final_by_run.get(run_id),
+        }
+
+    st.subheader("Runtime forecast")
+    st.dataframe(summaries, width="stretch", hide_index=True)
+    st.caption(
+        "ETA is optimizer-only and remains unavailable without compatible timing telemetry. "
+        "Final phase observations keep preparation, validation, checkpointing, and reporting separate."
+    )
+    with st.expander("Runtime record details"):
+        st.json(detail, expanded=False)
+
+
 def training(view: DashboardSnapshot) -> None:
     st.header("Training")
     records, selected_ids = selected(view)
+    _runtime_forecast_panel(view, selected_ids)
     comparison([record for record in records if record.run_id in selected_ids], view)
     points = _rows_for(view.metrics, selected_ids)
     if not points:
@@ -396,6 +463,7 @@ def evaluation(view: DashboardSnapshot) -> None:
 def runtime_view(view: DashboardSnapshot) -> None:
     st.header("Runtime")
     records, selected_ids = selected(view)
+    _runtime_forecast_panel(view, selected_ids)
     rows = []
     for record in records:
         if record.run_id not in selected_ids:

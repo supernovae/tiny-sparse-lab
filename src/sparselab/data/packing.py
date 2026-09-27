@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import sys
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -23,7 +22,7 @@ from sparselab.data.conversations import (
     iter_rendered_conversations,
 )
 from sparselab.data.datasets import iter_documents
-from sparselab.data.progress import heartbeat
+from sparselab.progress import progress_phase
 from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 
 PACKING_VERSION = "contiguous-eos-v5"
@@ -64,15 +63,29 @@ def _array_metadata(
     dtype: np.dtype[np.generic] | type[np.generic] = np.int32,
     dimensions: int = 1,
 ) -> dict[str, object]:
-    with heartbeat(f"data_artifact_hash_{path.name}"):
+    size_bytes = path.stat().st_size
+    with progress_phase(
+        f"data_artifact_hash_{path.name}",
+        completed_work=0,
+        total_work=size_bytes,
+        unit="bytes",
+        raw_counters={"artifact": path.name, "artifact_bytes": size_bytes},
+    ) as progress:
         values = np.load(path, mmap_mode="r", allow_pickle=False)
         if values.ndim != dimensions or values.dtype != dtype:
             raise ValueError(f"packed array has unexpected shape or dtype: {path}")
+        digest = _sha256(path)
+        progress.update(
+            completed_work=size_bytes,
+            total_work=size_bytes,
+            unit="bytes",
+            raw_counters={"artifact": path.name, "artifact_bytes": size_bytes},
+        )
         return {
             "dtype": values.dtype.name,
             "shape": list(values.shape),
             "tokens": int(values.shape[0]),
-            "sha256": _sha256(path),
+            "sha256": digest,
         }
 
 
@@ -460,7 +473,12 @@ def _collect(
     encoded_tokens = 0
     source_digest = hashlib.sha256()
     started = time.monotonic()
-    with heartbeat(f"data_{split}_document_iteration_and_collection"):
+    with progress_phase(
+        f"data_{split}_document_iteration_and_collection",
+        completed_work=0,
+        unit="documents",
+        raw_counters={**stats, "source_bytes": 0, "encoded_tokens": 0},
+    ) as progress:
         while stats["acquired_documents"] < max_documents and len(values) < max_tokens:
             read_started = time.monotonic()
             try:
@@ -514,24 +532,24 @@ def _collect(
             supervision.extend(selected_supervision)
             stats["retained_documents"] += 1
             if stats["acquired_documents"] % 500 == 0:
-                print(
-                    json.dumps(
-                        {
-                            "preprocessing": f"data_{split}_collection",
-                            "documents": stats["acquired_documents"],
-                            "source_bytes": source_bytes,
-                            "encoded_tokens": encoded_tokens,
-                            "retained_tokens": len(values),
-                        },
-                        sort_keys=True,
-                    ),
-                    file=sys.stderr,
+                progress.update(
+                    completed_work=stats["acquired_documents"],
+                    unit="documents",
+                    raw_counters={
+                        **stats,
+                        "source_bytes": source_bytes,
+                        "encoded_tokens": encoded_tokens,
+                        "retained_tokens": len(values),
+                    },
                 )
-    elapsed = max(time.monotonic() - started, 1e-9)
-    print(
-        json.dumps(
-            {
-                "preprocessing": f"data_{split}_collection",
+        elapsed = max(time.monotonic() - started, 1e-9)
+        construction_seconds = max(
+            0.0, elapsed - source_wait_seconds - encoding_seconds
+        )
+        progress.update(
+            completed_work=stats["acquired_documents"],
+            unit="documents",
+            raw_counters={
                 **stats,
                 "source_bytes": source_bytes,
                 "encoded_tokens": encoded_tokens,
@@ -539,22 +557,16 @@ def _collect(
                 "encoded_tokens_per_second": encoded_tokens
                 / max(encoding_seconds, 1e-9),
                 "construction_tokens_per_second": len(values)
-                / max(elapsed - source_wait_seconds - encoding_seconds, 1e-9),
+                / max(construction_seconds, 1e-9),
                 "output_tokens": len(values),
                 "source_iteration_seconds": source_wait_seconds,
                 "tokenizer_encoding_seconds": encoding_seconds,
-                "python_array_construction_seconds": max(
-                    0.0, elapsed - source_wait_seconds - encoding_seconds
-                ),
+                "python_array_construction_seconds": construction_seconds,
                 "documents_per_second": stats["acquired_documents"] / elapsed,
                 "source_bytes_per_second": source_bytes / elapsed,
                 "output_tokens_per_second": len(values) / elapsed,
             },
-            sort_keys=True,
-        ),
-        file=sys.stderr,
-        flush=True,
-    )
+        )
     return (
         np.asarray(values, dtype=np.int32),
         np.asarray(supervision, dtype=bool),
@@ -565,11 +577,23 @@ def _collect(
 
 def _atomic_array(path: Path, values: np.ndarray) -> None:
     temporary = path.with_name(path.stem + ".tmp.npy")
-    with heartbeat(f"data_array_write_fsync_{path.name}"):
+    with progress_phase(
+        f"data_array_write_fsync_{path.name}",
+        completed_work=0,
+        unit="bytes",
+        raw_counters={"artifact": path.name},
+    ) as progress:
         np.save(temporary, values, allow_pickle=False)
         with temporary.open("rb") as handle:
             os.fsync(handle.fileno())
         temporary.replace(path)
+        output_bytes = path.stat().st_size
+        progress.update(
+            completed_work=output_bytes,
+            total_work=output_bytes,
+            unit="bytes",
+            raw_counters={"artifact": path.name, "artifact_bytes": output_bytes},
+        )
 
 
 def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
@@ -637,10 +661,23 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             or (train_byte_path.is_file() and validation_byte_path.is_file())
         )
     ):
-        with heartbeat("data_cache_validation"):
-            return load_prepared_data(
+        with progress_phase(
+            "data_cache_validation",
+            completed_work=0,
+            total_work=1,
+            unit="cache_verifications",
+            raw_counters={"cache_reused": True, "verification_only": True},
+        ) as progress:
+            cached = load_prepared_data(
                 root, byte_enabled=byte_enabled, expected_identity=cache_identity
             )
+            progress.update(
+                completed_work=1,
+                total_work=1,
+                unit="cache_verifications",
+                raw_counters={"cache_reused": True, "verification_only": True},
+            )
+            return cached
     _assert_local_chat_disjoint(config.dataset)
     _assert_local_chat_supervision_consistent(config.dataset)
     temporary_root = root.with_name(root.name + ".tmp")
