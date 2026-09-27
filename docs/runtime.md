@@ -2,6 +2,49 @@
 
 Each SparseLab experiment runs in one process on one host/device. An optional controller schedules multiple whole independent experiments on local or SSH workers; it never shares their optimizer state or gradients. A run records its selected engine, backend, precision, device index, available memory readings, framework/runtime versions, and probe result in its manifest. That record describes the machine that ran it; it is not evidence that another machine has the same capability.
 
+## Host environment and compute backend
+
+Host OS, execution environment, and compute backend are independent dimensions.
+WSL2 is a Linux environment; it does not select AMD, NVIDIA, Intel, or CPU.
+macOS likewise does not imply that a run must use its GPU. Runtime discovery
+records `host_os`, `host_environment`, and `host_architecture` alongside the
+existing OS description and backend/device metadata. Historical records without
+these fields keep them unknown rather than inheriting the reader's current host.
+Linux kernel WSL2 markers identify `wsl2`; a WSL hint without a known generation
+is recorded as `unknown-wsl`. Host detection never initializes a GPU.
+
+| Dimension | Examples | Role |
+| --- | --- | --- |
+| Host OS/environment | Native Linux, Linux under WSL2, macOS | OS behavior and installation context |
+| Host architecture | `x86_64`, `arm64` | CPU instruction architecture, independent of GPU vendor |
+| Engine/backend | PyTorch CPU, CUDA, ROCm, XPU, MPS; MLX Metal | Actual execution APIs and device capabilities |
+| Workspace | `runtime-acceptance`, a named research campaign | Task-owned storage shared across backend coordinates |
+
+CPU execution uses the same path on Linux, WSL2, and macOS. NVIDIA CUDA, AMD
+ROCm, and Intel XPU use their installed framework APIs on native Linux or WSL2
+where the vendor supports that host/device combination. Apple MPS and MLX use
+Metal on supported Macs. Discovery and explicit validation decide availability;
+a host label never certifies an accelerator or enables a fallback.
+
+WSL2 uses the Linux process, locking, and filesystem paths in SparseLab. Keep
+Linux training data, caches, and checkpoints in the Linux filesystem where
+practical, and measure the actual chosen storage; Microsoft's
+[filesystem guidance](https://learn.microsoft.com/en-us/windows/wsl/filesystems)
+explains the cost of crossing into Windows-mounted storage. Memory readings
+describe the Linux environment and available device APIs, not an assumed share
+of all physical Windows host RAM. Missing driver or device telemetry remains
+unavailable, including under WSL2.
+
+Provision GPU drivers and framework wheels for the actual host and device.
+For WSL2, follow the vendor's WSL instructions: NVIDIA's
+[CUDA guide](https://docs.nvidia.com/cuda/wsl-user-guide/) uses the Windows host
+driver and explicitly excludes installing a Linux GPU driver inside WSL;
+PyTorch's [Intel GPU guide](https://docs.pytorch.org/docs/stable/notes/get_start_xpu.html)
+lists supported XPU host/device combinations; AMD's
+[installation guide](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html)
+covers its framework packages. SparseLab does not install or infer drivers from
+the presence of WSL. Native Windows execution is not established by WSL2 tests.
+
 ## Choose an execution target
 
 A schema-v2 run config has a `runtime` section:
@@ -149,40 +192,35 @@ step-size cap**, not an AdamW-equivalent absolute learning rate. Parameter RMS
 scaling and its own update clipping still apply. An optimizer change requires
 a fresh or promoted run, never full resume.
 
-## ROCm 10 on WSL2
+## Runtime acceptance on a provisioned host
 
-The recorded target is an AMD Radeon RX 7900 XTX (`gfx1100`) under WSL2.
-This host-specific acceptance requires Python 3.14 and AMD's
-`torch[device-gfx1100]==2.13.0+rocm10.0.0` wheel from the explicit ROCm index.
-Install with:
-
-```sh
-uv sync --locked --python 3.14 --group dev
-```
-
-PyTorch exposes ROCm devices through its `torch.cuda` API. Confirm the
-installed build reports a HIP version and can probe the physical GPU; CPU
-fallback does not count as ROCm acceptance:
+Use the same acceptance workflow for native Linux, WSL2, and macOS. Select a
+config with an explicit backend and precision supported by the provisioned
+environment. The CPU and ROCm runtime smoke configs use the same 20-step,
+640-target workload; a CUDA or XPU candidate can copy that config and change
+`runtime.backend` in its own source config. Do not change a running or frozen
+experiment's config. Backend names in configs and run IDs are useful coordinates;
+host/backend combinations do not define separate storage layouts.
 
 ```sh
-uv run --locked --python 3.14 python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.device_count(), torch.cuda.get_device_name(0))'
-uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run --locked pytest -m 'not cuda and not rocm and not xpu and not network'
-WORK=sparselab-work/experiments/rocm-wsl2-acceptance
+WORK=sparselab-work/experiments/runtime-acceptance
 export SPARSELAB_WORK_DIR="$WORK"
-RUN_ID="rocm-wsl2-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
+CONFIG=configs/runtime_smoke_cpu.yaml
+RUN_ID="runtime-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
 STAGE_DIR="$WORK/staging/$RUN_ID"
-uv run --locked sparselab stage configs/runtime_smoke_rocm.yaml --through warmup --output "$STAGE_DIR"
-uv run --locked sparselab train --runs-dir "$WORK/runs" configs/runtime_smoke_rocm.yaml --run-id "$RUN_ID"
-uv run --locked sparselab eval "$RUN_ID" --backend rocm --runs-dir "$WORK/runs"
+# --no-sync preserves the already provisioned worker framework.
+uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_smoke.yaml
+uv run --locked --no-sync sparselab inspect "$CONFIG" --json
+uv run --locked --no-sync sparselab stage "$CONFIG" --through warmup --output "$STAGE_DIR"
+uv run --locked --no-sync sparselab train --runs-dir "$WORK/runs" "$CONFIG" --run-id "$RUN_ID"
+uv run --locked --no-sync sparselab eval "$RUN_ID" --runs-dir "$WORK/runs"
 ```
 
-The stage, training manifest, and evaluation must all record `rocm`; training
-must commit 20 steps / 640 targets, and evaluation must use the committed
-checkpoint. The host probe must report `torch.version.hip`, an available
-device, and the RX 7900 XTX. An explicit ROCm request that fails or resolves
-to another backend is a failed acceptance, not permission to continue on CPU.
-See AMD's [ROCm PyTorch installation documentation](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html).
+The stage, training manifest, and evaluation must record the requested backend;
+training must commit 20 steps / 640 targets for these runtime smoke configs, and
+evaluation must use the committed checkpoint. Inspect the measured host/device
+identity and probe result. An explicit unavailable backend is a failed
+acceptance. Each new host/device combination requires actual execution evidence.
 
 ## Recorded local acceptance
 

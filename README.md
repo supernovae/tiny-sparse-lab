@@ -59,6 +59,12 @@ The smoke configuration is intentionally tiny. It exercises tokenizer, prepared 
 
 Use new run IDs and stage output directories for another experiment; existing artifacts are not silently overwritten. Source-checkout installs intentionally use the PyTorch CPU index on Linux. CUDA/ROCm/XPU workers need a vendor-provisioned environment and the project wheel, not a blind CPU-locked `uv sync`; see [worker installation boundaries](docs/workers.md#user-provisioned-ssh-workers).
 
+Host environment and compute backend are separate: native Linux and WSL2 use
+the same backend selection and validation paths, while macOS supports CPU and
+its available Apple engines. WSL2 does not imply ROCm. See the
+[runtime host model](docs/runtime.md#host-environment-and-compute-backend) for
+recorded host metadata, vendor provisioning, and hardware acceptance limits.
+
 ### Safely stop, verify, and resume
 
 `--stop-after-step` finishes a successful update boundary and leaves a durable checkpoint. Verify it before continuing into a new child run:

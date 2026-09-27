@@ -45,7 +45,24 @@ sparselab worker register amd --backend rocm --ssh amd-host \
 
 The SSH alias must already be configured in the user's SSH environment. Transport uses strict host-key checking and `BatchMode=yes`; it does not store passwords, accept unknown host keys, install software remotely, or execute commands from experiment configurations. Interpreter and worker-root paths are absolute. The endpoint runs a fixed, shell-quoted agent command. Worker roots are private and bound to an immutable registration.
 
-Provision each target with its vendor-compatible PyTorch/runtime and the project wheel. The source checkout's Linux CPU package index is for CPU CI; do not blindly apply that CPU-locked environment to accelerator workers. Record actual driver/framework/runtime versions and perform the worker's concrete validation. PyTorch MPS and optional MLX Metal are different engines sharing the same physical Apple GPU lease.
+Provision each target with its vendor-compatible PyTorch/runtime and the project wheel. The source checkout's Linux CPU package index is for CPU development and CI; do not blindly apply that CPU-locked environment to accelerator workers. For an already provisioned checkout, `uv run --locked --no-sync ...` preserves its framework packages. Record actual driver/framework/runtime versions and perform the worker's concrete validation. PyTorch MPS and optional MLX Metal are different engines sharing the same physical Apple GPU lease.
+
+Choose the host environment and backend independently: a WSL2 worker is a Linux
+worker that can request CPU, CUDA, ROCm, or XPU when its installed stack and
+hardware support that backend. Registration does not infer a GPU vendor from
+WSL2 or from the worker's name. Apply the same protocol, staging, device leases,
+and task-owned store conventions on native Linux and WSL2. See
+[host environment and compute backend](runtime.md#host-environment-and-compute-backend)
+for filesystem, driver, telemetry, and acceptance boundaries.
+
+The optional [gfx1100 provisioning requirements](../requirements/rocm-gfx1100.txt)
+retain the existing AMD worker's Python 3.14/ROCm package pins. They are an
+explicit device-specific provisioning input, not a Linux or WSL2 default and
+not a prescription for every AMD GPU. Other AMD devices, NVIDIA CUDA, and Intel
+XPU workers use their own compatible vendor stack. The project wheel declares a
+generic PyTorch dependency so installing SparseLab does not request AMD device
+packages solely because the host runs Linux. Keep the vendor package constraints
+when resolving the wheel's dependencies.
 
 ## Preparation and durable identity
 

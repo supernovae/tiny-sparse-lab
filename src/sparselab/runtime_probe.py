@@ -50,7 +50,13 @@ def _mlx_probe(payload: dict[str, Any]) -> dict[str, Any]:
     import mlx.optimizers as optim
     from mlx import nn
 
-    from sparselab.runtime import RuntimeInfo, _now, _os_identity, _ram
+    from sparselab.runtime import (
+        RuntimeInfo,
+        _now,
+        _os_identity,
+        _ram,
+        detect_host_environment,
+    )
 
     required = {
         "format_version",
@@ -151,6 +157,7 @@ def _mlx_probe(payload: dict[str, Any]) -> dict[str, Any]:
         tested_precisions=("fp32",),
         tested_features=tuple(features),
         validated_at=_now(),
+        **detect_host_environment(),
     )
     return {
         "format_version": 1,

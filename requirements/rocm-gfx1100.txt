@@ -1,0 +1,10 @@
+# Opt-in vendor environment for the existing Python 3.14 gfx1100 worker.
+# These hardware-specific pins apply to native Linux and WSL2 alike.
+# Install the project wheel into the provisioned environment; do not CPU-sync it.
+--extra-index-url https://stable.repo.amd.com/rocm/whl-next/
+--extra-index-url https://stable.repo.amd.com/rocm/core/whl-next/
+triton==3.8.0+git4cff872c.rocm10.0.0; sys_platform == 'linux'
+amd-torch-device-gfx1100==2.13.0+rocm10.0.0; sys_platform == 'linux'
+amd-torch-device-gfx110x==2.13.0+rocm10.0.0; sys_platform == 'linux'
+torch[device-gfx1100]==2.13.0+rocm10.0.0; sys_platform == 'linux'
+rocm[libraries]==10.0.0; sys_platform == 'linux'

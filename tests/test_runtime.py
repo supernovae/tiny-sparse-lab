@@ -8,6 +8,92 @@ import torch
 from sparselab import runtime
 
 
+@pytest.mark.parametrize(
+    ("system", "release", "distro", "interop", "host_os", "environment"),
+    [
+        ("Linux", "6.8.0-generic", "", "", "linux", "native"),
+        ("Darwin", "25.0.0", "Ubuntu", "", "macos", "native"),
+        ("Windows", "11", "Ubuntu", "", "windows", "native"),
+        ("Linux", "6.6.87.2-microsoft-standard-WSL2", "", "", "linux", "wsl2"),
+        ("Linux", "5.4.72-microsoft-standard", "", "", "linux", "wsl2"),
+        ("Linux", "4.4.0-Microsoft", "", "", "linux", "unknown-wsl"),
+        ("Linux", "custom", "Ubuntu", "", "linux", "unknown-wsl"),
+        ("Linux", "custom", "", "/run/WSL/1_interop", "linux", "unknown-wsl"),
+    ],
+)
+def test_host_environment_detection(
+    monkeypatch: pytest.MonkeyPatch,
+    system: str,
+    release: str,
+    distro: str,
+    interop: str,
+    host_os: str,
+    environment: str,
+) -> None:
+    monkeypatch.setattr(runtime.platform, "system", lambda: system)
+    monkeypatch.setattr(runtime.platform, "release", lambda: release)
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "test-architecture")
+    monkeypatch.setenv("WSL_DISTRO_NAME", distro)
+    monkeypatch.setenv("WSL_INTEROP", interop)
+
+    assert runtime.detect_host_environment() == {
+        "host_os": host_os,
+        "host_environment": environment,
+        "host_architecture": "test-architecture",
+    }
+
+
+@pytest.mark.parametrize("backend", ["cpu", "cuda", "rocm", "xpu"])
+@pytest.mark.parametrize("wsl", [False, True])
+def test_host_inventory_is_independent_of_backend(
+    monkeypatch: pytest.MonkeyPatch, backend: str, wsl: bool
+) -> None:
+    monkeypatch.setattr(runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        runtime.platform,
+        "release",
+        lambda: "6.6-microsoft-standard-WSL2" if wsl else "6.6-generic",
+    )
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    monkeypatch.delenv("WSL_INTEROP", raising=False)
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: backend in {"cuda", "rocm"})
+    monkeypatch.setattr(torch.version, "hip", "test-hip" if backend == "rocm" else None)
+    monkeypatch.setattr(
+        torch, "xpu", SimpleNamespace(is_available=lambda: backend == "xpu")
+    )
+    monkeypatch.setattr(runtime.importlib.util, "find_spec", lambda _: None)
+
+    infos = runtime.discover_runtimes()
+
+    assert runtime._auto_backend() == backend
+    assert {info.host_os for info in infos} == {"linux"}
+    assert {info.host_environment for info in infos} == {"wsl2" if wsl else "native"}
+    selected = next(info for info in infos if info.backend == backend)
+    assert selected.torch_device == str(runtime.torch_device_for(backend))
+    assert runtime.RuntimeInfo.from_dict(selected.as_dict()) == selected
+
+
+def test_legacy_runtime_does_not_infer_host_from_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _mlx_probe_result(features=[])["runtime"]
+    assert isinstance(value, dict)
+    for name in ("host_os", "host_environment", "host_architecture"):
+        value.pop(name)
+
+    def unexpected_detection():
+        pytest.fail("historical runtime readers must not detect the current host")
+
+    monkeypatch.setattr(runtime, "detect_host_environment", unexpected_detection)
+    info = runtime.RuntimeInfo.from_dict(value)
+    assert info.os == "test"
+    assert info.host_os is None
+    assert info.host_environment is None
+    assert info.host_architecture is None
+    assert runtime.RuntimeInfo.from_dict(info.as_dict()) == info
+
+
 def _config(
     *,
     backend: str = "cpu",

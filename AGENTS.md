@@ -25,6 +25,9 @@ from an agent's confidence or a passing smoke test.
   the user explicitly requests it.
 - For CUDA, ROCm, XPU, or MLX work, follow the documented worker environment
   instead of replacing its framework packages with the default locked CPU stack.
+  Use `uv run --locked --no-sync ...` for an already provisioned vendor environment.
+  Treat host OS/environment (Linux, macOS, WSL2) independently from backend/device;
+  do not infer a GPU vendor or capability from the host environment.
 
 ## Workspaces and storage
 
@@ -32,6 +35,9 @@ from an agent's confidence or a passing smoke test.
   `sparselab-work/runtime-forecasting/` or set `SPARSELAB_WORK_DIR` to a named
   directory on a filesystem with enough capacity. Pass `--work-dir` when the CLI
   supports it.
+- Name workspaces for the task or experiment, not the CPU/GPU backend. Keep
+  backend/device choices in runtime parameters and run metadata, with distinct
+  run IDs sharing the task's `runs/` store.
 - Do not use anonymous `/tmp` paths for long preparation, training, checkpoints,
   downloads, or campaign output. OS temp space may be small even when the project
   filesystem is large. Python and child-process temp paths are redirected after

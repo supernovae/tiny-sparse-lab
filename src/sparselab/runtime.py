@@ -49,10 +49,19 @@ class RuntimeInfo:
     tested_features: tuple[str, ...] = ()
     validated_at: str | None = None
     format_version: int = 1
+    # Optional additions preserve historical records without inferring their host
+    # from the machine reading them.
+    host_os: str | None = None
+    host_environment: str | None = None
+    host_architecture: str | None = None
 
     def __post_init__(self) -> None:
         if type(self.format_version) is not int or self.format_version != 1:
             raise ValueError("unsupported RuntimeInfo format version")
+        for name in ("host_os", "host_environment", "host_architecture"):
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, str):
+                raise TypeError(f"RuntimeInfo {name} must be a string or null")
         for name in (
             "precision_capabilities",
             "limitations",
@@ -99,10 +108,35 @@ def _ram() -> tuple[int, int]:
     return int(memory.total), int(memory.available)
 
 
+def detect_host_environment() -> dict[str, str]:
+    """Describe the host independently of installed or available accelerators.
+
+    Distro/session variables identify WSL but do not establish its generation.
+    A custom WSL kernel can lack the usual WSL2 release marker; retain that
+    uncertainty instead of claiming native Linux or a particular WSL version.
+    """
+    system = platform.system().lower()
+    environment = "native"
+    if system == "linux":
+        release = platform.release().lower()
+        if "wsl2" in release or "microsoft-standard" in release:
+            environment = "wsl2"
+        elif (
+            "microsoft" in release
+            or os.environ.get("WSL_DISTRO_NAME")
+            or os.environ.get("WSL_INTEROP")
+        ):
+            environment = "unknown-wsl"
+    return {
+        "host_os": "macos" if system == "darwin" else system,
+        "host_environment": environment,
+        "host_architecture": platform.machine(),
+    }
+
+
 def _os_identity() -> str:
     identity = platform.platform()
-    release = platform.release().lower()
-    if "microsoft" in release or os.environ.get("WSL_DISTRO_NAME"):
+    if detect_host_environment()["host_environment"] != "native":
         return f"{identity} (WSL)"
     return identity
 
@@ -176,6 +210,7 @@ def discover_runtimes(
 ) -> list[RuntimeInfo]:
     """Inventory without allocator initialization; probes may measure one explicit device."""
     total, available = _ram()
+    host = detect_host_environment()
     infos: list[RuntimeInfo] = []
     for backend in ("cpu", "mps", "cuda", "rocm", "xpu"):
         supported = _backend_available(backend)
@@ -303,6 +338,7 @@ def discover_runtimes(
                 precision_capabilities=_declared_precisions(backend, supported),
                 limitations=tuple(limitations),
                 device_driver_allocated_bytes=driver_allocated,
+                **host,
             )
         )
     mlx_spec = importlib.util.find_spec("mlx")
@@ -328,6 +364,7 @@ def discover_runtimes(
                 _now(),
                 (),
                 ("MLX package unavailable",),
+                **host,
             )
         )
     else:
@@ -363,6 +400,7 @@ def discover_runtimes(
                     "Apple unified memory is one shared system-memory pool",
                     "Metal capacity is unavailable without an active probe",
                 ),
+                **host,
             )
         )
     return infos

@@ -4,6 +4,14 @@ One experiment has one local workspace. Seeds, architecture cells, budget
 coordinates, and resumed children are scientific coordinates identified by run
 IDs and immutable manifests; they are not peer repository-root directories.
 
+Name every workspace for its task or experiment, independently of its execution
+backend. CPU, ROCm, CUDA, and other backends are runtime parameters recorded in
+configs and manifests. For example, runtime acceptance across devices shares
+`sparselab-work/experiments/runtime-acceptance/runs/`; runtime smoke configs share
+`sparselab-work/experiments/runtime-smoke/runs/`. Use distinct run IDs for each
+execution, including backend labels when useful, rather than separate
+`runs-rocm` or `runs-cpu` stores. Worker environments remain backend-specific.
+
 ```text
 sparselab-work/experiments/dense-lm-v1/
   receipt.json
@@ -102,3 +110,15 @@ invalidate the evidence; no registry hash is changed by this hygiene work.
 The [dense-lm-v1 migration audit](dense-lm-v1-workspace-audit.md) records the actual
 consolidation, preserved history, verification results, and remaining unrelated
 lifecycle availability limits.
+
+On 2026-09-27, the remaining local `runs-rocm/` store was relocated to
+`sparselab-work/experiments/runtime-acceptance/runs/`. Its sole completed run,
+`rocm-wsl2-acceptance-20260926T035145Z`, retains its original ID, backend metadata,
+and historical paths. All 34 run files retained their hashes, inodes, sizes, and
+modification times; all five checkpoint generations verified before and after
+the move, and the integrity-bound evaluation evidence was identical. The current
+checkpoint locator was rebased using the same standalone-store helper. The
+original database and sidecars, inventory, relocation script, and verification
+record are retained under the workspace's `local-reports/relocation/`. No new
+training or hardware acceptance was performed. Earlier accounts of leaving
+`runs-rocm/` untouched describe those earlier operations and remain unchanged.
