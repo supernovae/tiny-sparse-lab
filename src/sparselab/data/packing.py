@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +23,7 @@ from sparselab.data.conversations import (
     iter_rendered_conversations,
 )
 from sparselab.data.datasets import iter_documents
+from sparselab.data.progress import heartbeat
 from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 
 PACKING_VERSION = "contiguous-eos-v5"
@@ -61,15 +64,16 @@ def _array_metadata(
     dtype: np.dtype[np.generic] | type[np.generic] = np.int32,
     dimensions: int = 1,
 ) -> dict[str, object]:
-    values = np.load(path, mmap_mode="r", allow_pickle=False)
-    if values.ndim != dimensions or values.dtype != dtype:
-        raise ValueError(f"packed array has unexpected shape or dtype: {path}")
-    return {
-        "dtype": values.dtype.name,
-        "shape": list(values.shape),
-        "tokens": int(values.shape[0]),
-        "sha256": _sha256(path),
-    }
+    with heartbeat(f"data_artifact_hash_{path.name}"):
+        values = np.load(path, mmap_mode="r", allow_pickle=False)
+        if values.ndim != dimensions or values.dtype != dtype:
+            raise ValueError(f"packed array has unexpected shape or dtype: {path}")
+        return {
+            "dtype": values.dtype.name,
+            "shape": list(values.shape),
+            "tokens": int(values.shape[0]),
+            "sha256": _sha256(path),
+        }
 
 
 def _cache_is_valid(
@@ -450,49 +454,107 @@ def _collect(
         "truncated_documents": 0,
     }
     documents = iter(_source_documents(config, split))
-    while stats["acquired_documents"] < max_documents and len(values) < max_tokens:
-        try:
-            rendered = next(documents)
-        except StopIteration:
-            break
-        stats["acquired_documents"] += 1
-        document = rendered.text
-        if not document:
-            stats["skipped_documents"] += 1
-            continue
-        encoding = tokenizer.encode(document, add_special_tokens=False)
-        remaining = max_tokens - len(values)
-        if remaining <= 1:
-            break
-        selected_count = min(len(encoding.ids), remaining - 1)
-        selected = encoding.ids[:selected_count] + [eos]
-        selected_supervision = _supervision_for_encoding(
-            rendered, encoding.offsets, selected_count
-        )
-        # EOS is a prediction target only when it ends an assistant-supervised
-        # record; ordinary all-token corpora retain their historical behavior.
-        selected_supervision.append(
-            rendered.loss_mode == "all_tokens"
-            or (
-                selected_count == len(encoding.ids) and bool(rendered.supervision_spans)
+    source_wait_seconds = 0.0
+    encoding_seconds = 0.0
+    source_bytes = 0
+    encoded_tokens = 0
+    source_digest = hashlib.sha256()
+    started = time.monotonic()
+    with heartbeat(f"data_{split}_document_iteration_and_collection"):
+        while stats["acquired_documents"] < max_documents and len(values) < max_tokens:
+            read_started = time.monotonic()
+            try:
+                rendered = next(documents)
+            except StopIteration:
+                break
+            finally:
+                source_wait_seconds += time.monotonic() - read_started
+            stats["acquired_documents"] += 1
+            document = rendered.text
+            if not document:
+                stats["skipped_documents"] += 1
+                continue
+            encoded_bytes = document.encode("utf-8")
+            source_bytes += len(encoded_bytes)
+            source_digest.update(encoded_bytes)
+            source_digest.update(b"\0")
+            encode_started = time.monotonic()
+            encoding = tokenizer.encode(document, add_special_tokens=False)
+            encoding_seconds += time.monotonic() - encode_started
+            encoded_tokens += len(encoding.ids)
+            remaining = max_tokens - len(values)
+            if remaining <= 1:
+                break
+            selected_count = min(len(encoding.ids), remaining - 1)
+            selected = encoding.ids[:selected_count] + [eos]
+            selected_supervision = _supervision_for_encoding(
+                rendered, encoding.offsets, selected_count
             )
-        )
-        if selected_count < len(encoding.ids):
-            stats["truncated_documents"] += 1
-        if byte_addresses is not None:
-            assert byte_ngram_size is not None
-            prefix = bytearray()
-            for token_piece in _encoded_token_bytes(tokenizer, encoding.ids, document)[
-                :selected_count
-            ]:
-                prefix.extend(token_piece)
-                byte_addresses.append(
-                    table_address(bytes(prefix[-byte_ngram_size:]), byte_table_size)
+            selected_supervision.append(
+                rendered.loss_mode == "all_tokens"
+                or (
+                    selected_count == len(encoding.ids)
+                    and bool(rendered.supervision_spans)
                 )
-            byte_addresses.append(0)
-        values.extend(selected)
-        supervision.extend(selected_supervision)
-        stats["retained_documents"] += 1
+            )
+            if selected_count < len(encoding.ids):
+                stats["truncated_documents"] += 1
+            if byte_addresses is not None:
+                assert byte_ngram_size is not None
+                prefix = bytearray()
+                for token_piece in _encoded_token_bytes(
+                    tokenizer, encoding.ids, document
+                )[:selected_count]:
+                    prefix.extend(token_piece)
+                    byte_addresses.append(
+                        table_address(bytes(prefix[-byte_ngram_size:]), byte_table_size)
+                    )
+                byte_addresses.append(0)
+            values.extend(selected)
+            supervision.extend(selected_supervision)
+            stats["retained_documents"] += 1
+            if stats["acquired_documents"] % 500 == 0:
+                print(
+                    json.dumps(
+                        {
+                            "preprocessing": f"data_{split}_collection",
+                            "documents": stats["acquired_documents"],
+                            "source_bytes": source_bytes,
+                            "encoded_tokens": encoded_tokens,
+                            "retained_tokens": len(values),
+                        },
+                        sort_keys=True,
+                    ),
+                    file=sys.stderr,
+                )
+    elapsed = max(time.monotonic() - started, 1e-9)
+    print(
+        json.dumps(
+            {
+                "preprocessing": f"data_{split}_collection",
+                **stats,
+                "source_bytes": source_bytes,
+                "encoded_tokens": encoded_tokens,
+                "source_content_sha256": source_digest.hexdigest(),
+                "encoded_tokens_per_second": encoded_tokens
+                / max(encoding_seconds, 1e-9),
+                "construction_tokens_per_second": len(values)
+                / max(elapsed - source_wait_seconds - encoding_seconds, 1e-9),
+                "output_tokens": len(values),
+                "source_iteration_seconds": source_wait_seconds,
+                "tokenizer_encoding_seconds": encoding_seconds,
+                "python_array_construction_seconds": max(
+                    0.0, elapsed - source_wait_seconds - encoding_seconds
+                ),
+                "documents_per_second": stats["acquired_documents"] / elapsed,
+                "source_bytes_per_second": source_bytes / elapsed,
+                "output_tokens_per_second": len(values) / elapsed,
+            },
+            sort_keys=True,
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
     return (
         np.asarray(values, dtype=np.int32),
         np.asarray(supervision, dtype=bool),
@@ -503,10 +565,11 @@ def _collect(
 
 def _atomic_array(path: Path, values: np.ndarray) -> None:
     temporary = path.with_name(path.stem + ".tmp.npy")
-    np.save(temporary, values, allow_pickle=False)
-    with temporary.open("rb") as handle:
-        os.fsync(handle.fileno())
-    temporary.replace(path)
+    with heartbeat(f"data_array_write_fsync_{path.name}"):
+        np.save(temporary, values, allow_pickle=False)
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
+        temporary.replace(path)
 
 
 def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
@@ -574,9 +637,10 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             or (train_byte_path.is_file() and validation_byte_path.is_file())
         )
     ):
-        return load_prepared_data(
-            root, byte_enabled=byte_enabled, expected_identity=cache_identity
-        )
+        with heartbeat("data_cache_validation"):
+            return load_prepared_data(
+                root, byte_enabled=byte_enabled, expected_identity=cache_identity
+            )
     _assert_local_chat_disjoint(config.dataset)
     _assert_local_chat_supervision_consistent(config.dataset)
     temporary_root = root.with_name(root.name + ".tmp")

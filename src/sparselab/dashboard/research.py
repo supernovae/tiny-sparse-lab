@@ -6,6 +6,8 @@ bundles.  It neither opens run storage nor renders bundle-provided HTML/Markdown
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -16,6 +18,7 @@ import streamlit as st
 
 from sparselab.experiments.reporting import load_report_bundle
 from sparselab.research.catalog import list_lessons, list_research
+from sparselab.training.manifest import canonical_json
 
 _BUNDLE_NAME = re.compile(r"^[0-9a-f]{64}$")
 _MAX_BUNDLES = 200
@@ -475,6 +478,134 @@ def _render_bundle(record: dict[str, object]) -> None:
     )
 
 
+def _learning_observations(
+    directory: Path,
+) -> tuple[list[dict[str, object]], list[str]]:
+    root = directory / "learning-observations"
+    accepted: list[dict[str, object]] = []
+    rejected: list[str] = []
+    if not root.is_dir() or root.is_symlink():
+        return accepted, rejected
+    for path in sorted(root.glob("*.json"))[:_MAX_BUNDLES]:
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.resolve().parent != root.resolve()
+            or path.stat().st_size > 2 * 1024 * 1024
+        ):
+            rejected.append(f"{path.name}: unsafe path or oversized observation")
+            continue
+        try:
+            raw = path.read_bytes()
+            payload = json.loads(raw)
+            if (
+                not isinstance(payload, dict)
+                or payload.get("format") != "sparselab_learning_observation_v1"
+                or path.stem != hashlib.sha256(raw.rstrip(b"\n")).hexdigest()
+            ):
+                raise ValueError("observation format or content address mismatch")
+            identity = payload.get("identity")
+            content = {
+                key: value for key, value in payload.items() if key != "identity"
+            }
+            if identity != hashlib.sha256(canonical_json(content)).hexdigest():
+                raise ValueError("observation identity mismatch")
+            accepted.append(payload)
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+            rejected.append(f"{path.name}: {error}")
+    return accepted, rejected
+
+
+def _render_learning_observations(directory: Path) -> None:
+    observations, rejected = _learning_observations(directory)
+    st.subheader("Learning observations")
+    if rejected:
+        st.warning("Some learning observations failed content-address validation.")
+        _table(
+            "Rejected learning observations", [{"reason": item} for item in rejected]
+        )
+    if not observations:
+        st.info("No checkpoint-bound learning observations are available.")
+        return
+    rows = []
+    prompt_rows = []
+    status_rows = []
+    for observation in observations:
+        checkpoint = _mapping(observation.get("checkpoint"))
+        groups = _mapping(observation.get("groups"))
+        validation = _mapping(_mapping(groups.get("held_out_lm")).get("details")).get(
+            "validation"
+        )
+        validation = _mapping(validation)
+        rows.append(
+            {
+                "run_id": observation.get("run_id"),
+                "step": checkpoint.get("step"),
+                "tokens_seen": checkpoint.get("tokens_seen"),
+                "validation_loss": validation.get("loss"),
+                "validation_targets": validation.get("valid_targets"),
+                "identity": observation.get("identity"),
+            }
+        )
+        for group_name, result in groups.items():
+            status_rows.append(
+                {
+                    "run_id": observation.get("run_id"),
+                    "step": checkpoint.get("step"),
+                    "group": group_name,
+                    "status": _mapping(result).get("status"),
+                }
+            )
+        cases = _mapping(_mapping(groups.get("fixed_prompt_panel")).get("details")).get(
+            "cases"
+        )
+        if isinstance(cases, list):
+            for case in cases:
+                item = _mapping(case)
+                prompt_rows.append(
+                    {
+                        "run_id": observation.get("run_id"),
+                        "step": checkpoint.get("step"),
+                        "prompt_id": item.get("id"),
+                        "prompt": item.get("prompt"),
+                        "output": item.get("output"),
+                    }
+                )
+    _table("Learning curve and measured coordinates", rows)
+    curve = [
+        row for row in rows if isinstance(row.get("validation_loss"), (int, float))
+    ]
+    if curve:
+        st.plotly_chart(
+            px.line(
+                pd.DataFrame(curve),
+                x="tokens_seen",
+                y="validation_loss",
+                color="run_id",
+            ),
+            width="stretch",
+            key="learning-observation-curve",
+        )
+    _table("Exercise group status", status_rows)
+    _table("Fixed prompt trajectories", prompt_rows)
+    _table(
+        "Out-of-domain card outcomes and resource measurements",
+        [
+            {
+                "run_id": observation.get("run_id"),
+                "step": _mapping(observation.get("checkpoint")).get("step"),
+                "capability_cards": _mapping(observation.get("groups")).get(
+                    "capability_cards"
+                ),
+                "resource_capture": _mapping(observation.get("groups")).get(
+                    "resource_capture"
+                ),
+            }
+            for observation in observations
+        ],
+    )
+
+
 def research_page(
     reports_dir: Path, lifecycle: Path | None = None, evidence_root: Path = Path(".")
 ) -> None:
@@ -597,3 +728,4 @@ def research_page(
     for bundle in bundles:
         with st.expander(_report_title(_report(bundle))):
             _render_bundle(bundle)
+    _render_learning_observations(reports_dir)

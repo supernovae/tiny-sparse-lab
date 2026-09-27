@@ -11,6 +11,7 @@ from sparselab.data.chat_recall import iter_chat_recall
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.engram_recall import iter_engram_recall
 from sparselab.data.instruction_reference import iter_instruction_reference
+from sparselab.data.progress import heartbeat
 from sparselab.data.synthetic import iter_synthetic
 from sparselab.data.withheld_facts import training_documents
 
@@ -51,16 +52,17 @@ def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
     }[config.source]
     subset = "default" if config.source == "tinystories" else config.dataset_config
     source_split = split if config.source == "tinystories" else "train"
-    dataset = load_dataset(
-        dataset_name,
-        name=subset,
-        split=source_split,
-        revision=config.revision,
-        streaming=True,
-        cache_dir=str(config.cache_dir),
-    )
-    if split == "validation" and source_split == "train":
-        dataset = dataset.skip(config.train_max_documents)
+    with heartbeat(f"dataset_initialization_{config.source}_{split}"):
+        dataset = load_dataset(
+            dataset_name,
+            name=subset,
+            split=source_split,
+            revision=config.revision,
+            streaming=True,
+            cache_dir=str(config.cache_dir),
+        )
+        if split == "validation" and source_split == "train":
+            dataset = dataset.skip(config.train_max_documents)
     for record in dataset:
         if "text" not in record or not isinstance(record["text"], str):
             raise ValueError(

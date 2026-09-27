@@ -31,6 +31,8 @@ research status --json`, `research next --json`, and `research validate --json`
 to inspect declarations and evidence availability; none runs experiments or
 decides promotion.
 
+The [dense-lm-v1 candidate lifecycle](dense-lm-v1.md) records an identity-frozen ROCm TinyStories reference, verified preprocessing repair, staged acceptance gates, and the current user-directed training pause. It is not yet trained or promoted.
+
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
 

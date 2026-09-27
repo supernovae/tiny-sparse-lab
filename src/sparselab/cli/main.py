@@ -19,7 +19,11 @@ from typing import TYPE_CHECKING, Any
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
 from sparselab.data.packing import prepare_data
-from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
+from sparselab.data.tokenizer import (
+    load_tokenizer,
+    train_tokenizer,
+    verify_tokenizer_artifact,
+)
 from sparselab.data.withheld_facts import (
     audit_manifest,
     verify_manifest,
@@ -448,7 +452,14 @@ def _inspect(args: argparse.Namespace) -> None:
 
 def _data_prepare(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
-    print(prepare_data(config, load_tokenizer(config.tokenizer.path)).root)
+    verify_tokenizer_artifact(
+        config.tokenizer.path,
+        source=config.dataset.source,
+        revision=config.dataset.revision,
+        vocab_size=config.model.vocab_size,
+    )
+    tokenizer = load_tokenizer(config.tokenizer.path)
+    print(prepare_data(config, tokenizer).root)
 
 
 def _tokenizer_train(args: argparse.Namespace) -> None:
@@ -505,6 +516,23 @@ def _generate(args: argparse.Namespace) -> None:
             engine=loaded.engine,
         )
     )
+
+
+def _model_exercise(args: argparse.Namespace) -> None:
+    from sparselab.evaluation.reference_exercise import (
+        exercise_checkpoint,
+        write_observation,
+    )
+
+    observation = exercise_checkpoint(
+        args.run_id,
+        Path(args.checkpoint),
+        runs_dir=Path(args.runs_dir),
+        backend=args.backend,
+        prompt_panel=Path(args.prompt_panel) if args.prompt_panel else None,
+    )
+    output = write_observation(observation, Path(args.output))
+    print(json.dumps({**observation, "output": str(output)}, indent=2, sort_keys=True))
 
 
 def _evidence(args: argparse.Namespace) -> None:
@@ -1858,6 +1886,21 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument("--stop-after-step", type=int)
     training.add_argument("--stage-bundle")
     training.set_defaults(handler=_train)
+    model = commands.add_parser("model")
+    model_commands = model.add_subparsers(dest="model_command", required=True)
+    model_exercise = model_commands.add_parser(
+        "exercise", help="Run the checkpoint-bound dense-LM reference exercise suite."
+    )
+    model_exercise.add_argument("run_id")
+    model_exercise.add_argument("--checkpoint", required=True)
+    model_exercise.add_argument("--runs-dir", default=runs_dir_default)
+    model_exercise.add_argument(
+        "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    model_exercise.add_argument("--prompt-panel")
+    model_exercise.add_argument("--output", required=True)
+    model_exercise.set_defaults(handler=_model_exercise)
+
     evaluation = commands.add_parser("eval")
     evaluation.add_argument("run_id")
     evaluation.add_argument(

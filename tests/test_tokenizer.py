@@ -3,8 +3,39 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.data import tokenizer as tokenizer_module
+
+
+def test_data_prepare_rejects_missing_tokenizer_before_packing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sparselab.cli import main as cli
+    from sparselab.config.loading import load_config
+
+    root = Path(__file__).resolve().parents[1]
+    base = load_config(root / "configs/runtime_smoke_cpu.yaml")
+    config = base.model_copy(
+        update={
+            "tokenizer": base.tokenizer.model_copy(
+                update={"path": tmp_path / "missing.json"}
+            )
+        }
+    )
+    monkeypatch.setattr(cli, "load_config", lambda _path: config)
+    monkeypatch.setattr(
+        cli,
+        "prepare_data",
+        lambda *_args, **_kwargs: pytest.fail("packing started without a tokenizer"),
+    )
+    args = cli.build_parser().parse_args(
+        ["data", "prepare", str(tmp_path / "unread-config.yaml")]
+    )
+
+    with pytest.raises(FileNotFoundError, match="complete tokenizer artifact"):
+        args.handler(args)
 
 
 def test_tokenizer_acquisition_does_not_request_past_document_bound(
@@ -76,6 +107,45 @@ def test_tokenizer_training_respects_utf8_byte_budget(
     assert manifest["selected_documents"] == 2
     assert manifest["selected_input_bytes_utf8"] == 6
     assert manifest["training_contract"]["input_byte_budget_utf8"] == 6
+
+    verified = tokenizer_module.verify_tokenizer_artifact(
+        path,
+        source="synthetic",
+        revision=None,
+        vocab_size=260,
+    )
+    assert verified["selected_documents"] == 2
+
+
+def test_tokenizer_artifact_prerequisite_fails_on_digest_mismatch(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        tokenizer_module,
+        "iter_documents",
+        lambda _config, _split: iter(("tiny corpus",)),
+    )
+    config = TokenizerTrainConfig(
+        schema_version=1,
+        vocab_size=260,
+        min_frequency=1,
+        max_documents=1,
+        output_dir=tmp_path / "tokenizer",
+        dataset=DatasetConfig(
+            source="synthetic",
+            cache_dir=tmp_path / "cache",
+            train_max_documents=1,
+            validation_max_documents=1,
+            train_max_tokens=20,
+            validation_max_tokens=16,
+        ),
+    )
+    path = tokenizer_module.train_tokenizer(config)
+    path.write_text("incomplete tokenizer")
+    with pytest.raises(ValueError, match="provenance or digest mismatch"):
+        tokenizer_module.verify_tokenizer_artifact(
+            path, source="synthetic", revision=None, vocab_size=260
+        )
 
 
 def test_tokenizer_byte_budget_does_not_split_utf8_codepoint(
