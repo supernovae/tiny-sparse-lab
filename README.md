@@ -21,7 +21,7 @@ Tiny Sparse Lab is a reference laboratory, not a production training service. On
 
 ## Verified status and remaining gates
 
-The dated **2026-09-22/23 acceptance records** capture **335 passing tests**, Ruff lint/format checks, installed-wheel execution outside the checkout, and real CPU, MPS, and MLX/Metal scenarios. A later offline regression run passed 509 tests (tracked in [TODO.md](TODO.md)). These are implementation checks, not a claim that a tiny checkpoint is a useful general assistant.
+The dated **2026-09-22/23 acceptance records** capture **335 passing tests**, Ruff lint/format checks, installed-wheel execution outside the checkout, and real CPU, MPS, and MLX/Metal scenarios. Later regression results remain with the relevant evidence records and commits rather than the implementation backlog. These are implementation checks, not a claim that a tiny checkpoint is a useful general assistant.
 
 | Evidence | What was actually exercised |
 |---|---|
@@ -30,7 +30,10 @@ The dated **2026-09-22/23 acceptance records** capture **335 passing tests**, Ru
 | [Scientific studies](artifacts/acceptance/scientific_studies_2026_09_22.json) | Preregistered multi-seed/multi-budget context/Engram comparisons and domain adaptation with retention checks. Untouched context overrides remained **0/8** at every endpoint; adaptation did not establish reliable held-out domain behavior and caused severe forgetting. |
 | [Research workbench evidence](docs/research/sample-report.md) | Completed CPU/offline smoke and nano campaigns plus an MPS/FineWeb-Edu micro study; the observed alias-card scores were zero. The MLA report smoke exercised factorial, nondominance, allocation, and boundary outputs, not model quality or speedup. |
 
-[Capability status and open verification work](TODO.md) separates implemented paths, smoke evidence, task-level results, and remaining gates. See the [research roadmap](docs/research/roadmap.md) for the open work on lexical/portable/semantic memory and useful task models.
+The [research roadmap](docs/research/roadmap.md) separates implemented paths,
+smoke evidence, task-level results, and open questions about
+lexical/portable/semantic memory and useful task models. [`TODO.md`](TODO.md)
+contains only pending implementation work.
 
 The latest worker UI check captured actual rendered curve pixels; standard browser screenshots stalled, so runtime-table values were additionally verified through Streamlit's app harness. The earlier populated single-host dashboard screenshots remain in the acceptance record.
 
@@ -126,6 +129,10 @@ None of these creates distributed training. Inference KV caches are request-loca
 
 Learn one mechanism or scaffold a declared controlled study without downloading data or starting a run: [research workbench](docs/research/README.md). It distinguishes configuration-only scaffolding from the explicit tokenizer/data/training commands, and explains static reports and read-only dashboard browsing.
 
+Copyable starting points and real campaign records have distinct homes under
+[`experiments/`](experiments/). Mutable execution output belongs in the ignored
+`sparselab-work/experiments/` tree.
+
 Published reports: [FFN-substitution smoke](artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) and [nano/offline follow-up](artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html); see [outcomes and interpretation](docs/research/sample-report.md).
 
 The [project review](docs/project-review.md) preserves the original local learning observations and failed controls. The completed [context/Engram study](docs/context-engram-study.md#execution-results--2026-09-22) and [domain adaptation study](docs/path-domain-corpus.md#2026-09-22-execution-record) add multi-seed outcomes, collision measurements, and retention checks without selecting favorable endpoints. The [capability workflow](docs/capabilities.md) explains held-out narrow claims; [instruction training](docs/instruction-training.md) explains licensed local conversations and assistant-only/tool-transcript supervision.
@@ -141,7 +148,9 @@ The [project review](docs/project-review.md) preserves the original local learni
 - [Architecture](docs/architecture.md), [MoE](docs/moe.md), [sparse attention](docs/sparse-attention.md), [MLA](docs/mla.md), and [Engram](docs/engram.md) — reference mechanisms.
 - [Training and resume](docs/training.md), [metrics](docs/metrics.md), [experiments](docs/experiments.md), and [evidence](docs/evidence.md) — local lifecycle and comparison practice.
 - [Context/Engram study](docs/context-engram-study.md) and [domain corpus/adaptation](docs/path-domain-corpus.md) — frozen inputs, executed comparisons, negative results, and limitations.
-- [Capability status and open verification backlog](TODO.md) — implemented paths, smoke evidence, useful-model gaps, and hardware/experiment work that remains.
+- [Research roadmap](docs/research/roadmap.md) — capability evidence, unresolved questions, and proposed experiments.
+- [Implementation backlog](TODO.md) — pending changes that require code.
+- [Agent guidance](AGENTS.md) — safe workspaces, performance calibration, experiment boundaries, and verification.
 
 ## Data and contributions
 
