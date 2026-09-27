@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sparselab.batch_calibration import calibrate_batch
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
 from sparselab.data.packing import prepare_data
@@ -64,6 +65,7 @@ from sparselab.memory import (
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
+from sparselab.readiness import SMOKE_FAMILIES, smoke_readiness
 from sparselab.runtime_forecasting import runtime_forecast_planning
 from sparselab.staging import inspect_runtime, stage
 from sparselab.training.checkpoints import CheckpointManager, _safe_member
@@ -71,6 +73,10 @@ from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
 from sparselab.workdir import WORK_DIR_ENV, ensure_work_dir
+from sparselab.workspace_preflight import (
+    tokenizer_storage_checks,
+    training_storage_checks,
+)
 
 if TYPE_CHECKING:
     from sparselab.research.lifecycle import LifecycleRegistry
@@ -581,12 +587,56 @@ def _data_prepare(args: argparse.Namespace) -> None:
     print(prepare_data(config, tokenizer).root)
 
 
+def _workspace_preflight(args: argparse.Namespace) -> None:
+    checks = (
+        tokenizer_storage_checks(load_tokenizer_config(Path(args.config)))
+        if args.tokenizer
+        else training_storage_checks(load_config(Path(args.config)))
+    )
+    status = (
+        "adequate"
+        if all(item.status == "adequate" for item in checks)
+        else "insufficient"
+    )
+    print(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": status,
+                "filesystems": [asdict(item) for item in checks],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    if status == "insufficient":
+        raise SystemExit(1)
+
+
 def _tokenizer_train(args: argparse.Namespace) -> None:
     print(train_tokenizer(load_tokenizer_config(Path(args.config))))
 
 
 def _stage(args: argparse.Namespace) -> None:
     print(stage(load_config(Path(args.config)), Path(args.output), args.through))
+
+
+def _batch_calibrate(args: argparse.Namespace) -> None:
+    print(
+        calibrate_batch(
+            load_config(Path(args.config)),
+            Path(args.output),
+            max_candidates=args.max_candidates,
+        )
+    )
+
+
+def _readiness_smoke(args: argparse.Namespace) -> None:
+    print(
+        smoke_readiness(
+            Path(args.configs_root), Path(args.output), families=tuple(args.family)
+        )
+    )
 
 
 def _train(args: argparse.Namespace) -> None:
@@ -1927,6 +1977,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include a read-only, compatibility-filtered optimizer runtime forecast as JSON",
     )
     inspect.set_defaults(handler=_inspect)
+    workspace = commands.add_parser("workspace")
+    workspace_commands = workspace.add_subparsers(
+        dest="workspace_command", required=True
+    )
+    workspace_preflight = workspace_commands.add_parser("preflight")
+    workspace_preflight.add_argument("config")
+    workspace_preflight.add_argument("--tokenizer", action="store_true")
+    workspace_preflight.set_defaults(handler=_workspace_preflight)
     runtime = commands.add_parser("runtime")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
     runtime_status = runtime_commands.add_parser("status")
@@ -2039,6 +2097,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     staging.add_argument("--output", required=True)
     staging.set_defaults(handler=_stage)
+    batch = commands.add_parser("batch")
+    batch_commands = batch.add_subparsers(dest="batch_command", required=True)
+    batch_calibrate = batch_commands.add_parser("calibrate")
+    batch_calibrate.add_argument("config")
+    batch_calibrate.add_argument("--output", required=True)
+    batch_calibrate.add_argument("--max-candidates", type=int, default=8)
+    batch_calibrate.set_defaults(handler=_batch_calibrate)
+    readiness = commands.add_parser("readiness")
+    readiness_commands = readiness.add_subparsers(
+        dest="readiness_command", required=True
+    )
+    readiness_smoke = readiness_commands.add_parser("smoke")
+    readiness_smoke.add_argument("--configs-root", default="configs")
+    readiness_smoke.add_argument("--output", required=True)
+    readiness_smoke.add_argument(
+        "--family", action="append", choices=tuple(SMOKE_FAMILIES), default=[]
+    )
+    readiness_smoke.set_defaults(handler=_readiness_smoke)
     training = commands.add_parser("train")
     training.add_argument("config")
     training.add_argument(

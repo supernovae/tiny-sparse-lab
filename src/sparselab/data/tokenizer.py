@@ -60,6 +60,9 @@ def verify_tokenizer_artifact(
 
 def train_tokenizer(config: TokenizerTrainConfig) -> Path:
     """Train BPE from a bounded train-only UTF-8 byte prefix."""
+    from sparselab.workspace_preflight import require_storage, tokenizer_storage_checks
+
+    require_storage(tokenizer_storage_checks(config))
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     output = config.output_dir
     json_path = output / "tokenizer.json"

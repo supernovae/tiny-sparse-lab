@@ -1,0 +1,67 @@
+schema_version: 2
+name: dense-scale-1b-cuda-skeleton
+seed: 42
+model:
+  vocab_size: 8192
+  hidden_dim: 1792
+  num_layers: 24
+  num_heads: 14
+  ffn_dim: 4864
+  max_seq_len: 2048
+tokenizer:
+  path: ../sparselab-work/experiments/dense-scale/tokenizer/tokenizer.json
+dataset:
+  source: fineweb_edu
+  revision: 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
+  dataset_config: sample-10BT
+  cache_dir: ../sparselab-work/experiments/dense-scale/data
+  train_max_documents: 200000
+  validation_max_documents: 1000
+  train_max_tokens: 24000000
+  validation_max_tokens: 131072
+  synthetic_seed: 42
+training:
+  seq_len: 1024
+  max_steps: 4096
+  max_tokens: 20000000
+  deterministic: true
+  micro_batch_size: 1
+  gradient_accumulation: 8
+optimizer:
+  name: adamw
+  peak: 0.0002
+  floor: 0.00002
+  warmup_steps: 100
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-08
+  state_offload: false
+evaluation:
+  every_steps: 500
+  max_batches: 32
+logging:
+  root_dir: ../sparselab-work/experiments/dense-scale/runs
+  every_steps: 10
+runtime:
+  engine: pytorch
+  backend: cuda
+  device_index: 0
+  precision: bf16
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.85
+    budget_bytes: null
+    activation_checkpointing:
+      enabled: true
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_sequence_lengths: []
+    allowed_optimizers: []
+checkpoint:
+  every_steps: 500
+  every_minutes: 30
+  keep_periodic: false
+staging:
+  smoke_steps: 2
+  warmup_steps: 8
