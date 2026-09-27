@@ -71,8 +71,8 @@ zero.
 ```sh
 uv run --locked sparselab inspect CONFIG --estimate-runtime --json
 uv run --locked sparselab stage CONFIG --through warmup --output sparselab-work/stages/forecast
-uv run --locked sparselab train CONFIG --stage-bundle sparselab-work/stages/forecast
-uv run --locked sparselab runtime status RUN_ID --runs-dir runs --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/forecast
+uv run --locked sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
 ```
 
 `inspect --estimate-runtime` is read-only. Planning uses up to the 25 most
@@ -168,11 +168,13 @@ fallback does not count as ROCm acceptance:
 uv run --locked --python 3.14 python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.device_count(), torch.cuda.get_device_name(0))'
 uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run --locked pytest -m 'not cuda and not rocm and not xpu and not network'
+WORK=sparselab-work/experiments/rocm-wsl2-acceptance
+export SPARSELAB_WORK_DIR="$WORK"
 RUN_ID="rocm-wsl2-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
-STAGE_DIR="sparselab-work/stages/rocm-wsl2-$RUN_ID"
+STAGE_DIR="$WORK/staging/$RUN_ID"
 uv run --locked sparselab stage configs/runtime_smoke_rocm.yaml --through warmup --output "$STAGE_DIR"
-uv run --locked sparselab train configs/runtime_smoke_rocm.yaml --run-id "$RUN_ID"
-uv run --locked sparselab eval "$RUN_ID" --backend rocm --runs-dir runs-rocm
+uv run --locked sparselab train --runs-dir "$WORK/runs" configs/runtime_smoke_rocm.yaml --run-id "$RUN_ID"
+uv run --locked sparselab eval "$RUN_ID" --backend rocm --runs-dir "$WORK/runs"
 ```
 
 The stage, training manifest, and evaluation must all record `rocm`; training

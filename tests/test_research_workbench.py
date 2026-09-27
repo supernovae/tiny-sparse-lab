@@ -286,7 +286,18 @@ def test_research_scaffold_rebases_paths_from_symlinked_destination(
 
     assert config.tokenizer.path == root / "artifacts/tokenizer/tokenizer.json"
     assert config.dataset.cache_dir == root / "artifacts/data"
-    assert config.logging.root_dir == root / "runs"
+    from sparselab.experiments.study import study_workspace
+
+    assert (
+        config.logging.root_dir
+        == study_workspace("engram-ffn-substitution-v1") / "runs"
+    )
+    readme = (output / "README.md").read_text()
+    assert 'WORK="' in readme
+    assert '--store "$WORK/runs"' in readme
+    assert '--receipt "$WORK/receipt.json"' in readme
+    assert '--runs-dir "$WORK/runs"' in readme
+    assert '--output "$WORK/local-reports"' in readme
 
 
 def test_initialized_probe_bounds_and_reports_mechanisms(tmp_path: Path) -> None:

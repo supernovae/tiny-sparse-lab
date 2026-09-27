@@ -30,11 +30,13 @@ The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,89
 The checked-in matrix expands the CPU runtime smoke configuration over seeds 7, 17, and 41:
 
 ```sh
+WORK=sparselab-work/experiments/runtime-matrix
+export SPARSELAB_WORK_DIR="$WORK"
 uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
-  --dry-run --store sparselab-work/controller
+  --dry-run --store "$WORK/runs"
 ```
 
-Dry-run prints all resolved coordinates and hashes without downloading/preparing data, creating the store, or enqueueing. For execution, prepare the tokenizer, register an eligible worker, remove `--dry-run`, and run `sparselab controller run --store sparselab-work/controller`. Every coordinate gets distinct experiment/attempt/run IDs. Preparation must succeed for all coordinates before the enqueue transaction.
+Dry-run prints all resolved coordinates and hashes without downloading/preparing data, creating the store, or enqueueing. For execution, prepare the tokenizer, register an eligible worker, remove `--dry-run`, and run `sparselab controller run --store "$WORK/runs"`. Every coordinate gets distinct experiment/attempt/run IDs. Preparation must succeed for all coordinates before the enqueue transaction.
 
 Matrix v1 uses an explicit base config and insertion-ordered axes with labeled dotted-path patches. Duplicate labels, conflicting patches, invalid configs, and excessive expansion are rejected. Labels such as “50M” or “MoE” never infer a model. Workers execute independent optimizers, not distributed gradients; unsupported requirements remain queued with a reason. See [worker contracts and matrix format](workers.md#explicit-matrices).
 
@@ -43,7 +45,7 @@ Matrix v1 uses an explicit base config and insertion-ordered axes with labeled d
 An architecture study is an optional campaign wrapper over the existing explicit matrix format. It does not add a closed architecture registry or change `RunConfig`: every matrix coordinate still resolves to a normal concrete config, with the same dotted-path validation as `experiment submit --matrix`. Use direct training when that is simpler:
 
 ```sh
-uv run sparselab train configs/my_architecture.yaml
+uv run sparselab train --runs-dir sparselab-work/runs configs/my_architecture.yaml
 uv run sparselab inspect configs/my_architecture.yaml --json
 ```
 
@@ -95,23 +97,26 @@ The plan expands every config, hashes the inputs, reports parameter inventory an
 Submit the immutable run inventory to the existing independent-worker controller, then run that controller in a separate terminal:
 
 ```sh
-uv run sparselab worker register cpu-one --backend cpu --store sparselab-work/studies/ffn
+WORK=sparselab-work/experiments/ffn-width-smoke
+export SPARSELAB_WORK_DIR="$WORK"
+mkdir -p "$WORK"
+uv run sparselab worker register cpu-one --backend cpu --store "$WORK/runs"
 uv run sparselab study submit experiments/ffn-study.yaml \
-  --worker cpu-one --store sparselab-work/studies/ffn \
-  --receipt sparselab-work/studies/ffn/ffn-receipt.json
-uv run sparselab controller run --store sparselab-work/studies/ffn
+  --worker cpu-one --store "$WORK/runs" \
+  --receipt "$WORK/receipt.json"
+uv run sparselab controller run --store "$WORK/runs"
 ```
 
 After all coordinates finish, collect held-out validation loss/perplexity and each card against the run checkpoint:
 
 ```sh
 uv run sparselab study collect experiments/ffn-study.yaml \
-  sparselab-work/studies/ffn/ffn-receipt.json --runs-dir sparselab-work/studies/ffn
+  "$WORK/receipt.json" --runs-dir "$WORK/runs"
 ```
 
 Collection verifies the receipt against the current study and each run's resolved config, records checkpoint identities, and emits a content-addressed report beside the receipt. Missing runs or invalid evaluations stay explicitly inconclusive; they are not dropped from the denominator silently. `--checkpoint NAME` selects the same named checkpoint for every run; the default is each run's latest checkpoint. Paired deltas are descriptive, not statistical significance or a universal architecture ranking.
 
-The default controller store and collection run directory are both `runs/`; if `--store` is changed, pass that same directory to `study collect --runs-dir`.
+A study submitted without path overrides uses `sparselab-work/experiments/<study-name>/runs` and one sibling `receipt.json`. Collection defaults to the receipt’s sibling `runs/`. Pass the same explicit store as `--runs-dir` for custom layouts. Seeds, architecture cells, budget coordinates, and resumed children share this store; they do not create peer workspaces. See [workspace policy](workspaces.md) for external-disk overrides and evidence retention.
 
 The study layer compares only configurations and evidence supported by the current training/evaluation stack. It does not add RL reward training or wire record-based Engram packs into model execution; those require separate model/trainer work. Keep data, tokenizer, source revision, runtime, and actual step/token budgets matched within each architecture comparison.
 
@@ -144,7 +149,7 @@ Dense attention, sliding-window attention, MLA, MoE, and byte memory alter diffe
 Every serious local run should have verified checkpoint/held-out evidence before it enters a comparison:
 
 ```sh
-uv run sparselab checkpoint verify runs/RUN_ID/checkpoints/latest.json --json
+uv run sparselab checkpoint verify sparselab-work/runs/RUN_ID/checkpoints/latest.json --json
 uv run sparselab evidence RUN_ID --json
 ```
 

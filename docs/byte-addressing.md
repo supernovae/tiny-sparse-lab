@@ -18,7 +18,7 @@ The `byte-engram` smoke lesson was scaffolded and run with offline data. After e
 
 ```sh
 uv run sparselab data prepare configs/smoke_byte_memory_cpu.yaml
-uv run sparselab train configs/smoke_byte_memory_cpu.yaml --run-id byte-memory
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_byte_memory_cpu.yaml --run-id byte-memory
 uv run sparselab eval byte-memory
 uv run sparselab generate byte-memory --prompt "Once upon a time" --max-new-tokens 24
 ```

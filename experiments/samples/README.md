@@ -6,14 +6,14 @@ mechanism improves quality or performance.
 Start with a packaged scaffold:
 
 ```sh
-export SPARSELAB_WORK_DIR="$PWD/sparselab-work/experiments/ffn-memory-sample"
-uv run --locked sparselab research scaffold engram-ffn-substitution-v1 \
+WORK="$PWD/sparselab-work/experiments/engram-ffn-substitution-v1"
+uv run --locked sparselab --work-dir "$PWD/sparselab-work" research scaffold engram-ffn-substitution-v1 \
   --scale smoke --data offline --backend cpu \
-  --output "$SPARSELAB_WORK_DIR/scaffold"
-uv run --locked sparselab study plan "$SPARSELAB_WORK_DIR/scaffold/study.yaml"
+  --output "$WORK/scaffold"
+uv run --locked sparselab study plan "$WORK/scaffold/study.yaml"
 ```
 
-The generated README identifies the explicit preparation and execution steps.
+The generated README identifies the explicit preparation and execution steps, sets one `WORK`, and keeps all seed coordinates in `$WORK/runs` with one `$WORK/receipt.json`. Its scratch setting is exported after scaffolding; setting the workspace itself as the global base before scaffolding would append another `experiments/<study-name>` level. Explicit generated store and receipt paths keep later commands inside the selected workspace.
 For a checked-in reference layout, see
 [`configs/references/dense-small-v1`](../../configs/references/dense-small-v1/).
 Copy editable inputs; do not edit a known-good reference or treat smoke output as

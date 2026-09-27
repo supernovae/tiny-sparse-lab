@@ -11,10 +11,10 @@ CPU reproducibility uses `runtime.backend: cpu` and `training.deterministic: tru
 ## Smoke runs
 
 ```sh
-uv run sparselab train configs/smoke_cpu.yaml --run-id dense-smoke
-uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-smoke
-uv run sparselab train configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
-uv run sparselab train configs/smoke_combined_cpu.yaml --run-id combined-smoke
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_cpu.yaml --run-id dense-smoke
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-smoke
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_combined_cpu.yaml --run-id combined-smoke
 ```
 
 A smoke run validates a path through training, checkpointing, evaluation, and metrics. It is not a quality benchmark. Compare runs only when data, tokenizer, device, sequence length, token budget, optimizer, and seed are recorded and intentionally matched.
@@ -29,8 +29,8 @@ measurement without advancing training state:
 ```sh
 uv run --locked sparselab inspect CONFIG --estimate-runtime --json
 uv run --locked sparselab stage CONFIG --through warmup --output sparselab-work/stages/warmup
-uv run --locked sparselab train CONFIG --stage-bundle sparselab-work/stages/warmup
-uv run --locked sparselab runtime status RUN_ID --runs-dir runs --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/warmup
+uv run --locked sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
 ```
 
 Live progress uses completed supervised targets as its primary denominator.
@@ -48,14 +48,14 @@ for exact-history matching and interpretation limits.
 
 ## Checkpoint and resume workflow
 
-PyTorch checkpoints are immutable local generations under `runs/<run-id>/checkpoints/`; `latest.json` points to the newest validated generation. Verify a checkpoint before continuing it:
+PyTorch checkpoints are immutable local generations under `sparselab-work/runs/<run-id>/checkpoints/`; `latest.json` points to the newest validated generation. Verify a checkpoint before continuing it:
 
 ```sh
-uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-part --stop-after-step 20
-uv run sparselab checkpoint inspect runs/moe-part/checkpoints/latest.json --json
-uv run sparselab checkpoint verify runs/moe-part/checkpoints/latest.json --json
-uv run sparselab train configs/smoke_moe_cpu.yaml --run-id moe-resumed \
-  --resume runs/moe-part/checkpoints/latest.json
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-part --stop-after-step 20
+uv run sparselab checkpoint inspect sparselab-work/runs/moe-part/checkpoints/latest.json --json
+uv run sparselab checkpoint verify sparselab-work/runs/moe-part/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-resumed \
+  --resume sparselab-work/runs/moe-part/checkpoints/latest.json
 ```
 
 Resume creates a child run and retains parent telemetry. It rejects changed model, optimizer, data, tokenizer, budget, engine, or backend configuration. Source or runtime identity drift requires `--allow-runtime-drift` and is recorded as `best_effort`; the flag never bypasses scientific compatibility. Recovery applies the same checks. Completed budgets cannot be resumed. Run-owned data, tokenizer, and memory-package artifacts—including their manifests—are verified before continuation.
@@ -64,7 +64,7 @@ Current run manifests retain `manifest_version: 1` with `identity_version: run-i
 
 Full PyTorch continuation uses checkpoint directory format 2 with native state codec version 2. Verification checks the resolved RunConfig and its digests, canonical tensors/aliases/trainability, named optimizer coverage and moment shapes, completed-update schedule and learning rate, counters/cursor, and safe host/selected-device RNG envelopes. Saving streams model weights by shard rather than cloning the whole model to CPU first. Older format-2 native envelopes remain weights-only: use `checkpoint verify --weights-only` for inference/promotion eligibility, not as proof that full optimizer continuation is supported.
 
-A POSIX advisory writer lease covers either engine's training session; another writer or recovery operation fails rather than modifying the same run. Explicit `--recover runs/<parent-id>` reconciles finalized verified generations, repairs `latest.json`/`best.json`, and starts a child from the selected generation. Temporary or corrupt generations are not adopted. Equal finite validation losses retain the earlier generation as best. `checkpoint.keep_periodic: false` preserves latest, best, and the immediate verified predecessor; it does not preserve a fully verifiable historical learning curve.
+A POSIX advisory writer lease covers either engine's training session; another writer or recovery operation fails rather than modifying the same run. Explicit `--recover sparselab-work/runs/<parent-id>` reconciles finalized verified generations, repairs `latest.json`/`best.json`, and starts a child from the selected generation. Temporary or corrupt generations are not adopted. Equal finite validation losses retain the earlier generation as best. `checkpoint.keep_periodic: false` preserves latest, best, and the immediate verified predecessor; it does not preserve a fully verifiable historical learning curve.
 
 Promotion reuses compatible weights with a fresh optimizer/cursor, using the **destination** dataset and budgets. Source architecture semantics and tokenizer contents must match. It is useful for continuing a model on a new domain/chat corpus, not for automatically resizing a backbone or converting dense weights into MoE.
 

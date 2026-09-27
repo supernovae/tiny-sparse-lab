@@ -56,7 +56,7 @@ _ESTIMATE_BUCKETS = (
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--runs-dir", default="runs")
+    parser.add_argument("--runs-dir", default="sparselab-work/runs")
     parser.add_argument("--reports-dir", default="artifacts/research-reports")
     parser.add_argument("--lifecycle")
     parser.add_argument("--evidence-root", default=".")

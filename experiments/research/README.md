@@ -13,11 +13,14 @@ only the material needed to understand and reproduce the design:
 Use a matching ignored workspace for execution:
 
 ```sh
-export SPARSELAB_WORK_DIR="$PWD/sparselab-work/experiments/<campaign>"
-mkdir -p "$SPARSELAB_WORK_DIR"
-df -h "$SPARSELAB_WORK_DIR"
-df -i "$SPARSELAB_WORK_DIR"
+WORK="$PWD/sparselab-work/experiments/<campaign>"
+export SPARSELAB_WORK_DIR="$WORK"
+mkdir -p "$WORK"
+df -h "$WORK"
+df -i "$WORK"
 ```
+
+Pass `--store "$WORK/runs"` and `--receipt "$WORK/receipt.json"` to study submission, and `--runs-dir "$WORK/runs"` to collection. All seed, architecture, and budget coordinates and resumed children share that store. Keep staging, exercises, captures, and local reports under the same `WORK`. When relying on automatic study/scaffold workspace naming instead, set the global work-directory base to `sparselab-work` (or an external equivalent), not an already named experiment root.
 
 Do not check in datasets, caches, checkpoints, run databases, raw logs, or
 anonymous temporary paths. The durable record should reference verified evidence

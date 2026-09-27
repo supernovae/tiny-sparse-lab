@@ -5,14 +5,14 @@ A checkpoint generation is a durable, immutable local snapshot shared by the PyT
 ## Verify before reuse
 
 ```sh
-uv run sparselab train configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
-uv run sparselab checkpoint inspect runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab checkpoint verify runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab train configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
-  --resume runs/runtime-part/checkpoints/latest.json
+uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
+uv run sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+uv run sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
+  --resume sparselab-work/runs/runtime-part/checkpoints/latest.json
 ```
 
-Both engines store generations under `runs/<run-id>/checkpoints/step_<step>_gen_<generation>/`. Each finalized generation has a manifest and canonical safetensor weight shards/index; its engine selects the native training-state codec. `latest.json` and `best.json` are atomic lookup indexes; verified generation manifests and file digests are the durable truth. `checkpoint inspect` reports inventory and lineage, not a standalone integrity claim. `checkpoint verify` validates the selected path and returns structured failures with a nonzero exit when invalid.
+Both engines store generations under `sparselab-work/runs/<run-id>/checkpoints/step_<step>_gen_<generation>/`. Each finalized generation has a manifest and canonical safetensor weight shards/index; its engine selects the native training-state codec. `latest.json` and `best.json` are atomic lookup indexes; verified generation manifests and file digests are the durable truth. `checkpoint inspect` reports inventory and lineage, not a standalone integrity claim. `checkpoint verify` validates the selected path and returns structured failures with a nonzero exit when invalid.
 
 The checkpoint manager writes a temporary sibling, verifies the completed generation, atomically publishes it, then updates lookup pointers. A writer lease prevents concurrent writers/recovery in the same run. Recovery scans finalized generations and can repair stale projections/pointers, but an explicit corrupt `--resume` selection fails rather than silently falling back.
 

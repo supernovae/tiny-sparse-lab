@@ -16,7 +16,7 @@ from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.experiments.matrix import _patchable_config, apply_patch, expand
-from sparselab.experiments.study import plan_study
+from sparselab.experiments.study import plan_study, study_workspace
 from sparselab.model.portable_engram import load_portable_engram
 from sparselab.research.catalog import (
     MechanismLesson,
@@ -177,7 +177,7 @@ def _scale_patch(scale: str, data: str, backend: str) -> dict[str, object]:
         "evaluation.every_steps": profile.validation_steps,
         "checkpoint.every_steps": profile.validation_steps,
         "runtime.backend": backend,
-        "logging.root_dir": "runs",
+        "logging.root_dir": "sparselab-work/runs",
     }
 
 
@@ -222,9 +222,11 @@ def _write_resolved_config(config: RunConfig, root: Path, directory: Path) -> by
             absolute = absolute.resolve()
             scaffold_root = root.resolve()
             workspace_root = Path(__file__).resolve().parents[3]
-            if not absolute.is_relative_to(
-                scaffold_root
-            ) and not absolute.is_relative_to(workspace_root):
+            if (
+                not absolute.is_relative_to(scaffold_root)
+                and not absolute.is_relative_to(workspace_root)
+                and key != "root_dir"
+            ):
                 raise ValueError(
                     f"generated config path escapes scaffold and workspace roots: {item}"
                 )
@@ -295,6 +297,7 @@ def _study_readme(
     run_count: int,
     pair_count: int,
     factorial_count: int,
+    workspace: str,
 ) -> str:
     profile = load_datasets().datasets[data]
     choices = "\n".join(
@@ -306,7 +309,7 @@ def _study_readme(
         for item in coordinates
     )
     prep = "\n".join(
-        f"sparselab data prepare configs/{item['config_sha256']}.yaml"
+        f"uv run --locked sparselab data prepare configs/{item['config_sha256']}.yaml"
         for item in coordinates
     )
     first = coordinates[0]
@@ -316,12 +319,20 @@ def _study_readme(
 
 {entry.hypothesis}
 
+Run these commands from this scaffold directory. Set `WORK` to another disk if needed; all seeds and resumed children share its single store. Reusable tokenizer/data inputs retain their existing cache paths.
+
+```sh
+WORK="{workspace}"
+mkdir -p "$WORK"
+export SPARSELAB_WORK_DIR="$WORK"
+```
+
 ## First: inspect one mechanism without a campaign
 
 ```sh
-sparselab inspect configs/{first["config_sha256"]}.yaml --json
-sparselab learn probe configs/{first["config_sha256"]}.yaml --prompt \"A learner asks a short question.\"
-sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --stop-after-step 2
+uv run --locked sparselab inspect configs/{first["config_sha256"]}.yaml --json
+uv run --locked sparselab learn probe configs/{first["config_sha256"]}.yaml --prompt \"A learner asks a short question.\"
+uv run --locked sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
 ```
 
 ## Fixed data, scale, and runtime
@@ -339,9 +350,9 @@ sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --stop-af
 ## Prepare explicitly, then plan or train
 
 ```sh
-sparselab tokenizer train tokenizer.yaml
+uv run --locked sparselab tokenizer train tokenizer.yaml
 {prep}
-sparselab study plan study.yaml
+uv run --locked sparselab study plan study.yaml
 ```
 
 Exported standalone configurations:
@@ -350,15 +361,17 @@ Exported standalone configurations:
 |---|---|
 {coordinate_rows}
 
-The config files use full scientific SHA-256 names; labels never become paths. To run an arm directly, train any listed config with `--run-id YOUR_ID`. To dispatch the complete study, use an explicit store and worker:
+The config files use full scientific SHA-256 names; labels never become paths. To run an arm directly, train any listed config with `--run-id YOUR_ID --runs-dir "$WORK/runs"`. To dispatch the complete study, use an explicit store and worker:
 
 ```sh
-sparselab worker register research-{backend} --backend {backend} --store runs
-sparselab study submit study.yaml --receipt receipt.json --worker research-{backend} --store runs
-sparselab controller run --store runs
-sparselab study collect study.yaml receipt.json --runs-dir runs
-sparselab study report study.yaml receipt.json --evidence PATH_FROM_COLLECT --research research.json --runs-dir runs --output research-reports
+uv run --locked sparselab worker register research-{backend} --backend {backend} --store "$WORK/runs"
+uv run --locked sparselab study submit study.yaml --receipt "$WORK/receipt.json" --worker research-{backend} --store "$WORK/runs"
+uv run --locked sparselab controller run --store "$WORK/runs"
+uv run --locked sparselab study collect study.yaml "$WORK/receipt.json" --runs-dir "$WORK/runs"
+uv run --locked sparselab study report study.yaml "$WORK/receipt.json" --evidence PATH_FROM_COLLECT --research research.json --runs-dir "$WORK/runs" --output "$WORK/local-reports"
 ```
+
+Use `$WORK/staging/`, `$WORK/exercises/`, and `$WORK/captures/` for experiment-local staging and observations. Publish verified compact evidence separately to `artifacts/acceptance/` or `artifacts/research-reports/`; retain mutable runs here. A resume uses the same `--runs-dir "$WORK/runs"` and a new run ID.
 
 The scaffold itself performs no tokenization, data preparation/download, training, worker registration, submission, controller execution, inference, or evaluation. Use the independent train command above or the explicit plan→worker→submit→controller→collect→report route.
 
@@ -435,6 +448,14 @@ def scaffold_research(
         base = _load_base()
         base = _apply_overlay(base, _scale_patch(scale, data, backend))
         base = _apply_overlay(base, scale_recipe.base_set)
+        base = _apply_overlay(
+            base,
+            {
+                "logging.root_dir": Path(
+                    os.path.relpath(study_workspace(entry.id) / "runs", temporary)
+                ).as_posix()
+            },
+        )
         base["name"] = f"{entry.id}-{scale}-{data}"
         _validate_run(base)
         _write(temporary / "base.yaml", _yaml_bytes(base))
@@ -520,6 +541,9 @@ def scaffold_research(
             len(planned.expanded),
             len(planned.pairs),
             len(scale_recipe.factorial_designs),
+            Path(
+                os.path.relpath(study_workspace(entry.id), destination.resolve())
+            ).as_posix(),
         )
         _write(temporary / "README.md", readme)
         source_inputs = {
@@ -918,7 +942,13 @@ print(json.dumps(report, indent=2, sort_keys=True))
 
 
 def _lesson_readme(
-    lesson: MechanismLesson, scale: str, data: str, backend: str, *, artifact: bool
+    lesson: MechanismLesson,
+    scale: str,
+    data: str,
+    backend: str,
+    *,
+    artifact: bool,
+    workspace: str | None = None,
 ) -> str:
     if artifact and lesson.id == "semantic-retrieval":
         walkthrough = "\n".join(
@@ -937,8 +967,8 @@ This standalone workspace contains a verified semantic EngramPack and a runnable
 
 ```sh
 python demo.py
-sparselab engram pack inspect semantic-pack
-sparselab engram pack verify semantic-pack
+uv run --locked sparselab engram pack inspect semantic-pack
+uv run --locked sparselab engram pack verify semantic-pack
 ```
 
 The demo reports verified pack identity, retrieval status, ordered record IDs and scores, candidate/comparison counts, temporal exclusions, deterministic tie IDs, adapter site, trainable adapter parameter count before freezing, frozen attachment state, observed model metrics, and full-prefix/cached parity. It also runs a two-edge structured lookup. No tokenizer, model training run, external dataset, text encoder, or network access is required.
@@ -965,9 +995,9 @@ This fixture uses keys `[7,6]`, values `[7,7]`, queries `[1,6]`, and backbone hi
 These records are original tutorial-only CC0 triples. They are not a sealed evaluation card, a dynamic-world dataset, or executable model retrieval.
 
 ```sh
-sparselab engram pack compile records.jsonl --output artifacts/tutorial-pack --name tutorial-map --namespace tutorial --license CC0-1.0 --source-name original-tutorial-records --created-at 2026-09-23T00:00:00Z
-sparselab engram pack inspect artifacts/tutorial-pack
-sparselab engram pack verify artifacts/tutorial-pack
+uv run --locked sparselab engram pack compile records.jsonl --output artifacts/tutorial-pack --name tutorial-map --namespace tutorial --license CC0-1.0 --source-name original-tutorial-records --created-at 2026-09-23T00:00:00Z
+uv run --locked sparselab engram pack inspect artifacts/tutorial-pack
+uv run --locked sparselab engram pack verify artifacts/tutorial-pack
 ```
 
 `compile`, `inspect`, and `verify` exercise the artifact format only. There is no `model.yaml`, `tokenizer.yaml`, or probe path in this artifact lesson.
@@ -983,11 +1013,14 @@ sparselab engram pack verify artifacts/tutorial-pack
 Before running the probe, predict the output shape and diagnostic values from the shape walkthrough in `lesson.json`. Then inspect the concrete recipe and compare the observed forward. Change exactly one config knob and explain any mismatch.
 
 ```sh
-sparselab tokenizer train tokenizer.yaml
-sparselab data prepare model.yaml
-sparselab inspect model.yaml --json
-sparselab learn probe model.yaml --prompt \"A short input asks about an object.\" --json
-sparselab train model.yaml --run-id lesson-{lesson.id} --stop-after-step 2
+WORK="{workspace}"
+mkdir -p "$WORK"
+export SPARSELAB_WORK_DIR="$WORK"
+uv run --locked sparselab tokenizer train tokenizer.yaml
+uv run --locked sparselab data prepare model.yaml
+uv run --locked sparselab inspect model.yaml --json
+uv run --locked sparselab learn probe model.yaml --prompt \"A short input asks about an object.\" --json
+uv run --locked sparselab train model.yaml --run-id lesson-{lesson.id} --runs-dir "$WORK/runs" --stop-after-step 2
 ```
 
 Tokenizer fitting and dataset preparation are explicit; remote datasets may use the network or Hugging Face cache only at those commands. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.
@@ -1039,8 +1072,8 @@ def scaffold_lesson(
                 "sparselab learn scaffold byte-engram --scale smoke --data offline --backend cpu --output experiments/byte-engram; "
                 "sparselab tokenizer train experiments/byte-engram/tokenizer.yaml; "
                 "sparselab data prepare experiments/byte-engram/model.yaml; "
-                "sparselab train experiments/byte-engram/model.yaml --run-id byte-engram --runs-dir experiments/byte-engram/runs; "
-                "sparselab engram export byte-engram --runs-dir experiments/byte-engram/runs --output experiments/byte-engram/memory.engram; "
+                "sparselab train experiments/byte-engram/model.yaml --run-id byte-engram --runs-dir sparselab-work/experiments/byte-engram/runs; "
+                "sparselab engram export byte-engram --runs-dir sparselab-work/experiments/byte-engram/runs --output experiments/byte-engram/memory.engram; "
                 "sparselab learn scaffold portable-engram --memory-package experiments/byte-engram/memory.engram --output experiments/portable-engram"
             )
         if memory_package.is_symlink() or not memory_package.is_file():
@@ -1109,6 +1142,16 @@ def scaffold_lesson(
             base = _apply_overlay(base, _scale_patch(scale, data, backend))
             patch = lesson.patches_by_scale.get(scale, {})
             base = _apply_overlay(base, patch)
+            base = _apply_overlay(
+                base,
+                {
+                    "logging.root_dir": Path(
+                        os.path.relpath(
+                            study_workspace(f"lesson-{identifier}") / "runs", temporary
+                        )
+                    ).as_posix()
+                },
+            )
             base["name"] = f"lesson-{identifier}-{scale}-{data}"
             if package is not None:
                 asset_dir = temporary / "assets"
@@ -1155,7 +1198,19 @@ def scaffold_lesson(
             ).hexdigest()
             _write(
                 temporary / "README.md",
-                _lesson_readme(lesson, scale, data, backend, artifact=False),
+                _lesson_readme(
+                    lesson,
+                    scale,
+                    data,
+                    backend,
+                    artifact=False,
+                    workspace=Path(
+                        os.path.relpath(
+                            study_workspace(f"lesson-{identifier}"),
+                            destination.resolve(),
+                        )
+                    ).as_posix(),
+                ),
             )
         lesson_payload["lesson_scaffold_sha256"] = hashlib.sha256(
             canonical_json(lesson_payload)

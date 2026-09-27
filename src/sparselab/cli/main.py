@@ -591,6 +591,14 @@ def _stage(args: argparse.Namespace) -> None:
 
 def _train(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
+    if args.runs_dir is not None:
+        config = config.model_copy(
+            update={
+                "logging": config.logging.model_copy(
+                    update={"root_dir": Path(args.runs_dir).expanduser().resolve()}
+                )
+            }
+        )
     if args.backend:
         config = config.model_copy(
             update={
@@ -650,7 +658,12 @@ def _model_exercise(args: argparse.Namespace) -> None:
         backend=args.backend,
         prompt_panel=Path(args.prompt_panel) if args.prompt_panel else None,
     )
-    output = write_observation(observation, Path(args.output))
+    output_root = (
+        Path(args.output)
+        if args.output
+        else Path(args.runs_dir).resolve().parent / "exercises"
+    )
+    output = write_observation(observation, output_root)
     print(json.dumps({**observation, "output": str(output)}, indent=2, sort_keys=True))
 
 
@@ -1208,16 +1221,25 @@ def _study_plan(args: argparse.Namespace) -> None:
 
 
 def _study_submit(args: argparse.Namespace) -> None:
-    from sparselab.experiments.study import plan_study, submit_study
+    from sparselab.experiments.study import (
+        plan_study,
+        study_execution_paths,
+        submit_study,
+    )
 
     plan = plan_study(Path(args.path), max_runs=args.max_runs)
     registry, _ = _lifecycle_registry(args)
     for warning in _research_diagnostics(registry, study_sha256=plan.study_sha256):
         print(json.dumps(warning, sort_keys=True), file=sys.stderr)
+    store, receipt_path = study_execution_paths(
+        plan,
+        store=Path(args.store) if args.store else None,
+        receipt=Path(args.receipt) if args.receipt else None,
+    )
     receipt = submit_study(
         plan,
-        Path(args.receipt),
-        store=Path(args.store),
+        receipt_path,
+        store=store,
         worker=args.worker,
         stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
     )
@@ -1225,7 +1247,8 @@ def _study_submit(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "study_sha256": plan.study_sha256,
-                "receipt": str(Path(args.receipt)),
+                "receipt": str(receipt_path),
+                "store": str(store),
                 "runs": receipt["runs"],
             },
             indent=2,
@@ -1241,7 +1264,9 @@ def _study_collect(args: argparse.Namespace) -> None:
     report, report_path = collect_study(
         plan,
         Path(args.receipt),
-        runs_dir=Path(args.runs_dir),
+        runs_dir=Path(args.runs_dir)
+        if args.runs_dir
+        else Path(args.receipt).parent / "runs",
         checkpoint=args.checkpoint,
         backend=args.backend,
     )
@@ -1845,7 +1870,7 @@ def build_parser() -> argparse.ArgumentParser:
         (path for path in (cwd, *cwd.parents) if (path / "pyproject.toml").is_file()),
         cwd,
     )
-    runs_dir_default = str(project_root / "runs")
+    runs_dir_default = str(project_root / "sparselab-work" / "runs")
     parser = argparse.ArgumentParser(
         prog="sparselab", description="Tiny Sparse Lab educational transformer tools."
     )
@@ -1938,7 +1963,7 @@ def build_parser() -> argparse.ArgumentParser:
     facts_evaluate.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     facts_evaluate.add_argument("--checkpoint")
     facts_evaluate.add_argument(
@@ -1954,7 +1979,7 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_evaluate.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     transfer_evaluate.add_argument("--source-checkpoint")
     transfer_evaluate.add_argument("--target-checkpoint")
@@ -1973,7 +1998,7 @@ def build_parser() -> argparse.ArgumentParser:
     engram_export.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     engram_export.add_argument("--checkpoint")
     engram_export.add_argument(
@@ -2018,6 +2043,10 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )
+    training.add_argument(
+        "--runs-dir",
+        help="Explicit run store override; otherwise preserve logging.root_dir from the config",
+    )
     training.add_argument("--run-id")
     training.add_argument("--resume")
     training.add_argument("--promote")
@@ -2038,7 +2067,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
     model_exercise.add_argument("--prompt-panel")
-    model_exercise.add_argument("--output", required=True)
+    model_exercise.add_argument(
+        "--output",
+        help="Observation file/directory (default: exercises/ beside the run store)",
+    )
     model_exercise.set_defaults(handler=_model_exercise)
 
     evaluation = commands.add_parser("eval")
@@ -2046,7 +2078,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     evaluation.add_argument("--checkpoint")
     evaluation.add_argument(
@@ -2061,7 +2093,7 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     evidence.add_argument("--json", action="store_true")
     evidence.set_defaults(handler=_evidence)
@@ -2089,7 +2121,7 @@ def build_parser() -> argparse.ArgumentParser:
     capability_evaluate.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     capability_evaluate.add_argument(
         "--checkpoint", help="latest.json, best.json, or a generation path"
@@ -2105,7 +2137,7 @@ def build_parser() -> argparse.ArgumentParser:
     capability_compare.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     capability_compare.add_argument("--base-checkpoint")
     capability_compare.add_argument("--variant-checkpoint")
@@ -2132,10 +2164,14 @@ def build_parser() -> argparse.ArgumentParser:
     study_submit = study_commands.add_parser("submit")
     study_submit.add_argument("path", help="Architecture study YAML")
     study_submit.add_argument("--max-runs", type=int, default=1000)
-    study_submit.add_argument("--receipt", required=True)
+    study_submit.add_argument(
+        "--receipt", help="Defaults to the experiment workspace receipt.json"
+    )
     study_submit.add_argument("--worker")
     study_submit.add_argument("--stage-bundle")
-    study_submit.add_argument("--store", default=runs_dir_default)
+    study_submit.add_argument(
+        "--store", help="Defaults to sparselab-work/experiments/<study-name>/runs"
+    )
     study_submit.add_argument("--lifecycle")
     study_submit.add_argument("--evidence-root", default=".")
     study_submit.set_defaults(handler=_study_submit)
@@ -2143,9 +2179,7 @@ def build_parser() -> argparse.ArgumentParser:
     study_collect.add_argument("path", help="Architecture study YAML")
     study_collect.add_argument("receipt")
     study_collect.add_argument(
-        "--runs-dir",
-        default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        "--runs-dir", help="Defaults to runs/ beside the study receipt"
     )
     study_collect.add_argument("--checkpoint")
     study_collect.add_argument(
@@ -2426,7 +2460,7 @@ def build_parser() -> argparse.ArgumentParser:
     generation.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     generation.add_argument("--checkpoint")
     generation.add_argument("--temperature", type=float, default=0.0)
@@ -2446,7 +2480,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     chat.add_argument(
         "--checkpoint", help="latest.json, best.json, or a generation path"
@@ -2469,7 +2503,7 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: runs/ at the nearest pyproject.toml, otherwise ./runs)",
+        help="Run directory (default: sparselab-work/runs at the nearest project)",
     )
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")

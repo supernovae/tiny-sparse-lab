@@ -3,7 +3,7 @@
 Start the dashboard with optional report, lifecycle, and evidence roots:
 
 ```sh
-sparselab dashboard --runs-dir runs --reports-dir artifacts/research-reports \
+sparselab dashboard --runs-dir sparselab-work/runs --reports-dir artifacts/research-reports \
   --evidence-root . --lifecycle PATH
 ```
 

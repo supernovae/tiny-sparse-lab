@@ -11,7 +11,7 @@ uv sync --locked --dev
 uv run sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run sparselab data prepare configs/smoke_cpu.yaml
 uv run sparselab inspect configs/smoke_combined_cpu.yaml --json
-uv run sparselab train configs/smoke_combined_cpu.yaml --run-id combined-smoke
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_combined_cpu.yaml --run-id combined-smoke
 uv run sparselab eval combined-smoke
 uv run sparselab generate combined-smoke --prompt "Once upon a time" --max-new-tokens 24
 ```
@@ -20,10 +20,12 @@ uv run sparselab generate combined-smoke --prompt "Once upon a time" --max-new-t
 
 ## Scratch and artifact locations
 
-Implicit temporary files default to `sparselab-work/` under the nearest `pyproject.toml` directory, or `./sparselab-work` outside a project. Set `SPARSELAB_WORK_DIR` or pass the global `--work-dir PATH` before the subcommand to select another path; the CLI option takes precedence, and relative paths resolve from the current directory. SparseLab creates the directory only when a command needs scratch and directs Python temporary-file allocations and local child workers there. SSH workers use their own remote environment and project root; configure `SPARSELAB_WORK_DIR` on that host to override its default.
+Implicit temporary files default to `sparselab-work/` under the nearest `pyproject.toml` directory, or `./sparselab-work` outside a project. Set `SPARSELAB_WORK_DIR` or pass the global `--work-dir PATH` before the subcommand to select another path; the CLI option takes precedence, and relative paths resolve from the current directory. SparseLab directs Python temporary-file allocations and local child workers there. Study submission and research scaffolding also derive default execution workspaces from `<work-dir>/experiments/<study-name>`. Planning alone does not create the execution workspace. SSH workers use their own remote environment and project root; configure `SPARSELAB_WORK_DIR` on that host to override its default.
 
 This setting does not move explicit `--runs-dir`, `--store`, `--output`, or `--transcript` destinations. Atomic staging stays beside its destination; use `sparselab-work/` for those paths when they should remain ignored by git. Work-directory selection does not change run or artifact identity.
 
+
+For a replicated experiment, use one [experiment workspace](workspaces.md) and pass its `runs/` directory to every producer and consumer. Explicit `logging.root_dir` values in historical YAMLs retain their original meaning; `train --runs-dir PATH` overrides that execution destination without editing the YAML. There is no fallback lookup in the old repository-root `runs/`; supply `--runs-dir runs` to read a retained historical store.
 
 ## Chat with a saved run
 
@@ -33,7 +35,7 @@ uv run sparselab chat chat-engram --checkpoint best.json --message "What value b
 uv run sparselab chat chat-engram --temperature 0.6 --top-k 20 --seed 42 --transcript sparselab-work/transcripts/conversation.json
 ```
 
-Commands accepting `--runs-dir` default to `runs/` beside the nearest `pyproject.toml` found by walking upward from the current directory. Chat, evaluation, generation, and other run consumers therefore work from repository subdirectories such as `src/`. Outside a project, the default is `./runs`; the installed package location is never used as a data root. An explicit `--runs-dir` is used as supplied, with relative paths anchored to the current directory and no fallback search. For a custom or relocated run store, pass `--runs-dir /absolute/path/to/runs`.
+Generic run readers accepting `--runs-dir` default to `sparselab-work/runs/` beside the nearest `pyproject.toml` found by walking upward from the current directory. Chat, evaluation, generation, and other run consumers therefore work from repository subdirectories such as `src/`. Outside a project, the default is `./sparselab-work/runs`; the installed package location is never used as a data root. An explicit `--runs-dir` is used as supplied, with relative paths anchored to the current directory and no fallback search. For a custom or relocated run store, pass `--runs-dir /absolute/path/to/runs`. Study collection instead infers the receipt’s sibling `runs/` when their run-directory argument is omitted.
 
 Interactive chat accepts one turn at a time; `/exit` or `/quit` finishes, `/reset` clears context. `--message` performs one scripted turn; `--json` emits structured responses. `--transcript` saves actual model prompts/replies, dropped-turn counts, generation settings, and a frozen checkpoint digest; existing files are never overwritten. Sampling is opt-in and locally seeded. EOS and generated role boundaries stop the assistant turn.
 
@@ -56,8 +58,8 @@ Local conversations support explicit v2 `all_tokens` or `assistant_only` supervi
 ## Inspect and verify a checkpoint
 
 ```sh
-uv run sparselab checkpoint inspect runs/combined-smoke/checkpoints/latest.json --json
-uv run sparselab checkpoint verify runs/combined-smoke/checkpoints/latest.json --json
+uv run sparselab checkpoint inspect sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
+uv run sparselab checkpoint verify sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
 ```
 
 PyTorch and MLX share immutable generations, run-owned inference assets, checkpoint-bound evaluation, recovery, and promotion. Native MLX execution requires the optional pinned runtime; offline checkpoint inspection/verification does not. Supported PyTorch generation uses a bounded request-local KV cache; the Python `generate(..., use_cache=False)` API provides the full-prefix reference. MLX and unsupported cache configurations use full-prefix decoding. These execution checks are not model-quality evidence.
@@ -65,11 +67,14 @@ PyTorch and MLX share immutable generations, run-owned inference assets, checkpo
 ## Stage and schedule independent experiments
 
 ```sh
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/guide-stage
-uv run sparselab run configs/runtime_smoke_cpu.yaml --store sparselab-work/controller
-uv run sparselab experiment list --json --store sparselab-work/controller
+WORK=sparselab-work/experiments/runtime-smoke
+export SPARSELAB_WORK_DIR="$WORK"
+mkdir -p "$WORK"
+uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output "$WORK/staging/guide-stage"
+uv run sparselab run configs/runtime_smoke_cpu.yaml --store "$WORK/runs"
+uv run sparselab experiment list --json --store "$WORK/runs"
 uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
-  --dry-run --store sparselab-work/controller
+  --dry-run --store "$WORK/runs"
 ```
 
 The standalone stage command produces isolated pilot evidence; it does not initialize a later experiment from pilot weights. Direct `train` never silently runs pilots. Composed `run` prepares and dispatches through the same worker queue, including worker-side validation/pilots, then waits for terminal ingestion. Without `--worker`, it registers a local endpoint; an existing controller may drive the store while the command waits.
@@ -88,9 +93,9 @@ The audit proves the deterministic fixture’s data separation only. It is not a
 ## View recorded local runs
 
 ```sh
-uv run sparselab dashboard --runs-dir runs
+uv run sparselab dashboard --runs-dir sparselab-work/runs
 ```
 
 The read-only, localhost-only viewer includes Overview, Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, and searchable Learn pages. Session-scoped refresh preserves selections and marks stale reads. Runtime shows actual worker/backend/precision/optimizer conditions; memory distinguishes native peaks from sampled lower bounds; checkpoint views separate local best from inherited lineage.
 
-For worker results, use `--runs-dir sparselab-work/controller`. The controller imports telemetry and verified files into that local projection; the dashboard neither schedules training nor mounts a remote database. Compare recorded conditions and observed budgets, not worker labels or normalized curves. See the [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) acceptance records for exercised behavior and verification limits.
+For worker results, use `--runs-dir "$WORK/runs"`. The controller imports telemetry and verified files into that local projection; the dashboard neither schedules training nor mounts a remote database. Compare recorded conditions and observed budgets, not worker labels or normalized curves. See the [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) acceptance records for exercised behavior and verification limits.

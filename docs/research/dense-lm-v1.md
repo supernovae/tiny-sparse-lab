@@ -86,55 +86,89 @@ The repaired path checks the complete tokenizer manifest and raw tokenizer diges
 
 Do not optimize preprocessing as part of this completed reference. All three seeds passed their frozen terminal gates; options A–E remain a separate, deferred profiling and change-evaluation task. Any future candidate requires explicit identity-equivalence evidence for tokenizer, selected source, packed data, supervision, byte addresses, and document statistics. No ordinary-CI wall-time assertions.
 
-## Execution procedure
+## Historical execution and future workspace convention
 
-Run from the repository root on the validated ROCm environment. The YAMLs resolve tokenizer/data/run paths relative to their own location. Use a fresh relative capture directory; do not reuse a nonempty path. The prepared tokenizer and dataset are already identity-bound and warm-cached. `tokenizer train` / `data prepare` must resolve to the frozen hashes; stop if an identity differs. This sequence does not change any training setting.
+The completed reference was executed manually from three frozen seed YAMLs. Their
+explicit `logging.root_dir` values selected `runs-dense-lm-v1-seed42`,
+`runs-dense-lm-v1-seed17`, and `runs-dense-lm-v1-seed73`; the reference matrix
+repeated those path overrides. The old instructions mirrored them with a
+seed-specific `RUN_ROOT` and invoked direct `train` without an execution-path
+override. This was a manual/configuration convention, not a requirement of the
+controller, device leases, study machinery, or resume semantics. Do not repeat it.
+The frozen YAMLs, matrix, and archived evidence preserve those historical values.
+
+The historical milestone procedure stopped at 200, 400, 1,024, 2,048, 3,072,
+and 4,096 updates, creating children from verified immutable generation manifests.
+Every parent was retained, and each 64-batch held-out evaluation was reviewed
+before continuing. The stopping rule was two successive worsening milestones,
+with the latter still worse than initialization. Seed 42's separately retained
+resume proof is at step 2,048. These are descriptions of completed execution;
+changing workspace organization does not rerun or revise that protocol.
+
+For a future authorized replicated study, all coordinates belong to one workspace.
+The following illustrates normal study submission and collection, not a command
+to rerun this promoted reference or reproduce its manual milestone controls:
 
 ```sh
-CAPTURE="sparselab-work/captures/dense-lm-v1-$(date -u +%Y%m%dT%H%M%SZ)"
-test ! -e "$CAPTURE" || { echo "capture path already exists: $CAPTURE" >&2; exit 1; }
-mkdir -p "$CAPTURE"
-RUN_TAG="${CAPTURE##*-}"
-uv run --locked sparselab tokenizer train configs/tokenizer_dense_lm_v1.yaml
-
-for SEED in 42 17 73; do
-  case "$SEED" in
-    42) CONFIG=configs/dense_lm_v1.yaml ;;
-    17) CONFIG=configs/dense_lm_v1_seed17.yaml ;;
-    73) CONFIG=configs/dense_lm_v1_seed73.yaml ;;
-  esac
-  RUN_ROOT="runs-dense-lm-v1-seed${SEED}"
-  RUN_ID="dense-lm-v1-seed${SEED}-${RUN_TAG}"
-  uv run --locked sparselab data prepare "$CONFIG"
-  uv run --locked sparselab inspect "$CONFIG" --json
-  uv run --locked sparselab stage "$CONFIG" --through warmup --output "$CAPTURE/seed${SEED}-stage"
-  uv run --locked sparselab train "$CONFIG" --backend rocm \
-    --run-id "$RUN_ID" \
-    --stage-bundle "$CAPTURE/seed${SEED}-stage" --stop-after-step 200
-done
+WORK=sparselab-work/experiments/dense-lm-v1
+export SPARSELAB_WORK_DIR="$WORK"
+mkdir -p "$WORK"
+uv run --locked sparselab study plan configs/references/dense-lm-v1/study.yaml
+uv run --locked sparselab worker register reference-rocm --backend rocm --store "$WORK/runs"
+uv run --locked sparselab study submit configs/references/dense-lm-v1/study.yaml \
+  --worker reference-rocm --store "$WORK/runs" --receipt "$WORK/receipt.json"
+uv run --locked sparselab controller run --store "$WORK/runs"
 ```
 
-Continue each seed in its configured run root. Resume only from a verified immutable checkpoint manifest; never use `latest.json`. Each milestone creates a new child run with `--run-id "$RUN_ID-step${TARGET}"`, `--resume <previous-run>/checkpoints/<step-generation>/manifest.json`, and `--stop-after-step "$TARGET"` for targets 400, 1,024, 2,048, 3,072, and 4,096. Use the checkpoint generation actually emitted by the previous run and keep every parent artifact. Review every 64-batch held-out evaluation before continuing; stop at the next durable boundary if two successive milestones worsen and the latter remains worse than initialization. Verify each selected generation with `uv run --locked sparselab checkpoint verify <manifest.json> --config "$CONFIG" --json`. Seed 42's separately retained resume proof is at step 2,048; the replication runs resumed across the same native full-state milestone boundaries.
+Inspect effective configurations, exact frozen input identities, disk headroom,
+and disposable smoke/warmup evidence before authorizing execution. The controller
+uses one store for all three seed coordinates, even though the historical YAMLs
+record old paths. Resolve IDs from the one receipt and immutable run metadata.
+Only collect after terminal ingestion; use the same store:
 
-For each seed, set `RUN_ROOT` and `RUN_ID` to its configured run root and run; set `STEP_GENERATION` and `STEP` to the exact checkpoint directory and output step. Exercise the exact generation using the prompt panel, saving under that run's relative `learning_observations/step-NNNNNNNN` directory:
+```sh
+uv run --locked sparselab study collect configs/references/dense-lm-v1/study.yaml \
+  "$WORK/receipt.json" --runs-dir "$WORK/runs" --backend rocm
+```
+
+A controller-managed interrupted run resumes with `experiment resume RUN_ID
+--store "$WORK/runs"`; its child belongs in the same store. For direct training,
+pass `train --runs-dir "$WORK/runs"` on both parent and child invocations and select
+an immutable verified parent checkpoint with `--resume`. Retain the original
+receipt and all parent/child identities; never rewrite a submission receipt to
+pretend a child was the originally submitted coordinate.
+
+For an exact selected checkpoint, put new local observations under the experiment
+root. Set `RUN_ID`, `STEP_GENERATION`, and `STEP` from verified run metadata:
 
 ```sh
 uv run --locked sparselab model exercise "$RUN_ID" \
-  --checkpoint "$RUN_ROOT/$RUN_ID/checkpoints/$STEP_GENERATION" \
-  --runs-dir "$RUN_ROOT" --backend rocm \
+  --checkpoint "$WORK/runs/$RUN_ID/checkpoints/$STEP_GENERATION" \
+  --runs-dir "$WORK/runs" --backend rocm \
   --prompt-panel data/dense_lm_v1_prompts.json \
-  --output "$RUN_ROOT/$RUN_ID/learning_observations/$STEP"
+  --output "$WORK/exercises/$RUN_ID/step-$STEP"
 ```
 
-Retain raw output, terminal Learning Observation identity, per-prompt repetition counts, held-out loss/target counts, verified checkpoint manifest, and run database metrics. The immutable retained observations record the completed three-seed result; no further execution is part of this record. Any future protocol must use canonical lifecycle/artifact records when present and preserve this candidate's declared conditions unless explicitly varied.
+Keep stage bundles under `$WORK/staging`, generation captures under `$WORK/captures`,
+and temporary reports under `$WORK/local-reports`. Promote only deliberately
+retained compact evidence into `artifacts/acceptance` and content-addressed
+`artifacts/research-reports`; full mutable run trees remain local. A different
+physical disk may be selected by assigning `WORK` an absolute external path.
+See [workspace policy](../workspaces.md) for path identities and relocation rules,
+and the [migration audit](../dense-lm-v1-workspace-audit.md) for the completed
+local consolidation and verification.
+
+The immutable retained observations record the completed three-seed result; no
+further execution is part of this record. The original read-only CPU exercise of
+a pre-existing 20-step ROCm smoke checkpoint wrote to `/tmp`, recorded short-context
+generation failures, and was not candidate evidence. No run in `runs-rocm/` was
+modified by that historical exercise.
 
 ```sh
 uv run --locked sparselab research validate --json
 uv run --locked sparselab research status --json
 uv run --locked sparselab research baseline list
 ```
-
-A pre-existing 20-step ROCm smoke checkpoint was exercised read-only through the new CLI on CPU, with output directed to `/tmp`. Integrity and held-out evaluation were captured, and short-context failures were reported as explicit generation failures; it was not used as candidate evidence. No run in `runs-rocm/` was modified.
 
 ## Gates and reporting
 

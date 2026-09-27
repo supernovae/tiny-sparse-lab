@@ -9,8 +9,8 @@ The aliases below are invented flashcards, not useful world knowledge. For their
 ```sh
 uv run sparselab tokenizer train configs/tokenizer_chat_recall.yaml
 uv run sparselab inspect configs/chat_recall_dense_cpu.yaml --json
-uv run sparselab train configs/chat_recall_dense_cpu.yaml --run-id chat-dense
-uv run sparselab train configs/chat_recall_engram_cpu.yaml --run-id chat-engram
+uv run sparselab train --runs-dir sparselab-work/runs configs/chat_recall_dense_cpu.yaml --run-id chat-dense
+uv run sparselab train --runs-dir sparselab-work/runs configs/chat_recall_engram_cpu.yaml --run-id chat-engram
 uv run sparselab capability list
 uv run sparselab capability describe chat-alias-recall-v1
 uv run sparselab capability compare chat-dense chat-engram chat-alias-retention-v1
@@ -105,7 +105,7 @@ Mine lexical statistics using only the explicitly supplied training corpus:
 ```sh
 uv run sparselab research corpus mine \
   --train-jsonl artifacts/phase-e/math/train.jsonl \
-  --tokenizer runs/RUN_ID/tokenizer/tokenizer.json \
+  --tokenizer sparselab-work/runs/RUN_ID/tokenizer/tokenizer.json \
   --table-size 65536 --memory-dim 64 --ngram-orders 2 4 --hash-heads 1 \
   --output artifacts/phase-e/math-lexical-analysis.json
 ```
@@ -116,8 +116,8 @@ Create a blinded comparison directly from content-addressed capability results:
 
 ```sh
 uv run sparselab review bundle \
-  --base-result runs/base/evaluations/BASE_RESULT.json \
-  --variant-result runs/variant/evaluations/VARIANT_RESULT.json \
+  --base-result sparselab-work/runs/base/evaluations/BASE_RESULT.json \
+  --variant-result sparselab-work/runs/variant/evaluations/VARIANT_RESULT.json \
   --criteria rubric.json --seed 17 \
   --bundle artifacts/review/rater-bundle.json \
   --reveal-map private/reveal-map.json

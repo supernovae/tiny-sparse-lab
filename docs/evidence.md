@@ -5,12 +5,12 @@ SparseLab is intended to make a small experiment inspectable, not to convert a s
 ## Surface workflow
 
 ```sh
-uv run sparselab train configs/smoke_cpu.yaml --run-id evidence-smoke --stop-after-step 4
-uv run sparselab checkpoint verify runs/evidence-smoke/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_cpu.yaml --run-id evidence-smoke --stop-after-step 4
+uv run sparselab checkpoint verify sparselab-work/runs/evidence-smoke/checkpoints/latest.json --json
 uv run sparselab evidence evidence-smoke --json
 ```
 
-Both engines evaluate at step 0, every `evaluation.every_steps`, and the terminal boundary. Each evaluation forces a checkpoint and writes an immutable report under `runs/<id>/evaluations/`. `sparselab evidence` verifies the run manifest, run-owned artifacts, every checkpoint generation, and each report's digest, checkpoint binding, counters, finite loss, validation protocol, tokenizer, and evaluation-input identities.
+Both engines evaluate at step 0, every `evaluation.every_steps`, and the terminal boundary. Each evaluation forces a checkpoint and writes an immutable report under `sparselab-work/runs/<id>/evaluations/`. `sparselab evidence` verifies the run manifest, run-owned artifacts, every checkpoint generation, and each report's digest, checkpoint binding, counters, finite loss, validation protocol, tokenizer, and evaluation-input identities.
 
 Assistant-only evidence counts the retained supervised targets, not every raw
 prompt token. Wholly masked blocks are excluded before the configured batch

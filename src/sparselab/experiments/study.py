@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -23,6 +24,29 @@ from sparselab.evaluation.inference import load_run, write_inference_result
 from sparselab.experiments.matrix import ExpandedExperiment, expand
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.training.manifest import canonical_json, config_sha256
+
+
+def study_workspace(name: str) -> Path:
+    """Resolve one execution workspace for all coordinates of a named study."""
+    from sparselab.workdir import resolve_work_dir
+
+    identifier = re.sub(r"[^A-Za-z0-9_-]+", "-", name).strip("-")
+    if identifier != name or not identifier:
+        identifier = (
+            f"{identifier or 'study'}-{hashlib.sha256(name.encode()).hexdigest()[:12]}"
+        )
+    return resolve_work_dir() / "experiments" / identifier
+
+
+def study_execution_paths(
+    study: ArchitectureStudy, *, store: Path | None = None, receipt: Path | None = None
+) -> tuple[Path, Path]:
+    """Honor explicit paths; otherwise keep runs and receipt in one workspace."""
+    if store is None:
+        store = (receipt.parent if receipt else study_workspace(study.name)) / "runs"
+    if receipt is None:
+        receipt = store.parent / "receipt.json"
+    return store, receipt
 
 
 class _StudyLoader(yaml.SafeLoader):
@@ -935,7 +959,7 @@ def collect_study(
         "interpretation": "Matched evidence is limited to the declared cards and validation split. Paired summaries are descriptive, not statistical confirmation.",
     }
     digest = hashlib.sha256(canonical_json(report)).hexdigest()
-    report_dir = receipt_path.parent / "reports"
+    report_dir = receipt_path.parent / "local-reports"
     report_path = report_dir / f"architecture-{study.study_sha256[:12]}-{digest}.json"
     payload = {**report, "report_sha256": digest}
     encoded = canonical_json(payload) + b"\n"

@@ -20,9 +20,9 @@ The curriculum contains bounded arithmetic, word reversal, attribute lookup, con
 uv run sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
 uv run sparselab data prepare configs/instruction_100m.yaml
 uv run sparselab inspect configs/instruction_100m.yaml --json
-uv run sparselab train configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
-uv run sparselab checkpoint verify runs/instruction-100m-pilot/checkpoints/latest.json --json
-uv run sparselab train configs/instruction_100m.yaml --run-id instruction-100m
+uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
+uv run sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
 uv run sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
 ```
 

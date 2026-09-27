@@ -41,18 +41,18 @@ The latest worker UI check captured actual rendered curve pixels; standard brows
 
 Requirements: Python 3.14 and [uv](https://docs.astral.sh/uv/). Run commands from the repository root.
 
-SparseLab-managed temporary files use `sparselab-work/` under the nearest project root by default. Override it with `sparselab --work-dir PATH COMMAND` (the option precedes the command) or `SPARSELAB_WORK_DIR`; relative paths resolve from the current working directory. The setting controls implicit scratch only. Explicit stores, run directories, and outputs remain separately selectable; point those under `sparselab-work/` too if you want them kept out of version control.
+SparseLab-managed temporary files use `sparselab-work/` under the nearest project root by default. Override it with `sparselab --work-dir PATH COMMAND` (the option precedes the command) or `SPARSELAB_WORK_DIR`; relative paths resolve from the current working directory. The setting controls implicit scratch and the base for default study/scaffold workspaces (`<work-dir>/experiments/<study-name>`). Generic non-study run readers and controllers still default to project-local `sparselab-work/runs/`. Keep every study coordinate and resumed child under one [experiment workspace](docs/workspaces.md), normally `sparselab-work/experiments/<EXPERIMENT_ID>/`, with a shared `runs/` store and one receipt. Explicit stores, run directories, and outputs remain separately selectable; point those under `sparselab-work/` too if you want them kept out of version control.
 
 ```sh
 uv sync --locked --dev
 uv run sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run sparselab inspect configs/runtime_smoke_cpu.yaml --json
 uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-smoke
-uv run sparselab train configs/runtime_smoke_cpu.yaml --run-id runtime-full
+uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-full
 uv run sparselab eval runtime-full
 uv run sparselab generate runtime-full --prompt "Once upon a time" --max-new-tokens 24
 uv run sparselab chat runtime-full --max-new-tokens 12
-uv run sparselab dashboard --runs-dir runs
+uv run sparselab dashboard --runs-dir sparselab-work/runs
 ```
 
 The smoke configuration is intentionally tiny. It exercises tokenizer, prepared data, training, evaluation, checkpointing, and local inference; it does not demonstrate fluent generation, broad capability, a performance win, or hardware capacity at larger scale. `stage --through warmup` runs disposable pilot subprocesses and seals their evidence; it does not alter the full run's weights, optimizer, schedule, counters, cursor, or RNG.
@@ -64,11 +64,11 @@ Use new run IDs and stage output directories for another experiment; existing ar
 `--stop-after-step` finishes a successful update boundary and leaves a durable checkpoint. Verify it before continuing into a new child run:
 
 ```sh
-uv run sparselab train configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
-uv run sparselab checkpoint inspect runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab checkpoint verify runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab train configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
-  --resume runs/runtime-part/checkpoints/latest.json
+uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
+uv run sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+uv run sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
+  --resume sparselab-work/runs/runtime-part/checkpoints/latest.json
 ```
 
 Full resume requires the same compatible experiment and engine/backend, and restores training state. `--promote CHECKPOINT` instead starts fresh optimizer/schedule/RNG/cursor state from compatible weights. Neither path resizes a model. A separate validated weights importer supports historical SparseLab checkpoints and a narrow compatible Llama safetensor mapping, not arbitrary downloaded models. See [checkpointing](docs/checkpointing.md) and [reproducibility](docs/reproducibility.md).
@@ -79,7 +79,7 @@ After preparing the smoke tokenizer above:
 
 ```sh
 uv sync --locked --dev --extra mlx
-uv run --extra mlx sparselab train configs/smoke_mlx.yaml --run-id mlx-smoke
+uv run --extra mlx sparselab train --runs-dir sparselab-work/runs configs/smoke_mlx.yaml --run-id mlx-smoke
 uv run --extra mlx sparselab eval mlx-smoke
 ```
 
@@ -88,9 +88,12 @@ Keep `--extra mlx` on subsequent `uv run` commands, or invoke the installed `.ve
 ### Queue independent experiments
 
 ```sh
-uv run sparselab worker register local-cpu --backend cpu --store sparselab-work/controller
-uv run sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker local-cpu --store sparselab-work/controller
-uv run sparselab controller run --store sparselab-work/controller
+WORK=sparselab-work/experiments/runtime-smoke
+export SPARSELAB_WORK_DIR="$WORK"
+mkdir -p "$WORK"
+uv run sparselab worker register local-cpu --backend cpu --store "$WORK/runs"
+uv run sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker local-cpu --store "$WORK/runs"
+uv run sparselab controller run --store "$WORK/runs"
 ```
 
 The controller runs in the foreground; use another terminal for `experiment list`, `experiment cancel RUN_ID`, or `experiment resume RUN_ID` with the same `--store`. An interrupted controller does not stop an already launched worker or authorize another optimizer execution. `sparselab run CONFIG --store ROOT` registers a local endpoint and composes dispatch/warmup/training without requiring a separate controller terminal. See [worker operation and failure semantics](docs/workers.md), including vendor-provisioned SSH environments, transfer deadlines, explicit matrices, and hardware limits.
@@ -99,10 +102,10 @@ Inspect the checked-in three-seed matrix without preparing data or changing the 
 
 ```sh
 uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
-  --dry-run --store sparselab-work/controller
+  --dry-run --store "$WORK/runs"
 ```
 
-Remove `--dry-run` to enqueue its three independent runs. Launch the dashboard with `--runs-dir sparselab-work/controller` to inspect imported results; worker databases and WAL files stay on their own hosts.
+Remove `--dry-run` to enqueue its three independent runs. Launch the dashboard with `--runs-dir "$WORK/runs"` to inspect imported results; worker databases and WAL files stay on their own hosts.
 
 ## Why does training use so much memory?
 

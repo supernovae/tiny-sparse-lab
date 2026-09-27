@@ -150,15 +150,15 @@ Then exercise the real path before a full run:
 ```sh
 uv run sparselab inspect configs/instruction_starter.yaml --json
 uv run sparselab data prepare configs/instruction_starter.yaml
-uv run sparselab train configs/instruction_starter.yaml --run-id instruction-starter-pilot --stop-after-step 2
-uv run sparselab checkpoint verify runs/instruction-starter-pilot/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter-pilot --stop-after-step 2
+uv run sparselab checkpoint verify sparselab-work/runs/instruction-starter-pilot/checkpoints/latest.json --json
 uv run sparselab eval instruction-starter-pilot
 ```
 
 The two-step run should be interrupted at a safe boundary with a verifiable checkpoint. It verifies execution, **not learning quality**. It uses the configured training schedule; it is not a hidden warmup for the next run. Start the learning run fresh:
 
 ```sh
-uv run sparselab train configs/instruction_starter.yaml --run-id instruction-starter
+uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter
 uv run sparselab eval instruction-starter
 uv run sparselab chat instruction-starter --system "You are a concise local assistant." --max-new-tokens 32
 uv run sparselab evidence instruction-starter --json
@@ -197,9 +197,9 @@ This is a verified learning/example run, not a recommended application model. No
 ```sh
 uv run sparselab inspect configs/instruction_100m.yaml --json
 uv run sparselab data prepare configs/instruction_100m.yaml
-uv run sparselab train configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
-uv run sparselab checkpoint verify runs/instruction-100m-pilot/checkpoints/latest.json --json
-uv run sparselab train configs/instruction_100m.yaml --run-id instruction-100m
+uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
+uv run sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
+uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
 uv run sparselab eval instruction-100m
 uv run sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
 ```
@@ -264,8 +264,8 @@ After the starter learning run exists:
 
 ```sh
 uv run sparselab data prepare configs/support_triage.yaml
-uv run sparselab train configs/support_triage.yaml --run-id support-adapted \
-  --promote runs/instruction-starter/checkpoints/best.json
+uv run sparselab train --runs-dir sparselab-work/runs configs/support_triage.yaml --run-id support-adapted \
+  --promote sparselab-work/runs/instruction-starter/checkpoints/best.json
 uv run sparselab chat support-adapted \
   --system "Classify the support request. Reply with exactly one label: access, billing, or delivery." \
   --max-new-tokens 8
