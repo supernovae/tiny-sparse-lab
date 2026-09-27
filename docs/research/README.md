@@ -19,6 +19,18 @@ A scaffold publishes editable `base.yaml`, `tokenizer.yaml`, `matrix.yaml`, `stu
 
 The [research roadmap](roadmap.md) tracks capability evidence and open work. Verified semantic retrieval accepts pre-encoded vectors; a teacher-representation compiler and natural-language query encoder are not shipped.
 
+## Known-good decision records
+
+The read-only lifecycle projection links bounded Findings, human dispositions,
+declared next tests, and reviewed baseline promotions without changing catalog,
+study, run, or report artifacts. Start with the [known-good baseline
+guide](known-good-baselines.md) for the exact dense reference commands, gates,
+capture requirements, branch workflow, and the distinction between archival
+report verification and locally runnable checkpoint files. Use `sparselab
+research status --json`, `research next --json`, and `research validate --json`
+to inspect declarations and evidence availability; none runs experiments or
+decides promotion.
+
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
 

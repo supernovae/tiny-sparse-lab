@@ -1,0 +1,195 @@
+{
+  "format": "sparselab-research-lifecycle",
+  "version": 1,
+  "evidence": [
+    {"id":"dense-run-config","kind":"source","artifact":{"relative_path":"configs/chat_recall_dense_cpu.yaml","sha256":"daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d","size_bytes":1322}},
+    {"id":"dense-tokenizer-config","kind":"source","artifact":{"relative_path":"configs/tokenizer_chat_recall.yaml","sha256":"78f09c9543818aefed018000f777c71df7edcb5191e8dac062ccd5ec99936be0","size_bytes":329}},
+    {"id":"dense-study-config","kind":"source","artifact":{"relative_path":"configs/references/dense-small-v1/study.yaml","sha256":"d6c7a64adfc2f1f55b6119cf0665630ac45ff27d164fc5734851e89b64d73a58","size_bytes":163}},
+    {"id":"dense-matrix-config","kind":"source","artifact":{"relative_path":"configs/references/dense-small-v1/matrix.yaml","sha256":"55b04633f6361bae2274898d17c1becadff4916bf66c76fe00000c7c3154ba90","size_bytes":117}},
+    {"id":"ffn-smoke-report","kind":"report_bundle","identity":"fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b","artifact":{"relative_path":"artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/manifest.json","sha256":"647068bdfebd5d48eec29cc113fd944463abc1c4471dd37faf719364b82ea73d","size_bytes":7161}},
+    {"id":"ffn-nano-report","kind":"report_bundle","identity":"a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf","artifact":{"relative_path":"artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/manifest.json","sha256":"516578fc96d455be60357c177420f92b5582610475e5b611aad979878e2642f4","size_bytes":7161}},
+    {"id":"ffn-repeat-report","kind":"report_bundle","identity":"9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2","artifact":{"relative_path":"artifacts/research-reports/9afaedb3e6f20769ef71f3211077d6d8f624b95a6e31805804f2d1fce79673e2/manifest.json","sha256":"2764e49d0ad3419158bfdf34c62b56ae2611012ee42899bdf3ade7993cb887ec","size_bytes":9777}},
+    {"id":"ffn-analysis-notes","kind":"document","artifact":{"relative_path":"docs/research/sample-report.md","sha256":"846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626","size_bytes":12070}},
+    {"id":"context-study-acceptance","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/scientific_studies_2026_09_22.json","sha256":"29b1fffd5a0987adce54f7af8c1de1293d4a079f11ab2adde2dad1c95d567e69","size_bytes":57057}},
+    {"id":"context-study-notes","kind":"document","artifact":{"relative_path":"docs/context-engram-study.md","sha256":"1511ed7ea65d14d82c25c31d64606f68791682ba7ca22fa778d77c0aac992733","size_bytes":20363}},
+    {"id":"allocation-smoke-notes","kind":"document","artifact":{"relative_path":"docs/path-domain-corpus.md","sha256":"842caf734a628a9d7597dd10eaed2468adf9601719e6d7cbe62b2a4115bd6641","size_bytes":16204}},
+    {"id":"portable-adapter-notes","kind":"document","artifact":{"relative_path":"docs/portable-engram.md","sha256":"b121d78ad3db4e15d94371f0e252985b1a9253aeacfdea0a68277b38b2210747","size_bytes":5957}},
+    {"id":"learned-portability-report","kind":"report_bundle","identity":"b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed","artifact":{"relative_path":"artifacts/research-reports/b094e9791fe9c0eb0a635388e52d00782c7317abadad33f9e6b9c4f3e3670bed/manifest.json","sha256":"8fd43c8d9866ce65813cbbebfabcb0c941fa18fbb273fa9fd4fe5dbfbf551071","size_bytes":214036}},
+    {"id":"learned-portability-notes","kind":"document","artifact":{"relative_path":"docs/research/learned-engram-portability.md","sha256":"1b9080de8c55d41a492d3ef03679d04fe2c1076236d42309207cd73eea1373f1","size_bytes":18630}},
+    {"id":"mla-analysis-notes","kind":"document","artifact":{"relative_path":"docs/research/sample-report.md","sha256":"846a79f7ffac145be161895541c62abf71bea9c26c09995521f2af1c85fa5626","size_bytes":12070}},
+    {"id":"dense-small-v1-report","kind":"report_bundle","identity":"1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00","artifact":{"relative_path":"artifacts/research-reports/1d471241a17eca7b6d9680cfc3f595a921ab0aabe4f8b2e54a60835a6e95bb00/manifest.json","sha256":"4ed0de0be899d21acd91b5702955c02be6ae475ce3bf0a69e9eabafe142dc861","size_bytes":2230}},
+    {"id":"dense-small-v1-acceptance","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/dense_small_v1_2026_09_26.json","sha256":"072c026a042b07e91c90b6dd0fe6dfa99247a6211e2e9c81da654ad4be8d82e1","size_bytes":3581}},
+    {"id":"dense-small-v1-run-manifest","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/dense_small_v1_run_manifest_20260926.json","sha256":"81254972e4b56a25c9e2a3b4bf40201ff59d0b01039740a79dd13e122884a406","size_bytes":31423}},
+    {"id":"dense-small-v1-acquisition-chat","kind":"acceptance","artifact":{"relative_path":"artifacts/acceptance/dense_small_v1_2026_09_26/acquisition-chat.json","sha256":"4707740c4309a1e8cd59bae8dfe6de0e5c3675ae25541256c92ef2871f0be6f2","size_bytes":5674}}
+  ],
+  "baselines": [
+    {
+      "id":"dense-small-v1",
+      "title":"Dense synthetic alias reference lifecycle",
+      "purpose":"Bounded single-arm CPU/offline reference for training, validation, capability, generation, resource, and static-report lifecycle; not a useful-chat or architecture-quality claim.",
+      "status":"candidate",
+      "configuration":{"relative_path":"configs/chat_recall_dense_cpu.yaml","sha256":"daea3bd002699a354716c4588b94852ed50979a4156a6fa01e22305ef8acd09d","size_bytes":1322},
+      "tokenizer_configuration":{"relative_path":"configs/tokenizer_chat_recall.yaml","sha256":"78f09c9543818aefed018000f777c71df7edcb5191e8dac062ccd5ec99936be0","size_bytes":329},
+      "profile":{"scale":"smoke","data":"offline","note":"existing 64×2 dense chat-recall configuration, FFN 192, extended fixed acquisition budget; not the generic smoke profile"},
+      "seeds":[42],
+      "budget":{"max_steps":1536,"max_tokens":393216},
+      "source_revision":{"git_commit":"94dba3d87fa17099b3fb81d9d9f85f54f8aeee4f","git_dirty":true,"source_identity_sha256":"6c245a4044259170539af51bcde95f1e3e8cc824f6f6d1d597b2ecd00cbfd8b0"},
+      "required_evidence":{
+        "preparation":["dense-small-v1-acceptance"],
+        "training":["dense-small-v1-run-manifest","dense-small-v1-acceptance"],
+        "checkpoint":["dense-small-v1-run-manifest","dense-small-v1-acceptance"],
+        "validation":["dense-small-v1-report","dense-small-v1-acceptance"],
+        "capability":["dense-small-v1-report","dense-small-v1-acquisition-chat","dense-small-v1-acceptance"],
+        "generation":["dense-small-v1-acquisition-chat","dense-small-v1-acceptance"],
+        "resources":["dense-small-v1-run-manifest","dense-small-v1-acceptance"],
+        "static_report":["dense-small-v1-report","dense-small-v1-acceptance"]
+      },
+      "capability_expectations":[
+        {"card":"chat-alias-retention-v1","role":"acquisition","expectation":"At least 12/24 full-answer correct under the frozen training-seen retention card."},
+        {"card":"chat-alias-recall-v1","role":"held_out","expectation":"Record every held-out wording case; no minimum score is required for lifecycle validity."},
+        {"card":"chat-context-override-v1","role":"held_out","expectation":"Record every context-override case; no minimum score is required for lifecycle validity."}
+      ],
+      "limitations":[
+        "One CPU seed and finite synthetic offline chat-recall data do not establish independent replication or useful general chat.",
+        "The baseline is a lifecycle and acquisition reference, not evidence of a memory, attention, FFN, efficiency, or quality advantage.",
+        "The fixed 1536-step limit bound this run at step 1536 with 391424 of the 393216-token ceiling observed.",
+        "Static report validation preserves archival evidence but does not make omitted checkpoint binaries locally runnable.",
+        "The sole seed's held-out validation loss rose from 6.176402 to 7.056087; the required validation gate failed, so the candidate was not promoted. No retry was run.",
+        "Acquisition retention was 24/24; held-out recall was 8/12 and context override 0/8. These finite synthetic outcomes do not establish independent or general capability."
+      ],
+      "integration_study":{"relative_path":"configs/references/dense-small-v1/study.yaml","sha256":"d6c7a64adfc2f1f55b6119cf0665630ac45ff27d164fc5734851e89b64d73a58","size_bytes":163},
+      "reproduction":"configs/references/dense-small-v1/study.yaml"
+    }
+  ],
+  "entries": [
+    {
+      "entry":"engram-ffn-substitution-v1","entry_sha256":"c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"not_supported_locally","finding_ids":["ffn-smoke-outcomes","ffn-nano-outcomes","ffn-same-seed-repeat"]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":["ffn-smoke-outcomes","ffn-nano-outcomes","ffn-same-seed-repeat"],
+      "next_test":{"action":"Test narrower-FFN compensation on an independently authored compositional task population; retain the existing controls and all card outcomes before considering a wider run.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":["independent-composition-set-not-frozen"],"eligible_scales":["smoke"],"reopens":["ffn-smoke-outcomes","ffn-nano-outcomes","ffn-same-seed-repeat"],"design_change":"Replace the finite chat-recall task population with a separately frozen compositional train/dev/card corpus; the historical same-seed rerun is not an independent replication."},
+      "blockers":[{"id":"independent-composition-set-not-frozen","description":"The current reports use a finite synthetic alias/recall curriculum and do not establish composition or independent-task generalization.","resolution":"Freeze and hash a new independent train/dev/card corpus and scorer before any outcome-based setting changes.","evidence_ids":["ffn-smoke-report","ffn-nano-report","ffn-repeat-report"]}]
+    },
+    {
+      "entry":"engram-placement-v1","entry_sha256":"a3b2c3cfc41d1f6d76d1b69147572c7ddc2a218b312bcfeef0f6bdac5f998e36","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":["context-override-negative"],
+      "next_test":{"action":"Run a frozen no-memory/final-injection/embedding-injection comparison focused on untouched context overrides, with seed-matched configuration and held-out reports.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":["placement-factorial-not-frozen"],"eligible_scales":["smoke"],"reopens":["context-override-negative"],"design_change":"The historical context study varied memory condition and budget but did not vary the cataloged injection-placement axis; preregister placement as the changed field."},
+      "blockers":[{"id":"placement-factorial-not-frozen","description":"The accepted context-override study is relevant historical Engram evidence but does not directly compare injection placement.","resolution":"Freeze no-memory, final, and embedding placement arms with matched training conditions and the existing held-out override distinction.","evidence_ids":["context-study-acceptance","context-study-notes"]}]
+    },
+    {
+      "entry":"learned-engram-portability-v1","entry_sha256":"15a814c5cc8bdc15e229b3e52c22686f1da11391688517527a04dce5535e8ef1","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"mixed","finding_ids":["learned-portability-endpoint"]},"efficiency":{"state":"unmeasured","finding_ids":[]},"portability":{"state":"artifact_verified","finding_ids":["learned-portability-endpoint"]}},
+      "finding_ids":["learned-portability-endpoint"],
+      "next_test":{"action":"Preregister an independent held-out wording family and repeat only under the sealed source/recipient controls; do not tune against the reported final-state failure.","stage":"mechanism","cost_class":"short","prerequisites":["learned-portability-endpoint"],"blocker_ids":["independent-wording-suite-not-frozen"],"eligible_scales":["nano"],"reopens":["learned-portability-endpoint"],"design_change":"Use a separately authored recipient-held-out wording family and retain the current final-state wording as a non-tuned reference; the existing supportive criterion failed and representation portability was not tested."},
+      "blockers":[{"id":"independent-wording-suite-not-frozen","description":"Adapter gains were wording-specific: the supportive six-group criterion failed narrowly and the second final wording remained at chance.","resolution":"Freeze an independent recipient-held-out wording family and its score rule before another campaign.","evidence_ids":["learned-portability-report","learned-portability-notes"]}]
+    },
+    {
+      "entry":"engram-portability-v1","entry_sha256":"90df9ba8eb38216dd9c7fc980870149116eacb924802204f069c253910cfd1bf","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"not_supported_locally","finding_ids":["portable-adapter-two-case-negative"]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":["portable-adapter-two-case-negative"],
+      "next_test":{"action":"Extend the negative two-case comparison to multiple recipient configurations and held-out cases, retaining baseline, random, frozen-only, and trained-adapter controls.","stage":"mechanism","cost_class":"short","prerequisites":[],"blocker_ids":["multi-recipient-transfer-not-frozen"],"eligible_scales":["micro"],"reopens":["portable-adapter-two-case-negative"],"design_change":"Expand the held-out denominator and recipient configurations; do not change the reported two-case result or claim general transfer from it."},
+      "blockers":[{"id":"multi-recipient-transfer-not-frozen","description":"The documented two-case adapter result is negative and too narrow to establish general transfer.","resolution":"Freeze a multi-recipient held-out protocol with exact source-table identity and unchanged frozen-table controls.","evidence_ids":["portable-adapter-notes"]}]
+    },
+    {
+      "entry":"memory-allocation-curve-v1","entry_sha256":"a53622a1899ec79e9dcf03c958a45e0d832cdb2fe732ffa03b3789683648dc14","baseline_id":null,"stage":"mechanism",
+      "maturity":{},"finding_ids":["allocation-single-coordinate-smoke"],
+      "next_test":{"action":"Complete the predeclared ownership-profile and neural-weight curve; retain every checkpoint and separate token, target, and weighted-supervision counters.","stage":"mechanism","cost_class":"campaign","prerequisites":[],"blocker_ids":["allocation-curve-unexecuted"],"eligible_scales":["smoke"],"reopens":["allocation-single-coordinate-smoke"],"design_change":"Move from one iso-total coordinate to the fully declared 75-coordinate curve without selecting an optimum from the smoke observation."},
+      "blockers":[{"id":"allocation-curve-unexecuted","description":"Only iso-total/s17/n50/w50 is described as executed; the 75-coordinate scaffold remains incomplete.","resolution":"Execute and validate every frozen coordinate or retain explicit partial/blocked status for each omitted coordinate.","evidence_ids":["allocation-smoke-notes"]}]
+    },
+    {
+      "entry":"engram-mla-compression-v1","entry_sha256":"25ff4128a42d90936ce461b1a1217c28d427becf65514961c7ff3199418d9f0e","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":["mla-analysis-pipeline-smoke"],
+      "next_test":{"action":"Run a behavior-focused matched MLA-latent-width and memory matrix; keep held-out loss and every capability-card category separate from report-pipeline validation.","stage":"mechanism","cost_class":"short","prerequisites":[],"blocker_ids":["mla-behavior-campaign-not-run"],"eligible_scales":["nano"],"reopens":["mla-analysis-pipeline-smoke"],"design_change":"Replace the engineering-only smoke endpoint with a preregistered behavior evaluation; do not reinterpret mixed interactions or zero cards as an MLA quality conclusion."},
+      "blockers":[{"id":"mla-behavior-campaign-not-run","description":"The 12-run CPU/offline exercise validated analysis paths only and reported 36 zero card scores.","resolution":"Freeze and execute the behavior-focused matrix while retaining all seeds, declared contrasts, and card categories.","evidence_ids":["mla-analysis-notes"]}]
+    },
+    {
+      "entry":"engram-sparse-budget-v1","entry_sha256":"710aeecdda9313ea43fadf98de2ea2c000ac8a9e8ce7858940c5b4064128c292","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":[],
+      "next_test":{"action":"Run the declared dense/block-sparse and memory/no-memory contrasts; report task outcomes and synchronized end-to-end measurements separately from attention-component timing.","stage":"mechanism","cost_class":"short","prerequisites":[],"blocker_ids":[],"eligible_scales":["smoke"],"reopens":[],"design_change":null},
+      "blockers":[]
+    },
+    {
+      "entry":"engram-moe-capacity-v1","entry_sha256":"f52ece6c6aef296429b119573f249c5381a16e0db7a341bac75cef7c5f45fdd2","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":[],
+      "next_test":{"action":"Run the declared dense-2x/dense-4x/MoE and memory/no-memory smoke matrix; retain separate LM, card, and routing diagnostics.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":[],"eligible_scales":["smoke"],"reopens":[],"design_change":null},
+      "blockers":[]
+    },
+    {
+      "entry":"lexical-memory-heavy-v1","entry_sha256":"52dc839a8be570148cb263633354b085b80be915c21e0b04261c3004de9af02d","baseline_id":null,"stage":"mechanism",
+      "maturity":{"capability":{"state":"untested","finding_ids":[]},"efficiency":{"state":"unmeasured","finding_ids":[]}},
+      "finding_ids":[],
+      "next_test":{"action":"Run the declared no/small/large/huge lexical-table smoke sweep and report table bytes, LM loss, and each card separately.","stage":"mechanism","cost_class":"mechanism","prerequisites":[],"blocker_ids":[],"eligible_scales":["smoke"],"reopens":[],"design_change":null},
+      "blockers":[]
+    }
+  ],
+  "findings": [
+    {
+      "id":"ffn-smoke-outcomes","entry":"engram-ffn-substitution-v1","recorded_at":"2026-09-26","evidence_ids":["ffn-smoke-report","ffn-analysis-notes"],
+      "tested_conditions":["CPU/PyTorch FP32, smoke/offline, 18 runs across three seeds and three FFN widths; every run reached 32 updates / 4096 tokens."],
+      "observation":"All 18 runs scored zero on each of the three capability cards. Lexical-memory held-out loss deltas were lower at 4x and 2x FFN width but mixed at 1x; this smoke showed no consistent held-out-loss benefit.",
+      "supported_claims":["Lookup did not demonstrate capability-card compensation for narrower FFN width at this smoke endpoint.","The measured held-out-loss direction varied with FFN width under this finite offline task."],
+      "unsupported_claims":["This does not establish general model quality, long-training outcomes, or behavior on other task populations.","It does not establish speed, efficiency, statistical significance, or a universal FFN replacement claim."],
+      "disposition":"learning","decided_by":"research lifecycle review","rationale":"The verified report records all declared outcomes, but all cards were zero and the bounded validation-loss effects do not support a general compensation claim.","next_action":"Reopen only with an independently frozen compositional task population and unchanged outcome reporting.","reopen_conditions":["A separately authored compositional train/dev/card corpus and scorer are frozen before training."],"design_identity":{"study_sha256":"b3ef825fcf29f9577fbb467781699d90ea65505555ef7add46fdef274394a7d7","protocol_sha256":null}
+    },
+    {
+      "id":"ffn-nano-outcomes","entry":"engram-ffn-substitution-v1","recorded_at":"2026-09-26","evidence_ids":["ffn-nano-report","ffn-analysis-notes"],
+      "tested_conditions":["CPU/PyTorch FP32, nano/offline, 18 runs across three seeds and three FFN widths; all runs reached 128 updates / 32640 tokens."],
+      "observation":"At 1x FFN width, lexical memory had higher held-out validation loss in all three seed pairs; all 18 runs scored zero on each capability card. The report found no consistent same-width held-out-loss improvement.",
+      "supported_claims":["The nano protocol provides no evidence that lookup compensated for a narrower FFN at the measured endpoint.","The 1x lexical-memory loss delta was positive for all three recorded seeds."],
+      "unsupported_claims":["Three seeds on finite offline chat-recall do not establish behavior on independent compositional tasks.","This does not establish a general negative result for longer training or other model/data scales."],
+      "disposition":"learning","decided_by":"research lifecycle review","rationale":"This is the closest existing scale evidence, but zero card outcomes and narrow synthetic data limit the interpretation.","next_action":"Use only as a prior; any new task population must be frozen independently.","reopen_conditions":["A separately authored compositional train/dev/card corpus and scorer are frozen before training."],"design_identity":{"study_sha256":"11d03ab3808a557189b1d0ba90352eaf6b636d68906e8ebccaa1132b88452b33","protocol_sha256":null}
+    },
+    {
+      "id":"ffn-same-seed-repeat","entry":"engram-ffn-substitution-v1","recorded_at":"2026-09-26","evidence_ids":["ffn-repeat-report","ffn-analysis-notes"],
+      "tested_conditions":["CPU/PyTorch FP32; same nano study, matrix, data-profile, and scale identities; new run IDs, same coordinate seeds."],
+      "observation":"The repeated execution reproduced prior held-out validation loss at all 18 coordinates exactly; it adds no independent-seed evidence.",
+      "supported_claims":["The recorded nano metric was reproducible for this same-seed execution under identical inputs."],
+      "unsupported_claims":["A same-seed rerun is not an independent replication and does not increase the number of independent seeds."],
+      "disposition":"learning","decided_by":"research lifecycle review","rationale":"Retain reproducibility evidence without treating duplicate seed coordinates as new scientific support.","next_action":"Do not count this report as independent replication; reopen only under a new task population or seed plan.","reopen_conditions":["An independent seed or independently frozen task population is available."],"design_identity":{"study_sha256":"11d03ab3808a557189b1d0ba90352eaf6b636d68906e8ebccaa1132b88452b33","protocol_sha256":null}
+    },
+    {
+      "id":"context-override-negative","entry":"engram-placement-v1","recorded_at":"2026-09-26","evidence_ids":["context-study-acceptance","context-study-notes"],
+      "tested_conditions":["Accepted CPU/PyTorch study with three seeds, two exact-target budgets, 24 completed endpoints, and 72 preregistered card evaluations."],
+      "observation":"Untouched context-override outcomes were 0/8 at every one of the 24 endpoints. Training-seen acquisition varied, but did not establish held-out override acquisition. The study varied memory condition and budget; it did not compare injection placement.",
+      "supported_claims":["The accepted study found no untouched override acquisition under its frozen protocol.","The result is relevant historical Engram evidence but is not a placement-axis comparison."],
+      "unsupported_claims":["This does not establish that embedding and final injection are equivalent or ineffective.","It does not establish general chat quality, significance, or an Engram advantage."],
+      "disposition":"learning","decided_by":"research lifecycle review","rationale":"The acceptance record verifies completed endpoints and response scoring; the current catalog placement question remains untested.","next_action":"Test placement directly with frozen no-memory, final-injection, and embedding-injection arms.","reopen_conditions":["A matched placement factorial with untouched held-out override cases is preregistered."],"design_identity":null
+    },
+    {
+      "id":"allocation-single-coordinate-smoke","entry":"memory-allocation-curve-v1","recorded_at":"2026-09-26","evidence_ids":["allocation-smoke-notes"],
+      "tested_conditions":["Documented CPU iso-total/s17/n50/w50 smoke; 32 updates and five observed checkpoints; one of 75 scaffolded coordinates."],
+      "observation":"All recorded acquisition, development, and frozen card scores were zero at each checkpoint; validation loss was nonmonotonic. The full 75-coordinate sweep was not executed.",
+      "supported_claims":["This one documented coordinate did not establish an ownership optimum or capability-card success.","The available notes report no FLOP, latency, energy, or saved-token measurements."],
+      "unsupported_claims":["The source note is not a validated report bundle and cannot support a measured replication gate.","One coordinate cannot establish allocation-dependent retention or a full curve."],
+      "disposition":"inconclusive","decided_by":"research lifecycle review","rationale":"The one-coordinate smoke is an explicit partial observation; its source note is not sufficient to promote a scientific curve claim.","next_action":"Complete the frozen ownership curve and preserve missing or blocked coordinates.","reopen_conditions":["All 75 planned coordinates are executed or individually retained as partial/blocked with reasons."],"design_identity":null
+    },
+    {
+      "id":"portable-adapter-two-case-negative","entry":"engram-portability-v1","recorded_at":"2026-09-26","evidence_ids":["portable-adapter-notes"],
+      "tested_conditions":["Documented two-case held-out byte-addressed portable-adapter comparison against baseline and random frozen-table controls."],
+      "observation":"Baseline, random frozen-table, and trained portable-adapter runs each had zero exact matches and reciprocal rank 0.75. Mean expected-value log probability was -5.0596, -4.9939, and -5.1395 respectively; the trained adapter did not outperform random under this protocol.",
+      "supported_claims":["The documented two-case comparison did not demonstrate adapter benefit over its random-table control."],
+      "unsupported_claims":["Two cases do not establish general transfer failure or success across recipient configurations.","The documentation is not a static report bundle or independent multi-recipient validation."],
+      "disposition":"rejected","decided_by":"research lifecycle review","rationale":"The reported adapter result is negative against the random-table control, and the sample is too small for a broader portability conclusion.","next_action":"Extend the held-out denominator and recipient configurations without changing the archived result.","reopen_conditions":["A preregistered multi-recipient protocol with additional held-out cases and matched frozen controls is available."],"design_identity":null
+    },
+    {
+      "id":"learned-portability-endpoint","entry":"learned-engram-portability-v1","recorded_at":"2026-09-26","evidence_ids":["learned-portability-report","learned-portability-notes"],
+      "tested_conditions":["Sealed CPU nano N=2048 protocol; three source seeds; six recipient width/seed groups; 54 completed coordinates, 42 trained and 12 observation-only."],
+      "observation":"All source gates passed and the same learned table bytes were verified across recipient widths. Real adapters averaged 71.70% on one held-out wording, but the preregistered all-six-group >=0.50 criterion failed narrowly at width64/seed73; all six adapters scored 3.125% on the second final wording. Representation portability was not tested.",
+      "supported_claims":["The report verifies source acquisition and byte-exact artifact reuse under the sealed protocol.","Recipient-local calibration improved one held-out wording on average but did not satisfy the supportive criterion or generalize to the second final wording."],
+      "unsupported_claims":["This does not establish robust wording transfer, ordinary-language quality, or representation portability.","The single bounded synthetic task does not establish general transfer to other architectures or domains."],
+      "disposition":"learning","decided_by":"research lifecycle review","rationale":"The verified report separates successful source/artifact gates from the failed supportive adapter criterion and wording-specific outcomes.","next_action":"Reopen only with an independent wording family frozen before training; do not tune to the second-wording failure.","reopen_conditions":["An independent held-out wording suite and score rule are frozen before a new campaign."],"design_identity":{"study_sha256":null,"protocol_sha256":"a8fe6285322e49cb00be04a01b98a0c98ee28d27337123bd67fce9abf7ac08d1"}
+    },
+    {
+      "id":"mla-analysis-pipeline-smoke","entry":"engram-mla-compression-v1","recorded_at":"2026-09-26","evidence_ids":["mla-analysis-notes"],
+      "tested_conditions":["Documented CPU/offline analysis smoke; 12 runs across dense/MLA-half, memory absent/present, and three seeds; 32 updates per run."],
+      "observation":"All 36 capability-card scores were zero and the three-seed validation-loss interaction signs were mixed. The exercise validated report-analysis paths; it did not test an attention or memory quality claim.",
+      "supported_claims":["The documented smoke exercised factorial, nondominance, allocation, and boundary-sweep report paths."],
+      "unsupported_claims":["This does not establish MLA/memory benefit, a synergy statistic, speed, or paper-equivalent cache compression.","The document is not a verified static report bundle for this study."],
+      "disposition":"learning","decided_by":"research lifecycle review","rationale":"Retain the engineering validation separately from behavioral conclusions.","next_action":"Run a behavior-focused matched matrix with frozen endpoints and all capability categories.","reopen_conditions":["A behavior-focused protocol and matched matrix are frozen before training."],"design_identity":null
+    }
+  ],
+  "promotions": []
+}

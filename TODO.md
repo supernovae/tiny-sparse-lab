@@ -1,5 +1,10 @@
 # Capability status and open verification backlog
 
+The lifecycle coordination layer records findings, reviewed baseline decisions,
+and explicit blockers; it does not close the scientific work below.
+See [known-good baselines](docs/research/known-good-baselines.md) for the bounded
+dense candidate, its failed held-out-validation gate, evidence record, and promotion workflow.
+
 This is the living checklist for what SparseLab can execute, what has been smoke-tested, and what still needs evidence before stronger capability claims. A passing test or smoke run proves a code path, not useful model behavior. Completed acceptance records remain below as a historical evidence ledger; the current open work is organized by capabilities, not release phases. See the [capability roadmap](docs/research/roadmap.md).
 
 ## Current capability snapshot
@@ -14,7 +19,7 @@ This is the living checklist for what SparseLab can execute, what has been smoke
 | Other architectures | PyTorch attention, MLA, local MoE, and memory paths have tests and integration runs; native MLX sparse attention has component measurements. | Most evidence is mechanism correctness or small, task-specific studies—not general quality or speed superiority. |
 | Useful local models | A measured synthetic instruction starter and narrow capability cards provide honest failure examples. | No independently evaluated, useful real-world task model has been established. |
 
-The latest workstation regression run was `uv run pytest -q` (**539 passed**). This validates software paths; it does not change any model-capability status above.
+The latest workstation regression run was `uv run --locked pytest -q` (**547 passed, 2 skipped in 158.29s**). This validates software paths; it does not change any model-capability status above.
 
 ## Engram portability evidence ledger
 

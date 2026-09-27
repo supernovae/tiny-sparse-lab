@@ -2,7 +2,7 @@ schema_version: 1
 vocab_size: 512
 min_frequency: 1
 max_documents: 384
-output_dir: ../artifacts/tokenizer_chat_recall
+output_dir: ../artifacts/tokenizer_chat_recall_dense_small_v1
 dataset:
   source: chat_recall
   cache_dir: ../artifacts/data

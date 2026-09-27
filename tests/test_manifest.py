@@ -3,11 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from sparselab.config.loading import load_config
 from sparselab.runtime import RuntimeInfo
+from sparselab.training import manifest
 from sparselab.training.manifest import (
     ArtifactIdentity,
     RunManifest,
@@ -17,6 +19,31 @@ from sparselab.training.manifest import (
     read_manifest,
     write_manifest,
 )
+
+
+def test_source_identity_excludes_only_self_referential_lifecycle_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package_root = tmp_path / "sparselab"
+    lifecycle = package_root / "research" / "resources" / "lifecycle.json"
+    implementation = package_root / "training" / "implementation.py"
+    lifecycle.parent.mkdir(parents=True)
+    implementation.parent.mkdir(parents=True)
+    lifecycle.write_text('{"findings":[]}\n', encoding="utf-8")
+    implementation.write_text("value = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        manifest, "__file__", str(implementation.parent / "manifest.py")
+    )
+
+    initial = manifest.source_identity()
+    lifecycle.write_text('{"findings":[{"id":"later"}]}\n', encoding="utf-8")
+
+    assert manifest.source_identity() == initial
+    implementation.write_text("value = 2\n", encoding="utf-8")
+
+    changed = manifest.source_identity()
+    assert changed["algorithm"] == "package-path-sha256-v2"
+    assert changed["sha256"] != initial["sha256"]
 
 
 def _runtime() -> RuntimeInfo:
@@ -37,7 +64,7 @@ def _runtime() -> RuntimeInfo:
         None,
         None,
         "test",
-        (),
+        "test",
         (),
     )
 
@@ -63,7 +90,8 @@ def test_identity_ignores_machine_paths_but_binds_architecture() -> None:
     assert architecture_sha256(left) == architecture_sha256(right)
 
     changed = _config(Path("/machine-a"))
-    changed["model"] = {**changed["model"], "hidden_dim": 32}  # type: ignore[index]
+    changed_model = cast(dict[str, object], changed["model"])
+    changed["model"] = {**changed_model, "hidden_dim": 32}
     assert architecture_sha256(left) != architecture_sha256(changed)
     assert config_sha256(left) != config_sha256(changed)
 

@@ -3,12 +3,21 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
 import pytest
+import yaml
 from pydantic import ValidationError
+from tokenizers import Tokenizer
+from tokenizers.decoders import ByteLevel as ByteLevelDecoder
+from tokenizers.models import BPE
+from tokenizers.pre_tokenizers import ByteLevel
 
+from sparselab.config.loading import load_config
+from sparselab.data.tokenizer import SPECIAL_TOKENS
 from sparselab.experiments.analysis import build_research_analysis
 from sparselab.experiments.charts import render_charts
 from sparselab.experiments.reporting import (
@@ -20,7 +29,8 @@ from sparselab.experiments.reporting import (
 )
 from sparselab.experiments.study import plan_study
 from sparselab.research.catalog import FactorialDesign
-from sparselab.training.manifest import canonical_json
+from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.workers.controller import Controller
 
 _HISTORICAL_REPORT_INPUTS = (
     Path(__file__).resolve().parents[1]
@@ -424,3 +434,179 @@ def test_report_bundle_rejects_mutated_content(
 
     with pytest.raises(ValueError, match="child integrity failure"):
         load_report_bundle(tampered)
+
+
+def test_single_arm_collected_report_builds_and_validates(
+    tmp_path: Path,
+) -> None:
+    """A complete endpoint without a matched pair remains a valid report."""
+    source = _HISTORICAL_REPORT_INPUTS
+    config_source = (
+        source
+        / "research-scaffold"
+        / "configs"
+        / "2ab451f1cf4999368e3a8d1775b0de07d7b33cc09ba014cfc99fd8926aa57832.yaml"
+    )
+    config_path = tmp_path / "base.yaml"
+    shutil.copyfile(config_source, config_path)
+    matrix_path = tmp_path / "matrix.yaml"
+    matrix_path.write_text(
+        "\n".join(
+            [
+                "matrix_version: 1",
+                f"base_config: {config_path}",
+                "axes:",
+                "  seed:",
+                "    - label: s17",
+                "      set: {seed: 17}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    study_path = tmp_path / "study.yaml"
+    study_path.write_text(
+        """\
+study_version: 1
+name: single-arm-report
+matrix: matrix.yaml
+cards:
+  - chat-alias-retention-v1
+  - chat-alias-recall-v1
+  - chat-context-override-v1
+comparisons: []
+""",
+        encoding="utf-8",
+    )
+    study = plan_study(study_path)
+    assert len(study.expanded) == 1
+    assert study.pairs == ()
+
+    receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
+    evidence = json.loads(
+        (source / "collected-report.json").read_text(encoding="utf-8")
+    )
+    planned_digest = config_sha256(study.expanded[0].config.model_dump(mode="json"))
+    selected_receipt = receipt["runs"][0]
+    selected_evidence = evidence["runs"][0]
+    selected_receipt["config_sha256"] = planned_digest
+    selected_evidence["config_sha256"] = planned_digest
+    planned_config = study.expanded[0].config.model_dump(mode="json")
+    selected_evidence["identity"]["config"] = planned_config
+    for capability in selected_evidence["capabilities"].values():
+        capability["result"]["identity"]["config"] = planned_config
+    selected_receipt["coordinate"] = {"seed": "s17"}
+    selected_evidence["coordinate"] = {"seed": "s17"}
+    receipt["runs"] = [selected_receipt]
+    receipt["study_sha256"] = study.study_sha256
+    receipt["matrix_sha256"] = study.matrix_sha256
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_bytes(canonical_json(receipt) + b"\n")
+
+    evidence["runs"] = [selected_evidence]
+    evidence["comparisons"] = []
+    evidence["summary"] = []
+    evidence["study_sha256"] = study.study_sha256
+    evidence["matrix_sha256"] = study.matrix_sha256
+    evidence["receipt_sha256"] = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+    evidence["report_sha256"] = hashlib.sha256(
+        canonical_json(
+            {key: value for key, value in evidence.items() if key != "report_sha256"}
+        )
+    ).hexdigest()
+    evidence_path = tmp_path / "collected-report.json"
+    evidence_path.write_bytes(canonical_json(evidence) + b"\n")
+
+    report = build_study_report(study_path, receipt_path, evidence_path)
+    bundle = write_study_report(report, tmp_path / "bundles")
+    loaded = load_report_bundle(bundle)
+
+    assert len(loaded["report"]["runs"]) == 1
+    assert loaded["report"]["comparisons"] == []
+
+
+def test_study_submit_cli_queues_one_run_without_training(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    tokenizer_path = tmp_path / "tokenizer.json"
+    vocabulary = {token: index for index, token in enumerate(SPECIAL_TOKENS)}
+    for token in sorted(ByteLevel.alphabet()):
+        vocabulary.setdefault(token, len(vocabulary))
+    tokenizer = Tokenizer(BPE(vocab=vocabulary, merges=[], unk_token="<unk>"))
+    tokenizer.pre_tokenizer = ByteLevel(add_prefix_space=False)
+    tokenizer.decoder = ByteLevelDecoder()
+    tokenizer.save(str(tokenizer_path))
+
+    base = load_config(root / "configs/runtime_smoke_cpu.yaml")
+    config = base.model_copy(
+        update={
+            "model": base.model.model_copy(update={"vocab_size": len(vocabulary)}),
+            "tokenizer": base.tokenizer.model_copy(update={"path": tokenizer_path}),
+            "dataset": base.dataset.model_copy(
+                update={"cache_dir": tmp_path / "data-cache"}
+            ),
+            "logging": base.logging.model_copy(
+                update={"root_dir": tmp_path / "unused-runs"}
+            ),
+        }
+    )
+    config_path = tmp_path / "base.yaml"
+    config_path.write_text(
+        yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
+    matrix_path = tmp_path / "matrix.yaml"
+    matrix_path.write_text(
+        yaml.safe_dump(
+            {
+                "matrix_version": 1,
+                "base_config": str(config_path),
+                "axes": {"seed": [{"label": "s42", "set": {"seed": 42}}]},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    study_path = tmp_path / "study.yaml"
+    study_path.write_text(
+        yaml.safe_dump(
+            {
+                "study_version": 1,
+                "name": "single-arm-cli-submit",
+                "matrix": matrix_path.name,
+                "cards": ["chat-alias-recall-v1"],
+                "comparisons": [],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    receipt_path = tmp_path / "receipt.json"
+    store = tmp_path / "controller"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from sparselab.cli.main import main; main()",
+            "study",
+            "submit",
+            str(study_path),
+            "--receipt",
+            str(receipt_path),
+            "--store",
+            str(store),
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    submitted = json.loads(result.stdout)
+    queued = Controller(store).list_experiments()
+    assert len(receipt["runs"]) == 1
+    assert submitted["runs"] == receipt["runs"]
+    assert queued[0]["run_id"] == receipt["runs"][0]["run_id"]
+    assert queued[0]["status"] == "QUEUED"

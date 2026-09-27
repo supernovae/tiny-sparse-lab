@@ -9,7 +9,7 @@ model:
   ffn_dim: 192
   max_seq_len: 256
 tokenizer:
-  path: ../artifacts/tokenizer_chat_recall/tokenizer.json
+  path: ../artifacts/tokenizer_chat_recall_dense_small_v1/tokenizer.json
 dataset:
   source: chat_recall
   cache_dir: ../artifacts/data

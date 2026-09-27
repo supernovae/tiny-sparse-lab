@@ -14,7 +14,7 @@ import tempfile
 from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
@@ -65,31 +65,35 @@ from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
 
+if TYPE_CHECKING:
+    from sparselab.research.lifecycle import LifecycleRegistry
+
 
 def _dashboard(args: argparse.Namespace) -> None:
     app_path = Path(__file__).resolve().parents[1] / "dashboard" / "app.py"
 
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "streamlit",
-            "run",
-            str(app_path),
-            "--server.address",
-            "127.0.0.1",
-            "--server.port",
-            str(args.port),
-            "--server.headless",
-            "true",
-            "--",
-            "--runs-dir",
-            args.runs_dir,
-            "--reports-dir",
-            args.reports_dir,
-        ],
-        check=True,
-    )
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        str(args.port),
+        "--server.headless",
+        "true",
+        "--",
+        "--runs-dir",
+        args.runs_dir,
+        "--reports-dir",
+        args.reports_dir,
+    ]
+    if args.lifecycle is not None:
+        command.extend(["--lifecycle", args.lifecycle])
+    command.extend(["--evidence-root", args.evidence_root])
+    subprocess.run(command, check=True)
 
 
 def _facts_manifest(args: argparse.Namespace) -> None:
@@ -1021,17 +1025,47 @@ def _review_validate(args: argparse.Namespace) -> None:
     )
 
 
+def _lifecycle_registry(args: argparse.Namespace) -> tuple[LifecycleRegistry, Path]:
+    from sparselab.research.lifecycle import load_lifecycle
+
+    return (
+        load_lifecycle(Path(args.lifecycle) if args.lifecycle else None),
+        Path(args.evidence_root),
+    )
+
+
+def _research_diagnostics(
+    registry: LifecycleRegistry,
+    *,
+    study_sha256: str | None = None,
+    protocol_sha256: str | None = None,
+) -> list[dict[str, object]]:
+    from sparselab.research.lifecycle import prior_evidence_warnings
+
+    return prior_evidence_warnings(
+        registry, study_sha256=study_sha256, protocol_sha256=protocol_sha256
+    )
+
+
 def _study_plan(args: argparse.Namespace) -> None:
     from sparselab.experiments.study import plan_study, study_plan_payload
 
     plan = plan_study(Path(args.path), max_runs=args.max_runs)
-    print(json.dumps(study_plan_payload(plan), indent=2, sort_keys=True))
+    payload = study_plan_payload(plan)
+    registry, _ = _lifecycle_registry(args)
+    payload["research_diagnostics"] = _research_diagnostics(
+        registry, study_sha256=plan.study_sha256
+    )
+    print(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def _study_submit(args: argparse.Namespace) -> None:
     from sparselab.experiments.study import plan_study, submit_study
 
     plan = plan_study(Path(args.path), max_runs=args.max_runs)
+    registry, _ = _lifecycle_registry(args)
+    for warning in _research_diagnostics(registry, study_sha256=plan.study_sha256):
+        print(json.dumps(warning, sort_keys=True), file=sys.stderr)
     receipt = submit_study(
         plan,
         Path(args.receipt),
@@ -1107,8 +1141,24 @@ def _research_describe(args: argparse.Namespace) -> None:
 
 
 def _research_scaffold(args: argparse.Namespace) -> None:
+    from sparselab.experiments.study import plan_study
     from sparselab.research.scaffold import scaffold_research
 
+    registry, _ = _lifecycle_registry(args)
+    with tempfile.TemporaryDirectory(
+        prefix="sparselab-scaffold-preview-"
+    ) as preview_root:
+        preview = scaffold_research(
+            args.reference,
+            Path(preview_root) / "scaffold",
+            scale=args.scale,
+            data=args.data,
+            backend=args.backend,
+            design=args.design,
+        )
+        study_sha256 = plan_study(preview / "study.yaml").study_sha256
+    for warning in _research_diagnostics(registry, study_sha256=study_sha256):
+        print(json.dumps(warning, sort_keys=True), file=sys.stderr)
     path = scaffold_research(
         args.reference,
         Path(args.output),
@@ -1120,6 +1170,82 @@ def _research_scaffold(args: argparse.Namespace) -> None:
     print(path)
 
 
+def _research_status(args: argparse.Namespace) -> None:
+    from sparselab.research.lifecycle import research_status
+
+    registry, evidence_root = _lifecycle_registry(args)
+    payload = research_status(registry, evidence_root=evidence_root)
+    if args.study:
+        from sparselab.experiments.study import plan_study
+
+        payload["research_diagnostics"] = _research_diagnostics(
+            registry, study_sha256=plan_study(Path(args.study)).study_sha256
+        )
+    elif args.protocol_sha256:
+        payload["research_diagnostics"] = _research_diagnostics(
+            registry, protocol_sha256=args.protocol_sha256
+        )
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _research_next(args: argparse.Namespace) -> None:
+    from sparselab.research.lifecycle import next_experiments
+
+    registry, evidence_root = _lifecycle_registry(args)
+    print(
+        json.dumps(
+            next_experiments(registry, evidence_root=evidence_root),
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _research_baseline_list(args: argparse.Namespace) -> None:
+    from sparselab.research.lifecycle import research_status
+
+    registry, evidence_root = _lifecycle_registry(args)
+    print(
+        json.dumps(
+            research_status(registry, evidence_root=evidence_root).get("baselines", []),
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+def _research_baseline_describe(args: argparse.Namespace) -> None:
+    from sparselab.research.lifecycle import research_status
+
+    registry, evidence_root = _lifecycle_registry(args)
+    baselines = research_status(registry, evidence_root=evidence_root).get(
+        "baselines", []
+    )
+    if not isinstance(baselines, list):
+        raise TypeError("lifecycle status omitted its baseline inventory")
+    match = next(
+        (
+            item
+            for item in baselines
+            if isinstance(item, dict) and item.get("id") == args.identifier
+        ),
+        None,
+    )
+    if match is None:
+        raise ValueError(f"unknown baseline: {args.identifier}")
+    print(json.dumps(match, indent=2, sort_keys=True))
+
+
+def _research_validate(args: argparse.Namespace) -> None:
+    from sparselab.research.lifecycle import validate_lifecycle
+
+    registry, evidence_root = _lifecycle_registry(args)
+    payload = validate_lifecycle(registry, evidence_root=evidence_root)
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    if not payload["valid"]:
+        raise SystemExit(1)
+
+
 def _is_learned_portability_root(root: Path) -> bool:
     protocol = root / "portability_protocol.json"
     if protocol.is_symlink() or not protocol.is_file():
@@ -1128,7 +1254,10 @@ def _is_learned_portability_root(root: Path) -> bool:
         payload = json.loads(protocol.read_text(encoding="utf-8"))
     except OSError, json.JSONDecodeError:
         return False
-    return payload.get("experiment") == "learned-engram-portability-v1"
+    return (
+        isinstance(payload, dict)
+        and payload.get("experiment") == "learned-engram-portability-v1"
+    )
 
 
 def _research_portability_build(args: argparse.Namespace) -> None:
@@ -1807,14 +1936,18 @@ def build_parser() -> argparse.ArgumentParser:
     study_plan = study_commands.add_parser("plan")
     study_plan.add_argument("path", help="Architecture study YAML")
     study_plan.add_argument("--max-runs", type=int, default=1000)
+    study_plan.add_argument("--lifecycle")
+    study_plan.add_argument("--evidence-root", default=".")
     study_plan.set_defaults(handler=_study_plan)
     study_submit = study_commands.add_parser("submit")
     study_submit.add_argument("path", help="Architecture study YAML")
+    study_submit.add_argument("--max-runs", type=int, default=1000)
     study_submit.add_argument("--receipt", required=True)
     study_submit.add_argument("--worker")
     study_submit.add_argument("--stage-bundle")
-    study_submit.add_argument("--max-runs", type=int, default=1000)
     study_submit.add_argument("--store", default=runs_dir_default)
+    study_submit.add_argument("--lifecycle")
+    study_submit.add_argument("--evidence-root", default=".")
     study_submit.set_defaults(handler=_study_submit)
     study_collect = study_commands.add_parser("collect")
     study_collect.add_argument("path", help="Architecture study YAML")
@@ -1911,7 +2044,36 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         default="default",
     )
+    research_scaffold.add_argument("--lifecycle")
+    research_scaffold.add_argument("--evidence-root", default=".")
     research_scaffold.set_defaults(handler=_research_scaffold)
+
+    def lifecycle_arguments(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--lifecycle")
+        command.add_argument("--evidence-root", default=".")
+        command.add_argument("--json", action="store_true")
+
+    research_status = research_commands.add_parser("status")
+    lifecycle_arguments(research_status)
+    status_scope = research_status.add_mutually_exclusive_group()
+    status_scope.add_argument("--study")
+    status_scope.add_argument("--protocol-sha256")
+    research_status.set_defaults(handler=_research_status)
+    research_next = research_commands.add_parser("next")
+    lifecycle_arguments(research_next)
+    research_next.set_defaults(handler=_research_next)
+    baseline = research_commands.add_parser("baseline")
+    baseline_commands = baseline.add_subparsers(dest="baseline_command", required=True)
+    baseline_list = baseline_commands.add_parser("list")
+    lifecycle_arguments(baseline_list)
+    baseline_list.set_defaults(handler=_research_baseline_list)
+    baseline_describe = baseline_commands.add_parser("describe")
+    baseline_describe.add_argument("identifier")
+    lifecycle_arguments(baseline_describe)
+    baseline_describe.set_defaults(handler=_research_baseline_describe)
+    research_validate = research_commands.add_parser("validate")
+    lifecycle_arguments(research_validate)
+    research_validate.set_defaults(handler=_research_validate)
     research_tasks = research_commands.add_parser(
         "tasks", help="Build provenance-bound train and held-out task artifacts."
     )
@@ -2117,6 +2279,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
+    dashboard.add_argument("--lifecycle")
+    dashboard.add_argument("--evidence-root", default=".")
     dashboard.set_defaults(handler=_dashboard)
     from sparselab.workers.cli import add_commands
 

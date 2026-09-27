@@ -58,6 +58,8 @@ def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--runs-dir", default="runs")
     parser.add_argument("--reports-dir", default="artifacts/research-reports")
+    parser.add_argument("--lifecycle")
+    parser.add_argument("--evidence-root", default=".")
     args, _ = parser.parse_known_args()
     return args
 
@@ -845,11 +847,13 @@ def main() -> None:
     args = arguments()
     root = Path(args.runs_dir)
     reports_dir = Path(args.reports_dir)
+    lifecycle = Path(args.lifecycle) if args.lifecycle else None
+    evidence_root = Path(args.evidence_root)
     page = st.navigation(
         [
             st.Page(lambda: learn(), title="Learn", url_path="learn", default=True),
             st.Page(
-                lambda: research_page(reports_dir),
+                lambda: research_page(reports_dir, lifecycle, evidence_root),
                 title="Research",
                 url_path="research",
             ),

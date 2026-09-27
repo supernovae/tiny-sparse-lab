@@ -2,6 +2,19 @@
 
 This roadmap describes what SparseLab can execute, what has been smoke-tested, what outcomes have been observed, and what still blocks stronger claims. Progress is organized by capability and evidence—not release phases. **Implemented** means the path exists; **smoke-tested** means it ran; neither means a model is useful or an architecture is better. The active checklist is in [TODO.md](../../TODO.md).
 
+## Decision coordination
+
+The lifecycle sidecar now records bounded Findings, declared next tests, reviewed
+promotion decisions, and known-good baseline availability without treating a
+metric as an automatic scientific decision. The first dense synthetic alias
+reference remains an unpromoted candidate: its one-run capture reached the budget
+and acquisition gates, but held-out validation loss rose from 6.176402 to 7.056087.
+The [known-good baseline guide](known-good-baselines.md) records the evidence and
+the failed gate alongside the bounded CPU/offline route and independent branches.
+It does not close useful-model, semantic text-query/compiler, full allocation,
+independent lexical generalization, representation portability, CUDA/XPU, or
+cross-host evidence.
+
 ## Capabilities available now
 
 | Capability | Current boundary |

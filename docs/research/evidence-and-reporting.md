@@ -26,3 +26,15 @@ Nondominance uses catalog-declared lower/higher directions for held-out validati
 Allocation heatmaps use configuration-derived parameter inventories (total, active-per-token, non-memory, table, and adapter counts); these are architectural estimates, not observed memory or runtime cost. Boundary-sweep tables and SVGs show only configured FFN, latent-width, sparse-budget, expert-capacity, or other recipe-axis levels. They do not interpolate or infer a failure threshold.
 
 Bundles include `report.json`, original receipt/collected bytes, manifest, escaped static HTML/Markdown, deterministic SVG charts, and available inert inputs. They exclude model weights, prepared arrays, downloaded corpora, credentials, and database copies. Hashes establish bundle byte identity, not authenticity, license clearance, or removal of machine-local paths from copied evidence.
+
+## Lifecycle declarations versus verification
+
+The lifecycle sidecar records reviewed Findings, baseline declarations, and
+promotion decisions; it does not recalculate report results. `research status`
+and `research validate` show every referenced item as verified, unavailable, or
+invalid with its evidence basis. A matching document or source citation is not
+measured experimental evidence. An intact static bundle can preserve historical
+baseline establishment when optional local checkpoint weights are unavailable;
+that does not claim present runtime compatibility or runnable weights. The
+[known-good baseline guide](known-good-baselines.md) defines the complete
+identity-bound evidence roles for a baseline.

@@ -115,17 +115,23 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
 
 
 def source_identity() -> dict[str, object]:
+    """Hash package implementation, excluding its self-referential lifecycle record."""
     root = Path(__file__).parents[1]
+    excluded = {"research/resources/lifecycle.json"}
     inventory: list[tuple[str, str]] = []
     for path in sorted(root.rglob("*")):
-        if (
+        if not (
             path.is_file()
             and path.suffix in {".py", ".json", ".yaml", ".yml", ".md"}
             and "__pycache__" not in path.parts
         ):
-            inventory.append((str(path.relative_to(root)), sha256_file(path)))
+            continue
+        relative = path.relative_to(root).as_posix()
+        if relative in excluded:
+            continue
+        inventory.append((relative, sha256_file(path)))
     return {
-        "algorithm": "package-path-sha256-v1",
+        "algorithm": "package-path-sha256-v2",
         "files": inventory,
         "sha256": _digest(inventory),
     }

@@ -1,0 +1,6 @@
+matrix_version: 1
+base_config: ../../chat_recall_dense_cpu.yaml
+axes:
+  seed:
+    - label: s42
+      set: {seed: 42}

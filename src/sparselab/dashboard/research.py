@@ -40,17 +40,41 @@ def _rows(value: object) -> list[dict[str, object]]:
         return [value]
     if not isinstance(value, (list, tuple)):
         return []
-    return [_mapping(item) for item in value if _mapping(item)]
-
-
-def _value(record: object, name: str, default: object = "") -> object:
-    return _mapping(record).get(name, default)
+    rows = []
+    for item in value:
+        row = _mapping(item)
+        if row:
+            rows.append(row)
+    return rows
 
 
 def _text_list(value: object) -> str:
     if not isinstance(value, (list, tuple)):
         return ""
     return "; ".join(str(item) for item in value)
+
+
+def _projection_rows(value: object) -> list[dict[str, object]]:
+    """Flatten a projection's list or named stage groups for safe tables."""
+    rows = _rows(value)
+    if rows:
+        return rows
+    mapping = _mapping(value)
+    flattened: list[dict[str, object]] = []
+    for group, members in mapping.items():
+        for member in _rows(members):
+            flattened.append({"group": group, **member})
+    return flattened
+
+
+def _projection_table(title: str, value: object) -> None:
+    """Render a lifecycle section even when its declared projection is empty."""
+    st.subheader(title)
+    rows = _projection_rows(value)
+    if rows:
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    else:
+        st.info("No declared rows.")
 
 
 def _lesson_commands(identifier: str, scale: str, data: str) -> list[str]:
@@ -193,7 +217,20 @@ def _report(record: dict[str, object]) -> dict[str, object]:
 def _research_entry(report: dict[str, object]) -> dict[str, object]:
     research = _mapping(report.get("research"))
     metadata = _mapping(research.get("metadata", research))
-    return _mapping(metadata.get("entry", metadata))
+    entry = _mapping(metadata.get("entry", metadata))
+    if entry:
+        return entry
+    experiment = _mapping(report.get("portability")).get("experiment")
+    if isinstance(experiment, str):
+        return next(
+            (
+                _mapping(_plain(candidate))
+                for candidate in list_research()
+                if candidate.id == experiment
+            ),
+            {},
+        )
+    return {}
 
 
 def _report_title(report: dict[str, object]) -> str:
@@ -277,6 +314,52 @@ def _card_score_rows(report: dict[str, object]) -> list[dict[str, object]]:
     return rows
 
 
+def _portability_contrast_rows(report: dict[str, object]) -> list[dict[str, object]]:
+    portability = _mapping(report.get("portability"))
+    conclusions = _mapping(portability.get("conclusions"))
+    rows: list[dict[str, object]] = []
+    for name, raw_summary in conclusions.items():
+        summary = _mapping(raw_summary)
+        contrasts = _rows(summary.get("contrasts"))
+        if not contrasts:
+            rows.append(
+                {
+                    "conclusion": name,
+                    "status": summary.get("status", ""),
+                    "reason": summary.get("reason", ""),
+                }
+            )
+            continue
+        for contrast in contrasts:
+            common = {
+                "conclusion": name,
+                "status": summary.get("status", ""),
+                "summary_reason": summary.get("reason", ""),
+                "contrast": contrast.get("name", ""),
+                "metric": contrast.get("metric", ""),
+                "partition": contrast.get("partition", ""),
+                "matched_pairs": contrast.get("matched_pairs", ""),
+                "mean_delta": contrast.get("mean_delta"),
+                "contrast_status": contrast.get("status", ""),
+            }
+            per_seed = _rows(contrast.get("per_seed"))
+            if not per_seed:
+                rows.append({**common, "mean_delta": contrast.get("mean_delta")})
+                continue
+            for observation in per_seed:
+                rows.append(
+                    {
+                        **common,
+                        "recipient": observation.get("recipient", ""),
+                        "seed": observation.get("seed", ""),
+                        "left": observation.get("left"),
+                        "right": observation.get("right"),
+                        "delta": observation.get("delta"),
+                    }
+                )
+    return rows
+
+
 def _render_bundle(record: dict[str, object]) -> None:
     report = _report(record)
     st.subheader(_report_title(report))
@@ -304,19 +387,42 @@ def _render_bundle(record: dict[str, object]) -> None:
             ],
         )
         _table("Cards", _rows(entry.get("cards")))
+    portability = _mapping(report.get("portability"))
+    if portability:
+        st.subheader("Portability campaign")
+        st.json(
+            {
+                "experiment": portability.get("experiment"),
+                "campaign_id": portability.get("campaign_id"),
+                "scale": portability.get("scale"),
+                "outcome_counts": portability.get("outcome_counts"),
+            }
+        )
+        _table(
+            "Portability conclusions and matched contrasts",
+            _portability_contrast_rows(report),
+        )
+        _table("Source gates", _rows(portability.get("source_gates")))
+        _table(
+            "Recipient preparation gates", _rows(portability.get("preparation_gates"))
+        )
+        st.subheader("Campaign resource accounting")
+        st.json(portability.get("costs", {}))
+
     research = _mapping(report.get("research"))
     if research.get("dataset_profile") is not None:
         st.subheader("Dataset and resource provenance")
         st.json(research["dataset_profile"])
-    st.subheader("Architectural quantities and cache templates")
-    st.json(report.get("architectural_quantities", []))
-    st.subheader("Implementation telemetry")
-    st.json(report.get("implementation_quantities", {}))
-    st.subheader("Measured costs and unavailable values")
-    st.json(report.get("costs", {}))
-    st.subheader("Local evidence validation")
-    st.json(report.get("local_validation", {}))
-
+    for heading, key in (
+        ("Architectural quantities and cache templates", "architectural_quantities"),
+        ("Implementation telemetry", "implementation_quantities"),
+        ("Measured costs and unavailable values", "costs"),
+        ("Local evidence validation", "local_validation"),
+    ):
+        value = report.get(key)
+        if value:
+            st.subheader(heading)
+            st.json(value)
     comparisons = _comparison_rows(report)
     _table("Observed pair deltas", comparisons)
     numeric = [
@@ -335,6 +441,7 @@ def _render_bundle(record: dict[str, object]) -> None:
                 hover_data=["seed", "status"],
             ),
             width="stretch",
+            key=f"{record['directory']}-comparison-deltas",
         )
     capabilities = _capability_rows(report)
     _table("Raw card outcomes", capabilities)
@@ -349,6 +456,7 @@ def _render_bundle(record: dict[str, object]) -> None:
                 hover_data=["run_id"],
             ),
             width="stretch",
+            key=f"{record['directory']}-capability-scores",
         )
     _table(
         "Endpoint status",
@@ -358,20 +466,92 @@ def _render_bundle(record: dict[str, object]) -> None:
         ],
     )
     _table("Missing or rejected evidence", _rows(report.get("missing_or_rejected")))
+    limitations = report.get("limitations")
     _table(
         "Limitations",
-        [{"limitation": item} for item in report.get("limitations", [])]
-        if isinstance(report.get("limitations"), list)
+        [{"limitation": item} for item in limitations]
+        if isinstance(limitations, list)
         else [],
     )
 
 
-def research_page(reports_dir: Path) -> None:
-    """Render declarative research records and validated immutable reports."""
+def research_page(
+    reports_dir: Path, lifecycle: Path | None = None, evidence_root: Path = Path(".")
+) -> None:
+    """Render read-only catalog, lifecycle declarations, and immutable reports."""
     st.header("Research")
     st.write(
-        "Browse declared hypotheses and immutable evidence bundles. Reports are read-only; no run database is opened."
+        "Browse declared hypotheses, reviewed lifecycle decisions, and immutable evidence bundles. These views do not open run storage or mutate metadata."
     )
+    try:
+        from sparselab.research.lifecycle import (
+            load_lifecycle,
+            next_experiments,
+            research_status,
+        )
+
+        registry = load_lifecycle(lifecycle)
+        status = _mapping(research_status(registry, evidence_root=evidence_root))
+        next_view = _mapping(next_experiments(registry, evidence_root=evidence_root))
+        baseline_rows = _rows(status.get("baselines"))
+        _projection_table("Reference baselines", baseline_rows)
+        if baseline_rows:
+            identifiers = [str(row.get("id")) for row in baseline_rows]
+            selected_id = st.selectbox(
+                "Baseline details", identifiers, key="research_baseline"
+            )
+            selected = next(
+                (row for row in baseline_rows if str(row.get("id")) == selected_id),
+                None,
+            )
+            if selected is not None:
+                st.json(selected)
+        funnel = _mapping(status.get("funnel"))
+        st.subheader("Research funnel")
+        _table(
+            "Declared entries by stage",
+            [
+                {"stage": stage, "entries": funnel.get(stage, 0)}
+                for stage in (
+                    "mechanism",
+                    "micro",
+                    "replicate",
+                    "scale",
+                    "confirm",
+                    "promote",
+                )
+            ]
+            + [{"stage": "unassessed", "entries": funnel.get("unassessed", 0)}],
+        )
+        _projection_table("Research entry maturity", status.get("entries"))
+        _projection_table("Findings", status.get("findings"))
+        availability = _mapping(status.get("availability"))
+        _table(
+            "Evidence availability",
+            [
+                {"id": identity, **_mapping(value)}
+                for identity, value in availability.items()
+            ],
+        )
+        _projection_table("Scale-ready", next_view.get("scale_ready"))
+        _projection_table("Blocked work", next_view.get("blocked"))
+        _projection_table(
+            "Prior evidence warnings",
+            status.get("research_diagnostics", status.get("warnings")),
+        )
+        diagnostics = _projection_rows(status.get("diagnostics"))
+        if diagnostics:
+            if any(row.get("severity") == "error" for row in diagnostics):
+                st.error(
+                    "Lifecycle metadata or evidence is invalid; declarations remain visible."
+                )
+            else:
+                st.warning(
+                    "Lifecycle metadata or evidence has warnings; declarations remain visible."
+                )
+            _table("Lifecycle diagnostics", diagnostics)
+    except (OSError, TypeError, ValueError) as error:
+        st.error(f"Lifecycle metadata could not be read: {error}")
     try:
         entries = [_mapping(_plain(entry)) for entry in list_research()]
     except (OSError, ValueError) as error:

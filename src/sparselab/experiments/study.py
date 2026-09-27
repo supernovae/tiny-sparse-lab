@@ -102,8 +102,8 @@ def _selector(value: object, description: str) -> dict[str, str]:
 
 
 def _study_comparisons(value: object) -> tuple[StudyComparison, ...]:
-    if not isinstance(value, list) or not value:
-        raise ValueError("comparisons must be a nonempty list")
+    if not isinstance(value, list):
+        raise TypeError("comparisons must be a list")
     comparisons: list[StudyComparison] = []
     identifiers: set[str] = set()
     allowed_vary = {"memory", "attention", "ffn", "scale", "none", "custom"}
