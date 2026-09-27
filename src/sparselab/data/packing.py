@@ -680,6 +680,13 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             return cached
     _assert_local_chat_disjoint(config.dataset)
     _assert_local_chat_supervision_consistent(config.dataset)
+    from sparselab.workspace_preflight import (
+        check_storage,
+        projected_data_bytes,
+        require_storage,
+    )
+
+    require_storage([check_storage(root, projected_bytes=projected_data_bytes(config))])
     temporary_root = root.with_name(root.name + ".tmp")
     if temporary_root.exists():
         raise RuntimeError(f"incomplete prepared-data sibling exists: {temporary_root}")

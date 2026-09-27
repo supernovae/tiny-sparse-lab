@@ -532,9 +532,15 @@ def _train_impl(
                     "requested execution override changes scientific configuration"
                 )
             requested_config = original.model_dump(mode="json")
-        choices = [path for path in (resume, promote, recover, extend_budget) if path is not None]
+        choices = [
+            path
+            for path in (resume, promote, recover, extend_budget)
+            if path is not None
+        ]
         if len(choices) > 1:
-            raise ValueError("resume, promote, recover, and extend-budget are mutually exclusive")
+            raise ValueError(
+                "resume, promote, recover, and extend-budget are mutually exclusive"
+            )
         if purpose not in {"training", "smoke", "warmup"}:
             raise ValueError("invalid execution purpose")
         if purpose != "training" and (choices or stage_bundle is None):
@@ -563,6 +569,13 @@ def _train_impl(
                 f"run exists: {run_id}; explicit recovery creates a child; "
                 f"read-only recovery report: {json.dumps(report, sort_keys=True)}"
             )
+        if purpose == "training":
+            from sparselab.workspace_preflight import (
+                require_storage,
+                training_storage_checks,
+            )
+
+            require_storage(training_storage_checks(config))
         if config.runtime.engine == "pytorch":
             engine = PyTorchEngine()
         elif config.runtime.engine == "mlx":
@@ -585,7 +598,9 @@ def _train_impl(
             }
         )
         current_source = source_identity()
-        if promote is None and (resume is not None or recover is not None or extend_budget is not None):
+        if promote is None and (
+            resume is not None or recover is not None or extend_budget is not None
+        ):
             continuation_root = (
                 recover.resolve()
                 if recover is not None
@@ -1522,15 +1537,22 @@ def _train_impl(
                 next_cursor = cursor
                 while len(candidates) < window_size:
                     order = epoch_order(len(dataset), config.seed, next_cursor.epoch)
-                    count = min(window_size - len(candidates), len(order) - next_cursor.next_block)
+                    count = min(
+                        window_size - len(candidates),
+                        len(order) - next_cursor.next_block,
+                    )
                     if count == 0:
                         next_cursor = BatchCursor(next_cursor.epoch + 1, 0)
                         continue
                     candidates.extend(
                         (int(order[offset]), BatchCursor(next_cursor.epoch, offset + 1))
-                        for offset in range(next_cursor.next_block, next_cursor.next_block + count)
+                        for offset in range(
+                            next_cursor.next_block, next_cursor.next_block + count
+                        )
                     )
-                    next_cursor = BatchCursor(next_cursor.epoch, next_cursor.next_block + count)
+                    next_cursor = BatchCursor(
+                        next_cursor.epoch, next_cursor.next_block + count
+                    )
                 records = []
                 valid_targets = 0
                 committed_cursor = cursor

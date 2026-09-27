@@ -156,6 +156,7 @@ why lower loss did not settle text quality, see the [token-budget review](docs/r
 
 ## Documentation
 
+- [Model construction readiness](docs/lab-readiness.md) — local mechanism smoke matrix, workspace preflight, measured batch proposals, and CUDA scale gates.
 - [Using SparseLab](docs/using-sparselab.md) — commands, local artifacts, and dashboard.
 - [Runtime policy](docs/runtime.md) — selection, probes, stages, measurements, and proposals.
 - [Memory accounting](docs/memory.md) — disjoint categories, capacity uncertainty, and observations.

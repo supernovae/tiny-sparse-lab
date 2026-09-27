@@ -534,7 +534,10 @@ def test_budget_extension_preserves_full_state_and_parent(tmp_path: Path) -> Non
     train(parent_config, run_id="parent")
     parent_run = parent_config.logging.root_dir / "parent"
     generation = next((parent_run / "checkpoints").glob("step_00000004_gen_*"))
-    before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in generation.iterdir()}
+    before = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in generation.iterdir()
+    }
     parent = CheckpointManager(parent_run).load(generation)
     raw["name"] = "budget-extension"
     raw["training"].update(max_steps=8, max_tokens=256)
@@ -545,20 +548,43 @@ def test_budget_extension_preserves_full_state_and_parent(tmp_path: Path) -> Non
         train(extended, run_id="strict-rejected", resume=generation)
     assert not (extended.logging.root_dir / "strict-rejected").exists()
     with pytest.raises(ValueError, match="generation directory"):
-        train(extended, run_id="pointer-rejected", extend_budget=parent_run / "checkpoints/latest.json")
+        train(
+            extended,
+            run_id="pointer-rejected",
+            extend_budget=parent_run / "checkpoints/latest.json",
+        )
     assert not (extended.logging.root_dir / "pointer-rejected").exists()
     train(extended, run_id="extended", extend_budget=generation, stop_after_step=5)
     child_run = extended.logging.root_dir / "extended"
     child = CheckpointManager(child_run).load(child_run / "checkpoints/latest.json")
-    assert (child.step, child.tokens_seen, child.schedule["kind"]) == (5, 160, "warmup_cosine_floor_v1")
+    assert (child.step, child.tokens_seen, child.schedule["kind"]) == (
+        5,
+        160,
+        "warmup_cosine_floor_v1",
+    )
     assert child.cursor == (0, 10)
     assert child.parent_checkpoint_sha256 == parent.checkpoint_sha256
-    assert CheckpointManager(child_run).verify(child_run / "checkpoints/latest.json").valid
-    assert {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in generation.iterdir()} == before
-    decision = next(item for item in read_manifest(child_run / "manifest.json")["resource_decisions"] if item["kind"] == "budget_extension")
-    assert (decision["old_max_tokens"], decision["new_max_tokens"], decision["decay_steps"]) == (128, 256, 4)
+    assert (
+        CheckpointManager(child_run).verify(child_run / "checkpoints/latest.json").valid
+    )
+    assert {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in generation.iterdir()
+    } == before
+    decision = next(
+        item
+        for item in read_manifest(child_run / "manifest.json")["resource_decisions"]
+        if item["kind"] == "budget_extension"
+    )
+    assert (
+        decision["old_max_tokens"],
+        decision["new_max_tokens"],
+        decision["decay_steps"],
+    ) == (128, 256, 4)
     train(extended, run_id="resumed", resume=child_run / "checkpoints/latest.json")
-    finished = CheckpointManager(extended.logging.root_dir / "resumed").load(extended.logging.root_dir / "resumed/checkpoints/latest.json")
+    finished = CheckpointManager(extended.logging.root_dir / "resumed").load(
+        extended.logging.root_dir / "resumed/checkpoints/latest.json"
+    )
     assert (finished.step, finished.tokens_seen) == (8, 256)
 
 
@@ -578,11 +604,44 @@ def test_budget_extension_rejects_other_changes_before_child(tmp_path: Path) -> 
     valid = RunConfig.model_validate(raw)
     invalid = [
         (nonterminal, valid),
-        (terminal, valid.model_copy(update={"dataset": valid.dataset.model_copy(update={"synthetic_seed": 99})})),
-        (terminal, valid.model_copy(update={"training": valid.training.model_copy(update={"max_tokens": 128})})),
-        (terminal, valid.model_copy(update={"training": valid.training.model_copy(update={"micro_batch_size": 1})})),
-        (terminal, valid.model_copy(update={"optimizer": valid.optimizer.model_copy(update={"peak": 0.004})})),
-        (terminal, valid.model_copy(update={"runtime": valid.runtime.model_copy(update={"backend": "rocm"})})),
+        (
+            terminal,
+            valid.model_copy(
+                update={
+                    "dataset": valid.dataset.model_copy(update={"synthetic_seed": 99})
+                }
+            ),
+        ),
+        (
+            terminal,
+            valid.model_copy(
+                update={
+                    "training": valid.training.model_copy(update={"max_tokens": 128})
+                }
+            ),
+        ),
+        (
+            terminal,
+            valid.model_copy(
+                update={
+                    "training": valid.training.model_copy(
+                        update={"micro_batch_size": 1}
+                    )
+                }
+            ),
+        ),
+        (
+            terminal,
+            valid.model_copy(
+                update={"optimizer": valid.optimizer.model_copy(update={"peak": 0.004})}
+            ),
+        ),
+        (
+            terminal,
+            valid.model_copy(
+                update={"runtime": valid.runtime.model_copy(update={"backend": "rocm"})}
+            ),
+        ),
     ]
     for index, (generation, changed) in enumerate(invalid):
         run_id = f"rejected-{index}"

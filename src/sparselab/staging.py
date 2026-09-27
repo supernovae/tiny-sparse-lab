@@ -34,7 +34,7 @@ from sparselab.memory import (
     plan_memory,
     write_resource_proposal,
 )
-from sparselab.model.inspection import named_tensor_inventory
+from sparselab.model.inspection import inspection_report, named_tensor_inventory
 from sparselab.model.portable_engram import load_portable_engram
 from sparselab.runtime import (
     RuntimeInfo,
@@ -509,6 +509,11 @@ def stage(
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
     output = output.absolute()
+    if _LEVELS[through] >= 2:
+        from sparselab.workspace_preflight import check_storage, require_storage
+
+        checkpoint = int(inspection_report(config)["estimated_checkpoint_bytes"])
+        require_storage([check_storage(output, projected_bytes=4 * checkpoint)])
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.with_name(f".{output.name}.stage.lock").open("a+b") as lock:
         try:

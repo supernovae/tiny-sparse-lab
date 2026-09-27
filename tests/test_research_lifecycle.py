@@ -124,9 +124,7 @@ def _baseline() -> Baseline:
 def test_baseline_diagnostic_scope_keeps_unrelated_registry_errors_global() -> None:
     baseline_data = _baseline().model_dump(mode="json")
     baseline_data["required_evidence"] = {"training": ["dense-run-evidence"]}
-    registry = LifecycleRegistry.model_validate(
-        _root(baselines=[baseline_data])
-    )
+    registry = LifecycleRegistry.model_validate(_root(baselines=[baseline_data]))
     diagnostics = [
         {
             "severity": "error",
@@ -152,6 +150,7 @@ def test_baseline_diagnostic_scope_keeps_unrelated_registry_errors_global() -> N
         "candidate_error",
         "unrelated_error",
     ]
+
 
 def test_learning_reference_requires_fixed_32_token_generation_panel() -> None:
     baseline_data = _baseline().model_dump(mode="json")
@@ -195,8 +194,6 @@ def test_learning_reference_requires_fixed_32_token_generation_panel() -> None:
     assert [item["code"] for item in diagnostics] == [
         "baseline_generation_options_invalid"
     ]
-
-
 
 
 def test_generation_capture_binds_checkpoint_and_caps_fixed_greedy_options() -> None:
