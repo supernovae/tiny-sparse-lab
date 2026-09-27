@@ -15,6 +15,17 @@ from an agent's confidence or a passing smoke test.
 3. For substantial work, identify whether it changes code, a sample experiment,
    a research experiment, or evidence. Do not quietly turn one into another.
 
+## Python environment
+
+- This project uses uv. Run Python, tests, and project commands through the locked
+  environment: `uv run --locked python ...`, `uv run --locked pytest ...`, and
+  `uv run --locked sparselab ...`.
+- Do not assume `python`, `pytest`, or `sparselab` is available directly on
+  `PATH`. Do not create another virtual environment or run `pip install` unless
+  the user explicitly requests it.
+- For CUDA, ROCm, XPU, or MLX work, follow the documented worker environment
+  instead of replacing its framework packages with the default locked CPU stack.
+
 ## Workspaces and storage
 
 - Use a descriptive, task-owned directory such as
