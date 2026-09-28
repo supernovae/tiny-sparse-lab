@@ -501,6 +501,9 @@ def launch_attempt(
 
 
 def _spawn_executor(definition: Any, attempt_id: str) -> None:
+    from sparselab.workdir import ensure_work_dir
+
+    ensure_work_dir()
     directory = _attempt_dir(definition, attempt_id)
     stdout = (directory / "stdout.live.log").open("ab")
     stderr = (directory / "stderr.live.log").open("ab")

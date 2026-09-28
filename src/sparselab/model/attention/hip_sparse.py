@@ -14,6 +14,8 @@ from pathlib import Path
 import torch
 from torch import Tensor
 
+from sparselab.workdir import ensure_work_dir
+
 _MAX_HEAD_DIM = 2048
 
 _HIP_SOURCE = r"""
@@ -283,6 +285,7 @@ extern "C" const char* sparse_error_string(int error) {
 
 @lru_cache(maxsize=4)
 def _extension(arch: str):
+    ensure_work_dir()
     if not torch.version.hip:
         raise RuntimeError("native HIP sparse attention requires a ROCm PyTorch build")
     compiler = shutil.which("hipcc")

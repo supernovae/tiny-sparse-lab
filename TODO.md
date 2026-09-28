@@ -23,16 +23,6 @@ close a code item unless the named software acceptance criteria also pass.
   input/host-bound, memory-pressure, and unknown cases. Low CPU or less than
   100% device utilization is diagnostic evidence, not itself a failure.
 
-## Workspace reliability
-
-- [ ] Ensure every remaining temporary-file path honors `--work-dir` or
-  `SPARSELAB_WORK_DIR`; add regression coverage for subprocesses and external
-  tool fallbacks. Long-running workflows must not depend on the platform's
-  anonymous `/tmp` capacity.
-- [ ] Add bounded retention/cleanup proposals for campaign-owned checkpoints and
-  caches. Never delete unowned paths or required registered checkpoints, and
-  keep cleanup a separate explicit action.
-
 ## Experiment ergonomics
 
 - [ ] Validate that checked-in research records bind protocol/config identities

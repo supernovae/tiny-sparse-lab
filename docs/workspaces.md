@@ -30,6 +30,37 @@ its full mutable workspace into version control. Reusable tokenizer and prepared
 data caches keep their existing shared identities and locations; they need not
 be duplicated into each experiment.
 
+## Explicit campaign cleanup
+
+Set `SPARSELAB_WORK_DIR` to the campaign workspace when preparing campaign-local
+data caches. New prepared-data caches inside that workspace receive an ownership
+marker; existing caches without a marker and caches outside the workspace are
+never cleanup candidates. Shared data and worker dispatch caches are outside this
+workflow.
+
+```sh
+WORK=sparselab-work/experiments/dense-lm-v1
+uv run --locked sparselab workspace cleanup plan "$WORK" \
+  --output "$WORK/local-reports/cleanup-plan.json"
+# Review the JSON paths, identities, and reclaimable bytes before applying.
+uv run --locked sparselab workspace cleanup apply \
+  "$WORK/local-reports/cleanup-plan.json"
+```
+
+The plan is read-only and defaults to retaining two additional eligible periodic
+checkpoint generations per run and two campaign-owned prepared-data cache entries.
+Change those limits with `--max-extra-periodic` and `--max-cache-entries` when
+creating the plan. Latest, best, and the previous verified generation are always
+protected. Every generation registered in the run database or bound by a child
+run manifest is also protected,
+even when this exceeds the count limit; most ordinary training checkpoints are
+registered, so checkpoint proposals can be empty. Only verified, unregistered
+generations in terminal runs can be proposed. Cache candidates require the
+workspace ownership marker, a matching prepared-data manifest, and no active
+campaign run or worker attempt. Applying a plan rechecks the database, candidate
+inventory, and writer leases; changed plans must be created again. The command
+never scans arbitrary sibling workspaces or deletes unmarked directories.
+
 Use one variable for a study, including worker registration, submission,
 controller operation, collection, and resume:
 

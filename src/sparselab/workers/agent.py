@@ -12,6 +12,7 @@ from typing import Any
 from sparselab.config.models import RunConfig
 from sparselab.training.manifest import canonical_json
 from sparselab.training.metrics import ExperimentStore
+from sparselab.workdir import ensure_work_dir
 
 from .execution import (
     cancel_attempt,
@@ -228,6 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    ensure_work_dir()
     definition = _definition(args)
     initialize_worker(definition)
     if args.command == "serve-stdio":

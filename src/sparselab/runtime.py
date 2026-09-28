@@ -20,6 +20,8 @@ import numpy as np
 import psutil
 import torch
 
+from sparselab.workdir import ensure_work_dir
+
 
 @dataclass(frozen=True)
 class RuntimeInfo:
@@ -436,6 +438,7 @@ def _probe_runtime(
         },
         separators=(",", ":"),
     ).encode("utf-8")
+    ensure_work_dir()
     try:
         completed = subprocess.run(
             [sys.executable, "-m", "sparselab.runtime_probe"],

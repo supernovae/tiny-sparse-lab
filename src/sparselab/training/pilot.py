@@ -20,6 +20,7 @@ from sparselab.staging import _read_sealed, _seal, pilot_config
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, source_identity
 from sparselab.training.trainer import _train_impl
+from sparselab.workdir import ensure_work_dir
 
 
 def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> Path:
@@ -198,6 +199,7 @@ def main() -> None:
     parser.add_argument("purpose", choices=("smoke", "warmup"))
     parser.add_argument("--cancel-path", type=Path)
     args = parser.parse_args()
+    ensure_work_dir()
     root = args.root.resolve(strict=True)
     try:
         print(run_pilot(root, args.purpose, cancel_path=args.cancel_path))
