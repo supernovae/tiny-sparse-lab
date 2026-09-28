@@ -1,0 +1,42 @@
+{
+  "format": "sparselab-research-entry",
+  "version": 1,
+  "classification": "learning_reference",
+  "id": "tinystories-dense-30m-data-rich-v1",
+  "title": "TinyStories dense 30M data-rich single-seed reference",
+  "question": "What bounded learning and descriptive generation outcomes arise from a verified diverse TinyStories source, selected BPE tokenizer, 512-token context, and fixed 100,663,296-target training budget?",
+  "mechanisms": ["Tied dense decoder-only language model without external memory"],
+  "hypothesis": "A single seed-42 full-state endpoint reaches its frozen budget with finite sealed held-out loss and auditable decoder outputs.",
+  "failure_interpretation": "Missing source integrity, tokenizer selection, exact training budget, verified endpoint, or sealed evaluation prevents a completed reference; mechanically correct prompts alone do not establish language quality.",
+  "controls": ["Frozen old 30M and 50M seed-42 checkpoints, identical raw-story validation control, fixed source split, original six regression prompts, and prior selected decoder policy."],
+  "independent_variables": ["New data-rich campaign versus previously trained dense 30M/50M reference endpoints; source diversity, tokenizer, context, schedule, and precision change together."],
+  "dependent_metrics": [
+    {"name": "Full held-out native-tokenizer negative log likelihood", "unit": "nats per target", "kind": "measured", "direction": "lower"},
+    {"name": "Same-text control likelihood", "unit": "bits per raw UTF-8 byte", "kind": "measured", "direction": "lower"},
+    {"name": "Frozen prompt continuations", "unit": "raw text and token IDs", "kind": "measured", "direction": "descriptive"},
+    {"name": "Training and full-state checkpoint identity", "unit": "targets and SHA-256", "kind": "architectural", "direction": "descriptive"}
+  ],
+  "confounders": ["One seed and one ROCm/WSL2 device; no independent replication or cross-hardware portability.", "Multiple training factors vary together and model-native tokenizer losses are not directly comparable.", "Frozen hand-authored prompts have no verified train-disjointness; no blinded human-quality verdict."],
+  "minimum_useful_scale": "reference-small",
+  "recommended_scale": "reference-small",
+  "hardware_notes": "AMD Radeon RX 7900 XTX, PyTorch ROCm on WSL2; CPU and other accelerators not measured.",
+  "runtime_class": "Executed single-device, single-seed fixed 24,576-step reference; no new training or automatic baseline promotion.",
+  "evaluation_policy": {
+    "periodic_validation_steps": {"tinystories-dense-30m-data-rich-v1": 2048},
+    "endpoint_cards": [],
+    "endpoint_policy": "first_configured_limit",
+    "milestones_supported": false,
+    "primary_thresholds": []
+  },
+  "cards": [],
+  "papers": [],
+  "implementation_links": [
+    {"path": "experiments/research/tinystories-dense-30m-data-rich-v1/run.py", "symbol": "score"},
+    {"path": "src/sparselab/data/local_stories.py", "symbol": "verify_snapshot"}
+  ],
+  "docs": ["experiments/research/tinystories-dense-30m-data-rich-v1/protocol.md", "experiments/research/tinystories-dense-30m-data-rich-v1/results.md"],
+  "can_establish": ["A bounded one-seed training/evaluation observation under the frozen source, tokenizer, budget, and checkpoint identities."],
+  "cannot_establish": ["Causality of any changed training factor, general prose quality, superiority over the old baselines, saturation, portability, or independent replication."],
+  "prerequisites": ["Frozen protocol and receipts, verified complete run and endpoint, sealed evaluation raw evidence."],
+  "recipe": null
+}

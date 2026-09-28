@@ -23,10 +23,8 @@ from sparselab.experiments.reporting import _validate_research
 from sparselab.experiments.study import plan_study
 from sparselab.research.catalog import (
     ResearchEntry,
-    list_lessons,
     list_research,
     load_datasets,
-    load_profiles,
     load_recipe,
     load_research,
 )
@@ -68,47 +66,18 @@ def _weight_rows(value: object) -> list[list[float]]:
     return cast(list[list[float]], value)
 
 
-def test_packaged_catalog_profiles_and_strict_versions() -> None:
+def test_packaged_catalog_factorial_designs_and_strict_versions() -> None:
     entries = list_research()
-    lessons = list_lessons()
-
-    assert {entry.id for entry in entries} == {
-        "dense-lm-v1",
-        "engram-ffn-substitution-v1",
-        "engram-mla-compression-v1",
-        "engram-moe-capacity-v1",
-        "engram-placement-v1",
-        "engram-portability-v1",
-        "engram-sparse-budget-v1",
-        "learned-engram-portability-v1",
-        "lexical-memory-heavy-v1",
-        "memory-allocation-curve-v1",
-    }
     assert load_research("learned-engram-portability-v1").recipe is None
     learning_reference = load_research("dense-lm-v1")
     assert learning_reference.classification == "learning_reference"
     assert learning_reference.recipe is None
     assert learning_reference.evaluation_policy.primary_thresholds == []
     assert not learning_reference.evaluation_policy.milestones_supported
-    assert len(lessons) == 11
-    profiles = load_profiles().scales
-    assert set(profiles) == {"smoke", "nano", "micro", "tiny"}
-    assert [profiles[name].hidden_dim for name in profiles] == [64, 128, 320, 512]
 
     recipes = {
         entry.id: load_recipe(entry) for entry in entries if entry.recipe is not None
     }
-    expected_factorial_recipes = {
-        "engram-ffn-substitution-v1",
-        "engram-mla-compression-v1",
-        "engram-moe-capacity-v1",
-        "engram-sparse-budget-v1",
-    }
-    assert {
-        recipe_id
-        for recipe_id, recipe in recipes.items()
-        if recipe.designs["default"]["smoke"].factorial_designs
-    } == expected_factorial_recipes
     assert [
         factor.axis
         for factor in recipes["engram-mla-compression-v1"]

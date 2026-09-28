@@ -622,6 +622,35 @@
       },
       "next_test": null,
       "stage": "promote"
+    },
+    {
+      "baseline_id": null,
+      "blockers": [
+        {
+          "description": "No blinded prose verdict or independent seed establishes general capability or replicated behavior.",
+          "evidence_ids": ["tinystories-data-rich-evidence"],
+          "id": "independent-behavior-review-not-run",
+          "resolution": "Freeze a separate independent behavior and blinded-review protocol before inspecting its outcomes."
+        }
+      ],
+      "entry": "tinystories-dense-30m-data-rich-v1",
+      "entry_sha256": "5e2707987defc08568757513d2ee83602345c590f1bcced1d83d6f2fe2c3124c",
+      "finding_ids": ["tinystories-data-rich-seed42"],
+      "maturity": {
+        "capability": {"finding_ids": [], "state": "untested"},
+        "efficiency": {"finding_ids": [], "state": "unmeasured"}
+      },
+      "next_test": {
+        "action": "Preregister an independent blinded prose/decoder comparison before a further training campaign.",
+        "blocker_ids": ["independent-behavior-review-not-run"],
+        "cost_class": "short",
+        "design_change": "Use new disjoint prompts and blinded review; do not select from this campaign's opened test panel.",
+        "eligible_scales": ["smoke"],
+        "prerequisites": ["tinystories-data-rich-seed42"],
+        "reopens": ["tinystories-data-rich-seed42"],
+        "stage": "mechanism"
+      },
+      "stage": "mechanism"
     }
   ],
   "evidence": [
@@ -1440,6 +1469,15 @@
       "id": "dense-lm-v1-acceptance",
       "identity": null,
       "kind": "acceptance"
+    },
+    {
+      "artifact": {
+        "relative_path": "experiments/research/tinystories-dense-30m-data-rich-v1/evidence.json",
+        "sha256": "c928b823b6c899a2092c8ccda84af22e30f5dcb0641ba9dace6822793218ff14",
+        "size_bytes": 12316
+      },
+      "id": "tinystories-data-rich-evidence",
+      "kind": "acceptance"
     }
   ],
   "findings": [
@@ -1708,6 +1746,28 @@
       "unsupported_claims": [
         "General language quality, chat capability, architecture superiority, convergence, cross-hardware efficiency, or an aggregate score."
       ]
+    },
+    {
+      "decided_by": "bounded research evidence review",
+      "design_identity": {
+        "protocol_sha256": "a410c552ec19c9d140f56c0cbc3fa7fbf64af756786fd0c7eccc8af0b449e4d8",
+        "study_sha256": null
+      },
+      "disposition": "learning",
+      "entry": "tinystories-dense-30m-data-rich-v1",
+      "evidence_ids": ["tinystories-data-rich-evidence"],
+      "id": "tinystories-data-rich-seed42",
+      "next_action": "Preregister independent blinded behavior review; do not select a new decoder from the opened test cells or automatically extend training.",
+      "observation": "One ROCm seed-42 run completed 24,576 steps and 100,663,296 supervised target exposures with verified full-state endpoint. On 8,000 final held-out stories its native-tokenizer negative log likelihood was 1.610636 nats/target; on the frozen same-text control, new/old-30M/old-50M bits per raw byte were 0.668729/0.975226/0.955759. The opened 55-prompt test panel exposed color-attribute contradictions in the new checkpoint.",
+      "rationale": "Source and tokenizer identities, exact training budget, endpoint checkpoint, complete likelihood counts, and failed-as-well-as-successful diagnostic output are retained. The factors vary together and automatic triage did not resolve subjective capability.",
+      "recorded_at": "2026-09-28",
+      "reopen_conditions": ["A new design binds independent prompts, review, and model/policy selection before generation."],
+      "supported_claims": [
+        "This one verified data-rich run completed the preregistered training budget and produced finite full final-split likelihood.",
+        "The model had lower measured bits per raw byte on the fixed 256-story control than the two old seed-42 references, without isolating the cause."
+      ],
+      "tested_conditions": ["One new 29,893,120-parameter dense BF16 seed42 ROCm endpoint; old 30M/50M seed42 mature endpoints; frozen raw-story control and generation panels."],
+      "unsupported_claims": ["Causal effect of any one of data, tokenizer, context, schedule, or precision; independent replication; general prose quality; convergence; baseline promotion; hardware portability."]
     }
   ],
   "format": "sparselab-research-lifecycle",

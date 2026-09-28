@@ -1,0 +1,11 @@
+{
+  "run_id": "tinystories-dense-30m-data-rich-v1-seed42",
+  "config_sha256": "c8e3144cbee3a245ccf0737e7f1c5a13b2839c0cadaa0a303ec16f284d8e16f8",
+  "generation": "step_00024576_gen_000014",
+  "checkpoint_digest": "1f090d8aaa2afc9ac38282917fdd8454fbf2682abca3aaa4ee9ab7e0e3abcdb1",
+  "checkpoint_manifest_sha256": "b02fe9910963677c606940af23367d0cdf83eaf95ccf58f1b78714a6eb797361",
+  "step": 24576,
+  "tokens_seen": 100663296,
+  "validation_loss_sampled_packed": 1.6627538204193115,
+  "checkpoint_verification": "full-state CLI valid=true, errors=[]"
+}
