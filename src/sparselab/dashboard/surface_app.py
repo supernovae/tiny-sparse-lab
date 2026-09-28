@@ -41,8 +41,12 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.mode == "review" and (args.bundle is None or args.cell):
         parser.error("review mode requires --bundle and does not accept --cell")
-    if args.mode == "chat" and (args.bundle is not None or not 2 <= len(args.cell) <= 4):
-        parser.error("chat mode requires 2–4 --cell ALIAS=GENERATION_PATH entries and no --bundle")
+    if args.mode == "chat" and (
+        args.bundle is not None or not 2 <= len(args.cell) <= 4
+    ):
+        parser.error(
+            "chat mode requires 2–4 --cell ALIAS=GENERATION_PATH entries and no --bundle"
+        )
     return args
 
 
@@ -56,16 +60,23 @@ def _next_case(cases: list[dict], answers: dict, selected: str | None) -> dict |
     pending = [case for case in cases if case["blind_case_id"] not in answers]
     if not pending:
         return None
-    return next((case for case in pending if case["blind_case_id"] == selected), pending[0])
+    return next(
+        (case for case in pending if case["blind_case_id"] == selected), pending[0]
+    )
+
 
 def _win_rows(results: dict, provenance: dict) -> list[dict]:
     """Expose decisive-vote denominators alongside all five choice counts."""
     pair_sources: dict[str, tuple[str, str]] = {}
     for case in provenance["cases"]:
-        sources = tuple(sorted(
-            json.dumps(source, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-            for source in case["sides"].values()
-        ))
+        sources = tuple(
+            sorted(
+                json.dumps(
+                    source, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                )
+                for source in case["sides"].values()
+            )
+        )
         pair_sources[" vs ".join(sources)] = sources
     rows = []
     for pair, dimensions in results.items():
@@ -73,22 +84,26 @@ def _win_rows(results: dict, provenance: dict) -> list[dict]:
             sources = pair_sources[pair]
             denominator = sum(votes.get(source, 0) for source in sources)
             for source in sources:
-                rows.append({
-                    "source pair": pair,
-                    "dimension": dimension,
-                    "winning source": source,
-                    "wins / decisive votes": f"{votes.get(source, 0)} / {denominator}",
-                    "tie": votes.get("tie", 0),
-                    "neither": votes.get("neither", 0),
-                    "cannot tell": votes.get("cannot_tell", 0),
-                })
+                rows.append(
+                    {
+                        "source pair": pair,
+                        "dimension": dimension,
+                        "winning source": source,
+                        "wins / decisive votes": f"{votes.get(source, 0)} / {denominator}",
+                        "tie": votes.get("tie", 0),
+                        "neither": votes.get("neither", 0),
+                        "cannot tell": votes.get("cannot_tell", 0),
+                    }
+                )
     return rows
 
 
 def render_review(bundle: Path) -> None:
     st.set_page_config(page_title="Surface Review", layout="wide")
     st.title("Surface Review")
-    st.caption("Single-reviewer self-blind comparison. Identities remain sealed until completion and explicit reveal.")
+    st.caption(
+        "Single-reviewer self-blind comparison. Identities remain sealed until completion and explicit reveal."
+    )
 
     try:
         view = open_surface_bundle(bundle)
@@ -100,7 +115,11 @@ def render_review(bundle: Path) -> None:
         revealed = (bundle / "reveal.json").exists()
         # Validate the complete review and reveal chain before displaying any identities.
         results = surface_results(bundle) if revealed else None
-        rows = _win_rows(results, open_surface_bundle(bundle, private=True)["provenance"]) if revealed else None
+        rows = (
+            _win_rows(results, open_surface_bundle(bundle, private=True)["provenance"])
+            if revealed
+            else None
+        )
     except (OSError, ValueError, KeyError, TypeError) as exc:
         _error(exc)
     # A stale tab may submit a form that no longer corresponds to an unvoted
@@ -110,9 +129,10 @@ def render_review(bundle: Path) -> None:
         and case["blind_case_id"] in answers
         for case in cases
     ):
-        st.error("This case already has an immutable vote (possibly from another tab). Reload to continue.")
+        st.error(
+            "This case already has an immutable vote (possibly from another tab). Reload to continue."
+        )
         st.stop()
-
 
     total = len(cases)
     st.progress(len(answers) / total, text=f"{len(answers)} of {total} cases submitted")
@@ -120,7 +140,9 @@ def render_review(bundle: Path) -> None:
     if revealed:
         st.success("Review completed and identities revealed.")
         st.subheader("Descriptive counts by source pair and dimension")
-        st.caption("Raw single-reviewer counts only; not a population preference or promotion decision. Denominators count decisive source wins; tie, neither, and cannot tell are reported separately.")
+        st.caption(
+            "Raw single-reviewer counts only; not a population preference or promotion decision. Denominators count decisive source wins; tie, neither, and cannot tell are reported separately."
+        )
         st.dataframe(rows, hide_index=True)
         with st.expander("Exact source-mapped counts"):
             st.json(results, expanded=True)
@@ -139,7 +161,9 @@ def render_review(bundle: Path) -> None:
 
     case = _next_case(cases, answers, st.session_state.get("surface_selected_case"))
     if case is None:
-        st.info("Every case has a durable vote. Complete the review to seal judgments before revealing identities.")
+        st.info(
+            "Every case has a durable vote. Complete the review to seal judgments before revealing identities."
+        )
         if st.button("Complete review", type="primary"):
             try:
                 complete_surface_review(bundle)
@@ -178,14 +202,18 @@ def render_review(bundle: Path) -> None:
             format_func=lambda value: value.replace("_", " "),
             key=f"{case['blind_case_id']}_issues",
         )
-        note = st.text_area("Optional note", max_chars=4000, key=f"{case['blind_case_id']}_note")
+        note = st.text_area(
+            "Optional note", max_chars=4000, key=f"{case['blind_case_id']}_note"
+        )
         submitted = st.form_submit_button(
             "Submit vote", type="primary", key=f"surface_submit_{case['blind_case_id']}"
         )
 
     if submitted:
         if any(value is None for value in choices.values()):
-            st.error("Choose A, B, tie, neither, or cannot tell for every dimension before submitting.")
+            st.error(
+                "Choose A, B, tie, neither, or cannot tell for every dimension before submitting."
+            )
         else:
             try:
                 record_surface_judgment(
@@ -203,7 +231,9 @@ def render_review(bundle: Path) -> None:
 
     if len(pending) > 1 and st.button("Next unvoted case"):
         current = pending.index(case)
-        st.session_state["surface_selected_case"] = pending[(current + 1) % len(pending)]["blind_case_id"]
+        st.session_state["surface_selected_case"] = pending[
+            (current + 1) % len(pending)
+        ]["blind_case_id"]
         st.rerun()
 
 

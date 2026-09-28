@@ -20,7 +20,9 @@ _ALIAS = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,39}\Z")
 _LABELS = "ABCD"
 
 
-def checkpoint_selection(cells: Sequence[str]) -> tuple[tuple[str, str, Path, Path], ...]:
+def checkpoint_selection(
+    cells: Sequence[str],
+) -> tuple[tuple[str, str, Path, Path], ...]:
     """Parse 2–4 generation directories without deriving identity from aliases.
 
     The returned fields are (display-only alias, run ID, runs directory, generation
@@ -42,7 +44,9 @@ def checkpoint_selection(cells: Sequence[str]) -> tuple[tuple[str, str, Path, Pa
         if any(parent.is_symlink() for parent in (path, *path.parents)):
             raise ValueError("checkpoint generation path must not contain symlinks")
         if not path.is_dir() or path.parent.name != "checkpoints":
-            raise ValueError("each cell must name an existing checkpoint generation directory")
+            raise ValueError(
+                "each cell must name an existing checkpoint generation directory"
+            )
         run = path.parent.parent
         if not run.name or not (path / "manifest.json").is_file():
             raise ValueError("checkpoint generation lacks a run or manifest")
@@ -54,7 +58,9 @@ def checkpoint_selection(cells: Sequence[str]) -> tuple[tuple[str, str, Path, Pa
     return tuple(selected)
 
 
-def verified_checkpoints(cells: Sequence[str], backend: str | None = None) -> tuple[tuple[str, InferenceRun], ...]:
+def verified_checkpoints(
+    cells: Sequence[str], backend: str | None = None
+) -> tuple[tuple[str, InferenceRun], ...]:
     """Load and verify every requested checkpoint before offering generation."""
     from sparselab.evaluation.inference import load_run
 
@@ -84,7 +90,9 @@ def check_common_context(
         count = len(loaded.tokenizer.encode(prompt, add_special_tokens=False).ids)
         # generate_with_token_ids inserts BOS when tokenization is empty.
         if max(count, 1) + max_new_tokens > loaded.config.model.max_seq_len:
-            raise ValueError("prompt and completion do not fit every model's native context")
+            raise ValueError(
+                "prompt and completion do not fit every model's native context"
+            )
 
 
 def anonymous_order(count: int, seed: int, ordinal: int) -> tuple[int, ...]:
@@ -130,18 +138,35 @@ def generate_comparison(
             strict_context=True,
             engine=loaded.engine,
         )
-        replies.append({"alias": alias, "identity": loaded.identity, "response": text[len(prompt) :], "token_ids": token_ids})
+        replies.append(
+            {
+                "alias": alias,
+                "identity": loaded.identity,
+                "response": text[len(prompt) :],
+                "token_ids": token_ids,
+            }
+        )
     order = anonymous_order(len(checkpoints), seed, ordinal)
     return {
         "prompt": prompt,
         "ordinal": ordinal,
-        "policy": {"temperature": temperature, "top_k": top_k, "max_new_tokens": max_new_tokens, "seed": seed + ordinal},
-        "cards": [{"label": _LABELS[index], **replies[source]} for index, source in enumerate(order)],
+        "policy": {
+            "temperature": temperature,
+            "top_k": top_k,
+            "max_new_tokens": max_new_tokens,
+            "seed": seed + ordinal,
+        },
+        "cards": [
+            {"label": _LABELS[index], **replies[source]}
+            for index, source in enumerate(order)
+        ],
         "vote": None,
     }
 
 
-def save_exploratory(work_dir: Path, seed: int, turns: Sequence[dict[str, Any]]) -> Path:
+def save_exploratory(
+    work_dir: Path, seed: int, turns: Sequence[dict[str, Any]]
+) -> Path:
     """Exclusively publish a plainly marked, non-importable local session."""
     root = work_dir / "surface-review" / "exploratory"
     if any(parent.is_symlink() for parent in (root, *root.parents)):
@@ -173,13 +198,17 @@ def render_chat(args: Any) -> None:
     import streamlit as st
 
     st.title("Exploratory checkpoint chat")
-    st.caption("Local, exploratory responses only — not sealed judgments or research evidence.")
+    st.caption(
+        "Local, exploratory responses only — not sealed judgments or research evidence."
+    )
     signature = (tuple(args.cell), args.backend, args.seed)
     if st.session_state.get("surface_chat_signature") != signature:
         try:
             checkpoints = verified_checkpoints(args.cell, args.backend)
         except (OSError, ValueError, KeyError, TypeError) as error:
-            st.error(f"Checkpoint verification failed ({type(error).__name__}); no generation was started.")
+            st.error(
+                f"Checkpoint verification failed ({type(error).__name__}); no generation was started."
+            )
             return
         st.session_state.surface_chat_signature = signature
         st.session_state.surface_chat_checkpoints = checkpoints
@@ -189,7 +218,9 @@ def render_chat(args: Any) -> None:
     checkpoints = st.session_state.surface_chat_checkpoints
     turns = st.session_state.surface_chat_turns
     finished = st.session_state.surface_chat_finished
-    st.caption(f"{len(checkpoints)} verified local checkpoints · session seed {args.seed} · {'finished' if finished else 'anonymous'}")
+    st.caption(
+        f"{len(checkpoints)} verified local checkpoints · session seed {args.seed} · {'finished' if finished else 'anonymous'}"
+    )
 
     for turn in turns:
         st.subheader(f"Prompt {turn['ordinal'] + 1}")
@@ -201,37 +232,76 @@ def render_chat(args: Any) -> None:
             labels = [card["label"] for card in turn["cards"]]
             choices = ["No vote", *labels, "tie", "neither", "cannot_tell"]
             current = turn["vote"] or "No vote"
-            choice = st.selectbox("Optional preference", choices, index=choices.index(current), key=f"surface_chat_vote_{turn['ordinal']}")
+            choice = st.selectbox(
+                "Optional preference",
+                choices,
+                index=choices.index(current),
+                key=f"surface_chat_vote_{turn['ordinal']}",
+            )
             turn["vote"] = None if choice == "No vote" else choice
 
     if finished:
-        st.success("Session finished. Identity mapping revealed below; exploratory votes are not sealed reviews.")
+        st.success(
+            "Session finished. Identity mapping revealed below; exploratory votes are not sealed reviews."
+        )
         for turn in turns:
             st.subheader(f"Prompt {turn['ordinal'] + 1} identities")
             for card in turn["cards"]:
                 identity = card["identity"]
-                st.write(f"{card['label']}: {card['alias']} — run {identity['run_id']}, checkpoint {identity['checkpoint_relative_path']}")
-        if turns and st.session_state.surface_chat_saved is None and st.button("Save exploratory responses and votes locally"):
+                st.write(
+                    f"{card['label']}: {card['alias']} — run {identity['run_id']}, checkpoint {identity['checkpoint_relative_path']}"
+                )
+        if (
+            turns
+            and st.session_state.surface_chat_saved is None
+            and st.button("Save exploratory responses and votes locally")
+        ):
             try:
                 from sparselab.workdir import resolve_work_dir
 
-                st.session_state.surface_chat_saved = str(save_exploratory(resolve_work_dir(args.work_dir), args.seed, turns))
+                st.session_state.surface_chat_saved = str(
+                    save_exploratory(resolve_work_dir(args.work_dir), args.seed, turns)
+                )
             except (OSError, ValueError) as error:
                 st.error(f"Could not save exploratory session: {error}")
         if st.session_state.surface_chat_saved:
-            st.success(f"Saved EXPLORATORY session: {st.session_state.surface_chat_saved}")
+            st.success(
+                f"Saved EXPLORATORY session: {st.session_state.surface_chat_saved}"
+            )
         return
 
     if min(loaded.config.model.max_seq_len for _, loaded in checkpoints) < 2:
         st.error("Selected checkpoint context cannot fit a prompt and completion.")
         return
     with st.form("surface_chat_prompt", clear_on_submit=True):
-        prompt = st.text_area("Prompt (leave empty to finish)", key="surface_chat_input")
-        limit = min(256, *(loaded.config.model.max_seq_len - 1 for _, loaded in checkpoints))
-        max_new_tokens = st.number_input("Maximum completion tokens", min_value=1, max_value=limit, value=min(96, limit))
-        policy = st.radio("Common decoding policy", ("Greedy", "Sampled"), horizontal=True)
-        temperature = st.number_input("Sampling temperature", min_value=0.01, max_value=2.0, value=0.8, disabled=policy == "Greedy")
-        top_k = st.number_input("Sampling top-k (0 = full vocabulary)", min_value=0, value=40, disabled=policy == "Greedy")
+        prompt = st.text_area(
+            "Prompt (leave empty to finish)", key="surface_chat_input"
+        )
+        limit = min(
+            256, *(loaded.config.model.max_seq_len - 1 for _, loaded in checkpoints)
+        )
+        max_new_tokens = st.number_input(
+            "Maximum completion tokens",
+            min_value=1,
+            max_value=limit,
+            value=min(96, limit),
+        )
+        policy = st.radio(
+            "Common decoding policy", ("Greedy", "Sampled"), horizontal=True
+        )
+        temperature = st.number_input(
+            "Sampling temperature",
+            min_value=0.01,
+            max_value=2.0,
+            value=0.8,
+            disabled=policy == "Greedy",
+        )
+        top_k = st.number_input(
+            "Sampling top-k (0 = full vocabulary)",
+            min_value=0,
+            value=40,
+            disabled=policy == "Greedy",
+        )
         submitted = st.form_submit_button("Generate anonymously")
     if submitted:
         if not prompt.strip():
@@ -239,13 +309,18 @@ def render_chat(args: Any) -> None:
             st.rerun()
         try:
             turn = generate_comparison(
-                prompt, checkpoints, max_new_tokens=int(max_new_tokens),
+                prompt,
+                checkpoints,
+                max_new_tokens=int(max_new_tokens),
                 temperature=float(temperature) if policy == "Sampled" else 0.0,
                 top_k=int(top_k) if policy == "Sampled" else 0,
-                seed=args.seed, ordinal=len(turns),
+                seed=args.seed,
+                ordinal=len(turns),
             )
         except (OSError, ValueError, RuntimeError) as error:
-            st.error(f"Generation failed ({type(error).__name__}); no partial comparison was recorded.")
+            st.error(
+                f"Generation failed ({type(error).__name__}); no partial comparison was recorded."
+            )
         else:
             turns.append(turn)
             st.rerun()

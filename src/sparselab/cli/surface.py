@@ -15,32 +15,68 @@ def _import(args: argparse.Namespace) -> None:
     if args.source == "decoding-v1":
         if not args.review_dir or not args.repository_root:
             raise ValueError("decoding-v1 requires --review-dir and --repository-root")
-        result = import_decoding_v1(args.review_dir, args.repository_root, args.output, args.sample, args.selection_seed, args.presentation_seed)
+        result = import_decoding_v1(
+            args.review_dir,
+            args.repository_root,
+            args.output,
+            args.sample,
+            args.selection_seed,
+            args.presentation_seed,
+        )
     elif args.source == "data-rich-v1":
         if not args.campaign_root:
             raise ValueError("data-rich-v1 requires --campaign-root")
-        result = import_data_rich_v1(args.campaign_root, args.output, args.sample, args.selection_seed, args.presentation_seed)
+        result = import_data_rich_v1(
+            args.campaign_root,
+            args.output,
+            args.sample,
+            args.selection_seed,
+            args.presentation_seed,
+        )
     else:
         if not args.triage_run:
             raise ValueError("triage requires repeated --triage-run RUN_ID RUNS_DIR")
-        result = import_triage_reports(args.triage_run, args.output, args.sample, args.selection_seed, args.presentation_seed)
+        result = import_triage_reports(
+            args.triage_run,
+            args.output,
+            args.sample,
+            args.selection_seed,
+            args.presentation_seed,
+        )
     import json
+
     print(json.dumps(result, sort_keys=True))
 
 
 def _launch(args: argparse.Namespace) -> None:
     script = Path(__file__).resolve().parents[1] / "dashboard" / "surface_app.py"
-    cmd = [sys.executable, "-m", "streamlit", "run", str(script),
-           "--server.address", "127.0.0.1", "--server.port", str(args.port), "--server.headless", "true", "--",
-           "--mode", args.mode]
+    cmd = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(script),
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        str(args.port),
+        "--server.headless",
+        "true",
+        "--",
+        "--mode",
+        args.mode,
+    ]
     if args.mode == "review":
         from sparselab.evaluation.surface_review import open_surface_bundle
+
         folder = Path(args.bundle).resolve(strict=True)
         open_surface_bundle(folder)
         cmd.extend(("--bundle", str(folder)))
     else:
         if not 2 <= len(args.cell) <= 4:
-            raise ValueError("exploratory chat requires 2–4 --cell ALIAS=GENERATION_PATH entries")
+            raise ValueError(
+                "exploratory chat requires 2–4 --cell ALIAS=GENERATION_PATH entries"
+            )
         for item in args.cell:
             if "=" not in item or not item.split("=", 1)[0]:
                 raise ValueError("--cell requires ALIAS=GENERATION_PATH")
@@ -57,21 +93,31 @@ def add_commands(commands: argparse._SubParsersAction[argparse.ArgumentParser]) 
     importer = sub.add_parser("import", help="Seal existing verified generations")
     importer.add_argument("source", choices=("decoding-v1", "data-rich-v1", "triage"))
     importer.add_argument("--output", required=True)
-    importer.add_argument("--sample", choices=("quick", "standard", "full"), default="quick")
+    importer.add_argument(
+        "--sample", choices=("quick", "standard", "full"), default="quick"
+    )
     importer.add_argument("--selection-seed", type=int, default=0)
     importer.add_argument("--presentation-seed", type=int, default=0)
     importer.add_argument("--review-dir")
     importer.add_argument("--repository-root")
     importer.add_argument("--campaign-root")
-    importer.add_argument("--triage-run", nargs=2, action="append", metavar=("RUN_ID", "RUNS_DIR"))
+    importer.add_argument(
+        "--triage-run", nargs=2, action="append", metavar=("RUN_ID", "RUNS_DIR")
+    )
     importer.set_defaults(handler=_import)
     review = sub.add_parser("review", help="Review a sealed bundle locally")
     review.add_argument("bundle")
     review.add_argument("--port", type=int, default=8502)
     review.set_defaults(handler=_launch, mode="review")
     chat = sub.add_parser("chat", help="Explore 2–4 verified checkpoints locally")
-    chat.add_argument("--cell", action="append", default=[], metavar="ALIAS=GENERATION_PATH")
-    chat.add_argument("--backend", choices=("auto", "cpu", "rocm", "cuda", "xpu", "mps", "metal"), default="cpu")
+    chat.add_argument(
+        "--cell", action="append", default=[], metavar="ALIAS=GENERATION_PATH"
+    )
+    chat.add_argument(
+        "--backend",
+        choices=("auto", "cpu", "rocm", "cuda", "xpu", "mps", "metal"),
+        default="cpu",
+    )
     chat.add_argument("--seed", type=int, default=11)
     chat.add_argument("--port", type=int, default=8502)
     chat.add_argument("--work-dir")
