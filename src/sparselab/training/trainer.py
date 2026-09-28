@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import shutil
 import signal
@@ -37,6 +38,7 @@ from sparselab.data.packing import (
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import EngineState, Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
+from sparselab.evaluation.post_train_triage import triage_completed_run
 from sparselab.memory import (
     calibrated_estimate,
     calibration_key,
@@ -75,6 +77,8 @@ from sparselab.training.metrics import ExperimentStore
 from sparselab.training.optimizer import schedule_payload
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.training.throughput import summarize_training_progress
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class _WallTimeExpired(Exception):
@@ -418,7 +422,8 @@ def train(
         or max_wall_seconds <= 0
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
-    return _train_impl(
+    started = time.monotonic()
+    completed_run_id = _train_impl(
         config,
         resume=resume,
         extend_budget=extend_budget,
@@ -437,6 +442,22 @@ def train(
         requested_config_override=requested_config_override,
         max_wall_seconds=max_wall_seconds,
     )
+    try:
+        progress = config.logging.root_dir / completed_run_id / "progress.json"
+        if progress.is_symlink():
+            raise ValueError("run progress is a symlink")
+        if json.loads(progress.read_text(encoding="utf-8"))["status"] == "completed":
+            remaining = (
+                None
+                if max_wall_seconds is None
+                else max(0.0, max_wall_seconds - (time.monotonic() - started))
+            )
+            triage_completed_run(
+                completed_run_id, config.logging.root_dir, remaining_seconds=remaining
+            )
+    except Exception as error:  # noqa: BLE001 - diagnostics must not fail completed training
+        _LOGGER.warning("POST-TRAIN TRIAGE UNKNOWN for %s: %s", completed_run_id, error)
+    return completed_run_id
 
 
 def _train_impl(

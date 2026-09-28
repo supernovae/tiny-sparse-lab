@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -73,3 +75,31 @@ def test_dashboard_reads_latest_runtime_snapshot_without_migration(tmp_path) -> 
             ),
         },
     )
+
+
+def test_training_triage_panel_rejects_forged_and_symlinked_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.dashboard import app
+
+    messages: list[str] = []
+    monkeypatch.setattr(
+        app,
+        "st",
+        SimpleNamespace(
+            subheader=lambda text: None,
+            warning=lambda text: messages.append(text),
+            info=lambda text: messages.append(text),
+            write=lambda text: messages.append(text),
+        ),
+    )
+    run = tmp_path / "run"
+    reports = run / "post-train-triage"
+    reports.mkdir(parents=True)
+    (reports / ("0" * 64 + ".json")).write_text("{}")
+    app._triage_panel(tmp_path, ["run"])
+    assert "UNKNOWN" in messages[-1] and "invalid" in messages[-1]
+    (reports / ("0" * 64 + ".json")).unlink()
+    (reports / ("1" * 64 + ".json")).symlink_to(tmp_path / "outside")
+    app._triage_panel(tmp_path, ["run"])
+    assert "UNKNOWN" in messages[-1] and "invalid" in messages[-1]

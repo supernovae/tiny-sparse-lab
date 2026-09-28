@@ -136,6 +136,7 @@ class DatasetConfig(StrictModel):
         "instruction_reference",
         "chat_recall",
         "local_chat",
+        "local_stories",
         "withheld_facts",
         "engram_recall",
         "fineweb_edu",
@@ -151,6 +152,9 @@ class DatasetConfig(StrictModel):
     synthetic_seed: int = 42
     train_path: Path | None = None
     validation_path: Path | None = None
+    source_manifest_path: Path | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     license: str | None = None
     allocation_manifest_path: Path | None = None
 
@@ -160,6 +164,38 @@ class DatasetConfig(StrictModel):
             raise ValueError(
                 "dataset.allocation_manifest_path requires source=local_chat"
             )
+        if self.source_manifest_path is not None and self.source != "local_stories":
+            raise ValueError(
+                "dataset.source_manifest_path requires source=local_stories"
+            )
+        if self.source == "local_stories":
+            from sparselab.data.local_stories import LICENSE, REVISION
+
+            if self.revision != REVISION or self.license != LICENSE:
+                raise ValueError("local_stories requires pinned revision and license")
+            if any(
+                path is None
+                for path in (
+                    self.train_path,
+                    self.validation_path,
+                    self.source_manifest_path,
+                )
+            ):
+                raise ValueError(
+                    "local_stories requires train_path, validation_path and source_manifest_path"
+                )
+            if self.train_path.resolve() == self.validation_path.resolve():
+                raise ValueError(
+                    "local_stories train and validation must be separate files"
+                )
+            if self.source_manifest_path.resolve() in {
+                self.train_path.resolve(),
+                self.validation_path.resolve(),
+            }:
+                raise ValueError(
+                    "local_stories manifest must be separate from story files"
+                )
+            return self
         if (
             self.source in {"tinystories", "fineweb_edu", "cosmopedia"}
             and not self.revision
@@ -183,7 +219,7 @@ class DatasetConfig(StrictModel):
             for value in (self.train_path, self.validation_path, self.license)
         ):
             raise ValueError(
-                "train_path, validation_path and license are only for local_chat"
+                "train_path, validation_path and license are only for local_chat or local_stories"
             )
         return self
 

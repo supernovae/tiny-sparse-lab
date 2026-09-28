@@ -4,6 +4,10 @@ SparseLab is meant to help turn model work into progressively better-understood 
 
 This guide is the default loop for moving from a known-good reference to a controlled follow-up.
 
+Automatic [post-train triage](post-train-triage.md) reads retained evidence and
+performs only bounded diagnostics. Its post-hoc recommendations are not frozen
+acceptance gates, research decisions, or automatically dispatched experiments.
+
 ## The loop
 
 ```text
@@ -82,8 +86,8 @@ Examples:
 
 | Observation | Cheapest useful follow-up |
 |---|---|
-| Loss is still falling at the endpoint | Extend only the token budget |
-| Loss plateaus while behavior remains weak | Compare model capacity next |
+| Loss is still falling at the endpoint | Measure independent behavior first; consider an explicit target-budget extension only if comparable target behavior also improves |
+| Loss plateaus while behavior remains weak | Review capacity, data and task hypotheses before proposing a larger model |
 | Training is healthy but greedy text repeats | Run a separate decoding/behavior study |
 | One seed looks unusual | Replicate the frozen configuration |
 | An architecture candidate regresses the parent | Isolate the changed mechanism before adding more |

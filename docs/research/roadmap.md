@@ -68,6 +68,19 @@ The completed [dense-lm-scale-v1 comparison](../../experiments/research/dense-lm
 
 The executed [dense-lm-decoding-v1 study](../../experiments/research/dense-lm-decoding-v1/results.md) reused only the three paired mature checkpoints: 22 development prompts selected a supported non-greedy policy by a frozen mechanical rule, then 55 separate prompts were generated once under greedy and the selected policy. Sampling reduced n-gram loops in both widths but also exposed entity drift and an explicit color contradiction; matched 50M-versus-30M mechanical results on the independent prompts are mixed. An unopened human-review verdict is **unavailable**, not inferred from repetition or LM loss. The original six-prompt deterministic regression decoder and both preceding studies remain unchanged; [raw cells](../../experiments/research/dense-lm-decoding-v1/evidence/summary.json), [prompt hashes](../../experiments/research/dense-lm-decoding-v1/preregistration.json), and a [blind-review protocol](../../experiments/research/dense-lm-decoding-v1/review.md) are retained.
 
+**Finding — tinystories-dense-30m-data-rich-v1 (unpromoted):** The separately preregistered data-rich dense 30M seed-42 run completed 100,663,296 supervised target exposures and a verified full-state endpoint. Its full final 8,000-story held-out loss was 1.610636 nats/native target. On the identical frozen 256 raw stories, the new/old-30M/old-50M bits per UTF-8 byte were 0.668729/0.975226/0.955759; the opened test prompts still contained color contradictions. Source, tokenizer, context, schedule, and precision changed together, so no causal factor or subjective-quality ranking is established. [Results and evidence](../../experiments/research/tinystories-dense-30m-data-rich-v1/results.md) preserve the endpoint and raw outputs; an independent blinded behavior protocol is the next test, not automatic retraining or baseline promotion.
+
+**Open evidence question — independent prose preference:** a sealed
+[Surface Review v1](surface-review-v1.md) import can collect one self-blind
+reviewer's descriptive votes on existing outputs, but no population preference
+or inter-rater agreement follows. Establish whether study prompts are truly
+train-disjoint; then preregister a broader independently reviewed prompt
+sample and multiple readers before interpreting a subjective ranking. Neither
+those votes nor Tier-2 triage diagnostics isolate the effects of data variety,
+depth, tokenizer, budget, context and precision changed together in the
+data-rich comparison. This is a proposed scientific evidence gate, not a
+software implementation task or a promotion decision.
+
 The following descendants remain proposals, not executed work:
 
 - **dense-lm-generation-degeneration-v1:** a still-proposed *cross-milestone* study of seed, repetition, entity continuity and object/color continuity beyond the mature-endpoint decoding comparison. Preserve the established six-prompt regression panel and do not reuse the opened decoding test set for selection.

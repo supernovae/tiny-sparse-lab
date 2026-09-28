@@ -14,8 +14,9 @@ from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.trainers import BpeTrainer
 
-from sparselab.config.models import TokenizerTrainConfig
+from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.data.datasets import iter_documents
+from sparselab.data.local_stories import verify_snapshot
 from sparselab.progress import progress_phase
 
 SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
@@ -38,7 +39,12 @@ def load_tokenizer(path: Path) -> Tokenizer:
 
 
 def verify_tokenizer_artifact(
-    path: Path, *, source: str, revision: str | None, vocab_size: int
+    path: Path,
+    *,
+    source: str,
+    revision: str | None,
+    vocab_size: int,
+    dataset: DatasetConfig | None = None,
 ) -> dict[str, object]:
     """Fail closed on an incomplete or mismatched tokenizer artifact."""
     manifest_path = path.with_name("tokenizer_manifest.json")
@@ -55,7 +61,80 @@ def verify_tokenizer_artifact(
         or manifest.get("vocab_size") != vocab_size
     ):
         raise ValueError(f"tokenizer artifact provenance or digest mismatch: {path}")
+    if source == "local_stories":
+        if dataset is None:
+            raise ValueError(
+                "local_stories tokenizer verification requires dataset configuration"
+            )
+        assert dataset.source_manifest_path is not None
+        verify_snapshot(dataset)
+        snapshot_digest = hashlib.sha256(
+            dataset.source_manifest_path.read_bytes()
+        ).hexdigest()
+        if manifest.get("source_manifest_sha256") != snapshot_digest:
+            raise ValueError("tokenizer snapshot identity mismatch")
     return manifest
+
+
+def _bounded_documents(
+    config: TokenizerTrainConfig,
+    stats: dict[str, object],
+    *,
+    whole_documents: bool = False,
+):
+    """Replay the same train prefix without retaining corpus strings in memory."""
+    selected = acquired = byte_count = 0
+    digest = hashlib.sha256()
+    documents = iter(iter_documents(config.dataset, "train"))
+    budget = config.dataset.train_max_tokens
+    stop_reason = "source_exhausted"
+    while acquired < config.max_documents and byte_count < budget:
+        try:
+            document = next(documents)
+        except StopIteration:
+            break
+        acquired += 1
+        if not document:
+            continue
+        encoded = document.encode("utf-8")
+        remaining = budget - byte_count
+        if len(encoded) > remaining:
+            if whole_documents:
+                stop_reason = "byte_limit"
+                break
+            document = encoded[:remaining].decode("utf-8", errors="ignore")
+            encoded = document.encode("utf-8")
+            truncated = True
+        else:
+            truncated = False
+        if document:
+            digest.update(encoded + b"\0")
+            byte_count += len(encoded)
+            selected += 1
+            yield document
+        if truncated:
+            stop_reason = "byte_limit"
+            break
+    if stop_reason == "source_exhausted":
+        if acquired >= config.max_documents:
+            stop_reason = "document_limit"
+        elif byte_count >= budget:
+            stop_reason = "byte_limit"
+    stats.update(
+        acquired=acquired,
+        selected=selected,
+        bytes=byte_count,
+        digest=digest.hexdigest(),
+        stop_reason=stop_reason,
+    )
+
+
+def _snapshot_digest(config: TokenizerTrainConfig) -> str | None:
+    if config.dataset.source != "local_stories":
+        return None
+    assert config.dataset.source_manifest_path is not None
+    verify_snapshot(config.dataset)
+    return hashlib.sha256(config.dataset.source_manifest_path.read_bytes()).hexdigest()
 
 
 def train_tokenizer(config: TokenizerTrainConfig) -> Path:
@@ -68,12 +147,10 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
     json_path = output / "tokenizer.json"
     manifest_path = output / "tokenizer_manifest.json"
 
-    selected: list[str] = []
-    digest = hashlib.sha256()
-    documents = iter(iter_documents(config.dataset, "train"))
     input_byte_budget = config.dataset.train_max_tokens
-    selected_input_bytes = 0
-    acquired = 0
+    source_manifest_sha256 = _snapshot_digest(config)
+    whole_documents = config.dataset.source == "local_stories"
+    stats: dict[str, object] = {}
     source_started = time.monotonic()
     with progress_phase(
         "tokenizer_dataset_initialization_and_source_iteration",
@@ -85,48 +162,20 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
             "source_bytes": 0,
         },
     ) as progress:
-        while (
-            acquired < config.max_documents and selected_input_bytes < input_byte_budget
-        ):
-            try:
-                document = next(documents)
-            except StopIteration:
-                break
-            acquired += 1
-            if not document:
-                continue
-            encoded = document.encode("utf-8")
-            remaining = input_byte_budget - selected_input_bytes
-            truncated = len(encoded) > remaining
-            if truncated:
-                document = encoded[:remaining].decode("utf-8", errors="ignore")
-                encoded = document.encode("utf-8")
-            if document:
-                selected.append(document)
-                digest.update(encoded)
-                digest.update(b"\0")
-                selected_input_bytes += len(encoded)
-            if acquired % 500 == 0:
-                progress.update(
-                    completed_work=acquired,
-                    unit="documents",
-                    raw_counters={
-                        "documents_acquired": acquired,
-                        "documents_retained": len(selected),
-                        "source_bytes": selected_input_bytes,
-                    },
-                )
-            if truncated:
-                break
-        source_elapsed = max(time.monotonic() - source_started, 1e-9)
+        for _ in _bounded_documents(config, stats, whole_documents=whole_documents):
+            pass
+        selected = int(stats["selected"])
+        selected_input_bytes = int(stats["bytes"])
+        acquired = int(stats["acquired"])
         progress.update(
             completed_work=acquired,
             unit="documents",
             raw_counters={
                 "documents_acquired": acquired,
-                "documents_retained": len(selected),
+                "documents_retained": selected,
                 "source_bytes": selected_input_bytes,
-                "source_bytes_per_second": selected_input_bytes / source_elapsed,
+                "source_bytes_per_second": selected_input_bytes
+                / max(time.monotonic() - source_started, 1e-9),
             },
         )
     if not selected:
@@ -139,7 +188,10 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         "input_byte_budget_utf8": input_byte_budget,
         "selected_input_bytes_utf8": selected_input_bytes,
         "max_documents": config.max_documents,
-        "content_digest_sha256": digest.hexdigest(),
+        "stop_reason": stats["stop_reason"],
+        "acquired_documents": acquired,
+        "content_digest_sha256": stats["digest"],
+        "source_manifest_sha256": source_manifest_sha256,
     }
     if json_path.exists() or manifest_path.exists():
         if json_path.is_file() and manifest_path.is_file():
@@ -171,18 +223,27 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         total_work=1,
         unit="trainer_calls",
         raw_counters={
-            "documents": len(selected),
+            "documents": selected,
             "source_bytes": selected_input_bytes,
         },
     ) as progress:
-        tokenizer.train_from_iterator(selected, trainer=trainer)
+        replay_stats: dict[str, object] = {}
+        tokenizer.train_from_iterator(
+            _bounded_documents(config, replay_stats, whole_documents=whole_documents),
+            trainer=trainer,
+            length=selected,
+        )
+        if replay_stats != stats:
+            raise ValueError(
+                "tokenizer training source changed between prefix verification and BPE fit"
+            )
         bpe_elapsed = max(time.monotonic() - bpe_started, 1e-9)
         progress.update(
             completed_work=1,
             total_work=1,
             unit="trainer_calls",
             raw_counters={
-                "documents": len(selected),
+                "documents": selected,
                 "source_bytes": selected_input_bytes,
                 "bpe_input_bytes_per_second": selected_input_bytes / bpe_elapsed,
             },
@@ -243,9 +304,14 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
                 "sha256": content_sha256,
                 "training_contract": training_contract,
                 "license": config.dataset.license
-                if config.dataset.source == "local_chat"
+                if config.dataset.source in {"local_chat", "local_stories"}
                 else None,
                 "requested_vocab_size": config.vocab_size,
+                **(
+                    {"bpe_fit_seconds": bpe_elapsed}
+                    if config.dataset.source == "local_stories"
+                    else {}
+                ),
                 "vocab_size": actual,
                 "special_ids": {
                     token: tokenizer.token_to_id(token) for token in SPECIAL_TOKENS
@@ -256,10 +322,11 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
                 "source": config.dataset.source,
                 "revision": config.dataset.revision,
                 "split": "train",
-                "selected_documents": len(selected),
+                "selected_documents": selected,
                 "input_byte_budget_utf8": input_byte_budget,
                 "selected_input_bytes_utf8": selected_input_bytes,
-                "content_digest_sha256": digest.hexdigest(),
+                "content_digest_sha256": stats["digest"],
+                "source_manifest_sha256": source_manifest_sha256,
                 "tokenizers_version": __import__("tokenizers").__version__,
             },
         )

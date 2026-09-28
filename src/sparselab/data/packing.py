@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import resource
+import shutil
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -22,6 +24,7 @@ from sparselab.data.conversations import (
     iter_rendered_conversations,
 )
 from sparselab.data.datasets import iter_documents
+from sparselab.data.local_stories import verify_snapshot
 from sparselab.progress import progress_phase
 from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 from sparselab.workdir import ensure_work_dir
@@ -577,6 +580,167 @@ def _collect(
     )
 
 
+class _ArraySpool:
+    """Bounded in-memory chunks with a disk-backed, exactly sized final array."""
+
+    def __init__(self, path: Path, dtype: np.dtype) -> None:
+        self.path = path
+        self.dtype = np.dtype(dtype)
+        self.raw_path = path.with_suffix(".raw")
+        self.raw = self.raw_path.open("xb")
+        self.buffer: list[int | bool] = []
+        self.count = 0
+
+    def append(self, values: list[int] | list[bool]) -> None:
+        self.buffer.extend(values)
+        self.count += len(values)
+        if len(self.buffer) >= 65_536:
+            self.flush()
+
+    def flush(self) -> None:
+        if self.buffer:
+            self.raw.write(np.asarray(self.buffer, dtype=self.dtype).tobytes())
+            self.buffer.clear()
+
+    def finish(self) -> None:
+        self.flush()
+        self.raw.flush()
+        os.fsync(self.raw.fileno())
+        self.raw.close()
+        temporary = self.path.with_name(self.path.stem + ".tmp.npy")
+        with temporary.open("xb") as output, self.raw_path.open("rb") as source:
+            np.lib.format.write_array_header_1_0(
+                output,
+                {
+                    "descr": np.lib.format.dtype_to_descr(self.dtype),
+                    "fortran_order": False,
+                    "shape": (self.count,),
+                },
+            )
+            shutil.copyfileobj(source, output, length=1024 * 1024)
+            output.flush()
+            os.fsync(output.fileno())
+        temporary.replace(self.path)
+        self.raw_path.unlink()
+
+
+def _collect_streaming(
+    config: DatasetConfig,
+    tokenizer: Tokenizer,
+    split: str,
+    root: Path,
+    *,
+    selected_documents: int,
+    byte_table_size: int | None = None,
+    byte_ngram_size: int | None = None,
+) -> dict[str, int]:
+    """Pack every selected story, refusing a partial document or short source."""
+    max_tokens = (
+        config.train_max_tokens if split == "train" else config.validation_max_tokens
+    )
+    eos = tokenizer.token_to_id("<eos>")
+    if eos is None:
+        raise ValueError("tokenizer has no <eos> special token")
+    ids = _ArraySpool(root / f"{split}.npy", np.dtype(np.int32))
+    supervision = _ArraySpool(root / f"{split}_supervision.npy", np.dtype(bool))
+    byte_addresses = (
+        _ArraySpool(root / f"{split}_byte_addresses.npy", np.dtype(np.int32))
+        if byte_table_size is not None
+        else None
+    )
+    stats = {
+        "acquired_documents": 0,
+        "retained_documents": 0,
+        "skipped_documents": 0,
+        "truncated_documents": 0,
+    }
+    with progress_phase(
+        f"data_{split}_document_iteration_and_collection",
+        completed_work=0,
+        total_work=selected_documents,
+        unit="documents",
+        raw_counters=stats,
+    ) as progress:
+        documents = iter(_source_documents(config, split))
+        while stats["retained_documents"] < selected_documents:
+            try:
+                rendered = next(documents)
+            except StopIteration:
+                break
+            stats["acquired_documents"] += 1
+            document = rendered.text
+            if not document:
+                stats["skipped_documents"] += 1
+                continue
+            encoding = tokenizer.encode(document, add_special_tokens=False)
+            selected = encoding.ids + [eos]
+            if ids.count + len(selected) > max_tokens:
+                raise ValueError(
+                    f"{split} token cap would truncate selected story "
+                    f"{stats['acquired_documents']}: {ids.count + len(selected)} "
+                    f"> {max_tokens}"
+                )
+            selected_supervision = _supervision_for_encoding(
+                rendered, encoding.offsets, len(encoding.ids)
+            )
+            selected_supervision.append(
+                rendered.loss_mode == "all_tokens" or bool(rendered.supervision_spans)
+            )
+            if byte_addresses is not None:
+                assert byte_ngram_size is not None and byte_table_size is not None
+                prefix = bytearray()
+                addresses: list[int] = []
+                for piece in _encoded_token_bytes(tokenizer, encoding.ids, document):
+                    prefix.extend(piece)
+                    addresses.append(
+                        table_address(bytes(prefix[-byte_ngram_size:]), byte_table_size)
+                    )
+                addresses.append(0)
+                byte_addresses.append(addresses)
+            ids.append(selected)
+            supervision.append(selected_supervision)
+            stats["retained_documents"] += 1
+            if stats["acquired_documents"] % 500 == 0:
+                progress.update(
+                    completed_work=stats["retained_documents"],
+                    total_work=selected_documents,
+                    unit="documents",
+                    raw_counters={
+                        **stats,
+                        "output_tokens": ids.count,
+                        "peak_host_rss_bytes": resource.getrusage(
+                            resource.RUSAGE_SELF
+                        ).ru_maxrss
+                        * 1024,
+                    },
+                )
+        if stats["retained_documents"] != selected_documents:
+            raise ValueError(
+                f"{split} snapshot has only {stats['retained_documents']} "
+                f"selected distinct stories; required {selected_documents}"
+            )
+        for spool in (ids, supervision, byte_addresses):
+            if spool is not None:
+                spool.finish()
+        stats["output_tokens"] = ids.count
+        stats["artifact_bytes"] = sum(
+            spool.path.stat().st_size
+            for spool in (ids, supervision, byte_addresses)
+            if spool is not None
+        )
+        stats["artifact_files"] = 2 + (byte_addresses is not None)
+        stats["peak_host_rss_bytes"] = (
+            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+        )
+        progress.update(
+            completed_work=selected_documents,
+            total_work=selected_documents,
+            unit="documents",
+            raw_counters=stats,
+        )
+    return stats
+
+
 def _atomic_array(path: Path, values: np.ndarray) -> None:
     temporary = path.with_name(path.stem + ".tmp.npy")
     with progress_phase(
@@ -600,6 +764,11 @@ def _atomic_array(path: Path, values: np.ndarray) -> None:
 
 def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     """Prepare immutable IDs and causal sidecars with an optional allocation."""
+    local_stories = (
+        verify_snapshot(config.dataset)
+        if config.dataset.source == "local_stories"
+        else None
+    )
     local_chat = _local_chat_identity(config.dataset)
     source_digest = source_identity()["sha256"]
     allocation = None
@@ -624,9 +793,24 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "dataset": {
             key: value
             for key, value in config.dataset.model_dump(mode="json").items()
-            if key not in {"cache_dir", "train_path", "validation_path"}
+            if key
+            not in {
+                "cache_dir",
+                "train_path",
+                "validation_path",
+                "source_manifest_path",
+            }
         },
         "local_chat_source": local_chat,
+        **(
+            {
+                "local_stories_source_sha256": hashlib.sha256(
+                    canonical_json(local_stories)
+                ).hexdigest()
+            }
+            if local_stories is not None
+            else {}
+        ),
         "allocation_manifest_sha256": None if allocation is None else allocation.sha256,
         "packing": {
             "memory": config.model.memory,
@@ -701,12 +885,41 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         if byte_enabled
         else {}
     )
-    train, train_supervision, train_byte, train_stats = _collect(
-        config.dataset, tokenizer, "train", **settings
-    )
-    validation, validation_supervision, validation_byte, validation_stats = _collect(
-        config.dataset, tokenizer, "validation", **settings
-    )
+    if config.dataset.source == "local_stories":
+        assert local_stories is not None
+        train_stats = _collect_streaming(
+            config.dataset,
+            tokenizer,
+            "train",
+            temporary_root,
+            selected_documents=min(
+                config.dataset.train_max_documents,
+                local_stories["splits"]["train"]["count"],
+            ),
+            **settings,
+        )
+        validation_stats = _collect_streaming(
+            config.dataset,
+            tokenizer,
+            "validation",
+            temporary_root,
+            selected_documents=min(
+                config.dataset.validation_max_documents,
+                local_stories["splits"]["validation"]["count"],
+            ),
+            **settings,
+        )
+        train = np.load(temporary_root / "train.npy", mmap_mode="r", allow_pickle=False)
+        validation = np.load(
+            temporary_root / "validation.npy", mmap_mode="r", allow_pickle=False
+        )
+    else:
+        train, train_supervision, train_byte, train_stats = _collect(
+            config.dataset, tokenizer, "train", **settings
+        )
+        validation, validation_supervision, validation_byte, validation_stats = (
+            _collect(config.dataset, tokenizer, "validation", **settings)
+        )
     if (
         len(train) < config.training.seq_len + 1
         or len(validation) < config.training.seq_len + 1
@@ -727,14 +940,19 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         ):
             if values is not None:
                 _atomic_array(temporary_root / name, values)
-    _atomic_array(temporary_root / "train.npy", train)
-    _atomic_array(temporary_root / "validation.npy", validation)
-    _atomic_array(temporary_root / "train_supervision.npy", train_supervision)
-    _atomic_array(temporary_root / "validation_supervision.npy", validation_supervision)
-    if byte_enabled:
-        assert train_byte is not None and validation_byte is not None
-        _atomic_array(temporary_root / "train_byte_addresses.npy", train_byte)
-        _atomic_array(temporary_root / "validation_byte_addresses.npy", validation_byte)
+    if config.dataset.source != "local_stories":
+        _atomic_array(temporary_root / "train.npy", train)
+        _atomic_array(temporary_root / "validation.npy", validation)
+        _atomic_array(temporary_root / "train_supervision.npy", train_supervision)
+        _atomic_array(
+            temporary_root / "validation_supervision.npy", validation_supervision
+        )
+        if byte_enabled:
+            assert train_byte is not None and validation_byte is not None
+            _atomic_array(temporary_root / "train_byte_addresses.npy", train_byte)
+            _atomic_array(
+                temporary_root / "validation_byte_addresses.npy", validation_byte
+            )
     attributions = {
         "tinystories": {
             "license": "CDLA-Sharing-1.0",
@@ -751,6 +969,10 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "local_chat": {
             "license": config.dataset.license,
             "source_attribution": "user-provided local_chat",
+        },
+        "local_stories": {
+            "license": "CDLA-Sharing-1.0",
+            "source_attribution": "roneneldan/TinyStories pinned local snapshot",
         },
         "synthetic": {
             "license": "synthetic fixture",

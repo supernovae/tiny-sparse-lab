@@ -1,0 +1,19 @@
+{
+  "format": "tinystories_dense_30m_data_rich_preregistration_v1",
+  "base_main_commit": "cfd84d8e5479677c4f3cd80cc7423b2f8cc78176",
+  "triage_cherry_pick": "cf6eef4",
+  "source_dataset": "roneneldan/TinyStories",
+  "source_revision": "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64",
+  "license": "CDLA-Sharing-1.0",
+  "frozen_sha256": {
+    "experiments/research/tinystories-dense-30m-data-rich-v1/protocol.md": "a410c552ec19c9d140f56c0cbc3fa7fbf64af756786fd0c7eccc8af0b449e4d8",
+    "data/dense_lm_v1_prompts.json": "118839f291b8741d233ce19baff15f0dcb9cef52eb907208ff6ac9a81bc3408e",
+    "experiments/research/dense-lm-decoding-v1/development.json": "0a5ea9633cae160433e64d574d879cf72724d56462f26486386365a74d646eb4",
+    "experiments/research/dense-lm-decoding-v1/test.json": "7ffc8b0645b9f77764c2de045efaaa25d47ec4f7454243207b737a7d84d8d077",
+    "experiments/research/dense-lm-decoding-v1/evidence/selection.json": "141a7efb4f7f022b4bad7d95895bb05fc7e968468d7eda7060095d3fadc9b1f6",
+    "src/sparselab/evaluation/generation.py": "da1db84d5e756a2acf1f40dcc93cad1a43dd67a8eabafda24bb14d273ccedaa2"
+  },
+  "reference_checkpoint_receipt": "experiments/research/dense-lm-decoding-v1/preregistration.json",
+  "tokenizer_selection": "smallest valid vocab within 1.02 of minimum dev token/UTF-8 byte",
+  "frozen_before": "snapshot acquisition and candidate fitting; final snapshot/tokenizer/runtime/config/checkpoint hashes belong in later additive receipts"
+}

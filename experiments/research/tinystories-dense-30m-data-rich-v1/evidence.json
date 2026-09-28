@@ -1,0 +1,370 @@
+{
+  "endpoint": {
+    "checkpoint_digest": "1f090d8aaa2afc9ac38282917fdd8454fbf2682abca3aaa4ee9ab7e0e3abcdb1",
+    "checkpoint_manifest_sha256": "b02fe9910963677c606940af23367d0cdf83eaf95ccf58f1b78714a6eb797361",
+    "checkpoint_verification": "full-state CLI valid=true, errors=[]",
+    "config_sha256": "c8e3144cbee3a245ccf0737e7f1c5a13b2839c0cadaa0a303ec16f284d8e16f8",
+    "generation": "step_00024576_gen_000014",
+    "run_id": "tinystories-dense-30m-data-rich-v1-seed42",
+    "step": 24576,
+    "tokens_seen": 100663296,
+    "validation_loss_sampled_packed": 1.6627538204193115
+  },
+  "format": "tinystories_dense_30m_data_rich_evidence_v1",
+  "launch": {
+    "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/staging/launch-receipt.json",
+    "sha256": "47feb4f6511726b402ff7276cbb6a8aeb9f4391b2195e93676d8f64fcc66fe84",
+    "size_bytes": 1517
+  },
+  "outputs": {
+    "control/30m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/control/30m.jsonl",
+        "sha256": "1e60a59ab906fc3ffe416171567fbf6a4f6313c22bdbb2fc1f9d28835e5d40fd",
+        "size_bytes": 90374
+      },
+      "summary": {
+        "bits_per_byte": 0.9752258174338816,
+        "failed_stories": 0,
+        "nll_per_byte": 0.675975025763563,
+        "nll_per_target": 2.8383111930297793,
+        "perplexity": 17.086884706943934,
+        "successful_stories": 256,
+        "sum_document_tokens": 48723,
+        "sum_nll_nats": 139017.64392340556,
+        "sum_targets": 48979,
+        "sum_utf8_bytes": 205655,
+        "type": "summary"
+      }
+    },
+    "control/50m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/control/50m.jsonl",
+        "sha256": "2f4ad08f59c6d55f8e092d8d6969750ec0209f34ae2bf73acbddb49715540eb4",
+        "size_bytes": 90387
+      },
+      "summary": {
+        "bits_per_byte": 0.9557594477706624,
+        "failed_stories": 0,
+        "nll_per_byte": 0.662481966515765,
+        "nll_per_target": 2.781655991829144,
+        "perplexity": 16.145736028884002,
+        "successful_stories": 256,
+        "sum_document_tokens": 48723,
+        "sum_nll_nats": 136242.72882379964,
+        "sum_targets": 48979,
+        "sum_utf8_bytes": 205655,
+        "type": "summary"
+      }
+    },
+    "control/new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/control/new.jsonl",
+        "sha256": "05ff0d09bf435789d6fea57b2cfa95b2ce1a4c8b683b54a47a86a7d1046ad1e4",
+        "size_bytes": 91200
+      },
+      "summary": {
+        "bits_per_byte": 0.6687292138828791,
+        "failed_stories": 0,
+        "nll_per_byte": 0.46352776916098626,
+        "nll_per_target": 1.9520980354842552,
+        "perplexity": 7.043449496638098,
+        "successful_stories": 256,
+        "sum_document_tokens": 48577,
+        "sum_nll_nats": 95326.80336680263,
+        "sum_targets": 48833,
+        "sum_utf8_bytes": 205655,
+        "type": "summary"
+      }
+    },
+    "generation/development-30m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/development-30m.jsonl",
+        "sha256": "dbd3f43aa3d0c25ba758bf0f6336debf164623ce92cf2e0e1390528b09394820",
+        "size_bytes": 109236
+      },
+      "cells": 66,
+      "early_eos": 20,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 22,
+          "policy": "greedy",
+          "short_subset": true
+        },
+        {
+          "count": 44,
+          "policy": "temperature_0_8",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/development-50m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/development-50m.jsonl",
+        "sha256": "90c421512f41145198e55f3f6a1e529af2f1bdcc61c4988224c46c1a50e49016",
+        "size_bytes": 110569
+      },
+      "cells": 66,
+      "early_eos": 17,
+      "explicit_contradictions": 1,
+      "policy_and_short_counts": [
+        {
+          "count": 22,
+          "policy": "greedy",
+          "short_subset": true
+        },
+        {
+          "count": 44,
+          "policy": "temperature_0_8",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/development-new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/development-new.jsonl",
+        "sha256": "1ac730212a6c3109f7b3a3dc20e893663d300cf86e250f05ff111567d31e0b85",
+        "size_bytes": 112281
+      },
+      "cells": 66,
+      "early_eos": 15,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 22,
+          "policy": "greedy",
+          "short_subset": true
+        },
+        {
+          "count": 44,
+          "policy": "temperature_0_8",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/long-development-new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/long-development-new.jsonl",
+        "sha256": "6ace2369dee5060c484e6dd5dcbf542ac06b0b762a0e72a8dc51477a0dcc0aad",
+        "size_bytes": 57946
+      },
+      "cells": 12,
+      "early_eos": 9,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 4,
+          "policy": "greedy",
+          "short_subset": false
+        },
+        {
+          "count": 8,
+          "policy": "temperature_0_8",
+          "short_subset": false
+        }
+      ]
+    },
+    "generation/long-test-new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/long-test-new.jsonl",
+        "sha256": "f551331f1fe6b4081e70d4c4ffe850846ca6b2d60be4226d02c80d72c7a9ac9c",
+        "size_bytes": 56676
+      },
+      "cells": 12,
+      "early_eos": 12,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 4,
+          "policy": "greedy",
+          "short_subset": false
+        },
+        {
+          "count": 8,
+          "policy": "temperature_0_8",
+          "short_subset": false
+        }
+      ]
+    },
+    "generation/regression-30m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/regression-30m.jsonl",
+        "sha256": "c071bbe8a7e43fad9e1f9e7e99e5331a0817c7d830b12bf5ff93593bcb893f42",
+        "size_bytes": 9384
+      },
+      "cells": 6,
+      "early_eos": 2,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 6,
+          "policy": "greedy",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/regression-50m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/regression-50m.jsonl",
+        "sha256": "c253a553244dc4cd63164c63c25139bc38d83cfac64ad43e8fd0d56ebab8c130",
+        "size_bytes": 9699
+      },
+      "cells": 6,
+      "early_eos": 1,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 6,
+          "policy": "greedy",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/regression-new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/regression-new.jsonl",
+        "sha256": "ca984a963ec300db06cb20f6e71dc9d95afefd595f2fbbcb82e9e8640d5fb5d4",
+        "size_bytes": 10546
+      },
+      "cells": 6,
+      "early_eos": 1,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 6,
+          "policy": "greedy",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/test-30m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/test-30m.jsonl",
+        "sha256": "e5c3e5adb3457dbab1f76b7b3ba73ef97a22e65723310f89cee0bbba1f554296",
+        "size_bytes": 266289
+      },
+      "cells": 165,
+      "early_eos": 37,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 55,
+          "policy": "greedy",
+          "short_subset": true
+        },
+        {
+          "count": 110,
+          "policy": "temperature_0_8",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/test-50m": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/test-50m.jsonl",
+        "sha256": "42b818457b7c57c252be147aea1856430b98613261cbf0531eb404d0da4233c7",
+        "size_bytes": 266237
+      },
+      "cells": 165,
+      "early_eos": 44,
+      "explicit_contradictions": 0,
+      "policy_and_short_counts": [
+        {
+          "count": 55,
+          "policy": "greedy",
+          "short_subset": true
+        },
+        {
+          "count": 110,
+          "policy": "temperature_0_8",
+          "short_subset": true
+        }
+      ]
+    },
+    "generation/test-new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/generation/test-new.jsonl",
+        "sha256": "4ba069150865a9bb91a60ecc7215a3976e3b0543313ead6de919628285f1e468",
+        "size_bytes": 267617
+      },
+      "cells": 165,
+      "early_eos": 34,
+      "explicit_contradictions": 4,
+      "policy_and_short_counts": [
+        {
+          "count": 55,
+          "policy": "greedy",
+          "short_subset": true
+        },
+        {
+          "count": 110,
+          "policy": "temperature_0_8",
+          "short_subset": true
+        }
+      ]
+    },
+    "heldout/new": {
+      "artifact": {
+        "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/evaluation/heldout/new.jsonl",
+        "sha256": "71e46c64a972186f9188caaea76c0630ccf410e9bc35c4568c45c6acfc6e61f8",
+        "size_bytes": 2696965
+      },
+      "summary": {
+        "bits_per_byte": 0.5630643419165541,
+        "failed_stories": 0,
+        "nll_per_byte": 0.39028646107330045,
+        "nll_per_target": 1.6106355490988367,
+        "perplexity": 5.005991770589571,
+        "successful_stories": 8000,
+        "sum_document_tokens": 1591632,
+        "sum_nll_nats": 2576424.16467607,
+        "sum_targets": 1599632,
+        "sum_utf8_bytes": 6601367,
+        "type": "summary"
+      }
+    }
+  },
+  "run_manifest": {
+    "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs/tinystories-dense-30m-data-rich-v1-seed42/manifest.json",
+    "sha256": "4ca0d30128790c7a111ba57e1eb0b1d6bacac4a1a21d89642bec1a0c5bd90702",
+    "size_bytes": 37008
+  },
+  "triage": {
+    "artifact": {
+      "relative_path": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs/tinystories-dense-30m-data-rich-v1-seed42/post-train-triage/1670540c7fb28ac02c88f569506cd2e6e8ff1532bded3a4b02488ebb1f08e6f2.json",
+      "sha256": "1670540c7fb28ac02c88f569506cd2e6e8ff1532bded3a4b02488ebb1f08e6f2",
+      "size_bytes": 38338
+    },
+    "integrity": {
+      "generation": "step_00024576_gen_000014",
+      "generation_manifest_sha256": "1f090d8aaa2afc9ac38282917fdd8454fbf2682abca3aaa4ee9ab7e0e3abcdb1",
+      "status": "PASS",
+      "step": 24576,
+      "targets": 100663296,
+      "verification_scope": "full"
+    },
+    "recommendations": [
+      {
+        "action": "new preregistered independent decoder/behavior study",
+        "estimated_cost_class": "medium",
+        "evidence_references": [
+          "core",
+          "tier1",
+          "triggers.DECODER_SENSITIVITY_DETECTED"
+        ],
+        "requires_training": false,
+        "trigger": "DECODER_SENSITIVITY_DETECTED"
+      },
+      {
+        "action": "NOT RECOMMENDED YET: resolve cheaper independent behavior question before new training",
+        "estimated_cost_class": "high",
+        "evidence_references": [
+          "triggers"
+        ],
+        "requires_training": true,
+        "trigger": "TRAINING_POLICY"
+      }
+    ]
+  }
+}

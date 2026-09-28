@@ -1,0 +1,74 @@
+schema_version: 2
+name: tinystories-dense-30m-data-rich-v1
+seed: 42
+model:
+  vocab_size: 8192
+  hidden_dim: 512
+  num_layers: 8
+  num_heads: 8
+  ffn_dim: 1408
+  max_seq_len: 512
+tokenizer:
+  path: ../sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/tokenizers/bakeoff-v1/8192/tokenizer.json
+dataset:
+  source: local_stories
+  revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64
+  license: CDLA-Sharing-1.0
+  train_path: ../sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/source/snapshot-v1/train.jsonl
+  validation_path: ../sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/source/snapshot-v1/validation.jsonl
+  source_manifest_path: ../sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/source/snapshot-v1/manifest.json
+  cache_dir: ../sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/data
+  train_max_documents: 1000000
+  validation_max_documents: 10000
+  train_max_tokens: 220566090
+  validation_max_tokens: 1983356
+training:
+  seq_len: 512
+  max_steps: 24576
+  max_tokens: 100663296
+  micro_batch_size: 8
+  gradient_accumulation: 1
+  grad_clip_norm: 1.0
+  deterministic: true
+optimizer:
+  name: adamw
+  peak: 0.0003
+  floor: 0.00003
+  warmup_steps: 256
+  decay_steps: 24576
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  state_offload: false
+runtime:
+  engine: pytorch
+  backend: rocm
+  device_index: 0
+  precision: bf16
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.9
+    budget_bytes: null
+    activation_checkpointing:
+      enabled: false
+      strategy: transformer_block
+    activation_offload:
+      enabled: false
+    allowed_sequence_lengths: []
+    allowed_optimizers: []
+checkpoint:
+  every_steps: null
+  every_tokens: null
+  every_minutes: null
+  steps: [0, 1024, 2048, 4096, 8192, 12288, 16384, 20480, 24576]
+  keep_periodic: true
+evaluation:
+  every_steps: 2048
+  max_batches: 128
+logging:
+  root_dir: ../sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs
+  every_steps: 1
+  architecture_diagnostics: scalar
+staging:
+  smoke_steps: 2
+  warmup_steps: 5

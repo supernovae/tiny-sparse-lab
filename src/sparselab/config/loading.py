@@ -19,6 +19,7 @@ _PATH_KEYS = {
     "train_path",
     "validation_path",
     "allocation_manifest_path",
+    "source_manifest_path",
 }
 
 

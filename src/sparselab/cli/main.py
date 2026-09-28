@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 from sparselab.batch_calibration import calibrate_batch
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
+from sparselab.data.bakeoff import bakeoff
+from sparselab.data.local_stories import snapshot
 from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import (
     load_tokenizer,
@@ -52,6 +54,8 @@ from sparselab.evaluation.chat import ChatMessage, assistant_reply, prepare_chat
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.inference import load_run, write_inference_result
+from sparselab.evaluation.post_train_triage import read_triage, triage_summary
+from sparselab.evaluation.surface_overlay import surface_review_status
 from sparselab.evaluation.withheld_facts import (
     evaluate_withheld_facts,
     write_withheld_evaluation,
@@ -107,6 +111,8 @@ def _dashboard(args: argparse.Namespace) -> None:
     if args.lifecycle is not None:
         command.extend(["--lifecycle", args.lifecycle])
     command.extend(["--evidence-root", args.evidence_root])
+    if args.surface_dir is not None:
+        command.extend(["--surface-dir", args.surface_dir])
     subprocess.run(command, check=True)
 
 
@@ -590,6 +596,22 @@ def _runtime_status(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
 
 
+def _data_snapshot(args: argparse.Namespace) -> None:
+    print(
+        snapshot(
+            Path(args.output),
+            train_count=args.train_count,
+            validation_count=args.validation_count,
+            cache_dir=Path(args.cache_dir) if args.cache_dir else None,
+        )
+    )
+
+
+def _data_bakeoff(args: argparse.Namespace) -> None:
+    config = load_config(Path(args.config))
+    print(bakeoff(config.dataset, Path(args.output)))
+
+
 def _data_prepare(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     verify_tokenizer_artifact(
@@ -597,6 +619,7 @@ def _data_prepare(args: argparse.Namespace) -> None:
         source=config.dataset.source,
         revision=config.dataset.revision,
         vocab_size=config.model.vocab_size,
+        dataset=config.dataset,
     )
     tokenizer = load_tokenizer(config.tokenizer.path)
     print(prepare_data(config, tokenizer).root)
@@ -654,6 +677,72 @@ def _readiness_smoke(args: argparse.Namespace) -> None:
     )
 
 
+def _triage_summary(
+    report: dict[str, object] | None,
+    error: str | None = None,
+    *,
+    run_id: str | None = None,
+    runs_dir: Path | None = None,
+) -> str:
+    if report is None:
+        return f"POST-TRAIN TRIAGE\n  UNKNOWN: {error or 'no verified report'}"
+    triggers = report["triggers"]
+    fired = sorted(
+        code for code, details in triggers.items() if details["fired"] is True
+    )
+    lines = [
+        "POST-TRAIN TRIAGE",
+        f"  {triage_summary(report)}",
+        f"  Triggers: {', '.join(fired) if fired else 'none verified'}",
+    ]
+    integrity = report["core"]["integrity"]
+    if integrity["status"] != "PASS":
+        lines.append(
+            f"  Checkpoint integrity: {integrity.get('reason') or 'unknown reason'}"
+        )
+    if run_id is not None and runs_dir is not None:
+        from sparselab.training.manifest import canonical_json
+
+        digest = hashlib.sha256(canonical_json(report) + b"\n").hexdigest()
+        lines.append(
+            f"  Report: {runs_dir / run_id / 'post-train-triage' / (digest + '.json')}"
+        )
+    return "\n".join(lines)
+
+
+def _triage_report(
+    run_id: str, runs_dir: Path
+) -> tuple[dict[str, object] | None, str | None]:
+    try:
+        report = read_triage(run_id, runs_dir)
+    except (OSError, ValueError) as error:
+        return None, f"invalid or ambiguous artifact: {error}"
+    if report is None:
+        return None, "no verified post-train triage artifact"
+    return report, None
+
+
+def _triage(args: argparse.Namespace) -> None:
+    report, error = _triage_report(args.run_id, Path(args.runs_dir))
+    overlay = (
+        surface_review_status(args.run_id, Path(args.runs_dir), Path(args.surface_dir))
+        if args.surface_dir is not None
+        else None
+    )
+    if args.json:
+        payload = report if report is not None else {"status": "UNKNOWN", "reason": error}
+        if overlay is not None:
+            payload = {"triage": payload, "surface_review": overlay}
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    summary = _triage_summary(report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir))
+    if overlay is not None:
+        summary += f"\nSURFACE REVIEW (read-only)\n  Independent subjective quality: {overlay['independent_subjective_quality']}"
+        for bundle in overlay["bundles"]:
+            summary += f"\n  {bundle['status']}: {bundle['path']}"
+    print(summary)
+
+
 def _train(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     if args.runs_dir is not None:
@@ -670,19 +759,33 @@ def _train(args: argparse.Namespace) -> None:
                 "runtime": config.runtime.model_copy(update={"backend": args.backend})
             }
         )
-    print(
-        train(
-            config,
-            resume=Path(args.resume) if args.resume else None,
-            extend_budget=Path(args.extend_budget) if args.extend_budget else None,
-            promote=Path(args.promote) if args.promote else None,
-            recover=Path(args.recover) if args.recover else None,
-            run_id=args.run_id,
-            stop_after_step=args.stop_after_step,
-            allow_runtime_drift=args.allow_runtime_drift,
-            stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
-        )
+    run_id = train(
+        config,
+        resume=Path(args.resume) if args.resume else None,
+        extend_budget=Path(args.extend_budget) if args.extend_budget else None,
+        promote=Path(args.promote) if args.promote else None,
+        recover=Path(args.recover) if args.recover else None,
+        run_id=args.run_id,
+        stop_after_step=args.stop_after_step,
+        allow_runtime_drift=args.allow_runtime_drift,
+        stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
     )
+    print(run_id)
+    progress = config.logging.root_dir / run_id / "progress.json"
+    try:
+        if progress.is_symlink():
+            raise ValueError("run progress is a symlink")
+        status = json.loads(progress.read_text(encoding="utf-8")).get("status")
+    except (OSError, ValueError, TypeError) as error:
+        print(_triage_summary(None, f"cannot verify training completion: {error}"))
+        return
+    if status == "completed":
+        report, error = _triage_report(run_id, config.logging.root_dir)
+        print(
+            _triage_summary(
+                report, error, run_id=run_id, runs_dir=config.logging.root_dir
+            )
+        )
 
 
 def _eval(args: argparse.Namespace) -> None:
@@ -2032,6 +2135,16 @@ def build_parser() -> argparse.ArgumentParser:
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_prepare = data_commands.add_parser("prepare")
     data_prepare.add_argument("config")
+    data_snapshot = data_commands.add_parser("snapshot")
+    data_snapshot.add_argument("output", type=Path)
+    data_snapshot.add_argument("--cache-dir", type=Path)
+    data_snapshot.add_argument("--train-count", type=int, default=1_000_000)
+    data_snapshot.add_argument("--validation-count", type=int, default=10_000)
+    data_snapshot.set_defaults(handler=_data_snapshot)
+    data_bakeoff = data_commands.add_parser("bakeoff")
+    data_bakeoff.add_argument("config")
+    data_bakeoff.add_argument("output", type=Path)
+    data_bakeoff.set_defaults(handler=_data_bakeoff)
     facts = commands.add_parser("facts")
     fact_commands = facts.add_subparsers(dest="fact_command", required=True)
     manifest = fact_commands.add_parser("manifest")
@@ -2161,6 +2274,15 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument("--stop-after-step", type=int)
     training.add_argument("--stage-bundle")
     training.set_defaults(handler=_train)
+    triage = commands.add_parser(
+        "triage",
+        help="Read an existing verified post-train triage report (no diagnostics).",
+    )
+    triage.add_argument("run_id")
+    triage.add_argument("--runs-dir", default=runs_dir_default)
+    triage.add_argument("--json", action="store_true")
+    triage.add_argument("--surface-dir", help="Optional directory of verified Surface Review bundles")
+    triage.set_defaults(handler=_triage)
     model = commands.add_parser("model")
     model_commands = model.add_subparsers(dest="model_command", required=True)
     model_exercise = model_commands.add_parser(
@@ -2615,7 +2737,11 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
     dashboard.add_argument("--lifecycle")
     dashboard.add_argument("--evidence-root", default=".")
+    dashboard.add_argument("--surface-dir", help="Optional read-only Surface Review overlay")
     dashboard.set_defaults(handler=_dashboard)
+    from sparselab.cli.surface import add_commands as add_surface_commands
+
+    add_surface_commands(commands)
     from sparselab.workers.cli import add_commands
 
     add_commands(commands, default_store=Path(runs_dir_default))

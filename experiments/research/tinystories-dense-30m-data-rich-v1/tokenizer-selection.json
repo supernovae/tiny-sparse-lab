@@ -1,0 +1,15 @@
+{
+  "format": "tinystories_dense_30m_tokenizer_selection_v1",
+  "source_manifest_sha256": "42b42f1db25d69702eab6bc56bbe7bc07b349d2afff1cfeb2a931b1036708417",
+  "raw_receipt": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/tokenizers/bakeoff-v1/selection_receipt.json",
+  "raw_receipt_sha256": "2fcce52895b6d78c2e2da0baa69b5a6e8e5e68067fbc960c2b52be683bb14737",
+  "candidate_tokens_per_utf8_byte": {"8192": 0.24028835307388607, "12000": 0.23885942913544436, "16384": 0.2383791344371928},
+  "development_count": 2000,
+  "fit_train_count": 250000,
+  "fit_train_utf8_bytes": 226320485,
+  "fit_train_content_sha256": "bb5954139f5ae1bdd16973bff232fb090d743e6ae800b3144d7b606398a6a5ec",
+  "selected_vocab_size": 8192,
+  "selected_tokenizer_sha256": "4c351be179075c1d4884bf043303e113dd905edaaf398ac4d7842068496c3ac3",
+  "choice_rule": "smallest valid vocabulary within 1.02 of minimum 2000-development-story token/UTF-8 byte ratio",
+  "result": "8192 is 1.0080 times the 16384 ratio; all candidates valid; no model results used"
+}
