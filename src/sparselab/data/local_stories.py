@@ -12,10 +12,30 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from sparselab.config.models import DatasetConfig
+from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 
 REVISION = "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64"
 LICENSE = "CDLA-Sharing-1.0"
 DATASET = "roneneldan/TinyStories"
+
+
+def _hub_stream(split: str, cache_dir: Path) -> Iterator[dict[str, object]]:
+    from datasets import load_dataset
+
+    auth = hub_auth_kwargs()
+    try:
+        stream = load_dataset(
+            DATASET,
+            name="default",
+            split=split,
+            revision=REVISION,
+            streaming=True,
+            cache_dir=str(cache_dir),
+            **auth,
+        )
+        yield from stream
+    except HUB_ACCESS_ERRORS as error:
+        raise_for_hub_auth(error, credential_supplied=bool(auth))
 
 
 def _digest(path: Path) -> str:
@@ -184,7 +204,6 @@ def snapshot(
         raise FileNotFoundError(
             f"snapshot parent directory is missing: {output_dir.parent}"
         )
-    from datasets import load_dataset
 
     from sparselab.engram.packs import _rename_noreplace
 
@@ -204,14 +223,7 @@ def snapshot(
                 path = staging / f"{split}.jsonl"
                 content_hash = hashlib.sha256()
                 count = text_bytes = duplicates = overlap = empty = 0
-                stream = load_dataset(
-                    DATASET,
-                    name="default",
-                    split=split,
-                    revision=REVISION,
-                    streaming=True,
-                    cache_dir=str(cache_dir or output_dir.parent / "hf-cache"),
-                )
+                stream = _hub_stream(split, cache_dir or output_dir.parent / "hf-cache")
                 with path.open("wb") as handle:
                     for ordinal, record in enumerate(stream):
                         text = record.get("text")

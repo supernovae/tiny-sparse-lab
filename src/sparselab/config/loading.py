@@ -20,6 +20,8 @@ _PATH_KEYS = {
     "validation_path",
     "allocation_manifest_path",
     "source_manifest_path",
+    "corpus_release_path",
+    "corpus_export_path",
 }
 
 

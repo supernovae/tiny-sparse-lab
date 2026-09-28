@@ -1,0 +1,9 @@
+# Explicit sample settings; no external service or network access.
+schema_version: 1
+reader:
+  max_documents: 64
+  strict_utf8: true
+  verify_sha256: true
+storage:
+  local_only: true
+  snapshot_mode: immutable

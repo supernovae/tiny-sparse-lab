@@ -1,0 +1,16 @@
+schema_version: 1
+id: sample_docs
+kind: local
+origin: human_authored
+canonical_uri: sparselab://corpora/devmind-sample-v0/guide.md
+revision: sample-v0
+license: MIT
+redistribution: redistributable
+domains: [technical_docs]
+document_kinds: [markdown]
+source_family: sample_docs_train
+acquisition:
+  files:
+    - path: sources/fixtures/guide.md
+      name: guide.md
+  max_bytes: 1000000

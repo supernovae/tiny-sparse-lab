@@ -23,6 +23,7 @@ from statistics import median
 import numpy as np
 
 from sparselab.config.models import RunConfig
+from sparselab.corpus.export import verify_release_export
 from sparselab.data.allocation import (
     copy_allocation_bundle,
     load_allocation_manifest,
@@ -35,7 +36,7 @@ from sparselab.data.packing import (
     load_prepared_data,
     prepare_data,
 )
-from sparselab.data.tokenizer import load_tokenizer
+from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engines.base import EngineState, Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.evaluation.post_train_triage import triage_completed_run
@@ -206,6 +207,19 @@ def _copy_artifacts(
         shutil.copy2(
             source_run / "tokenizer_manifest.json", run / "tokenizer_manifest.json"
         )
+    if config.dataset.corpus_release_path is not None:
+        binding = verify_release_export(config.dataset)
+        corpus_dir = run / "corpus"
+        corpus_dir.mkdir()
+        evidence = ("manifest.json", "report.json", "license-report.json", "audit.json")
+        for name in evidence:
+            shutil.copy2(config.dataset.corpus_release_path / name, corpus_dir / name)
+        shutil.copy2(
+            config.dataset.corpus_export_path / "export.json",
+            corpus_dir / "export.json",
+        )
+        if sha256_file(corpus_dir / "export.json") != binding["export_sha256"]:
+            raise ValueError("corpus export changed while copying run evidence")
     shutil.copytree(data.root, run / "data")
     manifest_source = (
         source_run / "portability_manifest.json"
@@ -492,6 +506,14 @@ def _train_impl(
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
     deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
+    if config.dataset.corpus_release_path is not None:
+        verify_tokenizer_artifact(
+            config.tokenizer.path,
+            source=config.dataset.source,
+            revision=config.dataset.revision,
+            vocab_size=config.model.vocab_size,
+            dataset=config.dataset,
+        )
     operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):

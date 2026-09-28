@@ -1,0 +1,6 @@
+id: sample_chat
+version: '1'
+kind: chat_sft
+parameters:
+  semantic_shapes: [direct_qa, troubleshooting_scenario, decision_record]
+inputs: [sample_path_scenarios, sample_semantic]

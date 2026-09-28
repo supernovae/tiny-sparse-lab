@@ -1,0 +1,5 @@
+id: sample_tool
+version: '1'
+kind: tool_episode
+parameters: {}
+inputs: [sample_path_scenarios]

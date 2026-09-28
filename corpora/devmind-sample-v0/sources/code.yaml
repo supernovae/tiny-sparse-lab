@@ -1,0 +1,16 @@
+schema_version: 1
+id: sample_code
+kind: local
+origin: human_authored
+canonical_uri: sparselab://corpora/devmind-sample-v0/checks.py
+revision: sample-v0
+license: MIT
+redistribution: redistributable
+domains: [code]
+document_kinds: [code]
+source_family: sample_code_validation
+acquisition:
+  files:
+    - path: sources/fixtures/checks.py
+      name: checks.py
+  max_bytes: 1000000

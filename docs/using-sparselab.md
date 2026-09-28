@@ -18,6 +18,13 @@ uv run sparselab generate combined-smoke --prompt "Once upon a time" --max-new-t
 
 `inspect` reports a shape-only architecture/parameter inventory, conservative memory estimates, runtime information, and recommendations without constructing the model. `train` writes run-local immutable inputs and checkpoint generations. `eval` measures next-token loss over valid supervised targets in the **run-owned** validation data and saves the exact checkpoint identity. `generate` prints prompt plus continuation (greedy by default). A smoke run proves execution, not useful language ability; the [capability workflow](capabilities.md) defines narrow measured tasks.
 
+For remote datasets, Corpus Forge Hub sources, or the Pythia reference adapter,
+configure a read-only account token as described in the
+[Hugging Face access guide](huggingface-access.md). Local/offline fixtures need no token.
+
+When changing code, run the nearest tests first; the [fast test feedback
+guide](test-speed.md) gives local commands and explains the full PR gates.
+
 ## Scratch and artifact locations
 
 Implicit temporary files default to `sparselab-work/` under the nearest `pyproject.toml` directory, or `./sparselab-work` outside a project. Set `SPARSELAB_WORK_DIR` or pass the global `--work-dir PATH` before the subcommand to select another path; the CLI option takes precedence, and relative paths resolve from the current directory. SparseLab initializes Python and child-process temporary-file settings before command execution. External tools that ignore `TMPDIR` need an explicit temporary path under the selected work directory. Study submission and research scaffolding also derive default execution workspaces from `<work-dir>/experiments/<study-name>`. Planning alone does not create the execution workspace. SSH workers use their own remote environment and project root; configure `SPARSELAB_WORK_DIR` on that host to override its default. See [explicit campaign cleanup](workspaces.md#explicit-campaign-cleanup) for bounded retention proposals.

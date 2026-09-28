@@ -25,6 +25,7 @@ from torch.nn import functional
 
 from sparselab.config.models import RunConfig
 from sparselab.data.datasets import iter_documents
+from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
 
 PYTHIA_MODEL_ID = "EleutherAI/pythia-70m-deduped"
@@ -218,9 +219,13 @@ def _snapshot(
         "revision": checkpoint.commit,
         "allow_patterns": list(_SNAPSHOT_ALLOW_PATTERNS),
     }
+    kwargs.update(hub_auth_kwargs())
     if cache_dir is not None:
         kwargs["cache_dir"] = str(cache_dir)
-    snapshot = Path(snapshot_download(**kwargs))
+    try:
+        snapshot = Path(snapshot_download(**kwargs))
+    except HUB_ACCESS_ERRORS as error:
+        raise_for_hub_auth(error, credential_supplied="token" in kwargs)
     files = _validate_snapshot(snapshot)
     _validate_model_metadata(snapshot)
     return snapshot, files

@@ -60,6 +60,19 @@ uv run sparselab dashboard --runs-dir sparselab-work/runs
 
 The smoke configuration is intentionally tiny. It exercises tokenizer, prepared data, training, evaluation, checkpointing, and local inference; it does not demonstrate fluent generation, broad capability, a performance win, or hardware capacity at larger scale. `stage --through warmup` runs disposable pilot subprocesses and seals their evidence; it does not alter the full run's weights, optimizer, schedule, counters, cursor, or RNG.
 
+For auditable offline corpus derivation without training, use the
+[`devmind-sample-v0` teaching recipe](corpora/devmind-sample-v0/README.md).
+`sparselab corpus acquire`, `build`, `freeze`, and `export` keep source snapshots
+and release views in the ignored `sparselab-work/corpora/` workspace. Frozen
+release IDs and exact export hashes bind tokenizer fitting, preparation, and run
+evidence; inspection commands verify artifacts before reading them. This small
+MIT-authored fixture and its path oracle are not a scientific campaign or
+evidence of model quality.
+Corpus Forge also tracks independent [origin, verification, and training-shape
+lineage](docs/corpus-provenance.md). Variant release recipes reuse source
+snapshots for controlled shape and generated-token ablations; measurement
+does not itself establish training usefulness.
+
 For large, offline-replayable TinyStories inputs, `sparselab data snapshot OUTPUT`
 captures one pinned ordered train/validation source snapshot into a
 new directory and rejects partial or reused destinations. Set `source: local_stories`,

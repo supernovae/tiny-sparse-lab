@@ -51,6 +51,7 @@ and add that implementation gap to [TODO.md](../../TODO.md). The main open
 questions are:
 
 - **Useful tasks:** establish one low-risk real task against an independent test population and a simple baseline, with declared error handling and human review.
+- **Corpus shape and synthetic fraction:** preregister paired releases from the same licensed source snapshots with declared shape/fraction filters, held-out source/world/template units, fixed tokenizer/target token budget and controlled model/seed/evaluation suites. Compare recall, paraphrase, troubleshooting, tool use and abstention separately; report negative and mixed effects rather than a universal synthetic percentage or shape ranking. The [Corpus Forge ledger](../corpus-provenance.md) provides measurement inputs, not an observed outcome.
 - **Lexical Engram:** test transfer/generalization across independent task data, held-out wording/facts, seeds, and collision/capacity controls; keep token and byte results distinct.
 - **Portable byte Engram:** extend the negative two-case result to multiple recipient configurations and held-out cases; prove adapter updates leave source table bytes unchanged and retain disabled/random/frozen-only controls.
 - **Semantic EngramPack:** distinguish exact retrieval of supplied vectors from natural-language understanding. Any text-query capability first needs a reproducible encoder/space contract, an exercised query path, leakage-audited tasks, pack controls, and measured encoder/retrieval cost.

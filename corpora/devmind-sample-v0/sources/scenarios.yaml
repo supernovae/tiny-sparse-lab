@@ -1,0 +1,13 @@
+schema_version: 1
+id: sample_scenarios
+kind: deterministic_generator
+canonical_uri: sparselab://generators/pathlib_path_suffix_v1
+revision: '1'
+license: MIT
+redistribution: redistributable
+domains: [systems_scenarios]
+document_kinds: [scenario]
+source_family: sample_scenarios
+acquisition:
+  generator: pathlib_path_suffix_v1
+  generator_version: '1'

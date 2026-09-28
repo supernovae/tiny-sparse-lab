@@ -15,6 +15,7 @@ from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.trainers import BpeTrainer
 
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
+from sparselab.corpus.export import verify_release_export
 from sparselab.data.datasets import iter_documents
 from sparselab.data.local_stories import verify_snapshot
 from sparselab.progress import progress_phase
@@ -73,6 +74,17 @@ def verify_tokenizer_artifact(
         ).hexdigest()
         if manifest.get("source_manifest_sha256") != snapshot_digest:
             raise ValueError("tokenizer snapshot identity mismatch")
+    if dataset is not None and dataset.corpus_release_path is not None:
+        binding = verify_release_export(dataset)
+        if (
+            manifest.get("corpus_export") != binding
+            or manifest.get("training_contract", {}).get("corpus_export") != binding
+        ):
+            raise ValueError("tokenizer corpus export identity mismatch")
+    elif manifest.get("corpus_export") is not None:
+        raise ValueError(
+            "corpus tokenizer verification requires frozen export configuration"
+        )
     return manifest
 
 
@@ -148,8 +160,17 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
     manifest_path = output / "tokenizer_manifest.json"
 
     input_byte_budget = config.dataset.train_max_tokens
+    corpus_export = (
+        verify_release_export(config.dataset)
+        if config.dataset.corpus_release_path is not None
+        else None
+    )
+    if corpus_export is not None and corpus_export["vocab_size"] != config.vocab_size:
+        raise ValueError(
+            "corpus export vocabulary size does not match tokenizer request"
+        )
     source_manifest_sha256 = _snapshot_digest(config)
-    whole_documents = config.dataset.source == "local_stories"
+    whole_documents = config.dataset.source in {"local_stories", "local_text"}
     stats: dict[str, object] = {}
     source_started = time.monotonic()
     with progress_phase(
@@ -192,6 +213,7 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
         "acquired_documents": acquired,
         "content_digest_sha256": stats["digest"],
         "source_manifest_sha256": source_manifest_sha256,
+        **({"corpus_export": corpus_export} if corpus_export is not None else {}),
     }
     if json_path.exists() or manifest_path.exists():
         if json_path.is_file() and manifest_path.is_file():
@@ -304,7 +326,8 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
                 "sha256": content_sha256,
                 "training_contract": training_contract,
                 "license": config.dataset.license
-                if config.dataset.source in {"local_chat", "local_stories"}
+                if config.dataset.source
+                in {"local_chat", "local_text", "local_stories"}
                 else None,
                 "requested_vocab_size": config.vocab_size,
                 **(
@@ -327,6 +350,11 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
                 "selected_input_bytes_utf8": selected_input_bytes,
                 "content_digest_sha256": stats["digest"],
                 "source_manifest_sha256": source_manifest_sha256,
+                **(
+                    {"corpus_export": corpus_export}
+                    if corpus_export is not None
+                    else {}
+                ),
                 "tokenizers_version": __import__("tokenizers").__version__,
             },
         )
