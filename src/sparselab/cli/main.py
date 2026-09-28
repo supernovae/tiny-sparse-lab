@@ -730,12 +730,16 @@ def _triage(args: argparse.Namespace) -> None:
         else None
     )
     if args.json:
-        payload = report if report is not None else {"status": "UNKNOWN", "reason": error}
+        payload = (
+            report if report is not None else {"status": "UNKNOWN", "reason": error}
+        )
         if overlay is not None:
             payload = {"triage": payload, "surface_review": overlay}
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
-    summary = _triage_summary(report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir))
+    summary = _triage_summary(
+        report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir)
+    )
     if overlay is not None:
         summary += f"\nSURFACE REVIEW (read-only)\n  Independent subjective quality: {overlay['independent_subjective_quality']}"
         for bundle in overlay["bundles"]:
@@ -2281,7 +2285,9 @@ def build_parser() -> argparse.ArgumentParser:
     triage.add_argument("run_id")
     triage.add_argument("--runs-dir", default=runs_dir_default)
     triage.add_argument("--json", action="store_true")
-    triage.add_argument("--surface-dir", help="Optional directory of verified Surface Review bundles")
+    triage.add_argument(
+        "--surface-dir", help="Optional directory of verified Surface Review bundles"
+    )
     triage.set_defaults(handler=_triage)
     model = commands.add_parser("model")
     model_commands = model.add_subparsers(dest="model_command", required=True)
@@ -2737,7 +2743,9 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
     dashboard.add_argument("--lifecycle")
     dashboard.add_argument("--evidence-root", default=".")
-    dashboard.add_argument("--surface-dir", help="Optional read-only Surface Review overlay")
+    dashboard.add_argument(
+        "--surface-dir", help="Optional read-only Surface Review overlay"
+    )
     dashboard.set_defaults(handler=_dashboard)
     from sparselab.cli.surface import add_commands as add_surface_commands
 

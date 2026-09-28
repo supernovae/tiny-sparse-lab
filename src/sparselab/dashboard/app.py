@@ -367,7 +367,9 @@ def _runtime_forecast_panel(view: DashboardSnapshot, selected_ids: list[str]) ->
         st.json(detail, expanded=False)
 
 
-def _triage_panel(root: Path, selected_ids: list[str], surface_dir: Path | None = None) -> None:
+def _triage_panel(
+    root: Path, selected_ids: list[str], surface_dir: Path | None = None
+) -> None:
     st.subheader("Post-train triage (read-only)")
     for run_id in selected_ids:
         try:
@@ -381,12 +383,16 @@ def _triage_panel(root: Path, selected_ids: list[str], surface_dir: Path | None 
         st.write(f"{run_id}: {triage_summary(report)}")
         if surface_dir is not None:
             overlay = surface_review_status(run_id, root, surface_dir)
-            st.write(f"{run_id}: independent subjective quality — {overlay['independent_subjective_quality']}")
+            st.write(
+                f"{run_id}: independent subjective quality — {overlay['independent_subjective_quality']}"
+            )
             for bundle in overlay["bundles"]:
                 st.caption(f"{bundle['status']}: {bundle['path']}")
 
 
-def training(view: DashboardSnapshot, root: Path | None = None, surface_dir: Path | None = None) -> None:
+def training(
+    view: DashboardSnapshot, root: Path | None = None, surface_dir: Path | None = None
+) -> None:
     st.header("Training")
     records, selected_ids = selected(view)
     _runtime_forecast_panel(view, selected_ids)
