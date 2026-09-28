@@ -24,6 +24,8 @@ from sparselab.data.conversations import (
 from sparselab.data.datasets import iter_documents
 from sparselab.progress import progress_phase
 from sparselab.training.manifest import canonical_json, sha256_file, source_identity
+from sparselab.workdir import ensure_work_dir
+from sparselab.workspace_cleanup import campaign_lock, mark_prepared_cache
 
 PACKING_VERSION = "contiguous-eos-v5"
 HISTORICAL_PACKING_VERSION = "contiguous-eos-v4"
@@ -596,7 +598,7 @@ def _atomic_array(path: Path, values: np.ndarray) -> None:
         )
 
 
-def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
+def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     """Prepare immutable IDs and causal sidecars with an optional allocation."""
     local_chat = _local_chat_identity(config.dataset)
     source_digest = source_identity()["sha256"]
@@ -879,6 +881,24 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     return load_prepared_data(
         root, byte_enabled=byte_enabled, expected_identity=cache_identity
     )
+
+
+def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
+    """Prepare data and mark only new caches owned by the selected workspace."""
+    workspace = ensure_work_dir()
+    base = config.dataset.cache_dir
+    if (
+        base.is_symlink()
+        or not base.resolve().is_relative_to(workspace)
+        or base.resolve() == workspace
+    ):
+        return _prepare_data(config, tokenizer)
+    with campaign_lock(workspace):
+        existing = {child.name for child in base.iterdir()} if base.is_dir() else set()
+        prepared = _prepare_data(config, tokenizer)
+        if prepared.root.name not in existing:
+            mark_prepared_cache(workspace, prepared.root)
+        return prepared
 
 
 class TokenBlockDataset:

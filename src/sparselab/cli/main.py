@@ -72,7 +72,8 @@ from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
-from sparselab.workdir import WORK_DIR_ENV, ensure_work_dir
+from sparselab.workdir import ensure_work_dir
+from sparselab.workspace_cleanup import apply_cleanup, plan_cleanup, write_plan
 from sparselab.workspace_preflight import (
     tokenizer_storage_checks,
     training_storage_checks,
@@ -107,6 +108,20 @@ def _dashboard(args: argparse.Namespace) -> None:
         command.extend(["--lifecycle", args.lifecycle])
     command.extend(["--evidence-root", args.evidence_root])
     subprocess.run(command, check=True)
+
+
+def _workspace_cleanup_plan(args: argparse.Namespace) -> None:
+    plan = plan_cleanup(
+        Path(args.workspace),
+        max_extra_periodic=args.max_extra_periodic,
+        max_cache_entries=args.max_cache_entries,
+    )
+    write_plan(plan, Path(args.output))
+    print(json.dumps(plan, sort_keys=True))
+
+
+def _workspace_cleanup_apply(args: argparse.Namespace) -> None:
+    print(json.dumps(apply_cleanup(Path(args.plan)), sort_keys=True))
 
 
 def _facts_manifest(args: argparse.Namespace) -> None:
@@ -1985,6 +2000,19 @@ def build_parser() -> argparse.ArgumentParser:
     workspace_preflight.add_argument("config")
     workspace_preflight.add_argument("--tokenizer", action="store_true")
     workspace_preflight.set_defaults(handler=_workspace_preflight)
+    workspace_cleanup = workspace_commands.add_parser("cleanup")
+    cleanup_commands = workspace_cleanup.add_subparsers(
+        dest="cleanup_command", required=True
+    )
+    cleanup_plan = cleanup_commands.add_parser("plan")
+    cleanup_plan.add_argument("workspace")
+    cleanup_plan.add_argument("--output", required=True)
+    cleanup_plan.add_argument("--max-extra-periodic", type=int, default=2)
+    cleanup_plan.add_argument("--max-cache-entries", type=int, default=2)
+    cleanup_plan.set_defaults(handler=_workspace_cleanup_plan)
+    cleanup_apply = cleanup_commands.add_parser("apply")
+    cleanup_apply.add_argument("plan")
+    cleanup_apply.set_defaults(handler=_workspace_cleanup_apply)
     runtime = commands.add_parser("runtime")
     runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
     runtime_status = runtime_commands.add_parser("status")
@@ -2596,6 +2624,5 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    if args.work_dir is not None:
-        os.environ[WORK_DIR_ENV] = str(args.work_dir)
+    ensure_work_dir(args.work_dir)
     args.handler(args)

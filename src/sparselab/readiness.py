@@ -11,6 +11,7 @@ import yaml
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.training.manifest import config_sha256, source_identity
+from sparselab.workdir import ensure_work_dir
 
 SMOKE_FAMILIES = {
     "dense": "smoke_cpu.yaml",
@@ -34,6 +35,7 @@ def smoke_readiness(
     configs_root: Path, output: Path, *, families: tuple[str, ...] = ()
 ) -> Path:
     """Exercise inspect through resumed inference with isolated mutable outputs."""
+    ensure_work_dir()
     selected = families or tuple(SMOKE_FAMILIES)
     if not selected or any(name not in SMOKE_FAMILIES for name in selected):
         raise ValueError("unknown smoke family")

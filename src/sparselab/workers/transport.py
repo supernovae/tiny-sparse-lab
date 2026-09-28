@@ -407,6 +407,7 @@ def call_worker(
     """Invoke one finite endpoint under one deadline, including upload hashing."""
     if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("timeout must be finite and positive")
+    ensure_work_dir()
     deadline = time.monotonic() + float(timeout)
     validate_operation(op, payload)
     if receive_dir is None and op in {"records", "artifact"}:

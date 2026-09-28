@@ -55,6 +55,7 @@ from sparselab.training.manifest import (
 )
 from sparselab.training.metrics import SCHEMA_VERSION, ExperimentStore
 from sparselab.training.stages import ExperimentStage, StageHistory
+from sparselab.workdir import ensure_work_dir
 
 _LEVELS = {"inspect": 1, "validate": 2, "smoke": 3, "warmup": 4}
 _MAX_REPORT_BYTES = 16 * 1024 * 1024
@@ -455,6 +456,7 @@ def _run_pilot(
     directory = root / "pilots" / purpose
     directory.mkdir(parents=True)
     log_path = directory / "execution.log"
+    ensure_work_dir()
     with log_path.open("xb") as log:
         completed = subprocess.run(
             [
