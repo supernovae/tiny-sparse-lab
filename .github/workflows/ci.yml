@@ -13,6 +13,20 @@ jobs:
         with:
           version: "0.16.8"
           args: check .
+      - name: Verify frozen decoding test identity
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          frozen = json.loads(Path("experiments/research/dense-lm-decoding-v1/preregistration.json").read_text())
+          test = Path("tests/test_generation.py")
+          expected = frozen["frozen_sha256"][test.as_posix()]
+          actual = hashlib.sha256(test.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"{test}: frozen preregistration digest changed")
+          PY
       - uses: astral-sh/ruff-action@v4.1.0
         with:
           version: "0.16.8"
