@@ -1,0 +1,5 @@
+id: sample_lm
+version: '1'
+kind: lm_text
+parameters: {}
+inputs: [sample_docs, sample_code, sample_config]

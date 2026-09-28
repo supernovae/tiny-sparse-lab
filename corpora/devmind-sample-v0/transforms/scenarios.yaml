@@ -1,0 +1,8 @@
+id: sample_path_scenarios
+version: '1'
+kind: deterministic_scenarios
+parameters:
+  generator: pathlib_path_suffix_v1
+  world_seeds: [11, 23, 37]
+  scenario_families: [sample_world_train, sample_world_validation, sample_world_test]
+inputs: [sample_scenarios]

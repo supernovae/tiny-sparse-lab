@@ -150,6 +150,25 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     manifest = read_manifest(run / "manifest.json")
     artifacts = _validated_artifacts(run, manifest)
     config = manifest["effective_config"]
+    corpus_release_sha256 = None
+    corpus_report_path = None
+    if "corpus/export.json" in artifacts:
+        export = json.loads(
+            (run / "corpus" / "export.json").read_text(encoding="utf-8")
+        )
+        if not isinstance(export, dict) or export.get("release_id") != config[
+            "dataset"
+        ].get("revision"):
+            raise ValueError("run corpus export and config identities disagree")
+        for name, digest_key in (
+            ("manifest.json", "release_manifest_sha256"),
+            ("report.json", "report_sha256"),
+            ("license-report.json", "license_report_sha256"),
+        ):
+            if artifacts.get("corpus/" + name) != export.get(digest_key):
+                raise ValueError(f"run corpus evidence digest mismatch: {name}")
+        corpus_release_sha256 = export["release_id"]
+        corpus_report_path = "corpus/report.json"
     seq_len = config["training"]["seq_len"]
     batch_size = config["training"]["micro_batch_size"]
     supervision_name = "data/validation_supervision.npy"
@@ -230,6 +249,8 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     return {
         "format": "experiment_evidence_v2",
         "run_id": manifest["run_id"],
+        "corpus_release_sha256": corpus_release_sha256,
+        "corpus_report_path": corpus_report_path,
         "source_identity_sha256": manifest["source_identity"]["sha256"],
         "verified_checkpoints": verified,
         "checkpoint_count": len(checkpoints),

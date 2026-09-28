@@ -17,6 +17,7 @@ import torch
 from tokenizers import Tokenizer
 
 from sparselab.config.models import DatasetConfig, RunConfig
+from sparselab.corpus.export import verify_release_export
 from sparselab.data.allocation import AllocationManifest, load_allocation_manifest
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.data.conversations import (
@@ -357,14 +358,16 @@ def _encoded_token_bytes(
 
 
 def _local_chat_identity(config: DatasetConfig) -> dict[str, str] | None:
-    if config.source != "local_chat":
+    if config.source not in {"local_chat", "local_text"}:
         return None
     paths = (
         getattr(config, "train_path", None),
         getattr(config, "validation_path", None),
     )
     if not all(isinstance(path, Path) and path.is_file() for path in paths):
-        raise ValueError("local_chat requires readable train_path and validation_path")
+        raise ValueError(
+            f"{config.source} requires readable train_path and validation_path"
+        )
     return {
         "train_sha256": sha256_file(paths[0]),
         "validation_sha256": sha256_file(paths[1]),
@@ -372,7 +375,7 @@ def _local_chat_identity(config: DatasetConfig) -> dict[str, str] | None:
 
 
 def _assert_local_chat_disjoint(config: DatasetConfig) -> None:
-    if config.source != "local_chat":
+    if config.source not in {"local_chat", "local_text"}:
         return
     train = {
         hashlib.sha256(document.encode("utf-8")).digest()
@@ -769,6 +772,16 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         if config.dataset.source == "local_stories"
         else None
     )
+    corpus_export = (
+        verify_release_export(config.dataset)
+        if config.dataset.corpus_release_path is not None
+        else None
+    )
+    if (
+        corpus_export is not None
+        and corpus_export["vocab_size"] != config.model.vocab_size
+    ):
+        raise ValueError("corpus export vocabulary size does not match run model")
     local_chat = _local_chat_identity(config.dataset)
     source_digest = source_identity()["sha256"]
     allocation = None
@@ -799,9 +812,12 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
                 "train_path",
                 "validation_path",
                 "source_manifest_path",
+                "corpus_release_path",
+                "corpus_export_path",
             }
         },
         "local_chat_source": local_chat,
+        **({"corpus_export": corpus_export} if corpus_export is not None else {}),
         **(
             {
                 "local_stories_source_sha256": hashlib.sha256(
@@ -885,16 +901,21 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         if byte_enabled
         else {}
     )
-    if config.dataset.source == "local_stories":
-        assert local_stories is not None
+    if config.dataset.source in {"local_stories", "local_text"}:
+        if config.dataset.source == "local_stories":
+            assert local_stories is not None
         train_stats = _collect_streaming(
             config.dataset,
             tokenizer,
             "train",
             temporary_root,
-            selected_documents=min(
-                config.dataset.train_max_documents,
-                local_stories["splits"]["train"]["count"],
+            selected_documents=(
+                min(
+                    config.dataset.train_max_documents,
+                    local_stories["splits"]["train"]["count"],
+                )
+                if local_stories is not None
+                else config.dataset.train_max_documents
             ),
             **settings,
         )
@@ -903,9 +924,13 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             tokenizer,
             "validation",
             temporary_root,
-            selected_documents=min(
-                config.dataset.validation_max_documents,
-                local_stories["splits"]["validation"]["count"],
+            selected_documents=(
+                min(
+                    config.dataset.validation_max_documents,
+                    local_stories["splits"]["validation"]["count"],
+                )
+                if local_stories is not None
+                else config.dataset.validation_max_documents
             ),
             **settings,
         )
@@ -940,7 +965,7 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         ):
             if values is not None:
                 _atomic_array(temporary_root / name, values)
-    if config.dataset.source != "local_stories":
+    if config.dataset.source not in {"local_stories", "local_text"}:
         _atomic_array(temporary_root / "train.npy", train)
         _atomic_array(temporary_root / "validation.npy", validation)
         _atomic_array(temporary_root / "train_supervision.npy", train_supervision)
@@ -969,6 +994,10 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "local_chat": {
             "license": config.dataset.license,
             "source_attribution": "user-provided local_chat",
+        },
+        "local_text": {
+            "license": config.dataset.license,
+            "source_attribution": "frozen corpus local_text export",
         },
         "local_stories": {
             "license": "CDLA-Sharing-1.0",
@@ -1002,6 +1031,7 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "revision": config.dataset.revision,
         "dataset_config": config.dataset.dataset_config,
         **attributions[config.dataset.source],
+        **({"corpus_export": corpus_export} if corpus_export is not None else {}),
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
         "settings_sha256": hashlib.sha256(canonical_json(cache_identity)).hexdigest(),
         "source_identity_sha256": cache_identity["source_identity_sha256"],

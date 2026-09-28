@@ -1,0 +1,6 @@
+id: sample_lexical
+version: '1'
+kind: lexical_candidates
+parameters:
+  max_candidates: 100
+inputs: [sample_docs, sample_code, sample_config]

@@ -136,6 +136,7 @@ class DatasetConfig(StrictModel):
         "instruction_reference",
         "chat_recall",
         "local_chat",
+        "local_text",
         "local_stories",
         "withheld_facts",
         "engram_recall",
@@ -157,6 +158,12 @@ class DatasetConfig(StrictModel):
     )
     license: str | None = None
     allocation_manifest_path: Path | None = None
+    corpus_release_path: Path | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    corpus_export_path: Path | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def validate_source(self) -> DatasetConfig:
@@ -168,6 +175,19 @@ class DatasetConfig(StrictModel):
             raise ValueError(
                 "dataset.source_manifest_path requires source=local_stories"
             )
+        if (self.corpus_release_path is None) != (self.corpus_export_path is None):
+            raise ValueError(
+                "corpus_release_path and corpus_export_path must be supplied together"
+            )
+        if self.corpus_release_path is not None:
+            if self.source not in {"local_text", "local_chat"}:
+                raise ValueError("corpus export requires local_text or local_chat")
+            if (
+                not self.revision
+                or len(self.revision) != 64
+                or any(char not in "0123456789abcdef" for char in self.revision)
+            ):
+                raise ValueError("corpus export requires full SHA-256 dataset.revision")
         if self.source == "local_stories":
             from sparselab.data.local_stories import LICENSE, REVISION
 
@@ -203,23 +223,25 @@ class DatasetConfig(StrictModel):
             raise ValueError("dataset.revision is required for remote datasets")
         if self.source in {"fineweb_edu", "cosmopedia"} and not self.dataset_config:
             raise ValueError("dataset.dataset_config is required for this source")
-        if self.source == "local_chat":
+        if self.source in {"local_chat", "local_text"}:
             if self.train_path is None or self.validation_path is None:
-                raise ValueError("local_chat requires train_path and validation_path")
+                raise ValueError(
+                    f"{self.source} requires train_path and validation_path"
+                )
             if self.train_path.resolve() == self.validation_path.resolve():
                 raise ValueError(
-                    "local_chat training and validation must be separate files"
+                    f"{self.source} training and validation must be separate files"
                 )
             if not self.license or not self.license.strip():
                 raise ValueError(
-                    "local_chat requires explicit dataset.license provenance"
+                    f"{self.source} requires explicit dataset.license provenance"
                 )
         elif any(
             value is not None
             for value in (self.train_path, self.validation_path, self.license)
         ):
             raise ValueError(
-                "train_path, validation_path and license are only for local_chat or local_stories"
+                "train_path, validation_path and license are only for local_chat, local_text or local_stories"
             )
         return self
 

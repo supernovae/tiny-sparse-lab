@@ -31,31 +31,60 @@ jobs:
         with:
           version: "0.16.8"
           args: format --check .
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Focused configuration, corpus, and ingestion checks
+        run: >-
+          uv run --locked pytest -q
+          tests/test_config.py
+          tests/test_conversations.py
+          tests/test_corpus_acquisition.py
+          tests/test_corpus_pipeline.py
+          tests/test_hf_auth.py
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
-          version: "latest"
+          version: "0.12.19"
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
       - run: uv sync --locked --dev
-      - run: uv run pytest -m "not mps and not network"
-      - run: uv run sparselab --help
-      - run: uv run sparselab inspect configs/micro_dense.yaml --json
+      - name: Full CPU suite (Linux)
+        run: >-
+          uv run --locked pytest -q -n 2 --dist loadfile
+          -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
+      - run: uv run --locked sparselab --help
+      - run: uv run --locked sparselab inspect configs/micro_dense.yaml --json
   test-macos-arm64:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
-          version: "latest"
+          version: "0.12.19"
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
       - run: uv sync --locked --dev --extra mlx
-      - run: uv run pytest -m "not mps and not network"
-      - run: uv run sparselab --help
-      - run: uv run sparselab inspect configs/micro_dense.yaml --json
+      - name: Full CPU suite (macOS)
+        run: >-
+          uv run --locked pytest -q -n 2 --dist loadfile
+          -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
+      - name: MLX hardware tests (serial)
+        run: uv run --locked pytest -q -m "mlx and not mps and not network"
+      - run: uv run --locked sparselab --help
+      - run: uv run --locked sparselab inspect configs/micro_dense.yaml --json

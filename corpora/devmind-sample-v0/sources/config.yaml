@@ -1,0 +1,15 @@
+schema_version: 1
+id: sample_config
+kind: local
+canonical_uri: sparselab://corpora/devmind-sample-v0/settings.yaml
+revision: sample-v0
+license: MIT
+redistribution: redistributable
+domains: [configs]
+document_kinds: [config]
+source_family: sample_config_test
+acquisition:
+  files:
+    - path: sources/fixtures/settings.yaml
+      name: settings.yaml
+  max_bytes: 1000000

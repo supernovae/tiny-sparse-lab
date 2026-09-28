@@ -1,0 +1,5 @@
+id: sample_chat
+version: '1'
+kind: chat_sft
+parameters: {}
+inputs: [sample_path_scenarios]

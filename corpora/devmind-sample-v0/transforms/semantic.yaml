@@ -1,0 +1,5 @@
+id: sample_semantic
+version: '1'
+kind: semantic_candidates
+parameters: {}
+inputs: [sample_config]

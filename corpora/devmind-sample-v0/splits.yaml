@@ -1,0 +1,10 @@
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  sample_docs_train: train
+  sample_code_validation: validation
+  sample_config_test: test
+  sample_world_train: train
+  sample_world_validation: validation
+  sample_world_test: test

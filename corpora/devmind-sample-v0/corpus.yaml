@@ -1,0 +1,16 @@
+schema_version: 1
+id: devmind-sample-v0
+sources:
+  - sources/code.yaml
+  - sources/config.yaml
+  - sources/docs.yaml
+  - sources/scenarios.yaml
+transforms:
+  - transforms/chat.yaml
+  - transforms/lexical.yaml
+  - transforms/lm.yaml
+  - transforms/scenarios.yaml
+  - transforms/semantic.yaml
+  - transforms/tool.yaml
+splits: splits.yaml
+release: release.yaml
