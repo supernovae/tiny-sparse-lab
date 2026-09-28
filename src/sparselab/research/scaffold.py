@@ -15,7 +15,8 @@ from pydantic import ValidationError
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.engram.packs import _rename_noreplace
-from sparselab.experiments.matrix import _patchable_config, apply_patch, expand
+from sparselab.experiments.compiler import apply_patch, patchable_config
+from sparselab.experiments.matrix import expand
 from sparselab.experiments.study import plan_study, study_workspace
 from sparselab.model.portable_engram import load_portable_engram
 from sparselab.research.catalog import (
@@ -240,7 +241,7 @@ def _load_base() -> dict[str, object]:
     value = yaml.safe_load((_RESOURCE_ROOT / "base.yaml").read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise TypeError("packaged base config must contain a mapping")
-    patchable = _patchable_config(value)
+    patchable = patchable_config(value)
     if not isinstance(patchable, dict):
         raise TypeError("packaged base config must project to a mapping")
     return patchable

@@ -424,6 +424,7 @@ class ContinuationSpec(WorkerModel):
     checkpoint_sha256: str | None = None
     artifact_identity: ArtifactIdentity | None = None
     allow_runtime_drift: bool = False
+    budget_extension: bool = Field(default=False, exclude_if=lambda value: not value)
 
     @field_validator("parent_run_id")
     @classmethod
@@ -449,6 +450,12 @@ class ContinuationSpec(WorkerModel):
             )
         elif self.kind != "RESUMED" and self.allow_runtime_drift:
             raise ValueError("runtime drift only applies to full resume")
+        if self.budget_extension and (
+            self.kind != "RESUMED" or self.allow_runtime_drift
+        ):
+            raise ValueError(
+                "budget extension requires full-state resume without runtime drift"
+            )
         return self
 
 
@@ -475,6 +482,31 @@ class MatrixMetadata(WorkerModel):
         return value
 
 
+class PlanMetadata(WorkerModel):
+    """Lock identity preserved in the worker spec and run dispatch receipt."""
+
+    plan_id: str
+    plan_sha256: str
+    scientific_sha256: str
+    cell_id: str
+    phase_id: str
+    coordinate: dict[str, str]
+    config_sha256: str
+    parent_checkpoint_sha256: str | None = None
+    execution_binding_sha256: str | None = None
+
+    @field_validator(
+        "plan_sha256",
+        "scientific_sha256",
+        "config_sha256",
+        "parent_checkpoint_sha256",
+        "execution_binding_sha256",
+    )
+    @classmethod
+    def valid_digest(cls, value: str | None, info: Any) -> str | None:
+        return None if value is None else _sha256(value, info.field_name)
+
+
 class ExperimentSpec(WorkerModel):
     schema_version: int = SCHEMA_VERSION
     experiment_id: str
@@ -488,6 +520,9 @@ class ExperimentSpec(WorkerModel):
     source_identity_sha256: str
     dispatch_bundle_digest: str
     matrix: MatrixMetadata | None = None
+    plan: PlanMetadata | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @field_validator("schema_version")
     @classmethod

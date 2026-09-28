@@ -171,7 +171,7 @@ def _drift_authorized(continuation: Any) -> bool:
 
 
 def _verify_parent_closure(
-    config: RunConfig, selected: Path, *, resume: bool
+    config: RunConfig, selected: Path, *, resume: bool, budget_extension: bool = False
 ) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
     """Verify a selected generation and every parent-declared local input."""
     run, generation = _selected_run(selected)
@@ -184,7 +184,11 @@ def _verify_parent_closure(
         selected,
         expected_manifest=parent_digest,
         require_training_state=resume,
-        expected_config=config,
+        expected_config=(
+            RunConfig.model_validate(parent["effective_config"])
+            if budget_extension
+            else config
+        ),
     )
     if not report.valid:
         raise ValueError(f"selected continuation is invalid: {report.errors}")
@@ -250,16 +254,24 @@ def prepare_dispatch_bundle(
     stage_bundle: Path | None = None,
     promote: Path | None = None,
     resume: Path | None = None,
+    extend_budget: Path | None = None,
     allow_runtime_drift: bool = False,
 ) -> Any:
     """Freeze offline inputs and verified parent state without probing a device."""
-    if promote is not None and resume is not None:
-        raise ValueError("promotion and full resume are mutually exclusive")
+    if sum(path is not None for path in (promote, resume, extend_budget)) > 1:
+        raise ValueError(
+            "promotion, full resume and budget extension are mutually exclusive"
+        )
     if allow_runtime_drift and resume is None:
         raise ValueError("runtime drift requires an explicit full resume")
-    selected = resume or promote
+    selected = resume or extend_budget or promote
     parent_details = (
-        _verify_parent_closure(config, selected, resume=resume is not None)
+        _verify_parent_closure(
+            config,
+            selected,
+            resume=resume is not None or extend_budget is not None,
+            budget_extension=extend_budget is not None,
+        )
         if selected is not None
         else None
     )
@@ -277,7 +289,11 @@ def prepare_dispatch_bundle(
         prefix=f".{output.name}.", dir=output.parent
     ) as temp:
         work = Path(temp)
-        if parent_details is not None and resume is not None and stage_bundle is None:
+        if (
+            parent_details is not None
+            and (resume is not None or extend_budget is not None)
+            and stage_bundle is None
+        ):
             run, _, parent, _ = parent_details
             for identity in parent["artifacts"]:
                 _copy_tree(
@@ -334,7 +350,7 @@ def prepare_dispatch_bundle(
                 "tokenizer.json",
                 *(
                     ("data/manifest.json", "data/train.npy", "data/validation.npy")
-                    if resume is not None
+                    if resume is not None or extend_budget is not None
                     else ()
                 ),
             ):
@@ -350,7 +366,9 @@ def prepare_dispatch_bundle(
                     )
             continuation = _models().ContinuationSpec.model_validate(
                 {
-                    "kind": "RESUMED" if resume is not None else "PROMOTED",
+                    "kind": "RESUMED"
+                    if resume is not None or extend_budget is not None
+                    else "PROMOTED",
                     "parent_run_id": parent["run_id"],
                     "checkpoint_sha256": generation_manifest["sha256"],
                     "artifact_identity": {
@@ -359,10 +377,13 @@ def prepare_dispatch_bundle(
                         "size_bytes": (run / "manifest.json").stat().st_size,
                     },
                     "allow_runtime_drift": allow_runtime_drift,
+                    "budget_extension": extend_budget is not None,
                 }
             )
             assert selected is not None
-            _continuation_assets(work, selected, resume=resume is not None)
+            _continuation_assets(
+                work, selected, resume=resume is not None or extend_budget is not None
+            )
         else:
             continuation = _models().ContinuationSpec(kind="FRESH")
         manifest = _models().BundleManifest.model_validate(
@@ -420,7 +441,11 @@ def _verify_embedded_continuation(root: Path, manifest: Any, config: RunConfig) 
         generation,
         expected_manifest=parent_digest,
         require_training_state=continuation.kind == "RESUMED",
-        expected_config=config,
+        expected_config=(
+            RunConfig.model_validate(parent["effective_config"])
+            if continuation.budget_extension
+            else config
+        ),
     )
     if not report.valid:
         raise ValueError(f"embedded continuation verification failed: {report.errors}")

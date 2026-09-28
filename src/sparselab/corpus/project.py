@@ -420,6 +420,19 @@ def _yaml(path: Path) -> Any:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def verify_fraction_tokenizer(project: Project) -> None:
+    """Require the exact pinned tokenizer before any fractional release build."""
+    if project.release.fraction is None:
+        return
+    from sparselab.training.manifest import sha256_file
+
+    tokenizer = project_path(project.root, project.release.fraction.tokenizer_path)
+    if not tokenizer.is_file() or tokenizer.is_symlink():
+        raise ValueError("fraction tokenizer must be a regular project file")
+    if sha256_file(tokenizer) != project.release.fraction.tokenizer_sha256.lower():
+        raise ValueError("fraction tokenizer SHA-256 mismatch")
+
+
 def load_project(path: Path | str) -> Project:
     path = Path(path).absolute()
     if path.is_symlink() or not path.is_file():
@@ -465,15 +478,7 @@ def load_project(path: Path | str) -> Project:
     release = ReleaseDeclaration.model_validate(
         _yaml(project_path(root, config.release))
     )
-    if release.fraction is not None:
-        from sparselab.training.manifest import sha256_file
-
-        tokenizer = project_path(root, release.fraction.tokenizer_path)
-        if not tokenizer.is_file() or tokenizer.is_symlink():
-            raise ValueError("fraction tokenizer must be a regular project file")
-        if sha256_file(tokenizer) != release.fraction.tokenizer_sha256.lower():
-            raise ValueError("fraction tokenizer SHA-256 mismatch")
-    return Project(
+    project = Project(
         root=root,
         config=config,
         sources=sources,
@@ -481,3 +486,5 @@ def load_project(path: Path | str) -> Project:
         splits=splits,
         release=release,
     )
+    verify_fraction_tokenizer(project)
+    return project

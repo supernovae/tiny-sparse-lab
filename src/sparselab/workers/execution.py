@@ -212,14 +212,27 @@ def _final_artifacts(
     root = Path(_definition_value(definition, "root"))
     run = root / "runs" / str(receipt["run_id"])
     result: list[dict[str, object]] = []
+    declared = set()
+    manifest_path = run / "manifest.json"
+    if manifest_path.is_file():
+        from sparselab.training.manifest import read_manifest
+
+        declared = {
+            item["relative_path"]
+            for item in read_manifest(manifest_path).get("artifacts", [])
+        }
     if run.is_dir():
         for path in sorted(run.rglob("*")):
             if path.is_symlink():
                 raise ValueError("run contains symlinked artifact")
+            relative = path.relative_to(run).as_posix()
             if (
                 path.is_file()
-                and not any(
-                    part.startswith(".") for part in path.relative_to(run).parts
+                and (
+                    relative in declared
+                    or not any(
+                        part.startswith(".") for part in path.relative_to(run).parts
+                    )
                 )
                 and not path.name.endswith(".tmp")
             ):
@@ -857,6 +870,11 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                         "spec_digest": receipt["spec_digest"],
                         "bundle_digest": receipt["bundle_digest"],
                         "matrix": spec.get("matrix"),
+                        **(
+                            {"plan": spec["plan"]}
+                            if spec.get("plan") is not None
+                            else {}
+                        ),
                     },
                     "requested_config_override": config.model_dump(mode="json"),
                     "allow_runtime_drift": bool(
@@ -867,7 +885,11 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     _continuation_checkpoint(bundle_run) if kind != "FRESH" else None
                 )
                 if kind == "RESUMED":
-                    kwargs["resume"] = selected
+                    kwargs[
+                        "extend_budget"
+                        if continuation.get("budget_extension")
+                        else "resume"
+                    ] = selected
                 elif kind == "PROMOTED":
                     kwargs["promote"] = selected
                 elif kind != "FRESH":
