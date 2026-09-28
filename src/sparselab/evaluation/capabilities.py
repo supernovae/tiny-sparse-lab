@@ -23,6 +23,11 @@ from sparselab.engram.packs import EncoderIdentity
 from sparselab.engram.semantic import SemanticQueryBatch
 from sparselab.evaluation.chat import assistant_reply
 from sparselab.evaluation.generation import generate
+from sparselab.experiments.compiler import (
+    compare_configs,
+    flatten_config,
+    is_dotted_path,
+)
 from sparselab.training.manifest import source_identity
 
 _CARD_FORMAT = "capability_card_v2"
@@ -883,18 +888,6 @@ def _scrub_config(value: Any, path: tuple[str, ...] = ()) -> Any:
     return value
 
 
-def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:
-    if isinstance(value, dict):
-        return {
-            key: nested
-            for child, item in value.items()
-            for key, nested in _flatten(
-                item, f"{prefix}.{child}" if prefix else child
-            ).items()
-        }
-    return {prefix: value}
-
-
 def _identity(result: Mapping[str, Any]) -> Mapping[str, Any]:
     identity = result.get("identity")
     if not isinstance(identity, dict):
@@ -927,14 +920,7 @@ def compare_results(
     if vary == "custom":
         if (
             not vary_fields
-            or any(
-                not isinstance(field, str)
-                or not field
-                or field.startswith(".")
-                or field.endswith(".")
-                or any(not part for part in field.split("."))
-                for field in vary_fields
-            )
+            or any(not is_dotted_path(field) for field in vary_fields)
             or len(vary_fields) != len(set(vary_fields))
         ):
             raise ValueError("custom comparisons require unique dotted vary_fields")
@@ -966,32 +952,36 @@ def compare_results(
         or base_config_data.get("seed") != variant_config_data.get("seed")
     ):
         raise ValueError("comparison identity differs at seed")
-    base_config, variant_config = (
-        _flatten(_scrub_config(base_identity["config"])),
-        _flatten(_scrub_config(variant_identity["config"])),
-    )
-    differences = {
-        key: {"base": base_config.get(key), "variant": variant_config.get(key)}
-        for key in sorted(set(base_config) | set(variant_config))
-        if base_config.get(key) != variant_config.get(key)
-    }
+    base_config = _scrub_config(base_identity["config"])
+    variant_config = _scrub_config(variant_identity["config"])
+    available = set(flatten_config(base_config)) | set(flatten_config(variant_config))
     permitted = {
         "memory": {f"model.{field}" for field in _MEMORY_FIELDS},
-        "attention": {key for key in differences if key.startswith("attention.")},
+        "attention": {key for key in available if key.startswith("attention.")},
         "ffn": {f"model.{field}" for field in _FFN_FIELDS},
         "scale": {f"model.{field}" for field in _SCALE_FIELDS},
         "none": set(),
         "custom": set(vary_fields or ()),
     }[vary]
-    invalid = sorted(set(differences) - permitted)
-    if invalid:
-        raise ValueError(
-            f"comparison varies controls outside {vary}: {', '.join(invalid)}"
+    declared = permitted
+    try:
+        differences = compare_configs(
+            base_config,
+            variant_config,
+            expected=permitted & available,
+            require_all=False,
         )
+    except ValueError as error:
+        if str(error).startswith("undeclared changed fields:"):
+            raise ValueError(
+                f"comparison varies controls outside {vary}: "
+                f"{str(error).split(': ', 1)[1]}"
+            ) from error
+        raise
     if not differences and vary != "none":
         raise ValueError("comparison configurations are identical")
     if vary == "custom":
-        unchanged = sorted(permitted - set(differences))
+        unchanged = sorted(declared - set(differences))
         if unchanged:
             raise ValueError(
                 f"custom vary_fields include unchanged controls: {', '.join(unchanged)}"

@@ -25,6 +25,60 @@ uv run sparselab inspect configs/smoke_combined_cpu.yaml --json
 
 The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,893,120, and 50,274,752 parameters. They share the pinned TinyStories revision, 8192-token tokenizer, sequence length, token budget, optimizer, and seed. Parameter count alone is not a comparison result: report each completed run's observed validation loss, perplexity, throughput, device, and metric coordinates.
 
+## Authored experiment plans and resolved locks
+
+`experiment plan_version: 1` declarations describe a concrete base `RunConfig`,
+bounded labeled axes, typed source/artifact inputs, optional Corpus Forge release
+recipes, exact-field comparison contracts and ordered checkpoint phases. The
+versioned [JSON Schema](../schemas/experiment-plan-v1.schema.json) describes the
+authoring format. A declaration is not executable: `validate`/`inspect` expand
+configuration values without asserting that referenced files, worker runtime or
+future checkpoints exist. `prepare` explicitly acquires pinned local/offline
+sources, freezes releases, exports data, trains tokenizers and verifies prepared
+arrays without starting training. `diff` requires those inputs when a comparison
+selects corpus variants, and rejects every undeclared resolved-field difference.
+
+```sh
+uv run --locked sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked sparselab experiment diff experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
+```
+
+`lock` re-verifies artifact digests and effective data/tokenizer/runtime bindings,
+then publishes an immutable content-addressed resolved plan. A separate
+availability sidecar records local paths; the scientific identity does not claim
+that a future checkpoint already exists. `experiment run LOCK --cell CELL --json`
+submits a selected locked cell to the independent-worker queue; `sparselab
+controller run --store sparselab-work/experiments/<plan-id>/controller` executes
+and ingests it. A dependent phase must be submitted separately with `--phase`
+after the parent has an ingested, verified generation. A terminal selector pins
+the declared parent update; best-validation selection binds the exact verified
+generation before child dispatch. The immutable execution binding records its
+checkpoint SHA-256; an alias such as `latest.json` is not the child identity.
+Resume, guarded budget extension, and weight promotion preserve their distinct
+trainer semantics.
+
+`experiment collect LOCK --json` creates a hash-addressed evidence index from
+matching worker specs/receipts and ingested manifests. Missing, failed,
+interrupted, and invalid cells remain visible. `experiment reconstruct LOCK
+--index INDEX --json` re-verifies it and returns identity/provenance, contrasts,
+phase lineage, evidence coverage, and readiness/decision views. Planned-only
+views omit `--index`. These are software and provenance reports, not automatic
+scientific findings or baseline promotion; preregistered held-out evaluations
+and human review remain separate. See the
+[four-arm CPU example](../experiments/samples/README.md#corpus-shape-and-exact-generated-fraction)
+and [retrospective limits](research/experiment-dsl-retrospectives.md).
+
+Existing `matrix_version: 1` and `study_version: 1` callers remain usable:
+their axis expansion and exact-difference checks now share the plan compiler,
+but their receipts are not relabeled as new locks. To migrate, copy the base
+config and axis choices into a new `plan_version: 1` document, declare artifact
+identities/release recipes and exact interventions, run `prepare` when needed,
+and create a new lock before dispatch. Preserve old receipts and research
+reports with their original protocol identities. A lock cannot be retroactively
+assigned to a prior result solely because its config fields happen to match.
+
 ## Explicit matrices and worker execution
 
 The checked-in matrix expands the CPU runtime smoke configuration over seeds 7, 17, and 41:

@@ -361,6 +361,9 @@ def add_commands(
     resume.add_argument("--allow-runtime-drift", action="store_true")
     _store_argument(resume, default_store)
     resume.set_defaults(handler=_experiment_resume)
+    from sparselab.experiments.cli import add_commands as add_plan_commands
+
+    add_plan_commands(experiment_commands)
 
     controller = subparsers.add_parser(
         "controller", help="Run the local experiment controller"

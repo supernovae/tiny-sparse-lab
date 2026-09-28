@@ -21,6 +21,7 @@ from sparselab.evaluation.capabilities import (
     write_capability_result,
 )
 from sparselab.evaluation.inference import load_run, write_inference_result
+from sparselab.experiments.compiler import is_dotted_path
 from sparselab.experiments.matrix import ExpandedExperiment, expand
 from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.training.manifest import canonical_json, config_sha256
@@ -159,14 +160,7 @@ def _study_comparisons(value: object) -> tuple[StudyComparison, ...]:
                 raise ValueError(
                     f"comparison {identifier} custom vary requires vary_fields"
                 )
-            if any(
-                not isinstance(field, str)
-                or not field.strip()
-                or field.startswith(".")
-                or field.endswith(".")
-                or any(not part for part in field.split("."))
-                for field in raw_fields
-            ):
+            if any(not is_dotted_path(field) for field in raw_fields):
                 raise ValueError(
                     f"comparison {identifier} vary_fields must be dotted paths"
                 )

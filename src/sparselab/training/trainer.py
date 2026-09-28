@@ -533,7 +533,8 @@ def _train_impl(
                     "dispatch metadata requires experiment and attempt identities"
                 )
             if not {"spec_digest", "bundle_digest"} <= dispatch_metadata.keys() or (
-                dispatch_metadata.keys() - {"spec_digest", "bundle_digest", "matrix"}
+                dispatch_metadata.keys()
+                - {"spec_digest", "bundle_digest", "matrix", "plan"}
             ):
                 raise ValueError("unsupported dispatch metadata fields")
             if not all(
@@ -554,6 +555,16 @@ def _train_impl(
                 )
             ):
                 raise ValueError("invalid dispatch matrix identity")
+            if dispatch_metadata.get("plan") is not None:
+                from sparselab.workers.models import PlanMetadata
+
+                plan_identity = PlanMetadata.model_validate(dispatch_metadata["plan"])
+                if plan_identity.config_sha256 != config_sha256(
+                    config.model_dump(mode="json")
+                ):
+                    raise ValueError(
+                        "dispatch plan config differs from training config"
+                    )
             if len(canonical_json(dispatch_metadata)) > 16 * 1024:
                 raise ValueError("dispatch metadata exceeds 16 KiB")
             dispatch_decisions = (

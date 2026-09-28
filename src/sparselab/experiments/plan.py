@@ -1,0 +1,341 @@
+"""Data-only experiment declarations. A declaration is not an executable lock."""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from pathlib import Path
+from typing import Any, Literal
+
+import yaml
+from pydantic import Field, field_validator, model_validator
+
+from sparselab.config.models import RunConfig, StrictModel
+
+_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
+class _UniqueLoader(yaml.SafeLoader):
+    pass
+
+
+def _unique_mapping(
+    loader: _UniqueLoader, node: yaml.MappingNode
+) -> dict[object, object]:
+    result: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node)
+        if not isinstance(key, str):
+            raise TypeError("experiment mapping keys must be strings")
+        if key in result:
+            raise ValueError(f"duplicate YAML key: {key!r}")
+        result[key] = loader.construct_object(value_node)
+    return result
+
+
+_UniqueLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping
+)
+
+
+def _unique_json_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def read_document(path: Path) -> dict[str, Any]:
+    """Read strict, duplicate-free authored YAML or JSON without executing tags."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        raw = (
+            json.loads(
+                text,
+                object_pairs_hook=_unique_json_pairs,
+                parse_constant=_reject_constant,
+            )
+            if path.suffix.lower() == ".json"
+            else yaml.load(text, Loader=_UniqueLoader)
+        )
+    except (OSError, ValueError, yaml.YAMLError) as error:
+        raise ValueError(f"invalid experiment document {path}: {error}") from error
+    if not isinstance(raw, dict):
+        raise TypeError(f"experiment document {path} must be a mapping")
+
+    def finite(value: object) -> None:
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"non-finite value in experiment document {path}")
+        if isinstance(value, dict):
+            for nested in value.values():
+                finite(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                finite(nested)
+
+    finite(raw)
+    return raw
+
+
+class Choice(StrictModel):
+    label: str
+    set: dict[str, Any]
+
+    @field_validator("label")
+    @classmethod
+    def valid_label(cls, value: str) -> str:
+        if not _ID.fullmatch(value):
+            raise ValueError("choice label must be a safe nonempty identifier")
+        return value
+
+
+class Axis(StrictModel):
+    name: str
+    choices: tuple[Choice, ...]
+
+    @model_validator(mode="after")
+    def valid_axis(self) -> Axis:
+        if not _ID.fullmatch(self.name) or not self.choices:
+            raise ValueError("axis requires a safe name and at least one choice")
+        labels = [choice.label for choice in self.choices]
+        if len(labels) != len(set(labels)):
+            raise ValueError(f"axis {self.name} has duplicate choice labels")
+        return self
+
+
+class Artifact(StrictModel):
+    """An external immutable identity, or a named future producer (not both)."""
+
+    kind: Literal[
+        "source_snapshot",
+        "corpus_build",
+        "corpus_release",
+        "corpus_export",
+        "tokenizer",
+        "prepared_data",
+        "stage_bundle",
+        "checkpoint",
+        "capability_card",
+        "prompt_set",
+        "outcome",
+    ]
+    version: int = Field(ge=1)
+    producer: str
+    identifier: str
+    sha256: str | None = None
+    path: str | None = None
+    from_phase: str | None = None
+    selector: Literal["terminal", "best_validation"] | None = None
+    state: Literal["full", "weights"] | None = None
+
+    @model_validator(mode="after")
+    def valid_reference(self) -> Artifact:
+        if not _ID.fullmatch(self.identifier) or not self.producer:
+            raise ValueError("artifact requires safe identifier and producer")
+        if self.from_phase is None:
+            if (
+                self.path is None
+                or self.sha256 is None
+                or not _HEX.fullmatch(self.sha256)
+            ):
+                raise ValueError(
+                    f"external {self.kind} artifact requires path and full SHA-256"
+                )
+            if self.selector is not None:
+                raise ValueError("external artifact cannot select a future generation")
+        elif self.path is not None or self.sha256 is not None:
+            raise ValueError("planned output cannot claim an external path or digest")
+        elif self.kind != "checkpoint" or self.selector is None:
+            raise ValueError("planned output requires a checkpoint generation selector")
+        return self
+
+
+class Comparison(StrictModel):
+    id: str
+    baseline: dict[str, str]
+    variant: dict[str, str]
+    interventions: tuple[str, ...]
+    invariants: tuple[str, ...] = ()
+    mode: Literal["controlled", "multi_factor", "descriptive", "none"] = "controlled"
+    confounders: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def valid_comparison(self) -> Comparison:
+        if not _ID.fullmatch(self.id) or self.baseline == self.variant:
+            raise ValueError("comparison requires a safe ID and distinct selectors")
+        if set(self.baseline) != set(self.variant):
+            raise ValueError(f"comparison {self.id} selectors must use the same axes")
+        if self.mode == "multi_factor" and not self.confounders:
+            raise ValueError(f"comparison {self.id} multi_factor requires confounders")
+        if self.mode == "none" and self.interventions:
+            raise ValueError(f"comparison {self.id} none cannot declare interventions")
+        for label, fields in (
+            ("interventions", self.interventions),
+            ("invariants", self.invariants),
+        ):
+            if len(fields) != len(set(fields)) or any(
+                not field or field.startswith(".") or field.endswith(".")
+                for field in fields
+            ):
+                raise ValueError(
+                    f"comparison {self.id} {label} must be unique dotted paths"
+                )
+        return self
+
+
+class Phase(StrictModel):
+    id: str
+    transition: Literal["fresh", "resume", "extend_budget", "promote"] = "fresh"
+    parent: str | None = None
+    checkpoint: str | None = None
+    selector: Literal["terminal", "best_validation"] | None = None
+    at_step: int | None = Field(default=None, gt=0)
+    set: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def valid_phase(self) -> Phase:
+        if not _ID.fullmatch(self.id):
+            raise ValueError("phase ID must be a safe nonempty identifier")
+        if self.transition == "fresh" and (self.parent or self.checkpoint):
+            raise ValueError(f"fresh phase {self.id} cannot have a parent")
+        if self.transition != "fresh" and bool(self.parent) == bool(self.checkpoint):
+            raise ValueError(
+                f"phase {self.id} needs exactly one parent phase or checkpoint"
+            )
+        if self.parent and self.selector is None:
+            raise ValueError(f"phase {self.id} requires deterministic parent selector")
+        if self.selector == "terminal" and self.parent and self.at_step is None:
+            raise ValueError(f"phase {self.id} terminal parent requires at_step")
+        return self
+
+
+class CorpusVariant(StrictModel):
+    """One release recipe derived from a pinned Corpus Forge project."""
+
+    id: str
+    project: str
+    release_set: dict[str, Any] = Field(default_factory=dict)
+    view: Literal["lm", "chat"] = "lm"
+    vocab_size: int = Field(ge=260)
+    fraction_tokenizer: str | None = None
+
+    @model_validator(mode="after")
+    def valid_variant(self) -> CorpusVariant:
+        if not _ID.fullmatch(self.id) or not self.project:
+            raise ValueError("corpus variant requires safe ID and project path")
+        if set(self.release_set) - {
+            "include_shapes",
+            "include_origins",
+            "mixture",
+            "fraction",
+        }:
+            raise ValueError(
+                "corpus variant changes outside allowlisted release fields"
+            )
+        return self
+
+
+class Evaluation(StrictModel):
+    id: str
+    checkpoint: str
+    data: str
+    metric: str
+    denominator: str
+    endpoint: int = Field(gt=0)
+    threshold: float | None = None
+    role: Literal["gate", "descriptive", "diagnostic", "exploratory", "blinded_surface"]
+    cases: str | None = None
+
+
+class Execution(StrictModel):
+    worker: str | None = None
+    backend: Literal["cpu", "cuda", "rocm", "mps", "metal", "xpu"] | None = None
+    workspace: str | None = None
+    min_free_bytes: int = Field(default=0, ge=0)
+    min_free_inodes: int = Field(default=0, ge=0)
+
+
+class Retention(StrictModel):
+    keep_periodic: bool = True
+    keep_best: bool = True
+    keep_previous: bool = True
+    keep_terminal: bool = True
+
+
+class ExperimentPlan(StrictModel):
+    plan_version: Literal[1]
+    id: str
+    base_run: str | RunConfig
+    artifacts: dict[str, Artifact] = Field(default_factory=dict)
+    inputs: dict[str, str] = Field(default_factory=dict)
+    corpus_variants: tuple[CorpusVariant, ...] = ()
+    axes: tuple[Axis, ...] = ()
+    comparisons: tuple[Comparison, ...] = ()
+    phases: tuple[Phase, ...] = ()
+    evaluations: tuple[Evaluation, ...] = ()
+    execution: Execution = Execution()
+    retention: Retention = Retention()
+
+    @model_validator(mode="after")
+    def valid_plan(self) -> ExperimentPlan:
+        if not _ID.fullmatch(self.id):
+            raise ValueError("plan id must be a safe nonempty identifier")
+        for label, values in (
+            ("axes", self.axes),
+            ("comparisons", self.comparisons),
+            ("phases", self.phases),
+            ("evaluations", self.evaluations),
+        ):
+            names = [value.name if label == "axes" else value.id for value in values]
+            if len(names) != len(set(names)):
+                raise ValueError(f"duplicate {label} identifiers")
+        if len(self.axes) > 20:
+            raise ValueError("too many experiment axes")
+        variant_ids = [variant.id for variant in self.corpus_variants]
+        if len(variant_ids) != len(set(variant_ids)):
+            raise ValueError("duplicate corpus variant identifiers")
+        for name, reference in self.inputs.items():
+            if reference not in self.artifacts:
+                raise ValueError(
+                    f"input {name} references unknown artifact {reference}"
+                )
+        return self
+
+
+def load_plan(path: Path) -> ExperimentPlan:
+    """Parse one authored document; relative file references resolve at consumption."""
+    from pydantic import ValidationError
+
+    try:
+        return ExperimentPlan.model_validate(read_document(path))
+    except ValidationError as error:
+        raise ValueError(f"invalid experiment plan {path}: {error}") from error
+
+
+def base_run_config(plan: ExperimentPlan, source: Path) -> RunConfig:
+    """Resolve the existing RunConfig schema with paths anchored to its own file."""
+    from sparselab.config.loading import _resolve_paths
+
+    if isinstance(plan.base_run, RunConfig):
+        return plan.base_run
+    reference = Path(plan.base_run)
+    candidate = reference if reference.is_absolute() else source.parent / reference
+    try:
+        return RunConfig.model_validate(
+            _resolve_paths(read_document(candidate), candidate.parent.resolve())
+        )
+    except ValueError as error:
+        raise ValueError(f"invalid base_run {candidate}: {error}") from error
+
+
+def schema() -> dict[str, Any]:
+    """Versioned JSON Schema for the authored language."""
+    return ExperimentPlan.model_json_schema()

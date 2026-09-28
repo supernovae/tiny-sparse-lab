@@ -180,6 +180,7 @@ class Controller:
             stage_bundle=request.get("stage_bundle"),
             promote=request.get("promote"),
             resume=request.get("resume"),
+            extend_budget=request.get("extend_budget"),
             allow_runtime_drift=bool(request.get("allow_runtime_drift", False)),
         )
         bundle = verify_dispatch_bundle(bundle_dir)
@@ -198,6 +199,7 @@ class Controller:
             "source_identity_sha256": bundle.source_identity_sha256,
             "dispatch_bundle_digest": bundle.digest(),
             "matrix": request.get("matrix"),
+            "plan": request.get("plan"),
         }
         spec = self._model("ExperimentSpec", spec_data)
         return {

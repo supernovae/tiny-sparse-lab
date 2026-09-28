@@ -436,3 +436,34 @@ def test_complete_worker_inventory_preserves_verified_triage_through_ingestion(
         ).read_bytes()
     )
     assert read_triage(submission.run_id, controller.root) is not None
+
+
+def test_receipt_includes_manifest_declared_hidden_cache_owner(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    from sparselab.training.manifest import canonical_json
+    from sparselab.workers.execution import _final_artifacts
+
+    run = tmp_path / "runs" / "run"
+    (run / "data").mkdir(parents=True)
+    (run / "data" / ".sparselab-cache-owner.json").write_text("{}")
+    (run / ".transient").write_text("not declared")
+    manifest = {
+        "manifest_version": 1,
+        "artifacts": [{"relative_path": "data/.sparselab-cache-owner.json"}],
+    }
+    (run / "manifest.json").write_text(
+        json.dumps(
+            {
+                **manifest,
+                "sha256": hashlib.sha256(canonical_json(manifest)).hexdigest(),
+            }
+        )
+    )
+    files = _final_artifacts(
+        {"root": str(tmp_path)}, {"run_id": "run", "attempt_id": "attempt"}
+    )
+    names = {item["relative_path"] for item in files}
+    assert "run/data/.sparselab-cache-owner.json" in names
+    assert "run/.transient" not in names

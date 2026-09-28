@@ -224,6 +224,13 @@ Copyable starting points and real campaign records have distinct homes under
 [`experiments/`](experiments/). Mutable execution output belongs in the ignored
 `sparselab-work/experiments/` tree.
 
+The [experiment plan DSL](docs/experiments.md#authored-experiment-plans-and-resolved-locks)
+separates authored YAML, explicit artifact preparation, immutable resolved
+locks, worker execution and content-addressed evidence. The
+[offline corpus-shape/fraction CPU example](experiments/samples/README.md#corpus-shape-and-exact-generated-fraction)
+teaches that workflow; its multi-factor contrasts and smoke runs are not
+research conclusions.
+
 Published reports: [FFN-substitution smoke](artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) and [nano/offline follow-up](artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html); see [outcomes and interpretation](docs/research/sample-report.md).
 
 The [project review](docs/project-review.md) preserves the original local learning observations and failed controls. The completed [context/Engram study](docs/context-engram-study.md#execution-results--2026-09-22) and [domain adaptation study](docs/path-domain-corpus.md#2026-09-22-execution-record) add multi-seed outcomes, collision measurements, and retention checks without selecting favorable endpoints. The [capability workflow](docs/capabilities.md) explains held-out narrow claims; [instruction training](docs/instruction-training.md) explains licensed local conversations and assistant-only/tool-transcript supervision.

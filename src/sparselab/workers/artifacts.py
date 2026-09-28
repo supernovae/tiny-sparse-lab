@@ -231,6 +231,9 @@ def _verify_complete_run(
     )
     if dispatch[0].get("matrix") != expected_matrix:
         raise ValueError("ingested matrix coordinate differs from dispatch")
+    expected_plan = None if spec.plan is None else spec.plan.model_dump(mode="json")
+    if dispatch[0].get("plan") != expected_plan:
+        raise ValueError("ingested resolved plan identity differs from dispatch")
     resolved = root / "resolved_config.yaml"
     try:
         effective = _strict_json_loads(resolved.read_bytes())
