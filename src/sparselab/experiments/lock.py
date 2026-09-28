@@ -284,14 +284,23 @@ def _prepared_variants(
 
 
 def _variant_identity(
-    record: dict[str, Any], declaration: CorpusVariant, source: Path
+    record: dict[str, Any],
+    declaration: CorpusVariant,
+    source: Path,
+    authored_artifacts: dict[str, Artifact],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Reverify all materialized dependencies against the declared release."""
     release = Path(record["release_path"])
     export = Path(record["export_path"])
     tokenizer = Path(record["tokenizer_path"])
     packed = Path(record["prepared_path"])
-    from sparselab.corpus.project import ReleaseDeclaration, load_project
+    from sparselab.corpus.project import (
+        ReleaseDeclaration,
+        load_project,
+        verify_fraction_tokenizer,
+    )
+    from sparselab.data.tokenizer import load_tokenizer
+    from sparselab.experiments.prepare import verified_reuse_tokenizer
 
     project_path = Path(declaration.project)
     if not project_path.is_absolute():
@@ -303,6 +312,27 @@ def _variant_identity(
             **declaration.release_set,
         }
     )
+    candidate = project.model_copy(update={"release": expected_release})
+    verify_fraction_tokenizer(candidate)
+    reused = (
+        verified_reuse_tokenizer(
+            declaration, authored_artifacts, source, expected_release
+        )
+        if declaration.tokenizer_artifact is not None
+        else None
+    )
+    if reused is None:
+        if "tokenizer_artifact" in record:
+            raise ValueError("trained variant cannot claim a reused tokenizer")
+    elif (
+        record.get("tokenizer_artifact") != declaration.tokenizer_artifact
+        or reused["kind"] != "tokenizer"
+        or reused["version"] != 1
+        or reused["identifier"] != tokenizer.parent.name
+        or reused["sha256"] != record["tokenizer_sha256"]
+        or reused["path"] != str(tokenizer)
+    ):
+        raise ValueError("prepared variant differs from declared tokenizer artifact")
     release_manifest = json.loads(
         (release / "manifest.json").read_text(encoding="utf-8")
     )
@@ -353,9 +383,22 @@ def _variant_identity(
         raise ValueError("prepared variant config digest mismatch")
     from sparselab.config.loading import load_config
 
-    if run.model_dump(mode="json") != load_config(export / "run.yaml").model_dump(
-        mode="json"
-    ):
+    exported_run = load_config(export / "run.yaml")
+    if reused is not None:
+        exported_run = RunConfig.model_validate(
+            {
+                **exported_run.model_dump(mode="python"),
+                "tokenizer": {
+                    **exported_run.tokenizer.model_dump(mode="python"),
+                    "path": tokenizer,
+                },
+            }
+        )
+        if run.model.vocab_size != load_tokenizer(tokenizer).get_vocab_size():
+            raise ValueError(
+                "prepared variant vocabulary differs from verified tokenizer"
+            )
+    if run.model_dump(mode="json") != exported_run.model_dump(mode="json"):
         raise ValueError(
             "prepared variant config differs from verified export run.yaml"
         )
@@ -572,6 +615,7 @@ def resolve_plan(
             variants[name],
             declaration,
             source,
+            plan.artifacts,
         )
         for kind, identity in identities[name].items():
             key = f"variant.{name}.{kind}"

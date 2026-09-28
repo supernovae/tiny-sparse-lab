@@ -507,13 +507,43 @@ def _train_impl(
         raise ValueError("max_wall_seconds must be positive and finite")
     deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
     if config.dataset.corpus_release_path is not None:
-        verify_tokenizer_artifact(
-            config.tokenizer.path,
-            source=config.dataset.source,
-            revision=config.dataset.revision,
-            vocab_size=config.model.vocab_size,
-            dataset=config.dataset,
-        )
+        from sparselab.config.loading import load_config
+
+        export_path = config.dataset.corpus_export_path
+        if export_path is None:
+            raise ValueError("corpus release requires a verified export")
+        exported_tokenizer = load_config(export_path / "run.yaml").tokenizer.path
+        if config.tokenizer.path == exported_tokenizer:
+            verify_tokenizer_artifact(
+                config.tokenizer.path,
+                source=config.dataset.source,
+                revision=config.dataset.revision,
+                vocab_size=config.model.vocab_size,
+                dataset=config.dataset,
+            )
+        else:
+            from sparselab.experiments.artifacts import verify_artifact
+            from sparselab.experiments.plan import Artifact
+
+            tokenizer_path = config.tokenizer.path
+            verify_artifact(
+                Artifact(
+                    kind="tokenizer",
+                    version=1,
+                    producer="sparselab",
+                    identifier=tokenizer_path.parent.name,
+                    sha256=sha256_file(tokenizer_path),
+                    path=str(tokenizer_path),
+                ),
+                export_path / "run.yaml",
+            )
+            if (
+                load_tokenizer(tokenizer_path).get_vocab_size()
+                != config.model.vocab_size
+            ):
+                raise ValueError(
+                    "verified external tokenizer vocabulary differs from model"
+                )
     operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):

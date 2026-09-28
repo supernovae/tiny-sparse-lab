@@ -224,18 +224,26 @@ class CorpusVariant(StrictModel):
     project: str
     release_set: dict[str, Any] = Field(default_factory=dict)
     view: Literal["lm", "chat"] = "lm"
-    vocab_size: int = Field(ge=260)
+    vocab_size: int | None = Field(default=None, ge=260)
+    tokenizer_artifact: str | None = None
     fraction_tokenizer: str | None = None
 
     @model_validator(mode="after")
     def valid_variant(self) -> CorpusVariant:
         if not _ID.fullmatch(self.id) or not self.project:
             raise ValueError("corpus variant requires safe ID and project path")
+        if (self.vocab_size is None) == (self.tokenizer_artifact is None):
+            raise ValueError("corpus variant needs exactly one tokenizer strategy")
+        if self.tokenizer_artifact is not None and not _ID.fullmatch(
+            self.tokenizer_artifact
+        ):
+            raise ValueError("tokenizer_artifact must be a safe artifact name")
         if set(self.release_set) - {
             "include_shapes",
             "include_origins",
             "mixture",
             "fraction",
+            "accepted_generation_statuses",
         }:
             raise ValueError(
                 "corpus variant changes outside allowlisted release fields"
@@ -302,6 +310,21 @@ class ExperimentPlan(StrictModel):
         variant_ids = [variant.id for variant in self.corpus_variants]
         if len(variant_ids) != len(set(variant_ids)):
             raise ValueError("duplicate corpus variant identifiers")
+        for variant in self.corpus_variants:
+            if variant.tokenizer_artifact is None:
+                continue
+            for reference in (variant.tokenizer_artifact, variant.fraction_tokenizer):
+                if reference is None:
+                    continue
+                artifact = self.artifacts.get(reference)
+                if (
+                    artifact is None
+                    or artifact.kind != "tokenizer"
+                    or artifact.from_phase
+                ):
+                    raise ValueError(
+                        f"corpus variant {variant.id} requires an external tokenizer artifact {reference}"
+                    )
         for name, reference in self.inputs.items():
             if reference not in self.artifacts:
                 raise ValueError(

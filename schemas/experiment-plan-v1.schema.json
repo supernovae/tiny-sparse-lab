@@ -571,6 +571,18 @@
           "title": "Release Set",
           "type": "object"
         },
+        "tokenizer_artifact": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer Artifact"
+        },
         "view": {
           "default": "lm",
           "enum": [
@@ -581,15 +593,22 @@
           "type": "string"
         },
         "vocab_size": {
-          "minimum": 260,
-          "title": "Vocab Size",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 260,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vocab Size"
         }
       },
       "required": [
         "id",
-        "project",
-        "vocab_size"
+        "project"
       ],
       "title": "CorpusVariant",
       "type": "object"

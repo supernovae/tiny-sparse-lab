@@ -38,6 +38,24 @@ sources, freezes releases, exports data, trains tokenizers and verifies prepared
 arrays without starting training. `diff` requires those inputs when a comparison
 selects corpus variants, and rejects every undeclared resolved-field difference.
 
+Corpus variants choose exactly one tokenizer strategy: `vocab_size: 300` trains
+from that release, or `tokenizer_artifact: shared_tokenizer` references a named
+external `artifacts.shared_tokenizer` with `kind: tokenizer`, version, producer,
+identifier, path to `tokenizer.json`, and SHA-256. Reuse verifies the
+tokenizer's provenance manifest and actual vocabulary before acquiring or
+building anything. Corpus Forge's immutable export `run.yaml` remains a generic
+tokenizer-training template; the prepared and locked cell instead binds the
+verified external tokenizer path.
+Comparisons using one tokenizer declare the resulting release, export, prepared
+data and dataset-revision identity differences explicitly and keep
+`artifacts.tokenizer.sha256` invariant; a changed tokenizer SHA is independent
+tokenizer drift, not an incidental corpus difference. Fractional releases still
+require a project-relative pinned selector file and SHA. In reuse mode its SHA
+must match the reused artifact unless `fraction_tokenizer` explicitly names a
+second verified external tokenizer artifact with that selector's SHA.
+`release_set.accepted_generation_statuses` accepts Corpus Forge's verification
+labels as unordered filter classes, not a quality ranking or score.
+
 ```sh
 uv run --locked sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
 uv run --locked sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
