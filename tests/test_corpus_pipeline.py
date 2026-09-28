@@ -137,8 +137,11 @@ def test_build_freeze_replay_spans_semantics_and_tamper(tmp_path: Path) -> None:
     trace = lineage(published, item["document_id"])
     assert trace["parents"][0]["source"]["license"] == "MIT"
     assert trace["parents"][0]["span"]["raw_sha256"]
-    chat = review(published, kind="chat", limit=1)["records"][0]
-    assert chat["validation_status"] == "oracle_verified"
+    chat = next(
+        row
+        for row in review(published, kind="chat", limit=100)["records"]
+        if row["verification"]["status"] == "oracle_verified"
+    )
     assert lineage(published, chat["record_id"])["scenario"]["oracle_answer"] == ".py"
     assert sample(published, domain="systems_scenarios", limit=1)["records"][0][
         "domains"

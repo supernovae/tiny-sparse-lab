@@ -15,6 +15,18 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
 
 from sparselab.config.models import StrictModel
+from sparselab.corpus.provenance import (
+    DERIVED_ORIGIN,
+    DETERMINISTIC_ORIGIN,
+    HUMAN_ORIGIN,
+    INFERENCE_ORIGIN,
+    MULTI_SOURCE_ORIGIN,
+    SOURCE_ORIGIN,
+    rendered_digest,
+    shape_for_record,
+    validate_lineage,
+    verification,
+)
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
@@ -24,6 +36,7 @@ class NormalizedDocument(StrictModel):
     schema_version: Literal[1]
     document_id: str
     source_id: str
+    modality: Literal["text"]
     source_revision: str
     source_location: str
     license: str
@@ -56,8 +69,9 @@ class GenerationRecord(StrictModel):
     validation_status: Literal[
         "unverified",
         "schema_validated",
-        "source_grounded",
+        "source_entailed",
         "oracle_verified",
+        "cross_source_verified",
         "human_reviewed",
         "rejected",
     ]
@@ -297,6 +311,7 @@ def _records_for_file(
             "schema_version": 1,
             "document_id": identity,
             "source_id": source.id,
+            "modality": source.modality,
             "source_revision": source.revision,
             "source_location": location,
             "license": source.license,
@@ -385,7 +400,7 @@ def _lineage(
         "domains": ["systems_scenarios"]
         if world
         else sorted({domain for parent in parents for domain in parent["domains"]}),
-        "validation_status": record.get("validation_status", "source_grounded"),
+        "validation_status": record.get("validation_status", "schema_validated"),
     }
 
 
@@ -720,7 +735,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                             "evidence_document_id": doc["document_id"],
                             "evidence_passage": passage,
                             "evidence_span": [match.start(), match.end()],
-                            "validation_status": "source_grounded",
+                            "validation_status": "source_entailed",
                         }
                         row["record_id"] = digest([stage_id, row])
                         output.append(row)
@@ -750,7 +765,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     row = {
                         **entry,
                         "method": "manual",
-                        "validation_status": "source_grounded",
+                        "validation_status": "source_entailed",
                     }
                     row["record_id"] = digest([stage_id, row])
                     lineage.append(
@@ -893,7 +908,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                             raise ValueError("invalid answer/citation")
                         parent = by_id[cited]
                         start = parent["text"][: params["max_input_chars"]].find(answer)
-                        status = "source_grounded" if start >= 0 else "unverified"
+                        status = "source_entailed" if start >= 0 else "unverified"
                         grounding_evidence = (
                             {
                                 "document_id": cited,
@@ -905,7 +920,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         )
                         reason = (
                             None
-                            if status == "source_grounded"
+                            if status == "source_entailed"
                             else "answer absent from cited passage"
                         )
                     except (
@@ -945,6 +960,17 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     )
                     GenerationRecord.model_validate(record)
                     output.append(record)
+                    if status == "rejected":
+                        rejected.append(
+                            {
+                                "record_id": record["record_id"],
+                                "request_id": request_id,
+                                "raw_output": raw_output,
+                                "generator_identity": record["generator_identity"],
+                                "source_document_ids": record["source_document_ids"],
+                                "reason": reason,
+                            }
+                        )
                     lineage.append(
                         {
                             **_lineage(
@@ -967,7 +993,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 accepted = set(
                     _model(project.release).get(
                         "accepted_generation_statuses",
-                        ["source_grounded", "oracle_verified", "human_reviewed"],
+                        ["source_entailed", "oracle_verified", "human_reviewed"],
                     )
                 )
                 for scenario in scenarios:
@@ -1101,6 +1127,81 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                                 "transform_id": stage_id,
                             }
                         )
+                    requested_shapes = params.get("semantic_shapes", [])
+                    if params.get("include_semantic_qa", False):
+                        requested_shapes = list(
+                            dict.fromkeys([*requested_shapes, "direct_qa"])
+                        )
+                    allowed_shapes = {
+                        "direct_qa",
+                        "troubleshooting_scenario",
+                        "decision_record",
+                    }
+                    if not isinstance(requested_shapes, list) or (
+                        set(requested_shapes) - allowed_shapes
+                    ):
+                        raise ValueError("unknown semantic chat shape")
+                    for fact in semantic:
+                        doc = by_id[fact["evidence_document_id"]]
+                        if (
+                            selected_sources
+                            and doc["source_id"] not in selected_sources
+                        ):
+                            continue
+                        key, value = fact["subject"], fact["value"]
+                        if value not in fact["evidence_passage"]:
+                            raise ValueError(
+                                "semantic answer absent from source passage"
+                            )
+                        for shape_id in requested_shapes:
+                            question = {
+                                "direct_qa": f"What value is recorded for {key}?",
+                                "troubleshooting_scenario": (
+                                    f"Checking the recorded configuration: which setting has value {value}?"
+                                ),
+                                "decision_record": (
+                                    f"For the recorded setting {key}, which recorded value should be used?"
+                                ),
+                            }[shape_id]
+                            answer = {
+                                "direct_qa": value,
+                                "troubleshooting_scenario": key,
+                                "decision_record": value,
+                            }[shape_id]
+                            messages = [
+                                {"role": "user", "content": question},
+                                {"role": "assistant", "content": answer},
+                            ]
+                            row = {
+                                "record_id": digest(
+                                    [stage_id, fact["record_id"], shape_id, messages]
+                                ),
+                                "kind": kind,
+                                "format_version": 2,
+                                "loss_mode": "assistant_only",
+                                "messages": messages,
+                                "semantic_id": fact["record_id"],
+                                "semantic_shape": shape_id,
+                                "validation_status": "source_entailed",
+                                "split": doc["split"],
+                            }
+                            output.append(row)
+                            lineage.append(
+                                {
+                                    **_lineage(
+                                        row,
+                                        [doc],
+                                        stage_id,
+                                        template=digest(
+                                            [stage_id, shape_id, "semantic_v1"]
+                                        ),
+                                    ),
+                                    "semantic_id": fact["record_id"],
+                                    "generator_identity": digest(
+                                        ["semantic_chat_v1", stage_id, shape_id]
+                                    ),
+                                }
+                            )
                 chats.extend(output)
             else:
                 raise ValueError(f"unregistered transform: {kind}")
@@ -1143,6 +1244,155 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             item["representative_parent_document_ids"] = sorted(
                 {representative[p] for p in item["parent_document_ids"]}
             )
+        payloads = {
+            row["record_id"]: row
+            for collection in (lexical, semantic, generations, chats)
+            for row in collection
+        }
+        payloads.update({row["scenario_id"]: row for row in scenarios})
+        source_origins = {source.id: source.origin for source in project.sources}
+        for item in lineage:
+            kind = item["record_kind"]
+            record_id = item["record_id"]
+            payload = by_id[record_id] if kind == "document" else payloads[record_id]
+            if kind == "document":
+                origin = (
+                    HUMAN_ORIGIN
+                    if source_origins[payload["source_id"]] == HUMAN_ORIGIN
+                    else SOURCE_ORIGIN
+                )
+                shape_id = "raw_document"
+                item["domains"] = payload["domains"]
+                status, method, proof = (
+                    "schema_validated",
+                    "normalizer_v1",
+                    {"schema_id": "normalized_document_v1"},
+                )
+                rendered = rendered_digest(payload["text"], text=True)
+            else:
+                source_ids = {
+                    by_id[doc_id]["source_id"] for doc_id in item["parent_document_ids"]
+                }
+                origin = (
+                    DETERMINISTIC_ORIGIN
+                    if kind in {"scenario", "tool_episode"}
+                    or (kind == "chat_sft" and "scenario_id" in payload)
+                    else MULTI_SOURCE_ORIGIN
+                    if len(source_ids) > 1
+                    else INFERENCE_ORIGIN
+                    if kind == "generation"
+                    and not source_ids
+                    or kind == "chat_sft"
+                    and "generation_id" in payload
+                    and not source_ids
+                    else DERIVED_ORIGIN
+                )
+                shape_id = {
+                    "lexical_candidate": "lexical_inventory",
+                    "semantic_candidate": "definition",
+                    "scenario": "troubleshooting_scenario",
+                    "generation": "direct_qa",
+                    "tool_episode": "tool_trace",
+                    "chat_sft": payload.get(
+                        "semantic_shape",
+                        "troubleshooting_scenario"
+                        if "scenario_id" in payload
+                        else "direct_qa",
+                    ),
+                }[kind]
+                evidence_row = (
+                    payloads[payload["semantic_id"]]
+                    if "semantic_id" in payload
+                    else payloads[payload["generation_id"]]
+                    if "generation_id" in payload
+                    else payload
+                )
+                status = evidence_row.get(
+                    "validation_status", item["validation_status"]
+                )
+                if status == "source_entailed":
+                    proof = {
+                        "document_id": evidence_row.get("evidence_document_id")
+                        or evidence_row["evidence"]["document_id"],
+                        "passage": evidence_row.get("evidence_passage")
+                        or evidence_row["evidence"]["passage"],
+                        "span": evidence_row.get("evidence_span")
+                        or evidence_row["evidence"]["span"],
+                        "answer": (
+                            payload["messages"][-1]["content"]
+                            if kind == "chat_sft"
+                            else evidence_row["parsed_output"]["answer"]
+                            if kind == "generation"
+                            else evidence_row["value"]
+                        ),
+                    }
+                    method = "verbatim_source_span"
+                elif status == "oracle_verified":
+                    scenario = (
+                        payloads[payload["scenario_id"]]
+                        if "scenario_id" in payload
+                        else payload
+                    )
+                    proof = {
+                        "oracle_identity": digest(
+                            [scenario["world_state"], scenario["oracle_answer"]]
+                        ),
+                        "generator_world_id": scenario["generator_world_id"],
+                        "oracle_answer": scenario["oracle_answer"],
+                        "oracle_implementation": identity["implementation_sha256"],
+                        "oracle_version": scenario["generator_version"],
+                        "interpreter": scenario["interpreter"],
+                        "world_state": scenario["world_state"],
+                        "actual_result": scenario["oracle_answer"],
+                        "comparison_status": "match",
+                    }
+                    method = "pathlib_pureposix_oracle_v1"
+                elif status in {"rejected", "unverified"}:
+                    proof = {
+                        "reason": evidence_row.get("rejection_reason")
+                        or "response not entailed by cited passage"
+                    }
+                    method = "recorded_response_validation"
+                else:
+                    proof = {"schema_id": f"{kind}_v1"}
+                    method = "schema_validation"
+                if kind in {"chat_sft", "tool_episode"}:
+                    from sparselab.data.conversations import _v2_document
+
+                    chat_row = {
+                        field: payload[field]
+                        for field in ("format_version", "loss_mode", "messages")
+                    }
+                    rendered = rendered_digest(
+                        _v2_document(chat_row, Path("<corpus-record>"), 1).text,
+                        text=True,
+                    )
+                else:
+                    rendered = rendered_digest(payload)
+            item["origin"] = origin
+            item["modalities"] = sorted(
+                {by_id[parent]["modality"] for parent in item["parent_document_ids"]}
+                or {"text"}
+            )
+            item["origin_schema_version"] = 1
+            item["shape"] = shape_for_record(
+                kind,
+                shape_id,
+                domains=item.get("domains", []),
+                parent_document_ids=item["parent_document_ids"],
+                scenario_id=item.get("scenario_id"),
+            )
+            item["verification"] = verification(status, method, proof)
+            item["validation_status"] = status
+            item["rendered_sha256"] = rendered
+            if kind == "chat_sft" and "generation_id" in payload:
+                item["generator_identity"] = payloads[payload["generation_id"]][
+                    "generator_identity"
+                ]
+                item["generator"] = payloads[payload["generation_id"]]["generator"]
+            elif kind == "generation":
+                item["generator"] = payload["generator"]
+            validate_lineage(item, documents=by_id)
         _jsonl(staging / "documents.jsonl", documents)
         _jsonl(staging / "spans.jsonl", evidence)
         _jsonl(staging / "lineage.jsonl", sorted(lineage, key=lambda r: r["record_id"]))
@@ -1153,6 +1403,17 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         _jsonl(staging / "tool_episodes.jsonl", tools)
         _jsonl(staging / "rejected.jsonl", rejected)
         _jsonl(staging / "chat/records.jsonl", chats)
+        ledger_by_id = {item["record_id"]: item for item in lineage}
+        release_spec = _model(project.release)
+        include_shapes = release_spec.get("include_shapes")
+        include_origins = release_spec.get("include_origins")
+
+        def included(record_id: str) -> bool:
+            item = ledger_by_id[record_id]
+            return (
+                include_shapes is None or item["shape"]["id"] in include_shapes
+            ) and (include_origins is None or item["origin"] in include_origins)
+
         for split in SPLITS:
             chosen_lm = [
                 d
@@ -1162,8 +1423,13 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     t.kind == "lm_text" and (not t.inputs or d["source_id"] in t.inputs)
                     for t in transforms
                 )
+                and included(d["document_id"])
             ]
-            chosen_chat = [row for row in chats if row["split"] == split]
+            chosen_chat = [
+                row
+                for row in chats
+                if row["split"] == split and included(row["record_id"])
+            ]
             _jsonl(
                 staging / "lm" / f"{split}.jsonl",
                 [{"text": d["text"]} for d in chosen_lm],
@@ -1186,6 +1452,62 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     for row in chosen_chat
                 ],
             )
+        fraction = project.release.fraction
+        if fraction is not None:
+            from tokenizers import Tokenizer
+
+            from sparselab.corpus.project import project_path
+            from sparselab.corpus.selection import select_fraction
+            from sparselab.data.conversations import iter_rendered_conversations
+
+            tokenizer_path = project_path(project.root, fraction.tokenizer_path)
+            if sha256_file(tokenizer_path) != fraction.tokenizer_sha256.lower():
+                raise ValueError("fraction tokenizer SHA-256 changed during build")
+            tokenizer = Tokenizer.from_file(str(tokenizer_path))
+            candidates = []
+            for view in ("lm", "chat"):
+                selected_view = getattr(project.release, view)
+                if (
+                    not selected_view.selected
+                    or "train" not in selected_view.training_splits
+                ):
+                    continue
+                payload_path = staging / view / "train.jsonl"
+                links = _rows(staging / view / "train.lineage.jsonl")
+                texts = (
+                    [row["text"] for row in _rows(payload_path)]
+                    if view == "lm"
+                    else [row.text for row in iter_rendered_conversations(payload_path)]
+                )
+                for link, text in zip(links, texts, strict=True):
+                    record = ledger_by_id[link["record_id"]]
+                    candidates.append(
+                        {
+                            "record_id": link["record_id"],
+                            "tokens": len(tokenizer.encode(text).ids),
+                            "origin": record["origin"],
+                            "source_family_ids": record["source_family_ids"],
+                        }
+                    )
+            chosen_ids = select_fraction(
+                candidates, fraction.generated_share, fraction.train_tokens
+            )
+            for view in ("lm", "chat"):
+                selected_view = getattr(project.release, view)
+                if (
+                    not selected_view.selected
+                    or "train" not in selected_view.training_splits
+                ):
+                    continue
+                path = staging / view / "train.jsonl"
+                links_path = staging / view / "train.lineage.jsonl"
+                pairs = [
+                    (row, link)
+                    for row, link in zip(_rows(path), _rows(links_path), strict=True)
+                    if link["record_id"] in chosen_ids
+                ]
+                _jsonl(path, [row for row, _ in pairs])
+                _jsonl(links_path, [link for _, link in pairs])
         from sparselab.data.conversations import iter_rendered_conversations
 
         for split in SPLITS:
@@ -1193,6 +1515,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         warnings = []
         leakage = []
         for field in (
+            "parent_document_ids",
             "source_family_ids",
             "scenario_family_id",
             "generator_world_id",
@@ -1217,8 +1540,10 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 }
                 leakage.append(overlap)
                 if (
-                    (
-                        policy["unit"] == "source_document_family"
+                    (policy["unit"] == "document" and field == "parent_document_ids")
+                    or (
+                        policy["unit"]
+                        in {"source_document_family", "source_repository"}
                         and field == "source_family_ids"
                     )
                     or (
@@ -1259,6 +1584,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 "revision": s.revision,
                 "license": s.license,
                 "redistribution": s.redistribution,
+                "origin": s.origin,
                 "source_family": s.source_family,
                 "snapshot_sha256": lock["sources"].get(s.id, {}).get("snapshot_sha256"),
                 "reproducibility_class": (
@@ -1341,11 +1667,25 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 "dropped": len(documents) - len(kept),
             },
             "warnings": warnings,
-            "token_count_reason": "tokenizer_not_declared",
+            "token_count_reason": None
+            if fraction is not None
+            else "tokenizer_not_declared",
         }
+        from sparselab.corpus.measurement import summarize_release
+
+        report["measurement"] = summarize_release(
+            staging,
+            release_spec=release_spec,
+            tokenizer=tokenizer_path if fraction is not None else None,
+        )
         _json(staging / "report.json", report)
         (staging / "report.md").write_text(
-            f"# Corpus {project.config.id}\n\nDocuments: {len(kept)} retained / {len(documents)} total.\n\nNo tokenizer declared; token counts unavailable.\n",
+            f"# Corpus {project.config.id}\n\nDocuments: {len(kept)} retained / {len(documents)} total.\n\n"
+            + (
+                f"Training tokens: {report['measurement']['training_mixture']['actual_tokens']} with pinned tokenizer {fraction.tokenizer_sha256}.\n"
+                if fraction is not None
+                else "No tokenizer declared; token counts unavailable.\n"
+            ),
             encoding="utf-8",
         )
         _json(

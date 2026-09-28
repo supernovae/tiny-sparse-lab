@@ -4,7 +4,7 @@ mixture:
   code: 0.2
   configs: 0.2
   systems_scenarios: 0.2
-accepted_generation_statuses: [source_grounded, oracle_verified, human_reviewed]
+accepted_generation_statuses: [source_entailed, oracle_verified, human_reviewed]
 lm:
   selected: true
   training_splits: [train, validation]

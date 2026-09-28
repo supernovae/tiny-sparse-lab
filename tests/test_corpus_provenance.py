@@ -9,13 +9,20 @@ import pytest
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.export import export_release, verify_release_export
+from sparselab.corpus.measurement import capability_matrix
 from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import (
     load_tokenizer,
     train_tokenizer,
     verify_tokenizer_artifact,
 )
+from sparselab.evaluation.capabilities import (
+    capability_card,
+    evaluate_capability,
+    write_capability_result,
+)
 from sparselab.evaluation.evidence import experiment_evidence
+from sparselab.evaluation.inference import load_run
 from sparselab.training.manifest import read_manifest
 from sparselab.training.trainer import train
 
@@ -89,6 +96,7 @@ def test_cpu_update_inventories_corpus_release(
     base = load_config(exported / "run.yaml")
     config = base.model_copy(
         update={
+            "model": base.model.model_copy(update={"max_seq_len": 256}),
             "logging": base.logging.model_copy(update={"root_dir": tmp_path / "runs"}),
             "training": base.training.model_copy(
                 update={"max_steps": 2, "max_tokens": 64, "gradient_accumulation": 1}
@@ -125,6 +133,34 @@ def test_cpu_update_inventories_corpus_release(
     assert evidence["corpus_report_path"] == "corpus/report.json"
     assert evidence["verified_checkpoints"]
     assert artifact.is_file()
+    assert capability_matrix(release, run) is None
+    loaded = load_run(run_id, config.logging.root_dir)
+    card = capability_card("engram-recall-v1")
+    card_result = evaluate_capability(
+        card,
+        loaded.model,
+        loaded.tokenizer,
+        loaded.config.model.max_seq_len,
+        loaded.device,
+    )
+    assert card_result["valid"] is True
+    card_result["identity"] = loaded.identity
+    write_capability_result(run, card_result)
+    matrix = capability_matrix(release, run)
+    assert matrix is not None
+    assert matrix["release_id"] == release.name
+    assert matrix["capabilities"][0]["card_sha256"] == card.digest
+    assert matrix["transform_usefulness"][0]["state"] == "UNKNOWN"
+    result_path = next((run / "evaluations").glob("capability-*.json"))
+    saved_result = result_path.read_bytes()
+    try:
+        damaged = json.loads(saved_result)
+        damaged["results"][0]["response"] += " fabricated"
+        result_path.write_text(json.dumps(damaged))
+        with pytest.raises(ValueError, match="unverified capability result"):
+            capability_matrix(release, run)
+    finally:
+        result_path.write_bytes(saved_result)
     report = run / "corpus/report.json"
     saved = report.read_bytes()
     try:

@@ -23,3 +23,20 @@ uv run --locked sparselab --work-dir "$WORK" corpus export "$RELEASE" --view cha
 ```
 
 Frozen test rows are held out of tokenizer fitting and training exports. Assistant/tool messages are inert transcript examples; corpus derivation does not execute tool calls. A successful smoke proves local execution and provenance wiring, not source rights outside this MIT fixture, model usefulness or scientific performance.
+
+## Shared-source shape demonstration
+
+The same config declaration in `sources/fixtures/settings.yaml` is retained as a
+`raw_document` and deterministically rendered as a `direct_qa`, a bounded
+`troubleshooting_scenario`, and a `decision_record`. All four records point to
+the same snapshotted document and passage; the rendered text, template family,
+and shape identities differ. The authored config is not itself generated; its
+three derived examples have source-transformed synthetic origin and an explicit
+source-entailment rule. The independent path-world examples instead carry an
+oracle receipt and deterministic synthetic origin.
+
+Inspect their parent IDs and evidence with `corpus sample` and `corpus lineage`.
+The default report counts each training view by origin, verification, and shape.
+`corpus describe RELEASE --tokenizer TOKENIZER_JSON` recounts exact tokens; no
+token count or capability improvement is inferred from the static bytes.
+See [provenance and controlled ablations](../../docs/corpus-provenance.md).

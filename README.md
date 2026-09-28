@@ -68,6 +68,10 @@ release IDs and exact export hashes bind tokenizer fitting, preparation, and run
 evidence; inspection commands verify artifacts before reading them. This small
 MIT-authored fixture and its path oracle are not a scientific campaign or
 evidence of model quality.
+Corpus Forge also tracks independent [origin, verification, and training-shape
+lineage](docs/corpus-provenance.md). Variant release recipes reuse source
+snapshots for controlled shape and generated-token ablations; measurement
+does not itself establish training usefulness.
 
 For large, offline-replayable TinyStories inputs, `sparselab data snapshot OUTPUT`
 captures one pinned ordered train/validation source snapshot into a

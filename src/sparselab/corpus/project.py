@@ -156,6 +156,8 @@ class SourceDeclaration(StrictModel):
         "deterministic_generator",
         "inference_generator",
     ]
+    origin: Literal["primary_source", "human_authored"] = "primary_source"
+    modality: Literal["text"] = "text"
     canonical_uri: str
     revision: str
     license: str
@@ -291,21 +293,45 @@ class ViewDeclaration(StrictModel):
         return self
 
 
+class FractionDeclaration(StrictModel):
+    """Exact tokenizer-based train selection; infeasible budgets are errors."""
+
+    generated_share: float
+    train_tokens: int
+    tokenizer_path: str
+    tokenizer_sha256: str
+
+    @model_validator(mode="after")
+    def valid_fraction(self) -> FractionDeclaration:
+        if not 0 <= self.generated_share <= 1:
+            raise ValueError("generated_share must be between zero and one")
+        if self.train_tokens <= 0:
+            raise ValueError("train_tokens must be positive")
+        safe_name(self.tokenizer_path)
+        if not _HEX.fullmatch(self.tokenizer_sha256):
+            raise ValueError("tokenizer_sha256 must be a full SHA-256")
+        return self
+
+
 class ReleaseDeclaration(StrictModel):
     schema_version: Literal[1]
     mixture: dict[str, float]
     accepted_generation_statuses: tuple[
         Literal[
-            "source_grounded",
+            "source_entailed",
             "oracle_verified",
+            "cross_source_verified",
             "human_reviewed",
             "schema_validated",
             "unverified",
         ],
         ...,
-    ] = ("source_grounded", "oracle_verified", "human_reviewed")
+    ] = ("source_entailed", "oracle_verified", "human_reviewed")
     lm: ViewDeclaration
     chat: ViewDeclaration
+    include_shapes: tuple[str, ...] | None = None
+    include_origins: tuple[str, ...] | None = None
+    fraction: FractionDeclaration | None = None
     keep_nonredistributable_local: bool = True
 
     @model_validator(mode="after")
@@ -316,6 +342,16 @@ class ReleaseDeclaration(StrictModel):
             or abs(sum(self.mixture.values()) - 1) > 1e-8
         ):
             raise ValueError("mixture weights must sum to one")
+        from sparselab.corpus.provenance import ORIGINS, SHAPES
+
+        for values, allowed, label in (
+            (self.include_shapes, SHAPES, "shape"),
+            (self.include_origins, ORIGINS, "origin"),
+        ):
+            if values is not None and (not values or len(values) != len(set(values))):
+                raise ValueError(f"{label} filter must contain unique values")
+            if values is not None and set(values) - set(allowed):
+                raise ValueError(f"unknown {label} in release filter")
         return self
 
 
@@ -429,6 +465,14 @@ def load_project(path: Path | str) -> Project:
     release = ReleaseDeclaration.model_validate(
         _yaml(project_path(root, config.release))
     )
+    if release.fraction is not None:
+        from sparselab.training.manifest import sha256_file
+
+        tokenizer = project_path(root, release.fraction.tokenizer_path)
+        if not tokenizer.is_file() or tokenizer.is_symlink():
+            raise ValueError("fraction tokenizer must be a regular project file")
+        if sha256_file(tokenizer) != release.fraction.tokenizer_sha256.lower():
+            raise ValueError("fraction tokenizer SHA-256 mismatch")
     return Project(
         root=root,
         config=config,

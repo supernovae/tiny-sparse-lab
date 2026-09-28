@@ -423,13 +423,14 @@ def verify_snapshot(path: Path | str, *, _staged: bool = False) -> dict[str, Any
 
 
 def _project_sha(project: Project) -> str:
+    """Only acquisition declarations bind the lock; release variants share snapshots."""
     return _digest(
         {
-            "config": project.config.model_dump(mode="json"),
-            "sources": [s.model_dump(mode="json") for s in project.sources],
-            "transforms": [t.model_dump(mode="json") for t in project.transforms],
-            "splits": project.splits.model_dump(mode="json"),
-            "release": project.release.model_dump(mode="json"),
+            "project_id": project.config.id,
+            "sources": [
+                s.model_dump(mode="json")
+                for s in sorted(project.sources, key=lambda s: s.id)
+            ],
         }
     )
 

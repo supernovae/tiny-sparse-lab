@@ -135,7 +135,7 @@ def test_grounded_unverified_and_rejected_replies_replay_offline(
         for line in (built / "generations.jsonl").read_text().splitlines()
     ]
     assert [row["validation_status"] for row in records] == [
-        "source_grounded",
+        "source_entailed",
         "unverified",
         "rejected",
     ]
@@ -154,6 +154,26 @@ def test_grounded_unverified_and_rejected_replies_replay_offline(
     assert records[1]["evidence"] is None
     assert (
         records[-1]["raw_output"] == "not-json" and records[-1]["parsed_output"] is None
+    )
+    lineage_rows = [
+        json.loads(line) for line in (built / "lineage.jsonl").read_text().splitlines()
+    ]
+    generated_lineage = [
+        row for row in lineage_rows if row["record_kind"] == "generation"
+    ]
+    assert len(generated_lineage) == len(records)
+    assert {row["origin"] for row in generated_lineage} == {
+        "source_transformed_synthetic"
+    }
+    assert {row["verification"]["status"] for row in generated_lineage} == {
+        "source_entailed",
+        "unverified",
+        "rejected",
+    }
+    records_by_id = {row["record_id"]: row for row in records}
+    assert all(
+        row["generator"] == records_by_id[row["record_id"]]["generator"]
+        for row in generated_lineage
     )
     released = freeze(built, work)
     assert any(
