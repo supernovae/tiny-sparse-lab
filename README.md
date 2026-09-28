@@ -74,6 +74,32 @@ tokenizers, and prepared arrays belong in a named ignored workspace; see the
 for split boundaries and acceptance gates. These commands do not make a
 scientific comparison by themselves.
 
+To explore the two retained seed-42 endpoints on this ROCm workstation, run
+the [data-rich checkpoint comparator](experiments/research/tinystories-dense-30m-data-rich-v1/compare.py)
+from the separate data-rich worktree. It verifies both checkpoint identities
+and uses each model's native tokenizer without silently truncating prompts:
+
+```sh
+cd /home/byron/src/tiny-sparse-lab-data-rich
+export UV_PROJECT_ENVIRONMENT=/home/byron/src/tiny-sparse-lab/.venv
+export PYTHONPATH="$PWD/src"
+export SPARSELAB_WORK_DIR="$PWD/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1"
+uv run --locked --no-sync python experiments/research/tinystories-dense-30m-data-rich-v1/compare.py
+uv run --locked --no-sync python experiments/research/tinystories-dense-30m-data-rich-v1/compare.py --prompt "Mia carried the little red boat to the pond." --decoder sampled --seed 11
+```
+
+The first command opens a one-line-per-prompt terminal session; an empty line
+or Ctrl-D exits. `--prompt-file FILE` accepts a multiline UTF-8 prompt;
+`--prompt "..." --json` prints raw completions, native token counts/IDs and
+checkpoint digests. The same text and decoder settings are used for both
+models, but their vocabularies and contexts differ. On the frozen 256-story
+same-text control the data-rich 30M had lower bits/byte than the earlier
+50M; hand-entered continuations are exploratory, not a prose-quality score.
+The 50M also differs in width, depth, training data, budget, context and
+precision, so this comparison **cannot attribute an outcome to data variety
+instead of depth**. Checkpoints and source snapshots must remain available
+in the two sibling worktrees; no new training is run.
+
 Use new run IDs and stage output directories for another experiment; existing artifacts are not silently overwritten. Source-checkout installs intentionally use the PyTorch CPU index on Linux. CUDA/ROCm/XPU workers need a vendor-provisioned environment and the project wheel, not a blind CPU-locked `uv sync`. **Even `uv run --locked` without `--no-sync` can replace an already installed vendor PyTorch with the locked CPU build.** On an accelerator worker, first check the installed framework/device (for ROCm: `uv run --locked --no-sync python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else "unavailable")'`); then use `uv run --locked --no-sync sparselab inspect CONFIG --json` and `stage --through warmup` with an explicit backend. If the device is unavailable or unrecognized, stop and ask for device-specific provisioning rather than syncing the CPU lockfile or silently changing backends. See [worker installation boundaries](docs/workers.md#user-provisioned-ssh-workers).
 
 Host environment and compute backend are separate: native Linux and WSL2 use
