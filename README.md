@@ -60,6 +60,20 @@ uv run sparselab dashboard --runs-dir sparselab-work/runs
 
 The smoke configuration is intentionally tiny. It exercises tokenizer, prepared data, training, evaluation, checkpointing, and local inference; it does not demonstrate fluent generation, broad capability, a performance win, or hardware capacity at larger scale. `stage --through warmup` runs disposable pilot subprocesses and seals their evidence; it does not alter the full run's weights, optimizer, schedule, counters, cursor, or RNG.
 
+For large, offline-replayable TinyStories inputs, `sparselab data snapshot OUTPUT`
+captures one pinned ordered train/validation source snapshot into a
+new directory and rejects partial or reused destinations. Set `source: local_stories`,
+the snapshot's `train_path`, `validation_path`,
+`source_manifest_path`, pinned `revision`, and `license` in the run config.
+`sparselab data bakeoff CONFIG OUTPUT` fits 8,192/12,000/16,384 train-only
+BPEs from that saved source and records a 2,000-document development selection
+receipt; `sparselab data prepare CONFIG` verifies the source manifest and packs
+all configured distinct stories without token-cap truncation. Mutable source,
+tokenizers, and prepared arrays belong in a named ignored workspace; see the
+[data-rich research protocol](experiments/research/tinystories-dense-30m-data-rich-v1/protocol.md)
+for split boundaries and acceptance gates. These commands do not make a
+scientific comparison by themselves.
+
 Use new run IDs and stage output directories for another experiment; existing artifacts are not silently overwritten. Source-checkout installs intentionally use the PyTorch CPU index on Linux. CUDA/ROCm/XPU workers need a vendor-provisioned environment and the project wheel, not a blind CPU-locked `uv sync`. **Even `uv run --locked` without `--no-sync` can replace an already installed vendor PyTorch with the locked CPU build.** On an accelerator worker, first check the installed framework/device (for ROCm: `uv run --locked --no-sync python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else "unavailable")'`); then use `uv run --locked --no-sync sparselab inspect CONFIG --json` and `stage --through warmup` with an explicit backend. If the device is unavailable or unrecognized, stop and ask for device-specific provisioning rather than syncing the CPU lockfile or silently changing backends. See [worker installation boundaries](docs/workers.md#user-provisioned-ssh-workers).
 
 Host environment and compute backend are separate: native Linux and WSL2 use

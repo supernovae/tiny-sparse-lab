@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 from sparselab.batch_calibration import calibrate_batch
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
+from sparselab.data.bakeoff import bakeoff
+from sparselab.data.local_stories import snapshot
 from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import (
     load_tokenizer,
@@ -591,6 +593,22 @@ def _runtime_status(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
 
 
+def _data_snapshot(args: argparse.Namespace) -> None:
+    print(
+        snapshot(
+            Path(args.output),
+            train_count=args.train_count,
+            validation_count=args.validation_count,
+            cache_dir=Path(args.cache_dir) if args.cache_dir else None,
+        )
+    )
+
+
+def _data_bakeoff(args: argparse.Namespace) -> None:
+    config = load_config(Path(args.config))
+    print(bakeoff(config.dataset, Path(args.output)))
+
+
 def _data_prepare(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     verify_tokenizer_artifact(
@@ -598,6 +616,7 @@ def _data_prepare(args: argparse.Namespace) -> None:
         source=config.dataset.source,
         revision=config.dataset.revision,
         vocab_size=config.model.vocab_size,
+        dataset=config.dataset,
     )
     tokenizer = load_tokenizer(config.tokenizer.path)
     print(prepare_data(config, tokenizer).root)
@@ -2110,6 +2129,16 @@ def build_parser() -> argparse.ArgumentParser:
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_prepare = data_commands.add_parser("prepare")
     data_prepare.add_argument("config")
+    data_snapshot = data_commands.add_parser("snapshot")
+    data_snapshot.add_argument("output", type=Path)
+    data_snapshot.add_argument("--cache-dir", type=Path)
+    data_snapshot.add_argument("--train-count", type=int, default=1_000_000)
+    data_snapshot.add_argument("--validation-count", type=int, default=10_000)
+    data_snapshot.set_defaults(handler=_data_snapshot)
+    data_bakeoff = data_commands.add_parser("bakeoff")
+    data_bakeoff.add_argument("config")
+    data_bakeoff.add_argument("output", type=Path)
+    data_bakeoff.set_defaults(handler=_data_bakeoff)
     facts = commands.add_parser("facts")
     fact_commands = facts.add_subparsers(dest="fact_command", required=True)
     manifest = fact_commands.add_parser("manifest")

@@ -1,0 +1,23 @@
+{
+  "format": "tinystories_dense_30m_runtime_selection_v1",
+  "worker": {"device":"AMD Radeon RX 7900 XTX","backend":"rocm","torch":"2.13.0+rocm10.0.0","hip":"7.15.26333","device_total_bytes":25708240896,"bf16_supported":true,"host":"WSL2 Linux x86_64"},
+  "pilot_inputs": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/staging/pilot-{precision}-{micro}x{accum}.yaml",
+  "pilot_evidence": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/staging/pilot-result-{precision}-{micro}x{accum}.json",
+  "comparison": "12 disposable updates each at 512 context and 8 effective sequences; throughput from steps 3-12 (excludes initialization), post-init p90 from largest step 3-12; all 8 completed with verified full-state checkpoint/reload and finite forward",
+  "candidates": [
+    {"precision":"fp32","micro":8,"accum":1,"targets_per_second":13733.6,"median_step_ms":297.5,"p90_step_ms":302.1,"peak_device_gib":3.17},
+    {"precision":"fp32","micro":4,"accum":2,"targets_per_second":13635.3,"median_step_ms":300.4,"p90_step_ms":306.7,"peak_device_gib":1.89},
+    {"precision":"fp32","micro":2,"accum":4,"targets_per_second":13449.7,"median_step_ms":304.8,"p90_step_ms":309.2,"peak_device_gib":1.22},
+    {"precision":"fp32","micro":1,"accum":8,"targets_per_second":14129.0,"median_step_ms":290.4,"p90_step_ms":296.1,"peak_device_gib":0.96},
+    {"precision":"bf16","micro":8,"accum":1,"targets_per_second":62950.1,"median_step_ms":65.1,"p90_step_ms":67.7,"peak_device_gib":2.69},
+    {"precision":"bf16","micro":4,"accum":2,"targets_per_second":55560.4,"median_step_ms":73.3,"p90_step_ms":77.7,"peak_device_gib":1.81},
+    {"precision":"bf16","micro":2,"accum":4,"targets_per_second":30002.5,"median_step_ms":135.9,"p90_step_ms":140.6,"peak_device_gib":1.21},
+    {"precision":"bf16","micro":1,"accum":8,"targets_per_second":15490.4,"median_step_ms":261.7,"p90_step_ms":290.7,"peak_device_gib":0.98}
+  ],
+  "selected": {"precision":"bf16","micro_batch_size":8,"gradient_accumulation":1,"reason":"~4.46x best FP32 post-init throughput, ~89% measured total VRAM headroom, finite/reload verified; fastest stable viable pair"},
+  "precision_vs_old_comparator": "new BF16 versus old FP32; optimizer numerics and weights are not held constant",
+  "final_config_sha256": "c8e3144cbee3a245ccf0737e7f1c5a13b2839c0cadaa0a303ec16f284d8e16f8",
+  "data": {"train_distinct_stories":1000000,"train_packed_ids":220566090,"train_truncated_stories":0,"validation_distinct_stories":10000,"validation_packed_ids":1983356,"pack_peak_host_rss_bytes":1031962624,"packed_manifest_sha256":"357f43d18b2341cba1550428ed8a6233e6902f0a0fa60f89655e62e53a8ea538"},
+  "resource_gate": {"free_bytes_after_pilots":667529216000,"free_inodes":66954627,"pilot_store_bytes_approx":54760833024,"checkpoint_full_state_bytes_inspect_estimate":358717736,"conservative_generations":86,"generation_budget_bytes":30849725296,"three_extra_packs_bytes_estimate":3338241660,"run_asset_copy_bytes_estimate":2225494460,"inflight_generation_bytes":358717736,"untouched_min_bytes":26843545600,"twenty_percent_free_reserve_bytes":133505843200,"verdict":"PASS; estimated incremental peak plus both reserve terms below free bytes; no cleanup"},
+  "limitations":"Pilot fit does not certify full-run stability or narrative quality; generation count budget deliberately exceeds nine scheduled and twelve evaluation opportunities. Component durations will be recorded separately."
+}

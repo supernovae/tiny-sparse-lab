@@ -1,0 +1,10 @@
+{
+  "format": "tinystories_dense_30m_likelihood_sample_v1",
+  "source_manifest_sha256": "42b42f1db25d69702eab6bc56bbe7bc07b349d2afff1cfeb2a931b1036708417",
+  "validation_snapshot_indices": {"start_inclusive": 2000, "stop_exclusive": 2256},
+  "source_ordinal_bounds": {"first": 2850, "last": 3105},
+  "count": 256,
+  "ordered_text_sha256": "2b5cf8408eb01b4d5c9be727aa62039ac9db59c56214f9ce60d3abe2fcc308c7",
+  "selection": "first 256 distinct stories of final 8000 held-out snapshot validation, no exact train overlap by snapshot verifier",
+  "cross_tokenizer_windows": {"input_length_max": 128, "stride": 64, "start_context": "eos", "target_ending": "eos"}
+}

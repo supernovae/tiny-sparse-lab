@@ -1,0 +1,28 @@
+{
+  "format": "tinystories_dense_30m_source_receipt_v1",
+  "preregistration": "preregistration.json",
+  "source_manifest_sha256": "42b42f1db25d69702eab6bc56bbe7bc07b349d2afff1cfeb2a931b1036708417",
+  "source_manifest": "sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/source/snapshot-v1/manifest.json",
+  "source_revision": "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64",
+  "license": "CDLA-Sharing-1.0",
+  "train": {
+    "distinct_stories": 1000000,
+    "source_records_consumed": 1080239,
+    "exact_duplicates": 80158,
+    "empty": 81,
+    "text_bytes": 898934598,
+    "file_sha256": "2122de8c0bb749fdcf324c08cb806b12b22750210015e45f38e126f50f7bd94a",
+    "ordered_content_sha256": "6ac3ac7a6236cecd5a9476c60704b8daf90ea904e3a7713335fa0f87c75d3820"
+  },
+  "validation": {
+    "distinct_stories": 10000,
+    "source_records_consumed": 11950,
+    "train_overlap_excluded": 1950,
+    "text_bytes": 8189975,
+    "file_sha256": "a7281342c53eb2745cf7f50b7df829cd27e2aebf9b4a67add3b8a7ed5247b09c",
+    "ordered_content_sha256": "117cc8c3a870eea6425e1d724ae81a7b804a15a74875bd687d9e4a4eb5a44262"
+  },
+  "tokenizer_development_validation_ordinals": "snapshot validation records [0,2000)",
+  "final_heldout_validation_ordinals": "snapshot validation records [2000,10000)",
+  "status": "source only; tokenizer and packed-token gates not yet measured"
+}

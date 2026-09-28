@@ -11,6 +11,7 @@ from sparselab.data.chat_recall import iter_chat_recall
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.engram_recall import iter_engram_recall
 from sparselab.data.instruction_reference import iter_instruction_reference
+from sparselab.data.local_stories import iter_local_stories
 from sparselab.data.synthetic import iter_synthetic
 from sparselab.data.withheld_facts import training_documents
 from sparselab.progress import progress_phase
@@ -38,6 +39,9 @@ def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
         path = config.train_path if split == "train" else config.validation_path
         assert path is not None
         yield from iter_conversations(path)
+        return
+    if config.source == "local_stories":
+        yield from iter_local_stories(config, split)
         return
     if config.source == "engram_recall":
         yield from iter_engram_recall(config.synthetic_seed, split)
