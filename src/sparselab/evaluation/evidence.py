@@ -44,7 +44,7 @@ def _validated_artifacts(run: Path, manifest: dict[str, object]) -> dict[str, st
     return verified
 
 
-def _report_observation(
+def validate_held_out_report(
     path: Path,
     checkpoints: dict[str, dict[str, object]],
     artifacts: dict[str, str],
@@ -199,7 +199,7 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     observations: list[dict[str, object]] = []
     rejected_reports: list[dict[str, str]] = []
     for path in sorted((run / "evaluations").glob("validation_step_*_gen_*.json")):
-        result, reason = _report_observation(
+        result, reason = validate_held_out_report(
             path,
             checkpoint_lookup,
             artifacts,

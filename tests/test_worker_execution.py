@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from sparselab.workers.leases import acquire_lease, lease_key, process_matches
 
 
@@ -332,3 +334,105 @@ def test_inherited_pilot_keeps_lease_after_wrapper_closes(tmp_path: Path) -> Non
     )
     assert next_owner is not None
     next_owner.close()
+
+
+def test_complete_worker_inventory_preserves_verified_triage_through_ingestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+    import sys
+
+    from test_training import config as training_config
+
+    from sparselab.evaluation.post_train_triage import read_triage
+    from sparselab.training.metrics import ExperimentStore
+    from sparselab.training.trainer import train
+    from sparselab.workers import artifacts
+    from sparselab.workers.controller import Controller
+    from sparselab.workers.execution import _final_artifacts, _receipt_payload
+    from sparselab.workers.models import AttemptReceipt, WorkerDefinition
+
+    original = training_config(tmp_path / "worker")
+    configured = original.model_copy(
+        update={
+            "training": original.training.model_copy(
+                update={"max_steps": 4, "max_tokens": 128}
+            )
+        }
+    )
+    controller = Controller(tmp_path / "controller")
+    submission = controller.submit(configured)
+    attempt = controller.store.attempt_by_run(submission.run_id)
+    spec = controller._model("ExperimentSpec", attempt["spec"])
+    _, bundle = controller._dispatch_bundle(spec)
+    worker = WorkerDefinition(
+        worker_id="triage-worker",
+        name="triage-worker",
+        transport="local",
+        python=Path(sys.executable),
+        root=configured.logging.root_dir.parent,
+        engine="pytorch",
+        backend="cpu",
+        device_index=0,
+    )
+    train(
+        configured,
+        run_id=submission.run_id,
+        worker_id=worker.worker_id,
+        experiment_id=submission.experiment_id,
+        attempt_id=submission.attempt_id,
+        dispatch_metadata={
+            "spec_digest": spec.digest(),
+            "bundle_digest": bundle.digest(),
+        },
+    )
+    source_run = configured.logging.root_dir / submission.run_id
+    assert read_triage(submission.run_id, configured.logging.root_dir) is not None
+    controller.store.metrics.import_records(
+        ExperimentStore(configured.logging.root_dir).export_records()["records"]
+    )
+    raw = _receipt_payload(
+        worker,
+        {
+            "attempt_id": submission.attempt_id,
+            "run_id": submission.run_id,
+            "experiment_id": submission.experiment_id,
+            "spec_digest": spec.digest(),
+            "bundle_digest": bundle.digest(),
+        },
+    )
+    raw.update(state="COMPLETE", artifacts=_final_artifacts(worker, raw))
+    triage_items = [
+        item
+        for item in raw["artifacts"]
+        if item["relative_path"].startswith("run/post-train-triage/")
+    ]
+    assert len(triage_items) == 1
+    receipt = AttemptReceipt.model_validate(raw)
+
+    def local_transfer(_worker, _receipt, item, destination, **kwargs):
+        shutil.copyfile(
+            source_run / item.relative_path.removeprefix("run/"), destination
+        )
+
+    monkeypatch.setattr(artifacts, "_download", local_transfer)
+    artifacts.ingest_attempt_artifacts(
+        worker,
+        receipt,
+        controller.root,
+        spec=spec,
+        bundle=bundle,
+        records=controller.store.metrics,
+    )
+    target = (
+        controller.root
+        / submission.run_id
+        / triage_items[0]["relative_path"].removeprefix("run/")
+    )
+    assert (
+        target.read_bytes()
+        == (
+            source_run / triage_items[0]["relative_path"].removeprefix("run/")
+        ).read_bytes()
+    )
+    assert read_triage(submission.run_id, controller.root) is not None

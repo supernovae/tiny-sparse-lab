@@ -19,6 +19,7 @@ import streamlit as st
 
 from sparselab.dashboard.queries import DashboardSnapshot, RunRecord, runs, snapshot
 from sparselab.dashboard.research import learn_page, research_page
+from sparselab.evaluation.post_train_triage import read_triage, triage_summary
 from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.metric_registry import metric_spec
 
@@ -364,11 +365,27 @@ def _runtime_forecast_panel(view: DashboardSnapshot, selected_ids: list[str]) ->
         st.json(detail, expanded=False)
 
 
-def training(view: DashboardSnapshot) -> None:
+def _triage_panel(root: Path, selected_ids: list[str]) -> None:
+    st.subheader("Post-train triage (read-only)")
+    for run_id in selected_ids:
+        try:
+            report = read_triage(run_id, root)
+        except (OSError, ValueError) as error:
+            st.warning(f"{run_id}: UNKNOWN — invalid triage artifact: {error}")
+            continue
+        if report is None:
+            st.info(f"{run_id}: UNKNOWN — no verified post-train triage artifact")
+            continue
+        st.write(f"{run_id}: {triage_summary(report)}")
+
+
+def training(view: DashboardSnapshot, root: Path | None = None) -> None:
     st.header("Training")
     records, selected_ids = selected(view)
     _runtime_forecast_panel(view, selected_ids)
     comparison([record for record in records if record.run_id in selected_ids], view)
+    if root is not None:
+        _triage_panel(root, selected_ids)
     points = _rows_for(view.metrics, selected_ids)
     if not points:
         st.info("Select a run with recorded metrics.")
@@ -889,7 +906,7 @@ def render(root: Path, page: str) -> None:
     _selection_controls(root)
     pages = {
         "overview": overview,
-        "training": training,
+        "training": lambda value: training(value, root),
         "evaluation": evaluation,
         "architecture": architecture_diagnostics,
         "runtime": runtime_view,

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.config.models import RunConfig
+from sparselab.evaluation.post_train_triage import read_triage, triage_summary
 from sparselab.runtime import discover_runtimes, validate_runtime
 from sparselab.training.manifest import canonical_json, source_identity
 
@@ -873,6 +874,25 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     raise ValueError("unsupported continuation kind")
                 train(effective, **kwargs)
                 terminal = _run_terminal_status(definition, receipt["run_id"])
+                if terminal == "completed":
+                    try:
+                        report = read_triage(
+                            receipt["run_id"],
+                            Path(_definition_value(definition, "root")) / "runs",
+                        )
+                    except (OSError, ValueError) as error:
+                        print(f"POST-TRAIN TRIAGE UNKNOWN: {error}", flush=True)
+                    else:
+                        if report is None:
+                            print(
+                                "POST-TRAIN TRIAGE UNKNOWN: no verified report",
+                                flush=True,
+                            )
+                        else:
+                            print(
+                                f"POST-TRAIN TRIAGE: {triage_summary(report)}",
+                                flush=True,
+                            )
                 artifacts = _final_artifacts(definition, receipt)
                 if terminal == "interrupted":
                     # A signal interruption is not a user cancellation.  The marker

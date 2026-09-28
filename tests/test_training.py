@@ -16,6 +16,8 @@ from sparselab.data.tokenizer import train_tokenizer
 from sparselab.engines.mlx import EngineCapabilityError
 from sparselab.engines.mlx import validate as validate_mlx
 from sparselab.evaluation.evidence import experiment_evidence
+from sparselab.evaluation.post_train_triage import read_triage
+from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest
 from sparselab.training.metrics import ExperimentStore
@@ -184,7 +186,69 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
     assert evidence["evidence_level"] == "checkpointed_held_out"
     assert evidence["verified_checkpoints"]
     assert isinstance(observations, list)
+    report = read_triage(run_id, measured.logging.root_dir)
+    assert report is not None
+    assert report["format"] == "sparselab_post_train_triage_v1"
+    assert (
+        len(
+            list(
+                (measured.logging.root_dir / run_id / "post-train-triage").glob(
+                    "*.json"
+                )
+            )
+        )
+        == 1
+    )
+    assert [case["id"] for case in report["tier1"]["greedy"]] == [
+        name for name, _ in PROMPTS
+    ]
+    assert len(report["tier1"]["sampled"]) <= 8
+    assert all(
+        case["settings"]
+        == {
+            "temperature": 0,
+            "top_k": 0,
+            "seed": 42042,
+            "max_new_tokens": 32,
+        }
+        and len(case["token_ids"]) <= 32
+        for case in report["tier1"]["greedy"]
+        if case["status"] == "OBSERVED"
+    )
+    assert all(
+        case["settings"]["seed"] in (11, 29)
+        and case["settings"]["top_k"] in (0, 40)
+        and case["settings"]["max_new_tokens"] == 24
+        and len(case["token_ids"]) <= 24
+        for case in report["tier1"]["sampled"]
+        if case["status"] == "OBSERVED"
+    )
     assert [item["step"] for item in observations] == [0, 2, 4, 6, 8, 10, 12]
+
+
+def test_post_train_triage_failure_preserves_completed_training(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from sparselab.training import trainer
+
+    def unavailable(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("diagnostic unavailable")
+
+    monkeypatch.setattr(trainer, "triage_completed_run", unavailable)
+    configured = config(tmp_path)
+    run_id = train(configured, run_id="triage-failure")
+    progress = json.loads(
+        (configured.logging.root_dir / run_id / "progress.json").read_text()
+    )
+    assert progress["status"] == "completed"
+    assert read_triage(run_id, configured.logging.root_dir) is None
+    assert "POST-TRAIN TRIAGE UNKNOWN" in caplog.text
+
+
+def test_interrupted_training_does_not_produce_completed_triage(tmp_path: Path) -> None:
+    configured = config(tmp_path)
+    run_id = train(configured, run_id="interrupted-triage", stop_after_step=2)
+    assert read_triage(run_id, configured.logging.root_dir) is None
 
 
 def test_trainer_saves_only_explicit_checkpoint_boundaries(tmp_path: Path) -> None:

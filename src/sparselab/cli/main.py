@@ -52,6 +52,7 @@ from sparselab.evaluation.chat import ChatMessage, assistant_reply, prepare_chat
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.inference import load_run, write_inference_result
+from sparselab.evaluation.post_train_triage import read_triage, triage_summary
 from sparselab.evaluation.withheld_facts import (
     evaluate_withheld_facts,
     write_withheld_evaluation,
@@ -654,6 +655,69 @@ def _readiness_smoke(args: argparse.Namespace) -> None:
     )
 
 
+def _triage_summary(
+    report: dict[str, object] | None,
+    error: str | None = None,
+    *,
+    run_id: str | None = None,
+    runs_dir: Path | None = None,
+) -> str:
+    if report is None:
+        return f"POST-TRAIN TRIAGE\n  UNKNOWN: {error or 'no verified report'}"
+    triggers = report["triggers"]
+    fired = sorted(
+        code for code, details in triggers.items() if details["fired"] is True
+    )
+    lines = [
+        "POST-TRAIN TRIAGE",
+        f"  {triage_summary(report)}",
+        f"  Triggers: {', '.join(fired) if fired else 'none verified'}",
+    ]
+    integrity = report["core"]["integrity"]
+    if integrity["status"] != "PASS":
+        lines.append(
+            f"  Checkpoint integrity: {integrity.get('reason') or 'unknown reason'}"
+        )
+    if run_id is not None and runs_dir is not None:
+        from sparselab.training.manifest import canonical_json
+
+        digest = hashlib.sha256(canonical_json(report) + b"\n").hexdigest()
+        lines.append(
+            f"  Report: {runs_dir / run_id / 'post-train-triage' / (digest + '.json')}"
+        )
+    return "\n".join(lines)
+
+
+def _triage_report(
+    run_id: str, runs_dir: Path
+) -> tuple[dict[str, object] | None, str | None]:
+    try:
+        report = read_triage(run_id, runs_dir)
+    except (OSError, ValueError) as error:
+        return None, f"invalid or ambiguous artifact: {error}"
+    if report is None:
+        return None, "no verified post-train triage artifact"
+    return report, None
+
+
+def _triage(args: argparse.Namespace) -> None:
+    report, error = _triage_report(args.run_id, Path(args.runs_dir))
+    if args.json:
+        print(
+            json.dumps(
+                report
+                if report is not None
+                else {"status": "UNKNOWN", "reason": error},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return
+    print(
+        _triage_summary(report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir))
+    )
+
+
 def _train(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     if args.runs_dir is not None:
@@ -670,19 +734,33 @@ def _train(args: argparse.Namespace) -> None:
                 "runtime": config.runtime.model_copy(update={"backend": args.backend})
             }
         )
-    print(
-        train(
-            config,
-            resume=Path(args.resume) if args.resume else None,
-            extend_budget=Path(args.extend_budget) if args.extend_budget else None,
-            promote=Path(args.promote) if args.promote else None,
-            recover=Path(args.recover) if args.recover else None,
-            run_id=args.run_id,
-            stop_after_step=args.stop_after_step,
-            allow_runtime_drift=args.allow_runtime_drift,
-            stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
-        )
+    run_id = train(
+        config,
+        resume=Path(args.resume) if args.resume else None,
+        extend_budget=Path(args.extend_budget) if args.extend_budget else None,
+        promote=Path(args.promote) if args.promote else None,
+        recover=Path(args.recover) if args.recover else None,
+        run_id=args.run_id,
+        stop_after_step=args.stop_after_step,
+        allow_runtime_drift=args.allow_runtime_drift,
+        stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
     )
+    print(run_id)
+    progress = config.logging.root_dir / run_id / "progress.json"
+    try:
+        if progress.is_symlink():
+            raise ValueError("run progress is a symlink")
+        status = json.loads(progress.read_text(encoding="utf-8")).get("status")
+    except (OSError, ValueError, TypeError) as error:
+        print(_triage_summary(None, f"cannot verify training completion: {error}"))
+        return
+    if status == "completed":
+        report, error = _triage_report(run_id, config.logging.root_dir)
+        print(
+            _triage_summary(
+                report, error, run_id=run_id, runs_dir=config.logging.root_dir
+            )
+        )
 
 
 def _eval(args: argparse.Namespace) -> None:
@@ -2161,6 +2239,14 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument("--stop-after-step", type=int)
     training.add_argument("--stage-bundle")
     training.set_defaults(handler=_train)
+    triage = commands.add_parser(
+        "triage",
+        help="Read an existing verified post-train triage report (no diagnostics).",
+    )
+    triage.add_argument("run_id")
+    triage.add_argument("--runs-dir", default=runs_dir_default)
+    triage.add_argument("--json", action="store_true")
+    triage.set_defaults(handler=_triage)
     model = commands.add_parser("model")
     model_commands = model.add_subparsers(dest="model_command", required=True)
     model_exercise = model_commands.add_parser(
