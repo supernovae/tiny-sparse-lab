@@ -21,3 +21,47 @@ Tier 2 emits transparent post-hoc recommendations only. Every named trigger reco
 For matched 32-token greedy cases, `improved` means empty/special becomes valid or repeated-trigram excess falls by ≥2 without new invalidity; `worse` means the reverse or excess rises by ≥2. Other cases are `unchanged`. Both directions yield `MIXED`, only worse `REGRESSED`, only improved `IMPROVED`, otherwise `FLAT`. These are mechanical labels, never a human-quality judgment. Missing verified endpoint, comparable identity or required cases yields a `null` trigger, not `false`.
 
 Candidates sort by cost (`negligible`, `low`, `medium`, `high`), then trigger code; the short display gives only the cheapest useful action. JSON retains additional questions, statuses, applicability, missing operands and known unknowns. New training remains `NOT RECOMMENDED YET` while cheap behavior questions remain unresolved. Tier 3 requires a new versioned explicit research workflow for budgets, width, seeds, datasets, architecture, memory compilation, broad suites, human review and full-factorial decoding. No recommendation dispatches a job or changes frozen scientific gates.
+
+## Optional Surface Review overlay
+
+`sparselab triage RUN_ID --runs-dir RUNS_DIR --surface-dir DIR` and
+`sparselab dashboard --runs-dir RUNS_DIR --surface-dir DIR` can show a
+**verified read-only overlay** for sealed [Surface Review v1](surface-review-v1.md)
+bundles. Use, for example,
+`--surface-dir sparselab-work/experiments/surface-review-v1/bundles` when that
+directory holds task-owned imports. `sparselab triage ... --json` includes the
+overlay only when requested. Without `--surface-dir`, the existing triage
+output and telemetry dashboard retain their prior behavior.
+
+For the campaign bundle imported in the Surface Review guide, optional local inspection is:
+
+```sh
+uv run --locked sparselab triage tinystories-dense-30m-data-rich-v1-seed42 \
+  --runs-dir /home/byron/src/tiny-sparse-lab-data-rich/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs \
+  --surface-dir sparselab-work/experiments/surface-review-v1/bundles --json
+uv run --locked sparselab dashboard \
+  --runs-dir /home/byron/src/tiny-sparse-lab-data-rich/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs \
+  --surface-dir sparselab-work/experiments/surface-review-v1/bundles
+```
+
+With `--surface-dir`, CLI JSON wraps the verified original report under
+`triage` and the optional status under `surface_review`; it does not mutate
+the report bytes or its content-addressed filename.
+
+The overlay first calls `read_triage` to verify the original immutable report,
+then checks candidate bundles against its run and checkpoint digest. A
+matching verified import can show `independent_subjective_quality:
+REVIEW_AVAILABLE`; only a valid **completed** single-reviewer judgment
+raises this to `OBSERVED_SINGLE_REVIEWER`. No matching verified bundle yields
+`UNKNOWN`. More than one matching bundle remains a list of references, not a
+chosen winner. An unrelated bundle's votes cannot satisfy this run. Explicit
+reveal is separate from completion: neither availability nor a completed
+still-blind review silently reveals the A/B identity mapping. Overlay status
+does not change the immutable report, `surfaces.human_review`, checkpoint,
+run, Tier-2 recommendations, or any promotion gate.
+
+One self-blind reader supplies neither population preference nor inter-rater
+agreement. Tier-1 outputs and Tier-2 mechanical triggers remain diagnostic,
+not quality or causal proof; a study's nominally held-out prompts do not by
+themselves establish train-disjointness. Compare changed data, tokenizer,
+budget and architecture without attributing an effect to any one factor.

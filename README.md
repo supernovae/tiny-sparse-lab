@@ -100,6 +100,30 @@ precision, so this comparison **cannot attribute an outcome to data variety
 instead of depth**. Checkpoints and source snapshots must remain available
 in the two sibling worktrees; no new training is run.
 
+For a local **self-blind review of already generated text**, import a verified
+study's original outputs into a new, ignored, task-owned bundle, then open the
+dedicated review page (not the read-only telemetry dashboard):
+
+```sh
+uv run --locked sparselab surface import data-rich-v1 \
+  --campaign-root /home/byron/src/tiny-sparse-lab-data-rich \
+  --sample quick --selection-seed 2026 --presentation-seed 2027 \
+  --output sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026
+uv run --locked sparselab surface review \
+  sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026 --port 8502
+```
+
+The import reads existing, hash-verified campaign JSONLs; it does not run models,
+replace missing files or change old study evidence. Submit all A/B judgments,
+complete the write-once blind review, then explicitly reveal identities and
+descriptive counts. `sparselab surface chat` with two to four
+`--cell ALIAS=GENERATION_PATH` options instead generates *exploratory* local
+checkpoint replies; its votes are not sealed review evidence. See the
+[Surface Review v1 guide](docs/research/surface-review-v1.md)
+for old decoding and triage imports, profiles, dimensions, seed rules, privacy
+limits and the optional verified triage/dashboard overlay. One person's review
+does not establish population preference or promote a model.
+
 Use new run IDs and stage output directories for another experiment; existing artifacts are not silently overwritten. Source-checkout installs intentionally use the PyTorch CPU index on Linux. CUDA/ROCm/XPU workers need a vendor-provisioned environment and the project wheel, not a blind CPU-locked `uv sync`. **Even `uv run --locked` without `--no-sync` can replace an already installed vendor PyTorch with the locked CPU build.** On an accelerator worker, first check the installed framework/device (for ROCm: `uv run --locked --no-sync python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else "unavailable")'`); then use `uv run --locked --no-sync sparselab inspect CONFIG --json` and `stage --through warmup` with an explicit backend. If the device is unavailable or unrecognized, stop and ask for device-specific provisioning rather than syncing the CPU lockfile or silently changing backends. See [worker installation boundaries](docs/workers.md#user-provisioned-ssh-workers).
 
 Host environment and compute backend are separate: native Linux and WSL2 use
@@ -207,6 +231,7 @@ why lower loss did not settle text quality, see the [token-budget review](docs/r
 - [Training and resume](docs/training.md), [metrics](docs/metrics.md), [experiments](docs/experiments.md), and [evidence](docs/evidence.md) — local lifecycle and comparison practice.
 - [Context/Engram study](docs/context-engram-study.md) and [domain corpus/adaptation](docs/path-domain-corpus.md) — frozen inputs, executed comparisons, negative results, and limitations.
 - [Dense-LM token-budget review](docs/research/dense-lm-token-budget-review.md) and [measured results](experiments/research/dense-lm-token-budget-v1/results.md) — plain-language findings, frozen protocol, full observations, and limitations.
+- [Surface Review v1](docs/research/surface-review-v1.md) — sealed imports, local self-blind judgments and separate exploratory checkpoint chat.
 - [Research roadmap](docs/research/roadmap.md) — capability evidence, unresolved questions, and proposed experiments.
 - [Implementation backlog](TODO.md) — pending changes that require code.
 - [Agent guidance](AGENTS.md) — safe workspaces, performance calibration, experiment boundaries, and verification.

@@ -20,6 +20,7 @@ import streamlit as st
 from sparselab.dashboard.queries import DashboardSnapshot, RunRecord, runs, snapshot
 from sparselab.dashboard.research import learn_page, research_page
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
+from sparselab.evaluation.surface_overlay import surface_review_status
 from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.metric_registry import metric_spec
 
@@ -61,6 +62,7 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--reports-dir", default="artifacts/research-reports")
     parser.add_argument("--lifecycle")
     parser.add_argument("--evidence-root", default=".")
+    parser.add_argument("--surface-dir")
     args, _ = parser.parse_known_args()
     return args
 
@@ -365,7 +367,7 @@ def _runtime_forecast_panel(view: DashboardSnapshot, selected_ids: list[str]) ->
         st.json(detail, expanded=False)
 
 
-def _triage_panel(root: Path, selected_ids: list[str]) -> None:
+def _triage_panel(root: Path, selected_ids: list[str], surface_dir: Path | None = None) -> None:
     st.subheader("Post-train triage (read-only)")
     for run_id in selected_ids:
         try:
@@ -377,15 +379,20 @@ def _triage_panel(root: Path, selected_ids: list[str]) -> None:
             st.info(f"{run_id}: UNKNOWN — no verified post-train triage artifact")
             continue
         st.write(f"{run_id}: {triage_summary(report)}")
+        if surface_dir is not None:
+            overlay = surface_review_status(run_id, root, surface_dir)
+            st.write(f"{run_id}: independent subjective quality — {overlay['independent_subjective_quality']}")
+            for bundle in overlay["bundles"]:
+                st.caption(f"{bundle['status']}: {bundle['path']}")
 
 
-def training(view: DashboardSnapshot, root: Path | None = None) -> None:
+def training(view: DashboardSnapshot, root: Path | None = None, surface_dir: Path | None = None) -> None:
     st.header("Training")
     records, selected_ids = selected(view)
     _runtime_forecast_panel(view, selected_ids)
     comparison([record for record in records if record.run_id in selected_ids], view)
     if root is not None:
-        _triage_panel(root, selected_ids)
+        _triage_panel(root, selected_ids, surface_dir)
     points = _rows_for(view.metrics, selected_ids)
     if not points:
         st.info("Select a run with recorded metrics.")
@@ -889,7 +896,7 @@ def _read_snapshot(
 
 
 @st.fragment(run_every=2)
-def render(root: Path, page: str) -> None:
+def render(root: Path, page: str, surface_dir: Path | None = None) -> None:
     if st.button("Refresh now", key="dashboard_refresh"):
         st.rerun()
     view, observed_at, error = _read_snapshot(root)
@@ -906,7 +913,7 @@ def render(root: Path, page: str) -> None:
     _selection_controls(root)
     pages = {
         "overview": overview,
-        "training": lambda value: training(value, root),
+        "training": lambda value: training(value, root, surface_dir),
         "evaluation": evaluation,
         "architecture": architecture_diagnostics,
         "runtime": runtime_view,
@@ -917,13 +924,13 @@ def render(root: Path, page: str) -> None:
     pages[page](view)
 
 
-def _run_page(root: Path, page: str) -> None:
+def _run_page(root: Path, page: str, surface_dir: Path | None = None) -> None:
     """Keep run views unavailable until a read-only projection exists."""
     key = f"dashboard_snapshot:{root.resolve()}"
     if not (root / "experiments.sqlite3").is_file() and key not in st.session_state:
         st.info("No runs yet. Run `sparselab train CONFIG --run-id NAME`.")
         return
-    render(root, page)
+    render(root, page, surface_dir)
 
 
 def main() -> None:
@@ -934,6 +941,7 @@ def main() -> None:
     reports_dir = Path(args.reports_dir)
     lifecycle = Path(args.lifecycle) if args.lifecycle else None
     evidence_root = Path(args.evidence_root)
+    surface_dir = Path(args.surface_dir) if args.surface_dir else None
     page = st.navigation(
         [
             st.Page(lambda: learn(), title="Learn", url_path="learn", default=True),
@@ -948,7 +956,7 @@ def main() -> None:
                 url_path="overview",
             ),
             st.Page(
-                lambda: _run_page(root, "training"),
+                lambda: _run_page(root, "training", surface_dir),
                 title="Training",
                 url_path="training",
             ),

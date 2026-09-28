@@ -55,6 +55,7 @@ from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.generation import generate
 from sparselab.evaluation.inference import load_run, write_inference_result
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
+from sparselab.evaluation.surface_overlay import surface_review_status
 from sparselab.evaluation.withheld_facts import (
     evaluate_withheld_facts,
     write_withheld_evaluation,
@@ -110,6 +111,8 @@ def _dashboard(args: argparse.Namespace) -> None:
     if args.lifecycle is not None:
         command.extend(["--lifecycle", args.lifecycle])
     command.extend(["--evidence-root", args.evidence_root])
+    if args.surface_dir is not None:
+        command.extend(["--surface-dir", args.surface_dir])
     subprocess.run(command, check=True)
 
 
@@ -721,20 +724,23 @@ def _triage_report(
 
 def _triage(args: argparse.Namespace) -> None:
     report, error = _triage_report(args.run_id, Path(args.runs_dir))
-    if args.json:
-        print(
-            json.dumps(
-                report
-                if report is not None
-                else {"status": "UNKNOWN", "reason": error},
-                indent=2,
-                sort_keys=True,
-            )
-        )
-        return
-    print(
-        _triage_summary(report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir))
+    overlay = (
+        surface_review_status(args.run_id, Path(args.runs_dir), Path(args.surface_dir))
+        if args.surface_dir is not None
+        else None
     )
+    if args.json:
+        payload = report if report is not None else {"status": "UNKNOWN", "reason": error}
+        if overlay is not None:
+            payload = {"triage": payload, "surface_review": overlay}
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    summary = _triage_summary(report, error, run_id=args.run_id, runs_dir=Path(args.runs_dir))
+    if overlay is not None:
+        summary += f"\nSURFACE REVIEW (read-only)\n  Independent subjective quality: {overlay['independent_subjective_quality']}"
+        for bundle in overlay["bundles"]:
+            summary += f"\n  {bundle['status']}: {bundle['path']}"
+    print(summary)
 
 
 def _train(args: argparse.Namespace) -> None:
@@ -2275,6 +2281,7 @@ def build_parser() -> argparse.ArgumentParser:
     triage.add_argument("run_id")
     triage.add_argument("--runs-dir", default=runs_dir_default)
     triage.add_argument("--json", action="store_true")
+    triage.add_argument("--surface-dir", help="Optional directory of verified Surface Review bundles")
     triage.set_defaults(handler=_triage)
     model = commands.add_parser("model")
     model_commands = model.add_subparsers(dest="model_command", required=True)
@@ -2730,7 +2737,11 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
     dashboard.add_argument("--lifecycle")
     dashboard.add_argument("--evidence-root", default=".")
+    dashboard.add_argument("--surface-dir", help="Optional read-only Surface Review overlay")
     dashboard.set_defaults(handler=_dashboard)
+    from sparselab.cli.surface import add_commands as add_surface_commands
+
+    add_surface_commands(commands)
     from sparselab.workers.cli import add_commands
 
     add_commands(commands, default_store=Path(runs_dir_default))
