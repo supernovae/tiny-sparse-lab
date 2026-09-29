@@ -66,3 +66,17 @@ def test_near_duplicate_caps_fail_instead_of_truncating() -> None:
         candidates(rows, max_comparisons=1)
     with pytest.raises(ValueError, match="candidate cap"):
         candidates(rows, max_candidates=1)
+
+
+def test_near_duplicate_stream_fails_before_materializing_unbounded_text() -> None:
+    consumed = 0
+
+    def documents():
+        nonlocal consumed
+        for index in range(1_000):
+            consumed += 1
+            yield _document(str(index), "train", "x" * 1_000)
+
+    with pytest.raises(ValueError, match="text byte cap"):
+        candidates(documents(), max_input_text_bytes=2_500)
+    assert consumed == 3

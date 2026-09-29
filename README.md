@@ -78,6 +78,12 @@ are separate decisions. The optional [memorization diagnostic](docs/memorization
 inspects generated output; it is not a training gate. Historical DevMind releases
 and their fail-gates remain unchanged.
 
+The separate [DevMind v2 expanded corpus protocol](experiments/research/devmind-pretrain-v2/protocol.md)
+and [`corpora/devmind-v2/`](corpora/devmind-v2/corpus.yaml) pin prospective private-research
+source selection, held-out families, exclusion policy, and reconstruction-only
+publication. Its source inventory is not a trained model, a fitted tokenizer,
+an authorization to redistribute raw text, or a verified capability gain.
+
 For large, offline-replayable TinyStories inputs, `sparselab data snapshot OUTPUT`
 captures one pinned ordered train/validation source snapshot into a
 new directory and rejects partial or reused destinations. Set `source: local_stories`,

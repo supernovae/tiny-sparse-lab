@@ -1,0 +1,5 @@
+id: devmind_v2_lm
+version: '1'
+kind: lm_text
+parameters: {}
+inputs: [fineweb_edu_sample_10bt, openwebmath_train, pes2o_v2_fulltext, pes2o_v2_train, v2_git_technical, v2_go_faq, v2_go_standard, v2_k8s_concepts, v2_linux_fs, v2_oci_runtime_specification, v2_omp_harness, v2_otel_collector, v2_otel_specification, v2_postgres_backend, v2_prometheus_promql, v2_python_library, v2_rust_core, wikibooks_20260901, wikipedia_20260901]

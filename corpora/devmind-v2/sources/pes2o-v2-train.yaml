@@ -1,0 +1,36 @@
+schema_version: 3
+id: pes2o_v2_train
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/allenai/peS2o
+revision: 636a503e44a3ca1b58e01fb61eab0825cd574de0
+license: ODC-By-1.0
+license_url: https://opendatacommons.org/licenses/by/1-0/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: ODC-By-1.0
+  license_references:
+    - https://opendatacommons.org/licenses/by/1-0/
+    - https://huggingface.co/datasets/allenai/peS2o/blob/636a503e44a3ca1b58e01fb61eab0825cd574de0/README.md
+    - https://github.com/allenai/s2orc
+  notices:
+    - 'Credit Luca Soldaini, Kyle Lo and Allen Institute for AI (peS2o); preserve original paper authors, title, Semantic Scholar Corpus ID and paper/publisher license where retrievable. ODC-By for the dataset does not sublicense articles.'
+    - 'Screen paper IDs and publisher terms; exclude no-ML, restricted/full-text-without-provenance, personal data and quoted third-party material before private research training. No raw scholarly prose is approved for publication.'
+notes: 'First v2 shard contains s2ag/train title/abstract records only (measured 254985 selected, 336617208 text characters before normalization). These are scholarly abstracts, not full-text papers. Private research only; no tokenizer fit. Preserve added,created,id,source,text,version and distinguish this abstract family from the pinned s2orc full-text shard. Publisher train/validation chronology is not a DevMind held-out split.'
+domains: [academic_research]
+document_kinds: [abstract]
+source_family: pes2o_v2_train
+acquisition:
+  config: v2
+  split: train
+  text_field: text
+  max_rows: 2000000
+  max_bytes: 4000000000
+  bounded_shards:
+    - path: data/v2/train-00000-of-00020.json.gz
+      expected_sha256: 3d611791c7d89d7915a4089e5f70e6dfc66b0c3e85ace1e5e624e2b96f0e2a29
+      max_shard_bytes: 1575273000
+      max_scanned_rows: 10000000
+      hash_modulus: 12
+      hash_remainders: [0]

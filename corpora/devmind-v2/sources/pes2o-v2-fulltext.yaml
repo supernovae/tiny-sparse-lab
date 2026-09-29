@@ -1,0 +1,36 @@
+schema_version: 3
+id: pes2o_v2_fulltext
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/allenai/peS2o
+revision: 636a503e44a3ca1b58e01fb61eab0825cd574de0
+license: ODC-By-1.0
+license_url: https://opendatacommons.org/licenses/by/1-0/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: ODC-By-1.0
+  license_references:
+    - https://opendatacommons.org/licenses/by/1-0/
+    - https://huggingface.co/datasets/allenai/peS2o/blob/636a503e44a3ca1b58e01fb61eab0825cd574de0/README.md
+    - https://github.com/allenai/s2orc
+  notices:
+    - 'Credit Luca Soldaini, Kyle Lo and Allen Institute for AI (peS2o); retain Semantic Scholar Corpus ID and the original paper author/title/publisher terms when known. Dataset ODC-By does not sublicense the underlying papers.'
+    - 'Private research only. Record and screen paper-level explicit no-training terms and sensitive content; no bulk article text or weight-publication permission is asserted.'
+notes: 'The upstream v2 dataset card identifies shards 10 through 19 as the much larger s2orc full-text collection; select the pinned last train shard and verify the source field per record. Selection is a deterministic 1/32 row-index sample with bounded emitted bytes, not an assertion that publisher licensing is uniform. Preserve exact Corpus ID and source row provenance. No tokenizer fit.'
+domains: [academic_research]
+document_kinds: [paper]
+source_family: pes2o_v2_fulltext_train
+acquisition:
+  config: v2
+  split: train
+  text_field: text
+  max_rows: 100000
+  max_bytes: 1800000000
+  bounded_shards:
+    - path: data/v2/train-00019-of-00020.json.gz
+      expected_sha256: bf4d20868a3b6e40d3dd7de642a993569934cd490180a96f70ff620dc13b6fc7
+      max_shard_bytes: 7089801772
+      max_scanned_rows: 2000000
+      hash_modulus: 32
+      hash_remainders: [0]

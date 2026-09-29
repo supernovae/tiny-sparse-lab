@@ -82,22 +82,87 @@ class HttpAcquisition(StrictModel):
         return value.lower()
 
 
+class HFBoundedShard(StrictModel):
+    """One exact, pinned input shard; scan only its bounded row prefix."""
+
+    path: str
+    expected_sha256: str
+    max_shard_bytes: int = Field(gt=0)
+    max_scanned_rows: int = Field(gt=0)
+    hash_modulus: int = Field(gt=0)
+    hash_remainders: tuple[int, ...]
+
+    @model_validator(mode="after")
+    def valid_selection(self) -> HFBoundedShard:
+        safe_name(self.path)
+        if any(char in self.path for char in "*?[]"):
+            raise ValueError("bounded HF shard must be an exact path")
+        if not self.path.endswith((".parquet", ".jsonl", ".jsonl.gz", ".json.gz")):
+            raise ValueError("bounded HF shard must be Parquet or JSONL stream")
+        if not _HEX.fullmatch(self.expected_sha256):
+            raise ValueError("bounded HF shard needs a SHA-256 checksum")
+        if not self.hash_remainders or len(set(self.hash_remainders)) != len(
+            self.hash_remainders
+        ) or any(not 0 <= n < self.hash_modulus for n in self.hash_remainders):
+            raise ValueError("invalid bounded HF hash remainders")
+        return self
+
+
 class HuggingFaceAcquisition(StrictModel):
     config: str
     split: str
-    include: tuple[str, ...]
+    include: tuple[str, ...] = ()
+    bounded_shards: tuple[HFBoundedShard, ...] | None = None
     text_field: str
     max_rows: int = Field(gt=0)
     max_bytes: int = Field(gt=0)
 
     @model_validator(mode="after")
     def selection_required(self) -> HuggingFaceAcquisition:
-        if not self.include:
-            raise ValueError("HF include cannot be empty")
+        if bool(self.include) == bool(self.bounded_shards):
+            raise ValueError("HF requires either include or bounded_shards, not both")
         for pattern in self.include:
             safe_name(pattern.replace("*", "x").replace("?", "x"))
+        if self.bounded_shards:
+            paths = [shard.path for shard in self.bounded_shards]
+            if len(paths) != len(set(paths)):
+                raise ValueError("duplicate bounded HF shard path")
+            for path in paths:
+                parts = path.split("/")
+                if self.config not in parts and not Path(path).name.startswith(
+                    self.config + "-"
+                ):
+                    raise ValueError("bounded HF shard is outside declared config")
+                if self.split not in parts and not any(
+                    part.startswith((self.split + "-", self.split + ".")) for part in parts
+                ):
+                    raise ValueError("bounded HF shard is outside declared split")
         for value in (self.config, self.split, self.text_field):
             _nonblank(value)
+        return self
+
+
+class WikimediaDumpAcquisition(StrictModel):
+    expected_sha1: str
+    expected_sha256: str | None = None
+    checksum_uri: str
+    text_field: Literal["text"] = "text"
+    max_compressed_bytes: int = Field(gt=0)
+    max_decompressed_bytes: int = Field(gt=0)
+    max_scanned_pages: int = Field(gt=0)
+    max_selected_pages: int = Field(gt=0)
+    max_emitted_bytes: int = Field(gt=0)
+    @property
+    def max_rows(self) -> int:
+        return self.max_selected_pages
+
+
+    @model_validator(mode="after")
+    def pinned_checksum(self) -> WikimediaDumpAcquisition:
+        if not re.fullmatch(r"[a-fA-F0-9]{40}", self.expected_sha1):
+            raise ValueError("Wikimedia dump needs official SHA-1 checksum")
+        if self.expected_sha256 is not None and not _HEX.fullmatch(self.expected_sha256):
+            raise ValueError("Wikimedia dump SHA-256 must be hex")
         return self
 
 
@@ -152,6 +217,7 @@ _ACQUISITION = {
     "git": GitAcquisition,
     "http_document": HttpAcquisition,
     "huggingface_dataset": HuggingFaceAcquisition,
+    "wikimedia_dump": WikimediaDumpAcquisition,
     "local": LocalAcquisition,
     "deterministic_generator": DeterministicAcquisition,
     "inference_generator": InferenceAcquisition,
@@ -159,12 +225,13 @@ _ACQUISITION = {
 
 
 class SourceDeclaration(StrictModel):
-    schema_version: Literal[1, 2]
+    schema_version: Literal[1, 2, 3]
     id: str
     kind: Literal[
         "git",
         "http_document",
         "huggingface_dataset",
+        "wikimedia_dump",
         "local",
         "deterministic_generator",
         "inference_generator",
@@ -183,6 +250,9 @@ class SourceDeclaration(StrictModel):
         | None
     ) = None
     rights: RightsPolicy | None = None
+    explicit_training_restriction: (
+        Literal["none_found", "restricted", "incompatible", "unknown"] | None
+    ) = None
     domains: tuple[str, ...]
     document_kinds: tuple[str, ...]
     source_family: str
@@ -190,6 +260,7 @@ class SourceDeclaration(StrictModel):
         GitAcquisition
         | HttpAcquisition
         | HuggingFaceAcquisition
+        | WikimediaDumpAcquisition
         | LocalAcquisition
         | DeterministicAcquisition
         | InferenceAcquisition
@@ -229,8 +300,39 @@ class SourceDeclaration(StrictModel):
             raise ValueError("Git revision must be an exact commit hash")
         if self.kind == "huggingface_dataset" and not _GIT_REV.fullmatch(self.revision):
             raise ValueError("HF revision must be a pinned commit hash")
+        if self.kind == "wikimedia_dump":
+            spec = self.acquisition
+            assert isinstance(spec, WikimediaDumpAcquisition)
+            if not re.fullmatch(r"20\d{6}", self.revision):
+                raise ValueError("Wikimedia dump needs an exact date")
+            base = "https://dumps.wikimedia.org/"
+            book = f"enwikibooks/{self.revision}/"
+            wiki = f"enwiki/{self.revision}/"
+            book_name = f"enwikibooks-{self.revision}-pages-articles-multistream.xml.bz2"
+            wikipedia_name = (
+                rf"enwiki-{self.revision}-pages-articles-multistream\d+"
+                r"\.xml-p\d+p\d+\.bz2"
+            )
+            is_book = self.canonical_uri == base + book + book_name
+            is_wikipedia = (
+                self.canonical_uri.startswith(base + wiki)
+                and re.fullmatch(
+                    wikipedia_name, self.canonical_uri.removeprefix(base + wiki)
+                )
+                is not None
+            )
+            if not is_book and not is_wikipedia:
+                raise ValueError("Wikimedia dump requires exact dated HTTPS article file")
+            prefix = base + (book if is_book else wiki)
+            project_name = "enwikibooks" if is_book else "enwiki"
+            if spec.checksum_uri != prefix + f"{project_name}-{self.revision}-sha1sums.txt":
+                raise ValueError("Wikimedia dump requires matching official checksum URI")
         if self.schema_version == 1:
-            if self.rights is not None or self.redistribution is None:
+            if (
+                self.rights is not None
+                or self.redistribution is None
+                or self.explicit_training_restriction is not None
+            ):
                 raise ValueError(
                     "v1 source needs legacy redistribution and no rights policy"
                 )
@@ -247,8 +349,27 @@ class SourceDeclaration(StrictModel):
                 or self.rejection_reason is not None
             ):
                 raise ValueError(
-                    "v2 source needs rights, not legacy redistribution/rejection"
+                    "v2/v3 source needs rights, not legacy redistribution/rejection"
                 )
+            if self.schema_version == 2 and self.explicit_training_restriction is not None:
+                raise ValueError("explicit_training_restriction requires v3 source")
+            if self.schema_version == 3:
+                state = self.explicit_training_restriction
+                restriction = self.rights.training_restriction
+                if state is None:
+                    raise ValueError("v3 source needs explicit_training_restriction")
+                if state == "incompatible" and (
+                    self.rights.training_eligibility != "ineligible"
+                    or restriction is None
+                    or restriction.kind != "prohibited"
+                ):
+                    raise ValueError("incompatible training requires prohibited basis")
+                if state in {"restricted", "unknown"} and self.rights.training_eligibility not in {
+                    "review_required", "ineligible"
+                }:
+                    raise ValueError("restricted/unknown training requires rights review")
+                if state == "none_found" and restriction is not None:
+                    raise ValueError("none_found conflicts with a training restriction")
             if self.rights.nested_metadata_path and self.kind != "git":
                 raise ValueError(
                     "nested repository rights metadata requires Git acquisition"
@@ -270,10 +391,17 @@ class SourceDeclaration(StrictModel):
 
 
 def source_declaration_payload(source: SourceDeclaration) -> dict[str, Any]:
-    """Preserve v1 acquisition receipts byte-for-byte when the v2 schema is added."""
+    """Preserve v1/v2 acquisition receipts byte-for-byte when v3 is added."""
     result = source.model_dump(mode="json")
     if source.schema_version == 1:
         result.pop("rights")
+    if source.schema_version in (1, 2):
+        result.pop("explicit_training_restriction")
+    if source.kind == "huggingface_dataset":
+        if source.acquisition.bounded_shards is None:
+            result["acquisition"].pop("bounded_shards")
+        else:
+            result["acquisition"].pop("include")
     return result
 
 
@@ -371,7 +499,7 @@ class FractionDeclaration(StrictModel):
 
 
 class ReleaseDeclaration(StrictModel):
-    schema_version: Literal[1, 2]
+    schema_version: Literal[1, 2, 3]
     mixture: dict[str, float]
     accepted_generation_statuses: tuple[
         Literal[
@@ -394,6 +522,7 @@ class ReleaseDeclaration(StrictModel):
         Literal["metadata_reconstruction_only", "redistributable_under_source_terms"]
         | None
     ) = None
+    training_use_policy: Literal["allowed_unless_explicitly_prohibited"] | None = None
 
     @model_validator(mode="after")
     def weights_valid(self) -> ReleaseDeclaration:
@@ -404,9 +533,11 @@ class ReleaseDeclaration(StrictModel):
         ):
             raise ValueError("mixture weights must sum to one")
         if (self.schema_version == 1 and self.publication_mode is not None) or (
-            self.schema_version == 2 and self.publication_mode is None
+            self.schema_version in (2, 3) and self.publication_mode is None
         ):
-            raise ValueError("v2 releases require an explicit publication_mode")
+            raise ValueError("v2/v3 releases require an explicit publication_mode")
+        if (self.schema_version == 3) != (self.training_use_policy is not None):
+            raise ValueError("training_use_policy is required only for v3 releases")
         from sparselab.corpus.provenance import ORIGINS, SHAPES
 
         for values, allowed, label in (
@@ -424,6 +555,8 @@ def release_declaration_payload(release: ReleaseDeclaration) -> dict[str, Any]:
     result = release.model_dump(mode="json")
     if release.schema_version == 1:
         result.pop("publication_mode")
+    if release.schema_version in (1, 2):
+        result.pop("training_use_policy")
     return result
 
 
@@ -475,13 +608,11 @@ class Project(StrictModel):
 
     @model_validator(mode="after")
     def rights_protocol_consistent(self) -> Project:
-        if self.release.schema_version == 2:
-            if any(source.schema_version != 2 for source in self.sources):
-                raise ValueError(
-                    "v2 release requires explicit v2 rights for every source"
-                )
-        elif any(source.schema_version != 1 for source in self.sources):
-            raise ValueError("v2 source requires v2 release publication policy")
+        if any(
+            source.schema_version != self.release.schema_version
+            for source in self.sources
+        ):
+            raise ValueError("source rights schema must match release publication policy")
         return self
 
 

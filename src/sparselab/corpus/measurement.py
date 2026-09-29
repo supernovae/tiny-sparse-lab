@@ -5,8 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
+import tempfile
 import unicodedata
 from collections import Counter, defaultdict
+from collections.abc import Iterator
+from contextlib import contextmanager
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any
 
@@ -17,12 +22,42 @@ DIMENSIONS = ("origin", "verification_status", "shape")
 _WORD = re.compile(r"\w+", re.UNICODE)
 
 
-def _rows(path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line
-    ]
+def _rows(path: Path) -> Iterator[dict[str, Any]]:
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            if line:
+                yield json.loads(line)
+
+
+@contextmanager
+def _lineage_index(root: Path) -> Iterator[sqlite3.Connection]:
+    """Keep the release read-only and remove the on-disk index on exit."""
+    with tempfile.TemporaryDirectory(
+        prefix=".measurement-", dir=root.parent
+    ) as directory:
+        connection = sqlite3.connect(str(Path(directory) / "index.sqlite"))
+        try:
+            connection.execute(
+                "CREATE TABLE lineage (id TEXT PRIMARY KEY, data TEXT NOT NULL)"
+            )
+            connection.executemany(
+                "INSERT INTO lineage VALUES (?, ?)",
+                (
+                    (row["record_id"], json.dumps(row))
+                    for row in _rows(root / "lineage.jsonl")
+                ),
+            )
+            connection.commit()
+            yield connection
+        finally:
+            connection.close()
+
+
+def _record(connection: sqlite3.Connection, record_id: str) -> dict[str, Any] | None:
+    match = connection.execute(
+        "SELECT data FROM lineage WHERE id = ?", (record_id,)
+    ).fetchone()
+    return json.loads(match[0]) if match is not None else None
 
 
 def measure_source_rights(
@@ -64,14 +99,20 @@ def measure_source_rights(
     return totals
 
 
-def _distribution(
-    rows: list[tuple[dict[str, Any], int | None]], *, counted_tokens: bool
-) -> dict[str, Any]:
-    """Keep row and token denominators distinct; multi-valued domains overlap."""
-    counts: dict[str, Counter[str]] = defaultdict(Counter)
-    tokens: dict[str, Counter[str]] = defaultdict(Counter)
-    token_total = sum(count or 0 for _, count in rows) if counted_tokens else None
-    for row, token_count in rows:
+class _Distribution:
+    """Incremental row and token denominators for one view or the training mix."""
+
+    def __init__(self, *, counted_tokens: bool) -> None:
+        self.counted_tokens = counted_tokens
+        self.records = 0
+        self.token_total = 0
+        self.counts: dict[str, Counter[str]] = defaultdict(Counter)
+        self.tokens: dict[str, Counter[str]] = defaultdict(Counter)
+
+    def add(self, row: dict[str, Any], token_count: int | None) -> None:
+        self.records += 1
+        self.token_total += token_count or 0
+        counts, tokens = self.counts, self.tokens
         shape = row.get("shape") or {}
         attributes = shape.get("attributes") or {}
         generator = row.get("generator") or {}
@@ -114,68 +155,70 @@ def _distribution(
             counts["source_modality"][modality] += 1
             if token_count is not None:
                 tokens["source_modality"][modality] += token_count
-    return {
-        "records": len(rows),
-        "actual_tokens": token_total,
-        "token_count_reason": None if counted_tokens else "tokenizer_not_declared",
-        "dimensions": {
-            key: {
-                value: {
-                    "records": count,
-                    "record_fraction": count / len(rows),
-                    "actual_tokens": tokens[key][value] if counted_tokens else None,
-                    "token_fraction": (
-                        tokens[key][value] / token_total if token_total else None
-                    ),
+
+    def result(self) -> dict[str, Any]:
+        records, token_total = self.records, self.token_total
+        counted_tokens = self.counted_tokens
+        counts, tokens = self.counts, self.tokens
+        return {
+            "records": records,
+            "actual_tokens": token_total if counted_tokens else None,
+            "token_count_reason": None if counted_tokens else "tokenizer_not_declared",
+            "dimensions": {
+                key: {
+                    value: {
+                        "records": count,
+                        "record_fraction": count / records,
+                        "actual_tokens": tokens[key][value] if counted_tokens else None,
+                        "token_fraction": (
+                            tokens[key][value] / token_total if token_total else None
+                        ),
+                    }
+                    for value, count in sorted(values.items())
                 }
-                for value, count in sorted(values.items())
-            }
-            for key, values in sorted(counts.items())
-        },
-    }
+                for key, values in sorted(counts.items())
+            },
+        }
 
 
-def _concentration(
-    texts: list[str], chat: list[dict[str, Any]] | None = None
-) -> dict[str, Any]:
-    """Cheap descriptive overlap statistics, never a quality or correctness score."""
-    normalized = [
-        unicodedata.normalize("NFC", text.replace("\r\n", "\n").replace("\r", "\n"))
-        for text in texts
-    ]
-    duplicate = sum(n - 1 for n in Counter(texts).values() if n > 1)
-    normalized_duplicate = sum(n - 1 for n in Counter(normalized).values() if n > 1)
-    prefixes = Counter(text[:32] for text in texts if len(text) >= 32)
-    prefix_rows = sum(n - 1 for n in prefixes.values() if n > 1)
-    ngrams: Counter[tuple[str, ...]] = Counter()
-    for text in normalized:
-        words = _WORD.findall(text.casefold())
-        ngrams.update(zip(words, words[1:], words[2:], strict=False))
-    ngram_total = sum(ngrams.values())
-    advisories = []
-    if normalized_duplicate:
-        advisories.append(
-            "Repeated exact or NFC/newline-normalized text; inspect origins."
+class _Concentration:
+    """Track overlap without retaining rendered texts or whole chat records."""
+
+    def __init__(self, *, chat: bool) -> None:
+        self.chat = chat
+        self.exact: set[bytes] = set()
+        self.normalized: set[bytes] = set()
+        self.prefixes: set[str] = set()
+        self.prompt_prefixes: set[str] = set()
+        self.answer_prefixes: set[str] = set()
+        self.duplicate = self.normalized_duplicate = self.prefix_rows = 0
+        self.prompt_rows = self.answer_rows = 0
+        self.chars = 0
+        self.ngrams: Counter[tuple[str, ...]] = Counter()
+
+    def add(self, text: str, row: dict[str, Any] | None = None) -> None:
+        digest = hashlib.sha256(text.encode()).digest()
+        self.duplicate += digest in self.exact
+        self.exact.add(digest)
+        normalized = unicodedata.normalize(
+            "NFC", text.replace("\r\n", "\n").replace("\r", "\n")
         )
-    if prefix_rows:
-        advisories.append(
-            "Shared rendered prefixes; inspect templates and boilerplate."
-        )
-    if ngram_total >= 20 and len(ngrams) * 4 < ngram_total:
-        advisories.append(
-            "Repeated 3-word sequences; inspect source and template concentration."
-        )
-    result = {
-        "duplicate_text_rows": duplicate,
-        "normalized_duplicate_rows": normalized_duplicate,
-        "prefix_32_rows": prefix_rows,
-        "ngram_3_distinct": len(ngrams) if ngram_total >= 20 else None,
-        "ngram_3_total": ngram_total if ngram_total >= 20 else None,
-        "advisories": advisories,
-    }
-    if chat is not None:
-        prompt = [
-            next(
+        digest = hashlib.sha256(normalized.encode()).digest()
+        self.normalized_duplicate += digest in self.normalized
+        self.normalized.add(digest)
+        if len(text) >= 32:
+            prefix = text[:32]
+            self.prefix_rows += prefix in self.prefixes
+            self.prefixes.add(prefix)
+        previous_chars = self.chars
+        self.chars += len(text)
+        if previous_chars <= 20_000_000 < self.chars:
+            self.ngrams.clear()
+        if self.chars <= 20_000_000:
+            words = _WORD.findall(normalized.casefold())
+            self.ngrams.update(zip(words, words[1:], words[2:], strict=False))
+        if row is not None and self.chars <= 20_000_000:
+            prompt = next(
                 (
                     message["content"]
                     for message in row["messages"]
@@ -183,10 +226,7 @@ def _concentration(
                 ),
                 "",
             )
-            for row in chat
-        ]
-        answers = [
-            next(
+            answer = next(
                 (
                     message["content"]
                     for message in reversed(row["messages"])
@@ -194,19 +234,54 @@ def _concentration(
                 ),
                 "",
             )
-            for row in chat
-        ]
-        result["prompt_prefix_32_rows"] = sum(
-            n - 1
-            for n in Counter(text[:32] for text in prompt if len(text) >= 32).values()
-            if n > 1
-        )
-        result["answer_prefix_32_rows"] = sum(
-            n - 1
-            for n in Counter(text[:32] for text in answers if len(text) >= 32).values()
-            if n > 1
-        )
-    return result
+            if len(prompt) >= 32:
+                prefix = prompt[:32]
+                self.prompt_rows += prefix in self.prompt_prefixes
+                self.prompt_prefixes.add(prefix)
+            if len(answer) >= 32:
+                prefix = answer[:32]
+                self.answer_rows += prefix in self.answer_prefixes
+                self.answer_prefixes.add(prefix)
+
+    def result(self) -> dict[str, Any]:
+        if self.chars > 20_000_000:
+            return {
+                "duplicate_text_rows": self.duplicate,
+                "normalized_duplicate_rows": self.normalized_duplicate,
+                "prefix_32_rows": self.prefix_rows,
+                "ngram_3_distinct": None,
+                "ngram_3_total": None,
+                "ngram_count_reason": "omitted_above_20m_character_bound",
+                "advisories": [
+                    "Large corpus: lexical n-gram concentration not exhaustively measured."
+                ],
+            }
+        ngram_total = sum(self.ngrams.values())
+        advisories = []
+        if self.normalized_duplicate:
+            advisories.append(
+                "Repeated exact or NFC/newline-normalized text; inspect origins."
+            )
+        if self.prefix_rows:
+            advisories.append(
+                "Shared rendered prefixes; inspect templates and boilerplate."
+            )
+        if ngram_total >= 20 and len(self.ngrams) * 4 < ngram_total:
+            advisories.append(
+                "Repeated 3-word sequences; inspect source and template concentration."
+            )
+        result = {
+            "duplicate_text_rows": self.duplicate,
+            "normalized_duplicate_rows": self.normalized_duplicate,
+            "prefix_32_rows": self.prefix_rows,
+            "ngram_3_distinct": len(self.ngrams) if ngram_total >= 20 else None,
+            "ngram_3_total": ngram_total if ngram_total >= 20 else None,
+            "advisories": advisories,
+        }
+        if self.chat:
+            result["prompt_prefix_32_rows"] = self.prompt_rows
+            result["answer_prefix_32_rows"] = self.answer_rows
+        return result
 
 
 def measure_views(
@@ -217,78 +292,99 @@ def measure_views(
 ) -> dict[str, Any]:
     """Count exact rendered tokenizer inputs and classify records independently."""
     root = Path(root)
+    with _lineage_index(root) as connection:
+        return _measure_views(root, connection, tokenizer, release_spec)
+
+
+def _measure_views(
+    root: Path,
+    connection: sqlite3.Connection,
+    tokenizer: Path | None,
+    release_spec: dict[str, Any] | None,
+) -> dict[str, Any]:
     model = None
     if tokenizer is not None:
         from tokenizers import Tokenizer
 
         model = Tokenizer.from_file(str(tokenizer))
-    lineage = {row["record_id"]: row for row in _rows(root / "lineage.jsonl")}
     generations = {row["record_id"]: row for row in _rows(root / "generations.jsonl")}
     scenarios = {row["scenario_id"]: row for row in _rows(root / "scenarios.jsonl")}
     views = {}
-    training_rows: list[tuple[dict[str, Any], int | None]] = []
+    training = _Distribution(counted_tokens=model is not None)
     for view in ("lm", "chat"):
         views[view] = {}
         for split in SPLITS:
             payload = root / view / f"{split}.jsonl"
             links = _rows(root / view / f"{split}.lineage.jsonl")
             if view == "lm":
-                chat_rows = None
-                texts = [row["text"] for row in _rows(payload)]
+                rows = ((row["text"], None) for row in _rows(payload))
             else:
                 from sparselab.data.conversations import iter_rendered_conversations
 
-                chat_rows = _rows(payload)
-                texts = [row.text for row in iter_rendered_conversations(payload)]
-            if len(texts) != len(links):
-                raise ValueError("view and lineage lengths disagree")
-            classified = []
-            for link, text in zip(links, texts, strict=True):
-                if link["split"] != split or link["record_id"] not in lineage:
+                rows = (
+                    (rendered.text, row)
+                    for row, rendered in zip(
+                        _rows(payload),
+                        iter_rendered_conversations(payload),
+                        strict=True,
+                    )
+                )
+            distribution = _Distribution(counted_tokens=model is not None)
+            concentration = _Concentration(chat=view == "chat")
+            connection.execute(
+                "CREATE TABLE parents (id TEXT PRIMARY KEY, count INTEGER NOT NULL)"
+            )
+            families: Counter[str] = Counter()
+            for link, rendered in zip_longest(links, rows):
+                if link is None or rendered is None:
+                    raise ValueError("view and lineage lengths disagree")
+                text, chat_row = rendered
+                if link["split"] != split or (
+                    record := _record(connection, link["record_id"])
+                ) is None:
                     raise ValueError("view lineage reference mismatch")
-                record = lineage[link["record_id"]]
                 generation = generations.get(record.get("generation_id"))
                 scenario = scenarios.get(record.get("scenario_id"))
                 if generation:
-                    record = {**record, "generator": generation["generator"]}
+                    record["generator"] = generation["generator"]
                 elif scenario:
-                    record = {
-                        **record,
-                        "generator": {
-                            "adapter_id": scenario["generator_id"],
-                            "generator_version": scenario["generator_version"],
-                        },
+                    record["generator"] = {
+                        "adapter_id": scenario["generator_id"],
+                        "generator_version": scenario["generator_version"],
                     }
                 elif record.get("semantic_id"):
-                    record = {
-                        **record,
-                        "generator": {"generator_version": "semantic_chat_v1"},
-                    }
-                classified.append(
-                    (record, len(model.encode(text).ids) if model is not None else None)
+                    record["generator"] = {"generator_version": "semantic_chat_v1"}
+                count = len(model.encode(text).ids) if model is not None else None
+                distribution.add(record, count)
+                if (
+                    release_spec is not None
+                    and split == "train"
+                    and release_spec[view]["selected"]
+                    and split in release_spec[view]["training_splits"]
+                ):
+                    training.add(record, count)
+                concentration.add(text, chat_row)
+                connection.executemany(
+                    "INSERT INTO parents VALUES (?, 1) "
+                    "ON CONFLICT(id) DO UPDATE SET count = count + 1",
+                    ((parent,) for parent in record.get("parent_document_ids", [])),
                 )
-            if (
-                release_spec is not None
-                and split == "train"
-                and release_spec[view]["selected"]
-                and split in release_spec[view]["training_splits"]
-            ):
-                training_rows.extend(classified)
-            summary = _distribution(classified, counted_tokens=model is not None)
-            summary["concentration"] = _concentration(texts, chat_rows)
-            source_ids = Counter(
-                parent
-                for record, _ in classified
-                for parent in record.get("parent_document_ids", [])
+                families.update(record.get("source_family_ids", []))
+            summary = distribution.result()
+            summary["concentration"] = concentration.result()
+            parent_count, parent_max = connection.execute(
+                "SELECT count(*), max(count) FROM parents"
+            ).fetchone()
+            summary["concentration"]["parent_document_counts"] = (
+                dict(connection.execute("SELECT id, count FROM parents ORDER BY id"))
+                if parent_count <= 100_000
+                else {}
             )
-            summary["concentration"]["parent_document_counts"] = dict(
-                sorted(source_ids.items())
-            )
-            families = Counter(
-                family
-                for record, _ in classified
-                for family in record.get("source_family_ids", [])
-            )
+            if parent_count > 100_000:
+                summary["concentration"]["parent_document_count_reason"] = (
+                    "omitted_above_100k_parent_bound"
+                )
+            connection.execute("DROP TABLE parents")
             summary["concentration"]["source_family_counts"] = dict(
                 sorted(families.items())
             )
@@ -307,14 +403,14 @@ def measure_views(
                     summary["concentration"]["advisories"].append(
                         f"All {view}/{split} records share {dimension}; inspect lineage concentration."
                     )
-            if source_ids and max(source_ids.values()) > 1:
+            if parent_max is not None and parent_max > 1:
                 summary["concentration"]["advisories"].append(
                     f"Repeated parent document lineage in {view}/{split}; inspect ancestry."
                 )
             if (
                 families
-                and len(classified) > 1
-                and max(families.values()) == len(classified)
+                and summary["records"] > 1
+                and max(families.values()) == summary["records"]
             ):
                 summary["concentration"]["advisories"].append(
                     f"All {view}/{split} records inherit one source family; inspect source concentration."
@@ -328,9 +424,7 @@ def measure_views(
         },
     }
     if release_spec is not None:
-        result["training_mixture"] = _distribution(
-            training_rows, counted_tokens=model is not None
-        )
+        result["training_mixture"] = training.result()
     if tokenizer is not None:
         result["tokenizer_sha256"] = sha256_file(tokenizer)
     return result
@@ -343,7 +437,18 @@ def summarize_release(
     tokenizer: Path | None = None,
 ) -> dict[str, Any]:
     """Frozen descriptive census, with measured tokens only for a pinned tokenizer."""
-    summary = measure_views(root, tokenizer, release_spec=release_spec)
+    root = Path(root)
+    with _lineage_index(root) as connection:
+        summary = _measure_views(root, connection, tokenizer, release_spec)
+        return _summarize_release(root, connection, summary, release_spec)
+
+
+def _summarize_release(
+    root: Path,
+    connection: sqlite3.Connection,
+    summary: dict[str, Any],
+    release_spec: dict[str, Any] | None,
+) -> dict[str, Any]:
     views = summary["views"]
     totals: dict[str, Counter[str]] = defaultdict(Counter)
     for splits in views.values():
@@ -351,39 +456,20 @@ def summarize_release(
             for dimension, values in item["dimensions"].items():
                 for value, count in values.items():
                     totals[dimension][value] += count["records"]
-    ledger = {row["record_id"]: row for row in _rows(Path(root) / "lineage.jsonl")}
-    training_ids = {
-        link["record_id"]
-        for view in ("lm", "chat")
-        if release_spec is not None
-        and release_spec[view]["selected"]
-        and "train" in release_spec[view]["training_splits"]
-        for link in _rows(Path(root) / view / "train.lineage.jsonl")
-    }
-    generated = [
-        ledger[record_id]
-        for record_id in training_ids
-        if ledger[record_id]["origin"] not in {"primary_source", "human_authored"}
-    ]
-    unverified_generated = sum(
-        row["verification"]["status"] in {"unverified", "schema_validated"}
-        for row in generated
-    )
-    test_parents = {
-        parent
-        for view in ("lm", "chat")
-        for link in _rows(Path(root) / view / "test.lineage.jsonl")
-        for parent in ledger[link["record_id"]]["parent_document_ids"]
-    }
-    generated_test_overlap = sorted(
-        {parent for row in generated for parent in row["parent_document_ids"]}
-        & test_parents
-    )
-    test_ids = {
-        link["record_id"]
-        for view in ("lm", "chat")
-        for link in _rows(Path(root) / view / "test.lineage.jsonl")
-    }
+    connection.execute("CREATE TABLE selected (id TEXT PRIMARY KEY)")
+    for view in ("lm", "chat"):
+        if (
+            release_spec is not None
+            and release_spec[view]["selected"]
+            and "train" in release_spec[view]["training_splits"]
+        ):
+            connection.executemany(
+                "INSERT OR IGNORE INTO selected VALUES (?)",
+                (
+                    (link["record_id"],)
+                    for link in _rows(root / view / "train.lineage.jsonl")
+                ),
+            )
     heldout_keys = (
         "parent_document_ids",
         "source_family_ids",
@@ -391,46 +477,64 @@ def summarize_release(
         "scenario_family_id",
         "template_family_id",
     )
-    heldout = {
-        key: {
-            value
-            for record_id in test_ids
-            for value in (
-                ledger[record_id].get(key, [])
-                if key.endswith("_ids")
-                else [ledger[record_id].get(key)]
-            )
-            if value is not None
+    heldout: dict[str, set[str]] = {key: set() for key in heldout_keys}
+    test_parents: set[str] = set()
+    connection.execute("CREATE TABLE test_ids (id TEXT PRIMARY KEY)")
+    for view in ("lm", "chat"):
+        connection.executemany(
+            "INSERT OR IGNORE INTO test_ids VALUES (?)",
+            (
+                (link["record_id"],)
+                for link in _rows(root / view / "test.lineage.jsonl")
+            ),
+        )
+    for (data,) in connection.execute(
+        "SELECT lineage.data FROM lineage JOIN test_ids ON lineage.id = test_ids.id"
+    ):
+        row = json.loads(data)
+        test_parents.update(row["parent_document_ids"])
+        for key in heldout_keys:
+            values = row.get(key, []) if key.endswith("_ids") else [row.get(key)]
+            heldout[key].update(value for value in values if value is not None)
+    generated_count = unverified_generated = 0
+    generated_parents: set[str] = set()
+    shared: dict[str, dict[str, set[str]]] = {}
+    for (data,) in connection.execute(
+        "SELECT lineage.data FROM lineage JOIN selected ON lineage.id = selected.id"
+    ):
+        row = json.loads(data)
+        if row["origin"] in {"primary_source", "human_authored"}:
+            continue
+        generated_count += 1
+        unverified_generated += row["verification"]["status"] in {
+            "unverified", "schema_validated"
         }
-        for key in heldout_keys
-    }
+        generated_parents.update(
+            parent for parent in row["parent_document_ids"] if parent in test_parents
+        )
+        shape = row["shape"]["id"]
+        groups = shared.setdefault(shape, {key: set() for key in heldout_keys})
+        for key in heldout_keys:
+            values = row.get(key, []) if key.endswith("_ids") else [row.get(key)]
+            groups[key].update(value for value in values if value in heldout[key])
+    generated_test_overlap = sorted(generated_parents & test_parents)
     shared_by_shape = {
-        shape_id: {
-            key: sorted(
-                {
-                    value
-                    for row in generated
-                    if row["shape"]["id"] == shape_id
-                    for value in (
-                        row.get(key, []) if key.endswith("_ids") else [row.get(key)]
-                    )
-                    if value is not None
-                }
-                & heldout[key]
-            )
-            for key in heldout_keys
-        }
-        for shape_id in sorted({row["shape"]["id"] for row in generated})
+        shape: {key: sorted(values) for key, values in groups.items()}
+        for shape, groups in sorted(shared.items())
     }
-    lexical = _rows(Path(root) / "lexical/candidates.jsonl")
+    lexical_count = 0
+    lexical_terms: set[str] = set()
+    for row in _rows(root / "lexical/candidates.jsonl"):
+        lexical_count += 1
+        lexical_terms.add(row["term"])
     summary["inventory"] = {
-        "lexical_candidate_count": len(lexical),
-        "lexical_distinct_terms": len({row["term"] for row in lexical}),
+        "lexical_candidate_count": lexical_count,
+        "lexical_distinct_terms": len(lexical_terms),
         "view_record_distribution": {
             key: dict(sorted(values.items())) for key, values in sorted(totals.items())
         },
     }
-    summary["inventory"]["generated_training_records"] = len(generated)
+    summary["inventory"]["generated_training_records"] = generated_count
     summary["inventory"]["unverified_generated_training_records"] = unverified_generated
     summary["inventory"]["generated_test_shared_parent_ids"] = generated_test_overlap
     summary["inventory"]["generated_heldout_lineage_by_shape"] = shared_by_shape

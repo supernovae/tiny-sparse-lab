@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import itertools
 import json
 import os
 import re
@@ -14,6 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit
 
 from sparselab.config.models import StrictModel
 from sparselab.corpus.project import ReleaseDeclaration, release_declaration_payload
@@ -36,7 +39,7 @@ from sparselab.training.manifest import canonical_json, sha256_file
 class NormalizedDocument(StrictModel):
     """Versioned document retaining source attribution and raw evidence identity."""
 
-    schema_version: Literal[1, 2]
+    schema_version: Literal[1, 2, 3]
     document_id: str
     source_id: str
     modality: Literal["text"]
@@ -208,6 +211,11 @@ def _rows(path: Path) -> list[dict[str, Any]]:
     ]
 
 
+def _line_count(path: Path) -> int:
+    with path.open("rb") as stream:
+        return sum(bool(line.strip()) for line in stream)
+
+
 def _model(value: Any) -> dict[str, Any]:
     if isinstance(value, ReleaseDeclaration):
         return release_declaration_payload(value)
@@ -318,6 +326,96 @@ def _sections(text: str, markdown: bool) -> list[tuple[str, list[str], int, int]
     return result
 
 
+_SECRET_OR_PRIVATE = re.compile(
+    r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    r"|\bAKIA[A-Z0-9]{16}\b"
+    r"|\b(?:ghp|gho|github_pat)_[A-Za-z0-9_]{30,}\b"
+    r"|\b\d{3}-\d{2}-\d{4}\b"
+    r"|\b(?:password|api[_-]?key|secret[_-]?key)\s*[:=]\s*"
+    r"['\"]?[A-Za-z0-9/+_=]{24,}",
+    re.IGNORECASE,
+)
+_EXCLUDED_WEB_HOSTS = frozenset(
+    {"stackoverflow.com", "stackexchange.com", "reddit.com", "pastebin.com"}
+)
+
+
+def _excluded_research_record(
+    content: str, metadata: dict[str, Any], source_id: str
+) -> str | None:
+    """Drop identifiable confidential material and disallowed platform mirrors."""
+    if _SECRET_OR_PRIVATE.search(content):
+        return "secret_or_private_identifier"
+    url = metadata.get("url")
+    if isinstance(url, str):
+        try:
+            host = (urlsplit(url).hostname or "").lower().removeprefix("www.")
+        except ValueError:
+            return "unknown_page_provenance"
+        if any(
+            host == banned or host.endswith("." + banned)
+            for banned in _EXCLUDED_WEB_HOSTS
+        ):
+            return "excluded_platform_terms_or_private_paste"
+        if not host:
+            return "unknown_page_provenance"
+    elif source_id.startswith(("fineweb", "openwebmath")):
+        return "unknown_page_provenance"
+    if source_id.startswith("pes2o") and metadata.get("source") not in (
+        "s2orc",
+        "s2orc/train",
+        "s2ag/train",
+    ):
+        return "unreviewed_academic_origin"
+    if len(content.strip()) < 100 and source_id.startswith(
+        ("fineweb", "pes2o", "openwebmath")
+    ):
+        return "insufficient_content"
+    return None
+
+
+def _origin_keys(document: dict[str, Any]) -> tuple[str, ...]:
+    """Identify a source page or paper without grouping unrelated host pages."""
+    metadata = document.get("metadata") or {}
+    keys: set[str] = set()
+    for field in ("url", "page_uri"):
+        value = metadata.get(field)
+        if not isinstance(value, str):
+            continue
+        try:
+            parsed = urlsplit(value)
+            host = (parsed.hostname or "").lower().removeprefix("www.")
+        except ValueError:
+            continue
+        if not host:
+            continue
+        query = urlencode(
+            sorted(
+                (key, val)
+                for key, val in parse_qsl(parsed.query, keep_blank_values=True)
+                if not key.lower().startswith("utm_")
+                and key.lower() not in {"fbclid", "gclid"}
+            )
+        )
+        path = parsed.path.rstrip("/") or "/"
+        keys.add("url:" + host + path + ("?" + query if query else ""))
+        if host in {"en.wikipedia.org", "en.wikibooks.org"} and path.startswith("/wiki/"):
+            keys.add("wiki:" + host + ":" + unquote(path[6:]).replace("_", " ").casefold())
+    if document["source_id"].startswith("pes2o") and metadata.get("id"):
+        keys.add("paper:semantic_scholar:" + str(metadata["id"]))
+    page_title = metadata.get("page_title")
+    if isinstance(page_title, str) and document["source_id"] in {
+        "wikipedia_20260901", "wikibooks_20260901"
+    }:
+        wiki_host = (
+            "en.wikipedia.org"
+            if document["source_id"] == "wikipedia_20260901"
+            else "en.wikibooks.org"
+        )
+        keys.add("wiki:" + wiki_host + ":" + page_title.replace("_", " ").casefold())
+    return tuple(sorted(keys))
+
+
 def _records_for_file(
     raw: bytes,
     name: str,
@@ -325,27 +423,34 @@ def _records_for_file(
     snapshot_id: str,
     *,
     file_rights: FileRights | None = None,
+    rejected_records: list[dict[str, Any]] | None = None,
+    full_file_sha256: str | None = None,
+    first_row_index: int = 1,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     suffix = Path(name).suffix.lower()
+    streaming_rows = (
+        source.schema_version == 3
+        and suffix == ".jsonl"
+        and source.kind in {"huggingface_dataset", "wikimedia_dump"}
+    )
     if suffix != ".parquet":
         if b"\x00" in raw:
             raise ValueError("binary input")
-        text = _normalized(raw.decode("utf-8", errors="strict"))
-        if not text.strip():
+        text = "" if streaming_rows else _normalized(raw.decode("utf-8", errors="strict"))
+        if not raw or (not streaming_rows and not text.strip()):
             raise ValueError("empty input")
     else:
         text = ""
-    suffix = Path(name).suffix.lower()
     if (
         suffix in {".jsonl", ".json", ".parquet"}
-        and source.kind == "huggingface_dataset"
+        and source.kind in {"huggingface_dataset", "wikimedia_dump"}
     ):
         if suffix == ".parquet":
-            import io
-
             import pyarrow.parquet as pq
 
             objects = pq.read_table(io.BytesIO(raw)).to_pylist()
+        elif streaming_rows:
+            objects = (json.loads(line) for line in io.BytesIO(raw) if line.strip())
         elif suffix == ".jsonl":
             objects = [json.loads(line) for line in text.splitlines() if line.strip()]
         else:
@@ -353,9 +458,27 @@ def _records_for_file(
             objects = loaded if isinstance(loaded, list) else [loaded]
         field = source.acquisition.text_field
         max_rows = source.acquisition.max_rows
-        passages = [
-            (item[field], [], n, n) for n, item in enumerate(objects[:max_rows], 1)
-        ]
+        passages = []
+        for n, item in enumerate(itertools.islice(objects, max_rows), first_row_index):
+            upstream = item.get("_sparselab_source", {})
+            metadata = {
+                key: value
+                for key, value in {**item, **upstream}.items()
+                if key
+                in {
+                    "url", "id", "dump", "date", "file_path", "language",
+                    "score", "int_score", "token_count", "language_score",
+                    "title", "license", "license_type", "path", "repo_name",
+                    "blob_id", "source_row_index", "source_shard_path",
+                    "source_row_sha256", "source_shard_sha256", "source",
+                    "corpusid", "doi", "year", "page_uri", "page_title",
+                    "page_id", "revision_id", "revision_timestamp",
+                    "source_uri", "dump_revision",
+                }
+                and isinstance(value, (str, int, float, bool))
+            }
+            content = _normalized(item[field]) if streaming_rows and isinstance(item[field], str) else item[field]
+            passages.append((content, [], n, n, metadata))
     elif suffix == ".cnxml":
         passages = _cnxml_passages(raw)
     elif suffix in {".md", ".markdown"}:
@@ -363,7 +486,7 @@ def _records_for_file(
     else:
         passages = _sections(text, False)
     rows = []
-    raw_sha = hashlib.sha256(raw).hexdigest()
+    raw_sha = full_file_sha256 or hashlib.sha256(raw).hexdigest()
     rights_payload = file_rights.model_dump(mode="json") if file_rights else None
     file_license = (
         (
@@ -374,17 +497,40 @@ def _records_for_file(
         if file_rights
         else source.license
     )
-    byte_offsets = [] if source.kind == "huggingface_dataset" else [0]
-    if source.kind != "huggingface_dataset":
+    byte_offsets = [] if source.kind in {"huggingface_dataset", "wikimedia_dump"} else [0]
+    if source.kind not in {"huggingface_dataset", "wikimedia_dump"}:
         for line in raw.decode("utf-8").splitlines(keepends=True):
             byte_offsets.append(byte_offsets[-1] + len(line.encode("utf-8")))
-    for content, ancestry, start, end in passages:
+    for passage in passages:
+        content, ancestry, start, end = passage[:4]
+        metadata = passage[4] if len(passage) > 4 else None
         if not isinstance(content, str) or not content.strip():
-            raise ValueError("empty/nontext document")
+            if source.schema_version != 3:
+                raise ValueError("empty/nontext document")
+            reason = "empty_or_nontext"
+        else:
+            reason = (
+                _excluded_research_record(content, metadata or {}, source.id)
+                if source.schema_version == 3
+                else None
+            )
+        if reason:
+            if rejected_records is not None:
+                rejected_records.append(
+                    {
+                        "source_id": source.id,
+                        "path": name,
+                        "row": start
+                        if source.kind in {"huggingface_dataset", "wikimedia_dump"}
+                        else None,
+                        "reason": reason,
+                    }
+                )
+            continue
         location = (
-            f"{name}#lines={start}-{end}"
-            if source.kind != "huggingface_dataset"
-            else f"{name}#row={start}"
+            f"{name}#row={start}"
+            if source.kind in {"huggingface_dataset", "wikimedia_dump"}
+            else f"{name}#lines={start}-{end}"
         )
         normalizer = (
             "cnxml-text-v1" if suffix == ".cnxml" else "normalizer-nfc-markdown-v1"
@@ -412,15 +558,31 @@ def _records_for_file(
                 else source.redistribution
             ),
             "domains": list(source.domains),
-            "document_kind": next(iter(source.document_kinds)),
-            "title": ancestry[-1] if ancestry else Path(name).name,
+            "document_kind": (
+                "prose"
+                if source.schema_version == 3
+                and suffix in {".md", ".markdown"}
+                and "prose" in source.document_kinds
+                else next(iter(source.document_kinds))
+            ),
+            "title": (
+                metadata.get("page_title")
+                if metadata and metadata.get("page_title")
+                else ancestry[-1] if ancestry else Path(name).name
+            ),
             "section_path": ancestry,
             "language": "en",
             "text": content,
             "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "raw_content_sha256": raw_content_sha,
             "source_family": source.source_family,
-            **({"metadata": {"normalizer": normalizer}} if suffix == ".cnxml" else {}),
+            **(
+                {"metadata": metadata}
+                if metadata
+                else {"metadata": {"normalizer": normalizer}}
+                if suffix == ".cnxml"
+                else {}
+            ),
             **(
                 {"file_sha256": raw_sha, "rights": rights_payload}
                 if file_rights
@@ -1103,10 +1265,22 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     Path(__file__).with_name("rights.py")
                 )
             }
-            if project.release.schema_version == 2
+            if project.release.schema_version in (2, 3)
             else {}
         ),
     }
+    large_lm_build = (
+        project.release.schema_version == 3
+        and len(transforms) == 1
+        and transforms[0].kind == "lm_text"
+        and project.release.lm.selected
+        and not project.release.chat.selected
+        and all(source.schema_version == 3 for source in project.sources)
+    )
+    if large_lm_build:
+        identity["large_builder_implementation_sha256"] = sha256_file(
+            Path(__file__).with_name("large_build.py")
+        )
     build_id = digest(identity)
     target = root / build_id
     if target.exists():
@@ -1114,6 +1288,15 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
 
         verify_build(target)
         return target
+    if large_lm_build:
+        from sparselab.corpus.large_build import build_large
+        from sparselab.corpus.progress import BuildProgress
+
+        workspace = Path(work_root) / "corpora" / project.config.id
+        progress = BuildProgress(
+            workspace / "progress" / f"{build_id}.jsonl", build_id
+        )
+        return build_large(project, workspace, lock, identity, build_id, target, progress)
     with _staged_build(root, build_id) as staging:
         documents: list[dict[str, Any]] = []
         evidence: list[dict[str, Any]] = []
@@ -1179,7 +1362,11 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 raw = (Path(entry["snapshot_path"]) / "files" / name).read_bytes()
                 decision = (
                     resolve_file_rights(
-                        source.rights, name, raw, nested_metadata=nested_metadata
+                        source.rights,
+                        name,
+                        raw,
+                        nested_metadata=nested_metadata,
+                        prospective_private_research=source.schema_version == 3,
                     )
                     if source.rights
                     else None
@@ -1225,6 +1412,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         source,
                         entry["snapshot_sha256"],
                         file_rights=decision,
+                        rejected_records=rejected,
                     )
                     documents.extend(doc for doc, _ in pairs)
                     evidence.extend(span for _, span in pairs)
@@ -1243,27 +1431,64 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             doc["split"] = _split(doc, policy)
         groups: dict[str, list[str]] = defaultdict(list)
         normalized: dict[str, list[str]] = defaultdict(list)
+        origin: dict[str, list[str]] = defaultdict(list)
         by_id = {d["document_id"]: d for d in documents}
+        source_rank = {
+            source.id: (
+                0
+                if source.kind in {"git", "wikimedia_dump", "http_document"}
+                else 1 if source.id.startswith("pes2o") else 2
+            )
+            for source in project.sources
+        }
         for doc in documents:
             groups[doc["raw_content_sha256"]].append(doc["document_id"])
             normalized[doc["content_sha256"]].append(doc["document_id"])
+            if project.release.schema_version == 3:
+                for key in _origin_keys(doc):
+                    origin[key].append(doc["document_id"])
         duplicate_groups = []
         representative = {d["document_id"]: d["document_id"] for d in documents}
-        for method, mapping in (("raw", groups), ("normalized", normalized)):
+        mappings = [("raw", groups), ("normalized", normalized)]
+        if project.release.schema_version == 3:
+            mappings.append(("canonical_origin", origin))
+        for method, mapping in mappings:
             for content_id, ids in sorted(mapping.items()):
                 if len(ids) < 2:
                     continue
                 ids = sorted(ids)
+                splits = {by_id[i]["split"] for i in ids}
+                heldout = splits - {"train"}
+                priority = next(iter(heldout)) if heldout else None
+                selected = (
+                    min(
+                        ids,
+                        key=lambda i: (
+                            by_id[i]["split"] != priority if priority else False,
+                            source_rank[by_id[i]["source_id"]],
+                            by_id[i]["document_kind"] != "paper",
+                            i,
+                        ),
+                    )
+                    if project.release.schema_version == 3
+                    else ids[0]
+                )
                 duplicate_groups.append(
                     {
                         "method": method,
-                        "sha256": content_id,
+                        "sha256": (
+                            hashlib.sha256(content_id.encode()).hexdigest()
+                            if method == "canonical_origin"
+                            else content_id
+                        ),
                         "origins": ids,
-                        "splits": sorted({by_id[i]["split"] for i in ids}),
-                        "representative": ids[0],
+                        "splits": sorted(splits),
+                        "representative": selected,
                     }
                 )
-                if len({by_id[i]["split"] for i in ids}) > 1:
+                if len(splits) > 1 and (
+                    project.release.schema_version != 3 or len(heldout) != 1
+                ):
                     diagnostic = {
                         "duplicates": duplicate_groups,
                         "rejected": rejected,
@@ -1303,8 +1528,56 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         raise ValueError(
                             "duplicate source text has incompatible rights evidence"
                         )
-                for i in ids[1:]:
-                    representative[i] = min(representative[i], ids[0])
+                if project.release.schema_version == 3:
+                    if method == "normalized":
+                        for i in ids:
+                            representative[i] = selected
+                else:
+                    for i in ids[1:]:
+                        representative[i] = min(representative[i], ids[0])
+
+        if project.release.schema_version == 3:
+            # Raw, normalized, page-URL and paper-ID groups can be connected
+            # transitively. Resolve each connected component once: a chain of
+            # locally chosen representatives would otherwise introduce cycles.
+            parents = {identifier: identifier for identifier in by_id}
+
+            def root_of(identifier: str) -> str:
+                while parents[identifier] != identifier:
+                    parents[identifier] = parents[parents[identifier]]
+                    identifier = parents[identifier]
+                return identifier
+
+            for group in duplicate_groups:
+                first = root_of(group["origins"][0])
+                for identifier in group["origins"][1:]:
+                    parents[root_of(identifier)] = first
+            components: dict[str, list[str]] = defaultdict(list)
+            for identifier in by_id:
+                components[root_of(identifier)].append(identifier)
+            for ids in components.values():
+                heldout = {by_id[i]["split"] for i in ids} - {"train"}
+                if len(heldout) > 1:
+                    diagnostic = {
+                        "duplicates": duplicate_groups,
+                        "rejected": rejected,
+                        "error": "validation/test page or paper origin overlap",
+                    }
+                    _json(staging / "audit.json", diagnostic)
+                    _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
+                    raise ValueError("validation/test page or paper origin overlap")
+                priority = next(iter(heldout)) if heldout else None
+                selected = min(
+                    ids,
+                    key=lambda i: (
+                        by_id[i]["split"] != priority if priority else False,
+                        source_rank[by_id[i]["source_id"]],
+                        by_id[i]["document_kind"] != "paper",
+                        i,
+                    ),
+                )
+                for identifier in ids:
+                    representative[identifier] = selected
 
         def chosen(identifier: str) -> str:
             current = identifier
@@ -1318,7 +1591,15 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         for doc in documents:
             doc["representative_id"] = representative[doc["document_id"]]
             doc["drop_reason"] = (
-                "duplicate" if doc["representative_id"] != doc["document_id"] else None
+                (
+                    "contaminated_heldout"
+                    if project.release.schema_version == 3
+                    and doc["split"] == "train"
+                    and by_id[doc["representative_id"]]["split"] != "train"
+                    else "duplicate"
+                )
+                if doc["representative_id"] != doc["document_id"]
+                else None
             )
         kept = [d for d in documents if not d["drop_reason"]]
         stages: list[dict[str, Any]] = []
@@ -2497,6 +2778,11 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     if s.rights
                     else {}
                 ),
+                **(
+                    {"explicit_training_restriction": s.explicit_training_restriction}
+                    if s.schema_version == 3
+                    else {}
+                ),
                 "origin": s.origin,
                 "source_family": s.source_family,
                 "snapshot_sha256": lock["sources"].get(s.id, {}).get("snapshot_sha256"),
@@ -2520,7 +2806,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             for s in project.sources
         ]
         _json(staging / "sources.json", sources)
-        if project.release.schema_version == 2:
+        if project.release.schema_version in (2, 3):
             file_decisions = [
                 item for item in rights_files if item["role"] == "document"
             ]
@@ -2541,8 +2827,13 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 ] += 1
                 modes[decision["redistribution_mode"]] += 1
             rights_report = {
-                "schema_version": 2,
+                "schema_version": project.release.schema_version,
                 "publication_mode": project.release.publication_mode,
+                **(
+                    {"training_use_policy": project.release.training_use_policy}
+                    if project.release.schema_version == 3
+                    else {}
+                ),
                 "weight_license_status": "separate_analysis_required",
                 "sources": sources,
                 "files": rights_files,
@@ -2592,6 +2883,19 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         generation_statuses["oracle_verified"] += len(scenarios)
         generation_total = len(generations) + len(scenarios)
         source_counts = Counter(d["source_id"] for d in kept)
+        source_scale: dict[str, dict[str, dict[str, int]]] = defaultdict(dict)
+        if project.release.schema_version == 3:
+            for doc in kept:
+                split = doc["split"]
+                counts = source_scale[doc["source_id"]].setdefault(
+                    split,
+                    {"documents": 0, "utf8_bytes": 0, "characters": 0, "whitespace_words": 0},
+                )
+                text = doc["text"]
+                counts["documents"] += 1
+                counts["utf8_bytes"] += len(text.encode("utf-8"))
+                counts["characters"] += len(text)
+                counts["whitespace_words"] += len(text.split())
         report = {
             "schema_version": project.release.schema_version,
             "corpus_id": project.config.id,
@@ -2602,7 +2906,11 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             "split_counts": {s: sum(d["split"] == s for d in kept) for s in SPLITS},
             "view_counts": {
                 view: {
-                    split: len(_rows(staging / view / f"{split}.jsonl"))
+                    split: (
+                        _line_count(staging / view / f"{split}.jsonl")
+                        if project.release.schema_version == 3
+                        else len(_rows(staging / view / f"{split}.jsonl"))
+                    )
                     for split in SPLITS
                 }
                 for view in ("lm", "chat")
@@ -2636,7 +2944,29 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             if fraction is not None
             else "tokenizer_not_declared",
         }
-        if project.release.schema_version == 2:
+        if project.release.schema_version == 3:
+            report["source_scale"] = {
+                source: dict(sorted(splits.items()))
+                for source, splits in sorted(source_scale.items())
+            }
+            train_scale = {
+                key: sum(
+                    per_split.get("train", {}).get(key, 0)
+                    for per_split in source_scale.values()
+                )
+                for key in ("documents", "utf8_bytes", "characters", "whitespace_words")
+            }
+            report["train_source_scale"] = {
+                **train_scale,
+                "utf8_bytes_div4_proxy": train_scale["utf8_bytes"] // 4,
+                "actual_tokens": None,
+                "token_count_reason": "final_tokenizer_not_fitted",
+                "proxy_warning": (
+                    "Whitespace words and UTF-8 bytes/4 are tokenizer-independent "
+                    "descriptors, not measured DevMind token counts."
+                ),
+            }
+        if project.release.schema_version in (2, 3):
             report["rights"] = {
                 key: value
                 for key, value in rights_report.items()
@@ -2648,6 +2978,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     "unresolved_rights_files",
                     "weight_license_status",
                     "publication_mode",
+                    "training_use_policy",
                 }
             }
         from sparselab.corpus.measurement import summarize_release

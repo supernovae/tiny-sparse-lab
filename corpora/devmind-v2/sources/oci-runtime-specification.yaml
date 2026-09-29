@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_oci_runtime_specification
+kind: git
+canonical_uri: https://github.com/opencontainers/runtime-spec.git
+revision: 6999a89a76a0329f440d5740497bedb9dd431297
+license: Apache-2.0
+license_url: https://github.com/opencontainers/runtime-spec/blob/6999a89a76a0329f440d5740497bedb9dd431297/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/opencontainers/runtime-spec/blob/6999a89a76a0329f440d5740497bedb9dd431297/LICENSE]
+  notices: ['Retain Open Container Initiative, Linux Foundation, contributors and Apache-2.0 notices; screen each selected file for imported terms.']
+notes: 'Pinned first-party runtime specification chapters only. This repository is held out from Kubernetes and Linux implementation families; exact and page-origin mirror screening still required.'
+domains: [containers, distributed_systems]
+document_kinds: [prose]
+source_family: v2_oci_runtime_specification_validation
+acquisition:
+  include: ['bundle.md', 'config*.md', 'features*.md', 'runtime*.md', 'spec.md', 'glossary.md', 'principles.md']
+  exclude: ['*/test/*', '*/tests/*', '*/fixtures/*', '*/generated/*']
+  max_bytes: 5000000

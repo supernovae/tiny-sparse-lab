@@ -69,6 +69,8 @@ def candidates(
     documents: Iterable[dict[str, Any]],
     *,
     max_documents: int = 100_000,
+    max_input_text_bytes: int = 128 * 1024 * 1024,
+    max_total_shingles: int = 1_000_000,
     max_shingles_per_document: int = 50_000,
     max_bucket_documents: int = 1_000,
     max_comparisons: int = 200_000,
@@ -85,6 +87,8 @@ def candidates(
         min(
             max_documents,
             max_shingles_per_document,
+            max_input_text_bytes,
+            max_total_shingles,
             max_bucket_documents,
             max_comparisons,
             max_candidates,
@@ -93,20 +97,35 @@ def candidates(
         or not 0 < min_jaccard <= 1
     ):
         raise ValueError("near-duplicate caps must be positive and threshold in (0, 1]")
-    rows = sorted(documents, key=lambda row: row["document_id"])
-    if len(rows) > max_documents:
-        raise ValueError(f"near-duplicate document cap exceeded ({max_documents})")
+    rows = []
+    text_bytes = 0
+    for row in documents:
+        if len(rows) >= max_documents:
+            raise ValueError(f"near-duplicate document cap exceeded ({max_documents})")
+        text_bytes += len(row["text"].encode("utf-8"))
+        if text_bytes > max_input_text_bytes:
+            raise ValueError(
+                f"near-duplicate input text byte cap exceeded ({max_input_text_bytes})"
+            )
+        rows.append(row)
+    rows.sort(key=lambda row: row["document_id"])
     if len({row["document_id"] for row in rows}) != len(rows):
         raise ValueError("near-duplicate duplicate document ID")
     buckets: dict[tuple[int, tuple[int, ...]], list[int]] = defaultdict(list)
     identical: dict[str, list[int]] = defaultdict(list)
     shingle_sets: list[frozenset[int]] = []
     pairs: set[tuple[int, int]] = set()
+    total_shingles = 0
     for index, row in enumerate(rows):
         if row["split"] not in _SPLITS:
             raise ValueError("near-duplicate invalid document split")
         shingles = _shingles(row["text"], max_shingles_per_document)
         shingle_sets.append(shingles)
+        total_shingles += len(shingles)
+        if total_shingles > max_total_shingles:
+            raise ValueError(
+                f"near-duplicate total shingle cap exceeded ({max_total_shingles})"
+            )
         keys = list(_bands(shingles))
         matches = set(identical[row["content_sha256"]])
         for key in keys:
@@ -172,6 +191,8 @@ def candidates(
             "bands": 16,
             "hashes_per_band": 4,
             "min_jaccard": min_jaccard,
+            "max_input_text_bytes": max_input_text_bytes,
+            "max_total_shingles": max_total_shingles,
             "max_documents": max_documents,
             "max_shingles_per_document": max_shingles_per_document,
             "max_bucket_documents": max_bucket_documents,

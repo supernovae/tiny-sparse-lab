@@ -196,12 +196,14 @@ def export_release(
             )
         },
     }
-    if manifest["build_identity"]["release"]["schema_version"] == 2:
+    if manifest["build_identity"]["release"]["schema_version"] in (2, 3):
         rights = json.loads(
             (release_dir / "license-report.json").read_text(encoding="utf-8")
         )
         sidecar["publication_mode"] = rights["publication_mode"]
         sidecar["weight_license_status"] = rights["weight_license_status"]
+        if rights["schema_version"] == 3:
+            sidecar["training_use_policy"] = rights["training_use_policy"]
     if destination.exists():
         if any(
             not (destination / filename).is_file()

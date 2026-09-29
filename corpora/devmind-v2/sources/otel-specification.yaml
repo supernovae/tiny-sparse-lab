@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_otel_specification
+kind: git
+canonical_uri: https://github.com/open-telemetry/opentelemetry-specification.git
+revision: 91ad2327b5ae2edac69f4dc16f47bccedf8b81e8
+license: Apache-2.0
+license_url: https://github.com/open-telemetry/opentelemetry-specification/blob/91ad2327b5ae2edac69f4dc16f47bccedf8b81e8/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/open-telemetry/opentelemetry-specification/blob/91ad2327b5ae2edac69f4dc16f47bccedf8b81e8/LICENSE]
+  notices: ['Retain OpenTelemetry Authors attribution, license and notices; identify and screen imported portions and file-specific restrictions.']
+notes: 'Pin authored tracing, metrics, logs, common and context specification prose, excluding generated website, registry fixtures and third-party copies. Separate from the Collector implementation. Private research only.'
+domains: [observability, distributed_systems]
+document_kinds: [prose]
+source_family: v2_otel_specification_train
+acquisition:
+  include: ['specification/trace/*.md', 'specification/metrics/*.md', 'specification/logs/*.md', 'specification/common/*.md', 'specification/context/*.md']
+  exclude: ['*/test/*', '*/tests/*', '*/examples/*', '*/fixtures/*', '*/generated/*']
+  max_bytes: 20000000

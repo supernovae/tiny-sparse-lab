@@ -32,10 +32,12 @@ def policy(**changes: object) -> RightsPolicy:
         ("GPL-2.0 WITH Linux-syscall-note", "eligible_with_obligations"),
         ("GPL-2.0+", "eligible_with_obligations"),
         ("LGPL-2.1", "eligible_with_obligations"),
+        ("AGPL-3.0", "eligible_with_obligations"),
         ("(GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause", "eligible_with_obligations"),
         ("MPL-2.0", "eligible_with_obligations"),
         ("CC-BY-4.0", "eligible_with_obligations"),
         ("CC-BY-SA-4.0", "eligible_with_obligations"),
+        ("ODC-By-1.0", "eligible_with_obligations"),
         ("MIT OR Apache-2.0", "eligible"),
         ("MIT AND GPL-3.0-only", "eligible_with_obligations"),
         ("CC-BY-NC-SA-4.0", "review_required"),
@@ -62,6 +64,33 @@ def test_exact_spdx_and_license_classes(expression: str, expected: str) -> None:
         if expected == "review_required"
         else "redistributable_under_source_terms"
     )
+
+
+def test_prospective_training_keeps_unrecognized_license_obligations_separate() -> None:
+    declaration = policy(
+        spdx_expression="Publisher-Proprietary",
+        redistribution_mode="metadata_reconstruction_only",
+    )
+    legacy = resolve_file_rights(declaration, "articles/paper.txt", b"Public paper")
+    prospective = resolve_file_rights(
+        declaration,
+        "articles/paper.txt",
+        b"Public paper",
+        prospective_private_research=True,
+    )
+    assert legacy.training_eligibility == "review_required"
+    assert prospective.training_eligibility == "eligible_with_obligations"
+    assert prospective.redistribution_mode == "metadata_reconstruction_only"
+    blocked = resolve_file_rights(
+        policy(
+            training_eligibility="ineligible",
+            training_restriction={"kind": "prohibited", "basis": "No ML training"},
+        ),
+        "articles/paper.txt",
+        b"Public paper",
+        prospective_private_research=True,
+    )
+    assert blocked.training_eligibility == "ineligible"
 
 
 @pytest.mark.parametrize(

@@ -136,7 +136,9 @@ _PERMISSIVE = frozenset(
         "Artistic-2.0",
     }
 )
-_ATTRIBUTION = frozenset({"CC-BY-4.0", "CC-BY-3.0", "CC-BY-SA-4.0", "CC-BY-SA-3.0"})
+_ATTRIBUTION = frozenset(
+    {"CC-BY-4.0", "CC-BY-3.0", "CC-BY-SA-4.0", "CC-BY-SA-3.0", "ODC-By-1.0"}
+)
 _COPYLEFT = frozenset(
     {
         "MPL-2.0",
@@ -157,6 +159,8 @@ _COPYLEFT = frozenset(
         "LGPL-3.0+",
         "LGPL-3.0-or-later",
         "AGPL-3.0-only",
+        "AGPL-3.0",
+        "AGPL-3.0+",
         "AGPL-3.0-or-later",
     }
 )
@@ -380,8 +384,9 @@ def resolve_file_rights(
     raw_bytes: bytes,
     *,
     nested_metadata: Mapping[str, Any] | None = None,
+    prospective_private_research: bool = False,
 ) -> FileRights:
-    """Resolve explicit declarations and evidence; uncertainty always requires review."""
+    """Resolve pinned file evidence under the declared release training-use policy."""
     _safe_path(path)
     flags = tuple(
         sorted({part for part in path.split("/") if part.lower() in _BOUNDARIES})
@@ -390,7 +395,18 @@ def resolve_file_rights(
         path == item.rstrip("/") or (item.endswith("/") and path.startswith(item))
         for item in policy.allowed_boundary_paths
     )
-    header = raw_bytes.splitlines()[:30]
+    # Dataset rows are not file-level license headers. Avoid copying every line
+    # of a multi-gigabyte selected shard just to inspect a handful of notices.
+    header: list[bytes] = []
+    if not path.endswith((".jsonl", ".json", ".parquet")):
+        offset = 0
+        for _ in range(30):
+            end = raw_bytes.find(b"\n", offset)
+            if end < 0:
+                header.append(raw_bytes[offset:])
+                break
+            header.append(raw_bytes[offset:end])
+            offset = end + 1
     expressions = set()
     file_notices: list[str] = []
     for line in header:
@@ -420,9 +436,9 @@ def resolve_file_rights(
     # Only contradictory file-vs-metadata evidence is a conflict; legitimate
     # per-file license exceptions must remain separately classifiable.
     classification = _license_class(effective) if effective is not None else "unknown"
-    if classification == "unknown":
+    if classification == "unknown" and not prospective_private_research:
         reasons.append("unknown or unrecognized SPDX expression")
-    elif classification == "restricted":
+    elif classification == "restricted" and not prospective_private_research:
         reasons.append("restrictive SPDX license requires review")
     if policy.training_restriction is not None:
         reasons.append(
@@ -438,6 +454,7 @@ def resolve_file_rights(
     elif (
         policy.training_eligibility == "eligible_with_obligations"
         or classification == "obligations"
+        or (prospective_private_research and classification in {"unknown", "restricted"})
         or (classification == "permissive" and not policy.notices)
     ):
         training = "eligible_with_obligations"
@@ -447,7 +464,11 @@ def resolve_file_rights(
     if reasons and redistribution == "redistributable_under_source_terms":
         redistribution = "review_required"
     if not reasons:
-        reasons.append("recognized SPDX under declared source terms")
+        reasons.append(
+            "private research candidate; license obligations and explicit source terms retained"
+            if prospective_private_research
+            else "recognized SPDX under declared source terms"
+        )
     return FileRights(
         path=path,
         detected_spdx_expression=detected,

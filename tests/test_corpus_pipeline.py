@@ -13,6 +13,7 @@ from sparselab.corpus.acquisition import acquire
 from sparselab.corpus.pipeline import _records_for_file, _split, build
 from sparselab.corpus.project import SourceDeclaration, load_project
 from sparselab.corpus.release import freeze, lineage, review, sample, verify_release
+from sparselab.corpus.rights import resolve_file_rights
 
 PROJECT = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0/corpus.yaml"
 
@@ -86,6 +87,137 @@ def test_normalized_duplicates_preserve_distinct_raw_origins() -> None:
     assert composed["content_sha256"] == decomposed["content_sha256"]
     assert composed["raw_content_sha256"] != decomposed["raw_content_sha256"]
     assert composed["document_id"] != decomposed["document_id"]
+
+
+def test_prospective_hf_rows_keep_provenance_and_exclude_private_material() -> None:
+    source = load_project(
+        Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
+    ).sources[0]
+    safe = {
+        "text": "A public tutorial explains operating system scheduling and reliable "
+        "deployments with concrete examples across several paragraphs. " * 2,
+        "url": "https://example.org/tutorial",
+        "id": "warc-record-1",
+        "_sparselab_source": {
+            "source_shard_path": "sample/10BT/000_00000.parquet",
+            "source_row_index": 882,
+            "source_row_sha256": "a" * 64,
+        },
+    }
+    secret = {
+        **safe,
+        "text": safe["text"] + " AKIA" + "A" * 16,
+        "id": "warc-record-2",
+    }
+    excluded_platform = {
+        **safe,
+        "url": "https://stackoverflow.com/questions/123",
+        "id": "warc-record-3",
+    }
+    rejected: list[dict[str, object]] = []
+    raw = b"".join(
+        json.dumps(row).encode() + b"\n"
+        for row in (safe, secret, excluded_platform)
+    )
+    name = "sample/10BT/000_00000.parquet.sample.jsonl"
+    pairs = _records_for_file(
+        raw,
+        name,
+        source,
+        "b" * 64,
+        file_rights=resolve_file_rights(
+            source.rights, name, raw, prospective_private_research=True
+        ),
+        rejected_records=rejected,
+    )
+    assert len(pairs) == 1
+    document, evidence = pairs[0]
+    assert document["metadata"]["url"] == safe["url"]
+    assert document["metadata"]["id"] == safe["id"]
+    assert document["metadata"]["source_row_index"] == 882
+    assert document["source_location"].endswith("#row=1")
+    assert evidence["raw_sha256"] != document["content_sha256"]
+    assert [row["reason"] for row in rejected] == [
+        "secret_or_private_identifier",
+        "excluded_platform_terms_or_private_paste",
+    ]
+
+
+def test_scholarly_abstracts_and_full_papers_keep_distinct_kinds_and_corpus_ids() -> None:
+    project = load_project(
+        Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
+    )
+    for source_id, upstream, expected_kind in (
+        ("pes2o_v2_train", "s2ag/train", "abstract"),
+        ("pes2o_v2_fulltext", "s2orc/train", "paper"),
+    ):
+        source = next(item for item in project.sources if item.id == source_id)
+        raw = b"".join(
+            json.dumps(
+                {
+                    "id": "paper-123",
+                    "source": origin,
+                    "text": "A scholarly discussion of operating systems and rigorous evidence. "
+                    * 3,
+                    "_sparselab_source": {"source_row_index": index},
+                }
+            ).encode()
+            + b"\n"
+            for index, origin in enumerate((upstream, "unreviewed/external"), 1)
+        )
+        name = source.acquisition.bounded_shards[0].path + ".sample.jsonl"
+        rejected: list[dict[str, object]] = []
+        rows = _records_for_file(
+            raw,
+            name,
+            source,
+            "d" * 64,
+            file_rights=resolve_file_rights(
+                source.rights, name, raw, prospective_private_research=True
+            ),
+            rejected_records=rejected,
+        )
+        assert len(rows) == 1
+        assert rows[0][0]["document_kind"] == expected_kind
+        assert rows[0][0]["metadata"]["id"] == "paper-123"
+        assert rows[0][0]["metadata"]["source"] == upstream
+        assert [item["reason"] for item in rejected] == ["unreviewed_academic_origin"]
+
+
+def test_wikimedia_rows_keep_page_revision_not_jsonl_envelope() -> None:
+    project = load_project(
+        Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
+    )
+    source = next(item for item in project.sources if item.id == "wikibooks_20260901")
+    raw = json.dumps(
+        {
+            "text": "Compiler construction begins with tokens and grammar definitions.",
+            "_sparselab_source": {
+                "page_title": "Compiler Construction",
+                "page_id": "1234",
+                "revision_id": "9876",
+                "revision_timestamp": "2026-09-01T00:00:00Z",
+                "page_uri": "https://en.wikibooks.org/?curid=1234",
+            },
+        }
+    ).encode()
+    name = "enwikibooks-20260901-pages-articles-multistream.xml.bz2.sample.jsonl"
+    documents = _records_for_file(
+        raw + b"\n",
+        name,
+        source,
+        "c" * 64,
+        file_rights=resolve_file_rights(
+            source.rights, name, raw + b"\n", prospective_private_research=True
+        ),
+    )
+    assert len(documents) == 1
+    item, evidence = documents[0]
+    assert item["title"] == "Compiler Construction"
+    assert item["metadata"]["revision_id"] == "9876"
+    assert item["metadata"]["page_uri"].endswith("curid=1234")
+    assert item["source_location"].endswith("#row=1")
+    assert evidence["line_start"] == 1
 
 
 def test_transform_parameter_changes_produce_distinct_builds(tmp_path: Path) -> None:
