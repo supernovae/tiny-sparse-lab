@@ -77,6 +77,10 @@ def _verify_prepared(path: Path, identity: dict[str, Any]) -> dict[str, Any]:
     return receipt
 
 
+class _SourceParseError(ValueError):
+    """Input file rejected by the normalizer, not a broken receipt or build."""
+
+
 def _prepare_file(
     *,
     build_id: str,
@@ -124,16 +128,15 @@ def _prepare_file(
                             progress.update(input_bytes=len(raw))
                             continue
                         dropped: list[dict[str, Any]] = []
-                        rows = _records_for_file(
-                            raw,
-                            file["path"],
-                            source,
-                            snapshot_sha,
-                            file_rights=decision,
-                            rejected_records=dropped,
-                            full_file_sha256=file["sha256"],
-                            first_row_index=index,
-                        )
+                        try:
+                            rows = _records_for_file(
+                                raw, file["path"], source, snapshot_sha,
+                                file_rights=decision, rejected_records=dropped,
+                                full_file_sha256=file["sha256"],
+                                first_row_index=index,
+                            )
+                        except (ValueError, UnicodeError, KeyError, TypeError) as exc:
+                            raise _SourceParseError(str(exc)) from exc
                         for doc, span in rows:
                             _output(docs, doc)
                             _output(spans, span)
@@ -145,14 +148,13 @@ def _prepare_file(
             else:
                 raw = source_path.read_bytes()
                 dropped = []
-                rows = _records_for_file(
-                    raw,
-                    file["path"],
-                    source,
-                    snapshot_sha,
-                    file_rights=decision,
-                    rejected_records=dropped,
-                )
+                try:
+                    rows = _records_for_file(
+                        raw, file["path"], source, snapshot_sha,
+                        file_rights=decision, rejected_records=dropped,
+                    )
+                except (ValueError, UnicodeError, KeyError, TypeError) as exc:
+                    raise _SourceParseError(str(exc)) from exc
                 for doc, span in rows:
                     _output(docs, doc)
                     _output(spans, span)
@@ -526,7 +528,7 @@ def _emit_build(
     transform: Any,
     prepared: list[Path],
     rights_files: list[dict[str, Any]],
-    file_rejections: list[dict[str, Any]],
+    source_events: list[Path | dict[str, Any]],
     groups_path: Path,
     group_count: int,
     dropped: int,
@@ -651,12 +653,13 @@ def _emit_build(
         "output_id": stage_digest.hexdigest(),
     }]
     with (staging / "rejected.jsonl").open("wb") as output:
-        for item in file_rejections:
-            _output(output, item)
-        for shard in prepared:
-            with (shard / "rejected.jsonl").open("rb") as source:
-                for line in source:
-                    output.write(line)
+        for event in source_events:
+            if isinstance(event, Path):
+                with (event / "rejected.jsonl").open("rb") as source:
+                    for line in source:
+                        output.write(line)
+            else:
+                _output(output, event)
         output.flush()
         os.fsync(output.fileno())
     _write_audit(
@@ -784,7 +787,7 @@ def build_large(
     sources = sorted(project.sources, key=lambda source: source.id)
     transform = project.transforms[0]
     rights_files: list[dict[str, Any]] = []
-    file_rejections: list[dict[str, Any]] = []
+    source_events: list[Path | dict[str, Any]] = []
     prepared: list[Path] = []
     inputs: list[tuple[Any, dict[str, Any], Path, dict[str, Any], dict[str, Any]]] = []
     total_bytes = 0
@@ -835,18 +838,27 @@ def build_large(
                 "rights": decision.model_dump(mode="json"),
             })
             if decision.training_eligibility not in {"eligible", "eligible_with_obligations"}:
-                file_rejections.append({
+                source_events.append({
                     "source_id": source.id, "path": name,
                     "reason": f"rights {decision.training_eligibility}: {decision.reason}",
                 })
                 progress.update(input_bytes=file["size"])
                 continue
-        shard = _prepare_file(
-            source=source, file=file, source_path=path, decision=decision,
-            snapshot_sha=lock_row["snapshot_sha256"], prepared_root=prepared_root,
-            build_id=build_id, progress=progress,
-        )
+        try:
+            shard = _prepare_file(
+                source=source, file=file, source_path=path, decision=decision,
+                snapshot_sha=lock_row["snapshot_sha256"], prepared_root=prepared_root,
+                build_id=build_id, progress=progress,
+            )
+        except _SourceParseError as exc:
+            source_events.append({
+                "source_id": source.id, "path": name, "reason": str(exc),
+            })
+            progress.update(input_bytes=file["size"])
+            progress.record("source_rejected")
+            continue
         prepared.append(shard)
+        source_events.append(shard)
 
     progress.update(phase="indexing")
     index_root = root / "indices" / build_id
@@ -876,7 +888,7 @@ def build_large(
                     transform=transform,
                     prepared=prepared,
                     rights_files=rights_files,
-                    file_rejections=file_rejections,
+                    source_events=source_events,
                     groups_path=groups_path,
                     group_count=group_count,
                     dropped=dropped,

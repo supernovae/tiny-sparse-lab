@@ -63,6 +63,12 @@ def test_streamed_and_legacy_lm_outputs_have_same_hashes(tmp_path: Path) -> None
     for source in spec["sources"]:
         source["schema_version"] = 3
         source["explicit_training_restriction"] = "none_found"
+        if source["id"] == "sample_docs":
+            empty = tmp_path / "empty-record.md"
+            empty.write_bytes(b"")
+            source["acquisition"]["files"].append(
+                {"path": str(empty), "name": "empty-record.md"}
+            )
     lm = next(item for item in spec["transforms"] if item["kind"] == "lm_text")
     lexical = next(item for item in spec["transforms"] if item["kind"] == "lexical_candidates")
     spec["transforms"] = [lm]
@@ -89,6 +95,10 @@ def test_streamed_and_legacy_lm_outputs_have_same_hashes(tmp_path: Path) -> None
         "lm/test.lineage.jsonl", f"stages/{lm['id']}.jsonl",
     ):
         assert sha256_file(new / name) == sha256_file(old / name), name
+    assert any(
+        row["path"] == "empty-record.md" and row["reason"] == "empty input"
+        for row in (json.loads(line) for line in (new / "rejected.jsonl").read_text().splitlines())
+    )
     legacy_document_lineage = [
         line for line in (old / "lineage.jsonl").read_bytes().splitlines(keepends=True)
         if json.loads(line)["record_kind"] == "document"
