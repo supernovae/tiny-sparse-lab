@@ -1,5 +1,63 @@
-id: devmind_v2_lm
+id: devmind_v3_lm
 version: '1'
 kind: lm_text
 parameters: {}
-inputs: [fineweb_edu_sample_10bt, openwebmath_train, pes2o_v2_fulltext, pes2o_v2_train, v2_git_technical, v2_go_faq, v2_go_standard, v2_k8s_concepts, v2_linux_fs, v2_oci_runtime_specification, v2_omp_harness, v2_otel_collector, v2_otel_specification, v2_postgres_backend, v2_prometheus_promql, v2_python_library, v2_rust_core, wikibooks_20260901, wikipedia_20260901]
+inputs:
+  - fineweb_edu_sample_10bt
+  - openwebmath_train
+  - pes2o_v2_fulltext
+  - pes2o_v2_train
+  - v2_git_technical
+  - v2_go_faq
+  - v2_go_standard
+  - v2_k8s_concepts
+  - v2_linux_fs
+  - v2_oci_runtime_specification
+  - v2_omp_harness
+  - v2_otel_collector
+  - v2_otel_specification
+  - v2_postgres_backend
+  - v2_prometheus_promql
+  - v2_python_library
+  - v2_rust_core
+  - v3_cloudevents
+  - v3_oci_distribution
+  - v3_oci_image
+  - v3_rfc8949
+  - v3_system_cilium
+  - v3_system_containerd
+  - v3_system_cosign
+  - v3_system_envoy
+  - v3_system_etcd
+  - v3_system_jaeger
+  - v3_system_kafka
+  - v3_system_musl
+  - v3_system_nginx
+  - v3_system_openssl
+  - v3_system_runc
+  - v3_system_sqlite
+  - v3_system_systemd
+  - v3_system_tikv
+  - v3_system_util_linux
+  - v3_system_valkey
+  - v3_system_vitess
+  - v3_system_zookeeper
+  - v3_tool_ansible
+  - v3_tool_cargo
+  - v3_tool_cmake
+  - v3_tool_cpython_compiler
+  - v3_tool_git_validation
+  - v3_tool_go_build
+  - v3_tool_meson
+  - v3_tool_ninja
+  - v3_tool_omp_lab
+  - v3_tool_opentofu
+  - v3_tool_postgres_sql_validation
+  - v3_tool_pytest
+  - v3_tool_rust_book
+  - v3_tool_rust_compiler
+  - v3_tool_spring
+  - v3_tool_tokio
+  - v3_tool_typescript
+  - wikibooks_20260901
+  - wikipedia_20260901

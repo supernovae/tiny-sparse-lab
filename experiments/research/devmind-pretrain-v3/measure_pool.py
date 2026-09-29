@@ -50,13 +50,17 @@ CONFIG_EXTENSIONS = {
     ".xml",
 }
 SOURCE_FAMILIES = {
+    "v2_git_technical",
     "v2_go_faq",
     "v2_go_standard",
-    "v2_omp_harness",
-    "v2_otel_specification",
     "v2_k8s_concepts",
     "v2_linux_fs",
+    "v2_oci_runtime_specification",
+    "v2_omp_harness",
     "v2_otel_collector",
+    "v2_otel_specification",
+    "v2_postgres_backend",
+    "v2_prometheus_promql",
     "v2_python_library",
     "v2_rust_core",
 }
@@ -175,7 +179,7 @@ def measure(release: Path) -> dict:
             k: dict(sorted(v.items())) for k, v in sorted(source_summary.items())
         },
         "source_kinds": {k: v["kind"] for k, v in sorted(sources.items())},
-        "developer_selection": "new v3 first-party sources plus nine preexisting v2 train engineering IDs; excludes all heldouts and peS2o",
+        "developer_selection": "Retained train counts v3 train sources and nine inherited v2 train engineering sources; heldout shape/language counts separately include the four inherited v2 engineering heldouts. No peS2o reclassification.",
         "pool": {k: dict(sorted(v.items())) for k, v in sorted(counters.items())},
         "exposure_byte_proxy": exposure,
     }
