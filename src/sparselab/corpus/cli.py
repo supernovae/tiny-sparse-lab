@@ -30,6 +30,11 @@ def _handle(args: argparse.Namespace) -> None:
 
     root = resolve_work_dir(args.work_dir)
     command = args.corpus_command
+    if command == "tokenizer-bakeoff":
+        from sparselab.corpus.tokenizer_bakeoff import bakeoff
+
+        print(bakeoff(Path(args.declaration), Path(args.output), work_root=root))
+        return
     if command in {"acquire", "build"}:
         project = load_project(Path(args.project))
         result = (
@@ -106,6 +111,10 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command.set_defaults(handler=_handle)
     command = sub.add_parser("freeze")
     command.add_argument("build")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser("tokenizer-bakeoff")
+    command.add_argument("declaration")
+    command.add_argument("--output", required=True)
     command.set_defaults(handler=_handle)
     for name in (
         "describe",

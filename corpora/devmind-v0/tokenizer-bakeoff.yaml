@@ -1,0 +1,8 @@
+schema_version: 1
+release_path: devmind-v0@d0b1fc07d9e42de17efc664699354aced36a0e902d39982719715e62f6082427
+vocab_sizes: [16384, 24576, 32768]
+max_fit_bytes: 268435456
+eval_split: validation
+eval_max_docs_per_group: 200
+groups: [prose, python, go, rust, shell, yaml, json, toml, logs]
+near_best_ratio: 0.98
