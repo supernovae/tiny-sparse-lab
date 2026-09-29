@@ -59,6 +59,72 @@ def _files(root: Path, inventory: dict[str, Any]) -> None:
             raise ValueError(f"tampered artifact: {name}")
 
 
+def _verify_rights_files(
+    root: Path,
+    sources: dict[str, dict[str, Any]],
+    snapshots: dict[str, dict[str, Any]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Bind prospective file decisions to the pinned bytes and metadata."""
+    from sparselab.corpus.rights import RightsPolicy, resolve_file_rights
+
+    report = _load(root / "license-report.json")
+    if report.get("schema_version") != 2 or report.get("sources") != list(
+        sources.values()
+    ):
+        raise ValueError("prospective rights report/source mismatch")
+    rows = report["files"]
+    indexed = {(row["source_id"], row["path"]): row for row in rows}
+    if len(indexed) != len(rows):
+        raise ValueError("duplicate rights file entry")
+    expected = {
+        (source_id, item["path"])
+        for source_id, snapshot in snapshots.items()
+        for item in snapshot["files"]
+    }
+    if set(indexed) != expected:
+        raise ValueError("rights file inventory differs from pinned snapshots")
+    for source_id, snapshot in snapshots.items():
+        source = sources[source_id]
+        policy = RightsPolicy.model_validate(source["rights_policy"])
+        nested_path = policy.nested_metadata_path
+        folder = (
+            root.parent.parent
+            / "snapshots"
+            / source_id
+            / source["snapshot_sha256"]
+            / "files"
+        )
+        metadata = (
+            {nested_path: _load(_safe(folder, nested_path))} if nested_path else {}
+        )
+        for file in snapshot["files"]:
+            path = file["path"]
+            recorded = indexed[source_id, path]
+            if any(
+                recorded.get(key) != value
+                for key, value in (
+                    ("sha256", file["sha256"]),
+                    ("size", file["size"]),
+                    ("canonical_uri", source["canonical_uri"]),
+                    ("revision", source["revision"]),
+                )
+            ):
+                raise ValueError("rights source file attribution mismatch")
+            if path == nested_path:
+                if recorded["role"] != "license_metadata" or "rights" in recorded:
+                    raise ValueError("invalid rights metadata role")
+                continue
+            if recorded["role"] not in {"document", "transform_input"}:
+                raise ValueError("unexpected rights file role")
+            raw = _safe(folder, path).read_bytes()
+            resolved = resolve_file_rights(policy, path, raw, nested_metadata=metadata)
+            if recorded["rights"] != resolved.model_dump(mode="json") or (
+                recorded.get("license_url") != source["license_url"]
+            ):
+                raise ValueError("rights decision differs from pinned file evidence")
+    return indexed
+
+
 def _validate_rows(root: Path) -> None:
     documents = _rows(root / "documents.jsonl")
     document_map = {doc["document_id"]: doc for doc in documents}
@@ -75,13 +141,16 @@ def _validate_rows(root: Path) -> None:
         key: value.get("origin", "primary_source") for key, value in sources.items()
     }
 
+    snapshots: dict[str, dict[str, Any]] = {}
     for source in sources.values():
         snapshot_id = source["snapshot_sha256"]
         if not snapshot_id:
             continue
-        declaration = verify_snapshot(
+        snapshot = verify_snapshot(
             root.parent.parent / "snapshots" / source["id"] / snapshot_id
-        )["declaration"]
+        )
+        snapshots[source["id"]] = snapshot
+        declaration = snapshot["declaration"]
         if any(
             source[key] != declaration[key]
             for key in (
@@ -90,13 +159,25 @@ def _validate_rows(root: Path) -> None:
                 "canonical_uri",
                 "revision",
                 "license",
-                "redistribution",
                 "source_family",
             )
         ) or source.get("origin", "primary_source") != declaration.get(
             "origin", "primary_source"
         ):
             raise ValueError("source declaration attribution mismatch")
+        if "rights_policy" in source:
+            if (
+                declaration.get("schema_version") != 2
+                or source["rights_policy"] != declaration["rights"]
+                or source["license_url"] != declaration["license_url"]
+                or source["redistribution"]
+                != declaration["rights"]["redistribution_mode"]
+            ):
+                raise ValueError("prospective source rights declaration mismatch")
+        elif source["redistribution"] != declaration["redistribution"]:
+            raise ValueError("source declaration attribution mismatch")
+    prospective = any("rights_policy" in source for source in sources.values())
+    rights_files = _verify_rights_files(root, sources, snapshots) if prospective else {}
     if set(spans) != set(document_map):
         raise ValueError("document evidence span inventory mismatch")
     previous_file: Path | None = None
@@ -111,9 +192,32 @@ def _validate_rows(root: Path) -> None:
         source = sources[doc["source_id"]]
         if (
             doc["source_revision"] != source["revision"]
-            or doc["license"] != source["license"]
-            or doc["redistribution"] != source["redistribution"]
             or doc["source_family"] != source["source_family"]
+        ):
+            raise ValueError("document attribution mismatch")
+        if prospective:
+            file = rights_files.get((doc["source_id"], span["raw_path"]))
+            if file is None or file["role"] != "document":
+                raise ValueError("document lacks pinned file rights")
+            decision = file["rights"]
+            if (
+                decision["training_eligibility"]
+                not in ("eligible", "eligible_with_obligations")
+                or doc.get("schema_version") != 2
+                or doc.get("rights") != decision
+                or doc.get("file_sha256") != file["sha256"]
+                or doc["license"]
+                != (
+                    decision["detected_spdx_expression"]
+                    or source["rights_policy"]["spdx_expression"]
+                    or source["license"]
+                )
+                or doc["redistribution"] != decision["redistribution_mode"]
+            ):
+                raise ValueError("document rights attribution mismatch")
+        elif (
+            doc["license"] != source["license"]
+            or doc["redistribution"] != source["redistribution"]
         ):
             raise ValueError("document attribution mismatch")
         snapshot = (
@@ -733,6 +837,30 @@ def describe(path: Path, *, tokenizer: Path | None = None) -> dict[str, Any]:
     measured = measure_views(
         Path(path), tokenizer, release_spec=manifest["build_identity"]["release"]
     )
+    if report.get("schema_version") == 2 and tokenizer is not None:
+        from sparselab.corpus.measurement import measure_source_rights
+
+        counted = measure_source_rights(Path(path), tokenizer)
+        rights = report["rights"]
+        report = {
+            **report,
+            "rights": {
+                **rights,
+                "training_eligibility": {
+                    state: {
+                        **info,
+                        "training_documents": counted[state]["documents"],
+                        "source_tokens": counted[state]["source_tokens"],
+                        "token_count_reason": (
+                            None
+                            if counted[state]["source_tokens"] is not None
+                            else "not_eligible_for_training"
+                        ),
+                    }
+                    for state, info in rights["training_eligibility"].items()
+                },
+            },
+        }
     result = {
         "release_id": manifest["release_id"],
         "report": report,

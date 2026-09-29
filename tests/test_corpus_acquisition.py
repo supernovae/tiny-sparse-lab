@@ -159,6 +159,54 @@ def test_git_pinned_revision_and_symlink(tmp_path: Path) -> None:
     )
 
 
+def test_git_v2_acquires_pinned_nested_license_metadata(tmp_path: Path) -> None:
+    repo = tmp_path / "upstream"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.test")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "docs").mkdir()
+    (repo / "docs/guide.md").write_text("# SPDX-License-Identifier: MIT\nSource text\n")
+    metadata = {"files": [{"path": "docs/guide.md", "license": "MIT"}]}
+    (repo / "license-metadata.json").write_text(json.dumps(metadata))
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "pinned rights")
+    recipe = _fixture(
+        tmp_path,
+        kind="git",
+        acquisition={"include": ["docs/*.md"], "max_bytes": 4096},
+        revision=_git(repo, "rev-parse", "HEAD"),
+        uri=str(repo),
+    )
+    source_path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_path.read_text())
+    source["schema_version"] = 2
+    source.pop("redistribution")
+    source["license_url"] = "https://example.org/upstream/LICENSE"
+    source["rights"] = {
+        "training_eligibility": "eligible",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "MIT",
+        "license_references": ["https://example.org/upstream/LICENSE"],
+        "nested_metadata_path": "license-metadata.json",
+    }
+    _yaml(source_path, source)
+    release_path = recipe.parent / "release.yaml"
+    release = yaml.safe_load(release_path.read_text())
+    release.update(schema_version=2, publication_mode="metadata_reconstruction_only")
+    _yaml(release_path, release)
+    lock = acquire(load_project(recipe), tmp_path / "work")
+    snapshot = verify_snapshot(Path(lock["sources"]["one"]["snapshot_path"]))
+    assert {item["path"] for item in snapshot["files"]} == {
+        "docs/guide.md",
+        "license-metadata.json",
+    }
+    assert (
+        Path(lock["sources"]["one"]["snapshot_path"]) / "files/license-metadata.json"
+    ).read_text() == json.dumps(metadata)
+    assert acquire(load_project(recipe), tmp_path / "work", offline=True) == lock
+
+
 def test_http_hash_bound_and_offline(tmp_path: Path) -> None:
     class Handler(BaseHTTPRequestHandler):
         body = b"# bounded document\n"

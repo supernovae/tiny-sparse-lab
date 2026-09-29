@@ -332,6 +332,7 @@ def test_cnxml_extracts_prose_skips_local_media_and_rejects_entities_external_me
     from types import SimpleNamespace
 
     source = SimpleNamespace(
+        schema_version=1,
         id="physics",
         kind="git",
         modality="text",

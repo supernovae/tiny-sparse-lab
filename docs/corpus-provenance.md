@@ -11,6 +11,12 @@ Corpus Forge stores acquisition receipts, normalized source documents, derived r
 
 Source declarations, normalized documents and lineage preserve `modality: text` / `modalities: [text]` explicitly. The current ingestion and rendering contracts are text-only; non-text data cannot be relabeled as text to pass validation. A future version must define a real acquisition, content identity and renderer before adding image, audio or multimodal records. This dimension is provenance for future assimilation comparisons, not evidence that such models have been trained.
 
+For prospective acquisitions, [the v2 rights protocol](rights-policy.md) adds
+file-level SPDX, source notice and explicit training-restriction evidence.
+Rights, verification, origin and training shape remain distinct dimensions;
+metadata-only publication does not republish the training export. Historical
+DevMind fail-gates and v1 release identities are not reinterpreted.
+
 ## Compare releases without reacquiring sources
 
 One project may point to multiple checked-in release declarations while retaining the same `id`, source declarations, snapshots and acquisition lock. For example, keep `sources/*.yaml`, `splits.yaml`, and `transforms/*.yaml` fixed, then make project variants that differ only in the `release:` YAML reference. Declare `include_shapes` and/or `include_origins` in each release YAML. `corpus build ... --offline` verifies the shared acquisition lock, builds the selected view without mutating a frozen release, and `corpus freeze BUILD` publishes a new release ID. Inspect its `manifest.json` snapshots, `lineage.jsonl`, `audit.json`, and `report.json`; only then export the selected training view. A variant whose selected training split is empty fails freeze rather than silently changing a run.

@@ -10,6 +10,7 @@ import yaml
 from pydantic import Field, field_validator, model_validator
 
 from sparselab.config.models import StrictModel
+from sparselab.corpus.rights import RightsPolicy
 
 _ID = re.compile(r"[a-z][a-z0-9_-]*\Z")
 _HEX = re.compile(r"[0-9a-fA-F]{64}\Z")
@@ -147,7 +148,7 @@ _ACQUISITION = {
 
 
 class SourceDeclaration(StrictModel):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     id: str
     kind: Literal[
         "git",
@@ -164,9 +165,13 @@ class SourceDeclaration(StrictModel):
     license: str
     license_url: str | None = None
     notes: str | None = None
-    redistribution: Literal[
-        "redistributable", "derived_only", "reference_only", "unknown", "rejected"
-    ]
+    redistribution: (
+        Literal[
+            "redistributable", "derived_only", "reference_only", "unknown", "rejected"
+        ]
+        | None
+    ) = None
+    rights: RightsPolicy | None = None
     domains: tuple[str, ...]
     document_kinds: tuple[str, ...]
     source_family: str
@@ -213,13 +218,52 @@ class SourceDeclaration(StrictModel):
             raise ValueError("Git revision must be an exact commit hash")
         if self.kind == "huggingface_dataset" and not _GIT_REV.fullmatch(self.revision):
             raise ValueError("HF revision must be a pinned commit hash")
-        if self.redistribution == "rejected" and (
-            not self.rejection_reason or not self.rejection_reason.strip()
-        ):
-            raise ValueError("rejected sources require rejection_reason")
-        if self.redistribution != "rejected" and self.rejection_reason is not None:
-            raise ValueError("rejection_reason only applies to rejected sources")
+        if self.schema_version == 1:
+            if self.rights is not None or self.redistribution is None:
+                raise ValueError(
+                    "v1 source needs legacy redistribution and no rights policy"
+                )
+            if self.redistribution == "rejected" and (
+                not self.rejection_reason or not self.rejection_reason.strip()
+            ):
+                raise ValueError("rejected sources require rejection_reason")
+            if self.redistribution != "rejected" and self.rejection_reason is not None:
+                raise ValueError("rejection_reason only applies to rejected sources")
+        else:
+            if (
+                self.rights is None
+                or self.redistribution is not None
+                or self.rejection_reason is not None
+            ):
+                raise ValueError(
+                    "v2 source needs rights, not legacy redistribution/rejection"
+                )
+            if self.rights.nested_metadata_path and self.kind != "git":
+                raise ValueError(
+                    "nested repository rights metadata requires Git acquisition"
+                )
+            if (
+                self.rights.spdx_expression
+                and self.rights.spdx_expression != self.license
+            ):
+                raise ValueError("declared license differs from source SPDX expression")
+            if self.kind not in {"local", "deterministic_generator"} and (
+                self.rights.training_eligibility
+                in {"eligible", "eligible_with_obligations"}
+                and (not self.license_url or not self.rights.license_references)
+            ):
+                raise ValueError(
+                    "eligible external source requires license URL and references"
+                )
         return self
+
+
+def source_declaration_payload(source: SourceDeclaration) -> dict[str, Any]:
+    """Preserve v1 acquisition receipts byte-for-byte when the v2 schema is added."""
+    result = source.model_dump(mode="json")
+    if source.schema_version == 1:
+        result.pop("rights")
+    return result
 
 
 class TransformDeclaration(StrictModel):
@@ -316,7 +360,7 @@ class FractionDeclaration(StrictModel):
 
 
 class ReleaseDeclaration(StrictModel):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     mixture: dict[str, float]
     accepted_generation_statuses: tuple[
         Literal[
@@ -335,6 +379,10 @@ class ReleaseDeclaration(StrictModel):
     include_origins: tuple[str, ...] | None = None
     fraction: FractionDeclaration | None = None
     keep_nonredistributable_local: bool = True
+    publication_mode: (
+        Literal["metadata_reconstruction_only", "redistributable_under_source_terms"]
+        | None
+    ) = None
 
     @model_validator(mode="after")
     def weights_valid(self) -> ReleaseDeclaration:
@@ -344,6 +392,10 @@ class ReleaseDeclaration(StrictModel):
             or abs(sum(self.mixture.values()) - 1) > 1e-8
         ):
             raise ValueError("mixture weights must sum to one")
+        if (self.schema_version == 1 and self.publication_mode is not None) or (
+            self.schema_version == 2 and self.publication_mode is None
+        ):
+            raise ValueError("v2 releases require an explicit publication_mode")
         from sparselab.corpus.provenance import ORIGINS, SHAPES
 
         for values, allowed, label in (
@@ -355,6 +407,13 @@ class ReleaseDeclaration(StrictModel):
             if values is not None and set(values) - set(allowed):
                 raise ValueError(f"unknown {label} in release filter")
         return self
+
+
+def release_declaration_payload(release: ReleaseDeclaration) -> dict[str, Any]:
+    result = release.model_dump(mode="json")
+    if release.schema_version == 1:
+        result.pop("publication_mode")
+    return result
 
 
 class ProjectConfig(StrictModel):
@@ -402,6 +461,17 @@ class Project(StrictModel):
     transforms: tuple[TransformDeclaration, ...]
     splits: SplitDeclaration
     release: ReleaseDeclaration
+
+    @model_validator(mode="after")
+    def rights_protocol_consistent(self) -> Project:
+        if self.release.schema_version == 2:
+            if any(source.schema_version != 2 for source in self.sources):
+                raise ValueError(
+                    "v2 release requires explicit v2 rights for every source"
+                )
+        elif any(source.schema_version != 1 for source in self.sources):
+            raise ValueError("v2 source requires v2 release publication policy")
+        return self
 
 
 def project_path(root: Path, name: str) -> Path:

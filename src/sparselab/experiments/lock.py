@@ -297,6 +297,7 @@ def _variant_identity(
     from sparselab.corpus.project import (
         ReleaseDeclaration,
         load_project,
+        release_declaration_payload,
         verify_fraction_tokenizer,
     )
     from sparselab.data.tokenizer import load_tokenizer
@@ -340,7 +341,7 @@ def _variant_identity(
         "project_id"
     ] != project.config.id or release_manifest["build_identity"][
         "release"
-    ] != expected_release.model_dump(mode="json"):
+    ] != release_declaration_payload(expected_release):
         raise ValueError(
             f"prepared corpus variant {declaration.id} is not the declared project/release"
         )
