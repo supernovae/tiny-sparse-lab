@@ -60,6 +60,35 @@ def test_markdown_ancestry_fences_and_raw_evidence() -> None:
     assert docs[2][0]["content_sha256"] != docs[1][0]["content_sha256"]
 
 
+def test_raw_spans_count_physical_lf_lines_not_unicode_separators() -> None:
+    source = next(item for item in _project().sources if item.id == "sample_docs")
+    raw = "first\fspace\vtab\u2028paragraph\u2029next\nsecond\n".encode()
+    document, span = _records_for_file(raw, "document.txt", source, "a" * 64)[0]
+    assert document["source_location"] == "document.txt#lines=1-2"
+    assert (span["line_start"], span["line_end"]) == (1, 2)
+    assert (span["byte_start"], span["byte_end"]) == (0, len(raw))
+
+    lone_cr = b"first\rsecond"
+    normalized, physical = _records_for_file(
+        lone_cr, "document.txt", source, "c" * 64
+    )[0]
+    assert normalized["text"] == "first\nsecond"
+    assert (physical["line_start"], physical["line_end"]) == (1, 1)
+    assert (physical["byte_start"], physical["byte_end"]) == (0, len(lone_cr))
+
+    markdown = b"# Heading\nline \f and \v stay inside one raw line\n## Next\nbody\n"
+    sections = _records_for_file(markdown, "document.md", source, "b" * 64)
+    assert [item[0]["section_path"] for item in sections] == [
+        ["Heading"],
+        ["Heading", "Next"],
+    ]
+    assert [(item[1]["line_start"], item[1]["line_end"]) for item in sections] == [
+        (1, 2),
+        (3, 4),
+    ]
+    assert sections[-1][1]["byte_end"] == len(markdown)
+
+
 def test_normalized_duplicates_preserve_distinct_raw_origins() -> None:
     source = SourceDeclaration.model_validate(
         {

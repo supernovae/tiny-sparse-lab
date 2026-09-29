@@ -281,7 +281,10 @@ def _cnxml_passages(raw: bytes) -> list[tuple[str, list[str], int, int]]:
 
 
 def _sections(text: str, markdown: bool) -> list[tuple[str, list[str], int, int]]:
-    lines = text.splitlines(keepends=True)
+    parts = text.split("\n")
+    lines = [part + "\n" for part in parts[:-1]]
+    if parts[-1]:
+        lines.append(parts[-1])
     if not markdown:
         return [(text, [], 1, max(1, len(lines)))]
     starts = [(0, [])]
@@ -433,14 +436,18 @@ def _records_for_file(
         and suffix == ".jsonl"
         and source.kind in {"huggingface_dataset", "wikimedia_dump"}
     )
+    raw_text = ""
     if suffix != ".parquet":
         if b"\x00" in raw:
             raise ValueError("binary input")
-        text = "" if streaming_rows else _normalized(raw.decode("utf-8", errors="strict"))
-        if not raw or (not streaming_rows and not text.strip()):
+        raw_text = "" if streaming_rows else raw.decode("utf-8", errors="strict")
+        if not raw or (not streaming_rows and not raw_text.strip()):
             raise ValueError("empty input")
-    else:
-        text = ""
+    text = (
+        ""
+        if streaming_rows or suffix in {".parquet", ".md", ".markdown"}
+        else _normalized(raw_text)
+    )
     if (
         suffix in {".jsonl", ".json", ".parquet"}
         and source.kind in {"huggingface_dataset", "wikimedia_dump"}
@@ -482,9 +489,15 @@ def _records_for_file(
     elif suffix == ".cnxml":
         passages = _cnxml_passages(raw)
     elif suffix in {".md", ".markdown"}:
-        passages = _sections(text, True)
+        # Section line numbers refer to LF-delimited raw lines, not Unicode
+        # separators or newlines introduced by normalizing lone CR bytes.
+        passages = [
+            (_normalized(content), ancestry, start, end)
+            for content, ancestry, start, end in _sections(raw_text, True)
+        ]
     else:
-        passages = _sections(text, False)
+        line_end = raw.count(b"\n") + int(not raw.endswith(b"\n"))
+        passages = [(text, [], 1, line_end)]
     rows = []
     raw_sha = full_file_sha256 or hashlib.sha256(raw).hexdigest()
     rights_payload = file_rights.model_dump(mode="json") if file_rights else None
@@ -499,8 +512,12 @@ def _records_for_file(
     )
     byte_offsets = [] if source.kind in {"huggingface_dataset", "wikimedia_dump"} else [0]
     if source.kind not in {"huggingface_dataset", "wikimedia_dump"}:
-        for line in raw.decode("utf-8").splitlines(keepends=True):
-            byte_offsets.append(byte_offsets[-1] + len(line.encode("utf-8")))
+        offset = 0
+        while (end := raw.find(b"\n", offset)) >= 0:
+            byte_offsets.append(end + 1)
+            offset = end + 1
+        if offset < len(raw):
+            byte_offsets.append(len(raw))
     for passage in passages:
         content, ancestry, start, end = passage[:4]
         metadata = passage[4] if len(passage) > 4 else None
