@@ -1,0 +1,1340 @@
+{
+  "developer_selection": "Only pinned v2 engineer sources and all v3/v4 sources; no peS2o relabeling. Heldout separately measured. Primary shapes partition developer text; material tags overlap.",
+  "exposure_byte_proxy": {
+    "20%": {
+      "developer_passes_needed_relative_to_one_other_pass": 1.1098151273163626,
+      "note": "Byte-proxy only; no tokenizer, training mixture or sampler selected"
+    },
+    "25%": {
+      "developer_passes_needed_relative_to_one_other_pass": 1.4797535030884834,
+      "note": "Byte-proxy only; no tokenizer, training mixture or sampler selected"
+    },
+    "30%": {
+      "developer_passes_needed_relative_to_one_other_pass": 1.9025402182566216,
+      "note": "Byte-proxy only; no tokenizer, training mixture or sampler selected"
+    },
+    "35%": {
+      "developer_passes_needed_relative_to_one_other_pass": 2.390371043450627,
+      "note": "Byte-proxy only; no tokenizer, training mixture or sampler selected"
+    },
+    "40%": {
+      "developer_passes_needed_relative_to_one_other_pass": 2.959507006176967,
+      "note": "Byte-proxy only; no tokenizer, training mixture or sampler selected"
+    }
+  },
+  "pool": {
+    "developer_heldout": {
+      "documents": 9597,
+      "utf8_bytes": 72006574
+    },
+    "developer_train": {
+      "documents": 103878,
+      "utf8_bytes": 735281099
+    },
+    "languages": {
+      "C++:documents": 3979,
+      "C++:utf8_bytes": 63344005,
+      "C/C++ header (ambiguous):documents": 4808,
+      "C/C++ header (ambiguous):utf8_bytes": 21251402,
+      "C:documents": 5052,
+      "C:utf8_bytes": 77914983,
+      "Go:documents": 12730,
+      "Go:utf8_bytes": 108926320,
+      "Java:documents": 6731,
+      "Java:utf8_bytes": 70569143,
+      "JavaScript:documents": 9853,
+      "JavaScript:utf8_bytes": 58185772,
+      "Python:documents": 2344,
+      "Python:utf8_bytes": 47892549,
+      "Rust:documents": 3974,
+      "Rust:utf8_bytes": 62532462,
+      "SQL:documents": 13418,
+      "SQL:utf8_bytes": 36230523,
+      "Scala:documents": 220,
+      "Scala:utf8_bytes": 5864404,
+      "Tcl:documents": 250,
+      "Tcl:utf8_bytes": 3805712,
+      "TypeScript:documents": 8052,
+      "TypeScript:utf8_bytes": 92192375,
+      "assembly:documents": 30,
+      "assembly:utf8_bytes": 43872,
+      "shell:documents": 898,
+      "shell:utf8_bytes": 5272964
+    },
+    "languages_by_split": {
+      "test:C/C++ header (ambiguous):documents": 42,
+      "test:C/C++ header (ambiguous):utf8_bytes": 883261,
+      "test:C:documents": 243,
+      "test:C:utf8_bytes": 11653070,
+      "test:Go:documents": 112,
+      "test:Go:utf8_bytes": 1886707,
+      "test:Java:documents": 145,
+      "test:Java:utf8_bytes": 1570888,
+      "test:Tcl:documents": 32,
+      "test:Tcl:utf8_bytes": 656865,
+      "test:TypeScript:documents": 385,
+      "test:TypeScript:utf8_bytes": 1518770,
+      "train:C++:documents": 3979,
+      "train:C++:utf8_bytes": 63344005,
+      "train:C/C++ header (ambiguous):documents": 4808,
+      "train:C/C++ header (ambiguous):utf8_bytes": 21251402,
+      "train:C:documents": 5052,
+      "train:C:utf8_bytes": 77914983,
+      "train:Go:documents": 12730,
+      "train:Go:utf8_bytes": 108926320,
+      "train:Java:documents": 6731,
+      "train:Java:utf8_bytes": 70569143,
+      "train:JavaScript:documents": 9853,
+      "train:JavaScript:utf8_bytes": 58185772,
+      "train:Python:documents": 2344,
+      "train:Python:utf8_bytes": 47892549,
+      "train:Rust:documents": 3974,
+      "train:Rust:utf8_bytes": 62532462,
+      "train:SQL:documents": 13418,
+      "train:SQL:utf8_bytes": 36230523,
+      "train:Scala:documents": 220,
+      "train:Scala:utf8_bytes": 5864404,
+      "train:Tcl:documents": 250,
+      "train:Tcl:utf8_bytes": 3805712,
+      "train:TypeScript:documents": 8052,
+      "train:TypeScript:utf8_bytes": 92192375,
+      "train:assembly:documents": 30,
+      "train:assembly:utf8_bytes": 43872,
+      "train:shell:documents": 898,
+      "train:shell:utf8_bytes": 5272964,
+      "validation:C:documents": 399,
+      "validation:C:utf8_bytes": 12903323,
+      "validation:Go:documents": 478,
+      "validation:Go:utf8_bytes": 2517636,
+      "validation:JavaScript:documents": 732,
+      "validation:JavaScript:utf8_bytes": 10483299,
+      "validation:SQL:documents": 297,
+      "validation:SQL:utf8_bytes": 1571491,
+      "validation:shell:documents": 23,
+      "validation:shell:utf8_bytes": 202799
+    },
+    "material": {
+      "build:documents": 355,
+      "build:utf8_bytes": 3078090,
+      "code:documents": 72339,
+      "code:utf8_bytes": 654026486,
+      "configuration:documents": 1555,
+      "configuration:utf8_bytes": 9680450,
+      "design:documents": 1079,
+      "design:utf8_bytes": 1454650,
+      "errors_status:documents": 2418,
+      "errors_status:utf8_bytes": 7703527,
+      "examples:documents": 536,
+      "examples:utf8_bytes": 1915164,
+      "infrastructure_as_code:documents": 127,
+      "infrastructure_as_code:utf8_bytes": 821283,
+      "manuals_reference:documents": 24117,
+      "manuals_reference:utf8_bytes": 40953979,
+      "operations_runbook:documents": 1111,
+      "operations_runbook:utf8_bytes": 7357486,
+      "schemas_api:documents": 723,
+      "schemas_api:utf8_bytes": 5406980,
+      "sql_file:documents": 13418,
+      "sql_file:utf8_bytes": 36230523,
+      "sql_mixed_test_harness:documents": 6101,
+      "sql_mixed_test_harness:utf8_bytes": 31838986,
+      "tests:documents": 35945,
+      "tests:utf8_bytes": 273832527
+    },
+    "material_by_split": {
+      "test:build:documents": 33,
+      "test:build:utf8_bytes": 97595,
+      "test:code:documents": 959,
+      "test:code:utf8_bytes": 18169561,
+      "test:configuration:documents": 51,
+      "test:configuration:utf8_bytes": 253402,
+      "test:errors_status:documents": 15,
+      "test:errors_status:utf8_bytes": 80060,
+      "test:examples:documents": 17,
+      "test:examples:utf8_bytes": 11192,
+      "test:manuals_reference:documents": 951,
+      "test:manuals_reference:utf8_bytes": 617199,
+      "test:operations_runbook:documents": 8,
+      "test:operations_runbook:utf8_bytes": 79304,
+      "test:schemas_api:documents": 18,
+      "test:schemas_api:utf8_bytes": 155807,
+      "test:tests:documents": 1432,
+      "test:tests:utf8_bytes": 22733948,
+      "train:build:documents": 355,
+      "train:build:utf8_bytes": 3078090,
+      "train:code:documents": 72339,
+      "train:code:utf8_bytes": 654026486,
+      "train:configuration:documents": 1555,
+      "train:configuration:utf8_bytes": 9680450,
+      "train:design:documents": 1079,
+      "train:design:utf8_bytes": 1454650,
+      "train:errors_status:documents": 2418,
+      "train:errors_status:utf8_bytes": 7703527,
+      "train:examples:documents": 536,
+      "train:examples:utf8_bytes": 1915164,
+      "train:infrastructure_as_code:documents": 127,
+      "train:infrastructure_as_code:utf8_bytes": 821283,
+      "train:manuals_reference:documents": 24117,
+      "train:manuals_reference:utf8_bytes": 40953979,
+      "train:operations_runbook:documents": 1111,
+      "train:operations_runbook:utf8_bytes": 7357486,
+      "train:schemas_api:documents": 723,
+      "train:schemas_api:utf8_bytes": 5406980,
+      "train:sql_file:documents": 13418,
+      "train:sql_file:utf8_bytes": 36230523,
+      "train:sql_mixed_test_harness:documents": 6101,
+      "train:sql_mixed_test_harness:utf8_bytes": 31838986,
+      "train:tests:documents": 35945,
+      "train:tests:utf8_bytes": 273832527,
+      "validation:build:documents": 1,
+      "validation:build:utf8_bytes": 7138,
+      "validation:code:documents": 1929,
+      "validation:code:utf8_bytes": 27678548,
+      "validation:configuration:documents": 143,
+      "validation:configuration:utf8_bytes": 249720,
+      "validation:design:documents": 1,
+      "validation:design:utf8_bytes": 1555,
+      "validation:errors_status:documents": 58,
+      "validation:errors_status:utf8_bytes": 81286,
+      "validation:examples:documents": 69,
+      "validation:examples:utf8_bytes": 70643,
+      "validation:manuals_reference:documents": 4367,
+      "validation:manuals_reference:utf8_bytes": 4119704,
+      "validation:operations_runbook:documents": 51,
+      "validation:operations_runbook:utf8_bytes": 56504,
+      "validation:schemas_api:documents": 6,
+      "validation:schemas_api:utf8_bytes": 40880,
+      "validation:sql_file:documents": 297,
+      "validation:sql_file:utf8_bytes": 1571491,
+      "validation:tests:documents": 800,
+      "validation:tests:utf8_bytes": 10536535
+    },
+    "other_train": {
+      "documents": 692685,
+      "utf8_bytes": 3264104346
+    },
+    "shapes": {
+      "build:documents": 191,
+      "build:utf8_bytes": 2974796,
+      "configuration:documents": 267,
+      "configuration:utf8_bytes": 880684,
+      "design:documents": 1079,
+      "design:utf8_bytes": 1454650,
+      "errors_status:documents": 1507,
+      "errors_status:utf8_bytes": 5074776,
+      "examples:documents": 475,
+      "examples:utf8_bytes": 1844753,
+      "implementation:documents": 38369,
+      "implementation:utf8_bytes": 375986645,
+      "manuals_reference:documents": 24684,
+      "manuals_reference:utf8_bytes": 64978208,
+      "operations_runbook:documents": 971,
+      "operations_runbook:utf8_bytes": 5313006,
+      "schemas_api:documents": 390,
+      "schemas_api:utf8_bytes": 2941054,
+      "tests:documents": 35945,
+      "tests:utf8_bytes": 273832527
+    },
+    "shapes_by_split": {
+      "test:build:documents": 18,
+      "test:build:utf8_bytes": 86866,
+      "test:errors_status:documents": 8,
+      "test:errors_status:utf8_bytes": 32550,
+      "test:examples:documents": 15,
+      "test:examples:utf8_bytes": 8072,
+      "test:implementation:documents": 715,
+      "test:implementation:utf8_bytes": 16213258,
+      "test:manuals_reference:documents": 945,
+      "test:manuals_reference:utf8_bytes": 614175,
+      "test:operations_runbook:documents": 2,
+      "test:operations_runbook:utf8_bytes": 29057,
+      "test:schemas_api:documents": 8,
+      "test:schemas_api:utf8_bytes": 76004,
+      "test:tests:documents": 1432,
+      "test:tests:utf8_bytes": 22733948,
+      "train:build:documents": 191,
+      "train:build:utf8_bytes": 2974796,
+      "train:configuration:documents": 267,
+      "train:configuration:utf8_bytes": 880684,
+      "train:design:documents": 1079,
+      "train:design:utf8_bytes": 1454650,
+      "train:errors_status:documents": 1507,
+      "train:errors_status:utf8_bytes": 5074776,
+      "train:examples:documents": 475,
+      "train:examples:utf8_bytes": 1844753,
+      "train:implementation:documents": 38369,
+      "train:implementation:utf8_bytes": 375986645,
+      "train:manuals_reference:documents": 24684,
+      "train:manuals_reference:utf8_bytes": 64978208,
+      "train:operations_runbook:documents": 971,
+      "train:operations_runbook:utf8_bytes": 5313006,
+      "train:schemas_api:documents": 390,
+      "train:schemas_api:utf8_bytes": 2941054,
+      "train:tests:documents": 35945,
+      "train:tests:utf8_bytes": 273832527,
+      "validation:build:documents": 1,
+      "validation:build:utf8_bytes": 7138,
+      "validation:configuration:documents": 68,
+      "validation:configuration:utf8_bytes": 131734,
+      "validation:errors_status:documents": 24,
+      "validation:errors_status:utf8_bytes": 36693,
+      "validation:examples:documents": 69,
+      "validation:examples:utf8_bytes": 70643,
+      "validation:implementation:documents": 1133,
+      "validation:implementation:utf8_bytes": 17296586,
+      "validation:manuals_reference:documents": 4310,
+      "validation:manuals_reference:utf8_bytes": 4082038,
+      "validation:operations_runbook:documents": 48,
+      "validation:operations_runbook:utf8_bytes": 35475,
+      "validation:schemas_api:documents": 1,
+      "validation:schemas_api:utf8_bytes": 15802,
+      "validation:tests:documents": 800,
+      "validation:tests:utf8_bytes": 10536535
+    }
+  },
+  "release_id": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+  "source_counts": {
+    "fineweb_edu_sample_10bt": {
+      "normalized_documents": 361441,
+      "removed_documents": 570,
+      "retained_documents": 360871,
+      "retained_utf8_bytes": 1727784229,
+      "train_documents": 360871,
+      "train_utf8_bytes": 1727784229
+    },
+    "openwebmath_train": {
+      "normalized_documents": 45155,
+      "removed_documents": 66,
+      "retained_documents": 45089,
+      "retained_utf8_bytes": 377233675,
+      "train_documents": 45089,
+      "train_utf8_bytes": 377233675
+    },
+    "pes2o_v2_fulltext": {
+      "normalized_documents": 25763,
+      "removed_documents": 1,
+      "retained_documents": 25762,
+      "retained_utf8_bytes": 717323535,
+      "train_documents": 25762,
+      "train_utf8_bytes": 717323535
+    },
+    "pes2o_v2_train": {
+      "normalized_documents": 254975,
+      "removed_documents": 7,
+      "retained_documents": 254968,
+      "retained_utf8_bytes": 337471617,
+      "train_documents": 254968,
+      "train_utf8_bytes": 337471617
+    },
+    "v2_git_technical": {
+      "normalized_documents": 130,
+      "retained_documents": 130,
+      "retained_utf8_bytes": 2721741,
+      "validation_documents": 130,
+      "validation_utf8_bytes": 2721741
+    },
+    "v2_go_faq": {
+      "normalized_documents": 86,
+      "retained_documents": 86,
+      "retained_utf8_bytes": 94773,
+      "train_documents": 86,
+      "train_utf8_bytes": 94773
+    },
+    "v2_go_standard": {
+      "normalized_documents": 876,
+      "removed_documents": 10,
+      "retained_documents": 866,
+      "retained_utf8_bytes": 7170949,
+      "train_documents": 866,
+      "train_utf8_bytes": 7170949
+    },
+    "v2_k8s_concepts": {
+      "normalized_documents": 1899,
+      "retained_documents": 1899,
+      "retained_utf8_bytes": 2092518,
+      "train_documents": 1899,
+      "train_utf8_bytes": 2092518
+    },
+    "v2_linux_fs": {
+      "normalized_documents": 327,
+      "retained_documents": 327,
+      "retained_utf8_bytes": 8849717,
+      "train_documents": 327,
+      "train_utf8_bytes": 8849717
+    },
+    "v2_oci_runtime_specification": {
+      "normalized_documents": 215,
+      "retained_documents": 215,
+      "retained_utf8_bytes": 184277,
+      "validation_documents": 215,
+      "validation_utf8_bytes": 184277
+    },
+    "v2_omp_harness": {
+      "normalized_documents": 39,
+      "retained_documents": 39,
+      "retained_utf8_bytes": 65608,
+      "train_documents": 39,
+      "train_utf8_bytes": 65608
+    },
+    "v2_otel_collector": {
+      "normalized_documents": 633,
+      "removed_documents": 1,
+      "retained_documents": 632,
+      "retained_utf8_bytes": 1242988,
+      "train_documents": 632,
+      "train_utf8_bytes": 1242988
+    },
+    "v2_otel_specification": {
+      "normalized_documents": 647,
+      "removed_documents": 6,
+      "retained_documents": 641,
+      "retained_utf8_bytes": 624242,
+      "train_documents": 641,
+      "train_utf8_bytes": 624242
+    },
+    "v2_postgres_backend": {
+      "normalized_documents": 269,
+      "retained_documents": 269,
+      "retained_utf8_bytes": 10181582,
+      "validation_documents": 269,
+      "validation_utf8_bytes": 10181582
+    },
+    "v2_prometheus_promql": {
+      "normalized_documents": 113,
+      "removed_documents": 1,
+      "retained_documents": 112,
+      "retained_utf8_bytes": 1886707,
+      "test_documents": 112,
+      "test_utf8_bytes": 1886707
+    },
+    "v2_python_library": {
+      "normalized_documents": 1086,
+      "removed_documents": 2,
+      "retained_documents": 1084,
+      "retained_utf8_bytes": 20136875,
+      "train_documents": 1084,
+      "train_utf8_bytes": 20136875
+    },
+    "v2_rust_core": {
+      "normalized_documents": 384,
+      "retained_documents": 384,
+      "retained_utf8_bytes": 8842897,
+      "train_documents": 384,
+      "train_utf8_bytes": 8842897
+    },
+    "v3_cloudevents": {
+      "normalized_documents": 36,
+      "retained_documents": 36,
+      "retained_utf8_bytes": 25481,
+      "train_documents": 36,
+      "train_utf8_bytes": 25481
+    },
+    "v3_oci_distribution": {
+      "normalized_documents": 44,
+      "retained_documents": 44,
+      "retained_utf8_bytes": 47030,
+      "train_documents": 44,
+      "train_utf8_bytes": 47030
+    },
+    "v3_oci_image": {
+      "normalized_documents": 78,
+      "retained_documents": 78,
+      "retained_utf8_bytes": 89601,
+      "train_documents": 78,
+      "train_utf8_bytes": 89601
+    },
+    "v3_rfc8949": {
+      "normalized_documents": 1,
+      "retained_documents": 1,
+      "retained_utf8_bytes": 185226,
+      "train_documents": 1,
+      "train_utf8_bytes": 185226
+    },
+    "v3_system_cilium": {
+      "normalized_documents": 5346,
+      "removed_documents": 482,
+      "retained_documents": 4864,
+      "retained_utf8_bytes": 27913723,
+      "train_documents": 4864,
+      "train_utf8_bytes": 27913723
+    },
+    "v3_system_containerd": {
+      "normalized_documents": 1767,
+      "removed_documents": 3,
+      "retained_documents": 1764,
+      "retained_utf8_bytes": 7257310,
+      "train_documents": 1764,
+      "train_utf8_bytes": 7257310
+    },
+    "v3_system_cosign": {
+      "normalized_documents": 611,
+      "removed_documents": 71,
+      "retained_documents": 540,
+      "retained_utf8_bytes": 1868200,
+      "validation_documents": 540,
+      "validation_utf8_bytes": 1868200
+    },
+    "v3_system_envoy": {
+      "normalized_documents": 6198,
+      "retained_documents": 6198,
+      "retained_utf8_bytes": 67350450,
+      "train_documents": 6198,
+      "train_utf8_bytes": 67350450
+    },
+    "v3_system_etcd": {
+      "normalized_documents": 1140,
+      "removed_documents": 1,
+      "retained_documents": 1139,
+      "retained_utf8_bytes": 5754202,
+      "train_documents": 1139,
+      "train_utf8_bytes": 5754202
+    },
+    "v3_system_jaeger": {
+      "normalized_documents": 1944,
+      "removed_documents": 26,
+      "retained_documents": 1918,
+      "retained_utf8_bytes": 6410344,
+      "train_documents": 1918,
+      "train_utf8_bytes": 6410344
+    },
+    "v3_system_kafka": {
+      "normalized_documents": 5209,
+      "retained_documents": 5209,
+      "retained_utf8_bytes": 61814836,
+      "train_documents": 5209,
+      "train_utf8_bytes": 61814836
+    },
+    "v3_system_musl": {
+      "normalized_documents": 2138,
+      "removed_documents": 129,
+      "retained_documents": 2009,
+      "retained_utf8_bytes": 2350564,
+      "train_documents": 2009,
+      "train_utf8_bytes": 2350564
+    },
+    "v3_system_nginx": {
+      "normalized_documents": 414,
+      "retained_documents": 414,
+      "retained_utf8_bytes": 6767811,
+      "train_documents": 414,
+      "train_utf8_bytes": 6767811
+    },
+    "v3_system_openssl": {
+      "normalized_documents": 2156,
+      "retained_documents": 2156,
+      "retained_utf8_bytes": 29326416,
+      "train_documents": 2156,
+      "train_utf8_bytes": 29326416
+    },
+    "v3_system_runc": {
+      "normalized_documents": 193,
+      "retained_documents": 193,
+      "retained_utf8_bytes": 820633,
+      "validation_documents": 193,
+      "validation_utf8_bytes": 820633
+    },
+    "v3_system_sqlite": {
+      "normalized_documents": 1509,
+      "retained_documents": 1509,
+      "retained_utf8_bytes": 34026767,
+      "test_documents": 1509,
+      "test_utf8_bytes": 34026767
+    },
+    "v3_system_systemd": {
+      "normalized_documents": 2543,
+      "removed_documents": 1,
+      "retained_documents": 2542,
+      "retained_utf8_bytes": 25195151,
+      "train_documents": 2542,
+      "train_utf8_bytes": 25195151
+    },
+    "v3_system_tikv": {
+      "normalized_documents": 1617,
+      "removed_documents": 1,
+      "retained_documents": 1616,
+      "retained_utf8_bytes": 26728058,
+      "train_documents": 1616,
+      "train_utf8_bytes": 26728058
+    },
+    "v3_system_util_linux": {
+      "normalized_documents": 363,
+      "retained_documents": 363,
+      "retained_utf8_bytes": 3859897,
+      "train_documents": 363,
+      "train_utf8_bytes": 3859897
+    },
+    "v3_system_valkey": {
+      "normalized_documents": 537,
+      "retained_documents": 537,
+      "retained_utf8_bytes": 12268553,
+      "train_documents": 537,
+      "train_utf8_bytes": 12268553
+    },
+    "v3_system_vitess": {
+      "normalized_documents": 2839,
+      "removed_documents": 21,
+      "retained_documents": 2818,
+      "retained_utf8_bytes": 38165269,
+      "train_documents": 2818,
+      "train_utf8_bytes": 38165269
+    },
+    "v3_system_zookeeper": {
+      "normalized_documents": 902,
+      "removed_documents": 3,
+      "retained_documents": 899,
+      "retained_utf8_bytes": 7536655,
+      "train_documents": 899,
+      "train_utf8_bytes": 7536655
+    },
+    "v3_tool_ansible": {
+      "normalized_documents": 95,
+      "removed_documents": 1,
+      "retained_documents": 94,
+      "retained_utf8_bytes": 1199561,
+      "train_documents": 94,
+      "train_utf8_bytes": 1199561
+    },
+    "v3_tool_cargo": {
+      "normalized_documents": 1504,
+      "removed_documents": 242,
+      "retained_documents": 1262,
+      "retained_utf8_bytes": 10118305,
+      "train_documents": 1262,
+      "train_utf8_bytes": 10118305
+    },
+    "v3_tool_cmake": {
+      "normalized_documents": 1638,
+      "removed_documents": 23,
+      "retained_documents": 1615,
+      "retained_utf8_bytes": 14386106,
+      "train_documents": 1615,
+      "train_utf8_bytes": 14386106
+    },
+    "v3_tool_cpython_compiler": {
+      "normalized_documents": 1313,
+      "removed_documents": 35,
+      "retained_documents": 1278,
+      "retained_utf8_bytes": 31242292,
+      "train_documents": 1278,
+      "train_utf8_bytes": 31242292
+    },
+    "v3_tool_git_validation": {
+      "normalized_documents": 38,
+      "retained_documents": 38,
+      "retained_utf8_bytes": 588917,
+      "validation_documents": 38,
+      "validation_utf8_bytes": 588917
+    },
+    "v3_tool_go_build": {
+      "normalized_documents": 1494,
+      "removed_documents": 2,
+      "retained_documents": 1492,
+      "retained_utf8_bytes": 14738916,
+      "train_documents": 1492,
+      "train_utf8_bytes": 14738916
+    },
+    "v3_tool_meson": {
+      "normalized_documents": 1195,
+      "retained_documents": 1195,
+      "retained_utf8_bytes": 5940384,
+      "train_documents": 1195,
+      "train_utf8_bytes": 5940384
+    },
+    "v3_tool_ninja": {
+      "normalized_documents": 123,
+      "retained_documents": 123,
+      "retained_utf8_bytes": 1036062,
+      "train_documents": 123,
+      "train_utf8_bytes": 1036062
+    },
+    "v3_tool_omp_lab": {
+      "normalized_documents": 32,
+      "retained_documents": 32,
+      "retained_utf8_bytes": 116995,
+      "train_documents": 32,
+      "train_utf8_bytes": 116995
+    },
+    "v3_tool_opentofu": {
+      "normalized_documents": 762,
+      "retained_documents": 762,
+      "retained_utf8_bytes": 6484302,
+      "train_documents": 762,
+      "train_utf8_bytes": 6484302
+    },
+    "v3_tool_postgres_sql_validation": {
+      "normalized_documents": 6,
+      "retained_documents": 6,
+      "retained_utf8_bytes": 459493,
+      "validation_documents": 6,
+      "validation_utf8_bytes": 459493
+    },
+    "v3_tool_pytest": {
+      "normalized_documents": 154,
+      "retained_documents": 154,
+      "retained_utf8_bytes": 3244563,
+      "train_documents": 154,
+      "train_utf8_bytes": 3244563
+    },
+    "v3_tool_rust_book": {
+      "normalized_documents": 521,
+      "retained_documents": 521,
+      "retained_utf8_bytes": 1157686,
+      "train_documents": 521,
+      "train_utf8_bytes": 1157686
+    },
+    "v3_tool_rust_compiler": {
+      "normalized_documents": 2578,
+      "removed_documents": 1,
+      "retained_documents": 2577,
+      "retained_utf8_bytes": 14777585,
+      "train_documents": 2577,
+      "train_utf8_bytes": 14777585
+    },
+    "v3_tool_spring": {
+      "normalized_documents": 1083,
+      "retained_documents": 1083,
+      "retained_utf8_bytes": 8215629,
+      "train_documents": 1083,
+      "train_utf8_bytes": 8215629
+    },
+    "v3_tool_tokio": {
+      "normalized_documents": 569,
+      "retained_documents": 569,
+      "retained_utf8_bytes": 4657249,
+      "train_documents": 569,
+      "train_utf8_bytes": 4657249
+    },
+    "v3_tool_typescript": {
+      "normalized_documents": 464,
+      "retained_documents": 464,
+      "retained_utf8_bytes": 15377971,
+      "train_documents": 464,
+      "train_utf8_bytes": 15377971
+    },
+    "v4_db_clickhouse_sql": {
+      "normalized_documents": 11703,
+      "removed_documents": 1,
+      "retained_documents": 11702,
+      "retained_utf8_bytes": 28831430,
+      "train_documents": 11702,
+      "train_utf8_bytes": 28831430
+    },
+    "v4_db_doris_sql": {
+      "normalized_documents": 1853,
+      "removed_documents": 468,
+      "retained_documents": 1385,
+      "retained_utf8_bytes": 5658513,
+      "train_documents": 1385,
+      "train_utf8_bytes": 5658513
+    },
+    "v4_db_duckdb_docs": {
+      "normalized_documents": 1615,
+      "removed_documents": 37,
+      "retained_documents": 1578,
+      "retained_utf8_bytes": 1107475,
+      "train_documents": 1578,
+      "train_utf8_bytes": 1107475
+    },
+    "v4_db_duckdb_sql": {
+      "normalized_documents": 3052,
+      "retained_documents": 3052,
+      "retained_utf8_bytes": 6980094,
+      "train_documents": 3052,
+      "train_utf8_bytes": 6980094
+    },
+    "v4_db_h2_sql_validation": {
+      "normalized_documents": 315,
+      "removed_documents": 24,
+      "retained_documents": 291,
+      "retained_utf8_bytes": 1111998,
+      "validation_documents": 291,
+      "validation_utf8_bytes": 1111998
+    },
+    "v4_db_mariadb_sql": {
+      "normalized_documents": 3054,
+      "removed_documents": 4,
+      "retained_documents": 3050,
+      "retained_utf8_bytes": 24859864,
+      "train_documents": 3050,
+      "train_utf8_bytes": 24859864
+    },
+    "v4_db_spark_sql": {
+      "normalized_documents": 331,
+      "retained_documents": 331,
+      "retained_utf8_bytes": 1740580,
+      "train_documents": 331,
+      "train_utf8_bytes": 1740580
+    },
+    "v4_iac_ansible_docs": {
+      "normalized_documents": 50,
+      "retained_documents": 50,
+      "retained_utf8_bytes": 585725,
+      "train_documents": 50,
+      "train_utf8_bytes": 585725
+    },
+    "v4_iac_ansible_playbooks": {
+      "normalized_documents": 37,
+      "retained_documents": 37,
+      "retained_utf8_bytes": 358796,
+      "train_documents": 37,
+      "train_utf8_bytes": 358796
+    },
+    "v4_iac_argocd_validation": {
+      "normalized_documents": 1337,
+      "removed_documents": 26,
+      "retained_documents": 1311,
+      "retained_utf8_bytes": 1392808,
+      "validation_documents": 1311,
+      "validation_utf8_bytes": 1392808
+    },
+    "v4_iac_bazel_validation": {
+      "normalized_documents": 179,
+      "removed_documents": 1,
+      "retained_documents": 178,
+      "retained_utf8_bytes": 1665106,
+      "test_documents": 178,
+      "test_utf8_bytes": 1665106
+    },
+    "v4_iac_cargo_build": {
+      "normalized_documents": 715,
+      "removed_documents": 6,
+      "retained_documents": 709,
+      "retained_utf8_bytes": 613728,
+      "train_documents": 709,
+      "train_utf8_bytes": 613728
+    },
+    "v4_iac_cmake_build": {
+      "normalized_documents": 125,
+      "removed_documents": 42,
+      "retained_documents": 83,
+      "retained_utf8_bytes": 377359,
+      "train_documents": 83,
+      "train_utf8_bytes": 377359
+    },
+    "v4_iac_go_build_bootstrap": {
+      "normalized_documents": 2,
+      "retained_documents": 2,
+      "retained_utf8_bytes": 102411,
+      "train_documents": 2,
+      "train_utf8_bytes": 102411
+    },
+    "v4_iac_grafana_charts": {
+      "normalized_documents": 178,
+      "retained_documents": 178,
+      "retained_utf8_bytes": 516977,
+      "train_documents": 178,
+      "train_utf8_bytes": 516977
+    },
+    "v4_iac_helm_guides": {
+      "normalized_documents": 191,
+      "retained_documents": 191,
+      "retained_utf8_bytes": 352383,
+      "train_documents": 191,
+      "train_utf8_bytes": 352383
+    },
+    "v4_iac_kubernetes_operator": {
+      "normalized_documents": 577,
+      "removed_documents": 4,
+      "retained_documents": 573,
+      "retained_utf8_bytes": 605398,
+      "train_documents": 573,
+      "train_utf8_bytes": 605398
+    },
+    "v4_iac_meson_build": {
+      "normalized_documents": 7,
+      "retained_documents": 7,
+      "retained_utf8_bytes": 26465,
+      "train_documents": 7,
+      "train_utf8_bytes": 26465
+    },
+    "v4_iac_ninja_build": {
+      "normalized_documents": 5,
+      "retained_documents": 5,
+      "retained_utf8_bytes": 48987,
+      "train_documents": 5,
+      "train_utf8_bytes": 48987
+    },
+    "v4_iac_opentofu_config": {
+      "normalized_documents": 302,
+      "removed_documents": 3,
+      "retained_documents": 299,
+      "retained_utf8_bytes": 1112076,
+      "train_documents": 299,
+      "train_utf8_bytes": 1112076
+    },
+    "v4_iac_systemd_units": {
+      "normalized_documents": 123,
+      "retained_documents": 123,
+      "retained_utf8_bytes": 1415510,
+      "train_documents": 123,
+      "train_utf8_bytes": 1415510
+    },
+    "v4_ops_alloy": {
+      "normalized_documents": 345,
+      "removed_documents": 23,
+      "retained_documents": 322,
+      "retained_utf8_bytes": 237181,
+      "train_documents": 322,
+      "train_utf8_bytes": 237181
+    },
+    "v4_ops_cilium": {
+      "normalized_documents": 5,
+      "retained_documents": 5,
+      "retained_utf8_bytes": 277423,
+      "train_documents": 5,
+      "train_utf8_bytes": 277423
+    },
+    "v4_ops_cloudnativepg": {
+      "normalized_documents": 524,
+      "retained_documents": 524,
+      "retained_utf8_bytes": 648529,
+      "train_documents": 524,
+      "train_utf8_bytes": 648529
+    },
+    "v4_ops_containerd": {
+      "normalized_documents": 46,
+      "retained_documents": 46,
+      "retained_utf8_bytes": 69859,
+      "train_documents": 46,
+      "train_utf8_bytes": 69859
+    },
+    "v4_ops_curl": {
+      "normalized_documents": 316,
+      "retained_documents": 316,
+      "retained_utf8_bytes": 95067,
+      "train_documents": 316,
+      "train_utf8_bytes": 95067
+    },
+    "v4_ops_envoy": {
+      "normalized_documents": 7,
+      "retained_documents": 7,
+      "retained_utf8_bytes": 17129,
+      "train_documents": 7,
+      "train_utf8_bytes": 17129
+    },
+    "v4_ops_etcd": {
+      "normalized_documents": 256,
+      "removed_documents": 6,
+      "retained_documents": 250,
+      "retained_utf8_bytes": 73400,
+      "train_documents": 250,
+      "train_utf8_bytes": 73400
+    },
+    "v4_ops_grafana": {
+      "normalized_documents": 248,
+      "removed_documents": 2,
+      "retained_documents": 246,
+      "retained_utf8_bytes": 269692,
+      "train_documents": 246,
+      "train_utf8_bytes": 269692
+    },
+    "v4_ops_iputils": {
+      "normalized_documents": 4,
+      "retained_documents": 4,
+      "retained_utf8_bytes": 63130,
+      "train_documents": 4,
+      "train_utf8_bytes": 63130
+    },
+    "v4_ops_loki": {
+      "normalized_documents": 598,
+      "removed_documents": 4,
+      "retained_documents": 594,
+      "retained_utf8_bytes": 712061,
+      "train_documents": 594,
+      "train_utf8_bytes": 712061
+    },
+    "v4_ops_mimir_heldout": {
+      "normalized_documents": 246,
+      "retained_documents": 246,
+      "retained_utf8_bytes": 260000,
+      "validation_documents": 246,
+      "validation_utf8_bytes": 260000
+    },
+    "v4_ops_omp_tools": {
+      "normalized_documents": 100,
+      "retained_documents": 100,
+      "retained_utf8_bytes": 85900,
+      "train_documents": 100,
+      "train_utf8_bytes": 85900
+    },
+    "v4_ops_otel_helm": {
+      "normalized_documents": 58,
+      "retained_documents": 58,
+      "retained_utf8_bytes": 76832,
+      "train_documents": 58,
+      "train_utf8_bytes": 76832
+    },
+    "v4_ops_otel_proto_heldout": {
+      "normalized_documents": 60,
+      "retained_documents": 60,
+      "retained_utf8_bytes": 122938,
+      "test_documents": 60,
+      "test_utf8_bytes": 122938
+    },
+    "v4_ops_pgbackrest": {
+      "normalized_documents": 3,
+      "retained_documents": 3,
+      "retained_utf8_bytes": 69079,
+      "train_documents": 3,
+      "train_utf8_bytes": 69079
+    },
+    "v4_ops_strace": {
+      "normalized_documents": 2,
+      "retained_documents": 2,
+      "retained_utf8_bytes": 63756,
+      "train_documents": 2,
+      "train_utf8_bytes": 63756
+    },
+    "v4_ops_tempo": {
+      "normalized_documents": 329,
+      "retained_documents": 329,
+      "retained_utf8_bytes": 275540,
+      "train_documents": 329,
+      "train_utf8_bytes": 275540
+    },
+    "v4_ops_thanos": {
+      "normalized_documents": 191,
+      "retained_documents": 191,
+      "retained_utf8_bytes": 338537,
+      "train_documents": 191,
+      "train_utf8_bytes": 338537
+    },
+    "v4_ops_victoriametrics": {
+      "normalized_documents": 403,
+      "removed_documents": 1,
+      "retained_documents": 402,
+      "retained_utf8_bytes": 624149,
+      "train_documents": 402,
+      "train_utf8_bytes": 624149
+    },
+    "v4_ops_zalando_postgres": {
+      "normalized_documents": 154,
+      "retained_documents": 154,
+      "retained_utf8_bytes": 217168,
+      "train_documents": 154,
+      "train_utf8_bytes": 217168
+    },
+    "v4_runtime_angular_ts": {
+      "normalized_documents": 2046,
+      "removed_documents": 17,
+      "retained_documents": 2029,
+      "retained_utf8_bytes": 15909454,
+      "train_documents": 2029,
+      "train_utf8_bytes": 15909454
+    },
+    "v4_runtime_angularjs_js": {
+      "normalized_documents": 174,
+      "retained_documents": 174,
+      "retained_utf8_bytes": 4364372,
+      "train_documents": 174,
+      "train_utf8_bytes": 4364372
+    },
+    "v4_runtime_babel_ts": {
+      "normalized_documents": 583,
+      "retained_documents": 583,
+      "retained_utf8_bytes": 3169313,
+      "train_documents": 583,
+      "train_utf8_bytes": 3169313
+    },
+    "v4_runtime_bash_manual_shell": {
+      "normalized_documents": 2,
+      "retained_documents": 2,
+      "retained_utf8_bytes": 439369,
+      "train_documents": 2,
+      "train_utf8_bytes": 439369
+    },
+    "v4_runtime_bash_tests_shell": {
+      "normalized_documents": 81,
+      "retained_documents": 81,
+      "retained_utf8_bytes": 273503,
+      "train_documents": 81,
+      "train_utf8_bytes": 273503
+    },
+    "v4_runtime_bats_shell_heldout": {
+      "normalized_documents": 73,
+      "retained_documents": 73,
+      "retained_utf8_bytes": 377970,
+      "validation_documents": 73,
+      "validation_utf8_bytes": 377970
+    },
+    "v4_runtime_eslint_js_heldout": {
+      "normalized_documents": 3163,
+      "removed_documents": 21,
+      "retained_documents": 3142,
+      "retained_utf8_bytes": 12245025,
+      "validation_documents": 3142,
+      "validation_utf8_bytes": 12245025
+    },
+    "v4_runtime_gatsby_js": {
+      "normalized_documents": 178,
+      "removed_documents": 8,
+      "retained_documents": 170,
+      "retained_utf8_bytes": 1585508,
+      "train_documents": 170,
+      "train_utf8_bytes": 1585508
+    },
+    "v4_runtime_linux_selftests_shell": {
+      "normalized_documents": 660,
+      "removed_documents": 4,
+      "retained_documents": 656,
+      "retained_utf8_bytes": 4505600,
+      "train_documents": 656,
+      "train_utf8_bytes": 4505600
+    },
+    "v4_runtime_metro_js": {
+      "normalized_documents": 428,
+      "removed_documents": 5,
+      "retained_documents": 423,
+      "retained_utf8_bytes": 2358927,
+      "train_documents": 423,
+      "train_utf8_bytes": 2358927
+    },
+    "v4_runtime_node_js": {
+      "normalized_documents": 8470,
+      "removed_documents": 14,
+      "retained_documents": 8456,
+      "retained_utf8_bytes": 15793918,
+      "train_documents": 8456,
+      "train_utf8_bytes": 15793918
+    },
+    "v4_runtime_npm_cli_js": {
+      "normalized_documents": 383,
+      "retained_documents": 383,
+      "retained_utf8_bytes": 3088983,
+      "train_documents": 383,
+      "train_utf8_bytes": 3088983
+    },
+    "v4_runtime_playwright_ts": {
+      "normalized_documents": 629,
+      "retained_documents": 629,
+      "retained_utf8_bytes": 6844829,
+      "train_documents": 629,
+      "train_utf8_bytes": 6844829
+    },
+    "v4_runtime_prettier_js": {
+      "normalized_documents": 459,
+      "removed_documents": 5,
+      "retained_documents": 454,
+      "retained_utf8_bytes": 1325495,
+      "train_documents": 454,
+      "train_utf8_bytes": 1325495
+    },
+    "v4_runtime_react_js": {
+      "normalized_documents": 1379,
+      "removed_documents": 22,
+      "retained_documents": 1357,
+      "retained_utf8_bytes": 14158584,
+      "train_documents": 1357,
+      "train_utf8_bytes": 14158584
+    },
+    "v4_runtime_react_native_js": {
+      "normalized_documents": 1197,
+      "removed_documents": 1,
+      "retained_documents": 1196,
+      "retained_utf8_bytes": 5993240,
+      "train_documents": 1196,
+      "train_utf8_bytes": 5993240
+    },
+    "v4_runtime_relay_js": {
+      "normalized_documents": 552,
+      "removed_documents": 6,
+      "retained_documents": 546,
+      "retained_utf8_bytes": 5874042,
+      "train_documents": 546,
+      "train_utf8_bytes": 5874042
+    },
+    "v4_runtime_shellspec_shell": {
+      "normalized_documents": 314,
+      "retained_documents": 314,
+      "retained_utf8_bytes": 688827,
+      "train_documents": 314,
+      "train_utf8_bytes": 688827
+    },
+    "v4_runtime_undici_js": {
+      "normalized_documents": 399,
+      "retained_documents": 399,
+      "retained_utf8_bytes": 2686829,
+      "train_documents": 399,
+      "train_utf8_bytes": 2686829
+    },
+    "v4_runtime_util_linux_shell": {
+      "normalized_documents": 27,
+      "retained_documents": 27,
+      "retained_utf8_bytes": 61112,
+      "train_documents": 27,
+      "train_utf8_bytes": 61112
+    },
+    "v4_runtime_vite_ts": {
+      "normalized_documents": 491,
+      "removed_documents": 2,
+      "retained_documents": 489,
+      "retained_utf8_bytes": 1937759,
+      "train_documents": 489,
+      "train_utf8_bytes": 1937759
+    },
+    "v4_runtime_vitest_ts_heldout": {
+      "normalized_documents": 1290,
+      "removed_documents": 6,
+      "retained_documents": 1284,
+      "retained_utf8_bytes": 2092412,
+      "test_documents": 1284,
+      "test_utf8_bytes": 2092412
+    },
+    "v4_runtime_vscode_ts": {
+      "normalized_documents": 4155,
+      "retained_documents": 4155,
+      "retained_utf8_bytes": 49230339,
+      "train_documents": 4155,
+      "train_utf8_bytes": 49230339
+    },
+    "v4_runtime_webpack_js": {
+      "normalized_documents": 663,
+      "retained_documents": 663,
+      "retained_utf8_bytes": 4622143,
+      "train_documents": 663,
+      "train_utf8_bytes": 4622143
+    },
+    "wikibooks_20260901": {
+      "normalized_documents": 9998,
+      "removed_documents": 41,
+      "retained_documents": 9957,
+      "retained_utf8_bytes": 50365543,
+      "validation_documents": 9957,
+      "validation_utf8_bytes": 50365543
+    },
+    "wikipedia_20260901": {
+      "normalized_documents": 5998,
+      "removed_documents": 3,
+      "retained_documents": 5995,
+      "retained_utf8_bytes": 104291290,
+      "train_documents": 5995,
+      "train_utf8_bytes": 104291290
+    }
+  },
+  "source_kinds": {
+    "fineweb_edu_sample_10bt": "huggingface_dataset",
+    "openwebmath_train": "huggingface_dataset",
+    "pes2o_v2_fulltext": "huggingface_dataset",
+    "pes2o_v2_train": "huggingface_dataset",
+    "v2_git_technical": "git",
+    "v2_go_faq": "git",
+    "v2_go_standard": "git",
+    "v2_k8s_concepts": "git",
+    "v2_linux_fs": "git",
+    "v2_oci_runtime_specification": "git",
+    "v2_omp_harness": "git",
+    "v2_otel_collector": "git",
+    "v2_otel_specification": "git",
+    "v2_postgres_backend": "git",
+    "v2_prometheus_promql": "git",
+    "v2_python_library": "git",
+    "v2_rust_core": "git",
+    "v3_cloudevents": "git",
+    "v3_oci_distribution": "git",
+    "v3_oci_image": "git",
+    "v3_rfc8949": "http_document",
+    "v3_system_cilium": "git",
+    "v3_system_containerd": "git",
+    "v3_system_cosign": "git",
+    "v3_system_envoy": "git",
+    "v3_system_etcd": "git",
+    "v3_system_jaeger": "git",
+    "v3_system_kafka": "git",
+    "v3_system_musl": "git",
+    "v3_system_nginx": "git",
+    "v3_system_openssl": "git",
+    "v3_system_runc": "git",
+    "v3_system_sqlite": "git",
+    "v3_system_systemd": "git",
+    "v3_system_tikv": "git",
+    "v3_system_util_linux": "git",
+    "v3_system_valkey": "git",
+    "v3_system_vitess": "git",
+    "v3_system_zookeeper": "git",
+    "v3_tool_ansible": "git",
+    "v3_tool_cargo": "git",
+    "v3_tool_cmake": "git",
+    "v3_tool_cpython_compiler": "git",
+    "v3_tool_git_validation": "git",
+    "v3_tool_go_build": "git",
+    "v3_tool_meson": "git",
+    "v3_tool_ninja": "git",
+    "v3_tool_omp_lab": "git",
+    "v3_tool_opentofu": "git",
+    "v3_tool_postgres_sql_validation": "git",
+    "v3_tool_pytest": "git",
+    "v3_tool_rust_book": "git",
+    "v3_tool_rust_compiler": "git",
+    "v3_tool_spring": "git",
+    "v3_tool_tokio": "git",
+    "v3_tool_typescript": "git",
+    "v4_db_clickhouse_sql": "git",
+    "v4_db_doris_sql": "git",
+    "v4_db_duckdb_docs": "git",
+    "v4_db_duckdb_sql": "git",
+    "v4_db_h2_sql_validation": "git",
+    "v4_db_mariadb_sql": "git",
+    "v4_db_spark_sql": "git",
+    "v4_iac_ansible_docs": "git",
+    "v4_iac_ansible_playbooks": "git",
+    "v4_iac_argocd_validation": "git",
+    "v4_iac_bazel_validation": "git",
+    "v4_iac_cargo_build": "git",
+    "v4_iac_cmake_build": "git",
+    "v4_iac_go_build_bootstrap": "git",
+    "v4_iac_grafana_charts": "git",
+    "v4_iac_helm_guides": "git",
+    "v4_iac_kubernetes_operator": "git",
+    "v4_iac_meson_build": "git",
+    "v4_iac_ninja_build": "git",
+    "v4_iac_opentofu_config": "git",
+    "v4_iac_systemd_units": "git",
+    "v4_ops_alloy": "git",
+    "v4_ops_cilium": "git",
+    "v4_ops_cloudnativepg": "git",
+    "v4_ops_containerd": "git",
+    "v4_ops_curl": "git",
+    "v4_ops_envoy": "git",
+    "v4_ops_etcd": "git",
+    "v4_ops_grafana": "git",
+    "v4_ops_iputils": "git",
+    "v4_ops_loki": "git",
+    "v4_ops_mimir_heldout": "git",
+    "v4_ops_omp_tools": "git",
+    "v4_ops_otel_helm": "git",
+    "v4_ops_otel_proto_heldout": "git",
+    "v4_ops_pgbackrest": "git",
+    "v4_ops_strace": "git",
+    "v4_ops_tempo": "git",
+    "v4_ops_thanos": "git",
+    "v4_ops_victoriametrics": "git",
+    "v4_ops_zalando_postgres": "git",
+    "v4_runtime_angular_ts": "git",
+    "v4_runtime_angularjs_js": "git",
+    "v4_runtime_babel_ts": "git",
+    "v4_runtime_bash_manual_shell": "git",
+    "v4_runtime_bash_tests_shell": "git",
+    "v4_runtime_bats_shell_heldout": "git",
+    "v4_runtime_eslint_js_heldout": "git",
+    "v4_runtime_gatsby_js": "git",
+    "v4_runtime_linux_selftests_shell": "git",
+    "v4_runtime_metro_js": "git",
+    "v4_runtime_node_js": "git",
+    "v4_runtime_npm_cli_js": "git",
+    "v4_runtime_playwright_ts": "git",
+    "v4_runtime_prettier_js": "git",
+    "v4_runtime_react_js": "git",
+    "v4_runtime_react_native_js": "git",
+    "v4_runtime_relay_js": "git",
+    "v4_runtime_shellspec_shell": "git",
+    "v4_runtime_undici_js": "git",
+    "v4_runtime_util_linux_shell": "git",
+    "v4_runtime_vite_ts": "git",
+    "v4_runtime_vitest_ts_heldout": "git",
+    "v4_runtime_vscode_ts": "git",
+    "v4_runtime_webpack_js": "git",
+    "wikibooks_20260901": "wikimedia_dump",
+    "wikipedia_20260901": "wikimedia_dump"
+  },
+  "train_retained_utf8_bytes": 3999385445
+}
