@@ -94,6 +94,10 @@ def _handle(args: argparse.Namespace) -> None:
         result = publication.sources(release)
     elif command == "audit":
         result = publication.audit(release)
+    elif command == "near-duplicates":
+        from sparselab.corpus.near_duplicates import audit_release
+
+        result = audit_release(release)
     else:
         result = publication.consumers(release, args.runs_dir)
     print(json.dumps(result, sort_keys=True))
@@ -120,6 +124,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "describe",
         "sources",
         "audit",
+        "near-duplicates",
         "sample",
         "review",
         "lineage",
