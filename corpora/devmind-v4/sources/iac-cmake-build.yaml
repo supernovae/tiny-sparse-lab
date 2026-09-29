@@ -18,5 +18,5 @@ source_family: v4_iac_cmake_build_train
 notes: 'Maintained Kitware CMake tutorial CMakeLists/presets with explanatory guide, authored CMake file API JSON schema contracts paired with file API manual and preset example. Distinct from v3 Source/*, Modules/Find*.cmake, Help/command/*.rst and Tests/RunCMake/find_package/*.cmake. Excludes generated schema/version dumps and imported tutorial assets. Selected pinned Git-tree files approximately 0.38 MB.'
 acquisition:
   include: ['Help/guide/tutorial/*.rst', 'Help/guide/tutorial/Step*/CMakeLists.txt', 'Help/guide/tutorial/Complete/CMakeLists.txt', 'Help/guide/tutorial/Step*/CMakePresets.json', 'Help/manual/cmake-file-api.7.rst', 'Help/manual/cmake-presets.7.rst', 'Help/manual/file_api/schema_*.json', 'Help/manual/presets/example.json']
-  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/images/*', '*/_build/*', '*/schema_target.json']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/Vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/images/*', '*/_build/*', '*/schema_target.json']
   max_bytes: 1200000
