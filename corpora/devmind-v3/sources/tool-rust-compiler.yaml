@@ -1,0 +1,23 @@
+schema_version: 3
+id: v3_tool_rust_compiler
+kind: git
+canonical_uri: https://github.com/rust-lang/rust.git
+revision: c1070d69382b8d2f2eb65119c738a77d9e324c9e
+license: Apache-2.0 OR MIT
+license_url: https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/COPYRIGHT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0 OR MIT
+  license_references: [https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/COPYRIGHT, https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/LICENSE-APACHE, https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/LICENSE-MIT, https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/license-metadata.json]
+  nested_metadata_path: license-metadata.json
+  notices: ['Retain Rust dual-license and REUSE file-specific exceptions; screen each path against license-metadata.json.']
+domains: [programming, compilers, developer_systems]
+document_kinds: [rust, prose]
+source_family: v3_tool_rust_compiler_train
+notes: 'Same commit as v2_rust_core; compiler parsing, type-checking and borrow analysis, std implementation and rustc dev guide are disjoint from v2 core/alloc. Preserve Rust REUSE rights metadata separately, not as training text.'
+acquisition:
+  include: ['compiler/rustc_parse/src/*.rs', 'compiler/rustc_ast/src/*.rs', 'compiler/rustc_hir/src/*.rs', 'compiler/rustc_hir_typeck/src/*.rs', 'compiler/rustc_borrowck/src/*.rs', 'compiler/rustc_trait_selection/src/*.rs', 'library/std/src/*.rs', 'src/doc/rustc-dev-guide/src/*.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'library/std/src/sys/pal/fuchsia/*', 'library/std/src/sys/pal/hermit/*']
+  max_bytes: 21000000

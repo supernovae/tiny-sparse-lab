@@ -66,6 +66,22 @@ def _adapter(source: SourceDeclaration) -> dict[str, str]:
     }
 
 
+
+def _reusable_immutable_adapter(source: SourceDeclaration, manifest: dict[str, Any]) -> bool:
+    """A pinned, verified snapshot survives incidental adapter-module edits.
+
+    The version still binds adapter semantics; the module digest stays recorded
+    in the snapshot for provenance rather than forcing a new network retrieval.
+    Mutable local and HTTP sources must still be reacquired.
+    """
+    actual = manifest["adapter"]
+    expected = _adapter(source)
+    return actual == expected or (
+        source.kind in {"git", "huggingface_dataset", "wikimedia_dump"}
+        and actual.get("id") == expected["id"]
+        and actual.get("version") == expected["version"]
+    )
+
 def _write_json(path: Path, value: object) -> None:
     with path.open("wb") as handle:
         handle.write(canonical_json(value) + b"\n")
@@ -960,9 +976,11 @@ def acquire(
             old_path = snapshot_root / source.id / old["snapshot_sha256"]
             if old["declaration_sha256"] == declared_digest:
                 manifest = verify_snapshot(old_path)
-                if source.kind not in ("local", "http_document") and manifest[
-                    "adapter"
-                ] == _adapter(source):
+                if (
+                    source.kind not in ("local", "http_document")
+                    and manifest["declaration"] == source_declaration_payload(source)
+                    and _reusable_immutable_adapter(source, manifest)
+                ):
                     entries[source.id] = old
                     continue
         except OSError, ValueError, TypeError, KeyError, json.JSONDecodeError:
@@ -981,7 +999,7 @@ def acquire(
                 if (
                     manifest["declaration_sha256"] != declared_digest
                     or manifest["declaration"] != source_declaration_payload(source)
-                    or manifest["adapter"] != _adapter(source)
+                    or not _reusable_immutable_adapter(source, manifest)
                 ):
                     continue
                 entries[source.id] = {

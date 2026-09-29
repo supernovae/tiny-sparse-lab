@@ -1,0 +1,23 @@
+schema_version: 3
+id: v2_rust_core
+kind: git
+canonical_uri: https://github.com/rust-lang/rust.git
+revision: c1070d69382b8d2f2eb65119c738a77d9e324c9e
+license: Apache-2.0 OR MIT
+license_url: https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/COPYRIGHT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0 OR MIT
+  license_references: [https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/COPYRIGHT, https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/LICENSE-APACHE, https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/LICENSE-MIT, https://github.com/rust-lang/rust/blob/c1070d69382b8d2f2eb65119c738a77d9e324c9e/license-metadata.json]
+  notices: ['Retain Rust Project Developer notices, dual-license text and per-path REUSE exceptions; reject conflicting file/metadata rights.']
+  nested_metadata_path: license-metadata.json
+domains: [programming, operating_systems]
+document_kinds: [rust]
+source_family: v2_rust_core_train
+notes: 'Select first-party core and alloc library sources only; REUSE metadata is an additional acquisition blob, not training text. Unicode data, Fuchsia mutex, tests, generated code and fixtures excluded pending separate review.'
+acquisition:
+  include: ['library/core/src/*.rs', 'library/alloc/src/*.rs']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'library/core/src/unicode/*', 'library/std/src/sys/pal/fuchsia/*']
+  max_bytes: 35000000

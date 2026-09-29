@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_vitess
+kind: git
+canonical_uri: https://github.com/vitessio/vitess.git
+revision: d0544ea5f8d9833aef4208d0dc879d26dd946422
+license: Apache-2.0
+license_url: https://github.com/vitessio/vitess/blob/d0544ea5f8d9833aef4208d0dc879d26dd946422/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/vitessio/vitess/blob/d0544ea5f8d9833aef4208d0dc879d26dd946422/LICENSE, https://github.com/vitessio/vitess/blob/d0544ea5f8d9833aef4208d0dc879d26dd946422/README.md]
+  notices: ['README says Apache-2.0 unless otherwise noted. Retain file-level attribution and omit generated vt/proto bindings, third-party assets and testfiles.']
+domains: [databases, distributed_systems, sql]
+document_kinds: [go, tests, prose, build]
+source_family: v3_system_vitess_train
+notes: 'First-party Go SQL parser, vtgate gateway, tablets, topology, shard management, CLI and design documents; small Go tests retained. Distinct from v2 PostgreSQL and independent SQLite heldout.'
+acquisition:
+  include: ['go/vt/*.go', 'go/mysql/*.go', 'go/sqltypes/*.go', 'go/cmd/*.go', 'go/vt/sqlparser/*.go', 'go/vt/sqlparser/sql.y', 'doc/design-docs/*.md', 'doc/internal/*.md', 'Makefile']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'go/vt/proto/*', 'go/testfiles/*', 'go/test/*', 'test/*', '*.pb.go', '*_generated.go', 'zz_generated*', 'go/vt/vttest/*', 'go/vt/sqlparser/sql.go', 'go/vt/sqlparser/ast_clone.go', 'go/vt/sqlparser/ast_copy_on_rewrite.go', 'go/vt/sqlparser/ast_equals.go', 'go/vt/sqlparser/ast_format_fast.go', 'go/vt/sqlparser/ast_path.go', 'go/vt/sqlparser/ast_rewrite.go', 'go/vt/sqlparser/ast_visit.go', 'go/vt/sqlparser/cached_size.go']
+  max_bytes: 120000000

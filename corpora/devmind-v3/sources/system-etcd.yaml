@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_etcd
+kind: git
+canonical_uri: https://github.com/etcd-io/etcd.git
+revision: 7583cc6e7e2756bb4166d646fe48d2fa1863b4b6
+license: Apache-2.0
+license_url: https://github.com/etcd-io/etcd/blob/7583cc6e7e2756bb4166d646fe48d2fa1863b4b6/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/etcd-io/etcd/blob/7583cc6e7e2756bb4166d646fe48d2fa1863b4b6/LICENSE]
+  notices: ['Preserve etcd Authors copyright and individual source-file notices; generated RPC bindings and fixture data excluded.']
+domains: [distributed_systems, storage, consensus]
+document_kinds: [go, tests, prose]
+source_family: v3_system_etcd_train
+notes: 'First-party server/raft/storage, CLI and selected tests plus operating documentation; not v2 Kubernetes docs, and no duplicated upstream revisions.'
+acquisition:
+  include: ['server/*.go', 'client/*.go', 'pkg/*.go', 'etcdctl/*.go', 'etcdutl/*.go', 'tests/*.go', 'Documentation/*.md', 'README.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*.pb.go', '*_generated.go', 'tests/fixtures/*']
+  max_bytes: 24000000

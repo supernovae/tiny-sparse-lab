@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_util_linux
+kind: git
+canonical_uri: https://github.com/util-linux/util-linux.git
+revision: 8a937b74de272becd891fb0d1530fc5bb0514e7e
+license: GPL-2.0-or-later
+license_url: https://github.com/util-linux/util-linux/blob/8a937b74de272becd891fb0d1530fc5bb0514e7e/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-or-later
+  license_references: [https://github.com/util-linux/util-linux/blob/8a937b74de272becd891fb0d1530fc5bb0514e7e/COPYING, https://github.com/util-linux/util-linux/blob/8a937b74de272becd891fb0d1530fc5bb0514e7e/README.licensing]
+  notices: ['README.licensing lists multiple SPDX licenses and says COPYING applies only absent file-level license; inspect individual headers before release.']
+domains: [operating_systems, storage, administration]
+document_kinds: [code, tests, prose, build]
+source_family: v3_system_util_linux_train
+notes: 'Partition/mount/UUID userspace sources, compact test drivers and manual prose; exclude tests expected-output fixture data, localization and generated build products. Independent of v2 kernel filesystem sources.'
+acquisition:
+  include: ['disk-utils/*.c', 'disk-utils/*.h', 'libblkid/*.c', 'libblkid/*.h', 'libfdisk/*.c', 'libfdisk/*.h', 'libmount/*.c', 'libmount/*.h', 'libuuid/*.c', 'libuuid/*.h', 'sys-utils/*.c', 'sys-utils/*.h', 'tests/ts/libmount/*', 'tests/ts/blkid/*', 'Documentation/*.md', 'meson.build']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'tests/expected/*', 'tests/inputs/*', 'tests/output/*', 'tests/ts/*/files/*']
+  max_bytes: 23000000

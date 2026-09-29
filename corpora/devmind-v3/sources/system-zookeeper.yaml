@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_zookeeper
+kind: git
+canonical_uri: https://github.com/apache/zookeeper.git
+revision: 92f104032d5a2f3938d6514ee46cccc07f9d522b
+license: Apache-2.0
+license_url: https://github.com/apache/zookeeper/blob/92f104032d5a2f3938d6514ee46cccc07f9d522b/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/apache/zookeeper/blob/92f104032d5a2f3938d6514ee46cccc07f9d522b/LICENSE.txt, https://github.com/apache/zookeeper/blob/92f104032d5a2f3938d6514ee46cccc07f9d522b/NOTICE.txt]
+  notices: ['Preserve Apache ZooKeeper NOTICE and individual file attribution; excludes third-party recipes, generated API stubs and opaque test resources.']
+domains: [distributed_systems, consensus, reliability]
+document_kinds: [java, tests, prose, build]
+source_family: v3_system_zookeeper_train
+notes: 'First-party ZooKeeper quorum server, Jute serialization, Java client and authored unit tests; scope separate from v3 etcd and v2 Kubernetes docs.'
+acquisition:
+  include: ['zookeeper-server/src/main/*.java', 'zookeeper-server/src/test/*.java', 'zookeeper-client/zookeeper-client-c/src/*.c', 'zookeeper-client/zookeeper-client-c/src/*.h', 'zookeeper-client/zookeeper-client-c/include/*.h', 'zookeeper-jute/src/main/*.java', 'zookeeper-jute/src/test/*.java', 'zookeeper-metrics-providers/src/main/*.java', 'zookeeper-specifications/*.md', 'zookeeper-server/pom.xml', 'pom.xml']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/src/test/resources/*', '*/src/main/resources/*', 'zookeeper-server/src/test/resources/*', '*/target/*', '*Generated.java', '*.pb.java']
+  max_bytes: 50000000

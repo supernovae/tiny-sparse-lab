@@ -1,0 +1,477 @@
+{
+  "counts": {
+    "pes2o_v2_fulltext:all": 25762,
+    "pes2o_v2_fulltext:any_engineering_title_match": 31,
+    "pes2o_v2_fulltext:data_security_tools": 2,
+    "pes2o_v2_fulltext:distributed_networking": 11,
+    "pes2o_v2_fulltext:operating_systems": 2,
+    "pes2o_v2_fulltext:programming_languages": 6,
+    "pes2o_v2_fulltext:software_engineering": 12,
+    "pes2o_v2_fulltext:unmatched": 25731,
+    "pes2o_v2_train:all": 254968,
+    "pes2o_v2_train:any_engineering_title_match": 713,
+    "pes2o_v2_train:data_security_tools": 77,
+    "pes2o_v2_train:distributed_networking": 243,
+    "pes2o_v2_train:operating_systems": 71,
+    "pes2o_v2_train:programming_languages": 109,
+    "pes2o_v2_train:software_engineering": 242,
+    "pes2o_v2_train:unmatched": 254255
+  },
+  "definitions": {
+    "data_security_tools": [
+      "(database|sql|query optimizer|transaction processing|storage engine|file system) (systems?|performance|design|implementation|benchmark|optimization)",
+      "(build system|continuous integration|deployment pipeline|package manager|version control) (systems?|tools?|implementation|performance)",
+      "(software|application|cloud|container|web application|network) (security|vulnerabilit|supply chain)",
+      "(vulnerabilit|malware) (detection|analysis|patching) (in|of|for) (software|code|programs?|packages?|libraries)"
+    ],
+    "distributed_networking": [
+      "distributed (systems?|databases?|computing|storage|consensus|transaction|tracing)",
+      "(network|tcp|http|dns|routing|packet) (protocol|stack|performance|security|traffic)",
+      "(cloud native|kubernetes|microservice|service mesh|serverless) (applications?|architectures?|systems?|deployments?|orchestration|platforms?)",
+      "(raft|paxos) (consensus|algorithm|protocol|replication)"
+    ],
+    "operating_systems": [
+      "\\boperating systems?\\b",
+      "(linux|unix|posix) (kernel|filesystem|system call|scheduler|driver)",
+      "(filesystem|file system|system call|process schedul)(s|ing|er|ers)?",
+      "(container|virtual machine|hypervisor) (runtime|orchestration|isolation|security|performance)"
+    ],
+    "programming_languages": [
+      "programming languages?",
+      "(compiler|interpreter|type system|type checking|program semantics|runtime system)s?",
+      "(python|javascript|typescript|golang|rust|java|c\\+\\+|haskell) (programs?|libraries|packages|code|compiler|runtime|developer)"
+    ],
+    "software_engineering": [
+      "software (engineering|development|testing|maintenance|verification|architecture|defect|bug|repository|repositories)",
+      "(source|program) code (analysis|generation|search|completion|repair|review)",
+      "(code|program) (generation|completion|repair|review|analysis|synthesis|search)",
+      "(static|dynamic) (program|code) analysis",
+      "(automated|unit|integration|regression) (software )?testing",
+      "(program|software) (verification|synthesis|debugging)",
+      "(github|gitlab|stackoverflow|stack overflow) (repositories|projects|commits|issues|developers|posts)"
+    ]
+  },
+  "method": "v1_conservative_title_regex",
+  "samples": {
+    "pes2o_v2_fulltext:all": [
+      {
+        "id": "95eb77482aee58af91a2e88801314064ffa11c21fafedff2fdeb8724765ce442",
+        "score": "0000d10be54622f6ba5e99387fe72d957a223b6fc0abe7272f164058efc7c5b5",
+        "title": "Urban Innovation Policy in the Postdevelopmental Era: Lessons from Singapore and Seoul"
+      },
+      {
+        "id": "9ac24affec9c74241d213b97376c8288f5a2fe1952c3cccc8af3b53e51295740",
+        "score": "00073dbb5d98b86edcb6ea4eba2bfadfdde85ca0571358e883188360d9941cd6",
+        "title": "Quantifying the mechanisms of domain gain in animal proteins"
+      },
+      {
+        "id": "a194b19dd2e140a815885a7a61cc576c01953f7762c5eeed8ccdb29e2ed44f9d",
+        "score": "0007b33963f1fd7e1f2d4f9947693b122fc6e8260b0077651c9bf94c35c84553",
+        "title": "X-DenseNet: Deep Learning for Garbage Classification Based on Visual Images"
+      },
+      {
+        "id": "f893867bfbaf78cea9cd1460c3f02f1adb601378ddcbe6266290b95f41fe606e",
+        "score": "0007cdb59ae5eda7847c4e61c51c2b267b09b81c8f134407258a3f63fb82f55b",
+        "title": "Vaping in today\u2019s pandemic: E-cigarette, or vaping, product use\u2013associated lung injury mimicking COVID-19 in teenagers presenting with respiratory distress"
+      },
+      {
+        "id": "308cf56d58c6ab29c4e261d33fa0c316e98b11aa15c7953c825012770bac1864",
+        "score": "00093c77dca8b6c42e1b7ae1188a20adeeb3666dab52d00cbc78153ff2c44f4f",
+        "title": "Robust Kernel-based Feature Representation for 3D Point Cloud Analysis via Circular Convolutional Network"
+      }
+    ],
+    "pes2o_v2_fulltext:any_engineering_title_match": [
+      {
+        "id": "8af7f14e8d2076bf22274bb0e33547cc3cc8773c51475861c5dd023770fa11db",
+        "score": "0b7ce406e8db8b2629998c6e79926d812e99c70e5cb38c27c64821854397c468",
+        "title": "What Norwegian Developers Want and Need From Security-Directed Program Analysis Tools: A Survey"
+      },
+      {
+        "id": "a89d5c972a5b5db61540ea3b4e19f0c28a90ac69e1f42cefcaf28c347f6553cf",
+        "score": "0e4d33e9f985f0513c730d4f1addf1335152187faaadfe0378f8ee02a7452f20",
+        "title": "The generator operating system automatically uses a motorized change over switch devices"
+      },
+      {
+        "id": "544d1418d9fdd2be9479b938ee26e9333fffddc7ee8d1eea336a96d4c4c0fb22",
+        "score": "0e6f1dd1e650e41eafd7adf901d0ab06c623c4f987c6f8310db213ee9ba278a3",
+        "title": "MeLa: A Programming Language for a New Multidisciplinary Oceanographic Float"
+      },
+      {
+        "id": "53de8d260ec84e201b63805ba75087bb5e193cf7db86c5f9d190030d195b5f55",
+        "score": "18b701cf0937e47baecab675e288bf6338dac98994ec3297e24a55cc6dee6e26",
+        "title": "Design of computer network security storage system based on cloud computing technology"
+      },
+      {
+        "id": "3465d6eeb51850ea8336efe71cea686d0dac37c2e7b0449101c614a484762e1f",
+        "score": "1b3cd63d7b2b162d70ed1bec6a575bc2d89a5bc927183daa01d4565fcedebbb9",
+        "title": "A Model Independent S/W Framework for Search-Based Software Testing"
+      }
+    ],
+    "pes2o_v2_fulltext:data_security_tools": [
+      {
+        "id": "53de8d260ec84e201b63805ba75087bb5e193cf7db86c5f9d190030d195b5f55",
+        "score": "18b701cf0937e47baecab675e288bf6338dac98994ec3297e24a55cc6dee6e26",
+        "title": "Design of computer network security storage system based on cloud computing technology"
+      },
+      {
+        "id": "833117bc7038454169bf49f7b166b48dd3daa6b9b2b88b4177b6a657a345448d",
+        "score": "942c7d09ba7d2bb8c9398ba0cdad305045f7ea7502b673ac28bb60787007438a",
+        "title": "Network Security Situation Assessment Based on Improved WOA-SVM"
+      }
+    ],
+    "pes2o_v2_fulltext:distributed_networking": [
+      {
+        "id": "53de8d260ec84e201b63805ba75087bb5e193cf7db86c5f9d190030d195b5f55",
+        "score": "18b701cf0937e47baecab675e288bf6338dac98994ec3297e24a55cc6dee6e26",
+        "title": "Design of computer network security storage system based on cloud computing technology"
+      },
+      {
+        "id": "2a660360bdf2211f8f4d294eb256ac87a5290638903477fcd1841c7e5a4d25a4",
+        "score": "27155cef48df4346d9623d24e670a957812e299a59e91edc23a1cc41e1ea3611",
+        "title": "Study of Communication Structural Relationship between Processors of Parallel and Distributed System"
+      },
+      {
+        "id": "04893ab7ecf2a888c8e110ade5073c62fc846f72ad60259c54c92327d7c4ad8d",
+        "score": "2c06c95ebbc2a7da07ebaaccd196c91c29401ff7fe217e37b5ac7fbc8c141f01",
+        "title": "A Simulation of AODV and GPSR Routing Protocols in VANET Based on Multimetrices"
+      },
+      {
+        "id": "6a6c4eae58a26b3ad75cccd96a3382679184295b214a3265e8af95b0efbfff3c",
+        "score": "3e2d7823537516de4b8de791902113f177c5cff229751214cd194d1cd5298218",
+        "title": "RFDMRP: River Formation Dynamics based Multi-Hop Routing Protocol for Data Collection in Wireless Sensor Networks"
+      },
+      {
+        "id": "251a9aa5f3ec72b778a3c8d7983841ba44045866afb955f2f931a3ae03b98ab9",
+        "score": "3f7ec3e6acc577e3f4ac8527caa060438e7357187bd5615e4a90a8f6a3b0f0d3",
+        "title": "Analytic Study of Features for the Detection of Covert Timing Channels in Network Traffic"
+      }
+    ],
+    "pes2o_v2_fulltext:operating_systems": [
+      {
+        "id": "a89d5c972a5b5db61540ea3b4e19f0c28a90ac69e1f42cefcaf28c347f6553cf",
+        "score": "0e4d33e9f985f0513c730d4f1addf1335152187faaadfe0378f8ee02a7452f20",
+        "title": "The generator operating system automatically uses a motorized change over switch devices"
+      },
+      {
+        "id": "8de444c0ff4ed100ab2979780f7b4299f5d3d6be7d16f92a74358c6e12876158",
+        "score": "70252f6eceaf40fe1ac9711695e047e20fb39c087cecce3b9572fc1cb49c0ab3",
+        "title": "A File System Abstraction for Sense and Respond Systems"
+      }
+    ],
+    "pes2o_v2_fulltext:programming_languages": [
+      {
+        "id": "544d1418d9fdd2be9479b938ee26e9333fffddc7ee8d1eea336a96d4c4c0fb22",
+        "score": "0e6f1dd1e650e41eafd7adf901d0ab06c623c4f987c6f8310db213ee9ba278a3",
+        "title": "MeLa: A Programming Language for a New Multidisciplinary Oceanographic Float"
+      },
+      {
+        "id": "8855c4298b2cf8b5c92131ca61c4dde9833a0b5f9c9dc730669d2d1759bbd906",
+        "score": "25b406bd547949c99b6a5ef9a62b11b7ef6f7abb9a702dca778f188e5f596115",
+        "title": "MoonFit, a minimal interface for fitting ODE dynamical models, bridging simulation by experimentalists and customization by C++ programmers"
+      },
+      {
+        "id": "796c936e050b75281065496f942907b2056167b15af8c6f12468a8e0efcc4bc6",
+        "score": "5c296de5a6c6bbcb1a61bd800ef6619abb618ab98ff504b2e9836a02faca5823",
+        "title": "Visualizing Morphogenesis with the Processing Programming Language"
+      },
+      {
+        "id": "28946e5cd63d42e3590ec6473b9d372539cada70652f224f846e134517c107c8",
+        "score": "ac6fedd5a7d55b68e9b2977b0f33aff0864344e0da7a460279aca92b0367d238",
+        "title": "Propagating Fronts for a Viscous Hamer-Type system"
+      },
+      {
+        "id": "85e8d892ad29943cb4f2ff81b5a7637c7f7cfe5be0fb9d631706cc3bc6d9cf3e",
+        "score": "e505c5a0623fdb3ef7476785e4c45e82706b35ae65141b4d139bfcd70b3f866a",
+        "title": "Benchmarking the Status of Default Pseudorandom Number Generators in Common Programming Languages"
+      }
+    ],
+    "pes2o_v2_fulltext:software_engineering": [
+      {
+        "id": "8af7f14e8d2076bf22274bb0e33547cc3cc8773c51475861c5dd023770fa11db",
+        "score": "0b7ce406e8db8b2629998c6e79926d812e99c70e5cb38c27c64821854397c468",
+        "title": "What Norwegian Developers Want and Need From Security-Directed Program Analysis Tools: A Survey"
+      },
+      {
+        "id": "3465d6eeb51850ea8336efe71cea686d0dac37c2e7b0449101c614a484762e1f",
+        "score": "1b3cd63d7b2b162d70ed1bec6a575bc2d89a5bc927183daa01d4565fcedebbb9",
+        "title": "A Model Independent S/W Framework for Search-Based Software Testing"
+      },
+      {
+        "id": "3077119865fff6c76c34f553c7e2e7b71db87e76104479bed4e391dff624f398",
+        "score": "26e5da72b804f8e0828f17896ef41c67426c9d37cf3e95c96204600068196ce0",
+        "title": "Synthesis of probabilistic models for quality-of-service software engineering"
+      },
+      {
+        "id": "e4ab2c8a60c3c1af211f87b32c9c8719faad5e6f448ac513f297551bc41401c0",
+        "score": "5b22824cf5547d2c538961583ff91563024be90e851cb2cd45e76f92386122e6",
+        "title": "Research on Basic Programming System of Computer Science Mobile APP Software Engineering"
+      },
+      {
+        "id": "7083f9e9e82a60bf078ab35ca6081dc345fef184b07d5e8ba98b7430e16368f6",
+        "score": "6cdaff0d238cee13d0ba1f453556e8f9248bdc7e8e44f7c3b35c493ac702799b",
+        "title": "Value Creation and Delivery in Agile Software Development: Overcoming Stakeholder Conflicts"
+      }
+    ],
+    "pes2o_v2_fulltext:unmatched": [
+      {
+        "id": "95eb77482aee58af91a2e88801314064ffa11c21fafedff2fdeb8724765ce442",
+        "score": "0000d10be54622f6ba5e99387fe72d957a223b6fc0abe7272f164058efc7c5b5",
+        "title": "Urban Innovation Policy in the Postdevelopmental Era: Lessons from Singapore and Seoul"
+      },
+      {
+        "id": "9ac24affec9c74241d213b97376c8288f5a2fe1952c3cccc8af3b53e51295740",
+        "score": "00073dbb5d98b86edcb6ea4eba2bfadfdde85ca0571358e883188360d9941cd6",
+        "title": "Quantifying the mechanisms of domain gain in animal proteins"
+      },
+      {
+        "id": "a194b19dd2e140a815885a7a61cc576c01953f7762c5eeed8ccdb29e2ed44f9d",
+        "score": "0007b33963f1fd7e1f2d4f9947693b122fc6e8260b0077651c9bf94c35c84553",
+        "title": "X-DenseNet: Deep Learning for Garbage Classification Based on Visual Images"
+      },
+      {
+        "id": "f893867bfbaf78cea9cd1460c3f02f1adb601378ddcbe6266290b95f41fe606e",
+        "score": "0007cdb59ae5eda7847c4e61c51c2b267b09b81c8f134407258a3f63fb82f55b",
+        "title": "Vaping in today\u2019s pandemic: E-cigarette, or vaping, product use\u2013associated lung injury mimicking COVID-19 in teenagers presenting with respiratory distress"
+      },
+      {
+        "id": "308cf56d58c6ab29c4e261d33fa0c316e98b11aa15c7953c825012770bac1864",
+        "score": "00093c77dca8b6c42e1b7ae1188a20adeeb3666dab52d00cbc78153ff2c44f4f",
+        "title": "Robust Kernel-based Feature Representation for 3D Point Cloud Analysis via Circular Convolutional Network"
+      }
+    ],
+    "pes2o_v2_train:all": [
+      {
+        "id": "d0b2c4853f715d2e73941a43586e872b8450fa0cd7978f3090597ea844c17a3b",
+        "score": "000048f00ef8e3537899eb8d6de1ecaaed1d15cd92206235407b70083a07e3ba",
+        "title": "An external circuit model for 3D electromagnetic particle-in-cell simulations"
+      },
+      {
+        "id": "5f29f1dce3c0103ed56387a51bc966b538fc7afa6d5271923dbff39ec896878f",
+        "score": "0000827db29b5a4ed1cbf32d24691a0328118aaacb8e84b6a07dc96bbb903a9b",
+        "title": "Effects of climate change on Salmonella infections."
+      },
+      {
+        "id": "4fbdb3e48d59718c09c4de61e0e5b6705926e68fa793b24e8090413f232e8a95",
+        "score": "0000971db55a84b385aff60312ffffe38efc6a4d3c0a6bc2c0d895a3fd14a1a6",
+        "title": "A new method to generate arene-terminated Si(111) and Ge(111) surfaces via a palladium-catalyzed arylation reaction."
+      },
+      {
+        "id": "89cff0545c59a6df50c67f0d2db4b7391f26ece74ece944f29613e8f67935951",
+        "score": "0000ac86bb31ad0eea13148786120f45cae67c18b39a07c9e01cce1dadc2f74d",
+        "title": "Interstitial collagenase (MMP-1) expression in human carotid atherosclerosis."
+      },
+      {
+        "id": "5715ba78d92e46e97af157c082e82c6b3d651c50fe8e105f7d8cde1a7f41ddd4",
+        "score": "0001190e085196f1853ec2b5ec9dead99bfa8c2850935d5206494deec4552128",
+        "title": "Evidence for climatic deteriorations associated with the decline of Sphagnum imbricatum Hornsch. ex Russ. in six ombrotrophic mires from northern England and the Scottish Borders"
+      }
+    ],
+    "pes2o_v2_train:any_engineering_title_match": [
+      {
+        "id": "54e6d7469646991e4390fca0fa116c95708f50b053174e9592ee7abba9bba12a",
+        "score": "0020d7aff822e5c2fa141c107a7d6cea98f15163097cbff4eb23a9f7a770958c",
+        "title": "Mathematical modeling of an aggregation operator for resources allocation in distributed systems"
+      },
+      {
+        "id": "1fb0fe1b7686be621ca16a385b3ede484eb8cd0bd75f8d4b04ad6e599e4204c9",
+        "score": "017781345bb1628a3ee1fe32fb5bd3381b9f71747cb7751b0359fac31218aec9",
+        "title": "The Qualitas Corpus: A Curated Collection of Java Code for Empirical Studies"
+      },
+      {
+        "id": "43b5a4709c25a3256de99dbbfc2a8b7387b033046fc5c2da61f4790645fefdc7",
+        "score": "01891230c814d63d601324a142f4f320e510bae9e1b1839149578257630d13a2",
+        "title": "Compiler Support for Memory Management with Explicit Memory Reclamation"
+      },
+      {
+        "id": "1b61c8f1245fc0063cac0e878fdfd22a8ad582f6be6600bd9fec3a7426f2e305",
+        "score": "01b2096f642a91ac1d1cf3822f52f07378609e17889a7f1584460458e7808234",
+        "title": "Measurement Framework for Assessing Risks in Component-Based Software Development"
+      },
+      {
+        "id": "a2ae9dfc5073dda4496ab8ed0750297335be7837d7d842b13cc742c8f8503f07",
+        "score": "02065b27eb4768a36bee2ff3896cf732c8d77260e29a783afef90a7d6d5413d2",
+        "title": "Intelligent Distributed System for Smart Economic Management Integrating Computer Architecture Optimization Algorithm"
+      }
+    ],
+    "pes2o_v2_train:data_security_tools": [
+      {
+        "id": "30750bf4e7c1ffc3289789fdb91f7a2294b7daff63e9050a03da55d968dd0589",
+        "score": "07daa5d86aa0fa9ee2956c67658dc198b9c2db71daf21a2b1bb5b3debbd59cba",
+        "title": "Application Analysis of Computer Software Security Vulnerability Detection Based on Web Crawler"
+      },
+      {
+        "id": "9f68a692f3b53379288c2c28fd5bd35b709d952066d33ea218253655d0938e2c",
+        "score": "0835efa70c23668e788a30cbb91a3a23bd427f3c727b911357100b48bf5be600",
+        "title": "A holistic data modeling approach for multi-database systems"
+      },
+      {
+        "id": "6073c14e70b87cccae9970a44d21f922619c5fb68fed611cbae59d66698e74dc",
+        "score": "09afbdb48622fee18090da7e569f2b161a3d425e9e967f33b0e0c774f1807612",
+        "title": "Supplementary Material : Description of database implementation"
+      },
+      {
+        "id": "281995769080e202cc080d706b13304717961dd3cff8129d8a710fb631b610f0",
+        "score": "0e339acf84ca5842561925e625591a7dae1083cf3b4c21927a43d5424c509e8c",
+        "title": "Overview of the ROL2 deductive object-oriented database system"
+      },
+      {
+        "id": "33783f1bc2e186b4aae6fc81cb9f89fcf8fa5de34de9286a16481cc760ad8abb",
+        "score": "11f569161c6df8fab2134c44fb348b9e5c7fab2be240b1314b0aa12c2bbd8170",
+        "title": "Cognitive Abilities and Performance in Database Design: An Observational Study"
+      }
+    ],
+    "pes2o_v2_train:distributed_networking": [
+      {
+        "id": "54e6d7469646991e4390fca0fa116c95708f50b053174e9592ee7abba9bba12a",
+        "score": "0020d7aff822e5c2fa141c107a7d6cea98f15163097cbff4eb23a9f7a770958c",
+        "title": "Mathematical modeling of an aggregation operator for resources allocation in distributed systems"
+      },
+      {
+        "id": "a2ae9dfc5073dda4496ab8ed0750297335be7837d7d842b13cc742c8f8503f07",
+        "score": "02065b27eb4768a36bee2ff3896cf732c8d77260e29a783afef90a7d6d5413d2",
+        "title": "Intelligent Distributed System for Smart Economic Management Integrating Computer Architecture Optimization Algorithm"
+      },
+      {
+        "id": "fcc17cb5d544aa60bc26c2b9fa0396e2b1221358da161b2314de3c87ef3f729b",
+        "score": "02e275cbe9ca4211e68a679970e824adbedd549c9d15acd15413bad8150ca24d",
+        "title": "Addressing privacy constraints for efficient monitoring of network traffic for illicit images"
+      },
+      {
+        "id": "e8b3e0373321a820a4a6e7213fd5fa89f82cdc1d2f1ac0e5633bc85db89fcd37",
+        "score": "037459607cc14ae3d28c096e7daee760876ba8ff749b1d2736ada8f1e1de7fa1",
+        "title": "The partition method for the order-insensitivity in a synchronous distributed system"
+      },
+      {
+        "id": "36a21a5b84e05edf5917ae3836af70e83004c8c1e6b0c0b20937b5ba00b85bc1",
+        "score": "048631685f5382cb2255f8230b94116323da08ff48b8ec6944ca0e15805f6ced",
+        "title": "Monitoring and Managing Intelligence in Distributed Systems"
+      }
+    ],
+    "pes2o_v2_train:operating_systems": [
+      {
+        "id": "c1f76a87139b49e26639e590f1af469c9f6d5f815a20654f9d476922214f3a86",
+        "score": "0265c6bdb927785ffc5fdb7abe52a6522043b6f222055834fb2dc5b697ac5b90",
+        "title": "METHOD FOR ASSESSING OF RELIABILITY CHARACTERISTICS IN DESIGNING OF FAILURERESISTANT REAL-TIME OPERATING SYSTEMS"
+      },
+      {
+        "id": "10dc00b11ddb71674600726870a8a2699b8c2f66d683c2028bcde5d820f9b068",
+        "score": "0574fcd3d4ec2f70b7559b803ee481a715c5b81c163c899514c0c116947748b9",
+        "title": "Predicting file system actions from prior events"
+      },
+      {
+        "id": "1000db255dc073768b666295a45cb15de33bb529573db329395a8852af80e21c",
+        "score": "0acf975772e619b3c892e6da9c66f5ea3deada0ebeb227462978e081fcba3831",
+        "title": "Safe Genetic File System"
+      },
+      {
+        "id": "a82190ad232c890ee85d8bc403080a23c54adc465477576b60171fb696c0f5e2",
+        "score": "0ef12f72fa973b1e4d0ccc54bbad2756c2078db247280b42748463013a89a0e6",
+        "title": "A Formal Model of a Virtual Filesystem Switch"
+      },
+      {
+        "id": "2fd6f8bc7b7ecb0e7deac3ee3c273c785a726ad3b5dcdce356132fcdabf979cc",
+        "score": "0f672fe98a2bf3c61fc5a85543138efa7714be766ea131639a0ecbd30158d8ab",
+        "title": "Cost profile of a highly assured, secure operating system"
+      }
+    ],
+    "pes2o_v2_train:programming_languages": [
+      {
+        "id": "1fb0fe1b7686be621ca16a385b3ede484eb8cd0bd75f8d4b04ad6e599e4204c9",
+        "score": "017781345bb1628a3ee1fe32fb5bd3381b9f71747cb7751b0359fac31218aec9",
+        "title": "The Qualitas Corpus: A Curated Collection of Java Code for Empirical Studies"
+      },
+      {
+        "id": "43b5a4709c25a3256de99dbbfc2a8b7387b033046fc5c2da61f4790645fefdc7",
+        "score": "01891230c814d63d601324a142f4f320e510bae9e1b1839149578257630d13a2",
+        "title": "Compiler Support for Memory Management with Explicit Memory Reclamation"
+      },
+      {
+        "id": "1a319e230a707e0617a52266e2023d26156f9560cad91f82e2315f2ab2df0355",
+        "score": "079a0fcb8c70f82aeeb15f0d9c2dda8bc1b01368fe5d25c1907bf62cba70cbec",
+        "title": "A feature model of actor, agent, and object programming languages"
+      },
+      {
+        "id": "aa23eaefcd6287c2c495f4b36b6eedbd67b6fd3d583eef74d951b6ada4ab08bf",
+        "score": "0933a5f2c55ea616d68edbeed48c48a366d1b1153cfa8b735de3a2017bbb05f2",
+        "title": "Automated Unit Testing of JavaScript Code through Symbolic Executor SymJS"
+      },
+      {
+        "id": "ad737c748375ebad173c00907cd2341261235717cdb8c1c9276f69a7c04a13c2",
+        "score": "0d3abe188c647234b6e7c2ceadbceebfd31bc28a87c2784ccf887ad93e564520",
+        "title": "LANALYSIS: A PERFORMANCE ANALYSIS TOOL FOR THE IMPACT COMPILER"
+      }
+    ],
+    "pes2o_v2_train:software_engineering": [
+      {
+        "id": "1b61c8f1245fc0063cac0e878fdfd22a8ad582f6be6600bd9fec3a7426f2e305",
+        "score": "01b2096f642a91ac1d1cf3822f52f07378609e17889a7f1584460458e7808234",
+        "title": "Measurement Framework for Assessing Risks in Component-Based Software Development"
+      },
+      {
+        "id": "d6adb5ac238397fffb033ee79c0927a1307158b42469a8f2f7bd0ba7e091b79b",
+        "score": "020d3c1d8509b00f359af86edba209e9d9728e690b2609d57e1b518c47c94b6d",
+        "title": "Exploring the Emergence of Collaborative Practices in Globally Distributed Agile Software Development"
+      },
+      {
+        "id": "90367bcb111808ed455943bc1e70b571aaf5f9a5c128c8cf90c134cc552cdf4d",
+        "score": "05ca354487e7f6e2b0bf1dfa12531afcea75c1c19fd72828269a7d002983738f",
+        "title": "Requirements Engineering PBURC : A Patterns-Based Unsupervised Requirements Clustering Framework for Distributed Agile Software Development"
+      },
+      {
+        "id": "0a4bb522cda18cae2deda3856e6cce57783c3f1728c2833e500bb6571aecbf25",
+        "score": "063c0d01d695b0e4ece5dca551e25f3944229cc7395f1c48a21c132eac1dada1",
+        "title": "Counterexample generation for program verification based on ownership refinement types"
+      },
+      {
+        "id": "018252ca1627a3885363541ed7c2908163ff97fc2eb68d4ea31c1bca3fe0550a",
+        "score": "06b2b43f05417a8a1efc856cdb4fa43acf0a3b630005a79bb5b853f2bd2b39b5",
+        "title": "The use of Graph Theory in the Implementation of Psychodiagnostic Projects on the Example of Researching the Leadership Qualities of Participants in Software Development Teams"
+      }
+    ],
+    "pes2o_v2_train:unmatched": [
+      {
+        "id": "d0b2c4853f715d2e73941a43586e872b8450fa0cd7978f3090597ea844c17a3b",
+        "score": "000048f00ef8e3537899eb8d6de1ecaaed1d15cd92206235407b70083a07e3ba",
+        "title": "An external circuit model for 3D electromagnetic particle-in-cell simulations"
+      },
+      {
+        "id": "5f29f1dce3c0103ed56387a51bc966b538fc7afa6d5271923dbff39ec896878f",
+        "score": "0000827db29b5a4ed1cbf32d24691a0328118aaacb8e84b6a07dc96bbb903a9b",
+        "title": "Effects of climate change on Salmonella infections."
+      },
+      {
+        "id": "4fbdb3e48d59718c09c4de61e0e5b6705926e68fa793b24e8090413f232e8a95",
+        "score": "0000971db55a84b385aff60312ffffe38efc6a4d3c0a6bc2c0d895a3fd14a1a6",
+        "title": "A new method to generate arene-terminated Si(111) and Ge(111) surfaces via a palladium-catalyzed arylation reaction."
+      },
+      {
+        "id": "89cff0545c59a6df50c67f0d2db4b7391f26ece74ece944f29613e8f67935951",
+        "score": "0000ac86bb31ad0eea13148786120f45cae67c18b39a07c9e01cce1dadc2f74d",
+        "title": "Interstitial collagenase (MMP-1) expression in human carotid atherosclerosis."
+      },
+      {
+        "id": "5715ba78d92e46e97af157c082e82c6b3d651c50fe8e105f7d8cde1a7f41ddd4",
+        "score": "0001190e085196f1853ec2b5ec9dead99bfa8c2850935d5206494deec4552128",
+        "title": "Evidence for climatic deteriorations associated with the decline of Sphagnum imbricatum Hornsch. ex Russ. in six ombrotrophic mires from northern England and the Scottish Borders"
+      }
+    ]
+  },
+  "utf8_bytes": {
+    "pes2o_v2_fulltext:all": 717323535,
+    "pes2o_v2_fulltext:any_engineering_title_match": 847781,
+    "pes2o_v2_fulltext:data_security_tools": 27808,
+    "pes2o_v2_fulltext:distributed_networking": 255593,
+    "pes2o_v2_fulltext:operating_systems": 40569,
+    "pes2o_v2_fulltext:programming_languages": 237535,
+    "pes2o_v2_fulltext:software_engineering": 314084,
+    "pes2o_v2_fulltext:unmatched": 716475754,
+    "pes2o_v2_train:all": 337471617,
+    "pes2o_v2_train:any_engineering_title_match": 833073,
+    "pes2o_v2_train:data_security_tools": 84748,
+    "pes2o_v2_train:distributed_networking": 273362,
+    "pes2o_v2_train:operating_systems": 87876,
+    "pes2o_v2_train:programming_languages": 134217,
+    "pes2o_v2_train:software_engineering": 281106,
+    "pes2o_v2_train:unmatched": 336638544
+  }
+}

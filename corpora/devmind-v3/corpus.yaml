@@ -1,0 +1,65 @@
+schema_version: 1
+id: devmind-v3
+sources:
+  - sources/fineweb-edu-sample-10bt.yaml
+  - sources/git-technical.yaml
+  - sources/go-faq.yaml
+  - sources/go-standard.yaml
+  - sources/k8s-concepts.yaml
+  - sources/linux-fs.yaml
+  - sources/oci-runtime-specification.yaml
+  - sources/omp-harness.yaml
+  - sources/openwebmath-train.yaml
+  - sources/otel-collector.yaml
+  - sources/otel-specification.yaml
+  - sources/pes2o-v2-fulltext.yaml
+  - sources/pes2o-v2-train.yaml
+  - sources/postgres-backend.yaml
+  - sources/prometheus-promql.yaml
+  - sources/python-library.yaml
+  - sources/rust-core.yaml
+  - sources/standard-cloudevents.yaml
+  - sources/standard-oci-distribution.yaml
+  - sources/standard-oci-image.yaml
+  - sources/standard-rfc8949.yaml
+  - sources/system-cilium.yaml
+  - sources/system-containerd.yaml
+  - sources/system-cosign.yaml
+  - sources/system-envoy.yaml
+  - sources/system-etcd.yaml
+  - sources/system-jaeger.yaml
+  - sources/system-kafka.yaml
+  - sources/system-musl.yaml
+  - sources/system-nginx.yaml
+  - sources/system-openssl.yaml
+  - sources/system-runc.yaml
+  - sources/system-sqlite.yaml
+  - sources/system-systemd.yaml
+  - sources/system-tikv.yaml
+  - sources/system-util-linux.yaml
+  - sources/system-valkey.yaml
+  - sources/system-vitess.yaml
+  - sources/system-zookeeper.yaml
+  - sources/tool-ansible.yaml
+  - sources/tool-cargo.yaml
+  - sources/tool-cmake.yaml
+  - sources/tool-cpython-compiler.yaml
+  - sources/tool-git-validation.yaml
+  - sources/tool-go-build.yaml
+  - sources/tool-meson.yaml
+  - sources/tool-ninja.yaml
+  - sources/tool-omp-lab.yaml
+  - sources/tool-opentofu.yaml
+  - sources/tool-postgres-sql-validation.yaml
+  - sources/tool-pytest.yaml
+  - sources/tool-rust-book.yaml
+  - sources/tool-rust-compiler.yaml
+  - sources/tool-spring.yaml
+  - sources/tool-tokio.yaml
+  - sources/tool-typescript.yaml
+  - sources/wikibooks-20260901.yaml
+  - sources/wikipedia-20260901.yaml
+transforms:
+  - transforms/lm.yaml
+splits: splits.yaml
+release: release.yaml

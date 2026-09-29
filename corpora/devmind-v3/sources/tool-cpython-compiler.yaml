@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_cpython_compiler
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PSF-2.0
+  license_references: [https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE]
+  notices: ['Retain PSF license history, original contributor notices and any file-specific licenses.']
+domains: [programming, compilers, developer_systems]
+document_kinds: [c, python, prose]
+source_family: v3_tool_cpython_compiler_train
+notes: 'Same commit as v2_python_library. Compiler, tutorial/reference/how-to/FAQ docs and authored tests are outside v2 Doc/library/*.rst and Lib/*.py after its */test/* exclusion; no overlapping selected paths. Screen PSF license history and test-specific notices.'
+acquisition:
+  include: ['Doc/howto/*.rst', 'Doc/faq/*.rst', 'Doc/tutorial/*.rst', 'Doc/reference/*.rst', 'Python/*.c', 'Python/*.h', 'Lib/test/test_*.py']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'Python/*.c.h', 'Python/Python-ast.c', 'Python/slots_generated.c', 'Python/frozen.c', 'Python/deepfreeze/*', 'Lib/test/test_generated_cases.py', 'Lib/test/test_importlib/data/*']
+  max_bytes: 40000000

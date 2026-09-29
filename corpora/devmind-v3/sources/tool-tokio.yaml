@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_tokio
+kind: git
+canonical_uri: https://github.com/tokio-rs/tokio.git
+revision: e133b6fec055d5cab447c06f953d330ce34f1517
+license: MIT
+license_url: https://github.com/tokio-rs/tokio/blob/e133b6fec055d5cab447c06f953d330ce34f1517/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/tokio-rs/tokio/blob/e133b6fec055d5cab447c06f953d330ce34f1517/LICENSE]
+  notices: ['Retain Tokio Contributors MIT license and file-specific copyright notices.']
+domains: [programming, concurrency, developer_systems]
+document_kinds: [rust]
+source_family: v3_tool_tokio_train
+notes: 'Authored Tokio runtime and synchronization primitives with integration tests; excludes fixtures, stress tests, vendored dependencies and generated output.'
+acquisition:
+  include: ['tokio/src/*.rs', 'tokio/tests/*.rs']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 6000000

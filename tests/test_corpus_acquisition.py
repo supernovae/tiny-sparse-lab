@@ -167,6 +167,45 @@ def test_git_pinned_revision_and_symlink(tmp_path: Path) -> None:
     )
 
 
+def test_verified_pinned_git_snapshot_survives_adapter_module_edit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.corpus import acquisition
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.test")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "guide.md").write_text("A pinned source document.\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "source")
+    recipe = _fixture(
+        tmp_path,
+        kind="git",
+        acquisition={"include": ["guide.md"], "max_bytes": 1024},
+        revision=_git(repo, "rev-parse", "HEAD"),
+        uri=str(repo),
+    )
+    project = load_project(recipe)
+    work = tmp_path / "work"
+    original = acquire(project, work)
+    original_adapter = acquisition._adapter
+    monkeypatch.setattr(
+        acquisition,
+        "_adapter",
+        lambda source: {**original_adapter(source), "module_sha256": "0" * 64},
+    )
+    monkeypatch.setattr(
+        acquisition,
+        "_acquire_git",
+        lambda *_args, **_kwargs: pytest.fail("pinned snapshot was refetched"),
+    )
+    assert acquire(project, work) == original
+    (work / "corpora" / project.config.id / "acquisition.json").unlink()
+    assert acquire(project, work) == original
+
+
 def test_git_v2_acquires_pinned_nested_license_metadata(tmp_path: Path) -> None:
     repo = tmp_path / "upstream"
     repo.mkdir()
