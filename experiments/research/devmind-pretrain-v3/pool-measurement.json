@@ -1,0 +1,656 @@
+{
+  "developer_selection": "Retained train counts v3 train sources and nine inherited v2 train engineering sources; heldout shape/language counts separately include the four inherited v2 engineering heldouts. No peS2o reclassification.",
+  "exposure_byte_proxy": {
+    "20_percent": {
+      "developer_passes_needed_relative_to_one_other_pass": 1.5973552215549933,
+      "note": "Byte-proxy planning only; no sampling schedule or tokenizer tokens selected"
+    },
+    "30_percent": {
+      "developer_passes_needed_relative_to_one_other_pass": 2.738323236951417,
+      "note": "Byte-proxy planning only; no sampling schedule or tokenizer tokens selected"
+    },
+    "40_percent": {
+      "developer_passes_needed_relative_to_one_other_pass": 4.259613924146649,
+      "note": "Byte-proxy planning only; no sampling schedule or tokenizer tokens selected"
+    }
+  },
+  "pool": {
+    "developer_heldout": {
+      "documents": 3012,
+      "utf8_bytes": 52738317
+    },
+    "developer_train": {
+      "documents": 53784,
+      "utf8_bytes": 510860750
+    },
+    "languages": {
+      "C++:documents": 3973,
+      "C++:utf8_bytes": 63334429,
+      "C/C++ header (ambiguous):documents": 4814,
+      "C/C++ header (ambiguous):utf8_bytes": 21260978,
+      "C:documents": 5052,
+      "C:utf8_bytes": 77914983,
+      "Go:documents": 12728,
+      "Go:utf8_bytes": 108823909,
+      "Java:documents": 6731,
+      "Java:utf8_bytes": 70569143,
+      "Python:documents": 2337,
+      "Python:utf8_bytes": 47672876,
+      "Rust:documents": 3974,
+      "Rust:utf8_bytes": 62532462,
+      "Scala:documents": 220,
+      "Scala:utf8_bytes": 5864404,
+      "Tcl:documents": 250,
+      "Tcl:utf8_bytes": 3805712,
+      "TypeScript:documents": 464,
+      "TypeScript:utf8_bytes": 15377971,
+      "assembly:documents": 30,
+      "assembly:utf8_bytes": 43872,
+      "shell:documents": 3,
+      "shell:utf8_bytes": 1654
+    },
+    "languages_by_split": {
+      "test:C/C++ header (ambiguous):documents": 42,
+      "test:C/C++ header (ambiguous):utf8_bytes": 883261,
+      "test:C:documents": 243,
+      "test:C:utf8_bytes": 11653070,
+      "test:Go:documents": 112,
+      "test:Go:utf8_bytes": 1886707,
+      "test:Tcl:documents": 32,
+      "test:Tcl:utf8_bytes": 656865,
+      "train:C++:documents": 3973,
+      "train:C++:utf8_bytes": 63334429,
+      "train:C/C++ header (ambiguous):documents": 4814,
+      "train:C/C++ header (ambiguous):utf8_bytes": 21260978,
+      "train:C:documents": 5052,
+      "train:C:utf8_bytes": 77914983,
+      "train:Go:documents": 12728,
+      "train:Go:utf8_bytes": 108823909,
+      "train:Java:documents": 6731,
+      "train:Java:utf8_bytes": 70569143,
+      "train:Python:documents": 2337,
+      "train:Python:utf8_bytes": 47672876,
+      "train:Rust:documents": 3974,
+      "train:Rust:utf8_bytes": 62532462,
+      "train:Scala:documents": 220,
+      "train:Scala:utf8_bytes": 5864404,
+      "train:Tcl:documents": 250,
+      "train:Tcl:utf8_bytes": 3805712,
+      "train:TypeScript:documents": 464,
+      "train:TypeScript:utf8_bytes": 15377971,
+      "train:assembly:documents": 30,
+      "train:assembly:utf8_bytes": 43872,
+      "train:shell:documents": 3,
+      "train:shell:utf8_bytes": 1654,
+      "validation:C:documents": 399,
+      "validation:C:utf8_bytes": 12903323,
+      "validation:Go:documents": 478,
+      "validation:Go:utf8_bytes": 2517636,
+      "validation:SQL:documents": 6,
+      "validation:SQL:utf8_bytes": 459493,
+      "validation:shell:documents": 2,
+      "validation:shell:utf8_bytes": 65688
+    },
+    "other_train": {
+      "documents": 692685,
+      "utf8_bytes": 3264104346
+    },
+    "shapes": {
+      "build:documents": 8,
+      "build:utf8_bytes": 466795,
+      "config:documents": 5,
+      "config:utf8_bytes": 81217,
+      "design:documents": 1079,
+      "design:utf8_bytes": 1454650,
+      "errors_status:documents": 512,
+      "errors_status:utf8_bytes": 3350193,
+      "examples:documents": 38,
+      "examples:utf8_bytes": 339435,
+      "implementation:documents": 27939,
+      "implementation:utf8_bytes": 295312431,
+      "manual_reference:documents": 11500,
+      "manual_reference:utf8_bytes": 30378402,
+      "operations:documents": 431,
+      "operations:utf8_bytes": 3353323,
+      "schemas:documents": 40,
+      "schemas:utf8_bytes": 313333,
+      "tests:documents": 12232,
+      "tests:utf8_bytes": 175810971
+    },
+    "shapes_by_split": {
+      "test:errors_status:documents": 1,
+      "test:errors_status:utf8_bytes": 14468,
+      "test:implementation:documents": 348,
+      "test:implementation:utf8_bytes": 13587307,
+      "test:tests:documents": 1272,
+      "test:tests:utf8_bytes": 22311699,
+      "train:build:documents": 8,
+      "train:build:utf8_bytes": 466795,
+      "train:config:documents": 5,
+      "train:config:utf8_bytes": 81217,
+      "train:design:documents": 1079,
+      "train:design:utf8_bytes": 1454650,
+      "train:errors_status:documents": 512,
+      "train:errors_status:utf8_bytes": 3350193,
+      "train:examples:documents": 38,
+      "train:examples:utf8_bytes": 339435,
+      "train:implementation:documents": 27939,
+      "train:implementation:utf8_bytes": 295312431,
+      "train:manual_reference:documents": 11500,
+      "train:manual_reference:utf8_bytes": 30378402,
+      "train:operations:documents": 431,
+      "train:operations:utf8_bytes": 3353323,
+      "train:schemas:documents": 40,
+      "train:schemas:utf8_bytes": 313333,
+      "train:tests:documents": 12232,
+      "train:tests:utf8_bytes": 175810971,
+      "validation:errors_status:documents": 8,
+      "validation:errors_status:utf8_bytes": 13302,
+      "validation:examples:documents": 1,
+      "validation:examples:utf8_bytes": 675,
+      "validation:implementation:documents": 732,
+      "validation:implementation:utf8_bytes": 14498917,
+      "validation:manual_reference:documents": 505,
+      "validation:manual_reference:utf8_bytes": 874885,
+      "validation:tests:documents": 145,
+      "validation:tests:utf8_bytes": 1437064
+    }
+  },
+  "release_id": "5b189369a569a39df0ef000d0c0227053404b4aa74c17aad491f4536e8ff5324",
+  "source_counts": {
+    "fineweb_edu_sample_10bt": {
+      "normalized_documents": 361441,
+      "removed_documents": 570,
+      "retained_documents": 360871,
+      "retained_utf8_bytes": 1727784229,
+      "train_documents": 360871,
+      "train_utf8_bytes": 1727784229
+    },
+    "openwebmath_train": {
+      "normalized_documents": 45155,
+      "removed_documents": 66,
+      "retained_documents": 45089,
+      "retained_utf8_bytes": 377233675,
+      "train_documents": 45089,
+      "train_utf8_bytes": 377233675
+    },
+    "pes2o_v2_fulltext": {
+      "normalized_documents": 25763,
+      "removed_documents": 1,
+      "retained_documents": 25762,
+      "retained_utf8_bytes": 717323535,
+      "train_documents": 25762,
+      "train_utf8_bytes": 717323535
+    },
+    "pes2o_v2_train": {
+      "normalized_documents": 254975,
+      "removed_documents": 7,
+      "retained_documents": 254968,
+      "retained_utf8_bytes": 337471617,
+      "train_documents": 254968,
+      "train_utf8_bytes": 337471617
+    },
+    "v2_git_technical": {
+      "normalized_documents": 130,
+      "retained_documents": 130,
+      "retained_utf8_bytes": 2721741,
+      "validation_documents": 130,
+      "validation_utf8_bytes": 2721741
+    },
+    "v2_go_faq": {
+      "normalized_documents": 86,
+      "retained_documents": 86,
+      "retained_utf8_bytes": 94773,
+      "train_documents": 86,
+      "train_utf8_bytes": 94773
+    },
+    "v2_go_standard": {
+      "normalized_documents": 876,
+      "removed_documents": 10,
+      "retained_documents": 866,
+      "retained_utf8_bytes": 7170949,
+      "train_documents": 866,
+      "train_utf8_bytes": 7170949
+    },
+    "v2_k8s_concepts": {
+      "normalized_documents": 1899,
+      "retained_documents": 1899,
+      "retained_utf8_bytes": 2092518,
+      "train_documents": 1899,
+      "train_utf8_bytes": 2092518
+    },
+    "v2_linux_fs": {
+      "normalized_documents": 327,
+      "retained_documents": 327,
+      "retained_utf8_bytes": 8849717,
+      "train_documents": 327,
+      "train_utf8_bytes": 8849717
+    },
+    "v2_oci_runtime_specification": {
+      "normalized_documents": 215,
+      "retained_documents": 215,
+      "retained_utf8_bytes": 184277,
+      "validation_documents": 215,
+      "validation_utf8_bytes": 184277
+    },
+    "v2_omp_harness": {
+      "normalized_documents": 39,
+      "retained_documents": 39,
+      "retained_utf8_bytes": 65608,
+      "train_documents": 39,
+      "train_utf8_bytes": 65608
+    },
+    "v2_otel_collector": {
+      "normalized_documents": 633,
+      "removed_documents": 1,
+      "retained_documents": 632,
+      "retained_utf8_bytes": 1242988,
+      "train_documents": 632,
+      "train_utf8_bytes": 1242988
+    },
+    "v2_otel_specification": {
+      "normalized_documents": 647,
+      "removed_documents": 6,
+      "retained_documents": 641,
+      "retained_utf8_bytes": 624242,
+      "train_documents": 641,
+      "train_utf8_bytes": 624242
+    },
+    "v2_postgres_backend": {
+      "normalized_documents": 269,
+      "retained_documents": 269,
+      "retained_utf8_bytes": 10181582,
+      "validation_documents": 269,
+      "validation_utf8_bytes": 10181582
+    },
+    "v2_prometheus_promql": {
+      "normalized_documents": 113,
+      "removed_documents": 1,
+      "retained_documents": 112,
+      "retained_utf8_bytes": 1886707,
+      "test_documents": 112,
+      "test_utf8_bytes": 1886707
+    },
+    "v2_python_library": {
+      "normalized_documents": 1086,
+      "removed_documents": 2,
+      "retained_documents": 1084,
+      "retained_utf8_bytes": 20136875,
+      "train_documents": 1084,
+      "train_utf8_bytes": 20136875
+    },
+    "v2_rust_core": {
+      "normalized_documents": 384,
+      "retained_documents": 384,
+      "retained_utf8_bytes": 8842897,
+      "train_documents": 384,
+      "train_utf8_bytes": 8842897
+    },
+    "v3_cloudevents": {
+      "normalized_documents": 36,
+      "retained_documents": 36,
+      "retained_utf8_bytes": 25481,
+      "train_documents": 36,
+      "train_utf8_bytes": 25481
+    },
+    "v3_oci_distribution": {
+      "normalized_documents": 44,
+      "retained_documents": 44,
+      "retained_utf8_bytes": 47030,
+      "train_documents": 44,
+      "train_utf8_bytes": 47030
+    },
+    "v3_oci_image": {
+      "normalized_documents": 78,
+      "retained_documents": 78,
+      "retained_utf8_bytes": 89601,
+      "train_documents": 78,
+      "train_utf8_bytes": 89601
+    },
+    "v3_rfc8949": {
+      "normalized_documents": 1,
+      "retained_documents": 1,
+      "retained_utf8_bytes": 185226,
+      "train_documents": 1,
+      "train_utf8_bytes": 185226
+    },
+    "v3_system_cilium": {
+      "normalized_documents": 5346,
+      "removed_documents": 482,
+      "retained_documents": 4864,
+      "retained_utf8_bytes": 27913723,
+      "train_documents": 4864,
+      "train_utf8_bytes": 27913723
+    },
+    "v3_system_containerd": {
+      "normalized_documents": 1767,
+      "removed_documents": 3,
+      "retained_documents": 1764,
+      "retained_utf8_bytes": 7257310,
+      "train_documents": 1764,
+      "train_utf8_bytes": 7257310
+    },
+    "v3_system_cosign": {
+      "normalized_documents": 611,
+      "removed_documents": 71,
+      "retained_documents": 540,
+      "retained_utf8_bytes": 1868200,
+      "validation_documents": 540,
+      "validation_utf8_bytes": 1868200
+    },
+    "v3_system_envoy": {
+      "normalized_documents": 6198,
+      "retained_documents": 6198,
+      "retained_utf8_bytes": 67350450,
+      "train_documents": 6198,
+      "train_utf8_bytes": 67350450
+    },
+    "v3_system_etcd": {
+      "normalized_documents": 1140,
+      "removed_documents": 1,
+      "retained_documents": 1139,
+      "retained_utf8_bytes": 5754202,
+      "train_documents": 1139,
+      "train_utf8_bytes": 5754202
+    },
+    "v3_system_jaeger": {
+      "normalized_documents": 1944,
+      "removed_documents": 26,
+      "retained_documents": 1918,
+      "retained_utf8_bytes": 6410344,
+      "train_documents": 1918,
+      "train_utf8_bytes": 6410344
+    },
+    "v3_system_kafka": {
+      "normalized_documents": 5209,
+      "retained_documents": 5209,
+      "retained_utf8_bytes": 61814836,
+      "train_documents": 5209,
+      "train_utf8_bytes": 61814836
+    },
+    "v3_system_musl": {
+      "normalized_documents": 2138,
+      "removed_documents": 129,
+      "retained_documents": 2009,
+      "retained_utf8_bytes": 2350564,
+      "train_documents": 2009,
+      "train_utf8_bytes": 2350564
+    },
+    "v3_system_nginx": {
+      "normalized_documents": 414,
+      "retained_documents": 414,
+      "retained_utf8_bytes": 6767811,
+      "train_documents": 414,
+      "train_utf8_bytes": 6767811
+    },
+    "v3_system_openssl": {
+      "normalized_documents": 2156,
+      "retained_documents": 2156,
+      "retained_utf8_bytes": 29326416,
+      "train_documents": 2156,
+      "train_utf8_bytes": 29326416
+    },
+    "v3_system_runc": {
+      "normalized_documents": 193,
+      "retained_documents": 193,
+      "retained_utf8_bytes": 820633,
+      "validation_documents": 193,
+      "validation_utf8_bytes": 820633
+    },
+    "v3_system_sqlite": {
+      "normalized_documents": 1509,
+      "retained_documents": 1509,
+      "retained_utf8_bytes": 34026767,
+      "test_documents": 1509,
+      "test_utf8_bytes": 34026767
+    },
+    "v3_system_systemd": {
+      "normalized_documents": 2543,
+      "removed_documents": 1,
+      "retained_documents": 2542,
+      "retained_utf8_bytes": 25195151,
+      "train_documents": 2542,
+      "train_utf8_bytes": 25195151
+    },
+    "v3_system_tikv": {
+      "normalized_documents": 1617,
+      "removed_documents": 1,
+      "retained_documents": 1616,
+      "retained_utf8_bytes": 26728058,
+      "train_documents": 1616,
+      "train_utf8_bytes": 26728058
+    },
+    "v3_system_util_linux": {
+      "normalized_documents": 363,
+      "retained_documents": 363,
+      "retained_utf8_bytes": 3859897,
+      "train_documents": 363,
+      "train_utf8_bytes": 3859897
+    },
+    "v3_system_valkey": {
+      "normalized_documents": 537,
+      "retained_documents": 537,
+      "retained_utf8_bytes": 12268553,
+      "train_documents": 537,
+      "train_utf8_bytes": 12268553
+    },
+    "v3_system_vitess": {
+      "normalized_documents": 2839,
+      "removed_documents": 21,
+      "retained_documents": 2818,
+      "retained_utf8_bytes": 38165269,
+      "train_documents": 2818,
+      "train_utf8_bytes": 38165269
+    },
+    "v3_system_zookeeper": {
+      "normalized_documents": 902,
+      "removed_documents": 3,
+      "retained_documents": 899,
+      "retained_utf8_bytes": 7536655,
+      "train_documents": 899,
+      "train_utf8_bytes": 7536655
+    },
+    "v3_tool_ansible": {
+      "normalized_documents": 95,
+      "removed_documents": 1,
+      "retained_documents": 94,
+      "retained_utf8_bytes": 1199561,
+      "train_documents": 94,
+      "train_utf8_bytes": 1199561
+    },
+    "v3_tool_cargo": {
+      "normalized_documents": 1504,
+      "removed_documents": 242,
+      "retained_documents": 1262,
+      "retained_utf8_bytes": 10118305,
+      "train_documents": 1262,
+      "train_utf8_bytes": 10118305
+    },
+    "v3_tool_cmake": {
+      "normalized_documents": 1638,
+      "removed_documents": 23,
+      "retained_documents": 1615,
+      "retained_utf8_bytes": 14386106,
+      "train_documents": 1615,
+      "train_utf8_bytes": 14386106
+    },
+    "v3_tool_cpython_compiler": {
+      "normalized_documents": 1313,
+      "removed_documents": 35,
+      "retained_documents": 1278,
+      "retained_utf8_bytes": 31242292,
+      "train_documents": 1278,
+      "train_utf8_bytes": 31242292
+    },
+    "v3_tool_git_validation": {
+      "normalized_documents": 38,
+      "retained_documents": 38,
+      "retained_utf8_bytes": 588917,
+      "validation_documents": 38,
+      "validation_utf8_bytes": 588917
+    },
+    "v3_tool_go_build": {
+      "normalized_documents": 1494,
+      "removed_documents": 2,
+      "retained_documents": 1492,
+      "retained_utf8_bytes": 14738916,
+      "train_documents": 1492,
+      "train_utf8_bytes": 14738916
+    },
+    "v3_tool_meson": {
+      "normalized_documents": 1195,
+      "retained_documents": 1195,
+      "retained_utf8_bytes": 5940384,
+      "train_documents": 1195,
+      "train_utf8_bytes": 5940384
+    },
+    "v3_tool_ninja": {
+      "normalized_documents": 123,
+      "retained_documents": 123,
+      "retained_utf8_bytes": 1036062,
+      "train_documents": 123,
+      "train_utf8_bytes": 1036062
+    },
+    "v3_tool_omp_lab": {
+      "normalized_documents": 32,
+      "retained_documents": 32,
+      "retained_utf8_bytes": 116995,
+      "train_documents": 32,
+      "train_utf8_bytes": 116995
+    },
+    "v3_tool_opentofu": {
+      "normalized_documents": 762,
+      "retained_documents": 762,
+      "retained_utf8_bytes": 6484302,
+      "train_documents": 762,
+      "train_utf8_bytes": 6484302
+    },
+    "v3_tool_postgres_sql_validation": {
+      "normalized_documents": 6,
+      "retained_documents": 6,
+      "retained_utf8_bytes": 459493,
+      "validation_documents": 6,
+      "validation_utf8_bytes": 459493
+    },
+    "v3_tool_pytest": {
+      "normalized_documents": 154,
+      "retained_documents": 154,
+      "retained_utf8_bytes": 3244563,
+      "train_documents": 154,
+      "train_utf8_bytes": 3244563
+    },
+    "v3_tool_rust_book": {
+      "normalized_documents": 521,
+      "retained_documents": 521,
+      "retained_utf8_bytes": 1157686,
+      "train_documents": 521,
+      "train_utf8_bytes": 1157686
+    },
+    "v3_tool_rust_compiler": {
+      "normalized_documents": 2578,
+      "removed_documents": 1,
+      "retained_documents": 2577,
+      "retained_utf8_bytes": 14777585,
+      "train_documents": 2577,
+      "train_utf8_bytes": 14777585
+    },
+    "v3_tool_spring": {
+      "normalized_documents": 1083,
+      "retained_documents": 1083,
+      "retained_utf8_bytes": 8215629,
+      "train_documents": 1083,
+      "train_utf8_bytes": 8215629
+    },
+    "v3_tool_tokio": {
+      "normalized_documents": 569,
+      "retained_documents": 569,
+      "retained_utf8_bytes": 4657249,
+      "train_documents": 569,
+      "train_utf8_bytes": 4657249
+    },
+    "v3_tool_typescript": {
+      "normalized_documents": 464,
+      "retained_documents": 464,
+      "retained_utf8_bytes": 15377971,
+      "train_documents": 464,
+      "train_utf8_bytes": 15377971
+    },
+    "wikibooks_20260901": {
+      "normalized_documents": 9998,
+      "removed_documents": 41,
+      "retained_documents": 9957,
+      "retained_utf8_bytes": 50365543,
+      "validation_documents": 9957,
+      "validation_utf8_bytes": 50365543
+    },
+    "wikipedia_20260901": {
+      "normalized_documents": 5998,
+      "removed_documents": 3,
+      "retained_documents": 5995,
+      "retained_utf8_bytes": 104291290,
+      "train_documents": 5995,
+      "train_utf8_bytes": 104291290
+    }
+  },
+  "source_kinds": {
+    "fineweb_edu_sample_10bt": "huggingface_dataset",
+    "openwebmath_train": "huggingface_dataset",
+    "pes2o_v2_fulltext": "huggingface_dataset",
+    "pes2o_v2_train": "huggingface_dataset",
+    "v2_git_technical": "git",
+    "v2_go_faq": "git",
+    "v2_go_standard": "git",
+    "v2_k8s_concepts": "git",
+    "v2_linux_fs": "git",
+    "v2_oci_runtime_specification": "git",
+    "v2_omp_harness": "git",
+    "v2_otel_collector": "git",
+    "v2_otel_specification": "git",
+    "v2_postgres_backend": "git",
+    "v2_prometheus_promql": "git",
+    "v2_python_library": "git",
+    "v2_rust_core": "git",
+    "v3_cloudevents": "git",
+    "v3_oci_distribution": "git",
+    "v3_oci_image": "git",
+    "v3_rfc8949": "http_document",
+    "v3_system_cilium": "git",
+    "v3_system_containerd": "git",
+    "v3_system_cosign": "git",
+    "v3_system_envoy": "git",
+    "v3_system_etcd": "git",
+    "v3_system_jaeger": "git",
+    "v3_system_kafka": "git",
+    "v3_system_musl": "git",
+    "v3_system_nginx": "git",
+    "v3_system_openssl": "git",
+    "v3_system_runc": "git",
+    "v3_system_sqlite": "git",
+    "v3_system_systemd": "git",
+    "v3_system_tikv": "git",
+    "v3_system_util_linux": "git",
+    "v3_system_valkey": "git",
+    "v3_system_vitess": "git",
+    "v3_system_zookeeper": "git",
+    "v3_tool_ansible": "git",
+    "v3_tool_cargo": "git",
+    "v3_tool_cmake": "git",
+    "v3_tool_cpython_compiler": "git",
+    "v3_tool_git_validation": "git",
+    "v3_tool_go_build": "git",
+    "v3_tool_meson": "git",
+    "v3_tool_ninja": "git",
+    "v3_tool_omp_lab": "git",
+    "v3_tool_opentofu": "git",
+    "v3_tool_postgres_sql_validation": "git",
+    "v3_tool_pytest": "git",
+    "v3_tool_rust_book": "git",
+    "v3_tool_rust_compiler": "git",
+    "v3_tool_spring": "git",
+    "v3_tool_tokio": "git",
+    "v3_tool_typescript": "git",
+    "wikibooks_20260901": "wikimedia_dump",
+    "wikipedia_20260901": "wikimedia_dump"
+  },
+  "train_retained_utf8_bytes": 3774965096
+}
