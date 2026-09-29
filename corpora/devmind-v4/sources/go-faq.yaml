@@ -1,0 +1,26 @@
+schema_version: 3
+id: v2_go_faq
+kind: git
+canonical_uri: https://github.com/golang/website.git
+revision: f2661d967b28530da480f0a1da9a4279026d34ca
+license: CC-BY-4.0
+license_url: https://go.dev/copyright
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-4.0
+  license_references:
+    - https://go.dev/copyright
+    - https://developers.google.com/terms/site-policies#restrictions
+    - https://github.com/golang/website/blob/f2661d967b28530da480f0a1da9a4279026d34ca/_content/doc/faq.md
+  notices:
+    - 'Credit The Go Authors, link the original FAQ and CC BY 4.0, retain changes and source-specific notices; embedded sample code is BSD and image/trademark content is not included.'
+domains: [developer_systems, programming, question_answering]
+document_kinds: [faq]
+source_family: v2_go_faq_train
+notes: 'First-party documentation with explicit questions and answers, not volunteer community Q&A and not a substitute for Stack Exchange. Pinned website commit and FAQ Markdown only; exclude third-party links/media, HTML and all account content.'
+acquisition:
+  include: ['_content/doc/faq.md']
+  exclude: []
+  max_bytes: 250000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_grafana
+kind: git
+canonical_uri: https://github.com/grafana/grafana.git
+revision: 1daf74a0ce11ca6c5555c6deea667a9ec5e10cc8
+license: AGPL-3.0-only
+license_url: https://github.com/grafana/grafana/blob/1daf74a0ce11ca6c5555c6deea667a9ec5e10cc8/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: AGPL-3.0-only
+  license_references: [https://github.com/grafana/grafana/blob/1daf74a0ce11ca6c5555c6deea667a9ec5e10cc8/LICENSE, https://github.com/grafana/grafana/blob/1daf74a0ce11ca6c5555c6deea667a9ec5e10cc8/NOTICE.md]
+  notices: ['Preserve Grafana copyright, NOTICE and AGPL source/network obligations; inspect individual docs for externally attributed content.']
+domains: [observability, alerting, operations]
+document_kinds: [prose, configuration]
+source_family: v4_ops_grafana_train
+notes: 'First-party alert notification configuration, alert status signals, metamonitoring and provisioning guidance. Enterprise-only paths and third-party integration prose excluded.'
+acquisition:
+  include: ['docs/sources/alerting/monitor-status/*.md', 'docs/sources/alerting/set-up/meta-monitoring.md', 'docs/sources/alerting/configure-notifications/*.md', 'docs/sources/administration/provisioning/index.md']
+  exclude: ['*/integrations/*', '*/enterprise/*', '*/test/*', '*/tests/*', '*/fixtures/*', '*/vendor/*', '*/generated/*']
+  max_bytes: 650000

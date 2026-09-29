@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_opentofu_config
+kind: git
+canonical_uri: https://github.com/opentofu/opentofu.git
+revision: 57a763514d1df275a443cbdd695f75b701b73a30
+license: MPL-2.0
+license_url: https://github.com/opentofu/opentofu/blob/57a763514d1df275a443cbdd695f75b701b73a30/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MPL-2.0
+  license_references: [https://github.com/opentofu/opentofu/blob/57a763514d1df275a443cbdd695f75b701b73a30/LICENSE]
+  notices: ['Retain OpenTofu and inherited HashiCorp MPL notices; screen file-level exceptions and credentials in illustrative configurations.']
+domains: [infrastructure_as_code, configuration, developer_tools]
+document_kinds: [hcl, prose, protobuf]
+source_family: v4_iac_opentofu_config_train
+notes: 'First-party HCL/.tofu state encryption, language and native .tftest.hcl examples paired with authored language/test-reference MDX and a single documented plugin protobuf contract; disjoint from v3 Go implementation and docs/architecture.md and docs/diagnostics.md. The main-branch proto explicitly warns it may precede an official release: use as source analysis, not published protocol guidance. Illustrative cloud identifiers require screening. Pinned Git tree selection approximately 1.1 MB before rights and near-duplicate filtering.'
+acquisition:
+  include: ['website/docs/language/*.mdx', 'website/docs/language/*.tf', 'website/docs/language/*.tofu', 'website/docs/cli/config/*.mdx', 'website/docs/cli/commands/test/*.mdx', 'website/docs/cli/commands/test/examples/*.tf', 'website/docs/cli/commands/test/examples/*.tftest.hcl', 'docs/state_encryption.md', 'docs/plugin-protocol/README.md', 'docs/plugin-protocol/tfplugin6.10.proto']
+  exclude: ['*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/.terraform/*', '*/.terraform.lock.hcl', '*/node_modules/*', '*/_category_.json']
+  max_bytes: 2600000

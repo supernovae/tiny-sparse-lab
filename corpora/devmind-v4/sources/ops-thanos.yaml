@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_thanos
+kind: git
+canonical_uri: https://github.com/thanos-io/thanos.git
+revision: a7c9f1e0aa57056027ea9fd5028e2a99fbac11f3
+license: Apache-2.0
+license_url: https://github.com/thanos-io/thanos/blob/a7c9f1e0aa57056027ea9fd5028e2a99fbac11f3/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/thanos-io/thanos/blob/a7c9f1e0aa57056027ea9fd5028e2a99fbac11f3/LICENSE]
+  notices: ['Retain Thanos contributors and individual source notices; selected first-party Thanos manuals only, not upstream Prometheus heldout code, imported docs or vendored material.']
+domains: [observability, distributed_systems, operations]
+document_kinds: [prose]
+source_family: v4_ops_thanos_train
+notes: 'Independent Thanos component operation, compaction/storage diagnosis, HTTPS/mTLS and object-store backlog/runbook procedures; no files from Prometheus whole-source heldout repository.'
+acquisition:
+  include: ['docs/components/compact.md', 'docs/components/query-frontend.md', 'docs/components/receive.md', 'docs/components/store.md', 'docs/components/tools.md', 'docs/operating/*.md', 'docs/storage.md', 'docs/tracing.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', '*/blog/*']
+  max_bytes: 360000

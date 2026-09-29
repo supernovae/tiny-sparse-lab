@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_prettier_js
+kind: git
+canonical_uri: https://github.com/prettier/prettier.git
+revision: 7a8b05f41574633fd3af5298f3eeaf33567ad3d3
+license: MIT
+license_url: https://github.com/prettier/prettier/blob/7a8b05f41574633fd3af5298f3eeaf33567ad3d3/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/prettier/prettier/blob/7a8b05f41574633fd3af5298f3eeaf33567ad3d3/LICENSE]
+  notices: ['Retain James Long and contributors MIT notice.']
+domains: [javascript, static_analysis, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_prettier_js_train
+notes: 'Pinned 3.6.2 commit. Authored parser/printing implementation and integration tests; deliberately exclude tests/format fixture samples, snapshots, generated bundles and vendored dependencies. Complete pinned Git tree: 459 selected files / 1,326,484 bytes before transform.'
+acquisition:
+  include: ['src/*.js', 'tests/integration/__tests__/*.js', 'scripts/tools/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/samples/*']
+  max_bytes: 2100000

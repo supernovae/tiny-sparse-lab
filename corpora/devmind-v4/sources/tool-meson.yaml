@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_meson
+kind: git
+canonical_uri: https://github.com/mesonbuild/meson.git
+revision: e961906e10c0be47bf30c59d195904716824dedb
+license: Apache-2.0
+license_url: https://github.com/mesonbuild/meson/blob/e961906e10c0be47bf30c59d195904716824dedb/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/mesonbuild/meson/blob/e961906e10c0be47bf30c59d195904716824dedb/COPYING]
+  notices: ['Retain Meson Apache-2.0 license, original contributors and any file-level exceptions.']
+domains: [build_systems, developer_tools, programming]
+document_kinds: [python, prose]
+source_family: v3_tool_meson_train
+notes: 'Authored Meson core, interpreter and backends, build-system manual and unit tests; exclude wrapdb, dependency subprojects, test-case fixture projects and generated data.'
+acquisition:
+  include: ['mesonbuild/*.py', 'docs/markdown/*.md', 'unittests/*.py']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'mesonbuild/cmake/data/*', 'docs/markdown/Release-notes*.md']
+  max_bytes: 7500000

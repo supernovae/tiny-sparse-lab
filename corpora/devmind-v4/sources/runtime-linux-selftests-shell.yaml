@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_linux_selftests_shell
+kind: git
+canonical_uri: https://github.com/torvalds/linux.git
+revision: 72d3fcf802c45d00b300f25b848a93c3a2bd7c7e
+license: GPL-2.0-only
+license_url: https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/COPYING, https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/Documentation/process/license-rules.rst]
+  notices: ['All 672 selected shell files inspected for SPDX: GPL-2.0, GPL-2.0-only or GPL-2.0+ (choosing version 2); preserve file-level SPDX/copyright. Omit 22 scripts without an explicit header and one OR copyleft-next script.']
+domains: [shell, operating_systems, networking]
+document_kinds: [shell, tests]
+source_family: v4_runtime_linux_selftests_shell_train
+notes: 'Reuses pinned v2_linux_fs revision, but only hand-authored tools/testing/selftests shell scripts: disjoint from v2 fs/ext4, fs/btrfs and Documentation/filesystems paths. Covers net namespaces/routing/firewalls, drivers, memory and process semantics; no kernel-generated assets or fixture bulk. Complete pinned selftests subtree (5,662 entries, untruncated) plus sparse Git blob/header review: 672 selected files / 4,506,994 bytes before transform. Never use v3 whole-source Git heldout as shell train.'
+acquisition:
+  include: ['tools/testing/selftests/net/*.sh', 'tools/testing/selftests/drivers/*.sh', 'tools/testing/selftests/rcutorture/*.sh', 'tools/testing/selftests/livepatch/*.sh', 'tools/testing/selftests/mm/*.sh', 'tools/testing/selftests/ublk/*.sh', 'tools/testing/selftests/cgroup/*.sh', 'tools/testing/selftests/gpio/*.sh', 'tools/testing/selftests/amd-pstate/*.sh', 'tools/testing/selftests/vsock/*.sh', 'tools/testing/selftests/firmware/*.sh', 'tools/testing/selftests/sysctl/*.sh', 'tools/testing/selftests/dm-verity/*.sh', 'tools/testing/selftests/cpufreq/*.sh', 'tools/testing/selftests/kselftest*.sh']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', 'tools/testing/selftests/net/fcnal-ipv4.sh', 'tools/testing/selftests/net/fcnal-ipv6.sh', 'tools/testing/selftests/net/fcnal-other.sh', 'tools/testing/selftests/net/io_uring_zerocopy_tx.sh', 'tools/testing/selftests/net/ip6_tunnel.sh', 'tools/testing/selftests/net/msg_zerocopy.sh', 'tools/testing/selftests/net/netfilter/br_netfilter_queue.sh', 'tools/testing/selftests/net/netfilter/bridge_brouter.sh', 'tools/testing/selftests/net/netfilter/conntrack_dump_flush.sh', 'tools/testing/selftests/net/netfilter/conntrack_icmp_related.sh', 'tools/testing/selftests/net/netfilter/conntrack_vrf.sh', 'tools/testing/selftests/net/netfilter/lib.sh', 'tools/testing/selftests/net/netfilter/nft_conntrack_helper.sh', 'tools/testing/selftests/net/netfilter/nft_fib.sh', 'tools/testing/selftests/net/netfilter/nft_meta.sh', 'tools/testing/selftests/net/netfilter/nft_nat.sh', 'tools/testing/selftests/net/netfilter/nft_nat_zones.sh', 'tools/testing/selftests/net/netfilter/nft_queue.sh', 'tools/testing/selftests/net/netfilter/nft_tproxy_tcp.sh', 'tools/testing/selftests/net/netfilter/nft_tproxy_udp.sh', 'tools/testing/selftests/net/netfilter/nft_zones_many.sh', 'tools/testing/selftests/net/rtnetlink.sh', 'tools/testing/selftests/sysctl/sysctl.sh']
+  max_bytes: 5700000

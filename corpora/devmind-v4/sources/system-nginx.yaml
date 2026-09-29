@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_nginx
+kind: git
+canonical_uri: https://github.com/nginx/nginx.git
+revision: b74b5c961e687c76489482b44cedff63acd18c84
+license: BSD-2-Clause
+license_url: https://github.com/nginx/nginx/blob/b74b5c961e687c76489482b44cedff63acd18c84/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-2-Clause
+  license_references: [https://github.com/nginx/nginx/blob/b74b5c961e687c76489482b44cedff63acd18c84/LICENSE]
+  notices: ['Keep Igor Sysoev/Nginx Inc copyright and individual source notices; review source-specific imported headers.']
+domains: [networking, proxies, security]
+document_kinds: [c, configuration, build]
+source_family: v3_system_nginx_train
+notes: 'Official NGINX first-party HTTP/TCP proxy, event loop and platform code; omit bundled dependencies, binary HTML docs and generated configuration outputs.'
+acquisition:
+  include: ['src/core/*.c', 'src/core/*.h', 'src/event/*.c', 'src/event/*.h', 'src/http/*.c', 'src/http/*.h', 'src/stream/*.c', 'src/stream/*.h', 'src/mail/*.c', 'src/mail/*.h', 'src/os/*.c', 'src/os/*.h', 'conf/*.conf', 'auto/*.conf']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'src/http/v2/ngx_http_v2_huff_decode.c']
+  max_bytes: 17000000

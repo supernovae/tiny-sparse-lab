@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_spark_sql
+kind: git
+canonical_uri: https://github.com/apache/spark.git
+revision: 186c4333e7f043937af31ab06a0134299d938598
+license: Apache-2.0
+license_url: https://github.com/apache/spark/blob/186c4333e7f043937af31ab06a0134299d938598/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/apache/spark/blob/186c4333e7f043937af31ab06a0134299d938598/LICENSE, https://github.com/apache/spark/blob/186c4333e7f043937af31ab06a0134299d938598/NOTICE]
+  notices: ['Retain Apache-2.0 and Spark NOTICE; limit to Spark-authored SQL inputs, excluding imported PostgreSQL tests and mechanically generated scripting tests.']
+domains: [databases, sql, distributed_computing]
+document_kinds: [sql, tests]
+source_family: v4_db_spark_sql_train
+notes: 'Spark SQL planner/analyzer query inputs from an independent engine. Explicitly exclude postgreSQL and PostgreSQL UDF subtrees because PostgreSQL remains a v2/v3 whole-repository heldout; exclude generated results and DuckDB adaptation to avoid overlap with the separate DuckDB train source.'
+acquisition:
+  include: ['sql/core/src/test/resources/sql-tests/inputs/*.sql']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/postgreSQL/*', '*/postgres*/*', 'sql/core/src/test/resources/sql-tests/inputs/scripting/randomly_generated_scripts.sql', 'sql/core/src/test/resources/sql-tests/inputs/group-by-all-duckdb.sql', '*password*', '*credential*', '*secret*']
+  max_bytes: 2600000

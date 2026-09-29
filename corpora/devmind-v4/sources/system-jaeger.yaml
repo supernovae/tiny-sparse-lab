@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_jaeger
+kind: git
+canonical_uri: https://github.com/jaegertracing/jaeger.git
+revision: 43db8826fbd32f0ee0a63425cd33122217b6c857
+license: Apache-2.0
+license_url: https://github.com/jaegertracing/jaeger/blob/43db8826fbd32f0ee0a63425cd33122217b6c857/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/jaegertracing/jaeger/blob/43db8826fbd32f0ee0a63425cd33122217b6c857/LICENSE, https://github.com/jaegertracing/jaeger/blob/43db8826fbd32f0ee0a63425cd33122217b6c857/NOTICE, https://github.com/jaegertracing/jaeger/blob/43db8826fbd32f0ee0a63425cd33122217b6c857/AI_POLICY.md]
+  notices: ['Apache notices apply. AI_POLICY.md governs contributions and AI-generated PR use; it does not state a training prohibition for published source. Exclude UI and IDL submodules and generated clients.']
+domains: [observability, tracing, distributed_systems]
+document_kinds: [go, tests, prose]
+source_family: v3_system_jaeger_train
+notes: 'First-party Jaeger collectors, storage adapters, querying and tracing design/operations documentation. Distinct from v2 OpenTelemetry Collector and specification; no submodules or vendored material selected.'
+acquisition:
+  include: ['cmd/*.go', 'components/*.go', 'internal/*.go', 'ports/*.go', 'docs/*.md', 'THREAT-MODEL.md', 'Makefile']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/mocks/*', '*/mock/*', '*/idl/*', '*/jaeger-ui/*', '*.pb.go', '*_generated.go', '*_mock.go', '*.pem', '*.key']
+  max_bytes: 35000000

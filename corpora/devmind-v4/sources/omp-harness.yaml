@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_omp_harness
+kind: git
+canonical_uri: https://github.com/supernovae/tiny-sparse-lab.git
+revision: 7b5339ecd91852f6df14f41705b960da1f5542cc
+license: MIT
+license_url: https://github.com/supernovae/tiny-sparse-lab/blob/7b5339ecd91852f6df14f41705b960da1f5542cc/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/supernovae/tiny-sparse-lab/blob/7b5339ecd91852f6df14f41705b960da1f5542cc/LICENSE]
+  notices: ['Retain Tiny Sparse Lab authors and MIT license notice. The text describes this laboratory, not guaranteed behavior of other tools.']
+notes: 'Small first-party harness_contract reference, not a scale source or sealed evaluation set. Only authored public protocol and usage documents at the pinned published commit; no experiment logs, secrets, transcripts, generated data or private fixtures.'
+domains: [developer_tools, research_methods]
+document_kinds: [prose]
+source_family: v2_omp_harness_train
+acquisition:
+  include: ['README.md', 'AGENTS.md', 'docs/from-toy-to-useful.md']
+  exclude: []
+  max_bytes: 2000000

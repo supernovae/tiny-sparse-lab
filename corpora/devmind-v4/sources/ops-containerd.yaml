@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_containerd
+kind: git
+canonical_uri: https://github.com/containerd/containerd.git
+revision: cf413d5d96ee4d4711ef799d5e5ad7b0a4a2de88
+license: Apache-2.0
+license_url: https://github.com/containerd/containerd/blob/cf413d5d96ee4d4711ef799d5e5ad7b0a4a2de88/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/containerd/containerd/blob/cf413d5d96ee4d4711ef799d5e5ad7b0a4a2de88/LICENSE]
+  notices: ['Retain containerd contributors and file-level notices; review cloud-init/Ansible examples for embedded environment-specific values before corpus use.']
+domains: [containers, deployment, operations]
+document_kinds: [prose, configuration]
+source_family: v4_ops_containerd_train
+notes: 'Authored containerd CRI Ansible deployment, cloud-init and troubleshooting-related release/upgrade docs. Paths disjoint from v3 code, docs/*.md and Makefile; exclude contributed third-party benchmark script and any credentials.'
+acquisition:
+  include: ['contrib/ansible/README.md', 'contrib/ansible/cri-containerd.yaml', 'contrib/ansible/tasks/*.yaml', 'contrib/gce/cloud-init/master.yaml', 'contrib/gce/cloud-init/node.yaml', 'RELEASES.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 80000

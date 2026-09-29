@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_git_validation
+kind: git
+canonical_uri: https://github.com/git/git.git
+revision: a018953688f1b10bddf91bff8747068f5f4746a4
+license: GPL-2.0-only
+license_url: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING]
+  notices: ['Retain Git contributor GPL notices; review embedded references and per-file exceptions.']
+domains: [source_control, programming, developer_systems]
+document_kinds: [prose, shell]
+source_family: v3_tool_git_validation
+notes: 'Held out as validation alongside whole-project v2_git_technical_validation, never training. Same commit; v2 used Documentation/technical/*.txt, Documentation/git-*.txt and builtin/*.c; this declaration selects authored .adoc technical documentation and two small shell regression tests without selecting v2 paths.'
+acquisition:
+  include: ['Documentation/technical/*.adoc', 'Documentation/MyFirstContribution.adoc', 't/t0000-basic.sh', 't/t0001-init.sh']
+  exclude: ['Documentation/technical/pack-format.adoc', '*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 1000000

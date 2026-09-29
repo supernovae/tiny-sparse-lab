@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_ninja
+kind: git
+canonical_uri: https://github.com/ninja-build/ninja.git
+revision: 4e4df1e567eb3c1475a51af261cba2bfff60b4be
+license: Apache-2.0
+license_url: https://github.com/ninja-build/ninja/blob/4e4df1e567eb3c1475a51af261cba2bfff60b4be/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/ninja-build/ninja/blob/4e4df1e567eb3c1475a51af261cba2bfff60b4be/COPYING]
+  notices: ['Retain Ninja Apache-2.0 license and contributor notices; exclude examples with third-party notices.']
+domains: [build_systems, developer_tools, programming]
+document_kinds: [cpp, prose]
+source_family: v3_tool_ninja_train
+notes: 'Authored Ninja build graph, parser and execution C++ code and unit tests, with first-party manual; exclude misc, vendored assets, fixtures and generated output.'
+acquisition:
+  include: ['src/*.cc', 'src/*.h', 'doc/manual.asciidoc']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'src/test.cc']
+  max_bytes: 2000000

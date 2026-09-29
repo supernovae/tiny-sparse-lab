@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_envoy
+kind: git
+canonical_uri: https://github.com/envoyproxy/envoy.git
+revision: f1a52f3f02740e57ab4192b106e5cf82dba4ca81
+license: Apache-2.0
+license_url: https://github.com/envoyproxy/envoy/blob/f1a52f3f02740e57ab4192b106e5cf82dba4ca81/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/envoyproxy/envoy/blob/f1a52f3f02740e57ab4192b106e5cf82dba4ca81/LICENSE]
+  notices: ['Preserve Envoy authorship and file-level notices; selected examples are authored proxy configuration, not vendor API or generated protobuf.']
+domains: [networking, proxies, observability]
+document_kinds: [configuration]
+source_family: v4_ops_envoy_train
+notes: 'Envoy admin interface, ADS service discovery, OpenTelemetry HTTP, TAP diagnostics and proxy-protocol examples. configs/ root paths do not intersect v3_system_envoy docs/source/test selection.'
+acquisition:
+  include: ['configs/admin-interface.yaml', 'configs/ads.yaml', 'configs/envoy-otel-http.yaml', 'configs/envoy-tap-config.yaml', 'configs/proxy_protocol.yaml', 'configs/front-proxy_envoy.yaml', 'configs/front-proxy_service-envoy.yaml']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*']
+  max_bytes: 40000

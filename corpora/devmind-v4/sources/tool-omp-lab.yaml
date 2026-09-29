@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_omp_lab
+kind: git
+canonical_uri: https://github.com/supernovae/tiny-sparse-lab.git
+revision: bf5d72730e5b103b5f8be27f71c42c56265af276
+license: MIT
+license_url: https://github.com/supernovae/tiny-sparse-lab/blob/bf5d72730e5b103b5f8be27f71c42c56265af276/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/supernovae/tiny-sparse-lab/blob/bf5d72730e5b103b5f8be27f71c42c56265af276/LICENSE]
+  notices: ['Retain Tiny Sparse Lab authors and MIT license notice; operational advice applies to this lab, not all tools or deployments.']
+domains: [developer_tools, research_methods, safety]
+document_kinds: [prose, json, python]
+source_family: v3_tool_omp_lab_train
+notes: 'Small, first-party lab source selection: provenance/process/workers/checkpoint safety docs, experiment schema and corpus policy implementation with a behavior-level test. Distinct published revision and paths from v2_omp_harness README.md, AGENTS.md and docs/from-toy-to-useful.md. No experiment logs, datasets, fixtures, generated artifacts or secrets.'
+acquisition:
+  include: ['docs/corpus-provenance.md', 'docs/workers.md', 'docs/experiments.md', 'docs/checkpointing.md', 'docs/lab-readiness.md', 'schemas/experiment-plan-v1.schema.json', 'src/sparselab/corpus/project.py', 'tests/test_corpus_provenance.py']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/artifacts/*']
+  max_bytes: 300000

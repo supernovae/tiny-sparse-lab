@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_react_native_js
+kind: git
+canonical_uri: https://github.com/facebook/react-native.git
+revision: 99d714c22d3341e1417401bba6212736c5d7662d
+license: MIT
+license_url: https://github.com/facebook/react-native/blob/99d714c22d3341e1417401bba6212736c5d7662d/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/facebook/react-native/blob/99d714c22d3341e1417401bba6212736c5d7662d/LICENSE]
+  notices: ['Retain Meta and contributors MIT notices; review selected file headers before release.']
+domains: [javascript, mobile_development, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_react_native_js_train
+notes: 'Pinned v0.80.2 commit. Authored native-facing JS libraries, JS codegen implementation and RN tester; no six @generated SignedSource renderer bundles synced from facebook/react, debugger-frontend/dist bundles, native artifacts, fixture data, flow-typed copies or lockfiles. Complete pinned Git tree: 1,197 selected files / 5,995,113 bytes before transform.'
+acquisition:
+  include: ['packages/react-native/Libraries/*.js', 'packages/react-native/src/*.js', 'packages/react-native-codegen/src/*.js', 'packages/rn-tester/js/*.js', 'packages/virtualized-lists/Lists/*.js', 'packages/dev-middleware/src/*.js']
+  exclude: ['packages/react-native/Libraries/Renderer/implementations/*', '*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/flow-typed/*', '*/snapshot/*']
+  max_bytes: 11000000

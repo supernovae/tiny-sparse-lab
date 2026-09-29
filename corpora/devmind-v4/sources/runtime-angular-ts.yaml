@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_angular_ts
+kind: git
+canonical_uri: https://github.com/angular/angular.git
+revision: 0430a56f1d9af2a8522f999dd8cd97308ae75d35
+license: MIT
+license_url: https://github.com/angular/angular/blob/0430a56f1d9af2a8522f999dd8cd97308ae75d35/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/angular/angular/blob/0430a56f1d9af2a8522f999dd8cd97308ae75d35/LICENSE]
+  notices: ['Retain Google LLC and contributors MIT notice and selected per-file notices.']
+domains: [typescript, compilers, web_development]
+document_kinds: [typescript, tests]
+source_family: v4_runtime_angular_ts_train
+notes: 'Pinned 20.1.6 commit. Authored Angular core/compiler/compiler-cli/common/router TS source and behavioral tests; independent of separately pinned historic AngularJS JavaScript. Exclude compliance fixture projects, golden files, generated code and external dependencies. Complete pinned Git tree: 2,046 selected files / 15,919,028 bytes before transform.'
+acquisition:
+  include: ['packages/core/src/*.ts', 'packages/core/test/*.ts', 'packages/compiler/src/*.ts', 'packages/compiler/test/*.ts', 'packages/compiler-cli/src/*.ts', 'packages/compiler-cli/test/*.ts', 'packages/common/src/*.ts', 'packages/common/test/*.ts', 'packages/router/src/*.ts', 'packages/router/test/*.ts']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/goldens/*', '*/golden/*']
+  max_bytes: 19000000

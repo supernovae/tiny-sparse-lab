@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_clickhouse_sql
+kind: git
+canonical_uri: https://github.com/ClickHouse/ClickHouse.git
+revision: 5ac4352fc81602c8c3824c9ebfad10a4b0e900ab
+license: Apache-2.0
+license_url: https://github.com/ClickHouse/ClickHouse/blob/5ac4352fc81602c8c3824c9ebfad10a4b0e900ab/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/ClickHouse/ClickHouse/blob/5ac4352fc81602c8c3824c9ebfad10a4b0e900ab/LICENSE]
+  notices: ['Retain Apache-2.0 and upstream copyright attribution. Excludes expected .reference output, data assets and generated stress cases.']
+domains: [databases, sql, analytics]
+document_kinds: [sql, tests]
+source_family: v4_db_clickhouse_sql_train
+notes: 'ClickHouse-authored stateless SQL query regressions, not the v3 PostgreSQL/SQLite/Git/Prometheus whole-repository heldouts. Standalone .sql rather than generated reference results, shell harnesses, bulk input files or third-party SQL benchmarks.'
+acquisition:
+  include: ['tests/queries/0_stateless/*.sql']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/benchmark/*', '*password*', '*credential*', '*secret*', 'tests/queries/0_stateless/03812_quantile_timing_deserialization_bug.sql', 'tests/queries/0_stateless/00411_long_accurate_number_comparison_float.sql', 'tests/queries/0_stateless/01909_mbtolou.sql', 'tests/queries/0_stateless/03578_parallel_replicas_minicrawl.sql', 'tests/queries/0_stateless/00328_long_case_construction.sql', 'tests/queries/0_stateless/02354_vector_search_binary_quantization.sql', 'tests/queries/0_stateless/00326_long_function_multi_if.sql']
+  max_bytes: 35000000

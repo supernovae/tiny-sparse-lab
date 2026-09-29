@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_bats_shell_heldout
+kind: git
+canonical_uri: https://github.com/bats-core/bats-core.git
+revision: 713504bc0224a19b3d7c7958c18dc07f64f54b44
+license: MIT
+license_url: https://github.com/bats-core/bats-core/blob/713504bc0224a19b3d7c7958c18dc07f64f54b44/LICENSE.md
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/bats-core/bats-core/blob/713504bc0224a19b3d7c7958c18dc07f64f54b44/LICENSE.md]
+  notices: ['Retain both bats-core contributors and Sam Stephenson upstream MIT notices in LICENSE.md.']
+domains: [shell, developer_tools, testing]
+document_kinds: [shell, tests, prose]
+source_family: v4_runtime_bats_shell_heldout
+notes: 'Pinned v1.12.0 commit; reserve the entire independent bats-core repository as shell heldout, never use any bats-core revision/path in v4 train. Authored shell framework and Bats semantic tests plus user docs. GitHub pinned-tree inventory: 46 selected files / 377,988 bytes before transform; fixture scripts and generated manpages are excluded.'
+acquisition:
+  include: ['lib/*.bash', 'libexec/bats-core/*', 'test/*.bats', 'docs/source/*.md', 'bin/bats', 'install.sh']
+  exclude: ['*/fixtures/*', '*/vendor/*', '*/generated/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/testdata/*', '*/third_party/*']
+  max_bytes: 700000

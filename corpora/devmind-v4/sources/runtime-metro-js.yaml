@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_metro_js
+kind: git
+canonical_uri: https://github.com/facebook/metro.git
+revision: 0a0c3eec766c003cd787bd58b989280bfee5ede1
+license: MIT
+license_url: https://github.com/facebook/metro/blob/0a0c3eec766c003cd787bd58b989280bfee5ede1/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/facebook/metro/blob/0a0c3eec766c003cd787bd58b989280bfee5ede1/LICENSE]
+  notices: ['Retain Meta and contributors MIT notice and any selected file notices.']
+domains: [javascript, build_systems, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_metro_js_train
+notes: 'Pinned v0.83.1 commit. First-party Metro resolution, transforms, source maps, bundler implementation and authored colocated tests; no flow-typed third-party declarations or fixtures. Complete pinned Git tree: 429 selected files / 2,366,376 bytes before transform.'
+acquisition:
+  include: ['packages/*/src/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*']
+  max_bytes: 3500000

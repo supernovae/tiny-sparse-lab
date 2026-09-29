@@ -1,0 +1,36 @@
+schema_version: 3
+id: fineweb_edu_sample_10bt
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
+revision: 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
+license: ODC-By-1.0
+license_url: https://opendatacommons.org/licenses/by/1-0/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: ODC-By-1.0
+  license_references:
+    - https://opendatacommons.org/licenses/by/1-0/
+    - https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu/blob/87f09149ef4734204d70ed1d046ddc9ca3f2b8f9/README.md
+    - https://commoncrawl.org/terms-of-use/
+  notices:
+    - 'Credit Hugging Face FineWeb-Edu and Common Crawl; retain page URL, crawl dump, record ID, date and applicable site notices. Dataset ODC-By does not sublicense crawled pages.'
+    - 'Common Crawl terms require respecting original-site rights and prohibit privacy/IP violations; screen each selected URL for incompatible terms, explicit no-ML notices, personal data and secrets before any training.'
+notes: 'Prospective private research only; raw text is unpublished and no tokenizer is fit. The publisher calls the whole sample roughly 10B GPT-2 tokens, not this shard or DevMind tokens. Preserve text,id,dump,url,date,file_path,language,language_score,token_count,score,int_score; deduplicate by source URL/content against other crawls and withhold whole dump/host families before fitting. Selection is a deterministic hash subset of one verified shard, not an evaluation split.'
+domains: [general_education]
+document_kinds: [prose]
+source_family: fineweb_edu_sample_10bt_train
+acquisition:
+  config: 10BT
+  split: sample
+  text_field: text
+  max_rows: 10000000
+  max_bytes: 6000000000
+  bounded_shards:
+    - path: sample/10BT/000_00000.parquet
+      expected_sha256: b1ba7b2ce4cb5ea6ef42dca40263eabb85f37700d01693a68e9b30a31d78e871
+      max_shard_bytes: 2152820000
+      max_scanned_rows: 20000000
+      hash_modulus: 2
+      hash_remainders: [0]

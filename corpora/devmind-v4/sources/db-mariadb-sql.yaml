@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_mariadb_sql
+kind: git
+canonical_uri: https://github.com/MariaDB/server.git
+revision: f3b7fadf77a44692c68d054ce5070898ba862c23
+license: GPL-2.0-only
+license_url: https://github.com/MariaDB/server/blob/f3b7fadf77a44692c68d054ce5070898ba862c23/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/MariaDB/server/blob/f3b7fadf77a44692c68d054ce5070898ba862c23/COPYING]
+  notices: ['Preserve individual MySQL/MariaDB contributor copyright and any file-level license headers. Do not redistribute source snapshots through corpus publication.']
+domains: [databases, sql, query_planning]
+document_kinds: [sql, tests]
+source_family: v4_db_mariadb_sql_train
+notes: 'MariaDB-authored and upstream-licensed MySQL test scripts execute real SQL DDL, joins, windowing, schema, storage and replication cases. This independent MySQL-family server does not import PostgreSQL or SQLite heldout repository content; omit .result output, suites of copied compatibility cases, bulk fixture data and build/vendor submodules.'
+acquisition:
+  include: ['mysql-test/main/*.test', 'mysql-test/suite/engines/t/*.test', 'mysql-test/suite/maria/*.test', 'mysql-test/suite/rpl/t/*.test', 'mysql-test/suite/innodb/t/*.test', 'mysql-test/suite/innodb_gis/t/*.test', 'mysql-test/suite/funcs_1/t/*.test', 'mysql-test/suite/json/t/*.test', 'mysql-test/suite/versioning/t/*.test', 'mysql-test/suite/vcol/t/*.test', 'mysql-test/suite/gcol/t/*.test', 'mysql-test/suite/parts/t/*.test', 'mysql-test/suite/period/t/*.test', 'mysql-test/suite/optimizer_unfixed_bugs/t/*.test']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/std_data/*', '*password*', '*credential*', '*secret*', '*ssl*', '*tls*', '*certificate*', '*cert*', '*private*', '*keyfile*', '*long*', '*bulk*', '*stress*', 'mysql-test/suite/compat/*']
+  max_bytes: 50000000
