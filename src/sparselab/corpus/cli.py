@@ -85,6 +85,10 @@ def _handle(args: argparse.Namespace) -> None:
                 raise ValueError(
                     "verified checkpoint-bound capability results are required"
                 )
+    elif command == "publication":
+        from sparselab.corpus.publication import publication_manifest
+
+        result = publication_manifest(release)
     elif command == "sources":
         result = publication.sources(release)
     elif command == "audit":
@@ -117,6 +121,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "consumers",
         "compare",
         "export",
+        "publication",
     ):
         command = sub.add_parser(name)
         command.add_argument("release")

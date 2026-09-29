@@ -25,6 +25,45 @@ def _rows(path: Path) -> list[dict[str, Any]]:
     ]
 
 
+def measure_source_rights(
+    root: Path, tokenizer: Path
+) -> dict[str, dict[str, int | None]]:
+    """Measure each retained train source passage once, not its derived views."""
+    from tokenizers import Tokenizer
+
+    model = Tokenizer.from_file(str(tokenizer))
+    counted: set[str] = set()
+    totals: dict[str, dict[str, int | None]] = {
+        state: {"documents": 0, "source_tokens": None}
+        for state in (
+            "eligible",
+            "eligible_with_obligations",
+            "review_required",
+            "ineligible",
+        )
+    }
+    for state in ("eligible", "eligible_with_obligations"):
+        totals[state]["source_tokens"] = 0
+    for document in _rows(Path(root) / "documents.jsonl"):
+        if document["split"] != "train" or document.get("drop_reason"):
+            continue
+        rights = document.get("rights")
+        if rights is None:
+            continue
+        state = rights["training_eligibility"]
+        if state not in ("eligible", "eligible_with_obligations"):
+            raise ValueError(
+                "ineligible source document in retained training inventory"
+            )
+        sha = document["content_sha256"]
+        if sha in counted:
+            continue
+        counted.add(sha)
+        totals[state]["documents"] += 1
+        totals[state]["source_tokens"] += len(model.encode(document["text"]).ids)
+    return totals
+
+
 def _distribution(
     rows: list[tuple[dict[str, Any], int | None]], *, counted_tokens: bool
 ) -> dict[str, Any]:

@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol
 
 from sparselab.config.models import StrictModel
+from sparselab.corpus.project import ReleaseDeclaration, release_declaration_payload
 from sparselab.corpus.provenance import (
     DERIVED_ORIGIN,
     DETERMINISTIC_ORIGIN,
@@ -27,13 +28,14 @@ from sparselab.corpus.provenance import (
     validate_lineage,
     verification,
 )
+from sparselab.corpus.rights import FileRights, resolve_file_rights
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
 class NormalizedDocument(StrictModel):
     """Versioned document retaining source attribution and raw evidence identity."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     document_id: str
     source_id: str
     modality: Literal["text"]
@@ -50,6 +52,8 @@ class NormalizedDocument(StrictModel):
     content_sha256: str
     raw_content_sha256: str
     source_family: str
+    file_sha256: str | None = None
+    rights: dict[str, Any] | None = None
     metadata: dict[str, str | int | float | bool | None] | None = None
     split: str | None = None
     representative_id: str | None = None
@@ -201,6 +205,8 @@ def _rows(path: Path) -> list[dict[str, Any]]:
 
 
 def _model(value: Any) -> dict[str, Any]:
+    if isinstance(value, ReleaseDeclaration):
+        return release_declaration_payload(value)
     return (
         value.model_dump(mode="json") if hasattr(value, "model_dump") else dict(value)
     )
@@ -246,7 +252,12 @@ def _sections(text: str, markdown: bool) -> list[tuple[str, list[str], int, int]
 
 
 def _records_for_file(
-    raw: bytes, name: str, source: Any, snapshot_id: str
+    raw: bytes,
+    name: str,
+    source: Any,
+    snapshot_id: str,
+    *,
+    file_rights: FileRights | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     suffix = Path(name).suffix.lower()
     if suffix != ".parquet":
@@ -284,6 +295,16 @@ def _records_for_file(
         passages = _sections(text, False)
     rows = []
     raw_sha = hashlib.sha256(raw).hexdigest()
+    rights_payload = file_rights.model_dump(mode="json") if file_rights else None
+    file_license = (
+        (
+            file_rights.detected_spdx_expression
+            or source.rights.spdx_expression
+            or source.license
+        )
+        if file_rights
+        else source.license
+    )
     byte_offsets = [] if source.kind == "huggingface_dataset" else [0]
     if source.kind != "huggingface_dataset":
         for line in raw.decode("utf-8").splitlines(keepends=True):
@@ -308,14 +329,18 @@ def _records_for_file(
         )
         raw_content_sha = hashlib.sha256(raw_passage).hexdigest()
         document = {
-            "schema_version": 1,
+            "schema_version": source.schema_version,
             "document_id": identity,
             "source_id": source.id,
             "modality": source.modality,
             "source_revision": source.revision,
             "source_location": location,
-            "license": source.license,
-            "redistribution": source.redistribution,
+            "license": file_license,
+            "redistribution": (
+                file_rights.redistribution_mode
+                if file_rights
+                else source.redistribution
+            ),
             "domains": list(source.domains),
             "document_kind": next(iter(source.document_kinds)),
             "title": ancestry[-1] if ancestry else Path(name).name,
@@ -325,6 +350,11 @@ def _records_for_file(
             "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "raw_content_sha256": raw_content_sha,
             "source_family": source.source_family,
+            **(
+                {"file_sha256": raw_sha, "rights": rights_payload}
+                if file_rights
+                else {}
+            ),
         }
         document = NormalizedDocument.model_validate(document).model_dump(
             mode="json", exclude_none=True
@@ -531,6 +561,15 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         "split": _model(project.splits),
         "release": _model(project.release),
         "implementation_sha256": sha256_file(Path(__file__)),
+        **(
+            {
+                "rights_implementation_sha256": sha256_file(
+                    Path(__file__).with_name("rights.py")
+                )
+            }
+            if project.release.schema_version == 2
+            else {}
+        ),
     }
     build_id = digest(identity)
     target = root / build_id
@@ -543,6 +582,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         documents: list[dict[str, Any]] = []
         evidence: list[dict[str, Any]] = []
         rejected: list[dict[str, Any]] = []
+        rights_files: list[dict[str, Any]] = []
         auxiliary_files: set[tuple[str, str]] = set()
         for spec in stage_specs:
             params = spec["parameters"]
@@ -573,15 +613,82 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             from sparselab.corpus.acquisition import verify_snapshot
 
             snapshot = verify_snapshot(Path(entry["snapshot_path"]))
+            nested_path = source.rights.nested_metadata_path if source.rights else None
+            nested_metadata = (
+                {
+                    nested_path: json.loads(
+                        (
+                            Path(entry["snapshot_path"]) / "files" / nested_path
+                        ).read_text(encoding="utf-8")
+                    )
+                }
+                if nested_path
+                else {}
+            )
             for file in sorted(snapshot["files"], key=lambda f: f["path"]):
-                if (source.id, file["path"]) in auxiliary_files:
+                name = file["path"]
+                if name == nested_path:
+                    rights_files.append(
+                        {
+                            "source_id": source.id,
+                            "path": name,
+                            "sha256": file["sha256"],
+                            "size": file["size"],
+                            "role": "license_metadata",
+                            "canonical_uri": source.canonical_uri,
+                            "revision": source.revision,
+                        }
+                    )
                     continue
-                raw = (
-                    Path(entry["snapshot_path"]) / "files" / file["path"]
-                ).read_bytes()
+                raw = (Path(entry["snapshot_path"]) / "files" / name).read_bytes()
+                decision = (
+                    resolve_file_rights(
+                        source.rights, name, raw, nested_metadata=nested_metadata
+                    )
+                    if source.rights
+                    else None
+                )
+                if decision is not None:
+                    rights_files.append(
+                        {
+                            "source_id": source.id,
+                            "path": name,
+                            "sha256": file["sha256"],
+                            "size": file["size"],
+                            "role": "transform_input"
+                            if (source.id, name) in auxiliary_files
+                            else "document",
+                            "canonical_uri": source.canonical_uri,
+                            "revision": source.revision,
+                            "license_url": source.license_url,
+                            "rights": decision.model_dump(mode="json"),
+                        }
+                    )
+                    if decision.training_eligibility not in {
+                        "eligible",
+                        "eligible_with_obligations",
+                    }:
+                        rejected.append(
+                            {
+                                "source_id": source.id,
+                                "path": name,
+                                "reason": f"rights {decision.training_eligibility}: {decision.reason}",
+                            }
+                        )
+                        if (source.id, name) in auxiliary_files:
+                            raise ValueError(
+                                f"unresolved rights for transform input: {source.id}/{name}"
+                            )
+                        continue
+                if (source.id, name) in auxiliary_files:
+                    continue
                 try:
                     pairs = _records_for_file(
-                        raw, file["path"], source, entry["snapshot_sha256"]
+                        raw,
+                        name,
+                        source,
+                        entry["snapshot_sha256"],
+                        file_rights=decision,
                     )
                     documents.extend(doc for doc, _ in pairs)
                     evidence.extend(span for _, span in pairs)
@@ -589,7 +696,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     rejected.append(
                         {
                             "source_id": source.id,
-                            "path": file["path"],
+                            "path": name,
                             "reason": str(exc),
                         }
                     )
@@ -629,6 +736,37 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     _json(staging / "audit.json", diagnostic)
                     _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
                     raise ValueError("cross-split exact text overlap")
+                if method == "normalized" and project.release.schema_version == 2:
+                    rights_signatures = {
+                        canonical_json(
+                            {
+                                "license": by_id[i]["license"],
+                                "redistribution": by_id[i]["redistribution"],
+                                "training_eligibility": by_id[i]["rights"][
+                                    "training_eligibility"
+                                ],
+                                "license_references": by_id[i]["rights"][
+                                    "license_references"
+                                ],
+                                "notices": by_id[i]["rights"]["notices"],
+                                "training_restriction": by_id[i]["rights"][
+                                    "training_restriction"
+                                ],
+                            }
+                        )
+                        for i in ids
+                    }
+                    if len(rights_signatures) > 1:
+                        diagnostic = {
+                            "duplicates": duplicate_groups,
+                            "rejected": rejected,
+                            "error": "duplicate source text has incompatible rights evidence",
+                        }
+                        _json(staging / "audit.json", diagnostic)
+                        _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
+                        raise ValueError(
+                            "duplicate source text has incompatible rights evidence"
+                        )
                 for i in ids[1:]:
                     representative[i] = min(representative[i], ids[0])
 
@@ -1583,7 +1721,17 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 "canonical_uri": s.canonical_uri,
                 "revision": s.revision,
                 "license": s.license,
-                "redistribution": s.redistribution,
+                "redistribution": s.rights.redistribution_mode
+                if s.rights
+                else s.redistribution,
+                **(
+                    {
+                        "license_url": s.license_url,
+                        "rights_policy": s.rights.model_dump(mode="json"),
+                    }
+                    if s.rights
+                    else {}
+                ),
                 "origin": s.origin,
                 "source_family": s.source_family,
                 "snapshot_sha256": lock["sources"].get(s.id, {}).get("snapshot_sha256"),
@@ -1591,24 +1739,76 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     "generator_dependent"
                     if s.kind == "inference_generator"
                     else "script_reproducible_not_redistributed"
-                    if s.redistribution
-                    in {"reference_only", "derived_only", "unknown", "rejected"}
+                    if (s.rights.redistribution_mode if s.rights else s.redistribution)
+                    in {
+                        "reference_only",
+                        "derived_only",
+                        "unknown",
+                        "rejected",
+                        "metadata_reconstruction_only",
+                        "not_redistributable",
+                        "review_required",
+                    }
                     else "fully_reproducible"
                 ),
             }
             for s in project.sources
         ]
         _json(staging / "sources.json", sources)
-        _json(
-            staging / "license-report.json",
-            {
+        if project.release.schema_version == 2:
+            file_decisions = [
+                item for item in rights_files if item["role"] == "document"
+            ]
+            rights_counts = Counter(
+                item["rights"]["training_eligibility"] for item in file_decisions
+            )
+            bytes_by_state: Counter[str] = Counter()
+            spdx_counts: Counter[str] = Counter()
+            modes: Counter[str] = Counter()
+            source_spdx = {s.id: s.rights.spdx_expression for s in project.sources}
+            for item in file_decisions:
+                decision = item["rights"]
+                bytes_by_state[decision["training_eligibility"]] += item["size"]
+                spdx_counts[
+                    decision["detected_spdx_expression"]
+                    or source_spdx[item["source_id"]]
+                    or "unknown"
+                ] += 1
+                modes[decision["redistribution_mode"]] += 1
+            rights_report = {
+                "schema_version": 2,
+                "publication_mode": project.release.publication_mode,
+                "weight_license_status": "separate_analysis_required",
+                "sources": sources,
+                "files": rights_files,
+                "training_eligibility": {
+                    state: {
+                        "files": rights_counts[state],
+                        "source_bytes": bytes_by_state[state],
+                        "source_tokens": None,
+                        "token_count_reason": "tokenizer_not_declared",
+                    }
+                    for state in (
+                        "eligible",
+                        "eligible_with_obligations",
+                        "review_required",
+                        "ineligible",
+                    )
+                },
+                "spdx_expressions": dict(spdx_counts),
+                "redistribution_modes": dict(modes),
+                "unresolved_rights_files": rights_counts["review_required"],
+                "advisory": "Source/derived-data rights and model-weight licensing are separate decisions; not a legal conclusion.",
+            }
+        else:
+            rights_report = {
                 "sources": sources,
                 "redistribution_classes": dict(
                     Counter(s.redistribution for s in project.sources)
                 ),
                 "advisory": "Declared attribution and redistribution classifications are inventory metadata, not legal review.",
-            },
-        )
+            }
+        _json(staging / "license-report.json", rights_report)
         mixture = _model(project.release).get("mixture", {})
         actual = {
             domain: {
@@ -1628,7 +1828,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         generation_total = len(generations) + len(scenarios)
         source_counts = Counter(d["source_id"] for d in kept)
         report = {
-            "schema_version": 1,
+            "schema_version": project.release.schema_version,
             "corpus_id": project.config.id,
             "requested_mixture": mixture,
             "actual_mixture": actual,
@@ -1671,6 +1871,20 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             if fraction is not None
             else "tokenizer_not_declared",
         }
+        if project.release.schema_version == 2:
+            report["rights"] = {
+                key: value
+                for key, value in rights_report.items()
+                if key
+                in {
+                    "training_eligibility",
+                    "spdx_expressions",
+                    "redistribution_modes",
+                    "unresolved_rights_files",
+                    "weight_license_status",
+                    "publication_mode",
+                }
+            }
         from sparselab.corpus.measurement import summarize_release
 
         report["measurement"] = summarize_release(
