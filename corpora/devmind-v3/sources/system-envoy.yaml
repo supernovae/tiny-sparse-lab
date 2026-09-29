@@ -18,5 +18,5 @@ source_family: v3_system_envoy_train
 notes: 'Independent first-party proxy core, networking filters, selected C++ tests and architecture/operations documentation; omits third-party integrations, generated APIs and fixture corpora.'
 acquisition:
   include: ['source/*.cc', 'source/*.h', 'envoy/*.h', 'test/*.cc', 'test/*.h', 'docs/*.rst', 'docs/*.md', 'source/BUILD', 'source/BUILD.bazel']
-  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'test/integration/*', 'test/extensions/*/test_data/*', 'docs/_static/*', 'docs/_images/*', '*_generated.h', '*_generated.cc', '*.pb.h', '*.pb.cc']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'test/integration/*', 'test/extensions/*/test_data/*', 'docs/_static/*', 'docs/_images/*', '*_generated.h', '*_generated.cc', '*.pb.h', '*.pb.cc', 'source/extensions/dynamic_modules/sdk/rust/abi/abi.h']
   max_bytes: 120000000
