@@ -1,0 +1,20 @@
+schema_version: 2
+id: git_technical
+kind: git
+canonical_uri: https://github.com/git/git.git
+revision: a018953688f1b10bddf91bff8747068f5f4746a4
+license: GPL-2.0-only
+license_url: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING]
+  notices: ['Retain upstream Git copyright and GPL-2.0-only notices.']
+domains: [developer_workflows, source_control, testing_build]
+document_kinds: [prose]
+source_family: git_technical_validation
+acquisition:
+  include: ['Documentation/technical/*.adoc']
+  exclude: []
+  max_bytes: 1000000

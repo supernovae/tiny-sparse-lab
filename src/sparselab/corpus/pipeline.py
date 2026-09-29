@@ -542,6 +542,186 @@ def _path_scenario(seed: int, family: str, stage: str) -> dict[str, Any]:
     )
 
 
+def _scenario_v2(
+    generator: str, seed: int, family: str, template: str, stage: str
+) -> dict[str, Any]:
+    """Construct distinct causal configurations, not seed-labelled copies."""
+    if not 0 <= seed < 1000:
+        raise ValueError("v2 world seeds must be in the declared 0–999 partition")
+    a, b, c = seed % 10, (seed // 10) % 10, seed // 100
+    if generator == "filesystem_judgment_v2":
+        targets = (
+            ("outside workspace", False, False),
+            ("symlink escaping workspace", False, False),
+            ("generated build cache", True, True),
+            ("generated coverage output", True, True),
+            ("generated test scratch", True, True),
+            ("tracked source directory", True, False),
+            ("tracked configuration directory", True, False),
+            ("empty target", True, False),
+            ("generated deployment bundle", True, True),
+            ("generated package artifacts", True, True),
+        )
+        evidence_states = (
+            "exact path and owner confirmed", "target path unset",
+            "two candidate paths", "listing contradicts request",
+            "symlink destination unverified", "owner confirmed by manifest",
+            "target confirmed by dry-run", "stale listing",
+            "build manifest confirms target", "request conflicts with manifest",
+        )
+        operations = (
+            ("remove disposable output", True, True),
+            ("replace generated cache", True, True),
+            ("archive before cleanup", True, True),
+            ("delete without backup", False, True),
+            ("modify source", True, False),
+            ("reset tracked files", False, False),
+            ("clear temporary outputs", True, True),
+            ("overwrite published artifacts", False, True),
+            ("rename with restore point", True, True),
+            ("prune generated files", True, True),
+        )
+        target, in_scope, generated = targets[a]
+        evidence = evidence_states[b]
+        operation, reversible, allowed_kind = operations[c]
+        authorized = (a + b + c) % 4 != 0
+        world = {
+            "target": target, "in_workspace": in_scope, "generated": generated,
+            "evidence": evidence, "operation": operation,
+            "reversible": reversible, "authorized": authorized,
+        }
+        judgment = (
+            "stop" if not in_scope or not reversible or not allowed_kind
+            or target.startswith("tracked")
+            else "ask" if not authorized
+            else "inspect" if target == "empty target" or b not in (0, 5, 6, 8)
+            else "proceed"
+        )
+        diagnostic = f"Check the declared {target} against {evidence} before {operation}."
+        risk = "An out-of-scope or irreversible filesystem change is unsafe."
+        verification = f"Confirm {target} remains within the requested workspace boundary."
+        rollback = "Restore the saved prior state." if reversible else "No verified rollback."
+    elif generator == "platform_fault_v2":
+        causes = (
+            ("Pending workload", "scheduling events"),
+            ("unbound storage", "claim binding events"),
+            ("bad probe", "probe configuration"),
+            ("image pull", "image reference and pull events"),
+            ("DNS", "resolver responses"),
+            ("resource exhaustion", "resource limits and usage"),
+            ("network policy", "selected policy rules"),
+            ("config mismatch", "declared and effective configuration"),
+        )
+        observations = (
+            "first failure after rollout", "repeated failure under load",
+            "failure on one replica", "failure on every replica",
+            "intermittent failure",
+        )
+        workloads = ("api service", "worker", "controller", "scheduled job", "gateway")
+        scopes = ("single namespace", "one node", "all nodes", "new revision", "one zone")
+        cause, check = causes[seed % 8]
+        observation = observations[(seed // 8) % 5]
+        context = workloads[(seed // 40) % 5]
+        scope = scopes[seed // 200]
+        world = {
+            "cause": cause, "evidence": f"{cause} observed: {observation}",
+            "resource": context, "scope": scope,
+            "intervention": "restart all workloads",
+        }
+        judgment = "inspect"
+        diagnostic = f"Inspect {check} for {context} in {scope}."
+        risk = "A broad restart is unsupported by these observations."
+        verification = f"After a targeted correction, recheck {cause} for {context} in {scope}."
+        rollback = "Revert the targeted correction if the observation persists."
+    elif generator == "deployment_change_v2":
+        preflights = (
+            "preflight passed", "preflight absent", "config check failed",
+            "dependency unhealthy", "migration untested", "capacity confirmed",
+            "capacity unknown", "health baseline passed", "health baseline failed",
+            "goal already verified",
+        )
+        radii = (
+            "one canary", "one replica", "one namespace", "one shard",
+            "one zone", "all regions", "all tenants", "one background worker",
+            "one staging environment", "entire production cluster",
+        )
+        recovery = (
+            "rollback rehearsed", "rollback unavailable", "rollback untested",
+            "prior version retained", "data migration irreversible",
+            "rollback timed out", "snapshot verified", "snapshot absent",
+            "canary abort verified", "rollback approval missing",
+        )
+        world = {
+            "condition": preflights[a], "blast_radius": radii[b],
+            "rollback_state": recovery[c],
+        }
+        judgment = (
+            "stop" if a == 9 or a not in (0, 5, 7) or b in (5, 6, 9)
+            or c not in (0, 3, 6, 8) else "proceed"
+        )
+        diagnostic = f"Review {preflights[a]}, {radii[b]} and {recovery[c]}."
+        risk = f"The proposed rollout affects {radii[b]}."
+        verification = f"Check deployment health and user-visible success for {radii[b]}."
+        rollback = f"Recovery condition: {recovery[c]}."
+    elif generator == "code_test_workflow_v2":
+        failures = (
+            "focused assertion fails", "type check fails", "configuration parse fails",
+            "integration assertion fails", "build fails", "focused test passes",
+            "broad regression fails", "broad suite passes", "goal verified",
+            "contradictory test results",
+        )
+        edits = (
+            "guard empty input", "correct parser branch", "update configuration key",
+            "repair timeout handling", "fix return value", "restore error propagation",
+            "correct bounds check", "repair fixture setup", "fix state transition",
+            "remove invalid retry",
+        )
+        checks = (
+            "focused test not run", "focused test failed", "focused test passed",
+            "broad suite not run", "broad suite failed", "broad suite passed",
+            "regression test not run", "regression test passed",
+            "verification conflicts", "both focused and broad tests passed",
+        )
+        world = {
+            "fixture": "inert disposable fixture", "condition": failures[a],
+            "candidate_edit": edits[b], "verification_state": checks[c],
+        }
+        judgment = (
+            "stop" if a == 8 and c == 9
+            else "inspect" if a == 8 or c in (1, 4, 8) or a in (0, 1, 2, 3, 4, 6, 9)
+            else "proceed"
+        )
+        diagnostic = f"Inspect {failures[a]} and verify {edits[b]} using {checks[c]}."
+        risk = "A candidate edit without consistent focused and broad checks is not a verified fix."
+        verification = f"Require focused and broad verification of {edits[b]}."
+        rollback = "Restore the disposable fixture if checks fail."
+    else:
+        raise ValueError(f"unregistered v2 scenario generator: {generator}")
+    answer = f"{judgment}: {diagnostic}"
+    receipt = {
+        "schema_version": 1, "generator_id": generator,
+        "generator_version": "2", "world_id": f"{generator}:{seed}",
+        "scenario_family_id": family, "template_family_id": template,
+        "world_facts": world, "judgment": judgment,
+        "evidence": world.get("evidence", world.get("condition", world.get("target"))),
+        "next_diagnostic": diagnostic, "risk": risk,
+        "verification": verification, "rollback": rollback,
+    }
+    result = {
+        "schema_version": 1, "generator_id": generator, "generator_version": "2",
+        "world_seed": seed, "scenario_family_id": family,
+        "generator_world_id": receipt["world_id"], "template_family_id": template,
+        "world_state": world, "oracle_answer": answer, "oracle_receipt": receipt,
+        "rendered_example": {
+            "question": f"Inert {generator} world: {world}. Select the next bounded response.",
+            "answer": answer,
+        },
+        "interpreter": generator, "transform_id": stage,
+    }
+    result["scenario_id"] = digest(result)
+    return ScenarioRecord.model_validate(result).model_dump(mode="json", exclude_none=True)
+
+
 GENERATORS = frozenset(
     {
         "pathlib_path_suffix_v1",
@@ -549,6 +729,10 @@ GENERATORS = frozenset(
         "platform_fault_v1",
         "deployment_change_v1",
         "code_test_workflow_v1",
+        "filesystem_judgment_v2",
+        "platform_fault_v2",
+        "deployment_change_v2",
+        "code_test_workflow_v2",
     }
 )
 
@@ -557,6 +741,8 @@ def _scenario(
     generator: str, seed: int, family: str, template: str, stage: str
 ) -> dict[str, Any]:
     """Pure world constructors: no host inspection, commands, or mutable state."""
+    if generator.endswith("_v2"):
+        return _scenario_v2(generator, seed, family, template, stage)
     if generator == "filesystem_judgment_v1":
         cases = (
             ("outside", "no", "known", "yes", "reversible"),
@@ -780,7 +966,7 @@ def _scenario_messages(scenario: dict[str, Any], tool: bool) -> list[dict[str, A
         ):
             raise ValueError("scenario has no complete inert oracle tool receipt")
         name = "declared_world_inspection_v1"
-        arguments = {"world_id": receipt["world_id"], "generator_version": "1"}
+        arguments = {"world_id": receipt["world_id"], "generator_version": receipt["generator_version"]}
         instruction = "Inspect only the inert declared world receipt."
         final = f"Evidence: {receipt['evidence']}. {answer} Verification: {receipt['verification']} Rollback: {receipt['rollback']}"
     return [
@@ -807,6 +993,10 @@ def _scenario_shape(scenario: dict[str, Any], kind: str) -> str:
         "platform_fault_v1": "error_diagnosis",
         "deployment_change_v1": "verification_episode",
         "code_test_workflow_v1": "multi_turn_dialogue",
+        "filesystem_judgment_v2": "stop_or_abstain",
+        "platform_fault_v2": "error_diagnosis",
+        "deployment_change_v2": "verification_episode",
+        "code_test_workflow_v2": "multi_turn_dialogue",
     }.get(scenario.get("generator_id"), "troubleshooting_scenario")
 
 
@@ -1267,11 +1457,12 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     output.append(row)
                 semantic.extend(output)
             elif kind == "deterministic_scenarios":
-                if spec["version"] != "1":
-                    raise ValueError("scenario generator transform requires version 1")
                 generator = params["generator"]
                 if generator not in GENERATORS:
                     raise ValueError("unregistered scenario generator")
+                generator_version = generator.rsplit("_v", 1)[-1]
+                if spec["version"] != generator_version:
+                    raise ValueError("scenario generator transform version mismatch")
                 if "seed_ranges" in params:
                     if generator == "pathlib_path_suffix_v1" or set(params) != {
                         "generator",
@@ -1343,11 +1534,11 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     for s in project.sources
                     if s.kind == "deterministic_generator"
                     and s.acquisition.generator == generator
-                    and s.acquisition.generator_version == "1"
+                    and s.acquisition.generator_version == generator_version
                 ]
                 if generator != "pathlib_path_suffix_v1" and not declared:
                     raise ValueError(
-                        "scenario generator has no pinned v1 source declaration"
+                        "scenario generator has no pinned source declaration"
                     )
                 output = [
                     _path_scenario(seed, family, stage_id)

@@ -1,0 +1,20 @@
+schema_version: 2
+id: python_asyncio_validation
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PSF-2.0
+  license_references: [https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE]
+  notices: ['Retain Python Software Foundation and individual contributor notices.']
+domains: [programming, operating_systems, networking, testing_build]
+document_kinds: [python]
+source_family: python_asyncio_validation
+acquisition:
+  include: ['Lib/asyncio/*.py']
+  exclude: ['Lib/asyncio/constants.py', 'Lib/asyncio/events.py', 'Lib/asyncio/sslproto.py']
+  max_bytes: 800000

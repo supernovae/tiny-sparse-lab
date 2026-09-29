@@ -1,0 +1,17 @@
+schema_version: 2
+id: platform_worlds
+kind: deterministic_generator
+canonical_uri: sparselab://generators/platform_fault_v2
+revision: '2'
+license: MIT
+license_url: https://github.com/supernovae/tiny-sparse-lab/blob/bf5d727/LICENSE
+rights:
+  training_eligibility: eligible
+  redistribution_mode: redistributable_under_source_terms
+  spdx_expression: MIT
+  license_references: [https://github.com/supernovae/tiny-sparse-lab/blob/bf5d727/LICENSE]
+  notices: ['SparseLab-owned inert synthetic platform observations, not real incidents.']
+domains: [containers, networking, storage, observability]
+document_kinds: [scenario]
+source_family: platform_train
+acquisition: {generator: platform_fault_v2, generator_version: '2'}

@@ -1,0 +1,5 @@
+id: devmind_v1_source_qa
+version: '1'
+kind: source_qa
+parameters: {extractor: literal_span_v1}
+inputs: [git_manual, git_shell_train, git_shell_validation, git_technical, go_code, go_url_validation, k8s_concepts, k8s_shell_validation, k8s_tasks, k8s_tutorials, k8s_yaml, linux_ext4, linux_filesystems_validation, linux_networking_test, linux_process, otel_docs, otel_yaml_validation, python_asyncio_validation, python_code, python_library, rust_alloc_validation, rust_book_train, rust_book_validation, rust_core]

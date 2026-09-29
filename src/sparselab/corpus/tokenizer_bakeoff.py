@@ -47,7 +47,7 @@ _EXTENSIONS = {
 class Declaration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     release_path: str
     vocab_sizes: tuple[int, int, int]
     max_fit_bytes: int = Field(gt=0)
@@ -81,14 +81,17 @@ def load_declaration(path: Path) -> Declaration:
     spec = Declaration.model_validate(raw)
     if (
         spec.vocab_sizes != VOCABS
-        or spec.groups != GROUPS
         or spec.max_fit_bytes != 268435456
         or spec.eval_max_docs_per_group != 200
         or spec.near_best_ratio != 0.98
         or not spec.release_path.strip()
+        or not spec.groups
+        or len(set(spec.groups)) != len(spec.groups)
+        or tuple(g for g in GROUPS if g in spec.groups) != spec.groups
+        or (spec.schema_version == 1 and spec.groups != GROUPS)
     ):
         raise ValueError(
-            "tokenizer bakeoff v1 requires the approved candidates, groups and budgets"
+            "tokenizer bakeoff requires approved candidates, ordered groups and budgets"
         )
     return spec
 
@@ -115,14 +118,18 @@ def _group(doc: dict[str, Any]) -> str | None:
     return None
 
 
-def _documents(release: Path, split: str) -> dict[str, list[dict[str, Any]]]:
-    result: dict[str, list[dict[str, Any]]] = defaultdict(list)
+def _source_documents(release: Path, split: str):
     selected_ids = {
         link["record_id"] for link in _rows(release / "lm" / f"{split}.lineage.jsonl")
     }
     for doc in _rows(release / "documents.jsonl"):
-        if doc["document_id"] not in selected_ids or doc["split"] != split:
-            continue
+        if doc["document_id"] in selected_ids and doc["split"] == split:
+            yield doc
+
+
+def _documents(release: Path, split: str) -> dict[str, list[dict[str, Any]]]:
+    result: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for doc in _source_documents(release, split):
         group = _group(doc)
         if group in GROUPS:
             result[group].append(doc)
@@ -134,10 +141,17 @@ def _documents(release: Path, split: str) -> dict[str, list[dict[str, Any]]]:
 def _selection(release: Path, spec: Declaration):
     train = _documents(release, "train")
     validation = _documents(release, "validation")
-    if missing := [g for g in GROUPS if not train[g] or not validation[g]]:
+    if missing := [g for g in spec.groups if not train[g] or not validation[g]]:
         raise ValueError(
             f"missing required train/validation document groups: {missing}"
         )
+    if spec.schema_version == 2:
+        unreported = [
+            g for g in GROUPS
+            if g not in spec.groups and train[g] and validation[g]
+        ]
+        if unreported:
+            raise ValueError(f"measurable source groups omitted from pilot bakeoff: {unreported}")
     train_families = {doc["source_family"] for rows in train.values() for doc in rows}
     val_families = {
         doc["source_family"] for rows in validation.values() for doc in rows
@@ -146,11 +160,11 @@ def _selection(release: Path, spec: Declaration):
         raise ValueError("train and validation source families overlap")
     selected: dict[str, list[dict[str, Any]]] = {}
     heldout: dict[str, list[dict[str, Any]]] = {}
-    cap = spec.max_fit_bytes // len(GROUPS)
+    cap = spec.max_fit_bytes // len(spec.groups)
     if cap <= 0:
         raise ValueError("per-group fitting budget cannot hold a document")
     seen_train: set[str] = set()
-    for group in GROUPS:
+    for group in spec.groups:
         chosen = []
         size = 0
         for doc in train[group]:
@@ -174,6 +188,22 @@ def _selection(release: Path, spec: Declaration):
     if train_hashes & heldout_hashes:
         raise ValueError("train and held-out validation share normalized content")
     return selected, heldout, train
+
+
+def _distinct_sources(
+    release: Path, train: dict[str, list[dict[str, Any]]], schema_version: int
+) -> dict[str, dict[str, Any]]:
+    # Historical v1 counted only its nine approved fit kinds. Pilot v2 must
+    # count every selected normalized source, including an unpaired C/code kind.
+    documents = (
+        _source_documents(release, "train")
+        if schema_version == 2
+        else (doc for rows in train.values() for doc in rows)
+    )
+    distinct: dict[str, dict[str, Any]] = {}
+    for doc in documents:
+        distinct.setdefault(doc["content_sha256"], doc)
+    return distinct
 
 
 def choose_candidate(candidates: list[dict[str, Any]], ratio: float = 0.98) -> int:
@@ -219,6 +249,7 @@ def _receipt(
     selected: dict[str, list[dict[str, Any]]],
     heldout: dict[str, list[dict[str, Any]]],
     train: dict[str, list[dict[str, Any]]],
+    spec: Declaration,
 ) -> dict[str, Any]:
     def listing(rows: list[dict[str, Any]]) -> dict[str, Any]:
         return {
@@ -231,13 +262,13 @@ def _receipt(
     return {
         "fit": {
             g: listing(selected[g])
-            | {"underfilled": listing(selected[g])["bytes"] < 268435456 // len(GROUPS)}
-            for g in GROUPS
+            | {"underfilled": listing(selected[g])["bytes"] < spec.max_fit_bytes // len(spec.groups)}
+            for g in spec.groups
         },
-        "heldout": {g: listing(heldout[g]) for g in GROUPS},
+        "heldout": {g: listing(heldout[g]) for g in spec.groups},
         "train": {
             g: {"documents": len(train[g]), "bytes": listing(train[g])["bytes"]}
-            for g in GROUPS
+            for g in spec.groups
         },
     }
 
@@ -324,7 +355,8 @@ def _verify_existing(
             "existing tokenizer bakeoff has mismatched release, declaration or samples"
         )
     sample = output / "fit.jsonl"
-    expected = [{"text": doc["text"]} for group in GROUPS for doc in selected[group]]
+    groups = tuple(identity["declaration"]["groups"])
+    expected = [{"text": doc["text"]} for group in groups for doc in selected[group]]
     if (
         list(_rows(sample)) != expected
         or sha256_file(sample) != report["fit_sample_sha256"]
@@ -332,7 +364,7 @@ def _verify_existing(
         raise ValueError("existing tokenizer fitting sample has changed")
     validation = output / "validation.jsonl"
     if list(_rows(validation)) != [
-        {"text": doc["text"]} for group in GROUPS for doc in heldout[group]
+        {"text": doc["text"]} for group in groups for doc in heldout[group]
     ]:
         raise ValueError("existing held-out sample has changed")
     binding = _binding(identity, receipt, release, sample, validation)
@@ -342,12 +374,12 @@ def _verify_existing(
         sha256_file(sample),
         sum(
             len(doc["text"].encode("utf-8"))
-            for group in GROUPS
+            for group in groups
             for doc in selected[group]
         ),
         len(expected),
     )
-    weights = {g: receipt["train"][g]["bytes"] for g in GROUPS}
+    weights = {g: receipt["train"][g]["bytes"] for g in groups}
     for candidate in report["candidates"]:
         vocab = candidate["vocab_size"]
         token_path = output / "candidates" / str(vocab) / "tokenizer.json"
@@ -366,10 +398,10 @@ def _verify_existing(
                 "existing tokenizer manifest differs from bound release receipt"
             )
         measured = {
-            g: _summary(load_tokenizer(token_path), heldout[g])[0] for g in GROUPS
+            g: _summary(load_tokenizer(token_path), heldout[g])[0] for g in groups
         }
         score = sum(weights.values()) / sum(
-            weights[g] * measured[g]["tokens"] / measured[g]["bytes"] for g in GROUPS
+            weights[g] * measured[g]["tokens"] / measured[g]["bytes"] for g in groups
         )
         if (
             candidate["per_kind"] != measured
@@ -408,10 +440,12 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         if not release.is_absolute():
             release = (declaration.parent / release).resolve()
     manifest = verify_release(release)
+    if spec.schema_version == 2 and manifest["build_identity"]["release"]["schema_version"] != 2:
+        raise ValueError("pilot bakeoff requires a prospective rights-tracked release")
     selected, heldout, train = _selection(release, spec)
-    receipt = _receipt(selected, heldout, train)
+    receipt = _receipt(selected, heldout, train, spec)
     identity = {
-        "schema_version": 1,
+        "schema_version": spec.schema_version,
         "release_path": str(release),
         "release_id": manifest["release_id"],
         "declaration_sha256": sha256_file(declaration),
@@ -420,11 +454,11 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
     if output.exists():
         return _verify_existing(output, identity, receipt, selected, heldout, release)
     output.mkdir(parents=True)
-    fit_docs = [doc for group in GROUPS for doc in selected[group]]
+    fit_docs = [doc for group in spec.groups for doc in selected[group]]
     sample = output / "fit.jsonl"
     _write_sample(sample, fit_docs)
     _write_sample(
-        output / "validation.jsonl", [doc for group in GROUPS for doc in heldout[group]]
+        output / "validation.jsonl", [doc for group in spec.groups for doc in heldout[group]]
     )
     dataset = _dataset(
         sample,
@@ -435,7 +469,7 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
     )
     binding = _binding(identity, receipt, release, sample, output / "validation.jsonl")
     candidates = []
-    weights = {g: receipt["train"][g]["bytes"] for g in GROUPS}
+    weights = {g: receipt["train"][g]["bytes"] for g in spec.groups}
     for vocab in spec.vocab_sizes:
         config = TokenizerTrainConfig(
             schema_version=1,
@@ -454,9 +488,9 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         )
         artifact = _bind_manifest(path, binding)
         model = load_tokenizer(path)
-        measured = {g: _summary(model, heldout[g])[0] for g in GROUPS}
+        measured = {g: _summary(model, heldout[g])[0] for g in spec.groups}
         tokens = sum(
-            weights[g] * measured[g]["tokens"] / measured[g]["bytes"] for g in GROUPS
+            weights[g] * measured[g]["tokens"] / measured[g]["bytes"] for g in spec.groups
         )
         weighted_bytes_per_token = sum(weights.values()) / tokens
         candidates.append(
@@ -477,10 +511,7 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
     chosen = choose_candidate(candidates, spec.near_best_ratio)
     selected_path = output / "candidates" / str(chosen) / "tokenizer.json"
     model = load_tokenizer(selected_path)
-    distinct: dict[str, dict[str, Any]] = {}
-    for rows in train.values():
-        for doc in rows:
-            distinct.setdefault(doc["content_sha256"], doc)
+    distinct = _distinct_sources(release, train, spec.schema_version)
     distinct_tokens = sum(
         len(model.encode(doc["text"]).ids) for doc in distinct.values()
     )
@@ -501,7 +532,35 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         train_view_tokens += tokens
         if "general_education" in doc_map[link["record_id"]].get("domains", []):
             general_view_tokens += tokens
+    unclassified = (
+        [doc for doc in _source_documents(release, "train") if _group(doc) is None]
+        if spec.schema_version == 2
+        else []
+    )
     report = {
+        **(
+            {
+                "unmeasured_source_groups": {
+                    g: {
+                        "train_documents": len(train[g]),
+                        "train_bytes": sum(len(d["text"].encode("utf-8")) for d in train[g]),
+                        "reason": "no paired independent train/validation family",
+                    }
+                    for g in GROUPS
+                    if g not in spec.groups
+                },
+                "unclassified_source_kinds": {
+                    kind: {
+                        "train_documents": sum(d["document_kind"] == kind for d in unclassified),
+                        "train_bytes": sum(len(d["text"].encode("utf-8")) for d in unclassified if d["document_kind"] == kind),
+                        "reason": "not in the frozen nine tokenizer groups",
+                    }
+                    for kind in sorted({d["document_kind"] for d in unclassified})
+                },
+            }
+            if spec.schema_version == 2
+            else {}
+        ),
         "identity": identity,
         "sample_receipt": receipt,
         "fit_sample_sha256": sha256_file(sample),

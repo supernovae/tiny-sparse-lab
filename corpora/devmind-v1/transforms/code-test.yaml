@@ -1,0 +1,10 @@
+id: devmind_v1_scenarios_code_test
+version: '2'
+kind: deterministic_scenarios
+parameters:
+  generator: code_test_workflow_v2
+  seed_ranges:
+    - {start: 0, end: 799, scenario_family: code_test_train, template_family: code_test_template_train_v2}
+    - {start: 800, end: 899, scenario_family: code_test_validation, template_family: code_test_template_validation_v2}
+    - {start: 900, end: 999, scenario_family: code_test_test, template_family: code_test_template_test_v2}
+inputs: [code_test_worlds]

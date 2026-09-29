@@ -141,12 +141,20 @@ _COPYLEFT = frozenset(
     {
         "MPL-2.0",
         "GPL-2.0-only",
+        "GPL-2.0",
+        "GPL-2.0+",
         "GPL-2.0-or-later",
         "GPL-3.0-only",
+        "GPL-3.0",
+        "GPL-3.0+",
         "GPL-3.0-or-later",
         "LGPL-2.1-only",
+        "LGPL-2.1",
+        "LGPL-2.1+",
         "LGPL-2.1-or-later",
         "LGPL-3.0-only",
+        "LGPL-3.0",
+        "LGPL-3.0+",
         "LGPL-3.0-or-later",
         "AGPL-3.0-only",
         "AGPL-3.0-or-later",
@@ -166,9 +174,7 @@ _RESTRICTED = frozenset(
 )
 _TOKEN = re.compile(r"\(|\)|AND\b|OR\b|WITH\b|[A-Za-z0-9][A-Za-z0-9.\-+]*", re.ASCII)
 _SPDX_LINE = re.compile(r"SPDX-License-Identifier\s*:\s*([^\r\n]+)", re.IGNORECASE)
-_COPYRIGHT_LINE = re.compile(
-    r"\b(?:SPDX-FileCopyrightText|Copyright\s*(?:\(c\)|©|:))", re.IGNORECASE
-)
+_COPYRIGHT_LINE = re.compile(r"\b(?:SPDX-FileCopyrightText|Copyright\b)", re.IGNORECASE)
 _BOUNDARIES = frozenset(
     {
         "vendor",
@@ -221,7 +227,9 @@ def _license_class(expression: str) -> str:
                 raise ValueError("missing SPDX exception")
             exception = tokens[position]
             position += 1
-            if (token, exception) != ("GPL-2.0-only", "Linux-syscall-note"):
+            if exception != "Linux-syscall-note" or token not in {
+                "GPL-2.0", "GPL-2.0-only", "GPL-2.0+", "GPL-2.0-or-later"
+            }:
                 return {"unknown"}
         if token in _PERMISSIVE:
             return {"permissive"}

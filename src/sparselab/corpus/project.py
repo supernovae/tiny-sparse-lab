@@ -121,8 +121,19 @@ class DeterministicAcquisition(StrictModel):
         "platform_fault_v1",
         "deployment_change_v1",
         "code_test_workflow_v1",
+        "filesystem_judgment_v2",
+        "platform_fault_v2",
+        "deployment_change_v2",
+        "code_test_workflow_v2",
     ]
-    generator_version: Literal["1"]
+    generator_version: Literal["1", "2"]
+
+    @model_validator(mode="after")
+    def version_matches_generator(self) -> DeterministicAcquisition:
+        expected = self.generator.rsplit("_v", 1)[-1]
+        if self.generator_version != expected:
+            raise ValueError("generator_version must match registered generator ID")
+        return self
 
 
 class InferenceAcquisition(StrictModel):

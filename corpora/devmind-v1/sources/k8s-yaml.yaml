@@ -1,0 +1,20 @@
+schema_version: 2
+id: k8s_yaml
+kind: git
+canonical_uri: https://github.com/kubernetes/website.git
+revision: 69f4fc12ef397cacb60d3b6830ef7c6d6b87245e
+license: CC-BY-4.0
+license_url: https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-4.0
+  license_references: [https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE]
+  notices: ['Credit Kubernetes Authors; preserve terms and cite each selected example filename.']
+domains: [containers, configuration, deployment_change]
+document_kinds: [yaml]
+source_family: k8s_yaml_train
+acquisition:
+  include: ['content/en/examples/admin/resource/*.yaml', 'content/en/examples/access/*.yaml']
+  exclude: ['content/en/examples/admin/cloud/*']
+  max_bytes: 180000

@@ -1,0 +1,20 @@
+schema_version: 2
+id: k8s_shell_validation
+kind: git
+canonical_uri: https://github.com/kubernetes/website.git
+revision: 69f4fc12ef397cacb60d3b6830ef7c6d6b87245e
+license: CC-BY-4.0
+license_url: https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-4.0
+  license_references: [https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE]
+  notices: ['Credit Kubernetes Authors; scripts are inert training text and are never executed.']
+domains: [containers, shell, security, deployment_change]
+document_kinds: [shell]
+source_family: k8s_shell_validation
+acquisition:
+  include: ['content/en/examples/admin/resource/memory-available.sh', 'content/en/examples/admin/resource/memory-available-cgroupv2.sh', 'content/en/examples/security/kind-with-cluster-level-baseline-pod-security.sh', 'content/en/examples/security/kind-with-namespace-level-baseline-pod-security.sh']
+  exclude: []
+  max_bytes: 30000

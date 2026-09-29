@@ -1,0 +1,20 @@
+schema_version: 2
+id: python_library
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PSF-2.0
+  license_references: [https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE]
+  notices: ['Python Software Foundation/contributors; preserve PSF, CNRI and dual PSF/0BSD documentation-example notices.']
+domains: [programming, operating_systems, networking, storage, security, testing_build]
+document_kinds: [prose]
+source_family: python_library_train
+acquisition:
+  include: ['Doc/library/pathlib.rst', 'Doc/library/subprocess.rst', 'Doc/library/asyncio.rst', 'Doc/library/unittest.rst', 'Doc/library/json.rst', 'Doc/library/socket.rst', 'Doc/library/http.rst', 'Doc/library/ssl.rst', 'Doc/library/shutil.rst', 'Doc/library/os.rst', 'Doc/library/sys.rst', 'Doc/library/logging.rst', 'Doc/library/argparse.rst', 'Doc/library/selectors.rst', 'Doc/library/threading.rst', 'Doc/library/multiprocessing.rst', 'Doc/library/venv.rst', 'Doc/library/tempfile.rst', 'Doc/library/urllib.request.rst', 'Doc/library/http.client.rst', 'Doc/library/tomllib.rst']
+  exclude: []
+  max_bytes: 2400000

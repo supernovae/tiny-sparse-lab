@@ -1,0 +1,20 @@
+schema_version: 2
+id: go_url_validation
+kind: git
+canonical_uri: https://github.com/golang/go.git
+revision: 2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48
+license: BSD-3-Clause
+license_url: https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE
+rights:
+  training_eligibility: eligible
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause
+  license_references: [https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE]
+  notices: ['Retain The Go Authors copyright, BSD conditions and disclaimer.']
+domains: [programming, networking, testing_build]
+document_kinds: [go]
+source_family: go_url_validation
+acquisition:
+  include: ['src/net/url/url.go', 'src/net/url/url_test.go', 'src/net/url/example_test.go']
+  exclude: []
+  max_bytes: 250000

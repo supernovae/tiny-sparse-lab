@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "suite_id": "devmind-pretrain-v1-independent-tokenizer-probes-v1",
+  "samples": [
+    {
+      "id": "prose-explanation",
+      "group": "prose",
+      "text": "A small change is easier to review when the expected result and a way to undo it are stated plainly. Compare the observed result with that expectation before proceeding.",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "prose-uncertainty",
+      "group": "prose",
+      "text": "If the available description leaves two interpretations open, ask which one is intended rather than presenting either guess as a fact.",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "python-typed-function",
+      "group": "python",
+      "text": "def pending_names(rows: list[dict[str, str]]) -> list[str]:\n    return [row[\"name\"] for row in rows if row.get(\"state\") == \"pending\"]\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "python-exception",
+      "group": "python",
+      "text": "def require_limit(value: int) -> int:\n    if value < 0:\n        raise ValueError(\"limit must be nonnegative\")\n    return value\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "go-error-path",
+      "group": "go",
+      "text": "func label(n int) (string, error) {\n    if n < 0 { return \"\", fmt.Errorf(\"negative index: %d\", n) }\n    return fmt.Sprintf(\"item-%d\", n), nil\n}\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "go-map-lookup",
+      "group": "go",
+      "text": "func lookup(m map[string]int, key string) (int, bool) {\n    value, ok := m[key]\n    return value, ok\n}\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "rust-result",
+      "group": "rust",
+      "text": "fn positive(n: i64) -> Result<u64, &'static str> {\n    u64::try_from(n).map_err(|_| \"negative value\")\n}\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "rust-iterator",
+      "group": "rust",
+      "text": "fn active<'a>(items: &'a [(&'a str, bool)]) -> Vec<&'a str> {\n    items.iter().filter(|(_, ok)| *ok).map(|(name, _)| *name).collect()\n}\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "shell-quoted-arguments",
+      "group": "shell",
+      "text": "#!/bin/sh\nset -eu\nfor item in \"$@\"; do\n    printf 'item: %s\\n' \"$item\"\ndone\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "shell-read-only",
+      "group": "shell",
+      "text": "#!/bin/sh\nprintf 'selected=%s\\n' \"${SELECTION:-unset}\"\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "yaml-service",
+      "group": "yaml",
+      "text": "service:\n  name: example-service\n  replicas: 2\n  endpoints:\n    - port: 8080\n      protocol: tcp\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "yaml-workflow",
+      "group": "yaml",
+      "text": "workflow:\n  enabled: true\n  checks:\n    - syntax\n    - unit\n  timeout_seconds: 30\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "json-status",
+      "group": "json",
+      "text": "{\"task\":\"example\",\"status\":\"waiting\",\"attempts\":2,\"tags\":[\"small\",\"reviewed\"]}",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "json-config",
+      "group": "json",
+      "text": "{\"settings\":{\"dry_run\":true,\"limit\":16},\"owners\":[\"team-a\"]}",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "toml-package",
+      "group": "toml",
+      "text": "[package]\nname = \"sample-tool\"\nversion = \"0.1.0\"\n\n[features]\ndefault = []\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "toml-worker",
+      "group": "toml",
+      "text": "[worker]\nparallelism = 2\ntimeout_seconds = 15\n\n[worker.labels]\nzone = \"sandbox\"\n",
+      "provenance": "independently_authored"
+    },
+    {
+      "id": "logs-synthetic-transition",
+      "group": "logs",
+      "text": "SYNTHETIC SYNTAX ONLY; NOT AN OBSERVED EVENT\n2099-01-01T00:00:00Z INFO task=fictional-7 state=queued\n2099-01-01T00:00:02Z WARN task=fictional-7 state=retrying reason=timeout\n",
+      "provenance": "synthetic_syntax"
+    },
+    {
+      "id": "logs-synthetic-error",
+      "group": "logs",
+      "text": "SYNTHETIC SYNTAX ONLY; NOT AN OBSERVED EVENT\n2099-01-02T03:04:05Z ERROR component=example queue_depth=42 message=\"fictional limit exceeded\"\n2099-01-02T03:04:06Z INFO component=example state=paused\n",
+      "provenance": "synthetic_syntax"
+    }
+  ]
+}

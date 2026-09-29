@@ -1,0 +1,9 @@
+schema_version: 2
+publication_mode: metadata_reconstruction_only
+# Descriptive intent only; actual train tokens and domain overlap are measured.
+mixture:
+  developer_systems: 1.0
+accepted_generation_statuses: [source_entailed, oracle_verified, cross_source_verified, human_reviewed]
+lm: {selected: true, training_splits: [train, validation]}
+chat: {selected: true, training_splits: [train, validation]}
+keep_nonredistributable_local: true

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from sparselab.config.models import TokenizerTrainConfig
 from sparselab.corpus.tokenizer_bakeoff import (
@@ -14,8 +15,10 @@ from sparselab.corpus.tokenizer_bakeoff import (
     Declaration,
     _bind_manifest,
     _dataset,
+    _distinct_sources,
     _selection,
     choose_candidate,
+    load_declaration,
 )
 from sparselab.data.tokenizer import train_tokenizer, verify_tokenizer_artifact
 
@@ -64,6 +67,18 @@ def _fixture(tmp_path: Path, *, overlap: bool = False) -> Path:
     return release
 
 
+def test_loaded_pilot_declaration_retains_frozen_group_selection(tmp_path: Path) -> None:
+    expected = _spec().model_copy(
+        update={"schema_version": 2, "groups": GROUPS[:6]}
+    )
+    path = tmp_path / "pilot.yaml"
+    path.write_text(yaml.safe_dump(expected.model_dump(mode="json")))
+    assert load_declaration(path) == expected
+    path.write_text(yaml.safe_dump(expected.model_copy(update={"schema_version": 1}).model_dump(mode="json")))
+    with pytest.raises(ValueError, match="approved candidates"):
+        load_declaration(path)
+
+
 def test_selection_stable_per_kind_and_family_disjoint(tmp_path: Path) -> None:
     release = _fixture(tmp_path)
     first = _selection(release, _spec())
@@ -75,6 +90,47 @@ def test_selection_stable_per_kind_and_family_disjoint(tmp_path: Path) -> None:
         assert fit[group][0]["split"] == "train"
         assert heldout[group][0]["split"] == "validation"
         assert fit[group][0]["source_family"] != heldout[group][0]["source_family"]
+
+
+def test_pilot_bakeoff_keeps_observed_groups_without_fitting_probes(tmp_path: Path) -> None:
+    release = _fixture(tmp_path)
+    pilot = _spec().model_copy(update={"schema_version": 2, "groups": GROUPS[:-1]})
+    with pytest.raises(ValueError, match="measurable source groups omitted"):
+        _selection(release, pilot)
+    docs_path = release / "documents.jsonl"
+    docs = [json.loads(line) for line in docs_path.read_text().splitlines()]
+    docs_path.write_text(
+        "".join(json.dumps(doc) + "\n" for doc in docs if doc["document_kind"] != "logs")
+    )
+    for split in ("train", "validation"):
+        path = release / "lm" / f"{split}.lineage.jsonl"
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows if not row["record_id"].endswith("-logs")))
+    fit, heldout, _ = _selection(release, pilot)
+    assert tuple(fit) == tuple(heldout) == GROUPS[:-1]
+    with pytest.raises(ValueError, match="missing required"):
+        _selection(release, _spec())
+
+
+def test_pilot_distinct_supply_includes_unmeasured_source_kind(tmp_path: Path) -> None:
+    release = _fixture(tmp_path)
+    content = "int checked(void) { return 42; }\n"
+    source = {
+        "document_id": "train-code", "split": "train", "text": content,
+        "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
+        "document_kind": "code", "source_location": "module.c",
+        "source_family": "train_family",
+    }
+    with (release / "documents.jsonl").open("a") as stream:
+        stream.write(json.dumps(source) + "\n")
+    with (release / "lm" / "train.lineage.jsonl").open("a") as stream:
+        stream.write(json.dumps({"record_id": "train-code", "split": "train"}) + "\n")
+    _, _, train = _selection(
+        release, _spec().model_copy(update={"schema_version": 2})
+    )
+    assert "code" not in train
+    assert source["content_sha256"] in _distinct_sources(release, train, 2)
+    assert source["content_sha256"] not in _distinct_sources(release, train, 1)
 
 
 def test_selection_rejects_shared_family(tmp_path: Path) -> None:

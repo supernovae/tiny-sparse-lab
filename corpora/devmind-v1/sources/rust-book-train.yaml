@@ -1,0 +1,20 @@
+schema_version: 2
+id: rust_book_train
+kind: git
+canonical_uri: https://github.com/rust-lang/book.git
+revision: 1500248d8f230566e4ec9f27fcbb8fe9e2898ab1
+license: MIT
+license_url: https://github.com/rust-lang/book/blob/1500248d8f230566e4ec9f27fcbb8fe9e2898ab1/LICENSE-MIT
+rights:
+  training_eligibility: eligible
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/rust-lang/book/blob/1500248d8f230566e4ec9f27fcbb8fe9e2898ab1/LICENSE-MIT]
+  notices: ['Rust Project Developers: retain MIT copyright and license notice.']
+domains: [programming, developer_workflows, testing_build]
+document_kinds: [prose]
+source_family: rust_book_train
+acquisition:
+  include: ['src/ch0*.md']
+  exclude: []
+  max_bytes: 950000

@@ -1,0 +1,40 @@
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  git_manual_train: train
+  git_shell_train: train
+  git_shell_validation: validation
+  git_technical_validation: validation
+  go_code_train: train
+  go_url_validation: validation
+  k8s_concepts_train: train
+  k8s_shell_validation: validation
+  k8s_tasks_validation: validation
+  k8s_tutorials_test: test
+  k8s_yaml_train: train
+  linux_ext4_train: train
+  linux_filesystems_validation: validation
+  linux_networking_test: test
+  linux_process_train: train
+  otel_docs_train: train
+  otel_yaml_validation: validation
+  python_asyncio_validation: validation
+  python_code_train: train
+  python_library_train: train
+  rust_alloc_validation: validation
+  rust_book_train: train
+  rust_book_validation: validation
+  rust_core_train: train
+  filesystem_train: train
+  filesystem_validation: validation
+  filesystem_test: test
+  platform_train: train
+  platform_validation: validation
+  platform_test: test
+  deployment_train: train
+  deployment_validation: validation
+  deployment_test: test
+  code_test_train: train
+  code_test_validation: validation
+  code_test_test: test
