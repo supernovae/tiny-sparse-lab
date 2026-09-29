@@ -1,0 +1,15 @@
+schema_version: 1
+id: rust_book
+kind: git
+canonical_uri: https://github.com/rust-lang/book.git
+revision: 1500248d8f230566e4ec9f27fcbb8fe9e2898ab1
+license: MIT
+license_url: https://github.com/rust-lang/book/blob/1500248d8f230566e4ec9f27fcbb8fe9e2898ab1/LICENSE-MIT
+notes: 'The Rust Project Developers; retain MIT notice; extracted/normalized for DevMind v0.'
+redistribution: redistributable
+domains: [programming, testing]
+document_kinds: [rust]
+source_family: rust_book_train
+acquisition:
+  include: ['src/ch*.md']
+  max_bytes: 15000000

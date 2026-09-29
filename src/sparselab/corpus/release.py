@@ -156,6 +156,7 @@ def _validate_rows(root: Path) -> None:
         raise ValueError("duplicate lineage ID")
     classified = any("origin" in row for row in lineages)
     if classified:
+        from sparselab.corpus.pipeline import _path_scenario, _scenario, _scenario_shape
         from sparselab.corpus.provenance import (
             rendered_digest,
             shape_for_record,
@@ -213,7 +214,7 @@ def _validate_rows(root: Path) -> None:
             if row["origin"] != expected_origin:
                 raise ValueError("lineage origin disagrees with source and transform")
             expected_domains = (
-                document_map[row["record_id"]]["domains"]
+                sorted(document_map[row["record_id"]]["domains"])
                 if row["record_kind"] == "document"
                 else ["systems_scenarios"]
                 if row.get("generator_world_id")
@@ -226,7 +227,7 @@ def _validate_rows(root: Path) -> None:
                 )
             )
             if (
-                row.get("domains") != expected_domains
+                sorted(row.get("domains", [])) != expected_domains
                 or row["shape"]["attributes"]["source_domains"] != expected_domains
             ):
                 raise ValueError("shape source domain attribution mismatch")
@@ -236,11 +237,23 @@ def _validate_rows(root: Path) -> None:
                 if scenario is None:
                     raise ValueError("oracle scenario reference mismatch")
                 world = scenario["world_state"]
-                expected_result = (
-                    PurePosixPath(world["path"]).suffix
-                    if world.get("operation") == "suffix"
-                    else None
-                )
+                generator_id = scenario["generator_id"]
+                if generator_id == "pathlib_path_suffix_v1":
+                    expected_scenario = _path_scenario(
+                        scenario["world_seed"],
+                        scenario["scenario_family_id"],
+                        scenario["transform_id"],
+                    )
+                    expected_result = PurePosixPath(world["path"]).suffix
+                else:
+                    expected_scenario = _scenario(
+                        generator_id,
+                        scenario["world_seed"],
+                        scenario["scenario_family_id"],
+                        scenario["template_family_id"],
+                        scenario["transform_id"],
+                    )
+                    expected_result = expected_scenario["oracle_answer"]
                 implementation = receipt.get("identity", receipt.get("build_identity"))[
                     "implementation_sha256"
                 ]
@@ -256,6 +269,13 @@ def _validate_rows(root: Path) -> None:
                     or evidence["actual_result"] != expected_result
                     or evidence["comparison_status"] != "match"
                     or expected_result != scenario["oracle_answer"]
+                    or expected_scenario
+                    != {key: value for key, value in scenario.items() if key != "split"}
+                    or (
+                        evidence.get("receipt") != scenario.get("oracle_receipt")
+                        if generator_id != "pathlib_path_suffix_v1"
+                        else "receipt" in evidence
+                    )
                 ):
                     raise ValueError("oracle verification evidence mismatch")
             kind = row["record_kind"]
@@ -295,8 +315,14 @@ def _validate_rows(root: Path) -> None:
             expected_shape = {
                 "lexical_candidate": "lexical_inventory",
                 "semantic_candidate": "definition",
-                "scenario": "troubleshooting_scenario",
-                "generation": "direct_qa",
+                "scenario": _scenario_shape(source_payload, "scenario")
+                if source_payload is not None
+                else None,
+                "generation": (source_payload.get("parsed_output") or {}).get(
+                    "shape", "direct_qa"
+                )
+                if source_payload is not None
+                else None,
                 "tool_episode": "tool_trace",
                 "chat_sft": (
                     source_payload.get("semantic_shape")
@@ -385,7 +411,7 @@ def _validate_rows(root: Path) -> None:
                 generation = generations.get(row["record_id"])
                 if row["verification"]["status"] == "source_entailed" and (
                     generation["parsed_output"] is None
-                    or generation["parsed_output"]["answer"] != evidence["passage"]
+                    or generation["parsed_output"]["answer"] not in evidence["passage"]
                     or generation["parsed_output"]["citation_id"]
                     != evidence["document_id"]
                 ):

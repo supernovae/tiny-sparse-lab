@@ -1,0 +1,28 @@
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  k8s_concepts_train: train
+  k8s_tasks_validation: validation
+  k8s_tutorials_test: test
+  python_library_train: train
+  python_code_train: train
+  python_tutorial_validation: validation
+  go_docs_train: train
+  go_code_train: train
+  rust_book_train: train
+  general_train: train
+  general_validation: validation
+  general_test: test
+  filesystem_train: train
+  filesystem_validation: validation
+  filesystem_test: test
+  platform_train: train
+  platform_validation: validation
+  platform_test: test
+  deployment_train: train
+  deployment_validation: validation
+  deployment_test: test
+  code_test_train: train
+  code_test_validation: validation
+  code_test_test: test

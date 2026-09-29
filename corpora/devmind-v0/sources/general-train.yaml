@@ -1,0 +1,16 @@
+schema_version: 1
+id: general_train
+kind: git
+canonical_uri: https://github.com/openstax/osbooks-physics.git
+revision: dfdfd7a5356ecdd42e504de3df50d9153e33ea49
+license: CC-BY-4.0
+license_url: https://github.com/openstax/osbooks-physics/blob/dfdfd7a5356ecdd42e504de3df50d9153e33ea49/LICENSE
+notes: 'OpenStax, Rice University, Physics; preserve creator, license URL and change notice: CNXML text extracted for DevMind v0. Embedded media excluded.'
+redistribution: redistributable
+domains: [general_education]
+document_kinds: [prose]
+source_family: general_train
+acquisition:
+  include: ['modules/*/index.cnxml']
+  exclude: ['modules/m54081/index.cnxml', 'modules/m54082/index.cnxml']
+  max_bytes: 70000000

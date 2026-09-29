@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from sparselab.corpus.acquisition import acquire
-from sparselab.corpus.pipeline import _records_for_file, _sections, _split, build
+from sparselab.corpus.pipeline import _records_for_file, _split, build
 from sparselab.corpus.project import SourceDeclaration, load_project
 from sparselab.corpus.release import freeze, lineage, review, sample, verify_release
 
@@ -57,7 +57,6 @@ def test_markdown_ancestry_fences_and_raw_evidence() -> None:
         == docs[1][0]["text"].encode()
     )
     assert docs[2][0]["content_sha256"] != docs[1][0]["content_sha256"]
-    assert _sections("# X\r\n## Y\r\n", True)[0][1] == ["X"]
 
 
 def test_normalized_duplicates_preserve_distinct_raw_origins() -> None:

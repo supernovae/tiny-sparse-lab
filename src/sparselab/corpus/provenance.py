@@ -35,6 +35,13 @@ SHAPES = frozenset(
         "direct_qa",
         "tool_trace",
         "decision_record",
+        "source_grounded_qa",
+        "paraphrased_qa",
+        "error_diagnosis",
+        "stop_or_abstain",
+        "explanation",
+        "multi_turn_dialogue",
+        "verification_episode",
     }
 )
 STATUSES = frozenset(
@@ -229,6 +236,17 @@ def validate_verification(
             doc = documents.get(document_id)
             if doc is None or doc["text"][span[0] : span[1]] != passage:
                 raise ValueError("source entailment passage mismatch")
+            byte_span = evidence.get("byte_span")
+            if byte_span is not None and (
+                not isinstance(byte_span, list)
+                or len(byte_span) != 2
+                or not all(type(n) is int for n in byte_span)
+                or byte_span[0] < 0
+                or byte_span[1] <= byte_span[0]
+                or doc["text"].encode("utf-8")[byte_span[0] : byte_span[1]]
+                != passage.encode("utf-8")
+            ):
+                raise ValueError("normalized source byte span mismatch")
     elif status == "oracle_verified":
         if not all(
             isinstance(evidence.get(k), str) and evidence[k]
@@ -265,6 +283,29 @@ def validate_verification(
         expected = hashlib.sha256(canonical_json([world, answer])).hexdigest()
         if evidence["oracle_identity"] != expected:
             raise ValueError("oracle identity does not match world and answer")
+        receipt = evidence.get("receipt")
+        if receipt is not None and (
+            not isinstance(receipt, dict)
+            or receipt.get("schema_version") != 1
+            or receipt.get("generator_version") != "1"
+            or receipt.get("world_id") != evidence["generator_world_id"]
+            or receipt.get("world_facts") != world
+            or receipt.get("judgment") not in {"proceed", "inspect", "ask", "stop"}
+            or not answer.startswith(receipt["judgment"] + ":")
+            or any(
+                not isinstance(receipt.get(name), str) or not receipt[name]
+                for name in (
+                    "generator_id",
+                    "scenario_family_id",
+                    "template_family_id",
+                    "evidence",
+                    "next_diagnostic",
+                    "verification",
+                    "rollback",
+                )
+            )
+        ):
+            raise ValueError("invalid versioned scenario oracle receipt")
     elif status == "human_reviewed":
         if not all(
             isinstance(evidence.get(k), str) and evidence[k]

@@ -8,6 +8,7 @@ import os
 import re
 import tempfile
 import unicodedata
+import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -92,9 +93,11 @@ class ScenarioRecord(StrictModel):
     world_seed: int
     scenario_family_id: str
     generator_world_id: str
-    world_state: dict[str, str]
+    world_state: dict[str, Any]
     oracle_answer: str
     rendered_example: dict[str, str]
+    template_family_id: str | None = None
+    oracle_receipt: dict[str, Any] | None = None
     interpreter: str
     transform_id: str
     scenario_id: str
@@ -162,6 +165,7 @@ KINDS = frozenset(
         "semantic_candidates",
         "deterministic_scenarios",
         "inference_qa",
+        "source_qa",
         "manual_semantic",
         "chat_sft",
         "tool_episode",
@@ -210,6 +214,58 @@ def _normalized(text: str) -> str:
     return unicodedata.normalize("NFC", text.replace("\r\n", "\n").replace("\r", "\n"))
 
 
+def _cnxml_passages(raw: bytes) -> list[tuple[str, list[str], int, int]]:
+    """Extract prose; accept predefined XML escapes, never expand custom entities."""
+    if re.search(
+        rb"<!\s*(?:DOCTYPE|ENTITY)\b|&(?!amp;|lt;|gt;|quot;|apos;)",
+        raw,
+        re.IGNORECASE,
+    ):
+        raise ValueError("CNXML custom entities and DTDs are not permitted")
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError as exc:
+        raise ValueError("invalid CNXML") from exc
+    excluded = {"media", "image", "video", "audio", "figure", "download"}
+    for element in root.iter():
+        if element.tag.rsplit("}", 1)[-1] in excluded and any(
+            value.startswith(("http:", "https:", "//"))
+            for key, value in element.attrib.items()
+            if key in {"src", "href", "url"}
+        ):
+            raise ValueError("CNXML references external media")
+    content = root.find(".//{*}content")
+    if content is None:
+        raise ValueError("CNXML content missing")
+    blocks = {"para", "title", "code", "item"}
+    parts: list[str] = []
+
+    def visible_text(element: ET.Element) -> str:
+        pieces = [element.text or ""]
+        for child in element:
+            if child.tag.rsplit("}", 1)[-1] not in excluded:
+                pieces.append(visible_text(child))
+            pieces.append(child.tail or "")
+        return "".join(pieces)
+
+    def visit(element: ET.Element) -> None:
+        tag = element.tag.rsplit("}", 1)[-1]
+        if tag in excluded:
+            return
+        if tag in blocks:
+            value = _normalized(" ".join(visible_text(element).split()))
+            if value:
+                parts.append(value)
+            return
+        for child in element:
+            visit(child)
+
+    visit(content)
+    if not parts:
+        raise ValueError("CNXML has no prose")
+    return [("\n".join(parts), [], 1, raw.count(b"\n") + int(not raw.endswith(b"\n")))]
+
+
 def _sections(text: str, markdown: bool) -> list[tuple[str, list[str], int, int]]:
     lines = text.splitlines(keepends=True)
     if not markdown:
@@ -240,7 +296,18 @@ def _sections(text: str, markdown: bool) -> list[tuple[str, list[str], int, int]
     for position, (start, path) in enumerate(starts):
         end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
         passage = "".join(lines[start:end])
-        if passage.strip():
+        if passage.strip() and not (
+            markdown
+            and (
+                (path and path[-1] == '{{% heading "whatsnext" %}}')
+                or all(
+                    not line.strip()
+                    or HEADING.fullmatch(line.strip())
+                    or line.strip().startswith(("{{", "<!--"))
+                    for line in passage.splitlines()
+                )
+            )
+        ):
             result.append((passage, path, start + 1, end))
     return result
 
@@ -278,6 +345,8 @@ def _records_for_file(
         passages = [
             (item[field], [], n, n) for n, item in enumerate(objects[:max_rows], 1)
         ]
+    elif suffix == ".cnxml":
+        passages = _cnxml_passages(raw)
     elif suffix in {".md", ".markdown"}:
         passages = _sections(text, True)
     else:
@@ -296,9 +365,10 @@ def _records_for_file(
             if source.kind != "huggingface_dataset"
             else f"{name}#row={start}"
         )
-        identity = digest(
-            [snapshot_id, location, raw_sha, "normalizer-nfc-markdown-v1"]
+        normalizer = (
+            "cnxml-text-v1" if suffix == ".cnxml" else "normalizer-nfc-markdown-v1"
         )
+        identity = digest([snapshot_id, location, raw_sha, normalizer])
         byte_start = byte_offsets[start - 1] if byte_offsets else None
         byte_end = byte_offsets[end] if byte_offsets else None
         raw_passage = (
@@ -325,6 +395,7 @@ def _records_for_file(
             "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "raw_content_sha256": raw_content_sha,
             "source_family": source.source_family,
+            **({"metadata": {"normalizer": normalizer}} if suffix == ".cnxml" else {}),
         }
         document = NormalizedDocument.model_validate(document).model_dump(
             mode="json", exclude_none=True
@@ -340,6 +411,7 @@ def _records_for_file(
             "line_end": end,
             "byte_start": byte_start,
             "byte_end": byte_end,
+            "normalizer": normalizer,
             "section_path": ancestry,
         }
         rows.append((document, evidence))
@@ -440,6 +512,274 @@ def _path_scenario(seed: int, family: str, stage: str) -> dict[str, Any]:
     )
 
 
+GENERATORS = frozenset(
+    {
+        "pathlib_path_suffix_v1",
+        "filesystem_judgment_v1",
+        "platform_fault_v1",
+        "deployment_change_v1",
+        "code_test_workflow_v1",
+    }
+)
+
+
+def _scenario(
+    generator: str, seed: int, family: str, template: str, stage: str
+) -> dict[str, Any]:
+    """Pure world constructors: no host inspection, commands, or mutable state."""
+    if generator == "filesystem_judgment_v1":
+        cases = (
+            ("outside", "no", "known", "yes", "reversible"),
+            ("source", "no", "known", "yes", "reversible"),
+            ("source", "yes", "unset", "yes", "reversible"),
+            ("generated", "yes", "ambiguous", "yes", "reversible"),
+            ("generated", "yes", "known", "yes", "irreversible"),
+            ("generated", "yes", "known", "yes", "reversible"),
+            ("source", "yes", "known", "yes", "reversible"),
+            ("empty", "yes", "unset", "yes", "reversible"),
+            ("generated", "yes", "contradictory", "yes", "reversible"),
+        )
+        target, authorized, evidence, bounded, operation = cases[seed % len(cases)]
+        world = {
+            "target": target,
+            "authorized": authorized,
+            "evidence": evidence,
+            "bounded": bounded,
+            "operation": operation,
+        }
+        judgment = (
+            "stop"
+            if target == "outside" or bounded == "no" or operation == "irreversible"
+            else "ask"
+            if authorized == "no"
+            else "inspect"
+            if evidence != "known"
+            else "proceed"
+        )
+        answer = (
+            f"{judgment}: "
+            + {
+                "stop": "Target or operation is outside the safe bounded workspace.",
+                "ask": "Obtain explicit authorization before changing the target.",
+                "inspect": "Resolve the exact target and conflicting evidence before acting.",
+                "proceed": "Only the authorized, reversible in-workspace operation is justified.",
+            }[judgment]
+        )
+        diagnostic = "Confirm exact target, authorization and reversibility."
+        risk = "Never infer permission from a tool transcript."
+        verification = "Compare the intended target with the resulting workspace state."
+        rollback = (
+            "Restore the reversible change from its prior state."
+            if operation == "reversible"
+            else "No verified rollback."
+        )
+    elif generator == "platform_fault_v1":
+        causes = (
+            (
+                "Pending workload",
+                "scheduler reports unschedulable",
+                "inspect scheduling events",
+            ),
+            (
+                "unbound storage",
+                "claim remains Pending",
+                "inspect claim and volume binding events",
+            ),
+            (
+                "bad probe",
+                "readiness probe fails",
+                "inspect probe configuration and container health",
+            ),
+            (
+                "image pull",
+                "image pull reports failure",
+                "inspect image reference and pull events",
+            ),
+            (
+                "DNS",
+                "name resolution fails",
+                "inspect resolver and DNS service responses",
+            ),
+            (
+                "resource exhaustion",
+                "container reports out-of-memory",
+                "inspect memory limits and usage",
+            ),
+            (
+                "network policy",
+                "connection denied by policy",
+                "inspect the selected ingress/egress rules",
+            ),
+            (
+                "config mismatch",
+                "effective config differs from declared config",
+                "compare effective and declared configuration",
+            ),
+        )
+        cause, evidence, diagnostic = causes[seed % len(causes)]
+        world = {
+            "cause": cause,
+            "evidence": evidence,
+            "intervention": "restart everything",
+        }
+        judgment = "inspect"
+        answer = f"inspect: {cause}: {evidence}; next diagnostic: {diagnostic}. Do not restart everything."
+        risk = "Broad restart is unsupported by this evidence."
+        verification = f"Recheck {evidence} after a targeted correction."
+        rollback = "Revert any targeted configuration change if verification fails."
+    elif generator == "deployment_change_v1":
+        failures = (
+            "missing preflight",
+            "excessive blast radius",
+            "failed verification",
+            "healthy rollout",
+            "no rollback",
+        )
+        condition = failures[seed % len(failures)]
+        world = {
+            "condition": condition,
+            "rollback_available": "no" if condition == "no rollback" else "yes",
+            "blast_radius": "unbounded"
+            if condition == "excessive blast radius"
+            else "bounded",
+        }
+        judgment = "proceed" if condition == "healthy rollout" else "stop"
+        diagnostic = "Confirm preflight, bounded blast radius and rollback readiness."
+        answer = f"{judgment}: {condition}; {diagnostic}"
+        risk = "Deployment may affect users outside the intended scope."
+        verification = "Check rollout health and user-visible success criteria."
+        rollback = (
+            "No verified rollback is available."
+            if condition == "no rollback"
+            else "Return to the last verified deployment if health fails."
+        )
+    elif generator == "code_test_workflow_v1":
+        conditions = (
+            "focused test fails",
+            "candidate edit unverified",
+            "focused test passes",
+            "broad regression fails",
+            "goal verified",
+        )
+        condition = conditions[seed % len(conditions)]
+        world = {
+            "fixture": "inert disposable fixture",
+            "condition": condition,
+            "candidate_edit": "local reversible edit",
+        }
+        judgment = "stop" if condition == "goal verified" else "inspect"
+        diagnostic = (
+            "Inspect the failure and run focused then broad verification."
+            if judgment != "stop"
+            else "No further edits needed."
+        )
+        answer = f"{judgment}: {condition}; {diagnostic}"
+        risk = "An unverified change is not a successful fix."
+        verification = "Focused and broad checks must agree before concluding success."
+        rollback = "Revert the disposable fixture edit if regression persists."
+    else:
+        raise ValueError(f"unregistered scenario generator: {generator}")
+    world["fixture_id"] = f"{generator}:{seed}"
+    receipt = {
+        "schema_version": 1,
+        "generator_id": generator,
+        "generator_version": "1",
+        "world_id": f"{generator}:{seed}",
+        "scenario_family_id": family,
+        "template_family_id": template,
+        "world_facts": world,
+        "judgment": judgment,
+        "evidence": world.get("evidence", world.get("condition", world.get("target"))),
+        "next_diagnostic": diagnostic,
+        "risk": risk,
+        "verification": verification,
+        "rollback": rollback,
+    }
+    result = {
+        "schema_version": 1,
+        "generator_id": generator,
+        "generator_version": "1",
+        "world_seed": seed,
+        "scenario_family_id": family,
+        "generator_world_id": receipt["world_id"],
+        "template_family_id": template,
+        "world_state": world,
+        "oracle_answer": answer,
+        "oracle_receipt": receipt,
+        "rendered_example": {
+            "question": (
+                f"Given this declared {generator} world {world}, what is the next bounded judgment?"
+                if seed < 800
+                else f"Review only the stated {generator} facts {world}. What should happen next?"
+                if seed < 900
+                else f"Evaluate the evidence in {world} for {generator}; select a bounded response."
+            ),
+            "answer": answer,
+        },
+        "interpreter": generator,
+        "transform_id": stage,
+    }
+    result["scenario_id"] = digest(result)
+    return ScenarioRecord.model_validate(result).model_dump(
+        mode="json", exclude_none=True
+    )
+
+
+def _scenario_messages(scenario: dict[str, Any], tool: bool) -> list[dict[str, Any]]:
+    question = scenario["rendered_example"]["question"]
+    answer = scenario["oracle_answer"]
+    if not question or scenario["rendered_example"].get("answer") != answer:
+        raise ValueError("scenario lacks a verified rendered answer")
+    if not tool:
+        return [
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": answer},
+        ]
+    call_id = scenario["scenario_id"][:16]
+    if scenario["generator_id"] == "pathlib_path_suffix_v1":
+        name = "pathlib_suffix"
+        arguments = {"path": scenario["world_state"]["path"]}
+        instruction = "Inspect the declared path world."
+        final = f"The tool result is {answer}; checking against the declared path suffix gives {answer}. Final answer: {answer}"
+    else:
+        receipt = scenario.get("oracle_receipt")
+        if (
+            not receipt
+            or not receipt.get("evidence")
+            or not receipt.get("verification")
+        ):
+            raise ValueError("scenario has no complete inert oracle tool receipt")
+        name = "declared_world_inspection_v1"
+        arguments = {"world_id": receipt["world_id"], "generator_version": "1"}
+        instruction = "Inspect only the inert declared world receipt."
+        final = f"Evidence: {receipt['evidence']}. {answer} Verification: {receipt['verification']} Rollback: {receipt['rollback']}"
+    return [
+        {"role": "user", "content": question},
+        {
+            "role": "assistant",
+            "content": instruction,
+            "tool_calls": [{"id": call_id, "name": name, "arguments": arguments}],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": call_id,
+            "content": answer if name == "pathlib_suffix" else str(receipt["evidence"]),
+        },
+        {"role": "assistant", "content": final},
+    ]
+
+
+def _scenario_shape(scenario: dict[str, Any], kind: str) -> str:
+    if kind == "tool_episode":
+        return "tool_trace"
+    return {
+        "filesystem_judgment_v1": "stop_or_abstain",
+        "platform_fault_v1": "error_diagnosis",
+        "deployment_change_v1": "verification_episode",
+        "code_test_workflow_v1": "multi_turn_dialogue",
+    }.get(scenario.get("generator_id"), "troubleshooting_scenario")
+
+
 def _snapshot_file(
     project: Any, lock: dict[str, Any], source_id: str, name: str
 ) -> bytes:
@@ -531,6 +871,12 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         "split": _model(project.splits),
         "release": _model(project.release),
         "implementation_sha256": sha256_file(Path(__file__)),
+        "schema_implementation_sha256": sha256_file(
+            Path(__file__).with_name("project.py")
+        ),
+        "provenance_implementation_sha256": sha256_file(
+            Path(__file__).with_name("provenance.py")
+        ),
     }
     build_id = digest(identity)
     target = root / build_id
@@ -655,6 +1001,8 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         chats: list[dict[str, Any]] = []
         tools: list[dict[str, Any]] = []
         lineage: list[dict[str, Any]] = []
+        template_splits: dict[str, str] = {}
+        world_splits: dict[str, str] = {}
         for transform in transforms:
             spec = _model(transform)
             kind, stage_id = spec["kind"], spec["id"]
@@ -781,19 +1129,124 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     output.append(row)
                 semantic.extend(output)
             elif kind == "deterministic_scenarios":
-                seeds, families = params["world_seeds"], params["scenario_families"]
+                if spec["version"] != "1":
+                    raise ValueError("scenario generator transform requires version 1")
+                generator = params["generator"]
+                if generator not in GENERATORS:
+                    raise ValueError("unregistered scenario generator")
+                if "seed_ranges" in params:
+                    if generator == "pathlib_path_suffix_v1" or set(params) != {
+                        "generator",
+                        "seed_ranges",
+                    }:
+                        raise ValueError("invalid compact generator declaration")
+                    ranges = params["seed_ranges"]
+                    if not isinstance(ranges, list) or not ranges:
+                        raise ValueError("seed_ranges must be a nonempty list")
+                    seeds, families, templates = [], [], []
+                    for interval in ranges:
+                        if not isinstance(interval, dict) or set(interval) != {
+                            "start",
+                            "end",
+                            "scenario_family",
+                            "template_family",
+                        }:
+                            raise ValueError("invalid generator seed range")
+                        start, end = interval["start"], interval["end"]
+                        if (
+                            type(start) is not int
+                            or type(end) is not int
+                            or not 0 <= start <= end <= 999
+                        ):
+                            raise ValueError("invalid inclusive generator seed range")
+                        family, template = (
+                            interval["scenario_family"],
+                            interval["template_family"],
+                        )
+                        if (
+                            not isinstance(family, str)
+                            or not family
+                            or not isinstance(template, str)
+                            or not template
+                        ):
+                            raise ValueError("missing scenario/template family")
+                        for seed in range(start, end + 1):
+                            seeds.append(seed)
+                            families.append(family)
+                            templates.append(template)
+                    if len(set(seeds)) != len(seeds):
+                        raise ValueError("overlapping generator seed ranges")
+                    if len(seeds) != 1000 or set(seeds) != set(range(1000)):
+                        raise ValueError(
+                            "compact generator declaration must partition all 0–999 seeds"
+                        )
+                else:
+                    seeds, families = params["world_seeds"], params["scenario_families"]
+                    templates = (
+                        params.get("template_families")
+                        if generator != "pathlib_path_suffix_v1"
+                        else None
+                    )
                 if (
-                    params["generator"] != "pathlib_path_suffix_v1"
+                    not seeds
                     or len(seeds) != len(families)
                     or len(set(seeds)) != len(seeds)
+                    or (
+                        generator != "pathlib_path_suffix_v1"
+                        and (
+                            not isinstance(templates, list)
+                            or len(templates) != len(seeds)
+                        )
+                    )
                 ):
                     raise ValueError("invalid scenario generator configuration")
+                declared = [
+                    s
+                    for s in project.sources
+                    if s.kind == "deterministic_generator"
+                    and s.acquisition.generator == generator
+                    and s.acquisition.generator_version == "1"
+                ]
+                if generator != "pathlib_path_suffix_v1" and not declared:
+                    raise ValueError(
+                        "scenario generator has no pinned v1 source declaration"
+                    )
                 output = [
                     _path_scenario(seed, family, stage_id)
-                    for seed, family in zip(seeds, families, strict=True)
+                    if generator == "pathlib_path_suffix_v1"
+                    else _scenario(generator, seed, family, template, stage_id)
+                    for seed, family, template in zip(
+                        seeds, families, templates or [None] * len(seeds), strict=True
+                    )
                 ]
                 for row in output:
                     row["split"] = _split(row, policy)
+                    if generator != "pathlib_path_suffix_v1":
+                        seed = row["world_seed"]
+                        expected = (
+                            "train"
+                            if 0 <= seed <= 799
+                            else "validation"
+                            if 800 <= seed <= 899
+                            else "test"
+                            if 900 <= seed <= 999
+                            else None
+                        )
+                        if row["split"] != expected:
+                            raise ValueError(
+                                "scenario seed and explicit family split disagree"
+                            )
+                        for register, key in (
+                            (template_splits, "template_family_id"),
+                            (world_splits, "generator_world_id"),
+                        ):
+                            identifier = row[key]
+                            if (
+                                identifier in register
+                                and register[identifier] != expected
+                            ):
+                                raise ValueError(f"{key} leaks across splits")
+                            register[identifier] = expected
                     ScenarioRecord.model_validate(row)
                     lineage.append(
                         {
@@ -807,7 +1260,8 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                                 stage_id,
                                 family=row["scenario_family_id"],
                                 world=row["generator_world_id"],
-                                template=digest([stage_id, "path_suffix_prompt_v1"]),
+                                template=row.get("template_family_id")
+                                or digest([stage_id, "path_suffix_prompt_v1"]),
                             ),
                             "scenario_id": row["scenario_id"],
                             "generator_identity": digest(
@@ -819,6 +1273,124 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         }
                     )
                 scenarios.extend(output)
+            elif kind == "source_qa":
+                if spec["version"] != "1" or params != {"extractor": "literal_span_v1"}:
+                    raise ValueError("source_qa requires version 1 literal_span_v1")
+                output = []
+                for doc in selected:
+                    matches = list(KEY_VALUE.finditer(doc["text"]))
+                    if not matches:
+                        rejected.append(
+                            {
+                                "source_id": doc["source_id"],
+                                "document_id": doc["document_id"],
+                                "reason": "no literal key/value answer in normalized source",
+                            }
+                        )
+                    counts = Counter(match.group(1) for match in matches)
+                    char_cursor = 0
+                    byte_cursor = 0
+                    for match in matches:
+                        byte_start = byte_cursor + len(
+                            doc["text"][char_cursor : match.start()].encode("utf-8")
+                        )
+                        byte_end = byte_start + len(match.group(0).encode("utf-8"))
+                        char_cursor, byte_cursor = match.end(), byte_end
+                        key, answer = match.group(1), match.group(2).strip()
+                        if (
+                            counts[key] != 1
+                            or not answer
+                            or len(answer) > 200
+                            or len(key) > 100
+                        ):
+                            rejected.append(
+                                {
+                                    "source_id": doc["source_id"],
+                                    "document_id": doc["document_id"],
+                                    "reason": "ambiguous or unbounded literal source answer",
+                                    "key": key,
+                                }
+                            )
+                            continue
+                        passage = match.group(0)
+                        for shape_id, question in (
+                            (
+                                "source_grounded_qa",
+                                f"According to this source, what value is set for {key}?",
+                            ),
+                            (
+                                "paraphrased_qa",
+                                f"In the cited configuration, give the value of {key}.",
+                            ),
+                        ):
+                            evidence_row = {
+                                "document_id": doc["document_id"],
+                                "passage": passage,
+                                "span": [match.start(), match.end()],
+                                "byte_span": [byte_start, byte_end],
+                                "answer": answer,
+                            }
+                            parsed = {
+                                "question": f"{question}\nSource [{doc['document_id']}]: {passage}",
+                                "answer": answer,
+                                "citation_id": doc["document_id"],
+                                "shape": shape_id,
+                            }
+                            record = {
+                                "schema_version": 1,
+                                "request_id": digest(
+                                    [
+                                        stage_id,
+                                        doc["document_id"],
+                                        match.start(),
+                                        shape_id,
+                                    ]
+                                ),
+                                "generator": {
+                                    "id": "source_qa_v1",
+                                    "version": "1",
+                                    "extractor": "literal_span_v1",
+                                    "implementation_sha256": identity[
+                                        "implementation_sha256"
+                                    ],
+                                },
+                                "source_document_ids": [doc["document_id"]],
+                                "raw_output": canonical_json(parsed).decode(),
+                                "parsed_output": parsed,
+                                "validation_status": "source_entailed",
+                                "rejection_reason": None,
+                                "evidence": evidence_row,
+                                "seed": 0,
+                                "transform_id": stage_id,
+                                "split": doc["split"],
+                            }
+                            record["generator_identity"] = digest(record["generator"])
+                            record["record_id"] = digest(record)
+                            GenerationRecord.model_validate(record)
+                            output.append(record)
+                            lineage.append(
+                                {
+                                    **_lineage(
+                                        {
+                                            "record_id": record["record_id"],
+                                            "kind": "generation",
+                                            "validation_status": "source_entailed",
+                                        },
+                                        [doc],
+                                        stage_id,
+                                        template=digest(
+                                            [
+                                                "literal_span_v1",
+                                                shape_id,
+                                                doc["source_family"],
+                                            ]
+                                        ),
+                                    ),
+                                    "generation_id": record["record_id"],
+                                    "generator_identity": record["generator_identity"],
+                                }
+                            )
+                generations.extend(output)
             elif kind == "inference_qa":
                 required = (
                     "generator_source_id",
@@ -997,44 +1569,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     )
                 )
                 for scenario in scenarios:
-                    if kind == "chat_sft":
-                        messages = [
-                            {
-                                "role": "user",
-                                "content": scenario["rendered_example"]["question"],
-                            },
-                            {"role": "assistant", "content": scenario["oracle_answer"]},
-                        ]
-                    else:
-                        call_id = scenario["scenario_id"][:16]
-                        messages = [
-                            {
-                                "role": "user",
-                                "content": scenario["rendered_example"]["question"],
-                            },
-                            {
-                                "role": "assistant",
-                                "content": "Inspect the declared path world.",
-                                "tool_calls": [
-                                    {
-                                        "id": call_id,
-                                        "name": "pathlib_suffix",
-                                        "arguments": {
-                                            "path": scenario["world_state"]["path"]
-                                        },
-                                    }
-                                ],
-                            },
-                            {
-                                "role": "tool",
-                                "tool_call_id": call_id,
-                                "content": scenario["oracle_answer"],
-                            },
-                            {
-                                "role": "assistant",
-                                "content": f"The tool result is {scenario['oracle_answer']}; checking against the declared path suffix gives {scenario['oracle_answer']}. Final answer: {scenario['oracle_answer']}",
-                            },
-                        ]
+                    messages = _scenario_messages(scenario, kind == "tool_episode")
                     row = {
                         "record_id": digest(
                             [stage_id, scenario["scenario_id"], messages]
@@ -1045,6 +1580,12 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         "messages": messages,
                         "scenario_id": scenario["scenario_id"],
                         "validation_status": "oracle_verified",
+                        **(
+                            {"semantic_shape": _scenario_shape(scenario, kind)}
+                            if scenario["generator_id"] != "pathlib_path_suffix_v1"
+                            and kind == "chat_sft"
+                            else {}
+                        ),
                         "split": scenario["split"],
                     }
                     output.append(row)
@@ -1056,7 +1597,8 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                                 stage_id,
                                 family=scenario["scenario_family_id"],
                                 world=scenario["generator_world_id"],
-                                template=digest([stage_id, kind]),
+                                template=scenario.get("template_family_id")
+                                or digest([stage_id, kind]),
                             ),
                             "scenario_id": scenario["scenario_id"],
                             "generator_identity": digest(
@@ -1078,9 +1620,13 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                                     "goal": messages[0]["content"],
                                     "tool_call": messages[1]["tool_calls"][0],
                                     "tool_result": messages[2]["content"],
-                                    "interpretation": "Suffix returned by bounded path oracle",
-                                    "next_bounded_action": "Compare the path suffix",
-                                    "verification": scenario["oracle_answer"],
+                                    "interpretation": "Inert declared-world evidence, not a live action",
+                                    "next_bounded_action": (
+                                        scenario.get("oracle_receipt") or {}
+                                    ).get("next_diagnostic", "Compare the path suffix"),
+                                    "verification": (
+                                        scenario.get("oracle_receipt") or {}
+                                    ).get("verification", scenario["oracle_answer"]),
                                     "final_response": messages[-1]["content"],
                                     "source_document_ids": [],
                                     "scenario_id": scenario["scenario_id"],
@@ -1090,6 +1636,11 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                             ).model_dump(mode="json")
                         )
                 if kind == "chat_sft":
+                    generation_lineage = {
+                        item["record_id"]: item
+                        for item in lineage
+                        if item["record_kind"] == "generation"
+                    }
                     for gen in generations:
                         if (
                             gen["validation_status"] not in accepted
@@ -1105,20 +1656,24 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                             "messages": [
                                 {
                                     "role": "user",
-                                    "content": f"Based on source passage {parsed['citation_id']}, answer the question.",
+                                    "content": parsed.get("question")
+                                    or f"Based on source passage {parsed['citation_id']}, answer the question.",
                                 },
                                 {"role": "assistant", "content": parsed["answer"]},
                             ],
                             "generation_id": gen["record_id"],
+                            **(
+                                {"semantic_shape": parsed["shape"]}
+                                if parsed.get("shape")
+                                else {}
+                            ),
                             "validation_status": gen["validation_status"],
                             "split": gen["split"],
                         }
                         output.append(row)
-                        source_lineage = next(
-                            item
-                            for item in lineage
-                            if item["record_id"] == gen["record_id"]
-                        )
+                        source_lineage = generation_lineage.get(gen["record_id"])
+                        if source_lineage is None:
+                            raise ValueError("missing generation lineage")
                         lineage.append(
                             {
                                 **source_lineage,
@@ -1226,7 +1781,9 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 {
                     "record_id": doc["document_id"],
                     "record_kind": "document",
-                    "transform_id": "normalizer-nfc-markdown-v1",
+                    "transform_id": doc.get("metadata", {}).get(
+                        "normalizer", "normalizer-nfc-markdown-v1"
+                    ),
                     "parent_document_ids": [doc["document_id"]],
                     "original_parent_document_ids": [doc["document_id"]],
                     "representative_id": doc["representative_id"],
@@ -1265,7 +1822,7 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 item["domains"] = payload["domains"]
                 status, method, proof = (
                     "schema_validated",
-                    "normalizer_v1",
+                    payload.get("metadata", {}).get("normalizer", "normalizer_v1"),
                     {"schema_id": "normalized_document_v1"},
                 )
                 rendered = rendered_digest(payload["text"], text=True)
@@ -1290,8 +1847,10 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 shape_id = {
                     "lexical_candidate": "lexical_inventory",
                     "semantic_candidate": "definition",
-                    "scenario": "troubleshooting_scenario",
-                    "generation": "direct_qa",
+                    "scenario": _scenario_shape(payload, "scenario"),
+                    "generation": (payload.get("parsed_output") or {}).get(
+                        "shape", "direct_qa"
+                    ),
                     "tool_episode": "tool_trace",
                     "chat_sft": payload.get(
                         "semantic_shape",
@@ -1325,6 +1884,12 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                             if kind == "generation"
                             else evidence_row["value"]
                         ),
+                        **(
+                            {"byte_span": evidence_row["evidence"]["byte_span"]}
+                            if evidence_row.get("evidence")
+                            and "byte_span" in evidence_row["evidence"]
+                            else {}
+                        ),
                     }
                     method = "verbatim_source_span"
                 elif status == "oracle_verified":
@@ -1345,8 +1910,17 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         "world_state": scenario["world_state"],
                         "actual_result": scenario["oracle_answer"],
                         "comparison_status": "match",
+                        **(
+                            {"receipt": scenario["oracle_receipt"]}
+                            if scenario.get("oracle_receipt")
+                            else {}
+                        ),
                     }
-                    method = "pathlib_pureposix_oracle_v1"
+                    method = (
+                        "pathlib_pureposix_oracle_v1"
+                        if scenario["generator_id"] == "pathlib_path_suffix_v1"
+                        else scenario["generator_id"]
+                    )
                 elif status in {"rejected", "unverified"}:
                     proof = {
                         "reason": evidence_row.get("rejection_reason")

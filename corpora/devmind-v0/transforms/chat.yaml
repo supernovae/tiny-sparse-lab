@@ -1,0 +1,5 @@
+id: devmind_chat
+version: '1'
+kind: chat_sft
+parameters: {}
+inputs: [devmind_source_qa, devmind_scenarios_filesystem, devmind_scenarios_platform, devmind_scenarios_deployment, devmind_scenarios_code_test]

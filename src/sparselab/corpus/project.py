@@ -114,13 +114,14 @@ class LocalAcquisition(StrictModel):
 
 
 class DeterministicAcquisition(StrictModel):
-    generator: Literal["pathlib_path_suffix_v1"]
-    generator_version: str
-
-    @field_validator("generator_version")
-    @classmethod
-    def version_required(cls, value: str) -> str:
-        return _nonblank(value)
+    generator: Literal[
+        "pathlib_path_suffix_v1",
+        "filesystem_judgment_v1",
+        "platform_fault_v1",
+        "deployment_change_v1",
+        "code_test_workflow_v1",
+    ]
+    generator_version: Literal["1"]
 
 
 class InferenceAcquisition(StrictModel):
@@ -229,6 +230,7 @@ class TransformDeclaration(StrictModel):
         "lexical_candidates",
         "semantic_candidates",
         "deterministic_scenarios",
+        "source_qa",
         "inference_qa",
         "manual_semantic",
         "chat_sft",

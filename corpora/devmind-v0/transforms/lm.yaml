@@ -1,0 +1,5 @@
+id: devmind_lm
+version: '1'
+kind: lm_text
+parameters: {}
+inputs: [k8s_concepts, k8s_tasks, k8s_tutorials, python_library, python_code, python_tutorial, go_docs, go_code, rust_book, general_train, general_validation, general_test]
