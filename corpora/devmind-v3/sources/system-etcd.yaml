@@ -15,8 +15,8 @@ rights:
 domains: [distributed_systems, storage, consensus]
 document_kinds: [go, tests, prose]
 source_family: v3_system_etcd_train
-notes: 'First-party server/raft/storage, CLI and selected tests plus operating documentation; not v2 Kubernetes docs, and no duplicated upstream revisions.'
+notes: 'First-party server/raft/storage, CLI and selected tests plus operating documentation; not v2 Kubernetes docs, and no duplicated upstream revisions. Symlinked client/v3 example tests are excluded rather than followed.'
 acquisition:
   include: ['server/*.go', 'client/*.go', 'pkg/*.go', 'etcdctl/*.go', 'etcdutl/*.go', 'tests/*.go', 'Documentation/*.md', 'README.md']
-  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*.pb.go', '*_generated.go', 'tests/fixtures/*']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*.pb.go', '*_generated.go', 'tests/fixtures/*', 'client/v3/example*_test.go', 'client/v3/concurrency/example*_test.go']
   max_bytes: 24000000
