@@ -414,9 +414,14 @@ def _source_documents(
         assert path is not None
         yield from iter_rendered_conversations(path)
         return
-    for text in iter_documents(
-        config, split, local_text_source_bytes=local_text_source_bytes
-    ):
+    documents = (
+        iter_documents(config, split)
+        if local_text_source_bytes is None
+        else iter_documents(
+            config, split, local_text_source_bytes=local_text_source_bytes
+        )
+    )
+    for text in documents:
         yield RenderedConversation(text, ((0, len(text)),), "all_tokens")
 
 

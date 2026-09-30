@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,11 @@ from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.data.tokenizer import train_tokenizer
 from sparselab.engines.base import EngineState, Microbatch
 from sparselab.engines.mlx import MLXEngine
+from sparselab.runtime_profile import (
+    RuntimeAuthorization,
+    RuntimeProfile,
+    authorize_profile,
+)
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.trainer import train
 
@@ -87,9 +93,23 @@ def mlx_config(root: Path) -> RunConfig:
     )
 
 
+def _authorization(config: RunConfig) -> RuntimeAuthorization:
+    return authorize_profile(
+        RuntimeProfile(
+            runtime_profile_version=1,
+            id="mlx-training-regression",
+            python=Path(sys.executable),
+            engine="mlx",
+            backend="metal",
+            device_index=0,
+        ),
+        config,
+    )
+
+
 def test_mlx_train_masks_final_window_to_exact_target_budget(tmp_path: Path) -> None:
     config = mlx_config(tmp_path)
-    run_id = train(config, run_id="mlx")
+    run_id = train(config, run_id="mlx", authorization=_authorization(config))
     latest = config.logging.root_dir / run_id / "checkpoints" / "latest.json"
     snapshot = CheckpointManager(config.logging.root_dir / run_id).load(latest)
     assert snapshot.tokens_seen == 45
@@ -108,15 +128,21 @@ def test_mlx_train_masks_final_window_to_exact_target_budget(tmp_path: Path) -> 
 
 def test_mlx_full_resume_preserves_next_update_and_rng(tmp_path: Path) -> None:
     config = mlx_config(tmp_path)
-    full = train(config, run_id="full")
-    parent = train(config, run_id="parent", stop_after_step=1)
+    authorization = _authorization(config)
+    full = train(config, run_id="full", authorization=authorization)
+    parent = train(
+        config, run_id="parent", stop_after_step=1, authorization=authorization
+    )
     checkpoint = config.logging.root_dir / parent / "checkpoints" / "latest.json"
-    child = train(config, run_id="child", resume=checkpoint)
+    child = train(
+        config, run_id="child", resume=checkpoint, authorization=authorization
+    )
 
     def next_update(run_id: str):
         run = config.logging.root_dir / run_id
         snapshot = CheckpointManager(run).load(run / "checkpoints" / "latest.json")
         engine = MLXEngine()
+        engine.authorization = authorization
         try:
             engine.initialize(config, initial_weights=snapshot.model)
             engine.restore_training_state(
