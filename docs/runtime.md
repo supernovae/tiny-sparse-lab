@@ -110,9 +110,12 @@ search against the selected device.
 `sparselab runtime probe PROFILE --json` queries the selected interpreter and
 records its real executable, Python version and prefixes, Torch path/version,
 HIP/CUDA/XPU versions, selected device and available names, source identity,
-and host fields. Missing optional APIs remain null. Profiles never install or
-synchronize environments. A mismatched installed source fails before execution;
-provision the vendor environment and install this source before retrying.
+and host fields. Missing optional APIs remain null.
+MLX profiles record the loaded `mlx.core` module's path and version, not the
+`mlx` namespace package, and do not import Torch.
+Profiles never install or synchronize environments. A mismatched installed
+source fails before execution; provision the vendor environment and install
+this source before retrying.
 
 Direct `train`, `stage`, `eval`, `generate`, and `chat` accept
 `--runtime-profile PROFILE`; `run` accepts it only when auto-registering a local

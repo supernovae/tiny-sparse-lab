@@ -85,11 +85,10 @@ def probe(request: dict[str, object]) -> dict[str, object]:
     framework_path: str | None
     framework_version: str | None
     if engine == "mlx" and backend == "metal":
-        import mlx
         import mlx.core as mx
 
-        framework_path = str(Path(mlx.__file__).resolve())
-        framework_version = getattr(mlx, "__version__", None)
+        framework_path = str(Path(mx.__file__).resolve())
+        framework_version = getattr(mx, "__version__", None)
         available = bool(_optional(mx.metal.is_available))
         count = 1 if available else 0
         names = ["Apple Metal"] if available else []
