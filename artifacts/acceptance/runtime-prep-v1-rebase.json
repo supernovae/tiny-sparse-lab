@@ -15,6 +15,32 @@
     "steps": 2,
     "targets": 32
   },
+  "ci_gate_repairs": {
+    "broader_cpu": {
+      "basetemp": "sparselab-work/runtime-prep-v1/rebase-preregistration-broader",
+      "deselected": 9,
+      "elapsed_seconds": 535.22,
+      "passed": 1072,
+      "skipped": 3
+    },
+    "focused": {
+      "basetemp": "sparselab-work/runtime-prep-v1/rebase-preregistration-focus",
+      "elapsed_seconds": 167.77,
+      "passed": 176
+    },
+    "frozen_generation_sha256": "14a03184e257a1bb2867035573d85eb4edc155588cc9ef4608d77885960ae706",
+    "native_mlx_callers": "Migrated engine/training regression helpers to explicit real interpreter profile authorization; local execution unavailable, awaiting native macOS CI.",
+    "nonstreaming_cli_smoke": {
+      "prepare": "passed",
+      "raw_outputs": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/rebase-preregistration-cli-smoke.json",
+      "stage_through_smoke": "passed",
+      "training_steps": 2,
+      "training_targets": 32
+    },
+    "optional_source_limit": "Omit the operational source-byte-limit keyword when no limit is supplied; bounded streaming still passes its explicit limit.",
+    "preregistration_criteria_changed": false,
+    "quality_checks": "Ruff check passed; all five resolved/migrated Python files passed formatting; diff check passed."
+  },
   "cpu_probe": {
     "available": true,
     "backend": "cpu",

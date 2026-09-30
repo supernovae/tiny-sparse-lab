@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import random
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -19,6 +21,7 @@ from sparselab.engines.base import EngineNonFiniteError, EngineState, Microbatch
 from sparselab.engines.mlx import MLXEngine
 from sparselab.evaluation.generation import generate
 from sparselab.model.mlx_dense import MLXDenseLM
+from sparselab.runtime_profile import RuntimeProfile, authorize_profile
 
 pytestmark = pytest.mark.mlx
 
@@ -101,8 +104,18 @@ def _config(*, tied: bool) -> RunConfig:
 
 
 def _engine(*, tied: bool) -> MLXEngine:
+    config = _config(tied=tied)
+    profile = RuntimeProfile(
+        runtime_profile_version=1,
+        id="mlx-engine-regression",
+        python=Path(sys.executable),
+        engine="mlx",
+        backend="metal",
+        device_index=0,
+    )
     engine = MLXEngine()
-    engine.initialize(_config(tied=tied))
+    engine.authorization = authorize_profile(profile, config)
+    engine.initialize(config)
     return engine
 
 
