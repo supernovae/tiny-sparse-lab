@@ -28,6 +28,11 @@ from sparselab.data.allocation import (
     copy_allocation_bundle,
     load_allocation_manifest,
 )
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
 from sparselab.data.packing import (
     BatchCursor,
     PreparedData,
@@ -35,6 +40,7 @@ from sparselab.data.packing import (
     epoch_order,
     load_prepared_data,
     prepare_data,
+    supervision_requires_mask,
 )
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.engines.base import EngineState, Microbatch
@@ -47,12 +53,18 @@ from sparselab.memory import (
     validate_offload_headroom,
 )
 from sparselab.progress import ProgressReporter
+from sparselab.resource_envelope import (
+    ResourceEnvelope,
+    check_envelope,
+    current_process_rss_bytes,
+)
 from sparselab.runtime import seed_everything
 from sparselab.runtime_forecasting import (
     RUNTIME_OBSERVATION_KIND,
     runtime_forecast_planning,
     runtime_signature_key,
 )
+from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import (
     CheckpointManager,
     CheckpointRecord,
@@ -221,6 +233,13 @@ def _copy_artifacts(
         if sha256_file(corpus_dir / "export.json") != binding["export_sha256"]:
             raise ValueError("corpus export changed while copying run evidence")
     shutil.copytree(data.root, run / "data")
+    mask_required = supervision_requires_mask(data.manifest)
+    for split in ("train", "validation"):
+        mask = run / "data" / f"{split}_supervision.npy"
+        if mask.is_file() != mask_required:
+            raise ValueError(
+                f"prepared {split} supervision inventory does not match descriptor"
+            )
     manifest_source = (
         source_run / "portability_manifest.json"
         if source_run is not None
@@ -363,6 +382,7 @@ def _write_validation_report(
     result: dict[str, object],
     config: RunConfig,
     source_digest: str,
+    mask_required: bool,
 ) -> Path:
     evaluations = run / "evaluations"
     evaluations.mkdir(parents=True, exist_ok=True)
@@ -376,10 +396,14 @@ def _write_validation_report(
         "source_identity_sha256": source_digest,
         "protocol": "next-token-cross-entropy-v1",
     }
-    for name in ("validation_supervision.npy", "validation_byte_addresses.npy"):
-        artifact = run / "data" / name
-        if artifact.is_file():
-            identities[f"data/{name}"] = sha256_file(artifact)
+    supervision = run / "data" / "validation_supervision.npy"
+    if supervision.is_file() != mask_required:
+        raise ValueError("validation supervision inventory does not match descriptor")
+    if mask_required:
+        identities["data/validation_supervision.npy"] = sha256_file(supervision)
+    addresses = run / "data" / "validation_byte_addresses.npy"
+    if addresses.is_file():
+        identities["data/validation_byte_addresses.npy"] = sha256_file(addresses)
     payload: dict[str, object] = {
         "kind": "held_out_validation_v2",
         "checkpoint": record.relative_path,
@@ -427,8 +451,22 @@ def train(
     dispatch_metadata: dict[str, object] | None = None,
     stage_bundle: Path | None = None,
     requested_config_override: dict[str, object] | None = None,
+    authorization: RuntimeAuthorization | None = None,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
 ) -> str:
     """Run one independent experiment, optionally bound to a stage bundle."""
+    require_authorization(config, authorization)
+    validate_tokenizer_batch_limits(
+        tokenizer_batch_documents, tokenizer_batch_source_bytes
+    )
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=config.logging.root_dir,
+            rss_bytes=current_process_rss_bytes(),
+        )
     if max_wall_seconds is not None and (
         isinstance(max_wall_seconds, bool)
         or not isinstance(max_wall_seconds, (int, float))
@@ -455,6 +493,10 @@ def train(
         dispatch_metadata=dispatch_metadata,
         requested_config_override=requested_config_override,
         max_wall_seconds=max_wall_seconds,
+        authorization=authorization,
+        resource_envelope=resource_envelope,
+        tokenizer_batch_documents=tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
     )
     try:
         progress = config.logging.root_dir / completed_run_id / "progress.json"
@@ -467,7 +509,10 @@ def train(
                 else max(0.0, max_wall_seconds - (time.monotonic() - started))
             )
             triage_completed_run(
-                completed_run_id, config.logging.root_dir, remaining_seconds=remaining
+                completed_run_id,
+                config.logging.root_dir,
+                remaining_seconds=remaining,
+                authorization=authorization,
             )
     except Exception as error:  # noqa: BLE001 - diagnostics must not fail completed training
         _LOGGER.warning("POST-TRAIN TRIAGE UNKNOWN for %s: %s", completed_run_id, error)
@@ -493,7 +538,16 @@ def _train_impl(
     dispatch_metadata: dict[str, object] | None = None,
     requested_config_override: dict[str, object] | None = None,
     max_wall_seconds: float | None = None,
+    authorization: RuntimeAuthorization | None = None,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
 ) -> str:
+
+    require_authorization(config, authorization)
+    validate_tokenizer_batch_limits(
+        tokenizer_batch_documents, tokenizer_batch_source_bytes
+    )
 
     def wall_expired() -> bool:
         return deadline is not None and time.monotonic() >= deadline
@@ -668,7 +722,7 @@ def _train_impl(
             engine = MLXEngine()
         else:
             raise ValueError(f"unsupported execution engine: {config.runtime.engine}")
-        runtime = engine.validate(config)
+        runtime = engine.validate(config, authorization=authorization)
         config = config.model_copy(
             update={
                 "runtime": config.runtime.model_copy(
@@ -732,7 +786,13 @@ def _train_impl(
             data = _load_run_data(artifact_source, config)
         else:
             tokenizer = load_tokenizer(config.tokenizer.path)
-            data = prepare_data(config, tokenizer)
+            data = prepare_data(
+                config,
+                tokenizer,
+                resource_envelope=resource_envelope,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+            )
         dataset = TokenBlockDataset(
             data.train,
             config.training.seq_len,
@@ -882,7 +942,13 @@ def _train_impl(
             raise ValueError("cannot resume a completed training budget")
         if stop_after_step is not None and stop_after_step <= step:
             raise ValueError("stop-after-step must exceed current step")
+        if resource_envelope is not None:
+            check_envelope(
+                resource_envelope, workspace=run, rss_bytes=current_process_rss_bytes()
+            )
         run.mkdir(parents=True)
+        if authorization is not None:
+            _atomic_json(run / "runtime_authorization.json", authorization.as_dict())
         manager = CheckpointManager(run, keep_periodic=config.checkpoint.keep_periodic)
         resources.enter_context(manager.writer_lease())
         artifacts = _copy_artifacts(run, config, data, artifact_source)
@@ -962,6 +1028,16 @@ def _train_impl(
                 "manifest_sha256": manifest_digest,
                 "memory_estimate": asdict(memory_estimate),
                 "purpose": purpose,
+                "runtime_authorization": (
+                    authorization.as_dict() if authorization is not None else None
+                ),
+                "resource_envelope": (
+                    resource_envelope.model_dump(mode="json")
+                    if resource_envelope is not None
+                    else None
+                ),
+                "tokenizer_batch_documents": tokenizer_batch_documents,
+                "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
                 "runtime_forecast": runtime_forecast,
             },
             parent_run_id,
@@ -1239,7 +1315,12 @@ def _train_impl(
                 reporting_started = time.perf_counter()
                 try:
                     _write_validation_report(
-                        run, record, validation, config, str(current_source["sha256"])
+                        run,
+                        record,
+                        validation,
+                        config,
+                        str(current_source["sha256"]),
+                        supervision_requires_mask(data.manifest),
                     )
                 finally:
                     add_phase_time("reporting", reporting_started)

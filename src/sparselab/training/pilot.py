@@ -14,8 +14,15 @@ from pathlib import Path
 import torch
 
 from sparselab.config.models import RunConfig
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
 from sparselab.data.packing import TokenBlockDataset, load_prepared_data
 from sparselab.model.transformer import DenseLM
+from sparselab.resource_envelope import ResourceEnvelope
+from sparselab.runtime_profile import rederive_authorization, require_authorization
 from sparselab.staging import _read_sealed, _seal, pilot_config
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, source_identity
@@ -28,6 +35,23 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
     config = pilot_config(
         RunConfig.model_validate(inputs["requested_config"]), purpose, root
     )
+    tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+        validate_tokenizer_batch_limits(
+            inputs.get("tokenizer_batch_documents", TOKENIZER_BATCH_DOCUMENTS),
+            inputs.get("tokenizer_batch_source_bytes", TOKENIZER_BATCH_SOURCE_BYTES),
+        )
+    )
+    envelope_data = inputs.get("resource_envelope")
+    resource_envelope = (
+        ResourceEnvelope.model_validate(envelope_data)
+        if envelope_data is not None
+        else None
+    )
+    evidence = inputs.get("runtime_authorization")
+    authorization = (
+        rederive_authorization(evidence, config) if evidence is not None else None
+    )
+    require_authorization(config, authorization)
     run_id = f"{purpose}-{uuid.uuid4().hex}"
     _train_impl(
         config,
@@ -35,6 +59,10 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
         run_id=run_id,
         purpose=purpose,
         cancel_path=cancel_path,
+        authorization=authorization,
+        resource_envelope=resource_envelope,
+        tokenizer_batch_documents=tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
     )
     if cancel_path is not None and cancel_path.exists():
         raise InterruptedError("pilot cancelled at committed update boundary")

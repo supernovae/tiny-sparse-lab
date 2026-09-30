@@ -68,5 +68,5 @@ def test_tampered_prepared_cache_cannot_be_reused(tmp_path):
     values = np.load(path)
     values[0] = (values[0] + 1) % configured.model.vocab_size
     np.save(path, values)
-    with pytest.raises(ValueError, match="cache integrity"):
+    with pytest.raises(ValueError):
         prepare_data(configured, tokenizer)

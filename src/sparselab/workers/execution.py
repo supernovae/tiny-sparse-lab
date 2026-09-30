@@ -24,7 +24,9 @@ from typing import Any
 
 from sparselab.config.models import RunConfig
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
+from sparselab.resource_envelope import check_envelope, current_process_rss_bytes
 from sparselab.runtime import discover_runtimes, validate_runtime
+from sparselab.runtime_profile import authorize_worker, require_authorization
 from sparselab.training.manifest import canonical_json, source_identity
 
 from .leases import acquire_lease, boot_identity, process_matches, process_start
@@ -273,6 +275,16 @@ def _run_terminal_status(definition: Any, run_id: str) -> str | None:
     return status if status in {"completed", "interrupted", "failed"} else None
 
 
+def _check_worker_interpreter(definition: Any) -> None:
+    python = Path(_definition_value(definition, "python"))
+    if not python.is_absolute() or python.resolve(strict=True) != Path(
+        sys.executable
+    ).resolve(strict=True):
+        raise ValueError(
+            "registered worker Python differs from the running interpreter"
+        )
+
+
 def _runtime_for_definition(definition: Any) -> Any:
     engine, backend, index = (
         _definition_value(definition, key)
@@ -366,24 +378,9 @@ def _package_version() -> str:
 
 
 def discover_worker(definition: Any) -> dict[str, Any]:
-    """Passive inventory; prior probes are evidence only for this exact build."""
-    path = Path(_definition_value(definition, "root")) / "capabilities.json"
+    """Fresh passive inventory; saved validation is never runtime authority."""
+    _check_worker_interpreter(definition)
     fresh = _caps(definition)
-    if path.is_file() and not path.is_symlink():
-        saved = _strict_json(path)
-        if (
-            saved.get("worker_id") == _definition_value(definition, "worker_id")
-            and saved.get("source_identity_sha256") == fresh["source_identity_sha256"]
-            and saved.get("runtime", {}).get("engine") == fresh["runtime"]["engine"]
-            and saved.get("runtime", {}).get("backend") == fresh["runtime"]["backend"]
-        ):
-            fresh.update(
-                validation_status=saved.get("validation_status", "unverified"),
-                validated_at=saved.get("validated_at"),
-                runtime=saved.get("runtime", fresh["runtime"]),
-                supported_precisions=saved.get("supported_precisions", ()),
-                supported_features=saved.get("supported_features", ()),
-            )
     fresh["last_seen_at"] = _utc()
     return fresh
 
@@ -407,6 +404,7 @@ def validate_worker(
     definition: Any, config: RunConfig, bundle_digest: str | None = None
 ) -> dict[str, Any]:
     effective = _effective_config(definition, config)
+    authorization = authorize_worker(definition, effective)
     passive = _runtime_for_definition(definition)
     lease = acquire_lease(
         worker_id=_definition_value(definition, "worker_id"),
@@ -421,7 +419,7 @@ def validate_worker(
             "runtime": passive.as_dict(),
         }
     try:
-        tested = validate_runtime(effective)
+        tested = validate_runtime(effective, authorization=authorization)
     except (OSError, ValueError, RuntimeError) as error:
         failed = _caps(definition, validation_status="failed", runtime=passive)
         _atomic_json(
@@ -439,6 +437,7 @@ def validate_worker(
         "ok": True,
         "bundle_digest": bundle_digest,
         "runtime": tested.as_dict(),
+        "runtime_authorization": authorization.as_dict(),
         "capabilities": _caps(definition, validation_status="passed", runtime=tested),
     }
     _atomic_json(
@@ -694,7 +693,15 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
             if typed_spec.experiment_id != receipt["experiment_id"]:
                 raise ValueError("stored experiment identity does not match receipt")
             config = typed_spec.config
+            _check_worker_interpreter(definition)
             effective = _effective_config(definition, config)
+            envelope = typed_spec.resource_envelope
+            if envelope is not None:
+                check_envelope(
+                    envelope,
+                    workspace=Path(_definition_value(definition, "root")),
+                    rss_bytes=current_process_rss_bytes(),
+                )
             if typed_spec.source_identity_sha256 != source_identity()[
                 "sha256"
             ] and not (
@@ -804,7 +811,13 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     continuation_spec.get("kind") == "RESUMED"
                     and continuation_spec.get("allow_runtime_drift", False)
                 )
-                validate_runtime(effective)
+                authorization = authorize_worker(definition, effective)
+                require_authorization(effective, authorization)
+                tested = validate_runtime(effective, authorization=authorization)
+                _atomic_json(
+                    Path(_definition_value(definition, "root")) / "capabilities.json",
+                    _caps(definition, validation_status="passed", runtime=tested),
+                )
                 if _cancelled(directory):
                     return _terminal_receipt(
                         definition,
@@ -825,6 +838,10 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     allow_runtime_drift=allow_bundle_drift,
                     inherited_fds=lease.inherited_fds,
                     cancel_path=directory / "cancel.json",
+                    authorization=authorization,
+                    resource_envelope=envelope,
+                    tokenizer_batch_documents=typed_spec.tokenizer_batch_documents,
+                    tokenizer_batch_source_bytes=typed_spec.tokenizer_batch_source_bytes,
                 )
                 if _cancelled(directory):
                     return _terminal_receipt(
@@ -861,7 +878,11 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                 bundle_run = _continuation_run(materialized, kind)
                 kwargs: dict[str, Any] = {
                     "run_id": receipt["run_id"],
+                    "authorization": authorization,
                     "worker_id": receipt["worker_id"],
+                    "resource_envelope": envelope,
+                    "tokenizer_batch_documents": typed_spec.tokenizer_batch_documents,
+                    "tokenizer_batch_source_bytes": typed_spec.tokenizer_batch_source_bytes,
                     "cancel_path": directory / "cancel.json",
                     "stage_bundle": stage_dir,
                     "experiment_id": receipt["experiment_id"],

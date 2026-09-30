@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import stat
 import subprocess
@@ -21,6 +22,11 @@ from sparselab.batch_calibration import calibrate_batch
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.migrate import migrate_file
 from sparselab.data.bakeoff import bakeoff
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
 from sparselab.data.local_stories import snapshot
 from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import (
@@ -75,7 +81,18 @@ from sparselab.model.inspection import inspection_report, parameter_inventory
 from sparselab.model.memory import ByteAddressMemory
 from sparselab.model.portable_engram import export_portable_engram, load_portable_engram
 from sparselab.readiness import SMOKE_FAMILIES, smoke_readiness
+from sparselab.resource_envelope import (
+    check_envelope,
+    current_process_rss_bytes,
+    load_resource_envelope,
+)
 from sparselab.runtime_forecasting import runtime_forecast_planning
+from sparselab.runtime_profile import (
+    authorize_profile,
+    load_runtime_profile,
+    probe_runtime_profile,
+    require_authorization,
+)
 from sparselab.staging import inspect_runtime, stage
 from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
@@ -601,6 +618,12 @@ def _runtime_status(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
 
 
+def _runtime_probe(args: argparse.Namespace) -> None:
+    profile = load_runtime_profile(Path(args.profile))
+    result = probe_runtime_profile(profile)
+    print(json.dumps(result, indent=2 if args.json else None, sort_keys=True))
+
+
 def _data_snapshot(args: argparse.Namespace) -> None:
     print(
         snapshot(
@@ -627,7 +650,15 @@ def _data_prepare(args: argparse.Namespace) -> None:
         dataset=config.dataset,
     )
     tokenizer = load_tokenizer(config.tokenizer.path)
-    print(prepare_data(config, tokenizer).root)
+    print(
+        prepare_data(
+            config,
+            tokenizer,
+            resource_envelope=args.resource_envelope_value,
+            tokenizer_batch_documents=args.tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+        ).root
+    )
 
 
 def _workspace_preflight(args: argparse.Namespace) -> None:
@@ -661,7 +692,17 @@ def _tokenizer_train(args: argparse.Namespace) -> None:
 
 
 def _stage(args: argparse.Namespace) -> None:
-    print(stage(load_config(Path(args.config)), Path(args.output), args.through))
+    print(
+        stage(
+            load_config(Path(args.config)),
+            Path(args.output),
+            args.through,
+            authorization=args.runtime_authorization,
+            resource_envelope=args.resource_envelope_value,
+            tokenizer_batch_documents=args.tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+        )
+    )
 
 
 def _batch_calibrate(args: argparse.Namespace) -> None:
@@ -778,6 +819,10 @@ def _train(args: argparse.Namespace) -> None:
         stop_after_step=args.stop_after_step,
         allow_runtime_drift=args.allow_runtime_drift,
         stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
+        authorization=args.runtime_authorization,
+        resource_envelope=args.resource_envelope_value,
+        tokenizer_batch_documents=args.tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
     )
     print(run_id)
     progress = config.logging.root_dir / run_id / "progress.json"
@@ -798,7 +843,13 @@ def _train(args: argparse.Namespace) -> None:
 
 
 def _eval(args: argparse.Namespace) -> None:
-    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    loaded = load_run(
+        args.run_id,
+        Path(args.runs_dir),
+        args.checkpoint,
+        args.backend,
+        authorization=args.runtime_authorization,
+    )
     result = loaded.evaluate()
     result.update({"source": "standalone_eval", "identity": loaded.identity})
     path = write_inference_result(loaded.run, "eval", result)
@@ -806,7 +857,13 @@ def _eval(args: argparse.Namespace) -> None:
 
 
 def _generate(args: argparse.Namespace) -> None:
-    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    loaded = load_run(
+        args.run_id,
+        Path(args.runs_dir),
+        args.checkpoint,
+        args.backend,
+        authorization=args.runtime_authorization,
+    )
     print(
         generate(
             loaded.model,
@@ -1922,7 +1979,13 @@ def _reference_pythia_trajectory(args: argparse.Namespace) -> None:
 
 
 def _chat(args: argparse.Namespace) -> None:
-    loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    loaded = load_run(
+        args.run_id,
+        Path(args.runs_dir),
+        args.checkpoint,
+        args.backend,
+        authorization=args.runtime_authorization,
+    )
     history: list[ChatMessage] = []
     turns = []
     settings = {
@@ -2042,6 +2105,32 @@ def _weights_import(args: argparse.Namespace) -> None:
     print(json.dumps(asdict(result), sort_keys=True, default=str))
 
 
+def _tokenizer_batch_integer(value: str, *, maximum: int) -> int:
+    if not value.isascii() or not value.isdecimal():
+        raise argparse.ArgumentTypeError("must be an exact positive decimal integer")
+    number = int(value)
+    if not 1 <= number <= maximum:
+        raise argparse.ArgumentTypeError(f"must be between 1 and {maximum}")
+    return number
+
+
+def _tokenizer_batch_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--tokenizer-batch-documents",
+        type=lambda value: _tokenizer_batch_integer(value, maximum=256),
+        default=TOKENIZER_BATCH_DOCUMENTS,
+        metavar="N",
+        help=f"Preparation documents per Rust tokenizer batch (1..256; default: {TOKENIZER_BATCH_DOCUMENTS})",
+    )
+    parser.add_argument(
+        "--tokenizer-batch-source-bytes",
+        type=lambda value: _tokenizer_batch_integer(value, maximum=4194304),
+        default=TOKENIZER_BATCH_SOURCE_BYTES,
+        metavar="N",
+        help="UTF-8 source bytes per tokenizer batch (1..4194304; default: 1048576)",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     cwd = Path.cwd()
     project_root = next(
@@ -2138,6 +2227,10 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_status.add_argument("--limit", type=int, default=50)
     runtime_status.add_argument("--json", action="store_true", required=True)
     runtime_status.set_defaults(handler=_runtime_status)
+    runtime_probe = runtime_commands.add_parser("probe")
+    runtime_probe.add_argument("profile", help="Strict runtime profile YAML")
+    runtime_probe.add_argument("--json", action="store_true")
+    runtime_probe.set_defaults(handler=_runtime_probe)
     tokenizer = commands.add_parser("tokenizer")
     tokenizer_commands = tokenizer.add_subparsers(
         dest="tokenizer_command", required=True
@@ -2149,6 +2242,8 @@ def build_parser() -> argparse.ArgumentParser:
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_prepare = data_commands.add_parser("prepare")
     data_prepare.add_argument("config")
+    data_prepare.add_argument("--resource-envelope", type=Path)
+    _tokenizer_batch_arguments(data_prepare)
     data_snapshot = data_commands.add_parser("snapshot")
     data_snapshot.add_argument("output", type=Path)
     data_snapshot.add_argument("--cache-dir", type=Path)
@@ -2251,6 +2346,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--through", default="smoke", choices=("inspect", "validate", "smoke", "warmup")
     )
     staging.add_argument("--output", required=True)
+    staging.add_argument("--runtime-profile", type=Path)
+    staging.add_argument("--resource-envelope", type=Path)
+    _tokenizer_batch_arguments(staging)
     staging.set_defaults(handler=_stage)
     batch = commands.add_parser("batch")
     batch_commands = batch.add_subparsers(dest="batch_command", required=True)
@@ -2287,6 +2385,9 @@ def build_parser() -> argparse.ArgumentParser:
     training.add_argument("--allow-runtime-drift", action="store_true")
     training.add_argument("--stop-after-step", type=int)
     training.add_argument("--stage-bundle")
+    training.add_argument("--runtime-profile", type=Path)
+    training.add_argument("--resource-envelope", type=Path)
+    _tokenizer_batch_arguments(training)
     training.set_defaults(handler=_train)
     triage = commands.add_parser(
         "triage",
@@ -2328,6 +2429,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
+    evaluation.add_argument("--runtime-profile", type=Path)
     evaluation.set_defaults(handler=_eval)
     evidence = commands.add_parser(
         "evidence",
@@ -2713,6 +2815,7 @@ def build_parser() -> argparse.ArgumentParser:
     generation.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
+    generation.add_argument("--runtime-profile", type=Path)
     generation.set_defaults(handler=_generate)
     chat = commands.add_parser(
         "chat", help="Chat with a verified local PyTorch or native MLX checkpoint."
@@ -2742,6 +2845,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
+    chat.add_argument("--runtime-profile", type=Path)
     chat.set_defaults(handler=_chat)
     dashboard = commands.add_parser("dashboard")
     dashboard.add_argument(
@@ -2772,6 +2876,91 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_PROFILE_EXEC_MARKER = "_SPARSELAB_RUNTIME_PROFILE_EXEC"
+
+
+def _prepare_runtime_command(args: argparse.Namespace) -> None:
+    """Gate direct execution before the CLI creates its scratch directory."""
+    args.runtime_authorization = None
+    if args.command not in {"train", "stage", "eval", "generate", "chat", "run"}:
+        return
+    if args.command == "run" and args.worker is not None:
+        if args.runtime_profile is not None:
+            raise ValueError(
+                "--runtime-profile is only used by run when auto-registering "
+                "a local worker; use --worker without a profile"
+            )
+        return
+    if args.command == "stage" and args.through == "inspect":
+        if args.runtime_profile is not None:
+            load_runtime_profile(args.runtime_profile)
+        return
+
+    profile = (
+        load_runtime_profile(args.runtime_profile)
+        if args.runtime_profile is not None
+        else None
+    )
+    if profile is not None:
+        digest = hashlib.sha256(profile.model_dump_json().encode("utf-8")).hexdigest()
+        expected_python = Path(os.path.abspath(profile.python))
+        marker = os.environ.get(_PROFILE_EXEC_MARKER)
+        if marker is not None:
+            previous_digest, separator, nonce = marker.partition(":")
+            if not separator or not nonce or previous_digest != digest:
+                raise ValueError("runtime profile re-exec marker mismatch")
+            if (
+                Path(os.path.abspath(sys.executable)) != expected_python
+                or Path(sys.executable).resolve() != expected_python.resolve()
+            ):
+                raise ValueError(
+                    "runtime profile child interpreter differs from profile.python"
+                )
+        elif Path(os.path.abspath(sys.executable)) != expected_python:
+            # Fail with an actionable import/source error before replacing the
+            # current CLI with an incompatible vendor interpreter.
+            probe_runtime_profile(profile)
+            environment = os.environ.copy()
+            environment[_PROFILE_EXEC_MARKER] = f"{digest}:{secrets.token_hex(16)}"
+            os.execve(
+                str(profile.python),
+                [
+                    str(profile.python),
+                    "-c",
+                    "from sparselab.cli.main import main; main()",
+                    *sys.argv[1:],
+                ],
+                environment,
+            )
+            raise AssertionError("os.execve unexpectedly returned")
+        args.runtime_profile_python = expected_python
+
+    if args.command in {"train", "stage", "run"}:
+        config = load_config(Path(args.config))
+    else:
+        from sparselab.config.models import RunConfig
+
+        run = (Path(args.runs_dir) / args.run_id).resolve()
+        config = RunConfig.model_validate_json(
+            (run / "resolved_config.yaml").read_text(encoding="utf-8")
+        )
+    backend_override = (
+        args.backend if args.command in {"train", "eval", "generate", "chat"} else None
+    )
+    if backend_override is not None:
+        config = config.model_copy(
+            update={
+                "runtime": config.runtime.model_copy(
+                    update={"backend": backend_override}
+                )
+            }
+        )
+    if profile is None:
+        require_authorization(config, None)
+    else:
+        args.runtime_authorization = authorize_profile(profile, config)
+
+
 def main() -> None:
     parser = build_parser()
     args, extras = parser.parse_known_args()
@@ -2783,12 +2972,62 @@ def main() -> None:
                 args.campaign_command, f"unrecognized arguments: {' '.join(extras)}"
             )
         parser.error(f"unrecognized arguments: {' '.join(extras)}")
+    if (
+        args.command in {"stage", "train", "run"}
+        or (args.command == "data" and args.data_command == "prepare")
+        or (args.command == "experiment" and args.experiment_command == "prepare")
+    ):
+        validate_tokenizer_batch_limits(
+            args.tokenizer_batch_documents, args.tokenizer_batch_source_bytes
+        )
+    if getattr(args, "resource_envelope", None) is not None:
+        try:
+            args.resource_envelope_value = load_resource_envelope(
+                args.resource_envelope
+            )
+        except (ValueError, OSError) as error:
+            raise SystemExit(f"sparselab: {error}") from None
+    else:
+        args.resource_envelope_value = None
+    try:
+        _prepare_runtime_command(args)
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"sparselab: {error}") from None
+    if args.resource_envelope_value is not None:
+        if args.command == "run":
+            workspace = Path(args.store)
+        elif args.command == "stage":
+            workspace = Path(args.output)
+        elif args.command == "train":
+            config = load_config(Path(args.config))
+            workspace = (
+                Path(args.runs_dir)
+                if args.runs_dir is not None
+                else config.logging.root_dir
+            )
+        elif args.command == "data":
+            workspace = load_config(Path(args.config)).dataset.cache_dir
+        elif args.command == "experiment" and args.experiment_command == "prepare":
+            from sparselab.experiments.plan import load_plan
+
+            plan = load_plan(Path(args.source).absolute())
+            workspace = resolve_work_dir(args.work_dir) / "experiments" / plan.id
+        else:
+            workspace = args.work_dir or Path.cwd()
+        try:
+            check_envelope(
+                args.resource_envelope_value,
+                workspace=workspace,
+                rss_bytes=current_process_rss_bytes(),
+            )
+        except (ValueError, OSError) as error:
+            raise SystemExit(f"sparselab: {error}") from None
     set_token_file(args.hf_token_file)
     from sparselab.campaign.cli import READ_ONLY_COMMANDS
 
     if args.command == "campaign" and args.campaign_command in READ_ONLY_COMMANDS:
         args.work_dir = resolve_work_dir(args.work_dir)
-    else:
+    elif not (args.command == "runtime" and args.runtime_command == "probe"):
         ensure_work_dir(args.work_dir)
     try:
         args.handler(args)

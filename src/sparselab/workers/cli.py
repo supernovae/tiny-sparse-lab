@@ -40,6 +40,10 @@ def _absolute(value: str, *, argument: str) -> Path:
 def _worker_definition(args: argparse.Namespace):
     from sparselab.workers.models import WorkerDefinition
 
+    if args.backend != "cpu" and not args.python:
+        raise ValueError(
+            "accelerator worker registration requires an explicit absolute --python"
+        )
     store = Path(args.store).resolve()
     ssh_host = args.ssh
     if ssh_host is not None:
@@ -249,7 +253,6 @@ def _wait_for_run(controller: Any, run_id: str) -> dict[str, object]:
 
 
 def _run(args: argparse.Namespace) -> None:
-    controller = _controller(Path(args.store), transfer_timeout=args.transfer_timeout)
     config = load_config(Path(args.config))
     worker_name = args.worker
     if worker_name is None:
@@ -257,6 +260,13 @@ def _run(args: argparse.Namespace) -> None:
         from sparselab.workers.models import WorkerDefinition
 
         runtime = inspect_runtime(config)
+        if runtime.backend != "cpu" and args.runtime_authorization is None:
+            raise ValueError(
+                f"selected backend {runtime.backend} requires --runtime-profile "
+                "or a registered --worker"
+            )
+    controller = _controller(Path(args.store), transfer_timeout=args.transfer_timeout)
+    if worker_name is None:
         root = controller.root.resolve()
         namespace = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:12]
         worker_name = f"local-{runtime.engine}-{runtime.backend}-{config.runtime.device_index}-{namespace}"
@@ -265,7 +275,11 @@ def _run(args: argparse.Namespace) -> None:
                 worker_id=worker_name,
                 name=worker_name,
                 transport="local",
-                python=Path(sys.executable).absolute(),
+                python=(
+                    args.runtime_profile_python
+                    if args.runtime_authorization is not None
+                    else Path(sys.executable).resolve()
+                ),
                 root=root / ".workers" / worker_name,
                 engine=runtime.engine,
                 backend=runtime.backend,
@@ -277,6 +291,9 @@ def _run(args: argparse.Namespace) -> None:
         worker=worker_name,
         stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
         promote=Path(args.promote) if args.promote else None,
+        resource_envelope=args.resource_envelope_value,
+        tokenizer_batch_documents=args.tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
     )
     result = _wait_for_run(controller, submission.run_id)
     _json({"submission": submission.model_dump(mode="json"), "result": result})
@@ -394,5 +411,10 @@ def add_commands(
         default=1800,
         help="Finite deadline in seconds for each bundle or artifact transfer RPC",
     )
+    run.add_argument("--runtime-profile", type=Path)
+    run.add_argument("--resource-envelope", type=Path)
+    from sparselab.cli.main import _tokenizer_batch_arguments
+
+    _tokenizer_batch_arguments(run)
     _store_argument(run, default_store)
     run.set_defaults(handler=_run)

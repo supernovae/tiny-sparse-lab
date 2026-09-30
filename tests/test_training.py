@@ -180,6 +180,22 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
         }
     )
     run_id = train(measured, run_id="measured")
+    run = measured.logging.root_dir / run_id
+    prepared_manifest = json.loads((run / "data/manifest.json").read_text())
+    assert prepared_manifest["supervision"] == {"kind": "all_tokens"}
+    assert not (run / "data/train_supervision.npy").exists()
+    assert not (run / "data/validation_supervision.npy").exists()
+    run_manifest = read_manifest(run / "manifest.json")
+    inventory = {item["relative_path"] for item in run_manifest["artifacts"]}
+    assert "data/train_supervision.npy" not in inventory
+    assert "data/validation_supervision.npy" not in inventory
+    report_payload = json.loads(next((run / "evaluations").glob("*.json")).read_text())
+    assert "data/validation_supervision.npy" not in report_payload["identities"]
+    assert report_payload["valid_targets"] == (
+        report_payload["batches"]
+        * measured.training.seq_len
+        * measured.training.micro_batch_size
+    )
 
     evidence = experiment_evidence(measured.logging.root_dir / run_id)
     observations = evidence["quality_observations"]
@@ -189,6 +205,9 @@ def test_training_pairs_validation_with_verified_checkpoints(tmp_path: Path) -> 
     report = read_triage(run_id, measured.logging.root_dir)
     assert report is not None
     assert report["format"] == "sparselab_post_train_triage_v1"
+    assert report["core"]["evidence"]["expected_validation_targets"] == (
+        measured.training.micro_batch_size * measured.training.seq_len
+    )
     assert (
         len(
             list(
@@ -322,6 +341,16 @@ def test_assistant_only_evidence_counts_and_binds_supervised_targets(
     measured = RunConfig.model_validate(raw)
     run_id = train(measured, run_id="assistant-evidence")
     run = measured.logging.root_dir / run_id
+    prepared_manifest = json.loads((run / "data/manifest.json").read_text())
+    assert prepared_manifest["supervision"]["kind"] == "token-loss-mask-v1"
+    inventory = {
+        item["relative_path"]
+        for item in read_manifest(run / "manifest.json")["artifacts"]
+    }
+    assert {
+        "data/train_supervision.npy",
+        "data/validation_supervision.npy",
+    } <= inventory
     supervision = np.load(run / "data/validation_supervision.npy")
     seq_len = measured.training.seq_len
     usable = (len(supervision) - 1) // seq_len * seq_len
@@ -341,6 +370,11 @@ def test_assistant_only_evidence_counts_and_binds_supervised_targets(
             == (len(selected) + measured.training.micro_batch_size - 1)
             // measured.training.micro_batch_size
         )
+    triage = read_triage(run_id, measured.logging.root_dir)
+    assert triage is not None
+    assert triage["core"]["evidence"]["expected_validation_targets"] == int(
+        selected.sum()
+    )
 
     report = next((run / "evaluations").glob("*.json"))
     payload = json.loads(report.read_text())
@@ -764,9 +798,9 @@ def test_completed_training_calibrates_and_reuses_runtime_forecast(
 
     validate_runtime = trainer.PyTorchEngine.validate
 
-    def identified_runtime(engine, config: RunConfig):
+    def identified_runtime(engine, config: RunConfig, *, authorization=None):
         return replace(
-            validate_runtime(engine, config),
+            validate_runtime(engine, config, authorization=authorization),
             device_name="Fixture CPU",
             physical_device_id="fixture:cpu",
         )

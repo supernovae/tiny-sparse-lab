@@ -20,12 +20,22 @@ from sparselab.data.allocation import (
     load_allocation_manifest,
     load_semantic_retriever,
 )
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
 from sparselab.data.packing import (
     _tokenizer_sha256,
     load_prepared_data,
     prepare_data,
 )
 from sparselab.data.tokenizer import load_tokenizer
+from sparselab.data.verification import (
+    VerifiedFile,
+    _receipt_from_proofs,
+    verify_file,
+)
 from sparselab.memory import (
     calibrated_estimate,
     calibration_key,
@@ -36,6 +46,11 @@ from sparselab.memory import (
 )
 from sparselab.model.inspection import inspection_report, named_tensor_inventory
 from sparselab.model.portable_engram import load_portable_engram
+from sparselab.resource_envelope import (
+    ResourceEnvelope,
+    check_envelope,
+    current_process_rss_bytes,
+)
 from sparselab.runtime import (
     RuntimeInfo,
     discover_runtimes,
@@ -46,6 +61,7 @@ from sparselab.runtime_forecasting import (
     runtime_forecast_planning,
     warmup_estimate,
 )
+from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import _atomic_json, _safe_member
 from sparselab.training.manifest import (
     canonical_json,
@@ -145,10 +161,17 @@ def _inventory(root: Path) -> list[dict[str, object]]:
     return result
 
 
-def _verify_inventory(root: Path, inventory: object) -> None:
+def _verify_inventory(
+    root: Path,
+    inventory: object,
+    *,
+    memo: dict[object, VerifiedFile] | None = None,
+    published_manifest: str | None = None,
+) -> dict[str, VerifiedFile]:
     if not isinstance(inventory, list):
         raise TypeError("stage inventory must be a list")
     seen: set[str] = set()
+    proofs: dict[str, VerifiedFile] = {}
     for item in inventory:
         if not isinstance(item, dict):
             raise TypeError("invalid stage inventory row")
@@ -167,8 +190,35 @@ def _verify_inventory(root: Path, inventory: object) -> None:
             or path.stat().st_size != item["size_bytes"]
         ):
             raise ValueError(f"stage member length mismatch: {name}")
-        if sha256_file(path) != item.get("sha256"):
-            raise ValueError(f"stage member digest mismatch: {name}")
+        if not isinstance(item.get("sha256"), str):
+            raise ValueError(f"invalid stage member digest: {name}")  # noqa: TRY004 - invalid serialized schema
+        proofs[name] = verify_file(path, expected_sha256=item["sha256"], memo=memo)
+    actual = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+    if published_manifest is not None:
+        actual.discard(published_manifest)
+    if actual != seen:
+        raise ValueError("stage inventory differs from actual files")
+    return proofs
+
+
+def _load_inventory_prepared(
+    assets: Path, proofs: dict[str, VerifiedFile], *, byte_enabled: bool
+) -> Any:
+    root = assets / "data"
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    arrays = {
+        name.removeprefix("data/"): proof
+        for name, proof in proofs.items()
+        if name.startswith("data/") and name.endswith(".npy")
+    }
+    receipt = _receipt_from_proofs(root, manifest, arrays)
+    return load_prepared_data(
+        root, byte_enabled=byte_enabled, verification="structural", receipt=receipt
+    )
 
 
 def pilot_config(config: RunConfig, purpose: str, root: Path) -> RunConfig:
@@ -222,9 +272,11 @@ def verify_stage_bundle(
         raise ValueError(
             "stage bundle executable source identity differs; restage explicitly"
         )
-    _verify_inventory(root / "assets", inputs.get("artifacts"))
-    data = load_prepared_data(
-        root / "assets" / "data", byte_enabled=base.model.memory in {"byte", "portable"}
+    proof_memo: dict[object, VerifiedFile] = {}
+    assets = root / "assets"
+    proofs = _verify_inventory(assets, inputs.get("artifacts"), memo=proof_memo)
+    data = _load_inventory_prepared(
+        assets, proofs, byte_enabled=base.model.memory in {"byte", "portable"}
     )
     tokenizer = load_tokenizer(root / "assets" / "tokenizer.json")
     if tokenizer.get_vocab_size() != base.model.vocab_size:
@@ -246,7 +298,12 @@ def verify_stage_bundle(
             "warmup",
         }:
             raise ValueError("stage bundle has not completed asset validation")
-        _verify_inventory(root, bundle.get("artifacts"))
+        _verify_inventory(
+            root,
+            bundle.get("artifacts"),
+            memo=proof_memo,
+            published_manifest="bundle.json",
+        )
         if bundle.get("inputs_sha256") != inputs["sha256"]:
             raise ValueError("stage bundle input identity mismatch")
     else:
@@ -305,6 +362,9 @@ def materialize_prepared_inputs(
     destination: Path,
     *,
     prepared_inputs: Path | None = None,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
 ) -> Path:
     """Publish immutable, engine-neutral training inputs without probing a runtime.
 
@@ -312,6 +372,15 @@ def materialize_prepared_inputs(
     It is verified before copying, so callers never use controller-local source paths
     after this boundary.
     """
+    validate_tokenizer_batch_limits(
+        tokenizer_batch_documents, tokenizer_batch_source_bytes
+    )
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=destination,
+            rss_bytes=current_process_rss_bytes(),
+        )
     destination = destination.resolve()
     if destination.exists():
         raise FileExistsError(f"prepared input destination exists: {destination}")
@@ -326,7 +395,13 @@ def materialize_prepared_inputs(
             tokenizer = load_tokenizer(config.tokenizer.path)
             if tokenizer.get_vocab_size() != config.model.vocab_size:
                 raise ValueError("tokenizer vocabulary does not match model")
-            data = prepare_data(config, tokenizer)
+            data = prepare_data(
+                config,
+                tokenizer,
+                resource_envelope=resource_envelope,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+            )
             assets.mkdir()
             shutil.copy2(config.tokenizer.path, assets / "tokenizer.json")
             tokenizer_manifest = config.tokenizer.path.with_name(
@@ -376,6 +451,12 @@ def materialize_prepared_inputs(
                 "artifacts": _inventory(assets),
             },
         )
+        if resource_envelope is not None:
+            check_envelope(
+                resource_envelope,
+                workspace=destination,
+                rss_bytes=current_process_rss_bytes(),
+            )
         os.rename(work, destination)
     return destination
 
@@ -418,10 +499,10 @@ def verify_prepared_inputs(
         and not allow_runtime_drift
     ):
         raise ValueError("prepared inputs executable source identity differs")
-    _verify_inventory(root / "assets", inputs.get("artifacts"))
-    data = load_prepared_data(
-        root / "assets" / "data",
-        byte_enabled=config.model.memory in {"byte", "portable"},
+    assets = root / "assets"
+    proofs = _verify_inventory(assets, inputs.get("artifacts"))
+    data = _load_inventory_prepared(
+        assets, proofs, byte_enabled=config.model.memory in {"byte", "portable"}
     )
     tokenizer = load_tokenizer(root / "assets" / "tokenizer.json")
     if tokenizer.get_vocab_size() != config.model.vocab_size:
@@ -507,10 +588,25 @@ def stage(
     allow_runtime_drift: bool = False,
     inherited_fds: tuple[int, ...] = (),
     cancel_path: Path | None = None,
+    authorization: RuntimeAuthorization | None = None,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
 ) -> Path:
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
+    validate_tokenizer_batch_limits(
+        tokenizer_batch_documents, tokenizer_batch_source_bytes
+    )
+    if _LEVELS[through] >= 2:
+        require_authorization(config, authorization)
     output = output.absolute()
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=output,
+            rss_bytes=current_process_rss_bytes(),
+        )
     if _LEVELS[through] >= 2:
         from sparselab.workspace_preflight import check_storage, require_storage
 
@@ -582,6 +678,16 @@ def stage(
                 report.update(
                     inventory=asdict(inventory),
                     runtime=runtime.as_dict(),
+                    runtime_authorization=(
+                        authorization.as_dict() if authorization is not None else None
+                    ),
+                    resource_envelope=(
+                        resource_envelope.model_dump(mode="json")
+                        if resource_envelope is not None
+                        else None
+                    ),
+                    tokenizer_batch_documents=tokenizer_batch_documents,
+                    tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
                     estimate=asdict(estimate),
                     source_identity_sha256=source_digest,
                     tensor_inventory={
@@ -605,7 +711,7 @@ def stage(
                 observations: list[dict[str, object]] = []
                 if _LEVELS[through] >= 2:
                     history.start(ExperimentStage.VALIDATED)
-                    runtime = validate_runtime(config)
+                    runtime = validate_runtime(config, authorization=authorization)
                     forecast = runtime_forecast_planning(
                         config.logging.root_dir,
                         config,
@@ -643,7 +749,11 @@ def stage(
                         )
                     if prepared_inputs is None:
                         prepared_root = materialize_prepared_inputs(
-                            config, work / "prepared"
+                            config,
+                            work / "prepared",
+                            resource_envelope=resource_envelope,
+                            tokenizer_batch_documents=tokenizer_batch_documents,
+                            tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
                         )
                     else:
                         prepared_root = prepared_inputs.resolve(strict=True)
@@ -663,6 +773,18 @@ def stage(
                             "requested_config": config.model_dump(mode="json"),
                             "source_identity_sha256": source_digest,
                             "parent_inputs_sha256": prepared_identity["sha256"],
+                            "runtime_authorization": (
+                                authorization.as_dict()
+                                if authorization is not None
+                                else None
+                            ),
+                            "resource_envelope": (
+                                resource_envelope.model_dump(mode="json")
+                                if resource_envelope is not None
+                                else None
+                            ),
+                            "tokenizer_batch_documents": tokenizer_batch_documents,
+                            "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
                             "artifacts": _inventory(work / "assets"),
                         },
                     )
@@ -786,5 +908,11 @@ def stage(
                     )
                 os.rename(work, output)
                 raise
+            if resource_envelope is not None:
+                check_envelope(
+                    resource_envelope,
+                    workspace=output,
+                    rss_bytes=current_process_rss_bytes(),
+                )
             os.rename(work, output)
     return output

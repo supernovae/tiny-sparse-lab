@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -257,7 +258,39 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         raise ValueError(f"no immutable external verifier for {kind}")
 
 
-def verify_artifact(artifact: Artifact, source: Path) -> dict[str, object]:
+_MEMO_SEAL = object()
+
+
+class _VerifiedArtifact:
+    __slots__ = ("_seal", "identity")
+
+    def __init__(self, identity: dict[str, object], *, _seal: object = None) -> None:
+        if _seal is not _MEMO_SEAL:
+            raise TypeError("artifact evidence cannot be constructed from metadata")
+        self.identity = MappingProxyType(dict(identity))
+        self._seal = _MEMO_SEAL
+
+
+def _fingerprint(path: Path) -> tuple[tuple[str, int, int, int, int], ...]:
+    members = [path] if path.is_file() else [path, *sorted(path.rglob("*"))]
+    return tuple(
+        (
+            member.relative_to(path).as_posix() if member != path else ".",
+            member.stat().st_dev,
+            member.stat().st_ino,
+            member.stat().st_size,
+            member.stat().st_mtime_ns,
+        )
+        for member in members
+    )
+
+
+def verify_artifact(
+    artifact: Artifact,
+    source: Path,
+    *,
+    memo: dict[tuple[object, ...], _VerifiedArtifact] | None = None,
+) -> dict[str, object]:
     """Verify one pinned external identity and return JSON-native identity/availability."""
     if artifact.from_phase is not None:
         raise ValueError(
@@ -267,6 +300,17 @@ def verify_artifact(artifact: Artifact, source: Path) -> dict[str, object]:
         raise ValueError(f"{artifact.kind} external artifact lacks path or digest")
     try:
         path = _safe_path(artifact.path, source)
+        key = (
+            path.resolve(strict=True),
+            artifact.kind,
+            artifact.version,
+            artifact.identifier,
+            artifact.sha256,
+            _fingerprint(path),
+        )
+        cached = memo.get(key) if memo is not None else None
+        if isinstance(cached, _VerifiedArtifact) and cached._seal is _MEMO_SEAL:
+            return dict(cached.identity)
         _verify_domain(artifact, path)
     except (
         OSError,
@@ -279,18 +323,26 @@ def verify_artifact(artifact: Artifact, source: Path) -> dict[str, object]:
         raise ValueError(
             f"invalid {artifact.kind} artifact at {artifact.path}: {error}"
         ) from error
-    return {
+    verified = {
         "kind": artifact.kind,
         "version": artifact.version,
         "identifier": artifact.identifier,
         "sha256": artifact.sha256,
         "path": str(path),
     }
+    if memo is not None:
+        memo[key] = _VerifiedArtifact(verified, _seal=_MEMO_SEAL)
+    return dict(verified)
 
 
-def verify_inputs(plan: ExperimentPlan, source: Path) -> dict[str, dict[str, object]]:
+def verify_inputs(
+    plan: ExperimentPlan,
+    source: Path,
+    *,
+    memo: dict[tuple[object, ...], _VerifiedArtifact] | None = None,
+) -> dict[str, dict[str, object]]:
     """Resolve named plan inputs only; planned phase outputs remain unresolved."""
     return {
-        name: verify_artifact(plan.artifacts[reference], source)
+        name: verify_artifact(plan.artifacts[reference], source, memo=memo)
         for name, reference in plan.inputs.items()
     }

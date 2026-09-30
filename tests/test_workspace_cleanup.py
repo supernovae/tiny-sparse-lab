@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from sparselab.training.checkpoints import CheckpointManager
@@ -32,8 +34,22 @@ def _cache(workspace: Path, cache: Path, number: int, *, owned: bool = True) -> 
     digest = f"{number:016x}" + "a" * 48
     root = cache / digest[:16]
     root.mkdir(parents=True)
-    (root / "manifest.json").write_text(json.dumps({"settings_sha256": digest}))
-    (root / "train.npy").write_bytes(b"data")
+    manifest = {
+        "settings_sha256": digest,
+        "packing_version": "contiguous-eos-v6",
+        "supervision": {"kind": "all_tokens"},
+    }
+    for split in ("train", "validation"):
+        path = root / f"{split}.npy"
+        np.save(path, np.arange(4, dtype=np.int32), allow_pickle=False)
+        manifest[split] = {
+            "dtype": "int32",
+            "shape": [4],
+            "tokens": 4,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "size_bytes": path.stat().st_size,
+        }
+    (root / "manifest.json").write_text(json.dumps(manifest))
     if owned:
         mark_prepared_cache(workspace, root)
     os.utime(root, ns=(number, number))

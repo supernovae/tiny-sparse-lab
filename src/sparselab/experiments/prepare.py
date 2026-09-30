@@ -16,10 +16,20 @@ from sparselab.corpus.project import (
     verify_fraction_tokenizer,
 )
 from sparselab.corpus.release import freeze, verify_release
-from sparselab.data.packing import load_prepared_data, prepare_data
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
+from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
 from sparselab.experiments.artifacts import verify_artifact
 from sparselab.experiments.plan import Artifact, CorpusVariant, ExperimentPlan
+from sparselab.resource_envelope import (
+    ResourceEnvelope,
+    check_envelope,
+    current_process_rss_bytes,
+)
 from sparselab.training.manifest import config_sha256, sha256_file
 from sparselab.workdir import ensure_work_dir
 from sparselab.workspace_preflight import require_storage, training_storage_checks
@@ -61,8 +71,14 @@ def prepare_variant(
     workspace: Path,
     *,
     artifacts: dict[str, Artifact] | None = None,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
 ) -> dict[str, Any]:
     """Reuse one project's pinned acquisition and independently freeze its release."""
+    validate_tokenizer_batch_limits(
+        tokenizer_batch_documents, tokenizer_batch_source_bytes
+    )
     if not base_run_path.is_file():
         raise ValueError(f"corpus variant {variant.id} needs a file-backed base_run")
     project_path = Path(variant.project)
@@ -79,6 +95,12 @@ def prepare_variant(
     )
     candidate = project.model_copy(update={"release": release})
     verify_fraction_tokenizer(candidate)
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=workspace,
+            rss_bytes=current_process_rss_bytes(),
+        )
     ensure_work_dir(workspace)
     acquisition_path = workspace / "corpora" / candidate.config.id / "acquisition.json"
     if acquisition_path.exists():
@@ -124,8 +146,13 @@ def prepare_variant(
         )
         if config.model.vocab_size != load_tokenizer(tokenizer).get_vocab_size():
             raise ValueError("reused tokenizer vocabulary differs from prepared model")
-    prepared = prepare_data(config, load_tokenizer(tokenizer))
-    load_prepared_data(prepared.root, byte_enabled=config.model.memory == "byte")
+    prepared = prepare_data(
+        config,
+        load_tokenizer(tokenizer),
+        resource_envelope=resource_envelope,
+        tokenizer_batch_documents=tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+    )
     return {
         "id": variant.id,
         "acquisition": acquisition,
@@ -147,8 +174,25 @@ def prepare_variant(
     }
 
 
-def prepare_plan(plan: ExperimentPlan, source: Path, workspace: Path) -> dict[str, Any]:
+def prepare_plan(
+    plan: ExperimentPlan,
+    source: Path,
+    workspace: Path,
+    *,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+) -> dict[str, Any]:
     """Materialize declared variants only, after storage preflight and pinned sources."""
+    validate_tokenizer_batch_limits(
+        tokenizer_batch_documents, tokenizer_batch_source_bytes
+    )
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=workspace,
+            rss_bytes=current_process_rss_bytes(),
+        )
     ensure_work_dir(workspace)
     from sparselab.experiments.plan import base_run_config
 
@@ -162,7 +206,16 @@ def prepare_plan(plan: ExperimentPlan, source: Path, workspace: Path) -> dict[st
     if not base_path.is_absolute():
         base_path = source.parent / base_path
     records = [
-        prepare_variant(variant, source, base_path, workspace, artifacts=plan.artifacts)
+        prepare_variant(
+            variant,
+            source,
+            base_path,
+            workspace,
+            artifacts=plan.artifacts,
+            resource_envelope=resource_envelope,
+            tokenizer_batch_documents=tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+        )
         for variant in plan.corpus_variants
     ]
     return {"format": "experiment-preparation-v1", "id": plan.id, "variants": records}

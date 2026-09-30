@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -122,7 +123,7 @@ def test_dead_running_receipt_becomes_unknown_without_relaunch(tmp_path: Path) -
         name=f"worker-{tmp_path.name}",
         transport="local",
         host=None,
-        python=Path(os.__file__).resolve(),
+        python=Path(sys.executable).absolute(),
         root=tmp_path,
         engine="pytorch",
         backend="cpu",

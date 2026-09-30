@@ -24,7 +24,12 @@ FINEWEB_EDU_DATASET = "HuggingFaceFW/fineweb-edu"
 COSMOPEDIA_DATASET = "HuggingFaceTB/cosmopedia"
 
 
-def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
+def iter_documents(
+    config: DatasetConfig,
+    split: str,
+    *,
+    local_text_source_bytes: int | None = None,
+) -> Iterator[str]:
     """Yield source documents in stable stream order, without implicit fallbacks."""
     if split not in {"train", "validation"}:
         raise ValueError(f"unknown split {split!r}")
@@ -45,11 +50,25 @@ def iter_documents(config: DatasetConfig, split: str) -> Iterator[str]:
     if config.source == "local_text":
         path = config.train_path if split == "train" else config.validation_path
         assert path is not None
-        with path.open(encoding="utf-8") as handle:
-            for number, line in enumerate(handle, 1):
+        with path.open("rb") as handle:
+            for number in range(1, 2**63):
+                # Escaped JSON may need six raw bytes per decoded UTF-8 byte.
+                limit = (
+                    6 * local_text_source_bytes + 1024
+                    if local_text_source_bytes is not None
+                    else -1
+                )
+                line = handle.readline(limit + 1) if limit >= 0 else handle.readline()
+                if not line:
+                    break
+                if limit >= 0 and len(line) > limit:
+                    raise ValueError(
+                        f"local_text raw JSON record at {path}:{number} exceeds "
+                        f"operational raw-line cap ({limit} bytes)"
+                    )
                 try:
                     row = json.loads(line)
-                except json.JSONDecodeError as error:
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
                     raise ValueError(
                         f"invalid local_text JSON at {path}:{number}"
                     ) from error

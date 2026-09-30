@@ -14,13 +14,16 @@ from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import psutil
 import torch
 
 from sparselab.workdir import ensure_work_dir
+
+if TYPE_CHECKING:
+    from sparselab.runtime_profile import RuntimeAuthorization
 
 
 @dataclass(frozen=True)
@@ -547,8 +550,13 @@ def _validate_mlx_runtime(config: Any) -> RuntimeInfo:
     )
 
 
-def validate_runtime(config: Any) -> RuntimeInfo:
+def validate_runtime(
+    config: Any, *, authorization: RuntimeAuthorization | None = None
+) -> RuntimeInfo:
     """Probe the requested engine without changing parent allocator/RNG state."""
+    from sparselab.runtime_profile import require_authorization
+
+    require_authorization(config, authorization)
     runtime = config.runtime
     if runtime.engine == "mlx":
         return _validate_mlx_runtime(config)

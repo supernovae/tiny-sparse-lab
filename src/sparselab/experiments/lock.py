@@ -288,6 +288,7 @@ def _variant_identity(
     declaration: CorpusVariant,
     source: Path,
     authored_artifacts: dict[str, Artifact],
+    memo: dict[tuple[object, ...], Any],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Reverify all materialized dependencies against the declared release."""
     release = Path(record["release_path"])
@@ -370,7 +371,7 @@ def _variant_identity(
             sha256=digest,
             path=str(path),
         )
-        verified = verify_artifact(spec, source)
+        verified = verify_artifact(spec, source, memo=memo)
         identities[kind] = {
             key: value for key, value in verified.items() if key != "path"
         }
@@ -581,7 +582,8 @@ def resolve_plan(
     base = base_run_config(plan, source)
     phases = _phases(plan)
     variants = _prepared_variants(plan, prepared)
-    verified_inputs = verify_inputs(plan, source)
+    memo: dict[tuple[object, ...], Any] = {}
+    verified_inputs = verify_inputs(plan, source, memo=memo)
     artifacts: dict[str, dict[str, Any]] = {}
     availability: dict[str, Any] = {
         "inputs": {},
@@ -596,7 +598,7 @@ def resolve_plan(
                 raise ValueError(f"planned artifact {name} has unknown producing phase")
             artifacts[name] = artifact.model_dump(mode="json", exclude={"path"})
             continue
-        verified = verify_artifact(artifact, source)
+        verified = verify_artifact(artifact, source, memo=memo)
         artifacts[name] = {
             **{key: val for key, val in verified.items() if key != "path"},
             "producer": artifact.producer,
@@ -617,6 +619,7 @@ def resolve_plan(
             declaration,
             source,
             plan.artifacts,
+            memo,
         )
         for kind, identity in identities[name].items():
             key = f"variant.{name}.{kind}"
