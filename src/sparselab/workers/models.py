@@ -13,6 +13,12 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from sparselab.config.models import RunConfig, StrictModel
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
+from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime import RuntimeInfo
 from sparselab.training.manifest import canonical_json
 
@@ -516,6 +522,17 @@ class ExperimentSpec(WorkerModel):
     preferred_worker: str | None = None
     requirements: SchedulingRequirements = Field(default_factory=SchedulingRequirements)
     continuation: ContinuationSpec = Field(default_factory=ContinuationSpec)
+    resource_envelope: ResourceEnvelope | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    tokenizer_batch_documents: int = Field(
+        default=TOKENIZER_BATCH_DOCUMENTS,
+        exclude_if=lambda value: value == TOKENIZER_BATCH_DOCUMENTS,
+    )
+    tokenizer_batch_source_bytes: int = Field(
+        default=TOKENIZER_BATCH_SOURCE_BYTES,
+        exclude_if=lambda value: value == TOKENIZER_BATCH_SOURCE_BYTES,
+    )
     required_versions: dict[str, object]
     source_identity_sha256: str
     dispatch_bundle_digest: str
@@ -523,6 +540,17 @@ class ExperimentSpec(WorkerModel):
     plan: PlanMetadata | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+
+    @field_validator(
+        "tokenizer_batch_documents", "tokenizer_batch_source_bytes", mode="before"
+    )
+    @classmethod
+    def valid_tokenizer_batch(cls, value: object, info: Any) -> int:
+        if info.field_name == "tokenizer_batch_documents":
+            return validate_tokenizer_batch_limits(value, TOKENIZER_BATCH_SOURCE_BYTES)[
+                0
+            ]
+        return validate_tokenizer_batch_limits(TOKENIZER_BATCH_DOCUMENTS, value)[1]
 
     @field_validator("schema_version")
     @classmethod

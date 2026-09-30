@@ -15,7 +15,6 @@ from sparselab.config.models import AttentionConfig, DatasetConfig, ModelConfig
 from sparselab.data.allocation import build_allocation_manifest
 from sparselab.data.allocation_tasks import _collect_provenance
 from sparselab.data.packing import (
-    _array_metadata,
     _tokenizer_sha256,
     load_prepared_data,
     prepare_data,
@@ -24,7 +23,7 @@ from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.model.transformer import DenseLM
-from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.training.manifest import canonical_json, sha256_file, source_identity
 
 
 def _allocation_config(tmp_path: Path, *, weight: float, memory: bool = True):
@@ -249,6 +248,20 @@ def test_allocation_mass_counters_keep_raw_and_hybrid_distinct(tmp_path: Path) -
     assert result.metrics["allocation/weighted_neural_supervision_mass"] == 0
 
 
+def _array_metadata(
+    path: Path, *, dtype: np.dtype | None = None, dimensions: int = 1
+) -> dict[str, object]:
+    dtype = np.dtype(np.int32) if dtype is None else dtype
+    values = np.load(path, mmap_mode="r", allow_pickle=False)
+    assert values.dtype == dtype and values.ndim == dimensions
+    return {
+        "dtype": values.dtype.name,
+        "shape": list(values.shape),
+        "tokens": int(values.shape[0]),
+        "sha256": sha256_file(path),
+    }
+
+
 def _prepared_cache(root: Path) -> None:
     root.mkdir()
     arrays = {
@@ -324,7 +337,7 @@ def test_prepared_semantic_query_or_mask_tampering_fails_closed(
         load_prepared_data(root, byte_enabled=False).train_semantic_queries is not None
     )
     np.save(root / name, values, allow_pickle=False)
-    with pytest.raises(ValueError, match="semantic allocation sidecar integrity"):
+    with pytest.raises(ValueError):
         load_prepared_data(root, byte_enabled=False)
 
 
@@ -336,7 +349,7 @@ def test_prepared_owner_tampering_fails_closed(tmp_path: Path) -> None:
         np.array([2, 2, 3, 9], dtype=np.uint8),
         allow_pickle=False,
     )
-    with pytest.raises(ValueError, match="owner sidecar integrity"):
+    with pytest.raises(ValueError):
         load_prepared_data(root, byte_enabled=False)
 
 

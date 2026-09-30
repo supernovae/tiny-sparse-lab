@@ -169,7 +169,15 @@ def _prepare(args: argparse.Namespace) -> None:
 
     plan, source = _declaration(args)
     workspace = _workspace(plan.id)
-    record = prepare_plan(plan, source, workspace)
+    resource_envelope = args.resource_envelope_value
+    record = prepare_plan(
+        plan,
+        source,
+        workspace,
+        resource_envelope=resource_envelope,
+        tokenizer_batch_documents=args.tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+    )
     path = workspace / "preparation.json"
     encoded = canonical_json(record) + b"\n"
     if path.exists():
@@ -442,6 +450,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command.add_argument("--json", action="store_true")
         if name in {"validate", "inspect", "diff", "lock"}:
             command.add_argument("--max-runs", type=int, default=1000)
+        if name == "prepare":
+            command.add_argument("--resource-envelope", type=Path)
+            from sparselab.cli.main import _tokenizer_batch_arguments
+
+            _tokenizer_batch_arguments(command)
         if name == "run":
             command.add_argument("--cell")
             command.add_argument("--phase")

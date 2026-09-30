@@ -12,8 +12,14 @@ from test_training import equal
 
 import sparselab.staging as staging_module
 from sparselab.config.models import RunConfig
+from sparselab.data.packing import prepare_data
+from sparselab.data.tokenizer import load_tokenizer
+from sparselab.experiments.artifacts import verify_artifact
+from sparselab.experiments.plan import Artifact
 from sparselab.model.portable_engram import export_portable_engram
+from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.staging import _read_sealed, stage
+from sparselab.training import manifest as manifest_module
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import read_manifest
 from sparselab.training.stages import ExperimentStage, StageHistory
@@ -100,6 +106,23 @@ def test_warmup_pilots_are_isolated_and_bundle_is_self_contained(
     equal(direct.rng, bundled.rng)
 
 
+def test_resource_envelope_rejects_stage_and_train_before_creating_output(
+    tmp_path: Path,
+) -> None:
+    config = _config(tmp_path)
+    envelope = ResourceEnvelope(resource_envelope_version=1, min_disk_bytes=1 << 62)
+    stage_root = tmp_path / "unused-stage" / "bundle"
+    with pytest.raises(ValueError, match="min_disk_bytes"):
+        stage(config, stage_root, through="validate", resource_envelope=envelope)
+    assert not stage_root.parent.exists()
+
+    run = config.logging.root_dir / "never-started"
+    with pytest.raises(ValueError, match="min_disk_bytes"):
+        train(config, run_id=run.name, resource_envelope=envelope)
+    assert not run.exists()
+    assert not config.dataset.cache_dir.exists()
+
+
 def test_tampered_stage_bundle_rejects_before_run_creation(tmp_path: Path) -> None:
     config = _config(tmp_path)
     bundle_root = stage(config, tmp_path / "stage", through="validate")
@@ -110,6 +133,110 @@ def test_tampered_stage_bundle_rejects_before_run_creation(tmp_path: Path) -> No
         train(config, run_id="rejected", stage_bundle=bundle_root)
 
     assert not (config.logging.root_dir / "rejected").exists()
+
+
+def test_bundle_inventory_hashes_prepared_arrays_once_per_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    bundle = stage(config, tmp_path / "stage", through="validate")
+    original = manifest_module.sha256_file
+    hashed: list[Path] = []
+
+    def count(path: Path) -> str:
+        hashed.append(Path(path))
+        return original(path)
+
+    monkeypatch.setattr(manifest_module, "sha256_file", count)
+    for attempt in range(2):
+        staging_module.verify_stage_bundle(bundle, config)
+        arrays = [
+            path.name
+            for path in hashed
+            if path.parent == bundle / "assets" / "data" and path.suffix == ".npy"
+        ]
+        assert sorted(arrays) == sorted(["train.npy", "validation.npy"] * (attempt + 1))
+    train_path = bundle / "assets" / "data" / "train.npy"
+    content = bytearray(train_path.read_bytes())
+    content[-1] ^= 1
+    train_path.write_bytes(content)
+    with pytest.raises(ValueError, match="digest mismatch"):
+        staging_module.verify_stage_bundle(bundle, config)
+
+
+def test_prepared_inputs_inventory_hashes_arrays_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    root = staging_module.materialize_prepared_inputs(
+        config, tmp_path / "prepared-inputs"
+    )
+    original = manifest_module.sha256_file
+    hashed: list[Path] = []
+
+    def count(path: Path) -> str:
+        hashed.append(Path(path))
+        return original(path)
+
+    monkeypatch.setattr(manifest_module, "sha256_file", count)
+    staging_module.verify_prepared_inputs(root, config)
+    assert sorted(
+        path.name
+        for path in hashed
+        if path.parent == root / "assets" / "data" and path.suffix == ".npy"
+    ) == ["train.npy", "validation.npy"]
+
+
+def test_prepared_artifact_memo_is_per_operation_and_fingerprint_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(tmp_path)
+    prepared = prepare_data(config, load_tokenizer(config.tokenizer.path))
+    manifest = json.loads((prepared.root / "manifest.json").read_text())
+    artifact = Artifact(
+        kind="prepared_data",
+        version=1,
+        producer="sparselab",
+        identifier=manifest["settings_sha256"],
+        sha256=manifest["manifest_sha256"],
+        path=str(prepared.root),
+    )
+    original = manifest_module.sha256_file
+    hashed: list[Path] = []
+
+    def count(path: Path) -> str:
+        hashed.append(Path(path))
+        return original(path)
+
+    monkeypatch.setattr(manifest_module, "sha256_file", count)
+    source = tmp_path / "plan.yaml"
+    memo: dict[tuple[object, ...], dict[str, object]] = {}
+    verify_artifact(artifact, source, memo=memo)
+    verify_artifact(artifact, source, memo=memo)
+    arrays = [
+        path
+        for path in hashed
+        if path.parent == prepared.root and path.suffix == ".npy"
+    ]
+    assert sorted(path.name for path in arrays) == ["train.npy", "validation.npy"]
+    verify_artifact(artifact, source, memo={})
+    arrays = [
+        path
+        for path in hashed
+        if path.parent == prepared.root and path.suffix == ".npy"
+    ]
+    assert sorted(path.name for path in arrays) == [
+        "train.npy",
+        "train.npy",
+        "validation.npy",
+        "validation.npy",
+    ]
+    array = prepared.root / "train.npy"
+    content = bytearray(array.read_bytes())
+    content[-1] ^= 1
+    array.write_bytes(content)
+    with pytest.raises(ValueError, match="digest mismatch"):
+        verify_artifact(artifact, source, memo=memo)
 
 
 def test_inspect_needs_no_assets_but_failed_preflight_is_not_resumable(

@@ -1,0 +1,93 @@
+{
+  "broader_cpu": {
+    "command": "uv run --locked --offline pytest -q tests -m 'not network and not mps and not cuda and not rocm and not xpu and not mlx' --basetemp sparselab-work/runtime-prep-v1/rebase-final-broader-scoped --tb=short",
+    "deselected": 9,
+    "elapsed_seconds": 534.58,
+    "passed": 1072,
+    "skipped": 3
+  },
+  "campaign_cli": {
+    "raw_outputs": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/rebase-campaign-cli-smoke.json",
+    "run_manifest_git_commit": null,
+    "run_manifest_git_dirty": null,
+    "run_path": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/rebase-campaign-cli/work/campaigns/fixture/40b92625e01d8414ab5feffaf427ac273def698662f493ea44e4a473ac6f3c48/experiments/plan-fixture/controller/1e60037d-a58b-47fd-aecd-50b31c1a0dce",
+    "stages_complete": 12,
+    "steps": 2,
+    "targets": 32
+  },
+  "cpu_probe": {
+    "available": true,
+    "backend": "cpu",
+    "bf16_supported": null,
+    "device_count": 1,
+    "device_index": 0,
+    "device_name": "CPU",
+    "device_names": [
+      "CPU"
+    ],
+    "engine": "pytorch",
+    "environment_root": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv",
+    "framework_path": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv/lib/python3.14/site-packages/torch/__init__.py",
+    "framework_version": "2.14.0+cpu",
+    "host_architecture": "x86_64",
+    "host_environment": "wsl2",
+    "host_os": "linux",
+    "package_root": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/src/sparselab",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "profile_id": "runtime-prep-v1-cpu",
+    "python": "/usr/bin/python3.14",
+    "python_version": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "schema_version": 1,
+    "source_sha256": "b42f3350819ecee0f5857b5b91c200bf7012144571cfd5022cc5e1a176d4df44",
+    "sys_base_prefix": "/usr",
+    "sys_prefix": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv",
+    "torch_cuda": null,
+    "torch_hip": null,
+    "torch_path": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv/lib/python3.14/site-packages/torch/__init__.py",
+    "torch_version": "2.14.0+cpu",
+    "xpu_runtime_version": null
+  },
+  "direct_cli": {
+    "raw_outputs": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/rebase-cli-smoke.json",
+    "read_only_commands_created_workspace": false,
+    "stage_through_smoke": "complete",
+    "training_steps": 2,
+    "training_targets": 32,
+    "unknown_argument_json_exit_code": 2
+  },
+  "focused": {
+    "basetemp": "sparselab-work/runtime-prep-v1/rebase-final-focus",
+    "elapsed_seconds": 220.33,
+    "passed": 257
+  },
+  "kind": "rebase-integration-evidence",
+  "original_feature_commit": "1539f35028d5500b12519c85ffa92b4ba54f7d87",
+  "quality_checks": {
+    "git_diff_check": "passed",
+    "ruff_check": "passed: src tests benchmarks",
+    "ruff_format": "passed: src/sparselab/cli/main.py src/sparselab/workers/controller.py"
+  },
+  "raw_workspace": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1",
+  "rebased_onto": "e186c9b94fb41e3c303bf2415eecace006720c2c",
+  "regression": {
+    "elapsed_seconds": 90.85,
+    "passed": 1,
+    "test": "tests/test_campaign.py::test_engine_full_cpu_and_no_redispatch"
+  },
+  "resolutions": [
+    "Preserve Campaign JSON argument errors and read-only workspace behavior alongside runtime/resource preflight.",
+    "Bind validated runtime reply to fresh registered-worker discovery; do not downgrade successful validation through passive discovery.",
+    "Retain shared scheduling deadlines and validate workers at every scheduling decision."
+  ],
+  "run_source_identity": {
+    "algorithm": "package-path-sha256-v2",
+    "sha256": "ca8a080088f7bca9a6245ba91e35c7e57005dec819adb71e94c272c000df20c7"
+  },
+  "schema_version": 1,
+  "verification_notes": [
+    "Original benchmark and acceptance measurements are retained unchanged; their source identity and original base describe pre-rebase measurements.",
+    "Root-wide pytest collection followed an ignored fixture symlink into host vendor tests; final broader invocation explicitly selects repository tests/.",
+    "Runtime probe Python-tree digest and run package-path-sha256-v2 identity use distinct algorithms; both observed values are retained.",
+    "Worker-ingested run git commit/dirty metadata is unavailable (null); source identity remains recorded."
+  ]
+}

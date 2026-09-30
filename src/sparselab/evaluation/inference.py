@@ -14,15 +14,22 @@ from tokenizers import Tokenizer
 
 from sparselab.config.models import RunConfig
 from sparselab.data.allocation import load_allocation_manifest, load_semantic_retriever
-from sparselab.data.packing import TokenBlockDataset, _tokenizer_sha256
+from sparselab.data.packing import (
+    TokenBlockDataset,
+    _tokenizer_sha256,
+    load_prepared_data,
+    supervision_requires_mask,
+)
 from sparselab.data.tokenizer import load_tokenizer
+from sparselab.data.verification import VerifiedFile, _receipt_from_proofs, verify_file
 from sparselab.engines.base import Microbatch
 from sparselab.engines.mlx import MLXEngine, preserve_rng_state
 from sparselab.model.inspection import inspection_report
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import discover_runtimes, select_device, torch_device_for
+from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
+from sparselab.training.manifest import canonical_json, read_manifest
 
 
 @dataclass(frozen=True)
@@ -42,6 +49,13 @@ class InferenceRun:
         owners = root / "validation_owner_ids.npy"
         queries = root / "validation_semantic_queries.npy"
         mask = root / "validation_semantic_mask.npy"
+        needs_mask = supervision_requires_mask(
+            json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        )
+        if supervision.is_file() != needs_mask:
+            raise ValueError(
+                "validation supervision inventory differs from packing descriptor"
+            )
         return TokenBlockDataset(
             np.load(root / "validation.npy", mmap_mode="r", allow_pickle=False),
             self.config.training.seq_len,
@@ -49,7 +63,7 @@ class InferenceRun:
             if self.config.model.memory in {"byte", "portable"}
             else None,
             np.load(supervision, mmap_mode="r", allow_pickle=False)
-            if supervision.is_file()
+            if needs_mask
             else None,
             np.load(owners, mmap_mode="r", allow_pickle=False)
             if self.config.dataset.allocation_manifest_path is not None
@@ -100,14 +114,22 @@ def load_run(
     runs_dir: Path,
     checkpoint: str | None = None,
     backend: str | None = None,
+    *,
+    authorization: RuntimeAuthorization | None = None,
 ) -> InferenceRun:
     run = (runs_dir / run_id).resolve()
     config = RunConfig.model_validate_json((run / "resolved_config.yaml").read_text())
+    requested = backend or config.runtime.backend
+    runtime_config = config.model_copy(
+        update={"runtime": config.runtime.model_copy(update={"backend": requested})}
+    )
+    require_authorization(runtime_config, authorization)
     manifest = read_manifest(run / "manifest.json")
     manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
     if RunConfig.model_validate(manifest["effective_config"]) != config:
         raise ValueError("resolved config differs from the verified run manifest")
     artifacts: dict[str, str] = {}
+    array_proofs: dict[str, VerifiedFile] = {}
     for entry in manifest["artifacts"]:
         relative = Path(entry["relative_path"])
         path = run / relative
@@ -117,9 +139,11 @@ def load_run(
             or path.is_symlink()
             or not path.resolve().is_relative_to(run)
             or not path.is_file()
-            or sha256_file(path) != entry["sha256"]
         ):
             raise ValueError(f"run artifact integrity failure: {relative}")
+        proof = verify_file(path, expected_sha256=entry["sha256"])
+        if relative.parts[0] == "data" and relative.suffix == ".npy":
+            array_proofs[relative.name] = proof
         artifacts[str(relative)] = entry["sha256"]
     required = {
         "tokenizer.json",
@@ -130,7 +154,7 @@ def load_run(
     data_manifest = json.loads((run / "data" / "manifest.json").read_text())
     if not isinstance(data_manifest, dict):
         raise TypeError("prepared-data manifest must be an object")
-    if data_manifest.get("packing_version") == "contiguous-eos-v5":
+    if supervision_requires_mask(data_manifest):
         required.update(
             {"data/train_supervision.npy", "data/validation_supervision.npy"}
         )
@@ -156,6 +180,13 @@ def load_run(
         raise ValueError(
             f"run lacks verified artifacts: {sorted(required - artifacts.keys())}"
         )
+    receipt = _receipt_from_proofs(run / "data", data_manifest, array_proofs)
+    prepared = load_prepared_data(
+        run / "data",
+        byte_enabled=config.model.memory in {"byte", "portable"},
+        verification="structural",
+        receipt=receipt,
+    )
 
     selected = Path(checkpoint or "latest.json")
     if not selected.is_absolute() and not selected.exists():
@@ -279,23 +310,24 @@ def load_run(
             "splits": {},
         }
         for split in ("train", "validation"):
-            token_ids = np.load(
-                run / "data" / f"{split}.npy",
-                mmap_mode="r",
-                allow_pickle=False,
-            )
+            token_ids = prepared.train if split == "train" else prepared.validation
             sidecars = allocation_manifest.split(split, token_count=len(token_ids))
-            supervision_path = run / "data" / f"{split}_supervision.npy"
             supervision = (
-                np.load(supervision_path, mmap_mode="r", allow_pickle=False)
-                if supervision_path.is_file()
-                else np.ones(len(token_ids), dtype=bool)
+                prepared.train_supervision
+                if split == "train"
+                else prepared.validation_supervision
             )
             raw_counts = np.bincount(sidecars.owner, minlength=4)
-            target_counts = np.bincount(sidecars.owner[supervision], minlength=4)
+            target_counts = (
+                raw_counts
+                if supervision is None
+                else np.bincount(sidecars.owner[supervision], minlength=4)
+            )
             split_identity: dict[str, Any] = {
                 "raw_tokens": len(token_ids),
-                "valid_supervised_targets": int(supervision.sum()),
+                "valid_supervised_targets": (
+                    len(token_ids) if supervision is None else int(supervision.sum())
+                ),
                 "owner_raw_tokens": {
                     owner_names[owner]: int(raw_counts[owner]) for owner in range(4)
                 },
@@ -334,6 +366,7 @@ def load_run(
         # does not need caller RNG, and no Torch model is constructed here.
         with torch.random.fork_rng(devices=[]), preserve_rng_state():
             engine = MLXEngine()
+            engine.validate(config, authorization=authorization)
             engine.initialize(config, initial_weights=weights)
             model = engine.model
             assert model is not None

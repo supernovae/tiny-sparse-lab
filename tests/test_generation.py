@@ -211,6 +211,7 @@ def test_generation_ids_retain_tokens_hidden_by_text_stop_sequence() -> None:
         torch.device("cpu"),
     ) == ("hello", [])
 
+
 def test_byte_memory_uses_raw_leading_space_and_unicode_bytes_for_causal_addresses() -> (
     None
 ):
@@ -285,7 +286,7 @@ def test_prepare_data_unicode_addresses_match_generation_helper(
     )
     monkeypatch.setattr(
         "sparselab.data.packing.iter_documents",
-        lambda _config, _split: iter([document]),
+        lambda _config, _split, **_kwargs: iter([document]),
     )
 
     prepared = prepare_data(config, tokenizer)

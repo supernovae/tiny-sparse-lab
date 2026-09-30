@@ -228,6 +228,8 @@ def _cache_candidates(
     active_attempts: set[str],
     max_cache_entries: int,
 ) -> list[dict[str, object]]:
+    from sparselab.data.packing import supervision_requires_mask
+
     if active_attempts or any(status not in _TERMINAL_RUNS for _, status, _ in runs):
         return []
     cache_dirs: set[Path] = set()
@@ -254,6 +256,12 @@ def _cache_candidates(
                 int(path.name, 16)
                 marker = strict_json(path / _MARKER)
                 manifest = strict_json(path / "manifest.json")
+                needs_mask = supervision_requires_mask(manifest)
+                if any(
+                    (path / f"{split}_supervision.npy").is_file() != needs_mask
+                    for split in ("train", "validation")
+                ):
+                    continue
             except OSError, ValueError:
                 continue
             if (

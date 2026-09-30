@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.workers.store import ControllerStore
 
 
@@ -67,6 +68,39 @@ def test_durable_cancel_survives_running_receipt_and_connection_loss(tmp_path) -
     assert store.attempt_by_run("run-1")["status"] == "CANCELLED"
 
 
+def test_rejected_envelope_does_not_create_attempt_or_dispatch_bundle(tmp_path) -> None:
+    from test_training import config as training_config
+
+    from sparselab.workers.controller import Controller
+
+    controller = Controller(tmp_path / "controller")
+    config = training_config(tmp_path / "inputs")
+    envelope = ResourceEnvelope(resource_envelope_version=1, min_disk_bytes=1 << 62)
+    with pytest.raises(ValueError, match="min_disk_bytes"):
+        controller.submit(config, resource_envelope=envelope)
+    assert controller.store.attempts() == []
+    assert not (controller.root / ".dispatch").exists()
+    assert not config.dataset.cache_dir.exists()
+
+
+def test_queue_limit_rejects_second_submission_before_dispatch(tmp_path) -> None:
+    from test_training import config as training_config
+
+    from sparselab.workers.controller import Controller
+
+    controller = Controller(tmp_path / "controller")
+    config = training_config(tmp_path / "inputs")
+    envelope = ResourceEnvelope(resource_envelope_version=1, max_queue_depth=1)
+    first = controller.submit(config, resource_envelope=envelope)
+    attempt = controller.store.attempt_by_run(first.run_id)
+    assert attempt["status"] == "QUEUED"
+    assert attempt["spec"]["resource_envelope"] == envelope.model_dump(mode="json")
+    with pytest.raises(ValueError, match="max_queue_depth"):
+        controller.submit(config, resource_envelope=envelope)
+    assert len(controller.store.attempts()) == 1
+    assert len(list((controller.root / ".dispatch").iterdir())) == 1
+
+
 def test_receipt_for_another_attempt_cannot_change_durable_assignment(tmp_path) -> None:
     from test_training import config as training_config
 
@@ -75,6 +109,10 @@ def test_receipt_for_another_attempt_cannot_change_durable_assignment(tmp_path) 
 
     controller = Controller(tmp_path / "controller")
     submission = controller.submit(training_config(tmp_path / "inputs"))
+    assert (
+        "resource_envelope"
+        not in controller.store.attempt_by_run(submission.run_id)["spec"]
+    )
     controller.store.assign(submission.attempt_id, "worker")
     attempt = controller.store.attempt_by_run(submission.run_id)
     spec = controller._model("ExperimentSpec", attempt["spec"])

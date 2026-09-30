@@ -59,6 +59,7 @@ from sparselab.runtime import (
     torch_device_for,
     validate_runtime,
 )
+from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.manifest import source_identity
 from sparselab.training.offload import ActivationOffload
 from sparselab.training.optimizer import (
@@ -420,8 +421,11 @@ class PyTorchEngine:
         self._learned_audit_parameter: torch.nn.Parameter | None = None
         self._learned_address_collision_targets = 0
 
-    def validate(self, config: RunConfig):
-        self.runtime = validate_runtime(config)
+    def validate(
+        self, config: RunConfig, *, authorization: RuntimeAuthorization | None = None
+    ):
+        self.runtime = validate_runtime(config, authorization=authorization)
+        self.authorization = authorization
         return self.runtime
 
     def initialize(
@@ -431,6 +435,7 @@ class PyTorchEngine:
         *,
         resume_portability: bool = False,
     ) -> None:
+        require_authorization(config, getattr(self, "authorization", None))
         runtime = self.runtime if self.runtime is not None else self.validate(config)
         portability_run = (
             load_portability_manifest(config)

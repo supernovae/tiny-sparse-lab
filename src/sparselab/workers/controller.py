@@ -12,6 +12,16 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from sparselab.config.models import RunConfig
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    validate_tokenizer_batch_limits,
+)
+from sparselab.resource_envelope import (
+    ResourceEnvelope,
+    check_envelope,
+    current_process_rss_bytes,
+)
 from sparselab.training.manifest import canonical_json, config_sha256
 from sparselab.workers.store import (
     ACTIVE_QUEUE_STATES,
@@ -181,7 +191,9 @@ class Controller:
                 results.append(capability)
         return results
 
-    def _prepare_entry(self, request: dict[str, object]) -> dict[str, object]:
+    def _prepare_entry(
+        self, request: dict[str, object], *, queue_depth: int = 0
+    ) -> dict[str, object]:
         from sparselab.workers.bundles import (
             prepare_dispatch_bundle,
             verify_dispatch_bundle,
@@ -190,6 +202,24 @@ class Controller:
         config = request["config"]
         if not isinstance(config, RunConfig):
             raise TypeError("submit requires a RunConfig")
+        tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+            validate_tokenizer_batch_limits(
+                request.get("tokenizer_batch_documents", TOKENIZER_BATCH_DOCUMENTS),
+                request.get(
+                    "tokenizer_batch_source_bytes", TOKENIZER_BATCH_SOURCE_BYTES
+                ),
+            )
+        )
+        envelope = request.get("resource_envelope")
+        if envelope is not None:
+            if not isinstance(envelope, ResourceEnvelope):
+                envelope = ResourceEnvelope.model_validate(envelope)
+            check_envelope(
+                envelope,
+                workspace=self.root,
+                rss_bytes=current_process_rss_bytes(),
+                queue_depth=queue_depth,
+            )
         worker = request.get("worker")
         preferred = request.get("preferred")
         # A command-line worker binding is an explicit scheduling decision.  A
@@ -228,6 +258,11 @@ class Controller:
             "dispatch_bundle_digest": bundle.digest(),
             "matrix": request.get("matrix"),
             "plan": request.get("plan"),
+            "resource_envelope": (
+                envelope.model_dump(mode="json") if envelope is not None else None
+            ),
+            "tokenizer_batch_documents": tokenizer_batch_documents,
+            "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
         }
         spec = self._model("ExperimentSpec", spec_data)
         return {
@@ -248,6 +283,9 @@ class Controller:
         requirements: Any | None = None,
         preferred: str | None = None,
         matrix: dict | None = None,
+        resource_envelope: ResourceEnvelope | None = None,
+        tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+        tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
     ) -> Any:
         return self.submit_many(
             [
@@ -259,6 +297,9 @@ class Controller:
                     "requirements": requirements,
                     "preferred": preferred,
                     "matrix": matrix,
+                    "resource_envelope": resource_envelope,
+                    "tokenizer_batch_documents": tokenizer_batch_documents,
+                    "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
                 }
             ]
         )[0]
@@ -268,7 +309,11 @@ class Controller:
             return []
         # Preparation (including every content hash) completes before the only
         # enqueue transaction, so a bad matrix coordinate leaves no queued rows.
-        entries = [self._prepare_entry(dict(request)) for request in requests]
+        queued = len(self.store.attempts(frozenset({"QUEUED"})))
+        entries = [
+            self._prepare_entry(dict(request), queue_depth=queued + index + 1)
+            for index, request in enumerate(requests)
+        ]
         self.store.enqueue_many(entries)
         return [
             self._model(
@@ -447,17 +492,17 @@ class Controller:
         runtime = answer.get("runtime")
         if not isinstance(runtime, dict):
             return None, "validation returned malformed runtime"
-        try:
-            discovered = self._rpc_result(definition, "discover", {}, deadline=deadline)
-            refreshed = self._capability_for_definition(
-                definition, discovered.get("capabilities", discovered)
-            )
-        except (OSError, TimeoutError, RemoteProtocolError) as error:
-            if deadline is not None and time.monotonic() >= deadline:
-                raise
-            return None, f"validated capability refresh unavailable: {error}"
-        if refreshed.validation_status != "passed":
-            return None, "validated capability refresh did not persist probe evidence"
+        refreshed = self._capability_for_definition(
+            definition,
+            {
+                **self._dump(capability),
+                "runtime": runtime,
+                "supported_precisions": runtime.get("tested_precisions", []),
+                "supported_features": runtime.get("tested_features", []),
+                "validated_at": runtime.get("validated_at"),
+                "validation_status": "passed",
+            },
+        )
         self.store.save_worker(
             str(definition.worker_id),
             {
@@ -487,14 +532,14 @@ class Controller:
                 if reason != "not hard-bound worker":
                     reasons.append(f"{capability.name}: {reason}")
                 continue
-            tested = capability
-            if capability.validation_status != "passed":
-                tested, reason = self._validate_candidate(
-                    capability, spec, deadline=deadline
-                )
-                if tested is None:
-                    reasons.append(f"{capability.name}: {reason}")
-                    continue
+            # Each scheduling decision needs a successful probe of this registered
+            # interpreter/device; a persisted capability is only passive evidence.
+            tested, reason = self._validate_candidate(
+                capability, spec, deadline=deadline
+            )
+            if tested is None:
+                reasons.append(f"{capability.name}: {reason}")
+                continue
             ok, reason = self._capacity(tested, spec.requirements, spec)
             if not ok:
                 reasons.append(f"{tested.name}: {reason}")

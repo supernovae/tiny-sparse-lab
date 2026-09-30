@@ -12,6 +12,7 @@ import numpy as np
 if TYPE_CHECKING:
     from sparselab.config.models import RunConfig
     from sparselab.runtime import RuntimeInfo
+    from sparselab.runtime_profile import RuntimeAuthorization
 
 
 class EngineError(RuntimeError):
@@ -134,7 +135,9 @@ class EvaluationResult:
 class ExecutionEngine(Protocol):
     """No budgets, cursor, lifecycle, checkpoint cadence, store, or transport here."""
 
-    def validate(self, config: RunConfig) -> RuntimeInfo: ...
+    def validate(
+        self, config: RunConfig, *, authorization: RuntimeAuthorization | None = None
+    ) -> RuntimeInfo: ...
 
     def initialize(
         self, config: RunConfig, initial_weights: Mapping[str, object] | None = None

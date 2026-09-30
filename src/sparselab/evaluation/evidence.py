@@ -9,9 +9,14 @@ from pathlib import Path
 
 import numpy as np
 
-from sparselab.data.packing import TokenBlockDataset
+from sparselab.data.packing import (
+    TokenBlockDataset,
+    load_prepared_data,
+    supervision_requires_mask,
+)
+from sparselab.data.verification import VerifiedFile, _receipt_from_proofs, verify_file
 from sparselab.training.checkpoints import CheckpointManager
-from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
+from sparselab.training.manifest import canonical_json, read_manifest
 
 
 def _inside(root: Path, path: Path) -> bool:
@@ -21,11 +26,14 @@ def _inside(root: Path, path: Path) -> bool:
         return False
 
 
-def _validated_artifacts(run: Path, manifest: dict[str, object]) -> dict[str, str]:
+def _validated_artifacts(
+    run: Path, manifest: dict[str, object]
+) -> tuple[dict[str, str], dict[str, VerifiedFile]]:
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
         raise TypeError("run manifest lacks artifact inventory")
     verified: dict[str, str] = {}
+    proofs: dict[str, VerifiedFile] = {}
     for item in artifacts:
         if not isinstance(item, dict):
             raise TypeError("invalid artifact inventory")
@@ -33,15 +41,13 @@ def _validated_artifacts(run: Path, manifest: dict[str, object]) -> dict[str, st
         if not isinstance(name, str) or not isinstance(digest, str):
             raise TypeError("invalid artifact identity")
         path = run / name
-        if (
-            not _inside(run, path)
-            or path.is_symlink()
-            or not path.is_file()
-            or sha256_file(path) != digest
-        ):
+        if not _inside(run, path) or path.is_symlink() or not path.is_file():
             raise ValueError(f"artifact integrity failure: {name}")
+        proof = verify_file(path, expected_sha256=digest)
+        if Path(name).parts[0] == "data" and path.suffix == ".npy":
+            proofs[path.name] = proof
         verified[name] = digest
-    return verified
+    return verified, proofs
 
 
 def validate_held_out_report(
@@ -89,6 +95,8 @@ def validate_held_out_report(
                 and identities.get(optional) != artifacts[optional]
             ):
                 return None, f"{optional} identity mismatch"
+            if optional in identities and optional not in artifacts:
+                return None, f"unexpected {optional} identity"
         if identities.get("source_identity_sha256") != manifest.get(
             "source_identity", {}
         ).get("sha256"):
@@ -148,8 +156,24 @@ def validate_held_out_report(
 def experiment_evidence(run: Path) -> dict[str, object]:
     """Return observations only when every referenced immutable artifact verifies."""
     manifest = read_manifest(run / "manifest.json")
-    artifacts = _validated_artifacts(run, manifest)
+    artifacts, array_proofs = _validated_artifacts(run, manifest)
     config = manifest["effective_config"]
+    data_root = run / "data"
+    data_manifest = json.loads(
+        (data_root / "manifest.json").read_text(encoding="utf-8")
+    )
+    if (
+        supervision_requires_mask(data_manifest)
+        and not {"data/train_supervision.npy", "data/validation_supervision.npy"}
+        <= artifacts.keys()
+    ):
+        raise ValueError("run inventory lacks required supervision masks")
+    prepared = load_prepared_data(
+        data_root,
+        byte_enabled=config["model"]["memory"] in {"byte", "portable"},
+        verification="structural",
+        receipt=_receipt_from_proofs(data_root, data_manifest, array_proofs),
+    )
     corpus_release_sha256 = None
     corpus_report_path = None
     if "corpus/export.json" in artifacts:
@@ -171,15 +195,10 @@ def experiment_evidence(run: Path) -> dict[str, object]:
         corpus_report_path = "corpus/report.json"
     seq_len = config["training"]["seq_len"]
     batch_size = config["training"]["micro_batch_size"]
-    supervision_name = "data/validation_supervision.npy"
     validation = TokenBlockDataset(
-        np.load(run / "data/validation.npy", mmap_mode="r", allow_pickle=False),
+        prepared.validation,
         seq_len,
-        supervision=(
-            np.load(run / supervision_name, mmap_mode="r", allow_pickle=False)
-            if supervision_name in artifacts
-            else None
-        ),
+        supervision=prepared.validation_supervision,
     )
     blocks = min(len(validation), batch_size * config["evaluation"]["max_batches"])
     expected_targets = blocks * seq_len

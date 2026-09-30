@@ -80,6 +80,55 @@ locked environment includes Apple Silicon wheel resolution; use
 `uv sync --locked --dev --extra mlx` on Apple Silicon to install the optional
 MLX runtime and run the native MLX tests.
 
+## Executable runtime profiles
+
+Hardware inventory does not select a Python environment. Accelerator execution
+requires either an explicit runtime profile or a registered worker with an
+explicit absolute Python interpreter. Ambient CPU execution remains supported.
+`auto` resolving to an accelerator does not authorize it.
+
+```yaml
+runtime_profile_version: 1
+id: vendor-runtime
+python: /absolute/vendor-environment/bin/python
+engine: pytorch
+backend: rocm
+device_index: 0
+requirements:
+  torch_hip: true
+  bf16: true
+  device_name_regex: "Radeon"
+```
+
+Profiles are frozen, reject unknown fields/versions, and require an executable
+absolute Python path and a safe ID. PyTorch accepts CPU/ROCm/CUDA/MPS/XPU;
+MLX accepts Metal. Requirement fields are optional; `torch_hip: true` is valid
+only for ROCm. BF16 requirements need a disposable optimizer update, not just
+a passive support declaration. Device-name matching uses regular-expression
+search against the selected device.
+
+`sparselab runtime probe PROFILE --json` queries the selected interpreter and
+records its real executable, Python version and prefixes, Torch path/version,
+HIP/CUDA/XPU versions, selected device and available names, source identity,
+and host fields. Missing optional APIs remain null. Profiles never install or
+synchronize environments. A mismatched installed source fails before execution;
+provision the vendor environment and install this source before retrying.
+
+Direct `train`, `stage`, `eval`, `generate`, and `chat` accept
+`--runtime-profile PROFILE`; `run` accepts it only when auto-registering a local
+worker. A different interpreter replaces the CLI once with that Python, preserving
+arguments and environment. Authorization happens before workspace initialization.
+`inspect` and `stage --through inspect` remain passive. Worker dispatch performs
+fresh interpreter/runtime/source validation, and pilot children rederive
+authorization from sealed operational evidence. Persisted evidence or an arbitrary
+worker ID does not authorize acceleration. Profiles and probe records are
+operational evidence, not scientific config or prepared-cache identity.
+
+Controller scheduling binds the successful validation reply's tested runtime
+to the freshly discovered registered-worker identity. A subsequent passive
+discovery cannot replace that probe evidence. Campaign tick deadlines also
+bound worker discovery and validation RPCs.
+
 ## Discovery, validation, and measurements
 
 Discovery is passive: it inventories CPU, MPS, CUDA, ROCm, XPU, and MLX availability without creating a model. It records unavailable runtimes and API limitations rather than guessing. Validation separately exercises a disposable forward/backward/optimizer probe for the requested engine and precision. Discovery or a vendor specification is not a hardware acceptance result.
@@ -171,6 +220,171 @@ The existing `fast` resource proposal can preserve effective batch while
 changing microbatch/accumulation based on capacity rules. It is not an empirical
 throughput search. Measured candidate ranking and batch recommendations remain
 tracked separately in the [implementation backlog](../TODO.md#throughput-and-resource-proposals).
+
+## Operational resource envelopes
+
+`data prepare`, `stage`, `train`, `run`, and `experiment prepare` accept
+`--resource-envelope PATH`. Policies are strict, frozen YAML mappings:
+
+```yaml
+resource_envelope_version: 1
+max_rss_bytes: 2147483648
+max_host_memory_fraction: 0.5
+min_available_ram_bytes: 134217728
+min_swap_bytes: 0
+min_disk_bytes: 268435456
+min_inodes: 128
+max_workers: 4
+max_queue_depth: 1
+spill_to_disk: true
+```
+
+All numeric limits are optional. Maxima are positive; minima are nonnegative;
+host fraction is in `(0, 1]`. Booleans are not integers. Unknown fields and
+versions fail. RAM/swap come from psutil, storage from the actual filesystem's
+existing ancestor without creating the destination. Missing measurements are
+null and fail closed only when a requested limit needs them. Host fraction is
+process RSS divided by host RAM, not accelerator memory. Policies never rewrite
+batch size, sequence length, source, precision, or scientific config.
+
+Limits are checked before outputs, at bounded streaming boundaries, and before
+publication. Streaming preparation rejects `spill_to_disk: false`.
+`max_workers` bounds tokenizer workers; `max_queue_depth` bounds pending work.
+Version-1 worker specs optionally carry the policy; old specs omit it unchanged.
+
+Preparation progress on stderr and a sibling `<cache>.preparation.json` receipt
+record records, source UTF-8 bytes, output tokens, elapsed seconds, source MB/s,
+tokens/s, sampled current/peak process RSS, available host RAM, logical input/output
+bytes, disk free bytes/inodes, and six independently timed counters:
+`source_iteration_seconds`, `tokenizer_encoding_seconds`,
+`python_bookkeeping_seconds`, `spool_write_seconds`, `finalize_fsync_seconds`,
+and `deep_verification_hash_seconds`. Peak RSS is the maximum observed psutil
+sample, not a guaranteed OS lifetime high-water mark. Unavailable measurements
+remain null. These receipts and timings are operational evidence, outside the
+scientific manifest and cache identity; they are not model-quality metrics.
+
+## Prepared data: bounded encoding and verification
+
+For `local_text` and `local_stories`, `data prepare`, `stage`, `train`, `run`,
+and `experiment prepare` accept `--tokenizer-batch-documents` (1–256, default 256) and
+`--tokenizer-batch-source-bytes` (1–4194304, default 1048576). Both bounds apply.
+Oversized documents fail before encoding; token limits never truncate a selected
+story. Batch 1 uses scalar `Tokenizer.encode`; larger batches use Rust
+`encode_batch` in source order, preserving EOS and byte-address semantics.
+Preparation uses a fresh, Torch-free tokenizer child with
+`TOKENIZERS_PARALLELISM=true` and a Rayon cap installed before its first encode:
+`min(4, os.cpu_count() or 1)`, or the explicit envelope's `max_workers`.
+Tokenizer training remains scalar with its existing parallelism policy.
+Document and byte caps, resource policies, timings, and profiles do not enter
+the scientific manifest or cache identity.
+
+New `contiguous-eos-v6` caches describe supervision explicitly:
+`{kind: all_tokens}` omits loss-mask arrays and loads masks as `None`;
+`{kind: token-loss-mask-v1}` requires exact bool masks for both splits.
+Historical v4 no-mask and v5 mandatory-mask artifacts retain their meaning and
+are never rewritten. Loss, evaluation, and batching treat implicit all-token
+supervision identically to an explicit all-true mask.
+
+Final NPY headers and data feed SHA-256 during their original writes.
+`PreparedData.receipt` is sealed **in-process** evidence binding the canonical
+root, scientific manifest SHA, file digests/sizes, validated header dtype/shape,
+and device/inode/size/mtime_ns fingerprints. Structural reload rejects changed
+files, symlinks, unsigned descriptors, and unexpected inventory. The sibling
+JSON preparation receipt records measurements only; copying it to a new
+process never permits skipping cold array hashes.
+
+The deep-scan call graph changed as follows:
+
+| Path | Before | V6 behavior |
+| --- | --- | --- |
+| `_prepare_data` fresh write | `_array_metadata` re-read, then postpublish deep load | SHA during write, sealed structural postpublish load |
+| `prepare_variant` | Immediate second deep load | Reuse returned `PreparedData` |
+| Existing cache | Discovery/deep load, possible caller re-load | One cold deep load |
+| `verify_artifact` / `resolve_plan` | Repeated artifact references re-scanned | Operation-local memo, canonical path and fingerprint guarded |
+| `verify_prepared_inputs` | Inventory hash then loader hash | Inventory's verified digests feed structural loader |
+| `verify_stage_bundle` | Inventory, loader, final bundle inventory could repeat | Same-call digest evidence reused after fingerprint checks |
+| External `load_prepared_data` | Deep scan | Still deep by default; no persisted skip authority |
+
+On the generated 2,351-token CPU fixture, v5 creation re-read four arrays
+twice: 8 SHA file reads / 24,534 bytes. V6 all-token creation re-read 0 arrays;
+cold load, existing-cache hit, and prepared-input verification each read the
+two arrays once (2 / 9,660 bytes). The stage bundle has two distinct copies of
+each split, so it reads 4 physical array files once each—not one shared file
+four times. IDs were exact-byte equal, and omitted masks saved 2,607 bytes.
+These are fixture measurements, not predictions for other data or devices.
+
+### Interrupted local preparation
+
+Streaming preparation keeps task-owned `<identity>.tmp` chunks with at most
+4096 acquired records and 16 MiB total raw output bytes, ending at whole
+documents. One encoded document larger than the raw cap fails with an actionable
+error. IDs and byte-address sidecars carry ordered, checksummed receipts with
+raw SHA/length/dtype and acquired/retained/token counts. Raw files are fsynced;
+the receipt commits last, followed by directory fsync.
+
+A restart verifies source/tokenizer/packing identity and every sealed chunk's
+raw bytes. It discards only the known next unsealed chunk, rejects unexpected
+files and changed sealed data, re-iterates the verified source, and skips exactly
+the sealed acquired count without encoding those records. Completed train
+chunks survive validation interruption. Final arrays remain ordinary contiguous
+NPYs; interrupted final arrays are recomputed from verified chunks. Cache
+preparation is locked even outside the managed workspace, so a live producer is
+never mistaken for a crashed one.
+
+Manifest fsync precedes atomic no-replace publication. Owned chunks are retired
+only afterward; a durable cleanup intent and owner-last removal make cleanup
+itself resumable. Recovery of an already published cache still cold-hashes its
+final arrays once and never retokenizes them. Persisted cleanup metadata does
+not authorize structural loading without those hashes.
+
+The generated recovery regression has 13 train and 7 validation records with
+byte-address sidecars and a forced four-record test chunk. SIGKILL after the
+fifth train record's unsealed write preserved records 1–4; restart encoded only
+train records 5–13 and all 7 validation records. All four final NPY digests and
+the full scientific manifest matched uninterrupted preparation. Interrupting
+validation after its first sealed chunk encoded only the remaining 3 validation
+records, not the completed train split. Tests also reject changed sealed bytes,
+source/tokenizer/owner identity, unexpected entries, and replacement publication.
+
+### Offline performance evidence
+
+Run the standalone utility offline:
+
+```sh
+uv run --locked --offline python benchmarks/preparation_benchmark.py \
+  --workspace sparselab-work/runtime-prep-v1/benchmarks
+```
+
+It generates 1/8/32 MiB mixed prose/code JSONL, one local BPE tokenizer,
+scalar and 16/64/256-document cases, and controlled 1 versus bounded multi-thread Rayon.
+Raw outputs stay in
+the named ignored workspace; the durable result is
+[`artifacts/benchmarks/runtime-prep-v1.json`](../artifacts/benchmarks/runtime-prep-v1.json).
+Wall time includes imports/child startup and batch-bound instrumentation;
+sampled process-tree RSS includes the tokenizer child. This is a standalone
+measurement utility, not a CI speed assertion or a model-quality result.
+
+The recorded 32 MiB, four-Rayon-thread cases selected the final default **256**
+documents: 5.404 MB/s and 458.2 MiB sampled process-tree peak, versus scalar
+1.638 MB/s / 391.4 MiB. The observed input batches stayed below 1 MiB and tree
+peak stayed below 1.5 times scalar. At one Rayon thread, batch 16 was faster
+than 64/256 on this fixture; the declared default selection uses the bounded
+four-thread configuration. Results are one fresh execution per case, not a
+statistical portability or causal Rust-only speedup claim. Source re-iteration
+on resume, scalar tokenizer training, JSON IPC, and the contiguous final copy
+remain measured-performance questions.
+
+The [runtime-prep-v1 acceptance record](../artifacts/acceptance/runtime-prep-v1.json)
+binds the actual CPU profile probe, preparation/hash measurements, bounded
+recovery checks, CLI smoke, and final focused/broader suite results. It is
+operational implementation evidence, not a research finding or a hardware
+portability claim.
+
+The [Campaign integration rebase record](../artifacts/acceptance/runtime-prep-v1-rebase.json)
+adds actual worker-dispatch/ingestion CLI proof and the combined CPU suites
+after integrating Campaign v1. Original benchmark measurements retain their
+original source identities; they were not rerun or relabeled as rebase measurements.
+
 
 ## Resource proposals
 

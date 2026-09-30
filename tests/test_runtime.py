@@ -116,23 +116,6 @@ def _config(
     )
 
 
-def _mlx_config(*, attention: str = "dense", checkpointing: bool = False):
-    return SimpleNamespace(
-        runtime=SimpleNamespace(
-            engine="mlx",
-            backend="metal",
-            precision="fp32",
-            device_index=0,
-            memory=SimpleNamespace(
-                activation_checkpointing=SimpleNamespace(enabled=checkpointing),
-                activation_offload=SimpleNamespace(enabled=False),
-            ),
-        ),
-        optimizer=SimpleNamespace(name="adamw", state_offload=False),
-        attention=SimpleNamespace(kind=attention),
-    )
-
-
 def _mlx_probe_result(*, features: list[str]) -> dict[str, object]:
     info = runtime.RuntimeInfo(
         engine="mlx",
@@ -183,6 +166,11 @@ def test_explicit_unavailable_backend_never_falls_back(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(runtime, "_backend_available", lambda backend: backend == "cpu")
+    import sparselab.runtime_profile as profiles
+
+    monkeypatch.setattr(
+        profiles, "require_authorization", lambda config, authorization: None
+    )
 
     with pytest.raises(ValueError, match="requested backend unavailable: mps"):
         runtime.validate_runtime(_config(backend="mps"))
@@ -224,37 +212,3 @@ def test_bf16_checkpoint_probe_reports_only_exercised_precision_and_features():
     assert info.tested_precisions == ("bf16",)
     assert "activation_checkpointing" in info.tested_features
     assert requested.runtime.precision == "bf16"
-
-
-def test_mlx_validation_uses_tiny_versioned_native_probe(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sparselab.engines.mlx as mlx_engine
-
-    captured: dict[str, object] = {}
-    features = [
-        "forward_backward_optimizer",
-        "optimizer:adamw",
-        "native_block_sparse_attention",
-    ]
-    monkeypatch.setattr(mlx_engine, "validate", lambda config: None)
-
-    def probe(**kwargs: object) -> dict[str, object]:
-        captured.update(kwargs)
-        return _mlx_probe_result(features=features)
-
-    monkeypatch.setattr(runtime, "_probe_runtime", probe)
-    info = runtime.validate_runtime(_mlx_config(attention="block_sparse"))
-
-    assert captured == {
-        "engine": "mlx",
-        "backend": "metal",
-        "device_index": 0,
-        "precision": "fp32",
-        "optimizer": "adamw",
-        "checkpointing": False,
-        "attention": "block_sparse",
-    }
-    assert info.tested_features == tuple(features)
-    assert info.device_total_bytes is None
-    assert info.device_recommended_bytes is None

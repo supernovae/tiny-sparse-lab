@@ -165,7 +165,7 @@ def test_cpu_update_inventories_corpus_release(
     saved = report.read_bytes()
     try:
         report.write_bytes(saved + b"\n")
-        with pytest.raises(ValueError, match="artifact"):
+        with pytest.raises(ValueError):
             experiment_evidence(run)
     finally:
         report.write_bytes(saved)

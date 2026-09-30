@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
+import torch.nn.functional as F
 from test_training import config
 
-from sparselab.data.packing import prepare_data
+from sparselab.data.packing import TokenBlockDataset, load_prepared_data, prepare_data
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.training.manifest import canonical_json, sha256_file
 
@@ -27,7 +30,7 @@ def test_resigned_metadata_tamper_cannot_reuse_cache(tmp_path: Path) -> None:
     _resign(manifest)
     manifest_path.write_bytes(canonical_json(manifest) + b"\n")
 
-    with pytest.raises(ValueError, match="cache integrity"):
+    with pytest.raises(ValueError, match="metadata mismatch"):
         prepare_data(configured, load_tokenizer(configured.tokenizer.path))
 
 
@@ -44,28 +47,142 @@ def test_resigned_dtype_change_cannot_reuse_cache(tmp_path: Path) -> None:
     _resign(manifest)
     manifest_path.write_bytes(canonical_json(manifest) + b"\n")
 
-    with pytest.raises(ValueError, match="cache integrity"):
+    with pytest.raises(ValueError, match="metadata mismatch"):
         prepare_data(configured, load_tokenizer(configured.tokenizer.path))
 
 
-def test_resigned_supervision_mask_tamper_cannot_reuse_cache(tmp_path: Path) -> None:
+def test_resigned_numeric_metadata_types_are_rejected(tmp_path: Path) -> None:
     configured = config(tmp_path)
     prepared = prepare_data(configured, load_tokenizer(configured.tokenizer.path))
-    mask_path = prepared.root / "train_supervision.npy"
-    mask = np.load(mask_path)
-    np.save(mask_path, mask.astype(np.uint8), allow_pickle=False)
     manifest_path = prepared.root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    supervision = manifest["supervision"]
-    assert isinstance(supervision, dict)
-    train = supervision["train"]
-    assert isinstance(train, dict)
-    train.update({"dtype": "uint8", "sha256": sha256_file(mask_path)})
+    manifest["train"]["tokens"] = float(manifest["train"]["tokens"])
     _resign(manifest)
     manifest_path.write_bytes(canonical_json(manifest) + b"\n")
+    with pytest.raises(ValueError, match="metadata mismatch"):
+        load_prepared_data(prepared.root, byte_enabled=False)
 
-    with pytest.raises(ValueError, match="cache integrity"):
-        prepare_data(configured, load_tokenizer(configured.tokenizer.path))
+
+def test_unexpected_mask_fails_even_with_unchanged_manifest(tmp_path: Path) -> None:
+    configured = config(tmp_path)
+    prepared = prepare_data(configured, load_tokenizer(configured.tokenizer.path))
+    assert prepared.manifest["supervision"] == {"kind": "all_tokens"}
+    assert prepared.train_supervision is None
+    np.save(
+        prepared.root / "train_supervision.npy",
+        np.ones(len(prepared.train), dtype=bool),
+    )
+    with pytest.raises(ValueError, match="unexpected prepared file inventory"):
+        load_prepared_data(prepared.root, byte_enabled=False)
+
+
+def test_v6_assistant_only_requires_exact_masks(tmp_path: Path) -> None:
+    configured = config(tmp_path)
+    paths = [
+        tmp_path / "assistant-train.jsonl",
+        tmp_path / "assistant-validation.jsonl",
+    ]
+    for split, path in enumerate(paths):
+        path.write_text(
+            "".join(
+                json.dumps(
+                    {
+                        "format_version": 2,
+                        "loss_mode": "assistant_only",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": f"Question {split} {index} about the fox",
+                            },
+                            {
+                                "role": "assistant",
+                                "content": f"The fox answered {index} with a book",
+                            },
+                        ],
+                    }
+                )
+                + "\n"
+                for index in range(8)
+            ),
+            encoding="utf-8",
+        )
+    dataset = configured.dataset.model_copy(
+        update={
+            "source": "local_chat",
+            "license": "CC0-1.0",
+            "train_path": paths[0],
+            "validation_path": paths[1],
+        }
+    )
+    local = configured.model_copy(update={"dataset": dataset})
+    prepared = prepare_data(local, load_tokenizer(local.tokenizer.path))
+    assert prepared.manifest["supervision"]["kind"] == "token-loss-mask-v1"
+    assert prepared.train_supervision is not None
+    assert not prepared.train_supervision.all()
+    assert (prepared.root / "train_supervision.npy").is_file()
+    assert (prepared.root / "validation_supervision.npy").is_file()
+    (prepared.root / "train_supervision.npy").unlink()
+    with pytest.raises(FileNotFoundError):
+        load_prepared_data(prepared.root, byte_enabled=False)
+
+
+def test_named_v4_v5_and_implicit_v6_supervise_same_targets(tmp_path: Path) -> None:
+    configured = config(tmp_path)
+    current = prepare_data(configured, load_tokenizer(configured.tokenizer.path))
+    assert not any(current.root.glob("*supervision.npy"))
+    logits = torch.linspace(-1, 1, 4 * configured.model.vocab_size).reshape(
+        4, configured.model.vocab_size
+    )
+    datasets = [
+        TokenBlockDataset(current.train, 4, supervision=current.train_supervision)
+    ]
+    for version in ("contiguous-eos-v4", "contiguous-eos-v5"):
+        root = tmp_path / version
+        shutil.copytree(current.root, root)
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["packing_version"] = version
+        manifest["cache_identity"]["packing_version"] = version
+        manifest["settings_sha256"] = hashlib.sha256(
+            canonical_json(manifest["cache_identity"])
+        ).hexdigest()
+        if version.endswith("v5"):
+            entries = {}
+            for split in ("train", "validation"):
+                array = np.load(root / f"{split}.npy")
+                mask_path = root / f"{split}_supervision.npy"
+                np.save(mask_path, np.ones(array.shape, dtype=bool), allow_pickle=False)
+                entries[split] = {
+                    "dtype": "bool",
+                    "shape": list(array.shape),
+                    "tokens": len(array),
+                    "sha256": sha256_file(mask_path),
+                }
+            manifest["supervision"] = {"kind": "token-loss-mask-v1", **entries}
+        else:
+            manifest["supervision"] = None
+        _resign(manifest)
+        manifest_path.write_bytes(canonical_json(manifest) + b"\n")
+        loaded = load_prepared_data(root, byte_enabled=False)
+        assert (loaded.train_supervision is None) == version.endswith("v4")
+        datasets.append(
+            TokenBlockDataset(loaded.train, 4, supervision=loaded.train_supervision)
+        )
+    assert [dataset.block_indices.tolist() for dataset in datasets] == [
+        datasets[0].block_indices.tolist()
+    ] * 3
+    targets = torch.from_numpy(np.asarray(current.train[1:5], dtype=np.int64))
+    assert torch.equal(
+        targets, torch.from_numpy(np.asarray(datasets[2].ids[1:5], dtype=np.int64))
+    )
+    per_target = F.cross_entropy(logits, targets, reduction="none")
+    implicit_loss = per_target.mean()
+    explicit_mask = torch.tensor(
+        datasets[2].supervision[1:5].tolist(), dtype=torch.bool
+    )
+    explicit_loss = per_target[explicit_mask].mean()
+    assert int(explicit_mask.sum()) == len(targets)
+    assert torch.equal(implicit_loss, explicit_loss)
 
 
 @pytest.mark.parametrize("truncated", [False, True])

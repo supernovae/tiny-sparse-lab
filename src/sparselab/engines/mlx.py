@@ -29,6 +29,7 @@ from sparselab.engines.base import (
 )
 from sparselab.memory import MemoryMonitor
 from sparselab.runtime import RuntimeInfo, discover_runtimes
+from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.optimizer import learning_rate_for_step
 
 
@@ -167,15 +168,19 @@ class MLXEngine:
         self._value_and_grad: Any | None = None
         self._optimizer_parameter_names: list[list[str]] = []
 
-    def validate(self, config: RunConfig) -> RuntimeInfo:
+    def validate(
+        self, config: RunConfig, *, authorization: RuntimeAuthorization | None = None
+    ) -> RuntimeInfo:
         from sparselab.runtime import validate_runtime
 
-        self.runtime = validate_runtime(config)
+        self.runtime = validate_runtime(config, authorization=authorization)
+        self.authorization = authorization
         return self.runtime
 
     def initialize(
         self, config: RunConfig, initial_weights: Mapping[str, object] | None = None
     ) -> None:
+        require_authorization(config, getattr(self, "authorization", None))
         validate(config)
         runtime = self.runtime if self.runtime is not None else self.validate(config)
         import mlx.core as mx
@@ -550,9 +555,11 @@ def infer_canonical(
     input_ids: np.ndarray,
     *,
     aliases: Mapping[str, str] | None = None,
+    authorization: RuntimeAuthorization | None = None,
 ) -> np.ndarray:
     """Run MLX inference from canonical promoted weights; never falls back to Torch."""
     engine = MLXEngine()
+    engine.validate(config, authorization=authorization)
     engine.initialize(config, weights)
     if aliases is not None and dict(aliases) != dict(engine.export_weights().aliases):
         raise ValueError("canonical aliases differ from the model architecture")

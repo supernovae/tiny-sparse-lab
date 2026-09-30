@@ -1,0 +1,1369 @@
+{
+  "benchmark_artifact": "artifacts/benchmarks/runtime-prep-v1.json",
+  "benchmark_selection": {
+    "basis": "fastest successful32MiB case below1.5x scalar sampled process-tree peak and1MiB input cap",
+    "batch_documents": 256,
+    "qualified": true,
+    "rayon_threads": 4
+  },
+  "branch": "feat/runtime-prep-v1",
+  "cli_smoke": {
+    "config_identity_unchanged": true,
+    "effective_config_sha256": "d637adc311c940c54ea3495153fdb8b4d5d56e5dbb17aa6be572206c6a842011",
+    "final_commands": [
+      [
+        "sparselab",
+        "runtime",
+        "probe",
+        "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/cpu-profile.yaml",
+        "--json"
+      ],
+      [
+        "sparselab",
+        "data",
+        "prepare",
+        "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/cli-fixture/run.yaml",
+        "--resource-envelope",
+        "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/cli-fixture/envelope.yaml"
+      ],
+      [
+        "sparselab",
+        "stage",
+        "--help"
+      ]
+    ],
+    "final_returncodes": [
+      0,
+      0,
+      0
+    ],
+    "integrity": {
+      "generation": "step_00000002_gen_000002",
+      "generation_manifest_sha256": "93c8a942c4747888a0f4118b44e5de4c5600a2114987d78026fd6721b27dcb5b",
+      "status": "PASS",
+      "step": 2,
+      "targets": 32,
+      "verification_scope": "full"
+    },
+    "loss_trend": "insufficient_history",
+    "requested_config_sha256": "d637adc311c940c54ea3495153fdb8b4d5d56e5dbb17aa6be572206c6a842011",
+    "run_id": "runtime-prep-v1-cli-smoke",
+    "runs_dir": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/cli-explicit-store/runs",
+    "stage_record": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/cli-smoke-stage/stage.json",
+    "stage_status": "complete",
+    "stage_through": "smoke",
+    "steps": 2,
+    "targets": 32,
+    "tier1": {
+      "greedy": [
+        {
+          "id": "simple-continuation",
+          "prompt_tokens": 53,
+          "reason": "prompt and requested completion exceed context",
+          "requested_new_tokens": 32,
+          "status": "UNKNOWN"
+        },
+        {
+          "id": "named-character-continuity",
+          "prompt_tokens": 85,
+          "reason": "prompt and requested completion exceed context",
+          "requested_new_tokens": 32,
+          "status": "UNKNOWN"
+        },
+        {
+          "id": "color-object-continuity",
+          "prompt_tokens": 70,
+          "reason": "prompt and requested completion exceed context",
+          "requested_new_tokens": 32,
+          "status": "UNKNOWN"
+        },
+        {
+          "id": "temporal-causal-continuation",
+          "prompt_tokens": 59,
+          "reason": "prompt and requested completion exceed context",
+          "requested_new_tokens": 32,
+          "status": "UNKNOWN"
+        },
+        {
+          "id": "ordinary-sentence-completion",
+          "prompt_tokens": 48,
+          "reason": "prompt and requested completion exceed context",
+          "requested_new_tokens": 32,
+          "status": "UNKNOWN"
+        },
+        {
+          "id": "odd-out-of-domain",
+          "prompt_tokens": 61,
+          "reason": "prompt and requested completion exceed context",
+          "requested_new_tokens": 32,
+          "status": "UNKNOWN"
+        }
+      ],
+      "parameter_inventory": {
+        "active_per_token": 8752,
+        "attention": 1024,
+        "dense_ffn": 1536,
+        "embedding": 6144,
+        "frozen": 0,
+        "memory_adapter": 0,
+        "memory_table": 0,
+        "norm": 48,
+        "output_head": 0,
+        "routed_expert": 0,
+        "router": 0,
+        "shared_expert": 0,
+        "total": 8752,
+        "trainable": 8752
+      },
+      "reason": "no frozen prompt fits the full requested completion in context",
+      "sampled": [],
+      "settings": {
+        "greedy": {
+          "max_new_tokens": 32,
+          "seed": 42042,
+          "temperature": 0,
+          "top_k": 0
+        },
+        "sampled": {
+          "max_new_tokens": 24,
+          "seeds": [
+            11,
+            29
+          ],
+          "temperature": 0.8,
+          "top_k": [
+            0,
+            40
+          ]
+        }
+      },
+      "status": "UNKNOWN",
+      "substantive_behavior_applicability": "UNKNOWN: frozen TinyStories prompts can be out of domain"
+    },
+    "training_status": "completed"
+  },
+  "cpu_probe": {
+    "available": true,
+    "backend": "cpu",
+    "bf16_supported": null,
+    "device_count": 1,
+    "device_index": 0,
+    "device_name": "CPU",
+    "device_names": [
+      "CPU"
+    ],
+    "engine": "pytorch",
+    "environment_root": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv",
+    "framework_path": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv/lib/python3.14/site-packages/torch/__init__.py",
+    "framework_version": "2.14.0+cpu",
+    "host_architecture": "x86_64",
+    "host_environment": "wsl2",
+    "host_os": "linux",
+    "package_root": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/src/sparselab",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "profile_id": "runtime-prep-v1-cpu",
+    "python": "/usr/bin/python3.14",
+    "python_version": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "schema_version": 1,
+    "source_sha256": "de43afbd04378fa84376e3a193e5d8091abeaaed57c03e5a91d878358a40cdcf",
+    "sys_base_prefix": "/usr",
+    "sys_prefix": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv",
+    "torch_cuda": null,
+    "torch_hip": null,
+    "torch_path": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv/lib/python3.14/site-packages/torch/__init__.py",
+    "torch_version": "2.14.0+cpu",
+    "xpu_runtime_version": null
+  },
+  "kind": "operational-implementation-evidence",
+  "local_origin_main_base": "bfebde25ab571f409e2d79792bb8ac6e4b8adc4a",
+  "network_used": false,
+  "parity": {
+    "batch_documents": [
+      1,
+      16,
+      64,
+      256
+    ],
+    "empty_record_replay_without_reencoding_or_overconsuming": true,
+    "exact_ids_byte_addresses_and_full_manifest_equal": true,
+    "rayon_threads": [
+      1,
+      2,
+      4
+    ],
+    "tests": "tests/test_streaming_packing.py"
+  },
+  "performance_questions": [
+    "scalar tokenizer training",
+    "source re-iteration on resume",
+    "JSON IPC",
+    "contiguous final copy",
+    "portability and repeated-case variability"
+  ],
+  "preparation": {
+    "arrays": {
+      "train.npy": {
+        "sha256": "83e610ea2384fb37b83104649963e015256d1ed94459fbdeddb1c33254888c9b",
+        "size_bytes": 7024
+      },
+      "validation.npy": {
+        "sha256": "4139003687ee28ec9b445a51794627b2953af096d358f95ba88496147da500cc",
+        "size_bytes": 2636
+      }
+    },
+    "counts": {
+      "cold_deep_load": {
+        "bytes_reread": 9660,
+        "reads": [
+          {
+            "bytes": 7024,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/cache/68bf4ee0786c77c7/train.npy"
+          },
+          {
+            "bytes": 2636,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/cache/68bf4ee0786c77c7/validation.npy"
+          }
+        ],
+        "sha_file_reads": 2
+      },
+      "existing_cache_hit": {
+        "bytes_reread": 9660,
+        "reads": [
+          {
+            "bytes": 7024,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/cache/68bf4ee0786c77c7/train.npy"
+          },
+          {
+            "bytes": 2636,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/cache/68bf4ee0786c77c7/validation.npy"
+          }
+        ],
+        "sha_file_reads": 2
+      },
+      "fresh_creation": {
+        "bytes_reread": 0,
+        "reads": [],
+        "sha_file_reads": 0
+      },
+      "prepared_input_inventory_and_loader": {
+        "bytes_reread": 9660,
+        "reads": [
+          {
+            "bytes": 7024,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/inputs/assets/data/train.npy"
+          },
+          {
+            "bytes": 2636,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/inputs/assets/data/validation.npy"
+          }
+        ],
+        "sha_file_reads": 2
+      },
+      "stage_inventory_and_loader": {
+        "bytes_reread": 19320,
+        "reads": [
+          {
+            "bytes": 7024,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/stage/assets/data/train.npy"
+          },
+          {
+            "bytes": 2636,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/stage/assets/data/validation.npy"
+          },
+          {
+            "bytes": 7024,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/stage/prepared/assets/data/train.npy"
+          },
+          {
+            "bytes": 2636,
+            "file": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292/stage/prepared/assets/data/validation.npy"
+          }
+        ],
+        "sha_file_reads": 4
+      },
+      "structural_reload": {
+        "bytes_reread": 0,
+        "reads": [],
+        "sha_file_reads": 0
+      }
+    },
+    "exact_v5_v6_ids_equal": true,
+    "manifest_sha256": "bd61a3e87e2cdc963f787ccf7ad872f8375f8603f25a2929ea92d6535d2e173a",
+    "mask_bytes_saved": 2607,
+    "output_tokens": 2351,
+    "raw_workspace": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/final-hash-1790799970797299292",
+    "source_identity": {
+      "algorithm": "package-path-sha256-v2",
+      "files": [
+        [
+          "__init__.py",
+          "ca85bacc7f9eae841bc884c2b660fda124f400719b86cda31992e020abb9609f"
+        ],
+        [
+          "__main__.py",
+          "d047f7862ff5c66c741c661780bc68f4f338ab0a3749db374ce1dd499368a88a"
+        ],
+        [
+          "batch_calibration.py",
+          "4cc99c6280f21ccb4cac954e30c78adc6ef018e300b395dd9e78718ef6dac354"
+        ],
+        [
+          "cli/__init__.py",
+          "43f6efaf2af9d4be27de51f5c62be2c152aee0e4951f31aa4042af21846bc2d1"
+        ],
+        [
+          "cli/main.py",
+          "7c1e51331206c1c918cdcc22b582ae3b4601cbdb3ad91981e4734c57a2ea8846"
+        ],
+        [
+          "cli/surface.py",
+          "ad47d858b1a8052b194bdc63b557c3083e6896f3a3ba68473173ebd510c04a2a"
+        ],
+        [
+          "config/__init__.py",
+          "fe3765e5714934391d49696065a2df9a7758d3db1d82c18b4b202320918b6d27"
+        ],
+        [
+          "config/loading.py",
+          "6dd420b38bf3082c3d4a3ffcf29c8b1b30c4ed2dbf2049dee8529cd530067a8c"
+        ],
+        [
+          "config/migrate.py",
+          "5f1c40d6bd6fe5fb5209241fd5692e7f2c3b187ac4ca105cbca08a9d342e5b5d"
+        ],
+        [
+          "config/models.py",
+          "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5"
+        ],
+        [
+          "corpus/__init__.py",
+          "ffc9564fea86b011b38dd4d66e0ab7057d484f675649d210b9534ce79f1de044"
+        ],
+        [
+          "corpus/acquisition.py",
+          "15e891576f81a8c2096e9559c07bef436cb6ed617b131f08af6d9c0e9be40974"
+        ],
+        [
+          "corpus/cli.py",
+          "4591f4ee6e027fa3bf703098e15412ddc1062878aa00a8fca89170a1a9448ad0"
+        ],
+        [
+          "corpus/export.py",
+          "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa"
+        ],
+        [
+          "corpus/large_build.py",
+          "5df4e0965a91e38d0a76304f675b6e2d00fb190804dad8e0849f79285af690e5"
+        ],
+        [
+          "corpus/measurement.py",
+          "eb2d03e903c663f748140aac1b35701abf874ce046ed68f4d92a5a8b0b66168d"
+        ],
+        [
+          "corpus/memorization.py",
+          "24de06f9a9c17f020467b5878bc84cd0ccbebea69ea3f1a1aaca1d1c96ea8050"
+        ],
+        [
+          "corpus/near_duplicates.py",
+          "519b5b9a61cdbfc6a47b2b230b3b95b7e713c771e0f5bce555e4f75ad6a978ea"
+        ],
+        [
+          "corpus/pipeline.py",
+          "d51b5f2cf108054d7b58d664c17b2dc9c356e5b27e25b1e04ee4d1e9830fdd8d"
+        ],
+        [
+          "corpus/progress.py",
+          "0f2674dc4626d5035dd826fac704ceeb7cc9e7f4f26cb402eed2380eda4683fc"
+        ],
+        [
+          "corpus/project.py",
+          "7f19a933d74d6e5e78d03e9abe7c8c33b1d9a185c9bed171bae3dee8a0e79f12"
+        ],
+        [
+          "corpus/provenance.py",
+          "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589"
+        ],
+        [
+          "corpus/publication.py",
+          "a3c972416b642b8a8284d56d908d9a498b368e6b0878dcb207ba6b5b497e5045"
+        ],
+        [
+          "corpus/release.py",
+          "03a9bdd173aa8b49317d3f2debde523397f5a3855002e6238a7e050a3e1db7d6"
+        ],
+        [
+          "corpus/rights.py",
+          "ff3486999e00007da93aea661299be42b8a4f86682e1d0308a7c63a3a9cddf24"
+        ],
+        [
+          "corpus/selection.py",
+          "a1fb7f851ae66c47b963b888b52cc65e77f6d6ea1ebb576b1f895787acf2498a"
+        ],
+        [
+          "corpus/tokenizer_bakeoff.py",
+          "3c70fb483a1b1456785b0603a48684aa3a3930188692cbd16a40ee75ecd4101b"
+        ],
+        [
+          "corpus/tokenizer_probes.py",
+          "9207c06900ed9fb259215e2436c8555241b464bf73261dcb542584f98e49b453"
+        ],
+        [
+          "dashboard/app.py",
+          "e139885ad5493eb4c8ef91b4a2a33e901ac62c6418d954749ebfff04719870a0"
+        ],
+        [
+          "dashboard/help/accumulation.md",
+          "e1dde7b502886749ead7a18b5f82dfa0b9dd3f2064c14734495b7042bf6a39d0"
+        ],
+        [
+          "dashboard/help/checkpoints.md",
+          "421b314cbf75d63109e1801a47c9703d5c07cff99f5c0cb63e61352305b0350c"
+        ],
+        [
+          "dashboard/help/gradient-norm.md",
+          "681911042c78433161c2b09f629b96ee29aed7dced2dd52d571e412d86fe8db8"
+        ],
+        [
+          "dashboard/help/independent-workers.md",
+          "503fb9b228d8fd9e03fc75b94614e8a26661eb5c957d8524a70cd3f3b1b62029"
+        ],
+        [
+          "dashboard/help/learning-rate.md",
+          "263510718dc981a71b885b86236bdd3ab970e9f377a09fac19c9ff835125b3cf"
+        ],
+        [
+          "dashboard/help/loss.md",
+          "fc8a137f21a1597b8c1ec53f4f87c4bb4156a03f8cf479c97dd0f1f5080ff909"
+        ],
+        [
+          "dashboard/help/memory.md",
+          "38e1cc7a843baffdec8fc861a0067232cea701f1df37b1dc4a07fb606e6e74af"
+        ],
+        [
+          "dashboard/help/moe.md",
+          "387f1fc707f2eeccd10bc53b83d6b8e44a9676d2d7b3ec6c6ca18b8761f73066"
+        ],
+        [
+          "dashboard/help/offload.md",
+          "a4debf4aab22264cff682cb3057b02eeb83879779df6c50c3156e8cebf7d0baf"
+        ],
+        [
+          "dashboard/help/perplexity.md",
+          "a1b9f6bc3d578fd3838ec68cfa8797bc889f559f003283d8833f0a9b2db4d05f"
+        ],
+        [
+          "dashboard/help/recomputation.md",
+          "6f2a63a0c39f22786623a9541f91692ddc6a3a66de0c3a4b55c7ee3a97d8f497"
+        ],
+        [
+          "dashboard/help/runtime.md",
+          "02e9c455273665e7d093f85d1489e86ec58226cbb72c78b9e781e45f437f61cf"
+        ],
+        [
+          "dashboard/help/throughput.md",
+          "44435dc9a7392b7d0078c3a0cd6fc1a727d89620a712d87674ac6d6970b7f6d2"
+        ],
+        [
+          "dashboard/queries.py",
+          "a2fe405b00505229dc7dedced395df2d40577a07f887f1496b7dc9b2501ac58a"
+        ],
+        [
+          "dashboard/research.py",
+          "decc81cd4be17da76e753fa4075b6044f5fad56b297d2881c1d9e8a693d66955"
+        ],
+        [
+          "dashboard/surface_app.py",
+          "d5f3702748e59adc5107440f44004c261203fe6554b588f9a0a95606e25ec56a"
+        ],
+        [
+          "dashboard/surface_chat.py",
+          "6561091153ca6eda5f3f3ebdf16c224e0bc37094c88a1c7221b5bdfcdbb1862c"
+        ],
+        [
+          "data/__init__.py",
+          "b441e48342784bc29505065660e1ce53501a29c8273981eac12e4ec075df853e"
+        ],
+        [
+          "data/allocation.py",
+          "106701e71683acd7ffe75114e83f6782529310fecba6880f29a221f3e4804fc5"
+        ],
+        [
+          "data/allocation_tasks.py",
+          "a8b2d325cf8a69b2af96a82eee2af7bbb05ed085b236c1cb421ba624f24f125a"
+        ],
+        [
+          "data/bakeoff.py",
+          "82fce4195f93b56c5ad3cb2658f83d2e8340fb3b0df2758ff457ba4fa5b02447"
+        ],
+        [
+          "data/byte_hash.py",
+          "c6c7443d5f794d33ecdc9b6dfe49d8393927afb884ecda0c89d8b41c4bab4961"
+        ],
+        [
+          "data/chat_recall.py",
+          "00a685afd2324048c7e4ca2e46c42b89868da83f3f5c318f49252a279cdc7500"
+        ],
+        [
+          "data/conversations.py",
+          "9f036f81e7985d354a0af864dfe7ba144a4e5db9fb9b975c25435b830c40a7a2"
+        ],
+        [
+          "data/datasets.py",
+          "5a56709bc2dc334c5a80979067e49ecfb97ba502ee8085995ab000c19763ea45"
+        ],
+        [
+          "data/encoding.py",
+          "3f1f6269a73255e46db0e954164412d13658635635a486144c3c558aa8bd5328"
+        ],
+        [
+          "data/engram_recall.py",
+          "0d9395c3c9b4a972e5e5d28c07b1e83cb4c3a9135a4e9331b539abec72dd7c57"
+        ],
+        [
+          "data/instruction_reference.py",
+          "f26e31271bee2d6531cc3fda11090cc69c8ea4188549cdb669bb9d91af7b6429"
+        ],
+        [
+          "data/learned_portability.py",
+          "016153c2a786a46e88adbe930ab62744b2e5819d360de35209902d5e2f5b375a"
+        ],
+        [
+          "data/lexical_mining.py",
+          "1ae04b889dc8b07822d3873b06f188e4d8ae34f33b3d6964e454172f75202047"
+        ],
+        [
+          "data/local_stories.py",
+          "c4d88bcdd3e0881e22008d76c88a07d3ffb204c9f9e136d49333382550009b2f"
+        ],
+        [
+          "data/packing.py",
+          "710a3933168b6f7f507ba71ba3a3be13542b7a6e61f17e766aecc3c2a96752bf"
+        ],
+        [
+          "data/phase_e_tasks.py",
+          "7f3cd6d6192bc288cccf802e1b1a894d9993b2f259ce4cb2da35010ff7f630d2"
+        ],
+        [
+          "data/portability_worlds.py",
+          "9c89aafd9099f63e636974529f5468a8b8c0cfb7637713098b801597bfd90220"
+        ],
+        [
+          "data/preparation_chunks.py",
+          "ffaa22caa59d1d0cfba3855e3fa02ad5cf556875c879ff62312d1420d2d55656"
+        ],
+        [
+          "data/preparation_telemetry.py",
+          "33d9a418abe0678fd6633486dea0fa92276803622d7b07184a5fd91e2aa566b9"
+        ],
+        [
+          "data/resources/wikidata_mini_v1.json",
+          "7646089ca88371fa22275ffbad17e3b3d5207fbaa24197271964711ad95c1cd5"
+        ],
+        [
+          "data/synthetic.py",
+          "ebfd8f559ed92280afce0ba192aa940342dd57fba2084e295a7db9fcef48e6f8"
+        ],
+        [
+          "data/tokenizer.py",
+          "89a0ba272915e33021c71c233a88b354fd92fcff4fe9d844e21adb73c515d694"
+        ],
+        [
+          "data/toy_worlds.py",
+          "479b6e06fde4c310f0b3b211631e5aa6ac9abe75ae18eb0a4321ece0fba5f621"
+        ],
+        [
+          "data/verification.py",
+          "9792f59cde6b7a443310a407cd069cac33076259a56241b0b633930773025ed3"
+        ],
+        [
+          "data/withheld_facts.py",
+          "82863edd4fab8be96cf8c1812b283a911026bea039496165438d58b7882296aa"
+        ],
+        [
+          "engines/__init__.py",
+          "64bff682504a5371f5481fec6b76677c3cf1451cd549d82f4bf345acde3c429b"
+        ],
+        [
+          "engines/base.py",
+          "770172974d31fd4bc5aa2f110eb64f70dd32a3272e263d7d2afb215c0050c3e1"
+        ],
+        [
+          "engines/mlx.py",
+          "5f8b5f7799e768bbdf2de40309eb38e8eab174baeb91f8a94fbefacf9f402ccf"
+        ],
+        [
+          "engines/pytorch.py",
+          "fb33d69adf6eee8f319b2257eb0dabb415b90b712405bbbff1e5502b09dd1d62"
+        ],
+        [
+          "engram/__init__.py",
+          "50155cae4dbb3a3803bfc7d965d82741adb202ff6a15f93c391fd7e5696cada2"
+        ],
+        [
+          "engram/packs.py",
+          "56e88271b1b33aaf5560654893205295533dd7e055bf31a68499c4074cbe6cea"
+        ],
+        [
+          "engram/records.py",
+          "96113fcaac2641b94cbdd602a9a6e9063594e5032ab59ad227be3ccda8d4a4d5"
+        ],
+        [
+          "engram/semantic.py",
+          "3fd441e6a13345ee97500410e2161aef2975f92789bf9686dde0ac3f35fa14ce"
+        ],
+        [
+          "evaluation/byte_memory_transfer.py",
+          "02311f644e86b31b2b92e636fff7d957fff382c6d47b8f0dcd79d04d12fbdfdf"
+        ],
+        [
+          "evaluation/capabilities.py",
+          "35b7d95a4ad36286d60020ba20e78fe14f1a590253d6b5cd603ebaec69da79e3"
+        ],
+        [
+          "evaluation/chat.py",
+          "2e3578ff50a0096078d5838c81bbdd2ae17a5be912a997fff5cf069b094535a1"
+        ],
+        [
+          "evaluation/evidence.py",
+          "187cd3a88ba213be9f801bb8ce2407b55f0071687651f30e35691b6125b0bff9"
+        ],
+        [
+          "evaluation/generation.py",
+          "da1db84d5e756a2acf1f40dcc93cad1a43dd67a8eabafda24bb14d273ccedaa2"
+        ],
+        [
+          "evaluation/human_review.py",
+          "3005aeef49c3fee6b072298e290be4be81da11ddf26835a3e2cdf868ebd9bca1"
+        ],
+        [
+          "evaluation/inference.py",
+          "f77fac49017ac845218913e3c3f8cb9c5e1d58e583d2a125b9532f156932c500"
+        ],
+        [
+          "evaluation/language_model.py",
+          "4a70a5835c3dc244937de2e0f69cbef908ce4f2d39ea5187658ee32147709499"
+        ],
+        [
+          "evaluation/learned_portability.py",
+          "ad0733743dc89ec0ee8758af1f515f972920c5ff3ea33b127c29767f7f52ce08"
+        ],
+        [
+          "evaluation/post_train_triage.py",
+          "9745914fb89aaaa0ba8b0acd2f21520d4b15ec07ef1cb64ca3670508434e398c"
+        ],
+        [
+          "evaluation/reference_exercise.py",
+          "3a2b3ed4e1b83753b5b6d337e2111904a6b42d74d56b6cf7570c7da9d0251f37"
+        ],
+        [
+          "evaluation/surface_overlay.py",
+          "918bf66deecaca3c175335f1c83e6c5f90210273d7d06c44e31099f47eb7a719"
+        ],
+        [
+          "evaluation/surface_review.py",
+          "75a6efc2359abfcb931f9f171a6d3e5546e7a8ade626a254e9b0bcb79d0f8ad1"
+        ],
+        [
+          "evaluation/surface_studies.py",
+          "9c9aa1ec6795cb88e861ee0fa3f4e9cd857fb9b8f36b503e6f60e7de61a7182c"
+        ],
+        [
+          "evaluation/surface_triage_import.py",
+          "875c039aa01147d4f40e4ba6c5ff9eb7e1b6d6f751a03c5d05de8ec03d1671e1"
+        ],
+        [
+          "evaluation/text_likelihood.py",
+          "5e004368703765def4a920b7dab9e1f281b0e291ca7e6d58685bcc0141a98032"
+        ],
+        [
+          "evaluation/withheld_facts.py",
+          "a094e73a249063776c967f20a20d146613223e4337ae8df773ffa9289610adbc"
+        ],
+        [
+          "experiments/__init__.py",
+          "e182af2d5b01f86784e31503db3bb54bd452f7a30fb4d44cb1a9ecaac2046741"
+        ],
+        [
+          "experiments/analysis.py",
+          "6dd5caaa3dae2fdce45a1018d805b6b020fdde1e6b78dc252a35b618f210768e"
+        ],
+        [
+          "experiments/artifacts.py",
+          "36097a9639d2c6ca99503eb966bd9dad5e915fc6dade46d9cedb770d113bef67"
+        ],
+        [
+          "experiments/binding.py",
+          "ecc4f1079e0fa0cb3fbcdee9cbcfa214c5468190982233a90b1d72080cea8ed4"
+        ],
+        [
+          "experiments/charts.py",
+          "64737213b6e7e86731f0acd03d714cb5f57fb1f8fec70a39a46ba8305742dc73"
+        ],
+        [
+          "experiments/cli.py",
+          "c2e368b137177ed5d5ff012a5e54351b049a3b18de58f650bbd06da4c0e37d3e"
+        ],
+        [
+          "experiments/compiler.py",
+          "3c04ef76ddb75cdffd89d2a627cdc1c997cccaa9e406f26daee50395af6e4d9e"
+        ],
+        [
+          "experiments/evidence.py",
+          "e434eae00c67634ef7645d4677f846ecc35f774204ae6166e497d57ffac273f0"
+        ],
+        [
+          "experiments/lock.py",
+          "bb2ecf52b30d61d4c36583178ed6b7d93da97fa5d9c90d75356b400ec40c03b3"
+        ],
+        [
+          "experiments/matrix.py",
+          "674a4eca162a158e528af2522df1f4fe3eb931f3fc02eec85bcc00c430c977bb"
+        ],
+        [
+          "experiments/plan.py",
+          "0a23be9bdb10e26284fb42ec5ae1c47a5d2993f2e11b6bc9389bed8c1a0e258e"
+        ],
+        [
+          "experiments/prepare.py",
+          "e2978d3c54a85503fd89a338ccad638b17f95acf97ed8268182ce8e48a194baa"
+        ],
+        [
+          "experiments/reporting.py",
+          "9d8568612871344f09267f1f04880b1a5e1035b4b68c68f735346c2102f74f17"
+        ],
+        [
+          "experiments/retrospective.py",
+          "b708265b63f2eb7ae932087dc8432ff99efc29bf5716f72578490d3cd3091a8f"
+        ],
+        [
+          "experiments/study.py",
+          "081b81187519ab188e553c75b57751b42c6ff9772b6791be15f86b226927fad7"
+        ],
+        [
+          "hf_auth.py",
+          "60311aaec2ed86234cea55c56a8095bbf46ac9015388ecf877af27ab067ce2b8"
+        ],
+        [
+          "memory.py",
+          "0f56e94658b6556572c02981d80b9f5b67e6cb0da33c5c5c52fddb89b1930981"
+        ],
+        [
+          "model/__init__.py",
+          "0815ca767eb754df38ff5ef4c0aa350bf5f00314d1dc14fddefee90c61859775"
+        ],
+        [
+          "model/attention/__init__.py",
+          "c2dfe8fae092968bb590136dfa418dd296c87870f14a3d4b90ec59ff6100fecc"
+        ],
+        [
+          "model/attention/dense.py",
+          "5e81f146f6b667c92f43041adb0c3069de8e4dc3babfe70c727b2e39d84c7041"
+        ],
+        [
+          "model/attention/hip_sparse.py",
+          "cceb40172a47d7dd57185f5b21f7cdea14249e8be4718f4d6f74e9c6a4adcb9c"
+        ],
+        [
+          "model/attention/latent.py",
+          "9aa2bdeec85f2f007ebde1508f631df92f19565f6a54c143b78b564647106ca4"
+        ],
+        [
+          "model/attention/mlx_sparse.py",
+          "a5e0488680d33204f5530380bc61cd56a4cccf5b5f46e86b28f119c3624ce298"
+        ],
+        [
+          "model/attention/mlx_sparse_kernels.py",
+          "e4f4826e88ee6966f7ac0cbd21f62e261c33139c355bb0d65c786c1a2dbb44e4"
+        ],
+        [
+          "model/attention/sparse.py",
+          "715fe276b010aa8128ce511a5e90f8ec7bda15e979e468343f4615f944ccfd4b"
+        ],
+        [
+          "model/cache.py",
+          "495cf089a695bd6ff84178c68ce0f24ad5d4f6ae9f9210cceb731b5cd7a91ee0"
+        ],
+        [
+          "model/ffn.py",
+          "6894361c8a9f051973b71c6916f24e018bc7bd29f7ddf295bace8a6161f23130"
+        ],
+        [
+          "model/inspection.py",
+          "258bc4644d295b5d1386f5570ddc6e7247796d560119052081d1b2aac7b195e3"
+        ],
+        [
+          "model/memory.py",
+          "bd48bd62d3a9e622cc31f2c403b8ffa097b3db9afc389fe0172cc5abdbdc6f3b"
+        ],
+        [
+          "model/mlx_dense.py",
+          "952c797f53b47947a911117c2842f799962fcf4167bc5426e56803f44d43c479"
+        ],
+        [
+          "model/moe.py",
+          "68591cda243f4b8fff3919d3a258d8161f5f8e8fde81810aabbf0f12d36329a1"
+        ],
+        [
+          "model/norm.py",
+          "31d813332e09e7a8770350c70a486ee7086fe779505188a86b759e01d8fa1227"
+        ],
+        [
+          "model/portable_engram.py",
+          "c31148b80a60959a739263cc8cbbd94be4590c9ecf2aab3300a8b79b6d543b79"
+        ],
+        [
+          "model/rope.py",
+          "76fd82b67960926bbe3a2df1f1739e275f8fb08ac44aa800dcb947ccb00a29a3"
+        ],
+        [
+          "model/transformer.py",
+          "82471257f33c3837716ea0c991b692dd1b31f29a742278046454ea287d5d7ba3"
+        ],
+        [
+          "preparation_encoder.py",
+          "8cf1cef35e08d0e3941aae9cccf07e4a5ec3d4b62d8f9d659b3ff9867fb9b0f3"
+        ],
+        [
+          "progress.py",
+          "72dbaa3226291b646088635884e4f4373b314a7e2c49e598bdeb3d8dc1ec14ca"
+        ],
+        [
+          "readiness.py",
+          "7e8640e6ace35b80f67a5a0a8466df7cecbe3d1f4e2700d1e02c802d2b2f7a2a"
+        ],
+        [
+          "research/__init__.py",
+          "f15b60728d5451a7c9ba92d9acd09e25f023563a6f43ec4395b019d1e6cf9c04"
+        ],
+        [
+          "research/catalog.py",
+          "ba080980a36be85bbb1f093e23e625010bbf383b13ad58828d6af52f6347ab24"
+        ],
+        [
+          "research/learned_portability_campaign.py",
+          "8816fa5c943305226f3151765fa11bebb9425ef126a77e8b13db799fbe70370d"
+        ],
+        [
+          "research/lifecycle.py",
+          "cea3fd79c7ffde5466dcd3d744631836a688caf527a8afbac152b446ab4ac80f"
+        ],
+        [
+          "research/portability.py",
+          "c41db757be5ceb18f846c5104a93b17d252205f255322a933530d4b23a220439"
+        ],
+        [
+          "research/portability_campaign.py",
+          "b252cf977d195c037e0eadee52ce4795aed124e5f4b9cf013feb2ebf425e612e"
+        ],
+        [
+          "research/portability_runner.py",
+          "b4ce2d325b2db5c8ab237aa574d15460f3db4994331c77a2271d29a3961bdd57"
+        ],
+        [
+          "research/probe.py",
+          "1a4fca3c7b515ae717b7d6b9608810172d3cdc3e1f3694684582984231594e09"
+        ],
+        [
+          "research/pythia.py",
+          "b0ba958e1a7bdc42b493a1aef734979b1ac02e5a39345d1974cf9bc968e2e367"
+        ],
+        [
+          "research/resources/base.yaml",
+          "9845529ff613f4bea5c27cd515db31b7801c757fdad5db1c7658f7f4f2857cdd"
+        ],
+        [
+          "research/resources/catalog/dense-lm-v1.json",
+          "0a5144f0b2542af52160bc7c85a0d8756fcea37d154fcea2d05e95da26528749"
+        ],
+        [
+          "research/resources/catalog/engram-ffn-substitution-v1.json",
+          "c4862182591f0f53bdb1cd43d998984aa926c5283d3f1c70bf5a9381f62672c6"
+        ],
+        [
+          "research/resources/catalog/engram-mla-compression-v1.json",
+          "25ff4128a42d90936ce461b1a1217c28d427becf65514961c7ff3199418d9f0e"
+        ],
+        [
+          "research/resources/catalog/engram-moe-capacity-v1.json",
+          "f52ece6c6aef296429b119573f249c5381a16e0db7a341bac75cef7c5f45fdd2"
+        ],
+        [
+          "research/resources/catalog/engram-placement-v1.json",
+          "a3b2c3cfc41d1f6d76d1b69147572c7ddc2a218b312bcfeef0f6bdac5f998e36"
+        ],
+        [
+          "research/resources/catalog/engram-portability-v1.json",
+          "90df9ba8eb38216dd9c7fc980870149116eacb924802204f069c253910cfd1bf"
+        ],
+        [
+          "research/resources/catalog/engram-sparse-budget-v1.json",
+          "710aeecdda9313ea43fadf98de2ea2c000ac8a9e8ce7858940c5b4064128c292"
+        ],
+        [
+          "research/resources/catalog/learned-engram-portability-v1.json",
+          "15a814c5cc8bdc15e229b3e52c22686f1da11391688517527a04dce5535e8ef1"
+        ],
+        [
+          "research/resources/catalog/lexical-memory-heavy-v1.json",
+          "52dc839a8be570148cb263633354b085b80be915c21e0b04261c3004de9af02d"
+        ],
+        [
+          "research/resources/catalog/memory-allocation-curve-v1.json",
+          "a53622a1899ec79e9dcf03c958a45e0d832cdb2fe732ffa03b3789683648dc14"
+        ],
+        [
+          "research/resources/catalog/tinystories-dense-30m-data-rich-v1.json",
+          "5e2707987defc08568757513d2ee83602345c590f1bcced1d83d6f2fe2c3124c"
+        ],
+        [
+          "research/resources/datasets.json",
+          "e5072f46efc380d01f3c9674a9ffbae66408f1b8f0cdc94ef9b1f3770b0fb758"
+        ],
+        [
+          "research/resources/lessons/byte-engram.json",
+          "87ed1ef6b54e5e76e2b407a86f0a7ca894867618ed69689e3f9bd5dfe99f4589"
+        ],
+        [
+          "research/resources/lessons/dense.json",
+          "1d645ff1ee352508e13638f52e66ee39cc163bf3adff01df413cfeced440e664"
+        ],
+        [
+          "research/resources/lessons/engrampack.json",
+          "668f195e40d8e49a835419d1a63aacd79235ddb930c5c030ff0bd70265c462ce"
+        ],
+        [
+          "research/resources/lessons/ffn.json",
+          "d39d1e810269dfe0e4c19ec1c20525aa2ad09ce9e7942d8c0b72d6c5f2f6ff46"
+        ],
+        [
+          "research/resources/lessons/lexical-engram.json",
+          "3b1a7007a1677e1d272fb9facfd4aa059e1a479f8dbc2beb59600e433883af15"
+        ],
+        [
+          "research/resources/lessons/mla.json",
+          "c5042671fcee551fc54087470cbb5595d6a6024dcec369c49ebb38e70b13e166"
+        ],
+        [
+          "research/resources/lessons/moe.json",
+          "e8ef7034c7ee081d00c03d3379d2cc6ab43bdb9889a3fa30e87f6fa8588dd311"
+        ],
+        [
+          "research/resources/lessons/portable-engram.json",
+          "c79b08402c1b64377367ccfc064a807412a9b20c7d0b4b8ec62d3209e8163d75"
+        ],
+        [
+          "research/resources/lessons/semantic-retrieval.json",
+          "90847ed672e736f3b18187251bbe46f3e67b6648056b52a28a59620b6ce3ad2e"
+        ],
+        [
+          "research/resources/lessons/sliding-window.json",
+          "29a10fdac972d760ed6fad22420981cbbb3fab3c073c0816b3b647b8e202b3c0"
+        ],
+        [
+          "research/resources/lessons/sparse-attention.json",
+          "20c9f476d30444262acf5db69e6af7ac60eb8d9495de0cad180ebc18b515d601"
+        ],
+        [
+          "research/resources/profiles.json",
+          "39ea4c2af85866a923d5b99268c70a895f88756fb419f2117867524c268066a2"
+        ],
+        [
+          "research/resources/recipes/engram-ffn-substitution-v1.json",
+          "46fe3348ec939e2452457d935df449ad324d7eab077ee2c0906ac2e5a81cc99a"
+        ],
+        [
+          "research/resources/recipes/engram-mla-compression-v1.json",
+          "8993000cf47c217a39db49065a4a2d1bb858fe71118a6b59ee88ae9b7a51f806"
+        ],
+        [
+          "research/resources/recipes/engram-moe-capacity-v1.json",
+          "b224dd764ac4946be83271745fed66a81944ced01a286479894157b4d24ff960"
+        ],
+        [
+          "research/resources/recipes/engram-placement-v1.json",
+          "c1628deec93b8c906856a7016300305ea6bb60bc200c36fc2d1883941f4d435e"
+        ],
+        [
+          "research/resources/recipes/engram-portability-v1.json",
+          "b3787fc607e6d75c242c2bc5167b8858535d73d557d1230b37155e5910863019"
+        ],
+        [
+          "research/resources/recipes/engram-sparse-budget-v1.json",
+          "044a9a2cac9b752b67d6ea1abfa10778f9779a0b957aa780301881b26eb5e0f0"
+        ],
+        [
+          "research/resources/recipes/lexical-memory-heavy-v1.json",
+          "f518ef0cce2ceebdd793bbdc69a438d3d7e3c1471cca8b389fbd5f74c0e81660"
+        ],
+        [
+          "research/resources/recipes/memory-allocation-curve-v1.json",
+          "07bfefdd051d2bdb8eaf40e3963527a24410865ceb554eeb5e5a8f49a520500e"
+        ],
+        [
+          "research/scaffold.py",
+          "3fc795e2eb97f4f46fccc9d9c449e947b39ac14b07d5dc97e691ee36b5ab5659"
+        ],
+        [
+          "resource_envelope.py",
+          "5d24075c5a77369a513328eac38d829a6c1387d3567ab9239b84e13deface457"
+        ],
+        [
+          "runtime.py",
+          "481d3e7dbebc62a299116520a1695ebe13d7f6c4077b6732965111ab421d9323"
+        ],
+        [
+          "runtime_forecasting.py",
+          "824e70183ac08bf8623c91bb03dacfeaa082b4952fb135fafde74144a985aa01"
+        ],
+        [
+          "runtime_identity_probe.py",
+          "022f473f567508c507143b1d4f3043d4831179f1891cebebcc6dd888a4978e74"
+        ],
+        [
+          "runtime_probe.py",
+          "596f776914ece9ee18d0c0e6fd24254a7bc9cda9bf97b03a1ab8534040b92d6d"
+        ],
+        [
+          "runtime_profile.py",
+          "8fdbc52ec56c821a505d1c2462c89e9106d72a73de821664a5bf57ad635a0103"
+        ],
+        [
+          "staging.py",
+          "4798675ce73452aa1da7d1c5f24455e4e4ea1f8a6f018b55ef157578a56b7ea4"
+        ],
+        [
+          "training/checkpoints.py",
+          "128bdeda5bc39c30c1d75c2d8a071ee44298ab3874d2cbfd2fc909289af8ee46"
+        ],
+        [
+          "training/continuation.py",
+          "5a6aef9b3c86c89200eff6265c4f63fc43eded9d94367024bf5ea61f41dcf66b"
+        ],
+        [
+          "training/manifest.py",
+          "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246"
+        ],
+        [
+          "training/metric_registry.py",
+          "f1874de86ea6e00a2fba76dfcd89df15964319e8162d0526980dd832948d57fd"
+        ],
+        [
+          "training/metrics.py",
+          "4979dc86a893b2ae22441b3775b04f2b352c9ec5d1f0c33b361c0722fd28b751"
+        ],
+        [
+          "training/mlx_checkpoints.py",
+          "b4b7760f109e700e723232698957eda5b6961517f80a015425f8dc793c1936c2"
+        ],
+        [
+          "training/offload.py",
+          "b3244ffa46935562e4e376b585d0636914fac8628e41509c20ac36d6eac8eda8"
+        ],
+        [
+          "training/optimizer.py",
+          "a057659978fca4ea76be774717d9c66f69c78e4b76950bb379e8170960377095"
+        ],
+        [
+          "training/pilot.py",
+          "cd3dbfe2bf16c238a752f651ad813e7b54b0304a050bdf6263bb4549cf79e974"
+        ],
+        [
+          "training/stages.py",
+          "95bf97a72d1e43dbc1889263d62f5e0d06872541139161680c6df61b3efc0802"
+        ],
+        [
+          "training/throughput.py",
+          "3648e6f451c4207fe6662507600c0055264a8d0fbe5b80e4a4cf2d11ec169b60"
+        ],
+        [
+          "training/trainer.py",
+          "72288788844501a8d4cdbfe55644d96150384dcca3f8420b809f0c4db4eae067"
+        ],
+        [
+          "training/weight_import.py",
+          "6fd30d6163919f029e56e9cc03e49e0222513215aebeca9fd5d6dd2aee901a3c"
+        ],
+        [
+          "workdir.py",
+          "ad09afae1f0f303facf6f73ab629d51b9a77abc539569d5af0b4b5f5cc1c5590"
+        ],
+        [
+          "workers/__init__.py",
+          "05d29324f0b1ad5035309e34fd350ade8b97046653988d865af48ebe7e56c45f"
+        ],
+        [
+          "workers/agent.py",
+          "add18b43e5aa777473aa629811b44085793dbb1b3d70c3434bb56a31dee79954"
+        ],
+        [
+          "workers/artifacts.py",
+          "5083c41b155740cf4c8b6fe7c61b0743cd9d5502babde26ba0ec1dc4660803cf"
+        ],
+        [
+          "workers/bundles.py",
+          "36be45724a7cadf13ad7ab5238713d3a70d65867ef44427444e5fe22ce9b0281"
+        ],
+        [
+          "workers/cli.py",
+          "8307117f922528102328c77ab3746be52b16f19ae705de1f550abc0eab101efb"
+        ],
+        [
+          "workers/controller.py",
+          "8782e84f6f602d947ec37b2edab3a1432152e03fda3c7f494485b3dbffc64ce5"
+        ],
+        [
+          "workers/execution.py",
+          "3f2cac09ce25b33ec798439f7f212dfbebd53ce6db5606ecb72f4a13dab902ee"
+        ],
+        [
+          "workers/leases.py",
+          "1b1b98888367487e032b25a401c63c3c5eb2a268bb84573e1ecec6f5c3b20828"
+        ],
+        [
+          "workers/models.py",
+          "af501924d8feb5d8793a7eb48994b96b601f1803babac3dc285ac9bc8ceaa493"
+        ],
+        [
+          "workers/store.py",
+          "459ca9b3c3bbda2d308ec939d3ec34df6680f33f7678d48099b5b0969b4ec151"
+        ],
+        [
+          "workers/transport.py",
+          "c88ce4821a4895c1cdd81f8be65fd2c2f6264dc2c542b16058804d38dbda822e"
+        ],
+        [
+          "workspace_cleanup.py",
+          "d290c0fc2e34b85043b0c4ff1e266b7d74d0b6be11e0858136d00995b5206462"
+        ],
+        [
+          "workspace_preflight.py",
+          "e4cc143ca5aac3e926f69433960a2a71453fe6fa90ea4dc10e8acf4614704d4f"
+        ],
+        [
+          "workspace_relocation.py",
+          "33d91e3adb92e1f721333d5224127a22451e94dc7d7bacbfda03d4a245e69063"
+        ]
+      ],
+      "sha256": "42f3a4849cccdfc700fc50f507f3b229bae35a03582a3f59b199992c53faccc3"
+    },
+    "telemetry": {
+      "cache_reused": false,
+      "current_rss_bytes": 380456960,
+      "deep_verification_hash_seconds": 0.0,
+      "disk_free_bytes": 370972082176,
+      "disk_free_inodes": 64987848,
+      "elapsed_seconds": 0.19727422400319483,
+      "finalize_fsync_seconds": 0.09420194402628113,
+      "host_available_ram_bytes": 31215427584,
+      "logical_input_bytes": 6176,
+      "logical_output_bytes": 9660,
+      "manifest_sha256": "bd61a3e87e2cdc963f787ccf7ad872f8375f8603f25a2929ea92d6535d2e173a",
+      "output_tokens": 2351,
+      "output_tokens_per_second": 11917.421101917125,
+      "peak_rss_bytes": 380456960,
+      "python_bookkeeping_seconds": 0.0007122641400201246,
+      "records": 89,
+      "schema_version": 1,
+      "source_bytes": 6176,
+      "source_iteration_seconds": 0.0003718460793606937,
+      "source_mb_per_second": 0.031306674915117044,
+      "spool_write_seconds": 0.00021362793631851673,
+      "tokenizer_encoding_seconds": 0.004136659001233056,
+      "tokenizer_rayon_threads": 4
+    },
+    "v5_baseline": {
+      "base": "bfebde25ab571f409e2d79792bb8ac6e4b8adc4a",
+      "creation_array_byte_reads": 8,
+      "creation_array_bytes_reread": 24534,
+      "explicit_all_mask_bytes": 2607,
+      "files": {
+        "train.npy": {
+          "sha256": "83e610ea2384fb37b83104649963e015256d1ed94459fbdeddb1c33254888c9b",
+          "size_bytes": 7024
+        },
+        "train_supervision.npy": {
+          "sha256": "bf8e53be87d8c6944c8b53e4cc40c21c7277fd952b738aacbcc9c10cd5fcc945",
+          "size_bytes": 1852
+        },
+        "validation.npy": {
+          "sha256": "4139003687ee28ec9b445a51794627b2953af096d358f95ba88496147da500cc",
+          "size_bytes": 2636
+        },
+        "validation_supervision.npy": {
+          "sha256": "e1ded9d3150c2a987a708c537e346655d92e29a460c97a037671f0fd9b208107",
+          "size_bytes": 755
+        }
+      },
+      "fixture_source_bytes": 7511,
+      "output_tokens": 2351,
+      "packing_version": "contiguous-eos-v5",
+      "reads": [
+        {
+          "bytes": 7024,
+          "file": "train.npy"
+        },
+        {
+          "bytes": 2636,
+          "file": "validation.npy"
+        },
+        {
+          "bytes": 1852,
+          "file": "train_supervision.npy"
+        },
+        {
+          "bytes": 755,
+          "file": "validation_supervision.npy"
+        },
+        {
+          "bytes": 7024,
+          "file": "train.npy"
+        },
+        {
+          "bytes": 2636,
+          "file": "validation.npy"
+        },
+        {
+          "bytes": 1852,
+          "file": "train_supervision.npy"
+        },
+        {
+          "bytes": 755,
+          "file": "validation_supervision.npy"
+        }
+      ],
+      "root": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1/v5-baseline-cache/f42bc9e37b98c1d7"
+    }
+  },
+  "raw_workspace": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1/sparselab-work/runtime-prep-v1",
+  "recovery": {
+    "cold_published_cleanup_array_hashes_once": true,
+    "exact_four_arrays_and_full_manifest_equal": true,
+    "fixture_train_records": 13,
+    "fixture_validation_records": 7,
+    "forced_chunk_records": 4,
+    "resumed_train_encodings": 9,
+    "resumed_validation_encodings": 7,
+    "sealed_train_records_not_reencoded": 4,
+    "sigkill_after_unsealed_train_record": 5,
+    "tests": "tests/test_preparation_recovery.py",
+    "validation_interruption_resumed_encodings": 3
+  },
+  "remote_freshness_verified": false,
+  "resource_envelope_yaml": "max_queue_depth: 1\nmax_rss_bytes: 2147483648\nmax_workers: 2\nmin_available_ram_bytes: 134217728\nmin_disk_bytes: 268435456\nmin_inodes: 128\nresource_envelope_version: 1\nspill_to_disk: true\n",
+  "runtime_profile_yaml": "runtime_profile_version: 1\nid: runtime-prep-v1-cpu\npython: /home/byron/src/tiny-sparse-lab-runtime-prep-v1/.venv/bin/python\nengine: pytorch\nbackend: cpu\ndevice_index: 0\nrequirements: {}\n",
+  "schema_version": 1,
+  "unexercised": [
+    "real ROCm/CUDA/XPU/MPS/Metal runtime profiles",
+    "Darwin and Windows no-replace filesystem branches",
+    "accelerator training and long-run gates"
+  ],
+  "verification": {
+    "broader_cpu": {
+      "command": "uv run --locked --offline pytest -q -m 'not network and not mps and not cuda and not rocm and not xpu and not mlx' --basetemp sparselab-work/runtime-prep-v1/final-broader-cpu --tb=short",
+      "deselected": 9,
+      "elapsed_seconds": 420.08,
+      "passed": 1009,
+      "skipped": 3
+    },
+    "changed_python_files": 51,
+    "final_checks": [
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--offline",
+          "ruff",
+          "check",
+          "src",
+          "tests",
+          "benchmarks"
+        ],
+        "returncode": 0,
+        "stderr": "warning: `VIRTUAL_ENV=/home/byron/src/tiny-sparse-lab/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+        "stdout": "All checks passed!\n"
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--offline",
+          "ruff",
+          "format",
+          "--check",
+          "benchmarks/preparation_benchmark.py",
+          "src/sparselab/cli/main.py",
+          "src/sparselab/data/datasets.py",
+          "src/sparselab/data/encoding.py",
+          "src/sparselab/data/packing.py",
+          "src/sparselab/data/preparation_chunks.py",
+          "src/sparselab/data/preparation_telemetry.py",
+          "src/sparselab/data/verification.py",
+          "src/sparselab/engines/base.py",
+          "src/sparselab/engines/mlx.py",
+          "src/sparselab/engines/pytorch.py",
+          "src/sparselab/evaluation/evidence.py",
+          "src/sparselab/evaluation/inference.py",
+          "src/sparselab/evaluation/post_train_triage.py",
+          "src/sparselab/experiments/artifacts.py",
+          "src/sparselab/experiments/cli.py",
+          "src/sparselab/experiments/lock.py",
+          "src/sparselab/experiments/prepare.py",
+          "src/sparselab/preparation_encoder.py",
+          "src/sparselab/resource_envelope.py",
+          "src/sparselab/runtime.py",
+          "src/sparselab/runtime_identity_probe.py",
+          "src/sparselab/runtime_profile.py",
+          "src/sparselab/staging.py",
+          "src/sparselab/training/pilot.py",
+          "src/sparselab/training/trainer.py",
+          "src/sparselab/workers/cli.py",
+          "src/sparselab/workers/controller.py",
+          "src/sparselab/workers/execution.py",
+          "src/sparselab/workers/models.py",
+          "src/sparselab/workspace_cleanup.py",
+          "tests/test_allocation_routing.py",
+          "tests/test_corpus_provenance.py",
+          "tests/test_generation.py",
+          "tests/test_inference.py",
+          "tests/test_local_chat.py",
+          "tests/test_packing_manifest.py",
+          "tests/test_preparation_options.py",
+          "tests/test_preparation_recovery.py",
+          "tests/test_prepared_lock_verification.py",
+          "tests/test_resource_envelope.py",
+          "tests/test_runtime.py",
+          "tests/test_runtime_profiles.py",
+          "tests/test_staging.py",
+          "tests/test_streaming_packing.py",
+          "tests/test_training.py",
+          "tests/test_verified_prepared_data.py",
+          "tests/test_worker_execution.py",
+          "tests/test_worker_queue.py",
+          "tests/test_workspace_cleanup.py",
+          "tests/test_workspace_hygiene.py"
+        ],
+        "returncode": 0,
+        "stderr": "warning: `VIRTUAL_ENV=/home/byron/src/tiny-sparse-lab/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+        "stdout": "51 files already formatted\n"
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": ""
+      }
+    ],
+    "focused": {
+      "command": "uv run --locked --offline pytest -q tests/test_runtime_profiles.py tests/test_resource_envelope.py tests/test_streaming_packing.py tests/test_packing_manifest.py tests/test_staging.py tests/test_worker_execution.py tests/test_worker_queue.py tests/test_preparation_options.py tests/test_preparation_recovery.py tests/test_verified_prepared_data.py tests/test_prepared_lock_verification.py --basetemp sparselab-work/runtime-prep-v1/final-focus --tb=short",
+      "passed": 176
+    },
+    "full_tree_format_check": "21 unchanged baseline files require formatting; intentionally not modified"
+  },
+  "worktree": "/home/byron/src/tiny-sparse-lab-runtime-prep-v1"
+}

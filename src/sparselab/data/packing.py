@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import json
 import os
-import resource
 import shutil
+import sys
+import tempfile
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -25,13 +28,41 @@ from sparselab.data.conversations import (
     iter_rendered_conversations,
 )
 from sparselab.data.datasets import iter_documents
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+    PreparationEncoder,
+    validate_tokenizer_batch_limits,
+)
 from sparselab.data.local_stories import verify_snapshot
+from sparselab.data.preparation_chunks import PreparationChunks
+from sparselab.data.preparation_telemetry import PreparationTelemetry
+from sparselab.data.verification import (
+    HashingWriter,
+    VerifiedFile,
+    VerifiedPreparedData,
+    _receipt_from_proofs,
+    _relocate_proofs,
+    _verify_file_with_hasher,
+    _written_file,
+    required_arrays,
+)
 from sparselab.progress import progress_phase
-from sparselab.training.manifest import canonical_json, sha256_file, source_identity
+from sparselab.resource_envelope import (
+    ResourceEnvelope,
+    check_envelope,
+    current_process_rss_bytes,
+)
+from sparselab.training import manifest as manifest_module
+from sparselab.training.manifest import canonical_json, source_identity
 from sparselab.workdir import ensure_work_dir
 from sparselab.workspace_cleanup import campaign_lock, mark_prepared_cache
 
-PACKING_VERSION = "contiguous-eos-v5"
+if TYPE_CHECKING:
+    from sparselab.data.preparation_chunks import SplitChunks
+
+PACKING_VERSION = "contiguous-eos-v6"
+PREVIOUS_PACKING_VERSION = "contiguous-eos-v5"
 HISTORICAL_PACKING_VERSION = "contiguous-eos-v4"
 
 
@@ -52,10 +83,11 @@ class PreparedData:
     validation_semantic_mask: np.ndarray | None
     allocation: AllocationManifest | None
     manifest: dict[str, object]
+    receipt: VerifiedPreparedData
 
 
 def _sha256(path: Path) -> str:
-    return sha256_file(path)
+    return manifest_module.sha256_file(path)
 
 
 def _tokenizer_sha256(tokenizer: Tokenizer) -> str:
@@ -63,125 +95,68 @@ def _tokenizer_sha256(tokenizer: Tokenizer) -> str:
     return hashlib.sha256(tokenizer.to_str().encode("utf-8")).hexdigest()
 
 
-def _array_metadata(
-    path: Path,
-    *,
-    dtype: np.dtype[np.generic] | type[np.generic] = np.int32,
-    dimensions: int = 1,
-) -> dict[str, object]:
-    size_bytes = path.stat().st_size
-    with progress_phase(
-        f"data_artifact_hash_{path.name}",
-        completed_work=0,
-        total_work=size_bytes,
-        unit="bytes",
-        raw_counters={"artifact": path.name, "artifact_bytes": size_bytes},
-    ) as progress:
-        values = np.load(path, mmap_mode="r", allow_pickle=False)
-        if values.ndim != dimensions or values.dtype != dtype:
-            raise ValueError(f"packed array has unexpected shape or dtype: {path}")
-        digest = _sha256(path)
-        progress.update(
-            completed_work=size_bytes,
-            total_work=size_bytes,
-            unit="bytes",
-            raw_counters={"artifact": path.name, "artifact_bytes": size_bytes},
-        )
-        return {
-            "dtype": values.dtype.name,
-            "shape": list(values.shape),
-            "tokens": int(values.shape[0]),
-            "sha256": digest,
-        }
+def supervision_requires_mask(manifest: dict[str, object]) -> bool:
+    required_arrays(manifest)
+    return (
+        manifest.get("packing_version") != HISTORICAL_PACKING_VERSION
+        and manifest["supervision"]["kind"] == "token-loss-mask-v1"
+    )
 
 
-def _cache_is_valid(
+def _verified_receipt(
+    root: Path,
     manifest: dict[str, object],
-    cache_identity: dict[str, object],
-    train_path: Path,
-    validation_path: Path,
-    train_supervision_path: Path,
-    validation_supervision_path: Path,
-    train_byte_path: Path,
-    validation_byte_path: Path,
+    identity: dict[str, object],
     *,
     byte_enabled: bool,
-) -> bool:
-    try:
-        payload = dict(manifest)
-        digest = payload.pop("manifest_sha256")
-        train = payload["train"]
-        validation = payload["validation"]
-        version = payload.get("packing_version")
+    verification: str,
+    receipt: VerifiedPreparedData | None,
+    telemetry: PreparationTelemetry | None,
+) -> VerifiedPreparedData:
+    if (
+        manifest.get("cache_identity") != identity
+        or manifest.get("settings_sha256")
+        != hashlib.sha256(canonical_json(identity)).hexdigest()
+    ):
+        raise ValueError("prepared cache identity mismatch")
+    required = required_arrays(manifest)
+    byte = manifest.get("byte_addressing")
+    if (byte is not None) != byte_enabled:
+        raise ValueError("prepared byte-address mode mismatch")
+    if byte is not None and (
+        byte.get("table_size") != identity["packing"]["memory_table_size"]
+        or byte.get("ngram_size") != identity["packing"]["memory_ngram_size"]
+    ):
+        raise ValueError("prepared byte-address settings mismatch")
+    if verification == "structural":
         if (
-            not isinstance(digest, str)
-            or hashlib.sha256(canonical_json(payload)).hexdigest() != digest
-            or not isinstance(train, dict)
-            or not isinstance(validation, dict)
-            or version not in {PACKING_VERSION, HISTORICAL_PACKING_VERSION}
-            or payload.get("cache_identity") != cache_identity
-            or payload.get("settings_sha256")
-            != hashlib.sha256(canonical_json(cache_identity)).hexdigest()
-            or any(
-                train.get(key) != value
-                for key, value in _array_metadata(train_path).items()
-            )
-            or any(
-                validation.get(key) != value
-                for key, value in _array_metadata(validation_path).items()
-            )
+            not isinstance(receipt, VerifiedPreparedData)
+            or receipt._seal is not _verification_seal()
+            or receipt.root != root.resolve(strict=True)
+            or receipt.manifest_sha256 != manifest.get("manifest_sha256")
         ):
-            return False
-        if version == PACKING_VERSION:
-            supervision = payload.get("supervision")
-            if not (
-                isinstance(supervision, dict)
-                and supervision.get("kind") == "token-loss-mask-v1"
-                and isinstance(supervision.get("train"), dict)
-                and isinstance(supervision.get("validation"), dict)
-                and supervision["train"].get("shape") == train.get("shape")
-                and supervision["validation"].get("shape") == validation.get("shape")
-                and all(
-                    supervision["train"].get(key) == value
-                    for key, value in _array_metadata(
-                        train_supervision_path, dtype=np.dtype(bool)
-                    ).items()
-                )
-                and all(
-                    supervision["validation"].get(key) == value
-                    for key, value in _array_metadata(
-                        validation_supervision_path, dtype=np.dtype(bool)
-                    ).items()
-                )
-            ):
-                return False
-        elif payload.get("supervision") is not None:
-            return False
-        if byte_enabled:
-            byte = payload.get("byte_addressing")
-            return (
-                isinstance(byte, dict)
-                and byte.get("kind") == "raw-utf8-suffix-v1"
-                and isinstance(byte.get("train"), dict)
-                and isinstance(byte.get("validation"), dict)
-                and byte["train"].get("shape") == train.get("shape")
-                and byte["validation"].get("shape") == validation.get("shape")
-                and byte.get("table_size")
-                == cache_identity["packing"]["memory_table_size"]
-                and byte.get("ngram_size")
-                == cache_identity["packing"]["memory_ngram_size"]
-                and all(
-                    byte["train"].get(key) == value
-                    for key, value in _array_metadata(train_byte_path).items()
-                )
-                and all(
-                    byte["validation"].get(key) == value
-                    for key, value in _array_metadata(validation_byte_path).items()
-                )
+            raise ValueError(
+                "structural loading requires a matching in-process sealed receipt"
             )
-        return payload.get("byte_addressing") is None
-    except AttributeError, OSError, KeyError, TypeError, ValueError:
-        return False
+        return _receipt_from_proofs(root, manifest, receipt.proofs)
+    if verification != "deep":
+        raise ValueError(f"unknown prepared verification mode: {verification}")
+    proofs: dict[str, VerifiedFile] = {}
+    for name, (metadata, _, _) in required.items():
+        started = time.monotonic()
+        proofs[name] = _verify_file_with_hasher(
+            root / name, expected_sha256=metadata.get("sha256"), hash_file=_sha256
+        )
+        if telemetry is not None:
+            telemetry.add("deep_verification_hash_seconds", time.monotonic() - started)
+    return _receipt_from_proofs(root, manifest, proofs)
+
+
+def _verification_seal() -> object:
+    # No public unsigned receipt mint: the verification module owns this identity.
+    from sparselab.data import verification
+
+    return verification._SEAL
 
 
 def load_prepared_data(
@@ -189,6 +164,9 @@ def load_prepared_data(
     *,
     byte_enabled: bool,
     expected_identity: dict[str, object] | None = None,
+    telemetry: PreparationTelemetry | None = None,
+    verification: str = "deep",
+    receipt: VerifiedPreparedData | None = None,
 ) -> PreparedData:
     """Open a verified immutable cache or run-owned copy without reacquiring data."""
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -208,19 +186,18 @@ def load_prepared_data(
         root / "train_byte_addresses.npy",
         root / "validation_byte_addresses.npy",
     )
-    if not isinstance(identity, dict) or not _cache_is_valid(
+    if not isinstance(identity, dict):
+        raise ValueError(f"prepared-data cache identity check failed: {root}")  # noqa: TRY004 - invalid serialized schema
+    verified = _verified_receipt(
+        root,
         manifest,
         identity,
-        train,
-        validation,
-        train_supervision,
-        validation_supervision,
-        train_byte,
-        validation_byte,
         byte_enabled=byte_enabled,
-    ):
-        raise ValueError(f"prepared-data cache integrity check failed: {root}")
-    has_supervision = manifest.get("packing_version") == PACKING_VERSION
+        verification=verification,
+        receipt=receipt,
+        telemetry=telemetry,
+    )
+    has_supervision = supervision_requires_mask(manifest)
     allocation_enabled = isinstance(manifest.get("allocation"), dict)
     paths = [
         root / name
@@ -271,12 +248,7 @@ def load_prepared_data(
             if (
                 owner.ndim != 1
                 or owner.shape != packed_ids.shape
-                or any(
-                    split_metadata["owner"].get(key) != value
-                    for key, value in _array_metadata(
-                        owner_path, dtype=np.dtype(np.uint8)
-                    ).items()
-                )
+                or owner.dtype != np.dtype(np.uint8)
                 or np.any(owner > 3)
             ):
                 raise ValueError("prepared allocation owner sidecar integrity failed")
@@ -292,21 +264,11 @@ def load_prepared_data(
             query = np.load(query_path, mmap_mode="r", allow_pickle=False)
             mask = np.load(mask_path, mmap_mode="r", allow_pickle=False)
             if (
-                any(
-                    query_metadata.get(key) != value
-                    for key, value in _array_metadata(
-                        query_path, dtype=np.dtype(np.float32), dimensions=2
-                    ).items()
-                )
-                or any(
-                    mask_metadata.get(key) != value
-                    for key, value in _array_metadata(
-                        mask_path, dtype=np.dtype(bool)
-                    ).items()
-                )
-                or query.ndim != 2
+                query.ndim != 2
+                or query.dtype != np.dtype(np.float32)
                 or query.shape[0] != len(owner)
                 or query.shape[1] <= 0
+                or mask.dtype != np.dtype(bool)
                 or mask.shape != owner.shape
                 or mask[-1]
                 or np.any(mask[:-1] & ~np.isin(owner[1:], (2, 3)))
@@ -345,6 +307,7 @@ def load_prepared_data(
         *allocation_arrays,
         None,
         manifest,
+        verified,
     )
 
 
@@ -369,22 +332,28 @@ def _local_chat_identity(config: DatasetConfig) -> dict[str, str] | None:
             f"{config.source} requires readable train_path and validation_path"
         )
     return {
-        "train_sha256": sha256_file(paths[0]),
-        "validation_sha256": sha256_file(paths[1]),
+        "train_sha256": manifest_module.sha256_file(paths[0]),
+        "validation_sha256": manifest_module.sha256_file(paths[1]),
     }
 
 
-def _assert_local_chat_disjoint(config: DatasetConfig) -> None:
+def _assert_local_chat_disjoint(
+    config: DatasetConfig, *, local_text_source_bytes: int | None = None
+) -> None:
     if config.source not in {"local_chat", "local_text"}:
         return
     train = {
         hashlib.sha256(document.encode("utf-8")).digest()
-        for document in iter_documents(config, "train")
+        for document in iter_documents(
+            config, "train", local_text_source_bytes=local_text_source_bytes
+        )
     }
     overlap = next(
         (
             document
-            for document in iter_documents(config, "validation")
+            for document in iter_documents(
+                config, "validation", local_text_source_bytes=local_text_source_bytes
+            )
             if hashlib.sha256(document.encode("utf-8")).digest() in train
         ),
         None,
@@ -435,14 +404,19 @@ def _supervision_for_encoding(
 
 
 def _source_documents(
-    config: DatasetConfig, split: str
+    config: DatasetConfig,
+    split: str,
+    *,
+    local_text_source_bytes: int | None = None,
 ) -> Iterator[RenderedConversation]:
     if config.source == "local_chat":
         path = config.train_path if split == "train" else config.validation_path
         assert path is not None
         yield from iter_rendered_conversations(path)
         return
-    for text in iter_documents(config, split):
+    for text in iter_documents(
+        config, split, local_text_source_bytes=local_text_source_bytes
+    ):
         yield RenderedConversation(text, ((0, len(text)),), "all_tokens")
 
 
@@ -586,7 +560,10 @@ def _collect(
 class _ArraySpool:
     """Bounded in-memory chunks with a disk-backed, exactly sized final array."""
 
-    def __init__(self, path: Path, dtype: np.dtype) -> None:
+    def __init__(
+        self, path: Path, dtype: np.dtype, telemetry: PreparationTelemetry | None = None
+    ) -> None:
+        self.telemetry = telemetry
         self.path = path
         self.dtype = np.dtype(dtype)
         self.raw_path = path.with_suffix(".raw")
@@ -602,29 +579,43 @@ class _ArraySpool:
 
     def flush(self) -> None:
         if self.buffer:
+            started = time.monotonic()
             self.raw.write(np.asarray(self.buffer, dtype=self.dtype).tobytes())
             self.buffer.clear()
+            if self.telemetry is not None:
+                self.telemetry.add("spool_write_seconds", time.monotonic() - started)
 
-    def finish(self) -> None:
+    def finish(self) -> VerifiedFile:
         self.flush()
+        started = time.monotonic()
         self.raw.flush()
         os.fsync(self.raw.fileno())
         self.raw.close()
         temporary = self.path.with_name(self.path.stem + ".tmp.npy")
         with temporary.open("xb") as output, self.raw_path.open("rb") as source:
+            writer = HashingWriter(output)
             np.lib.format.write_array_header_1_0(
-                output,
+                writer,
                 {
                     "descr": np.lib.format.dtype_to_descr(self.dtype),
                     "fortran_order": False,
                     "shape": (self.count,),
                 },
             )
-            shutil.copyfileobj(source, output, length=1024 * 1024)
+            copy_started = time.monotonic()
+            shutil.copyfileobj(source, writer, length=1024 * 1024)
+            copy_seconds = time.monotonic() - copy_started
+            if self.telemetry is not None:
+                self.telemetry.add("spool_write_seconds", copy_seconds)
             output.flush()
             os.fsync(output.fileno())
         temporary.replace(self.path)
         self.raw_path.unlink()
+        if self.telemetry is not None:
+            self.telemetry.add(
+                "finalize_fsync_seconds", time.monotonic() - started - copy_seconds
+            )
+        return _written_file(self.path, writer.digest.hexdigest(), writer.size)
 
 
 def _collect_streaming(
@@ -636,137 +627,459 @@ def _collect_streaming(
     selected_documents: int,
     byte_table_size: int | None = None,
     byte_ngram_size: int | None = None,
+    resource_envelope: ResourceEnvelope | None = None,
+    telemetry: PreparationTelemetry | None = None,
+    encoder: PreparationEncoder | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    proofs: dict[str, VerifiedFile] | None = None,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    chunks: SplitChunks | None = None,
 ) -> dict[str, int]:
     """Pack every selected story, refusing a partial document or short source."""
+    tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+        validate_tokenizer_batch_limits(
+            tokenizer_batch_documents, tokenizer_batch_source_bytes
+        )
+    )
+    if resource_envelope is not None:
+        if not resource_envelope.spill_to_disk:
+            raise ValueError(
+                "streaming preparation requires resource_envelope.spill_to_disk=true"
+            )
+        check_envelope(
+            resource_envelope,
+            workspace=root,
+            rss_bytes=current_process_rss_bytes()
+            if telemetry is None
+            else telemetry.snapshot()["current_rss_bytes"],
+            pending_workers=0,
+            queue_depth=0,
+        )
+    if encoder is None:
+        with PreparationEncoder(
+            tokenizer,
+            root,
+            max_workers=None
+            if resource_envelope is None
+            else resource_envelope.max_workers,
+        ) as owned_encoder:
+            return _collect_streaming(
+                config,
+                tokenizer,
+                split,
+                root,
+                selected_documents=selected_documents,
+                byte_table_size=byte_table_size,
+                byte_ngram_size=byte_ngram_size,
+                resource_envelope=resource_envelope,
+                telemetry=telemetry,
+                encoder=owned_encoder,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                proofs=proofs,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                chunks=chunks,
+            )
+    if telemetry is not None:
+        telemetry.tokenizer_rayon_threads = encoder.rayon_threads
+    tokenizer_spec = json.loads(tokenizer.to_str())
+    byte_token_bound = (
+        tokenizer_spec.get("model", {}).get("type") == "BPE"
+        and tokenizer_spec.get("pre_tokenizer", {}).get("type") == "ByteLevel"
+        and tokenizer_spec.get("normalizer") is None
+    )
     max_tokens = (
         config.train_max_tokens if split == "train" else config.validation_max_tokens
     )
     eos = tokenizer.token_to_id("<eos>")
     if eos is None:
         raise ValueError("tokenizer has no <eos> special token")
-    ids = _ArraySpool(root / f"{split}.npy", np.dtype(np.int32))
-    supervision = _ArraySpool(root / f"{split}_supervision.npy", np.dtype(bool))
-    byte_addresses = (
-        _ArraySpool(root / f"{split}_byte_addresses.npy", np.dtype(np.int32))
-        if byte_table_size is not None
+    ids = (
+        _ArraySpool(root / f"{split}.npy", np.dtype(np.int32), telemetry)
+        if chunks is None
         else None
     )
-    stats = {
-        "acquired_documents": 0,
-        "retained_documents": 0,
-        "skipped_documents": 0,
-        "truncated_documents": 0,
-    }
+    supervision = None
+    byte_addresses = (
+        _ArraySpool(root / f"{split}_byte_addresses.npy", np.dtype(np.int32), telemetry)
+        if byte_table_size is not None and chunks is None
+        else None
+    )
+    stats = (
+        {
+            "acquired_documents": 0,
+            "retained_documents": 0,
+            "skipped_documents": 0,
+            "truncated_documents": 0,
+        }
+        if chunks is None
+        else {
+            key: chunks.state[key]
+            for key in (
+                "acquired_documents",
+                "retained_documents",
+                "skipped_documents",
+                "truncated_documents",
+            )
+        }
+    )
+    output_tokens = 0 if chunks is None else chunks.state["output_tokens"]
     with progress_phase(
         f"data_{split}_document_iteration_and_collection",
         completed_work=0,
         total_work=selected_documents,
         unit="documents",
-        raw_counters=stats,
+        raw_counters=stats
+        if telemetry is None
+        else {**telemetry.snapshot(), **stats, "output_tokens": output_tokens},
     ) as progress:
-        documents = iter(_source_documents(config, split))
-        while stats["retained_documents"] < selected_documents:
+        documents = iter(
+            _source_documents(
+                config,
+                split,
+                local_text_source_bytes=(
+                    tokenizer_batch_source_bytes
+                    if config.source == "local_text"
+                    else None
+                ),
+            )
+        )
+        if chunks is not None:
+            if telemetry is not None:
+                telemetry.output_tokens += output_tokens
+            for skipped_index in range(stats["acquired_documents"]):
+                read_started = time.monotonic()
+                try:
+                    restored = next(documents)
+                except StopIteration as error:
+                    raise ValueError(
+                        f"{split} source ended before recovered record {skipped_index + 1}"
+                    ) from error
+                if telemetry is not None:
+                    telemetry.add(
+                        "source_iteration_seconds", time.monotonic() - read_started
+                    )
+                    source_bytes = len(restored.text.encode("utf-8"))
+                    telemetry.records += 1
+                    telemetry.source_bytes += source_bytes
+                    telemetry.logical_input_bytes += source_bytes
+        split_started = time.monotonic()
+        pending: list[tuple[RenderedConversation, int]] = []
+        pending_bytes = 0
+        pending_upper_tokens = 0
+
+        def flush() -> None:
+            nonlocal pending_bytes, pending_upper_tokens, output_tokens
+            if not pending:
+                return
+            if resource_envelope is not None:
+                check_envelope(
+                    resource_envelope,
+                    workspace=root,
+                    rss_bytes=current_process_rss_bytes(),
+                    pending_workers=0,
+                    queue_depth=1,
+                )
+            encode_started = time.monotonic()
+            assert encoder is not None
+            encodings = encoder.encode([rendered.text for rendered, _ in pending])
+            if telemetry is not None:
+                telemetry.add(
+                    "tokenizer_encoding_seconds", time.monotonic() - encode_started
+                )
+            for (rendered, acquired_index), encoded_ids in zip(
+                pending, encodings, strict=True
+            ):
+                bookkeeping_started = time.monotonic()
+                selected = encoded_ids + [eos]
+                if output_tokens + len(selected) > max_tokens:
+                    raise ValueError(
+                        f"{split} token cap would truncate selected story "
+                        f"{acquired_index}: {output_tokens + len(selected)} > {max_tokens}"
+                    )
+                if byte_table_size is not None:
+                    assert byte_ngram_size is not None and byte_table_size is not None
+                    prefix = bytearray()
+                    addresses: list[int] = []
+                    for piece in _encoded_token_bytes(
+                        tokenizer, encoded_ids, rendered.text
+                    ):
+                        prefix.extend(piece)
+                        addresses.append(
+                            table_address(
+                                bytes(prefix[-byte_ngram_size:]), byte_table_size
+                            )
+                        )
+                    addresses.append(0)
+                    if chunks is None:
+                        assert byte_addresses is not None
+                        byte_addresses.append(addresses)
+                if chunks is None:
+                    assert ids is not None
+                    ids.append(selected)
+                else:
+                    values = {"ids": selected}
+                    if byte_table_size is not None:
+                        values["byte_addresses"] = addresses
+                    chunks.append_record(acquired_index, values)
+                output_tokens += len(selected)
+                stats["retained_documents"] += 1
+                if telemetry is not None:
+                    telemetry.output_tokens += len(selected)
+                    telemetry.add(
+                        "python_bookkeeping_seconds",
+                        time.monotonic() - bookkeeping_started,
+                    )
+                if stats["acquired_documents"] % 500 == 0:
+                    progress.update(
+                        completed_work=stats["retained_documents"],
+                        total_work=selected_documents,
+                        unit="documents",
+                        raw_counters={
+                            **({} if telemetry is None else telemetry.snapshot()),
+                            **stats,
+                            "output_tokens": output_tokens,
+                        },
+                    )
+            pending.clear()
+            pending_bytes = 0
+            pending_upper_tokens = 0
+
+        while stats["retained_documents"] + len(pending) < selected_documents:
+            # UTF-8 bytes plus EOS bound unnormalized ByteLevel BPE outputs.
+            # Other tokenizers are encoded before acquiring the next record.
+            if pending and (
+                not byte_token_bound
+                or output_tokens + pending_upper_tokens >= max_tokens
+            ):
+                flush()
+            read_started = time.monotonic()
             try:
                 rendered = next(documents)
             except StopIteration:
                 break
-            stats["acquired_documents"] += 1
-            document = rendered.text
-            if not document:
-                stats["skipped_documents"] += 1
-                continue
-            encoding = tokenizer.encode(document, add_special_tokens=False)
-            selected = encoding.ids + [eos]
-            if ids.count + len(selected) > max_tokens:
-                raise ValueError(
-                    f"{split} token cap would truncate selected story "
-                    f"{stats['acquired_documents']}: {ids.count + len(selected)} "
-                    f"> {max_tokens}"
-                )
-            selected_supervision = _supervision_for_encoding(
-                rendered, encoding.offsets, len(encoding.ids)
-            )
-            selected_supervision.append(
-                rendered.loss_mode == "all_tokens" or bool(rendered.supervision_spans)
-            )
-            if byte_addresses is not None:
-                assert byte_ngram_size is not None and byte_table_size is not None
-                prefix = bytearray()
-                addresses: list[int] = []
-                for piece in _encoded_token_bytes(tokenizer, encoding.ids, document):
-                    prefix.extend(piece)
-                    addresses.append(
-                        table_address(bytes(prefix[-byte_ngram_size:]), byte_table_size)
+            finally:
+                if telemetry is not None:
+                    telemetry.add(
+                        "source_iteration_seconds", time.monotonic() - read_started
                     )
-                addresses.append(0)
-                byte_addresses.append(addresses)
-            ids.append(selected)
-            supervision.append(selected_supervision)
-            stats["retained_documents"] += 1
-            if stats["acquired_documents"] % 500 == 0:
-                progress.update(
-                    completed_work=stats["retained_documents"],
-                    total_work=selected_documents,
-                    unit="documents",
-                    raw_counters={
-                        **stats,
-                        "output_tokens": ids.count,
-                        "peak_host_rss_bytes": resource.getrusage(
-                            resource.RUSAGE_SELF
-                        ).ru_maxrss
-                        * 1024,
-                    },
+            stats["acquired_documents"] += 1
+            bookkeeping_started = time.monotonic()
+            document = rendered.text
+            if telemetry is not None:
+                telemetry.records += 1
+            if not document:
+                if chunks is not None:
+                    flush()
+                    chunks.append_record(stats["acquired_documents"], None)
+                stats["skipped_documents"] += 1
+                if telemetry is not None:
+                    telemetry.add(
+                        "python_bookkeeping_seconds",
+                        time.monotonic() - bookkeeping_started,
+                    )
+                continue
+            encoded_bytes = len(document.encode("utf-8"))
+            if encoded_bytes > tokenizer_batch_source_bytes:
+                raise ValueError(
+                    f"{split} source document {stats['acquired_documents']} exceeds "
+                    f"tokenizer_batch_source_bytes ({encoded_bytes} > "
+                    f"{tokenizer_batch_source_bytes})"
                 )
+            if telemetry is not None:
+                telemetry.source_bytes += encoded_bytes
+                telemetry.logical_input_bytes += encoded_bytes
+                telemetry.add(
+                    "python_bookkeeping_seconds", time.monotonic() - bookkeeping_started
+                )
+            if pending and (
+                len(pending) == tokenizer_batch_documents
+                or pending_bytes + encoded_bytes > tokenizer_batch_source_bytes
+                or output_tokens + pending_upper_tokens + encoded_bytes + 1 > max_tokens
+            ):
+                flush()
+            pending.append((rendered, stats["acquired_documents"]))
+            pending_bytes += encoded_bytes
+            pending_upper_tokens += encoded_bytes + 1
+            if (
+                len(pending) == tokenizer_batch_documents
+                or pending_bytes == tokenizer_batch_source_bytes
+                or output_tokens + pending_upper_tokens >= max_tokens
+            ):
+                flush()
+        flush()
         if stats["retained_documents"] != selected_documents:
             raise ValueError(
                 f"{split} snapshot has only {stats['retained_documents']} "
                 f"selected distinct stories; required {selected_documents}"
             )
-        for spool in (ids, supervision, byte_addresses):
-            if spool is not None:
-                spool.finish()
-        stats["output_tokens"] = ids.count
-        stats["artifact_bytes"] = sum(
-            spool.path.stat().st_size
-            for spool in (ids, supervision, byte_addresses)
-            if spool is not None
-        )
-        stats["artifact_files"] = 2 + (byte_addresses is not None)
-        stats["peak_host_rss_bytes"] = (
-            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-        )
+        if resource_envelope is not None:
+            check_envelope(
+                resource_envelope,
+                workspace=root,
+                rss_bytes=(
+                    None
+                    if telemetry is None
+                    else telemetry.snapshot()["current_rss_bytes"]
+                ),
+                pending_workers=0,
+                queue_depth=0,
+            )
+        if chunks is None:
+            finished = {}
+            for spool in (ids, supervision, byte_addresses):
+                if spool is not None:
+                    finished[spool.path.name] = spool.finish()
+            stats["output_tokens"] = output_tokens
+            stats["artifact_bytes"] = sum(
+                proof.size_bytes for proof in finished.values()
+            )
+            stats["artifact_files"] = len(finished)
+        else:
+            finished, stats = chunks.finish()
+        if proofs is not None:
+            proofs.update(finished)
+        if telemetry is not None and chunks is None:
+            telemetry.logical_output_bytes += stats["artifact_bytes"]
         progress.update(
             completed_work=selected_documents,
             total_work=selected_documents,
             unit="documents",
-            raw_counters=stats,
+            raw_counters={
+                **({} if telemetry is None else telemetry.snapshot()),
+                **stats,
+                "split_elapsed_seconds": time.monotonic() - split_started,
+            },
         )
     return stats
 
 
-def _atomic_array(path: Path, values: np.ndarray) -> None:
+def _atomic_array(path: Path, values: np.ndarray) -> VerifiedFile:
     temporary = path.with_name(path.stem + ".tmp.npy")
+    if not values.flags.c_contiguous:
+        values = np.ascontiguousarray(values)
     with progress_phase(
         f"data_array_write_fsync_{path.name}",
         completed_work=0,
         unit="bytes",
         raw_counters={"artifact": path.name},
     ) as progress:
-        np.save(temporary, values, allow_pickle=False)
-        with temporary.open("rb") as handle:
-            os.fsync(handle.fileno())
+        with temporary.open("xb") as output:
+            writer = HashingWriter(output)
+            np.lib.format.write_array_header_1_0(
+                writer,
+                {
+                    "descr": np.lib.format.dtype_to_descr(values.dtype),
+                    "fortran_order": False,
+                    "shape": values.shape,
+                },
+            )
+            writer.write(memoryview(values).cast("B"))
+            output.flush()
+            os.fsync(output.fileno())
         temporary.replace(path)
-        output_bytes = path.stat().st_size
         progress.update(
-            completed_work=output_bytes,
-            total_work=output_bytes,
+            completed_work=writer.size,
+            total_work=writer.size,
             unit="bytes",
-            raw_counters={"artifact": path.name, "artifact_bytes": output_bytes},
+            raw_counters={"artifact": path.name, "artifact_bytes": writer.size},
+        )
+    return _written_file(path, writer.digest.hexdigest(), writer.size)
+
+
+def _write_preparation_receipt(
+    root: Path, manifest_sha256: str, telemetry: PreparationTelemetry, *, reused: bool
+) -> None:
+    receipt = root.with_name(root.name + ".preparation.json")
+    payload = {
+        "schema_version": 1,
+        "manifest_sha256": manifest_sha256,
+        "cache_reused": reused,
+        **telemetry.snapshot(),
+    }
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=root.parent, prefix=receipt.name + ".", delete=False
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(canonical_json(payload) + b"\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(receipt)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _publish_prepared_directory(staged: Path, destination: Path) -> None:
+    """Atomically publish without replacing a previously published cache."""
+    if os.name == "nt":
+        # Windows rename fails whenever the destination already exists.
+        os.rename(staged, destination)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename = getattr(libc, "renamex_np", None)
+        if rename is None:
+            raise RuntimeError(
+                "atomic no-replace preparation publication requires renamex_np"
+            )
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(os.fsencode(staged), os.fsencode(destination), 4)  # RENAME_EXCL
+    else:
+        rename = getattr(libc, "renameat2", None)
+        if rename is None:
+            raise RuntimeError(
+                "atomic no-replace preparation publication requires renameat2"
+            )
+        rename.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        rename.restype = ctypes.c_int
+        result = rename(-100, os.fsencode(staged), -100, os.fsencode(destination), 1)
+    if result != 0:
+        error = ctypes.get_errno()
+        raise OSError(
+            error,
+            f"cannot publish prepared cache without replacing existing destination: {destination}",
         )
 
 
-def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
+def _prepare_data(
+    config: RunConfig,
+    tokenizer: Tokenizer,
+    *,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+) -> PreparedData:
     """Prepare immutable IDs and causal sidecars with an optional allocation."""
+    tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+        validate_tokenizer_batch_limits(
+            tokenizer_batch_documents, tokenizer_batch_source_bytes
+        )
+    )
+    streaming = config.dataset.source in {"local_stories", "local_text"}
+    if (
+        streaming
+        and resource_envelope is not None
+        and not resource_envelope.spill_to_disk
+    ):
+        raise ValueError(
+            "streaming preparation requires resource_envelope.spill_to_disk=true"
+        )
+    telemetry = PreparationTelemetry(config.dataset.cache_dir)
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=config.dataset.cache_dir,
+            rss_bytes=telemetry.snapshot()["current_rss_bytes"],
+        )
     local_stories = (
         verify_snapshot(config.dataset)
         if config.dataset.source == "local_stories"
@@ -837,50 +1150,110 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "source_identity_sha256": source_digest,
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
     }
+    binding = (
+        {
+            "dataset": {
+                key: str(value.resolve()) if isinstance(value, Path) else value
+                for key, value in config.dataset.model_dump(mode="python").items()
+                if key
+                in {
+                    "source",
+                    "train_path",
+                    "validation_path",
+                    "source_manifest_path",
+                    "corpus_release_path",
+                    "corpus_export_path",
+                    "train_max_documents",
+                    "validation_max_documents",
+                    "train_max_tokens",
+                    "validation_max_tokens",
+                }
+            },
+            "tokenizer_path": str(config.tokenizer.path.resolve()),
+            "packing": cache_identity["packing"],
+            "packing_version": PACKING_VERSION,
+        }
+        if streaming
+        else None
+    )
     root = (
         config.dataset.cache_dir
         / hashlib.sha256(canonical_json(cache_identity)).hexdigest()[:16]
     )
     manifest_path = root / "manifest.json"
-    train_path, validation_path = root / "train.npy", root / "validation.npy"
-    train_supervision_path, validation_supervision_path = (
+    _train_path, _validation_path = root / "train.npy", root / "validation.npy"
+    _train_supervision_path, _validation_supervision_path = (
         root / "train_supervision.npy",
         root / "validation_supervision.npy",
     )
     byte_enabled = config.model.memory in {"byte", "portable"}
-    train_byte_path, validation_byte_path = (
+    _train_byte_path, _validation_byte_path = (
         root / "train_byte_addresses.npy",
         root / "validation_byte_addresses.npy",
     )
-    if (
-        manifest_path.is_file()
-        and train_path.is_file()
-        and validation_path.is_file()
-        and train_supervision_path.is_file()
-        and validation_supervision_path.is_file()
-        and (
-            not byte_enabled
-            or (train_byte_path.is_file() and validation_byte_path.is_file())
+    chunk_arrays = {"ids": np.dtype(np.int32)}
+    if byte_enabled:
+        chunk_arrays["byte_addresses"] = np.dtype(np.int32)
+    recovered_receipt = None
+    if streaming:
+        assert binding is not None
+        PreparationChunks.check_binding_collision(
+            root.with_name(root.name + ".tmp"),
+            cache_identity=cache_identity,
+            binding=binding,
         )
-    ):
+        if (root / "staging.json").exists() or (root / "staging.json").is_symlink():
+            recovered_receipt = PreparationChunks.recover_published(
+                root,
+                cache_identity=cache_identity,
+                binding=binding,
+                arrays=chunk_arrays,
+                telemetry=telemetry,
+            )
+    if manifest_path.is_file():
         with progress_phase(
             "data_cache_validation",
             completed_work=0,
             total_work=1,
             unit="cache_verifications",
-            raw_counters={"cache_reused": True, "verification_only": True},
+            raw_counters={
+                "cache_reused": True,
+                "verification_only": True,
+                **telemetry.snapshot(),
+            },
         ) as progress:
             cached = load_prepared_data(
-                root, byte_enabled=byte_enabled, expected_identity=cache_identity
+                root,
+                byte_enabled=byte_enabled,
+                expected_identity=cache_identity,
+                telemetry=telemetry,
+                verification="deep" if recovered_receipt is None else "structural",
+                receipt=recovered_receipt,
+            )
+            _write_preparation_receipt(
+                root, cached.manifest["manifest_sha256"], telemetry, reused=True
             )
             progress.update(
                 completed_work=1,
                 total_work=1,
                 unit="cache_verifications",
-                raw_counters={"cache_reused": True, "verification_only": True},
+                raw_counters={
+                    "cache_reused": True,
+                    "verification_only": True,
+                    **telemetry.snapshot(),
+                },
             )
             return cached
-    _assert_local_chat_disjoint(config.dataset)
+    if root.exists() or root.is_symlink():
+        raise RuntimeError(f"unverified prepared-data destination exists: {root}")
+    _assert_local_chat_disjoint(
+        config.dataset,
+        local_text_source_bytes=(
+            tokenizer_batch_source_bytes
+            if config.dataset.source == "local_text"
+            else None
+        ),
+    )
     _assert_local_chat_supervision_consistent(config.dataset)
     from sparselab.workspace_preflight import (
         check_storage,
@@ -888,11 +1261,40 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         require_storage,
     )
 
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=root.parent,
+            rss_bytes=telemetry.snapshot()["current_rss_bytes"],
+        )
+    writable_ancestor = root.parent
+    while not writable_ancestor.exists():
+        writable_ancestor = writable_ancestor.parent
+    if not writable_ancestor.is_dir() or not os.access(
+        writable_ancestor, os.W_OK | os.X_OK
+    ):
+        raise PermissionError(
+            f"prepared-data spill root is not writable: {root.parent}"
+        )
     require_storage([check_storage(root, projected_bytes=projected_data_bytes(config))])
     temporary_root = root.with_name(root.name + ".tmp")
-    if temporary_root.exists():
-        raise RuntimeError(f"incomplete prepared-data sibling exists: {temporary_root}")
-    temporary_root.mkdir(parents=True, exist_ok=False)
+    chunks_owner = None
+    if streaming:
+        assert binding is not None
+        chunks_owner = PreparationChunks(
+            temporary_root,
+            cache_identity=cache_identity,
+            binding=binding,
+            arrays=chunk_arrays,
+            telemetry=telemetry,
+        )
+    else:
+        if temporary_root.exists() or temporary_root.is_symlink():
+            raise RuntimeError(
+                f"incomplete prepared-data sibling exists: {temporary_root}"
+            )
+        temporary_root.mkdir(parents=True, exist_ok=False)
+    proofs: dict[str, VerifiedFile] = {}
     settings = (
         {
             "byte_table_size": config.model.memory_table_size,
@@ -904,36 +1306,65 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
     if config.dataset.source in {"local_stories", "local_text"}:
         if config.dataset.source == "local_stories":
             assert local_stories is not None
-        train_stats = _collect_streaming(
-            config.dataset,
-            tokenizer,
-            "train",
-            temporary_root,
-            selected_documents=(
-                min(
-                    config.dataset.train_max_documents,
-                    local_stories["splits"]["train"]["count"],
-                )
-                if local_stories is not None
-                else config.dataset.train_max_documents
-            ),
-            **settings,
-        )
-        validation_stats = _collect_streaming(
-            config.dataset,
-            tokenizer,
-            "validation",
-            temporary_root,
-            selected_documents=(
-                min(
-                    config.dataset.validation_max_documents,
-                    local_stories["splits"]["validation"]["count"],
-                )
-                if local_stories is not None
-                else config.dataset.validation_max_documents
-            ),
-            **settings,
-        )
+        assert chunks_owner is not None
+        with (
+            chunks_owner,
+            PreparationEncoder(
+                tokenizer,
+                temporary_root,
+                max_workers=None
+                if resource_envelope is None
+                else resource_envelope.max_workers,
+            ) as encoder,
+        ):
+            train_stats = _collect_streaming(
+                config.dataset,
+                tokenizer,
+                "train",
+                temporary_root,
+                selected_documents=(
+                    min(
+                        config.dataset.train_max_documents,
+                        local_stories["splits"]["train"]["count"],
+                    )
+                    if local_stories is not None
+                    else config.dataset.train_max_documents
+                ),
+                resource_envelope=resource_envelope,
+                telemetry=telemetry,
+                encoder=encoder,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                proofs=proofs,
+                chunks=chunks_owner.open_split("train")
+                if chunks_owner is not None
+                else None,
+                **settings,
+            )
+            validation_stats = _collect_streaming(
+                config.dataset,
+                tokenizer,
+                "validation",
+                temporary_root,
+                selected_documents=(
+                    min(
+                        config.dataset.validation_max_documents,
+                        local_stories["splits"]["validation"]["count"],
+                    )
+                    if local_stories is not None
+                    else config.dataset.validation_max_documents
+                ),
+                resource_envelope=resource_envelope,
+                telemetry=telemetry,
+                encoder=encoder,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                proofs=proofs,
+                chunks=chunks_owner.open_split("validation")
+                if chunks_owner is not None
+                else None,
+                **settings,
+            )
         train = np.load(temporary_root / "train.npy", mmap_mode="r", allow_pickle=False)
         validation = np.load(
             temporary_root / "validation.npy", mmap_mode="r", allow_pickle=False
@@ -950,6 +1381,9 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         or len(validation) < config.training.seq_len + 1
     ):
         raise ValueError("prepared split lacks a full next-token block")
+    mask_enabled = config.dataset.source == "local_chat" and (
+        not bool(np.all(train_supervision)) or not bool(np.all(validation_supervision))
+    )
     allocation_sides = None
     if allocation is not None:
         train_sides = allocation.split("train", token_count=len(train))
@@ -964,18 +1398,25 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             ("validation_semantic_mask.npy", validation_sides.semantic_mask),
         ):
             if values is not None:
-                _atomic_array(temporary_root / name, values)
+                proofs[name] = _atomic_array(temporary_root / name, values)
     if config.dataset.source not in {"local_stories", "local_text"}:
-        _atomic_array(temporary_root / "train.npy", train)
-        _atomic_array(temporary_root / "validation.npy", validation)
-        _atomic_array(temporary_root / "train_supervision.npy", train_supervision)
-        _atomic_array(
-            temporary_root / "validation_supervision.npy", validation_supervision
+        proofs["train.npy"] = _atomic_array(temporary_root / "train.npy", train)
+        proofs["validation.npy"] = _atomic_array(
+            temporary_root / "validation.npy", validation
         )
+        if mask_enabled:
+            proofs["train_supervision.npy"] = _atomic_array(
+                temporary_root / "train_supervision.npy", train_supervision
+            )
+            proofs["validation_supervision.npy"] = _atomic_array(
+                temporary_root / "validation_supervision.npy", validation_supervision
+            )
         if byte_enabled:
             assert train_byte is not None and validation_byte is not None
-            _atomic_array(temporary_root / "train_byte_addresses.npy", train_byte)
-            _atomic_array(
+            proofs["train_byte_addresses.npy"] = _atomic_array(
+                temporary_root / "train_byte_addresses.npy", train_byte
+            )
+            proofs["validation_byte_addresses.npy"] = _atomic_array(
                 temporary_root / "validation_byte_addresses.npy", validation_byte
             )
     attributions = {
@@ -1024,6 +1465,21 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             "source_attribution": "sparselab withheld_facts",
         },
     }
+
+    def metadata(path: Path, **kwargs: object) -> dict[str, object]:
+        values = np.load(path, mmap_mode="r", allow_pickle=False)
+        proof = proofs[path.name]
+        expected_dtype = np.dtype(kwargs.get("dtype", np.int32))
+        if values.ndim != kwargs.get("dimensions", 1) or values.dtype != expected_dtype:
+            raise ValueError(f"packed array has unexpected shape or dtype: {path}")
+        return {
+            "dtype": values.dtype.name,
+            "shape": list(values.shape),
+            "tokens": int(values.shape[0]),
+            "sha256": proof.sha256,
+            "size_bytes": proof.size_bytes,
+        }
+
     manifest = {
         "packing_version": PACKING_VERSION,
         "cache_identity": cache_identity,
@@ -1037,18 +1493,20 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         "source_identity_sha256": cache_identity["source_identity_sha256"],
         "train": {
             **train_stats,
-            **_array_metadata(temporary_root / "train.npy"),
+            **metadata(temporary_root / "train.npy"),
         },
         "validation": {
             **validation_stats,
-            **_array_metadata(temporary_root / "validation.npy"),
+            **metadata(temporary_root / "validation.npy"),
         },
-        "supervision": {
+        "supervision": {"kind": "all_tokens"}
+        if not mask_enabled
+        else {
             "kind": "token-loss-mask-v1",
-            "train": _array_metadata(
+            "train": metadata(
                 temporary_root / "train_supervision.npy", dtype=np.dtype(bool)
             ),
-            "validation": _array_metadata(
+            "validation": metadata(
                 temporary_root / "validation_supervision.npy", dtype=np.dtype(bool)
             ),
         },
@@ -1058,10 +1516,8 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             "kind": "raw-utf8-suffix-v1",
             "table_size": config.model.memory_table_size,
             "ngram_size": config.model.memory_ngram_size,
-            "train": _array_metadata(temporary_root / "train_byte_addresses.npy"),
-            "validation": _array_metadata(
-                temporary_root / "validation_byte_addresses.npy"
-            ),
+            "train": metadata(temporary_root / "train_byte_addresses.npy"),
+            "validation": metadata(temporary_root / "validation_byte_addresses.npy"),
         },
         "allocation": None
         if allocation is None
@@ -1073,7 +1529,7 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
             "ownership_profile": allocation.payload.get("ownership_profile"),
             "semantic": allocation.semantic,
             "train": {
-                "owner": _array_metadata(
+                "owner": metadata(
                     temporary_root / "train_owner_ids.npy", dtype=np.dtype(np.uint8)
                 ),
                 **(
@@ -1081,12 +1537,12 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
                     if allocation_sides is None
                     or allocation_sides[0].semantic_queries is None
                     else {
-                        "semantic_queries": _array_metadata(
+                        "semantic_queries": metadata(
                             temporary_root / "train_semantic_queries.npy",
                             dtype=np.dtype(np.float32),
                             dimensions=2,
                         ),
-                        "semantic_mask": _array_metadata(
+                        "semantic_mask": metadata(
                             temporary_root / "train_semantic_mask.npy",
                             dtype=np.dtype(bool),
                         ),
@@ -1094,7 +1550,7 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
                 ),
             },
             "validation": {
-                "owner": _array_metadata(
+                "owner": metadata(
                     temporary_root / "validation_owner_ids.npy",
                     dtype=np.dtype(np.uint8),
                 ),
@@ -1103,12 +1559,12 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
                     if allocation_sides is None
                     or allocation_sides[1].semantic_queries is None
                     else {
-                        "semantic_queries": _array_metadata(
+                        "semantic_queries": metadata(
                             temporary_root / "validation_semantic_queries.npy",
                             dtype=np.dtype(np.float32),
                             dimensions=2,
                         ),
-                        "semantic_mask": _array_metadata(
+                        "semantic_mask": metadata(
                             temporary_root / "validation_semantic_mask.npy",
                             dtype=np.dtype(bool),
                         ),
@@ -1118,25 +1574,100 @@ def _prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         },
     }
     manifest["manifest_sha256"] = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=temporary_root,
+            rss_bytes=telemetry.snapshot()["current_rss_bytes"],
+            pending_workers=0,
+            queue_depth=0,
+        )
     manifest_path = temporary_root / "manifest.json"
+    finalize_started = time.monotonic()
     with manifest_path.open("xb") as handle:
         handle.write(canonical_json(manifest) + b"\n")
         handle.flush()
         os.fsync(handle.fileno())
+    staging_fd = os.open(temporary_root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(staging_fd)
+    finally:
+        os.close(staging_fd)
+    telemetry.add("finalize_fsync_seconds", time.monotonic() - finalize_started)
     root.parent.mkdir(parents=True, exist_ok=True)
-    temporary_root.replace(root)
+    if resource_envelope is not None:
+        check_envelope(
+            resource_envelope,
+            workspace=root.parent,
+            rss_bytes=telemetry.snapshot()["current_rss_bytes"],
+            pending_workers=0,
+            queue_depth=0,
+        )
+    finalize_started = time.monotonic()
+    _publish_prepared_directory(temporary_root, root)
     directory_fd = os.open(root.parent, os.O_RDONLY)
     try:
         os.fsync(directory_fd)
     finally:
         os.close(directory_fd)
-    return load_prepared_data(
-        root, byte_enabled=byte_enabled, expected_identity=cache_identity
-    )
+    telemetry.add("finalize_fsync_seconds", time.monotonic() - finalize_started)
+    if chunks_owner is not None:
+        chunks_owner.cleanup_published(root)
+    with progress_phase(
+        "data_cache_validation",
+        completed_work=0,
+        total_work=1,
+        unit="cache_verifications",
+        raw_counters=telemetry.snapshot(),
+    ) as progress:
+        sealed = _receipt_from_proofs(root, manifest, _relocate_proofs(root, proofs))
+        prepared = load_prepared_data(
+            root,
+            byte_enabled=byte_enabled,
+            expected_identity=cache_identity,
+            telemetry=telemetry,
+            verification="structural",
+            receipt=sealed,
+        )
+        _write_preparation_receipt(
+            root, manifest["manifest_sha256"], telemetry, reused=False
+        )
+        progress.update(
+            completed_work=1,
+            total_work=1,
+            unit="cache_verifications",
+            raw_counters=telemetry.snapshot(),
+        )
+    return prepared
 
 
-def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
+def prepare_data(
+    config: RunConfig,
+    tokenizer: Tokenizer,
+    *,
+    resource_envelope: ResourceEnvelope | None = None,
+    tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
+    tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+) -> PreparedData:
     """Prepare data and mark only new caches owned by the selected workspace."""
+    tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+        validate_tokenizer_batch_limits(
+            tokenizer_batch_documents, tokenizer_batch_source_bytes
+        )
+    )
+    if resource_envelope is not None:
+        if (
+            config.dataset.source in {"local_stories", "local_text"}
+            and not resource_envelope.spill_to_disk
+        ):
+            raise ValueError(
+                "streaming preparation requires resource_envelope.spill_to_disk=true"
+            )
+        check_envelope(
+            resource_envelope,
+            workspace=config.dataset.cache_dir,
+            rss_bytes=current_process_rss_bytes(),
+        )
     workspace = ensure_work_dir()
     base = config.dataset.cache_dir
     if (
@@ -1144,10 +1675,23 @@ def prepare_data(config: RunConfig, tokenizer: Tokenizer) -> PreparedData:
         or not base.resolve().is_relative_to(workspace)
         or base.resolve() == workspace
     ):
-        return _prepare_data(config, tokenizer)
-    with campaign_lock(workspace):
+        with campaign_lock(base):
+            return _prepare_data(
+                config,
+                tokenizer,
+                resource_envelope=resource_envelope,
+                tokenizer_batch_documents=tokenizer_batch_documents,
+                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+            )
+    with campaign_lock(base), campaign_lock(workspace):
         existing = {child.name for child in base.iterdir()} if base.is_dir() else set()
-        prepared = _prepare_data(config, tokenizer)
+        prepared = _prepare_data(
+            config,
+            tokenizer,
+            resource_envelope=resource_envelope,
+            tokenizer_batch_documents=tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+        )
         if prepared.root.name not in existing:
             mark_prepared_cache(workspace, prepared.root)
         return prepared

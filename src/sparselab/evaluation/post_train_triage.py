@@ -19,12 +19,13 @@ import numpy as np
 import torch
 
 from sparselab.config.models import RunConfig
-from sparselab.data.packing import TokenBlockDataset
+from sparselab.data.packing import TokenBlockDataset, supervision_requires_mask
 from sparselab.evaluation.evidence import validate_held_out_report
 from sparselab.evaluation.generation import generate_with_token_ids
 from sparselab.evaluation.inference import load_run
 from sparselab.evaluation.reference_exercise import PROMPTS
 from sparselab.model.inspection import parameter_inventory
+from sparselab.runtime_profile import RuntimeAuthorization
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
 
@@ -223,8 +224,24 @@ def loss_trajectory(points: list[dict[str, object]]) -> dict[str, object]:
     return result
 
 
+def _validation_mask_required(run: Path, artifacts: dict[str, str]) -> bool:
+    manifest_path = _owned(run, "data/manifest.json")
+    if artifacts.get("data/manifest.json") != sha256_file(manifest_path):
+        raise ValueError("prepared-data manifest identity mismatch")
+    required = supervision_requires_mask(_json(manifest_path))
+    mask_path = _owned(run, "data/validation_supervision.npy")
+    if (mask_path.is_file(), "data/validation_supervision.npy" in artifacts) != (
+        required,
+        required,
+    ):
+        raise ValueError("validation supervision inventory does not match descriptor")
+    return required
+
+
 def _expected_validation(
-    run: Path, config: dict[str, Any], artifacts: dict[str, str]
+    run: Path,
+    config: dict[str, Any],
+    mask_required: bool,
 ) -> tuple[int, int]:
     seq = config["training"]["seq_len"]
     batch = config["training"]["micro_batch_size"]
@@ -233,7 +250,7 @@ def _expected_validation(
         np.load(_owned(run, "data/validation.npy"), mmap_mode="r", allow_pickle=False),
         seq,
         supervision=np.load(_owned(run, supervision), mmap_mode="r", allow_pickle=False)
-        if supervision in artifacts
+        if mask_required
         else None,
     )
     blocks = min(len(data), batch * config["evaluation"]["max_batches"])
@@ -334,10 +351,19 @@ def _evidence(
         artifacts = {
             item["relative_path"]: item["sha256"] for item in manifest["artifacts"]
         }
+        try:
+            mask_required = _validation_mask_required(run, artifacts)
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            return outcome, {
+                **unverified,
+                "rejected_reports": [
+                    {"path": "data/manifest.json", "reason": str(error)}
+                ],
+            }
         for asset in (
             "data/validation.npy",
             "tokenizer.json",
-            "data/validation_supervision.npy",
+            *(("data/validation_supervision.npy",) if mask_required else ()),
             "data/validation_byte_addresses.npy",
         ):
             if (
@@ -355,7 +381,7 @@ def _evidence(
                 }
         try:
             expected, batches = _expected_validation(
-                run, manifest["effective_config"], artifacts
+                run, manifest["effective_config"], mask_required
             )
         except (OSError, ValueError, TypeError, KeyError) as error:
             return outcome, {
@@ -459,6 +485,7 @@ def _probe(
     endpoint: dict[str, object],
     config: RunConfig,
     remaining_seconds: float | None,
+    authorization: RuntimeAuthorization | None = None,
 ) -> dict[str, object]:
     inventory = parameter_inventory(config)
     backend = config.runtime.backend
@@ -500,6 +527,7 @@ def _probe(
                     _run_path(run_id, runs_dir), f"checkpoints/{endpoint['generation']}"
                 )
             ),
+            authorization=authorization,
         )
     except Exception as error:  # noqa: BLE001
         result.update(
@@ -1521,7 +1549,11 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
 
 
 def triage_completed_run(
-    run_id: str, runs_dir: Path, *, remaining_seconds: float | None = None
+    run_id: str,
+    runs_dir: Path,
+    *,
+    remaining_seconds: float | None = None,
+    authorization: RuntimeAuthorization | None = None,
 ) -> Path:
     """Interpret only completed run evidence and persist one bounded immutable report."""
     run = _run_path(run_id, runs_dir)
@@ -1607,7 +1639,7 @@ def triage_completed_run(
         "mechanisms": mechanisms,
     }
     tier1 = (
-        _probe(run_id, runs_dir, integrity, config, remaining_seconds)
+        _probe(run_id, runs_dir, integrity, config, remaining_seconds, authorization)
         if integrity["status"] == "PASS"
         else {
             "status": "UNKNOWN",
