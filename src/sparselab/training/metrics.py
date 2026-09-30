@@ -62,15 +62,27 @@ def _execute_ddl(con: sqlite3.Connection, script: str) -> None:
 class ExperimentStore:
     """The local durable experiment projection and its append-only replication outbox."""
 
-    def __init__(self, root_dir: Path) -> None:
-        root_dir.mkdir(parents=True, exist_ok=True)
-        self._existed_at_open = (root_dir / "experiments.sqlite3").exists()
+    def __init__(self, root_dir: Path, *, read_only: bool = False) -> None:
         self.path = root_dir / "experiments.sqlite3"
-        self._initialize()
+        self.read_only = read_only
+        if read_only:
+            if self.path.is_symlink() or not self.path.is_file():
+                raise ValueError(f"missing or symlinked experiment store: {self.path}")
+        else:
+            root_dir.mkdir(parents=True, exist_ok=True)
+        self._existed_at_open = self.path.exists()
+        if not read_only:
+            self._initialize()
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        con = sqlite3.connect(self.path, timeout=5)
+        con = (
+            sqlite3.connect(
+                self.path.absolute().as_uri() + "?mode=ro", uri=True, timeout=5
+            )
+            if self.read_only
+            else sqlite3.connect(self.path, timeout=5)
+        )
         try:
             con.execute("PRAGMA busy_timeout=5000")
             con.execute("PRAGMA foreign_keys=ON")

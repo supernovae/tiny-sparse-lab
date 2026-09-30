@@ -214,6 +214,78 @@ def _lock(args: argparse.Namespace) -> None:
     )
 
 
+def locked_cell_request(
+    locked: Any,
+    cell: Any,
+    worker: str,
+    workspace: Path,
+    controller: Any,
+    *,
+    read_only: bool = False,
+) -> dict[str, Any]:
+    """Construct the same lock-bound worker request for CLI and campaign runs."""
+    phase = next(phase for phase in locked.phases if phase.id == cell.phase)
+    parent_path: Path | None = None
+    parent_digest: str | None = None
+    binding_digest: str | None = None
+    if phase.parent is not None:
+        from sparselab.experiments.binding import bind_generation
+        from sparselab.training.manifest import sha256_file
+
+        parent_id = f"{phase.parent}:{cell.id.split(':', 1)[1]}"
+        matches = [
+            row
+            for row in controller.list_experiments()
+            if (row["spec"].get("plan") or {}).get("plan_sha256") == locked.plan_sha256
+            and (row["spec"].get("plan") or {}).get("cell_id") == parent_id
+            and row["status"] == "COMPLETE"
+            and row["ingestion_status"] == "COMPLETE"
+        ]
+        if len(matches) != 1:
+            raise ValueError(
+                f"phase {cell.phase} needs one ingested parent {parent_id}"
+            )
+        binding, selected_parent = bind_generation(
+            workspace,
+            plan_sha256=locked.plan_sha256,
+            cell_id=cell.id,
+            parent_cell_id=parent_id,
+            parent_run=controller.root / matches[0]["run_id"],
+            selector=phase.selector,
+            at_step=phase.at_step,
+            full_state=phase.transition != "promote",
+            read_only=read_only,
+        )
+        parent_path = Path(selected_parent["checkpoint_path"])
+        parent_digest = selected_parent["checkpoint_sha256"]
+        binding_digest = sha256_file(binding)
+    elif phase.checkpoint is not None:
+        parent_path = Path(locked.availability["artifacts"][phase.checkpoint])
+        parent_digest = locked.artifacts[phase.checkpoint]["sha256"]
+    request = {
+        "config": cell.config,
+        "worker": worker,
+        "plan": {
+            "plan_id": locked.id,
+            "plan_sha256": locked.plan_sha256,
+            "scientific_sha256": locked.scientific_sha256,
+            "cell_id": cell.id,
+            "phase_id": cell.phase,
+            "coordinate": cell.coordinate,
+            "config_sha256": cell.config_sha256,
+            "parent_checkpoint_sha256": parent_digest,
+            "execution_binding_sha256": binding_digest,
+        },
+    }
+    if phase.transition in {"resume", "extend_budget"}:
+        request[
+            "extend_budget" if phase.transition == "extend_budget" else "resume"
+        ] = parent_path
+    elif phase.transition == "promote":
+        request["promote"] = parent_path
+    return request
+
+
 def _run(args: argparse.Namespace) -> None:
     from sparselab.experiments.lock import open_lock
     from sparselab.workers.controller import Controller
@@ -265,69 +337,10 @@ def _run(args: argparse.Namespace) -> None:
             or capability.device_index != runtime.device_index
         ):
             raise ValueError(f"worker runtime differs from locked cell {cell.id}")
-    requests: list[dict[str, Any]] = []
-    phases = {phase.id: phase for phase in locked.phases}
-    for cell in selected:
-        phase = phases[cell.phase]
-        parent_path: Path | None = None
-        parent_digest: str | None = None
-        binding_digest: str | None = None
-        if phase.parent is not None:
-            from sparselab.experiments.binding import bind_generation
-            from sparselab.training.manifest import sha256_file
-
-            parent_id = f"{phase.parent}:{cell.id.split(':', 1)[1]}"
-            matches = [
-                row
-                for row in controller.list_experiments()
-                if (row["spec"].get("plan") or {}).get("plan_sha256")
-                == locked.plan_sha256
-                and (row["spec"].get("plan") or {}).get("cell_id") == parent_id
-                and row["status"] == "COMPLETE"
-                and row["ingestion_status"] == "COMPLETE"
-            ]
-            if len(matches) != 1:
-                raise ValueError(
-                    f"phase {cell.phase} needs one ingested parent {parent_id}"
-                )
-            binding, selected_parent = bind_generation(
-                workspace,
-                plan_sha256=locked.plan_sha256,
-                cell_id=cell.id,
-                parent_cell_id=parent_id,
-                parent_run=controller.root / matches[0]["run_id"],
-                selector=phase.selector,
-                at_step=phase.at_step,
-                full_state=phase.transition != "promote",
-            )
-            parent_path = Path(selected_parent["checkpoint_path"])
-            parent_digest = selected_parent["checkpoint_sha256"]
-            binding_digest = sha256_file(binding)
-        elif phase.checkpoint is not None:
-            parent_path = Path(locked.availability["artifacts"][phase.checkpoint])
-            parent_digest = locked.artifacts[phase.checkpoint]["sha256"]
-        request = {
-            "config": cell.config,
-            "worker": worker,
-            "plan": {
-                "plan_id": locked.id,
-                "plan_sha256": locked.plan_sha256,
-                "scientific_sha256": locked.scientific_sha256,
-                "cell_id": cell.id,
-                "phase_id": cell.phase,
-                "coordinate": cell.coordinate,
-                "config_sha256": cell.config_sha256,
-                "parent_checkpoint_sha256": parent_digest,
-                "execution_binding_sha256": binding_digest,
-            },
-        }
-        if phase.transition in {"resume", "extend_budget"}:
-            request[
-                "extend_budget" if phase.transition == "extend_budget" else "resume"
-            ] = parent_path
-        elif phase.transition == "promote":
-            request["promote"] = parent_path
-        requests.append(request)
+    requests = [
+        locked_cell_request(locked, cell, worker, workspace, controller)
+        for cell in selected
+    ]
     submissions = controller.submit_many(requests)
     _emit(
         args,

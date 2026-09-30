@@ -346,7 +346,7 @@ def read_evidence(
         raise ValueError("evidence index digest or canonical encoding differs")
     if payload.get("plan_sha256") != lock.plan_sha256:
         raise ValueError("evidence index belongs to a different locked plan")
-    controller = Controller(Path(workspace) / "controller")
+    controller = Controller(Path(workspace) / "controller", read_only=True)
     rows = controller.list_experiments()
     indexed = {
         attempt["attempt_id"]

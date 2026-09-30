@@ -31,6 +31,11 @@ The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,89
 
 ## Authored experiment plans and resolved locks
 
+[Campaign v1](campaigns.md) orchestrates Corpus Forge releases and these plans
+with typed dependencies, declared readiness policies, input-bound authorization
+and recoverable local CPU execution. It does not replace ExperimentPlan's
+scientific configuration or infer data/architecture/quality thresholds.
+
 `experiment plan_version: 1` declarations describe a concrete base `RunConfig`,
 bounded labeled axes, typed source/artifact inputs, optional Corpus Forge release
 recipes, exact-field comparison contracts and ordered checkpoint phases. The

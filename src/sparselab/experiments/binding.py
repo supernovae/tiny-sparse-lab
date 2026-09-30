@@ -61,6 +61,7 @@ def bind_generation(
     selector: str,
     at_step: int | None,
     full_state: bool,
+    read_only: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
     """Exclusive immutable execution binding; replay verifies the original bytes."""
     selected = select_generation(
@@ -78,10 +79,15 @@ def bind_generation(
     encoded = canonical_json(payload) + b"\n"
     digest = hashlib.sha256(canonical_json(payload)).hexdigest()
     binding = workspace / "bindings" / f"{digest}.json"
-    binding.parent.mkdir(parents=True, exist_ok=True)
+    if binding.is_symlink():
+        raise ValueError(f"execution binding must not be a symlink: {binding}")
+    if not read_only:
+        binding.parent.mkdir(parents=True, exist_ok=True)
     if binding.exists():
         if binding.read_bytes() != encoded:
             raise ValueError(f"published execution binding changed: {binding}")
+    elif read_only:
+        raise ValueError(f"required execution binding is missing: {binding}")
     else:
         with binding.open("xb") as handle:
             handle.write(encoded)
