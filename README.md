@@ -72,6 +72,11 @@ Corpus Forge also tracks independent [origin, verification, and training-shape
 lineage](docs/corpus-provenance.md). Variant release recipes reuse source
 snapshots for controlled shape and generated-token ablations; measurement
 does not itself establish training usefulness.
+Prospective external sources use the [Corpus Forge rights policy](docs/rights-policy.md):
+training eligibility, source-backed redistribution, and model-weight licensing
+are separate decisions. The optional [memorization diagnostic](docs/memorization.md)
+inspects generated output; it is not a training gate. Historical DevMind releases
+and their fail-gates remain unchanged.
 
 For large, offline-replayable TinyStories inputs, `sparselab data snapshot OUTPUT`
 captures one pinned ordered train/validation source snapshot into a

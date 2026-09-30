@@ -37,6 +37,9 @@ def _licenses(release_dir: Path) -> str:
                 and declaration.get("redistribution") != "rejected"
             ):
                 names.add(str(declaration["license"]))
+    if any(isinstance(item, dict) and "rights_policy" in item for item in items):
+        with (release_dir / "documents.jsonl").open(encoding="utf-8") as handle:
+            names.update(json.loads(line)["license"] for line in handle)
     if not names:
         raise ValueError("frozen release lacks explicit source licenses")
     return "; ".join(sorted(names))
@@ -193,6 +196,12 @@ def export_release(
             )
         },
     }
+    if manifest["build_identity"]["release"]["schema_version"] == 2:
+        rights = json.loads(
+            (release_dir / "license-report.json").read_text(encoding="utf-8")
+        )
+        sidecar["publication_mode"] = rights["publication_mode"]
+        sidecar["weight_license_status"] = rights["weight_license_status"]
     if destination.exists():
         if any(
             not (destination / filename).is_file()

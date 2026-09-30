@@ -25,6 +25,7 @@ from sparselab.corpus.project import (
     SourceDeclaration,
     project_path,
     safe_name,
+    source_declaration_payload,
 )
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
@@ -38,7 +39,7 @@ def _digest(value: object) -> str:
 
 
 def _identity_declaration(source: SourceDeclaration) -> dict[str, Any]:
-    declaration = source.model_dump(mode="json")
+    declaration = source_declaration_payload(source)
     if source.kind == "local":
         declaration["acquisition"]["files"] = [
             {"name": entry.name} for entry in source.acquisition.files
@@ -156,20 +157,30 @@ def _acquire_git(
     inventory = []
     total = 0
     selected = set()
+    metadata_path = source.rights.nested_metadata_path if source.rights else None
+    metadata_seen = False
     for record in tree.split(b"\0"):
         if not record:
             continue
         metadata, raw_path = record.split(b"\t", 1)
         mode, kind, blob = metadata.decode("ascii").split()
         path = raw_path.decode("utf-8", errors="strict")
-        if not any(
+        is_metadata = path == metadata_path
+        if not is_metadata and not any(
             fnmatch.fnmatchcase(path, pattern) for pattern in spec.include
-        ) or any(fnmatch.fnmatchcase(path, pattern) for pattern in spec.exclude):
+        ):
+            continue
+        if any(fnmatch.fnmatchcase(path, pattern) for pattern in spec.exclude):
+            if is_metadata:
+                raise ValueError("rights metadata excluded from pinned Git selection")
             continue
         safe_name(path)
         if mode not in ("100644", "100755") or kind != "blob":
             raise ValueError(f"Git selection contains unsafe symlink/submodule: {path}")
-        selected.add(path)
+        if is_metadata:
+            metadata_seen = True
+        else:
+            selected.add(path)
         size = int(_git(["--git-dir", str(cache), "cat-file", "-s", blob]))
         if size > spec.max_bytes - total:
             raise ValueError("Git selection exceeds max_bytes")
@@ -191,6 +202,8 @@ def _acquire_git(
         )
     if not selected:
         raise ValueError("Git include patterns selected no files")
+    if metadata_path and not metadata_seen:
+        raise ValueError("pinned Git rights metadata file is missing")
     return sorted(inventory, key=lambda item: item["path"]), {"commit": commit}
 
 
@@ -428,7 +441,7 @@ def _project_sha(project: Project) -> str:
         {
             "project_id": project.config.id,
             "sources": [
-                s.model_dump(mode="json")
+                source_declaration_payload(s)
                 for s in sorted(project.sources, key=lambda s: s.id)
             ],
         }
@@ -466,7 +479,7 @@ def verify_acquisition(project: Project, work_root: Path | str) -> dict[str, Any
             if (
                 manifest["snapshot_sha256"] != entry["snapshot_sha256"]
                 or manifest["declaration_sha256"] != entry["declaration_sha256"]
-                or manifest["declaration"] != source.model_dump(mode="json")
+                or manifest["declaration"] != source_declaration_payload(source)
             ):
                 raise ValueError("snapshot provenance mismatch")
             status = "generator" if source.kind.endswith("generator") else "acquired"
@@ -551,7 +564,7 @@ def acquire(
             manifest = {
                 "schema_version": 1,
                 "source_id": source.id,
-                "declaration": source.model_dump(mode="json"),
+                "declaration": source_declaration_payload(source),
                 "declaration_sha256": declared_digest,
                 "adapter": adapter,
                 "files": files,
