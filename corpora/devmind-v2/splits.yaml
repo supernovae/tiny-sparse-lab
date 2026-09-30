@@ -1,0 +1,23 @@
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  fineweb_edu_sample_10bt_train: train
+  pes2o_v2_fulltext_train: train
+  openwebmath_train: train
+  pes2o_v2_train: train
+  v2_git_technical_validation: validation
+  v2_go_faq_train: train
+  v2_go_standard_train: train
+  v2_oci_runtime_specification_validation: validation
+  v2_omp_harness_train: train
+  v2_otel_specification_train: train
+  v2_k8s_concepts_train: train
+  v2_linux_fs_train: train
+  v2_otel_collector_train: train
+  v2_postgres_backend_validation: validation
+  v2_prometheus_promql_test: test
+  v2_python_library_train: train
+  v2_rust_core_train: train
+  wikibooks_20260901: validation
+  wikipedia_20260901_train: train

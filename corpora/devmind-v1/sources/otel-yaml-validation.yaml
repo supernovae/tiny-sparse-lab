@@ -1,0 +1,20 @@
+schema_version: 2
+id: otel_yaml_validation
+kind: git
+canonical_uri: https://github.com/open-telemetry/opentelemetry-collector.git
+revision: 2d516bc090fd4d9571d474a5c87f7d2bdac78591
+license: Apache-2.0
+license_url: https://github.com/open-telemetry/opentelemetry-collector/blob/2d516bc090fd4d9571d474a5c87f7d2bdac78591/LICENSE
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/open-telemetry/opentelemetry-collector/blob/2d516bc090fd4d9571d474a5c87f7d2bdac78591/LICENSE]
+  notices: ['Credit The OpenTelemetry Authors; preserve Apache notices and identify extracted examples.']
+domains: [observability, configuration, containers]
+document_kinds: [yaml]
+source_family: otel_yaml_validation
+acquisition:
+  include: ['examples/k8s/otel-config.yaml', 'examples/local/otel-config.yaml']
+  exclude: []
+  max_bytes: 18000

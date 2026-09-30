@@ -6,7 +6,10 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
+from contextlib import ExitStack
+from itertools import zip_longest
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -68,10 +71,14 @@ def _verify_rights_files(
     from sparselab.corpus.rights import RightsPolicy, resolve_file_rights
 
     report = _load(root / "license-report.json")
-    if report.get("schema_version") != 2 or report.get("sources") != list(
+    if report.get("schema_version") not in (2, 3) or report.get("sources") != list(
         sources.values()
     ):
         raise ValueError("prospective rights report/source mismatch")
+    if report["schema_version"] == 3 and report.get("training_use_policy") != (
+        "allowed_unless_explicitly_prohibited"
+    ):
+        raise ValueError("unrecognized prospective training-use policy")
     rows = report["files"]
     indexed = {(row["source_id"], row["path"]): row for row in rows}
     if len(indexed) != len(rows):
@@ -116,13 +123,498 @@ def _verify_rights_files(
                 continue
             if recorded["role"] not in {"document", "transform_input"}:
                 raise ValueError("unexpected rights file role")
-            raw = _safe(folder, path).read_bytes()
-            resolved = resolve_file_rights(policy, path, raw, nested_metadata=metadata)
+            # The resolver examines only the first 30 lines (and no lines for
+            # dataset shards). Never materialize a whole source shard here.
+            with _safe(folder, path).open("rb") as stream:
+                raw = b"" if path.endswith((".jsonl", ".json", ".parquet")) else b"".join(
+                    stream.readline() for _ in range(30)
+                )
+            resolved = resolve_file_rights(
+                policy,
+                path,
+                raw,
+                nested_metadata=metadata,
+                prospective_private_research=source.get(
+                    "explicit_training_restriction"
+                ) == "none_found",
+            )
             if recorded["rights"] != resolved.model_dump(mode="json") or (
                 recorded.get("license_url") != source["license_url"]
             ):
                 raise ValueError("rights decision differs from pinned file evidence")
     return indexed
+
+
+def _iter_rows(path: Path):
+    with path.open("rb") as stream:
+        for line in stream:
+            if line.strip():
+                yield json.loads(line)
+
+
+def _streaming_v3(identity: dict[str, Any]) -> bool:
+    return (
+        identity["release"].get("schema_version") == 3
+        and not identity["release"]["chat"]["selected"]
+        and all(spec["kind"] == "lm_text" for spec in identity["transforms"])
+        and identity["release"].get("fraction") is None
+    )
+
+
+def _validate_rows_v3(root: Path) -> None:
+    """Validate LM-only source evidence with disk-backed identity joins."""
+    from sparselab.corpus.acquisition import verify_snapshot
+    from sparselab.corpus.pipeline import _normalized, _origin_keys
+    from sparselab.corpus.provenance import shape_for_record, validate_lineage
+
+    source_rows = _load(root / "sources.json")
+    sources = {row["id"]: row for row in source_rows}
+    if len(sources) != len(source_rows):
+        raise ValueError("duplicate source identity")
+    receipt = _load(
+        root / ("build.json" if (root / "build.json").exists() else "manifest.json")
+    )
+    pinned_snapshots = {
+        row["source_id"]: row["sha256"] for row in receipt["snapshots"]
+    }
+    if (
+        len(pinned_snapshots) != len(receipt["snapshots"])
+        or pinned_snapshots != {
+            source["id"]: source["snapshot_sha256"]
+            for source in source_rows if source["snapshot_sha256"]
+        }
+    ):
+        raise ValueError("source snapshot inventory mismatch")
+    snapshots = {}
+    for source in source_rows:
+        snapshot_id = source["snapshot_sha256"]
+        if not snapshot_id:
+            continue
+        snapshot = verify_snapshot(
+            root.parent.parent / "snapshots" / source["id"] / snapshot_id
+        )
+        snapshots[source["id"]] = snapshot
+        declaration = snapshot["declaration"]
+        if any(
+            source[key] != declaration[key]
+            for key in ("id", "kind", "canonical_uri", "revision", "license", "source_family")
+        ) or source.get("origin", "primary_source") != declaration.get(
+            "origin", "primary_source"
+        ):
+            raise ValueError("source declaration attribution mismatch")
+        if (
+            declaration.get("schema_version") != 3
+            or source["rights_policy"] != declaration["rights"]
+            or source["license_url"] != declaration["license_url"]
+            or source["redistribution"] != declaration["rights"]["redistribution_mode"]
+            or source.get("explicit_training_restriction")
+            != declaration.get("explicit_training_restriction")
+        ):
+            raise ValueError("prospective source rights declaration mismatch")
+    rights = _verify_rights_files(root, sources, snapshots)
+
+    # Keep the keyed index on the corpus filesystem, not a RAM-backed /tmp.
+    with tempfile.TemporaryDirectory(
+        prefix=".verify-corpus-", dir=root.parent
+    ) as temporary:
+        db = sqlite3.connect(Path(temporary) / "evidence.sqlite")
+        db.execute("PRAGMA temp_store=FILE")
+        db.execute("PRAGMA cache_size=-8192")
+        try:
+            db.execute(
+                "CREATE TABLE docs (id TEXT PRIMARY KEY, source TEXT, split TEXT, "
+                "representative TEXT, dropped TEXT, raw_path TEXT, line_start INTEGER, "
+                "text TEXT, data TEXT)"
+            )
+            db.execute("CREATE TABLE spans (id TEXT PRIMARY KEY, data TEXT)")
+            db.execute("CREATE TABLE lineage (id TEXT PRIMARY KEY)")
+            db.execute(
+                "CREATE TABLE stage_docs (stage TEXT, id TEXT, PRIMARY KEY (stage, id))"
+            )
+            db.execute(
+                "CREATE TABLE view_docs (id TEXT PRIMARY KEY)"
+            )
+            db.execute("CREATE TABLE duplicate_keys (key TEXT, id TEXT)")
+            for span in _iter_rows(root / "spans.jsonl"):
+                try:
+                    db.execute(
+                        "INSERT INTO spans VALUES (?, ?)",
+                        (span["record_id"], json.dumps(span)),
+                    )
+                except sqlite3.IntegrityError as error:
+                    raise ValueError("duplicate document evidence span") from error
+            for doc in _iter_rows(root / "documents.jsonl"):
+                text = doc["text"]
+                if doc["content_sha256"] != hashlib.sha256(text.encode("utf-8")).hexdigest():
+                    raise ValueError("document content digest mismatch")
+                span_row = db.execute(
+                    "SELECT data FROM spans WHERE id=?", (doc["document_id"],)
+                ).fetchone()
+                if span_row is None:
+                    raise ValueError("document evidence span inventory mismatch")
+                span = json.loads(span_row[0])
+                try:
+                    db.execute(
+                        "INSERT INTO docs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            doc["document_id"], doc["source_id"], doc["split"],
+                            doc["representative_id"], doc["drop_reason"],
+                            span["raw_path"], span["line_start"], text,
+                            json.dumps({key: value for key, value in doc.items() if key != "text"}),
+                        ),
+                    )
+                except sqlite3.IntegrityError as error:
+                    raise ValueError("duplicate document identity") from error
+                for key in (
+                    "raw:" + doc["raw_content_sha256"],
+                    "normalized:" + doc["content_sha256"],
+                    *("origin:" + value for value in _origin_keys(doc)),
+                ):
+                    db.execute(
+                        "INSERT INTO duplicate_keys VALUES (?, ?)",
+                        (key, doc["document_id"]),
+                    )
+            db.commit()
+            db.execute(
+                "CREATE INDEX docs_raw_order_idx "
+                "ON docs(source, raw_path, line_start, id)"
+            )
+            if db.execute(
+                "SELECT COUNT(*) FROM docs LEFT JOIN spans ON docs.id=spans.id "
+                "WHERE spans.id IS NULL"
+            ).fetchone()[0] or db.execute(
+                "SELECT COUNT(*) FROM spans LEFT JOIN docs ON docs.id=spans.id "
+                "WHERE docs.id IS NULL"
+            ).fetchone()[0]:
+                raise ValueError("document evidence span inventory mismatch")
+            if db.execute(
+                "SELECT COUNT(*) FROM docs AS doc LEFT JOIN docs AS representative "
+                "ON doc.representative=representative.id WHERE representative.id IS NULL "
+                "OR representative.representative!=representative.id OR "
+                "(doc.id=doc.representative AND doc.dropped IS NOT NULL) OR "
+                "(doc.id!=doc.representative AND doc.dropped IS NULL) OR "
+                "(doc.dropped NOT IN ('duplicate','contaminated_heldout')) OR "
+                "(doc.split!='train' AND representative.split!=doc.split) OR "
+                "(doc.dropped='contaminated_heldout' AND "
+                "(doc.split!='train' OR representative.split='train')) OR "
+                "(doc.dropped='duplicate' AND doc.split='train' "
+                "AND representative.split!='train')"
+            ).fetchone()[0]:
+                raise ValueError("invalid duplicate representative identity")
+            db.execute("CREATE INDEX duplicate_key_idx ON duplicate_keys (key)")
+            if db.execute(
+                "SELECT COUNT(*) FROM (SELECT duplicate_keys.key FROM duplicate_keys "
+                "JOIN docs ON docs.id=duplicate_keys.id GROUP BY duplicate_keys.key "
+                "HAVING COUNT(DISTINCT docs.representative)!=1)"
+            ).fetchone()[0]:
+                raise ValueError("duplicate group representative mismatch")
+
+            previous_file = None
+            raw_sha = ""
+            with ExitStack() as stack:
+                raw_stream = None
+                current_line = 0
+                current_offset = 0
+                for doc_json, text, span_json in db.execute(
+                    "SELECT docs.data, docs.text, spans.data "
+                    "FROM docs INDEXED BY docs_raw_order_idx "
+                    "JOIN spans ON docs.id=spans.id "
+                    "ORDER BY docs.source, docs.raw_path, docs.line_start, docs.id"
+                ):
+                    doc, span = json.loads(doc_json), json.loads(span_json)
+                    doc["text"] = text
+                    source = sources[doc["source_id"]]
+                    file = rights.get((doc["source_id"], span["raw_path"]))
+                    if file is None or file["role"] != "document":
+                        raise ValueError("document lacks pinned file rights")
+                    decision = file["rights"]
+                    if (
+                        source.get("explicit_training_restriction") != "none_found"
+                        or doc["source_revision"] != source["revision"]
+                        or doc["source_family"] != source["source_family"]
+                        or decision["training_eligibility"]
+                        not in ("eligible", "eligible_with_obligations")
+                        or doc.get("schema_version") != 3
+                        or doc.get("rights") != decision
+                        or doc.get("file_sha256") != file["sha256"]
+                        or doc["license"] != (
+                            decision["detected_spdx_expression"]
+                            or source["rights_policy"]["spdx_expression"]
+                            or source["license"]
+                        )
+                        or doc["redistribution"] != decision["redistribution_mode"]
+                    ):
+                        raise ValueError("document rights attribution mismatch")
+                    raw_path = _safe(
+                        root.parent.parent / "snapshots" / doc["source_id"]
+                        / source["snapshot_sha256"] / "files", span["raw_path"]
+                    )
+                    if raw_path != previous_file:
+                        stack.close()
+                        raw_stream = stack.enter_context(raw_path.open("rb"))
+                        raw_sha = sha256_file(raw_path)
+                        current_line, current_offset = 0, 0
+                        previous_file = raw_path
+                    if (
+                        span["source_id"] != doc["source_id"]
+                        or span["snapshot_sha256"] != source["snapshot_sha256"]
+                        or span["raw_sha256"] != raw_sha
+                        or span["raw_content_sha256"] != doc["raw_content_sha256"]
+                    ):
+                        raise ValueError("document snapshot span mismatch")
+                    normalizer = (
+                        "cnxml-text-v1"
+                        if raw_path.suffix.lower() == ".cnxml"
+                        else "normalizer-nfc-markdown-v1"
+                    )
+                    if (
+                        span.get("normalizer") != normalizer
+                        or doc["document_id"] != _digest(
+                            [
+                                source["snapshot_sha256"],
+                                doc["source_location"],
+                                raw_sha,
+                                normalizer,
+                            ]
+                        )
+                        or span.get("section_path") != doc["section_path"]
+                    ):
+                        raise ValueError("document snapshot identity mismatch")
+                    if "#lines=" in doc["source_location"]:
+                        start, end = span["line_start"], span["line_end"]
+                        if start < 1 or end < start:
+                            raise ValueError("document raw line range mismatch")
+                        if start <= current_line:
+                            raw_stream.seek(0)
+                            current_line, current_offset = 0, 0
+                        while current_line < start - 1:
+                            line = raw_stream.readline()
+                            if not line:
+                                raise ValueError("document raw line range mismatch")
+                            current_line += 1
+                            current_offset += len(line)
+                        byte_start = current_offset
+                        digest = hashlib.sha256()
+                        while current_line < end:
+                            line = raw_stream.readline()
+                            if not line:
+                                raise ValueError("document raw line range mismatch")
+                            current_line += 1
+                            current_offset += len(line)
+                            digest.update(line)
+                        if (
+                            span["byte_start"] != byte_start
+                            or span["byte_end"] != current_offset
+                            or digest.hexdigest() != doc["raw_content_sha256"]
+                        ):
+                            raise ValueError("document raw byte range mismatch")
+                        if doc["source_location"] != (
+                            f"{span['raw_path']}#lines={start}-{end}"
+                        ):
+                            raise ValueError("document source location mismatch")
+                    elif "#row=" in doc["source_location"] and raw_path.suffix == ".jsonl":
+                        index = span["line_start"]
+                        if (
+                            index < 1
+                            or span["line_end"] != index
+                            or doc["source_location"] != f"{span['raw_path']}#row={index}"
+                            or span["byte_start"] is not None
+                            or span["byte_end"] is not None
+                        ):
+                            raise ValueError("document raw row range mismatch")
+                        if index <= current_line:
+                            raw_stream.seek(0)
+                            current_line = 0
+                        while current_line < index:
+                            line = raw_stream.readline()
+                            if not line:
+                                raise ValueError("document raw row range mismatch")
+                            if line.strip():
+                                current_line += 1
+                        item = json.loads(line)
+                        if (
+                            not isinstance(item, dict)
+                            or not isinstance(
+                                item.get(snapshots[doc["source_id"]]["declaration"]
+                                         ["acquisition"]["text_field"]), str
+                            )
+                            or _normalized(
+                                item[snapshots[doc["source_id"]]["declaration"]
+                                     ["acquisition"]["text_field"]]
+                            ) != doc["text"]
+                            or doc["raw_content_sha256"] != doc["content_sha256"]
+                        ):
+                            raise ValueError("document raw row content mismatch")
+                    else:
+                        raise ValueError("unsupported document snapshot span")
+
+            for row in _iter_rows(root / "lineage.jsonl"):
+                record_id = row["record_id"]
+                doc_record = db.execute(
+                    "SELECT data, text FROM docs WHERE id=?", (record_id,)
+                ).fetchone()
+                if doc_record is None or row["record_kind"] != "document":
+                    raise ValueError("unexpected LM-only lineage record")
+                doc = json.loads(doc_record[0])
+                doc["text"] = doc_record[1]
+                validate_lineage(row)
+                if (
+                    row["parent_document_ids"] != [record_id]
+                    or row["original_parent_document_ids"] != [record_id]
+                    or row["representative_parent_document_ids"]
+                    != [doc["representative_id"]]
+                    or row["representative_id"] != doc["representative_id"]
+                    or row["drop_reason"] != doc["drop_reason"]
+                    or row["source_family_ids"] != [doc["source_family"]]
+                    or row["split"] != doc["split"]
+                    or row["origin"] != sources[doc["source_id"]].get(
+                        "origin", "primary_source"
+                    )
+                    or row["modalities"] != [doc["modality"]]
+                    or row["domains"] != doc["domains"]
+                    or row["shape"] != shape_for_record(
+                        "document", "raw_document", domains=doc["domains"],
+                        parent_document_ids=[record_id],
+                    )
+                    or row["verification"]["status"] != "schema_validated"
+                    or row["verification"]["evidence"].get("schema_id")
+                    != "normalized_document_v1"
+                    or row["rendered_sha256"] != doc["content_sha256"]
+                ):
+                    raise ValueError("document lineage mismatch")
+                try:
+                    db.execute(
+                        "INSERT INTO lineage VALUES (?)",
+                        (record_id,),
+                    )
+                except sqlite3.IntegrityError as error:
+                    raise ValueError("duplicate lineage ID") from error
+            db.commit()
+            if db.execute(
+                "SELECT COUNT(*) FROM docs LEFT JOIN lineage ON docs.id=lineage.id "
+                "WHERE lineage.id IS NULL"
+            ).fetchone()[0]:
+                raise ValueError("document lineage mismatch")
+            receipt = _load(
+                root / ("build.json" if (root / "build.json").exists() else "manifest.json")
+            )
+            identity = receipt.get("identity", receipt.get("build_identity"))
+            transforms = identity["transforms"]
+            for stage in receipt["stages"]:
+                transform = next(spec for spec in transforms if spec["id"] == stage["id"])
+                selected_sources = set(transform["inputs"]) & set(sources)
+                for row in _iter_rows(root / "stages" / f"{stage['id']}.jsonl"):
+                    doc = db.execute(
+                        "SELECT text, split, source, dropped FROM docs WHERE id=?",
+                        (row["record_id"],),
+                    ).fetchone()
+                    if (
+                        doc is None
+                        or set(row) != {"record_id", "text", "split"}
+                        or row["text"] != doc[0]
+                        or row["split"] != doc[1]
+                        or (selected_sources and doc[2] not in selected_sources)
+                        or doc[3]
+                    ):
+                        raise ValueError("LM stage record differs from selected document")
+                    try:
+                        db.execute(
+                            "INSERT INTO stage_docs VALUES (?, ?)",
+                            (stage["id"], row["record_id"]),
+                        )
+                    except sqlite3.IntegrityError as error:
+                        raise ValueError("duplicate LM stage identity") from error
+                count = db.execute(
+                    "SELECT COUNT(*) FROM docs WHERE dropped IS NULL AND "
+                    "(? = 1 OR source IN (SELECT value FROM json_each(?))) "
+                    "AND id NOT IN (SELECT id FROM stage_docs WHERE stage=?)",
+                    (not bool(selected_sources), json.dumps(sorted(selected_sources)), stage["id"]),
+                ).fetchone()[0]
+                if count:
+                    raise ValueError("LM stage omitted selected documents")
+            db.commit()
+            release = identity["release"]
+            allowed_sources = set().union(
+                *(
+                    set(spec["inputs"]) & set(sources)
+                    if set(spec["inputs"]) & set(sources)
+                    else set(sources)
+                    for spec in transforms
+                )
+            )
+            shapes = release.get("include_shapes")
+            origins = release.get("include_origins")
+            eligible = (
+                (shapes is None or "raw_document" in shapes)
+                and (
+                    origins is None
+                    or any(
+                        source.get("origin", "primary_source") in origins
+                        for source in sources.values()
+                    )
+                )
+            )
+            for split in ("train", "validation", "test"):
+                with (root / "lm" / f"{split}.jsonl").open("rb") as view, (
+                    root / "lm" / f"{split}.lineage.jsonl"
+                ).open("rb") as links:
+                    for payload, link in zip_longest(view, links):
+                        if payload is None or link is None:
+                            raise ValueError("LM lineage count mismatch")
+                        row, ref = json.loads(payload), json.loads(link)
+                        if (
+                            set(row) != {"text"}
+                            or not isinstance(row["text"], str)
+                            or not row["text"].strip()
+                            or ref.get("split") != split
+                        ):
+                            raise ValueError("invalid LM record or lineage")
+                        found = db.execute(
+                            "SELECT text, split, dropped FROM docs WHERE id=?",
+                            (ref["record_id"],),
+                        ).fetchone()
+                        if found is None or found != (row["text"], split, None):
+                            raise ValueError("invalid LM record or lineage")
+                        source = db.execute(
+                            "SELECT source FROM docs WHERE id=?", (ref["record_id"],)
+                        ).fetchone()[0]
+                        if (
+                            not eligible
+                            or source not in allowed_sources
+                            or origins is not None
+                            and sources[source].get("origin", "primary_source") not in origins
+                        ):
+                            raise ValueError("LM view includes an unselected document")
+                        try:
+                            db.execute(
+                                "INSERT INTO view_docs VALUES (?)", (ref["record_id"],)
+                            )
+                        except sqlite3.IntegrityError as error:
+                            raise ValueError("duplicate LM view identity") from error
+                for name in (f"chat/{split}.jsonl", f"chat/{split}.lineage.jsonl"):
+                    if (root / name).stat().st_size:
+                        raise ValueError("unexpected chat records in LM-only release")
+            if eligible:
+                for source_id in allowed_sources:
+                    if origins is not None and sources[source_id].get(
+                        "origin", "primary_source"
+                    ) not in origins:
+                        continue
+                    if db.execute(
+                        "SELECT COUNT(*) FROM docs WHERE source=? AND dropped IS NULL "
+                        "AND id NOT IN (SELECT id FROM view_docs)",
+                        (source_id,),
+                    ).fetchone()[0]:
+                        raise ValueError("LM view omitted selected documents")
+            for name in (
+                "chat/records.jsonl", "scenarios.jsonl", "generations.jsonl",
+                "lexical/candidates.jsonl", "semantic/candidates.jsonl",
+                "tool_episodes.jsonl",
+            ):
+                if (root / name).stat().st_size:
+                    raise ValueError("unexpected generated records in LM-only release")
+        finally:
+            db.close()
 
 
 def _validate_rows(root: Path) -> None:
@@ -167,13 +659,18 @@ def _validate_rows(root: Path) -> None:
             raise ValueError("source declaration attribution mismatch")
         if "rights_policy" in source:
             if (
-                declaration.get("schema_version") != 2
+                declaration.get("schema_version") not in (2, 3)
                 or source["rights_policy"] != declaration["rights"]
                 or source["license_url"] != declaration["license_url"]
                 or source["redistribution"]
                 != declaration["rights"]["redistribution_mode"]
             ):
                 raise ValueError("prospective source rights declaration mismatch")
+            if declaration["schema_version"] == 3 and (
+                source.get("explicit_training_restriction")
+                != declaration.get("explicit_training_restriction")
+            ):
+                raise ValueError("source training restriction state differs from declaration")
         elif source["redistribution"] != declaration["redistribution"]:
             raise ValueError("source declaration attribution mismatch")
     prospective = any("rights_policy" in source for source in sources.values())
@@ -200,10 +697,14 @@ def _validate_rows(root: Path) -> None:
             if file is None or file["role"] != "document":
                 raise ValueError("document lacks pinned file rights")
             decision = file["rights"]
+            if source.get("explicit_training_restriction", "none_found") != "none_found":
+                raise ValueError("document source has unresolved training restriction")
             if (
                 decision["training_eligibility"]
                 not in ("eligible", "eligible_with_obligations")
-                or doc.get("schema_version") != 2
+                or doc.get("schema_version") != (
+                    3 if "explicit_training_restriction" in source else 2
+                )
                 or doc.get("rights") != decision
                 or doc.get("file_sha256") != file["sha256"]
                 or doc["license"]
@@ -260,6 +761,7 @@ def _validate_rows(root: Path) -> None:
         raise ValueError("duplicate lineage ID")
     classified = any("origin" in row for row in lineages)
     if classified:
+        from sparselab.corpus.pipeline import _path_scenario, _scenario, _scenario_shape
         from sparselab.corpus.provenance import (
             rendered_digest,
             shape_for_record,
@@ -317,7 +819,7 @@ def _validate_rows(root: Path) -> None:
             if row["origin"] != expected_origin:
                 raise ValueError("lineage origin disagrees with source and transform")
             expected_domains = (
-                document_map[row["record_id"]]["domains"]
+                sorted(document_map[row["record_id"]]["domains"])
                 if row["record_kind"] == "document"
                 else ["systems_scenarios"]
                 if row.get("generator_world_id")
@@ -330,7 +832,7 @@ def _validate_rows(root: Path) -> None:
                 )
             )
             if (
-                row.get("domains") != expected_domains
+                sorted(row.get("domains", [])) != expected_domains
                 or row["shape"]["attributes"]["source_domains"] != expected_domains
             ):
                 raise ValueError("shape source domain attribution mismatch")
@@ -340,11 +842,23 @@ def _validate_rows(root: Path) -> None:
                 if scenario is None:
                     raise ValueError("oracle scenario reference mismatch")
                 world = scenario["world_state"]
-                expected_result = (
-                    PurePosixPath(world["path"]).suffix
-                    if world.get("operation") == "suffix"
-                    else None
-                )
+                generator_id = scenario["generator_id"]
+                if generator_id == "pathlib_path_suffix_v1":
+                    expected_scenario = _path_scenario(
+                        scenario["world_seed"],
+                        scenario["scenario_family_id"],
+                        scenario["transform_id"],
+                    )
+                    expected_result = PurePosixPath(world["path"]).suffix
+                else:
+                    expected_scenario = _scenario(
+                        generator_id,
+                        scenario["world_seed"],
+                        scenario["scenario_family_id"],
+                        scenario["template_family_id"],
+                        scenario["transform_id"],
+                    )
+                    expected_result = expected_scenario["oracle_answer"]
                 implementation = receipt.get("identity", receipt.get("build_identity"))[
                     "implementation_sha256"
                 ]
@@ -360,6 +874,13 @@ def _validate_rows(root: Path) -> None:
                     or evidence["actual_result"] != expected_result
                     or evidence["comparison_status"] != "match"
                     or expected_result != scenario["oracle_answer"]
+                    or expected_scenario
+                    != {key: value for key, value in scenario.items() if key != "split"}
+                    or (
+                        evidence.get("receipt") != scenario.get("oracle_receipt")
+                        if generator_id != "pathlib_path_suffix_v1"
+                        else "receipt" in evidence
+                    )
                 ):
                     raise ValueError("oracle verification evidence mismatch")
             kind = row["record_kind"]
@@ -399,8 +920,14 @@ def _validate_rows(root: Path) -> None:
             expected_shape = {
                 "lexical_candidate": "lexical_inventory",
                 "semantic_candidate": "definition",
-                "scenario": "troubleshooting_scenario",
-                "generation": "direct_qa",
+                "scenario": _scenario_shape(source_payload, "scenario")
+                if source_payload is not None
+                else None,
+                "generation": (source_payload.get("parsed_output") or {}).get(
+                    "shape", "direct_qa"
+                )
+                if source_payload is not None
+                else None,
                 "tool_episode": "tool_trace",
                 "chat_sft": (
                     source_payload.get("semantic_shape")
@@ -489,7 +1016,7 @@ def _validate_rows(root: Path) -> None:
                 generation = generations.get(row["record_id"])
                 if row["verification"]["status"] == "source_entailed" and (
                     generation["parsed_output"] is None
-                    or generation["parsed_output"]["answer"] != evidence["passage"]
+                    or generation["parsed_output"]["answer"] not in evidence["passage"]
                     or generation["parsed_output"]["citation_id"]
                     != evidence["document_id"]
                 ):
@@ -648,11 +1175,26 @@ def _verify_stages(
         ):
             raise ValueError("stage declaration identity mismatch")
         output = _safe(root, f"stages/{stage['id']}.jsonl")
-        rows = _rows(output)
+        if _streaming_v3(identity):
+            digest = hashlib.sha256()
+            digest.update(canonical_json([stage["id"]])[:-1])
+            digest.update(b",[")
+            count = 0
+            for index, row in enumerate(_iter_rows(output)):
+                if index:
+                    digest.update(b",")
+                digest.update(canonical_json(row))
+                count = index + 1
+            digest.update(b"]]")
+            output_id = digest.hexdigest()
+        else:
+            rows = _rows(output)
+            count = len(rows)
+            output_id = _digest([stage["id"], rows])
         if (
             sha256_file(output) != stage["output_sha256"]
-            or len(rows) != stage["output_count"]
-            or _digest([stage["id"], rows]) != stage["output_id"]
+            or count != stage["output_count"]
+            or output_id != stage["output_id"]
         ):
             raise ValueError("stage receipt does not match output")
 
@@ -689,7 +1231,7 @@ def verify_build(path: Path) -> dict[str, Any]:
         )
         if receipt["snapshot_sha256"] != snapshot["sha256"]:
             raise ValueError("build snapshot identity mismatch")
-    _validate_rows(path)
+    (_validate_rows_v3 if _streaming_v3(manifest["identity"]) else _validate_rows)(path)
     return manifest
 
 
@@ -718,8 +1260,11 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
         for split in selected.get("training_splits", ("train", "validation")):
             if split not in {"train", "validation"}:
                 raise ValueError("test split cannot be a training view")
-            if not (build_dir / view / f"{split}.jsonl").read_bytes().strip():
-                raise ValueError(f"selected {view}/{split} training view is empty")
+            with (build_dir / view / f"{split}.jsonl").open("rb") as stream:
+                if not any(chunk.strip() for chunk in iter(
+                    lambda: stream.read(64 * 1024), b""
+                )):
+                    raise ValueError(f"selected {view}/{split} training view is empty")
     payload = _manifest_payload(build)
     release_id = _digest(payload)
     destination = (
@@ -799,7 +1344,7 @@ def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, A
         )
         if receipt["snapshot_sha256"] != snapshot["sha256"]:
             raise ValueError("release snapshot identity mismatch")
-    _validate_rows(path)
+    (_validate_rows_v3 if _streaming_v3(manifest["build_identity"]) else _validate_rows)(path)
     return manifest
 
 
@@ -811,7 +1356,7 @@ def describe(path: Path, *, tokenizer: Path | None = None) -> dict[str, Any]:
     measured = measure_views(
         Path(path), tokenizer, release_spec=manifest["build_identity"]["release"]
     )
-    if report.get("schema_version") == 2 and tokenizer is not None:
+    if report.get("schema_version") in (2, 3) and tokenizer is not None:
         from sparselab.corpus.measurement import measure_source_rights
 
         counted = measure_source_rights(Path(path), tokenizer)

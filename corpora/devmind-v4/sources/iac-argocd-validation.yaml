@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_argocd_validation
+kind: git
+canonical_uri: https://github.com/argoproj/argo-cd.git
+revision: 896e70c973fa974830a61557e66e3b1bebac3f40
+license: Apache-2.0
+license_url: https://github.com/argoproj/argo-cd/blob/896e70c973fa974830a61557e66e3b1bebac3f40/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/argoproj/argo-cd/blob/896e70c973fa974830a61557e66e3b1bebac3f40/LICENSE]
+  notices: ['Retain Argo contributor attribution and Apache-2.0 notice; screen docs screenshots/embedded quotations, and omit generated all-in-one install and CRD dumps.']
+domains: [gitops, kubernetes, operators, configuration]
+document_kinds: [yaml, prose]
+source_family: v4_iac_argocd_validation_heldout
+notes: 'Whole independent Argo CD repository reserved for config/IaC validation and test; no Argo CD revision, path or derivative may enter v4 train. Hand-maintained Kustomize deployment bases, ApplicationSet examples and operator manual give config plus explanation. Exclude giant bundled install YAML, bundled CRDs, snapshots, fixture and private content. Pinned Git tree selected approximately 1.5 MB.'
+acquisition:
+  include: ['manifests/base/*.yaml', 'docs/operator-manual/*.md', 'applicationset/examples/*.yaml']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/private/*', '*/crds/*', '*/assets/*', '*/snyk/*', '*/guestbook/*', '*/install*.yaml', '*/README.md', '*-secret.yaml']
+  max_bytes: 3200000

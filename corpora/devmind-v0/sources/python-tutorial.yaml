@@ -1,0 +1,15 @@
+schema_version: 1
+id: python_tutorial
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+notes: 'Python Software Foundation; PSF docs and dual PSF/0BSD embedded examples; validation-only; extracted/normalized for DevMind v0.'
+redistribution: redistributable
+domains: [programming, testing]
+document_kinds: [prose]
+source_family: python_tutorial_validation
+acquisition:
+  include: ['Doc/tutorial/*.rst']
+  max_bytes: 12000000

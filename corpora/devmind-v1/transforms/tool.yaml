@@ -1,0 +1,5 @@
+id: devmind_v1_tool
+version: '1'
+kind: tool_episode
+parameters: {}
+inputs: [devmind_v1_scenarios_filesystem, devmind_v1_scenarios_platform, devmind_v1_scenarios_deployment, devmind_v1_scenarios_code_test]

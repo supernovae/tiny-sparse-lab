@@ -1,0 +1,13 @@
+# DevMind v0 — B tokenizer gate (blocked)
+
+Pinned input release: `devmind-v0@d0b1fc07d9e42de17efc664699354aced36a0e902d39982719715e62f6082427`. The checked-in [`tokenizer-bakeoff.yaml`](../../../corpora/devmind-v0/tokenizer-bakeoff.yaml) fixes three ByteLevel BPE candidates (16,384 / 24,576 / 32,768), identical train-only hash-ordered, per-kind ≤268,435,456-byte fit, ≤200 validation documents per kind, and smallest vocabulary within 2% of the best train-byte-weighted heldout bytes/token. Implementation is reusable Corpus Forge code; a focused real frozen-release test fit **all three** candidate sizes, verified the selected output's immutable provenance/reuse, and rejected a tampered candidate manifest. This is a code-path verification, **not** a DevMind tokenizer selection.
+
+Real CLI attempt with `SPARSELAB_WORK_DIR=$PWD/sparselab-work/experiments/devmind-v0`, the provisioned locked environment and `sparselab corpus tokenizer-bakeoff corpora/devmind-v0/tokenizer-bakeoff.yaml --output "$SPARSELAB_WORK_DIR/tokenizer-bakeoff"` stopped before fitting with:
+
+```text
+ValueError: missing required train/validation document groups: ['python', 'go', 'rust', 'shell', 'yaml', 'json', 'toml', 'logs']
+```
+
+The frozen LM text kinds are `prose`, `python`, `go`, `rust`. Only prose exists in both train and validation; Python/Go/Rust have train source families but **no independent validation documents**, and shell/YAML/JSON/TOML/logs have no separately classified source documents. Markdown code blocks are not silently reclassified as heldout language-specific documents. Therefore **no DevMind tokenizer JSON, selected manifest, tokenizer SHA, compressed per-kind statistics or `corpus describe RELEASE --tokenizer SELECTED` output exists**. The real general-education **token** share and exact distinct train content token count remain unknown. The 23,155,632 selected raw source bytes also make the declared 150M-distinct-token gate implausible without a new independently audited source protocol; neither repeated synthetic views nor byte/document shares satisfy it.
+
+Stop before preparing or locking the 90–120M dense control. No 201,326,592-target run was submitted. A valid next B attempt requires separately licensed, pinned real text documents and family-disjoint validation sets for all nine kinds, independent test-family growth to ≥200 cases per promotion card, closure of per-file rights and near-duplicate review, then a reviewed new corpus declaration/release and a fresh tokenizer bakeoff. The existing release and this failed gate stay in evidence; do not rename it as a successful tokenizer selection.

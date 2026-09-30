@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_otel_proto_heldout
+kind: git
+canonical_uri: https://github.com/open-telemetry/opentelemetry-proto.git
+revision: b3f75588eb23c5fca62264edd05d382de49beb1a
+license: Apache-2.0
+license_url: https://github.com/open-telemetry/opentelemetry-proto/blob/b3f75588eb23c5fca62264edd05d382de49beb1a/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/open-telemetry/opentelemetry-proto/blob/b3f75588eb23c5fca62264edd05d382de49beb1a/LICENSE]
+  notices: ['Preserve OpenTelemetry contributors and Apache attribution; protobuf sources, not generated language bindings. Whole repo reserved from training at every revision.']
+domains: [observability, protocols, schemas]
+document_kinds: [schema, prose]
+source_family: v4_ops_otel_proto_heldout
+notes: 'Whole-source independent schema/API holdout: authored OTLP collector RPC messages, metrics/logs/traces and shared protobuf semantics. No train paths from this repository.'
+acquisition:
+  include: ['opentelemetry/proto/*.proto', 'docs/specification.md', 'docs/requirements.md']
+  exclude: ['*/generated/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/v1development/*']
+  max_bytes: 125000

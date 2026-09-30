@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_ansible_docs
+kind: git
+canonical_uri: https://github.com/ansible/ansible-documentation.git
+revision: 7c56be6c083a7f76842be01d16522e7e6309d9c8
+license: GPL-3.0-or-later
+license_url: https://github.com/ansible/ansible-documentation/blob/7c56be6c083a7f76842be01d16522e7e6309d9c8/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-3.0-or-later
+  license_references: [https://github.com/ansible/ansible-documentation/blob/7c56be6c083a7f76842be01d16522e7e6309d9c8/COPYING]
+  notices: ['Preserve GPL notice and Ansible docs author attribution; documentation may have separately licensed quoted content, verify file-level rights before release.']
+domains: [configuration_management, deployment, ansible]
+document_kinds: [prose, yaml]
+source_family: v4_iac_ansible_docs_train
+notes: 'Ansible-owned playbook authoring, inventory, role and operator automation guide source with explained tasks/variables YAML; distinct first-party repository from v3 ansible/ansible Python. Avoid generated module/plugin documentation and external collections. Pinned tree selects 50 files / 585725 bytes before downstream filtering.'
+acquisition:
+  include: ['docs/docsite/rst/playbook_guide/*.rst', 'docs/docsite/rst/inventory_guide/*.rst', 'docs/docsite/rst/tips_tricks/*.rst', 'docs/docsite/rst/installation_guide/*.rst']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/private/*', '*/_build/*', '*/images/*']
+  max_bytes: 2500000

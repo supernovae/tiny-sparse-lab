@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_runc
+kind: git
+canonical_uri: https://github.com/opencontainers/runc.git
+revision: 97f76a9b46018f00432dcbfb4980bd0090dd6ac6
+license: Apache-2.0
+license_url: https://github.com/opencontainers/runc/blob/97f76a9b46018f00432dcbfb4980bd0090dd6ac6/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/opencontainers/runc/blob/97f76a9b46018f00432dcbfb4980bd0090dd6ac6/LICENSE]
+  notices: ['Keep Apache attribution and per-file notices; vendor directory is excluded.']
+domains: [containers, operating_systems, security]
+document_kinds: [go, tests, prose]
+source_family: v3_system_runc_heldout
+notes: 'Whole independent heldout repository for OCI process/container runtime implementation and small Go tests. v2 OCI runtime-specification is a different repository; avoid mixing their revisions or family.'
+acquisition:
+  include: ['libcontainer/*.go', 'internal/*.go', 'types/*.go', 'tests/*.go', 'docs/*.md', 'README.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'tests/cmd/*', '*_generated.go']
+  max_bytes: 11000000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_mimir_heldout
+kind: git
+canonical_uri: https://github.com/grafana/mimir.git
+revision: 86251689a97b9af4e5c9a8a08602eddd3031d6bb
+license: AGPL-3.0-only
+license_url: https://github.com/grafana/mimir/blob/86251689a97b9af4e5c9a8a08602eddd3031d6bb/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: AGPL-3.0-only
+  license_references: [https://github.com/grafana/mimir/blob/86251689a97b9af4e5c9a8a08602eddd3031d6bb/LICENSE]
+  notices: ['Preserve Grafana attribution and AGPL source/network obligations; hold out this entire repository including all revisions and paths from training.']
+domains: [observability, operations, distributed_systems]
+document_kinds: [prose]
+source_family: v4_ops_mimir_heldout
+notes: 'Independent whole-repository observability/operator holdout: authored Mimir runbooks and operation guides only; Mimir is never selected into train, even via its mixins elsewhere.'
+acquisition:
+  include: ['docs/sources/mimir/manage/mimir-runbooks/_index.md', 'docs/sources/mimir/manage/monitor-grafana-mimir/installing-dashboards-and-alerts.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*']
+  max_bytes: 350000

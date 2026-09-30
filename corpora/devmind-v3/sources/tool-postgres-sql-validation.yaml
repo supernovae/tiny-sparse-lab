@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_postgres_sql_validation
+kind: git
+canonical_uri: https://github.com/postgres/postgres.git
+revision: b27ab709c4b348fdc3b785aa394ef611c52c3380
+license: PostgreSQL
+license_url: https://github.com/postgres/postgres/blob/b27ab709c4b348fdc3b785aa394ef611c52c3380/COPYRIGHT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PostgreSQL
+  license_references: [https://github.com/postgres/postgres/blob/b27ab709c4b348fdc3b785aa394ef611c52c3380/COPYRIGHT]
+  notices: ['Retain PostgreSQL Global Development Group copyright and PostgreSQL license; confirm file-level rights before release.']
+domains: [databases, programming, testing]
+document_kinds: [sql]
+source_family: v3_tool_postgres_sql_validation
+notes: 'Whole PostgreSQL project remains held out with v2_postgres_backend_validation; NEVER assign this SQL selection to training. Same exact commit as v2, different paths: authored SQL regression scenarios for joins, transactions and window functions rather than backend C implementation; avoid copied data fixtures or generated expected outputs.'
+acquisition:
+  include: ['src/test/regress/sql/join.sql', 'src/test/regress/sql/transactions.sql', 'src/test/regress/sql/window.sql', 'src/test/regress/sql/aggregates.sql', 'src/test/regress/sql/create_table.sql', 'src/test/regress/sql/foreign_key.sql']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/expected/*']
+  max_bytes: 1800000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_npm_cli_js
+kind: git
+canonical_uri: https://github.com/npm/cli.git
+revision: da1d4d299151781500ec854f10eb7e570696d506
+license: Artistic-2.0 AND ISC
+license_url: https://github.com/npm/cli/blob/da1d4d299151781500ec854f10eb7e570696d506/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Artistic-2.0 AND ISC
+  license_references: [https://github.com/npm/cli/blob/da1d4d299151781500ec854f10eb7e570696d506/LICENSE, https://github.com/npm/cli/blob/da1d4d299151781500ec854f10eb7e570696d506/workspaces/arborist/LICENSE.md, https://github.com/npm/cli/blob/da1d4d299151781500ec854f10eb7e570696d506/workspaces/config/LICENSE]
+  notices: ['Root npm application JS is Artistic-2.0; independently licensed first-party workspaces (including Arborist/config) are ISC. Retain package-level copyrights/notices; exclude vendored node_modules and workspace fixtures.']
+domains: [javascript, package_management, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_npm_cli_js_train
+notes: 'Pinned v11.5.1 commit. Authored npm CLI commands, workspace dependency-tree resolution and tests. Mixed file-level rights: root npm application Artistic-2.0, first-party workspaces ISC; not the npm registry or website. Complete pinned Git tree: 384 selected files / 3,163,829 bytes before transform; no repository node_modules or lockfiles.'
+acquisition:
+  include: ['lib/*.js', 'workspaces/*/lib/*.js', 'test/lib/*.js', 'workspaces/*/test/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*']
+  max_bytes: 4500000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_rust_book
+kind: git
+canonical_uri: https://github.com/rust-lang/book.git
+revision: 1500248d8f230566e4ec9f27fcbb8fe9e2898ab1
+license: Apache-2.0 OR MIT
+license_url: https://github.com/rust-lang/book/blob/1500248d8f230566e4ec9f27fcbb8fe9e2898ab1/LICENSE-MIT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0 OR MIT
+  license_references: [https://github.com/rust-lang/book/blob/1500248d8f230566e4ec9f27fcbb8fe9e2898ab1/LICENSE-MIT, https://github.com/rust-lang/book/blob/1500248d8f230566e4ec9f27fcbb8fe9e2898ab1/LICENSE-APACHE]
+  notices: ['Retain Rust Project Developer dual-license texts and chapter contributors notices; review embedded excerpts separately.']
+domains: [programming, developer_tools]
+document_kinds: [prose, rust]
+source_family: v3_tool_rust_book_train
+notes: 'First-party Rust Book chapters and development-tool appendix, distinct repository and prose from v2 Rust compiler/library snapshot. Exclude translated copies, images and example fixture trees.'
+acquisition:
+  include: ['src/ch*.md', 'src/appendix-04-useful-development-tools.md']
+  exclude: ['*/img/*', '*/images/*', '*/translations/*', '*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 1800000

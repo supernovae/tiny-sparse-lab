@@ -1,0 +1,13 @@
+schema_version: 1
+# Descriptive intent only. Token proportions must be measured after tokenizer selection.
+mixture:
+  developer_systems: 0.9
+  general_education: 0.1
+accepted_generation_statuses: [source_entailed, oracle_verified, cross_source_verified, human_reviewed]
+lm:
+  selected: true
+  training_splits: [train, validation]
+chat:
+  selected: true
+  training_splits: [train, validation]
+keep_nonredistributable_local: true

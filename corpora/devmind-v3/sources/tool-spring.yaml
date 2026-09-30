@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_spring
+kind: git
+canonical_uri: https://github.com/spring-projects/spring-framework.git
+revision: 66910734e22701e973016d8c298b172123f851be
+license: Apache-2.0
+license_url: https://github.com/spring-projects/spring-framework/blob/66910734e22701e973016d8c298b172123f851be/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/spring-projects/spring-framework/blob/66910734e22701e973016d8c298b172123f851be/LICENSE.txt, https://github.com/spring-projects/spring-framework/blob/66910734e22701e973016d8c298b172123f851be/README.md]
+  notices: ['Retain Spring Framework copyright and Apache-2.0 notices; per-file third-party exceptions require screening.']
+domains: [programming, developer_systems, concurrency]
+document_kinds: [java]
+source_family: v3_tool_spring_train
+notes: 'Authored Spring core and beans implementation and unit tests; excludes testfixture directories, integration fixtures, dependencies and generated classes. README identifies Apache-2.0 at pinned revision.'
+acquisition:
+  include: ['spring-core/src/main/java/org/springframework/core/*.java', 'spring-core/src/main/java/org/springframework/util/*.java', 'spring-core/src/test/java/org/springframework/core/*Tests.java', 'spring-beans/src/main/java/org/springframework/beans/*.java', 'spring-beans/src/test/java/org/springframework/beans/*Tests.java']
+  exclude: ['*/testfixture/*', '*/testfixtures/*', '*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 18000000

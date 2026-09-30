@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_opentofu
+kind: git
+canonical_uri: https://github.com/opentofu/opentofu.git
+revision: 57a763514d1df275a443cbdd695f75b701b73a30
+license: MPL-2.0
+license_url: https://github.com/opentofu/opentofu/blob/57a763514d1df275a443cbdd695f75b701b73a30/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MPL-2.0
+  license_references: [https://github.com/opentofu/opentofu/blob/57a763514d1df275a443cbdd695f75b701b73a30/LICENSE]
+  notices: ['Retain OpenTofu and original HashiCorp MPL-2.0 notices and file-level exceptions; check imported code independently.']
+domains: [infrastructure_as_code, developer_tools, programming]
+document_kinds: [go, prose]
+source_family: v3_tool_opentofu_train
+notes: 'Authored OpenTofu configuration, address/state, cloud and CLI implementation with unit tests, architecture and diagnostics; exclude provider fixtures, generated protobuf and vendored Terraform dependencies.'
+acquisition:
+  include: ['internal/configs/*.go', 'internal/addrs/*.go', 'internal/cloud/*.go', 'internal/command/*.go', 'internal/states/*.go', 'docs/architecture.md', 'docs/diagnostics.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*_string.go', '*/secrets/*', 'internal/command/testdata/*', 'internal/command/views/json/*.go']
+  max_bytes: 9000000

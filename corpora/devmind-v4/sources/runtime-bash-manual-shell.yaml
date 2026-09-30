@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_bash_manual_shell
+kind: git
+canonical_uri: https://git.savannah.gnu.org/git/bash.git
+revision: b8c60bc9ca365f8261fa97900b6fa939f6ebc303
+license: GFDL-1.3-or-later
+license_url: https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/doc/bashref.texi?h=bash-5.3
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GFDL-1.3-or-later
+  license_references: ['https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/doc/bashref.texi?h=bash-5.3', 'https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/doc/fdl.texi?h=bash-5.3']
+  notices: ['Bash Reference Manual @copying grants GFDL 1.3 or later with no invariant sections/front/back covers; retain FSF attribution and GNU FDL included in doc/fdl.texi. Distinct from GPL shell test scripts.']
+domains: [shell, programming, developer_tools]
+document_kinds: [prose]
+source_family: v4_runtime_bash_manual_shell_train
+notes: 'Official Bash 5.3 Texinfo reference manual explicitly rights-reviewed at doc/bashref.texi lines 9-26, with doc/fdl.texi full license. Coherent primary Bash semantics source including expansion, quoting, redirection, builtins and shell execution. Complete shallow Git tree: 2 selected files / 439,369 bytes before transform. No unscreened man page or third-party example scripts.'
+acquisition:
+  include: ['doc/bashref.texi', 'doc/fdl.texi']
+  exclude: ['*/generated/*', '*/vendor/*', '*/third_party/*', '*/testdata/*', '*/fixtures/*', '*/secrets/*']
+  max_bytes: 650000

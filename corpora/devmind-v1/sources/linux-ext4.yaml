@@ -1,0 +1,20 @@
+schema_version: 2
+id: linux_ext4
+kind: git
+canonical_uri: https://github.com/torvalds/linux.git
+revision: 72d3fcf802c45d00b300f25b848a93c3a2bd7c7e
+license: GPL-2.0-only
+license_url: https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/COPYING
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/COPYING, https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/Documentation/process/license-rules.rst]
+  notices: ['Linux filesystem contributors; retain file-specific GPL/LGPL SPDX and copyrights.']
+domains: [operating_systems, storage, programming]
+document_kinds: [code]
+source_family: linux_ext4_train
+acquisition:
+  include: ['fs/ext4/*.c', 'fs/ext4/*.h']
+  exclude: []
+  max_bytes: 3000000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_react_js
+kind: git
+canonical_uri: https://github.com/facebook/react.git
+revision: 02ef49580922f87180f32618b9d1c70b75b968b7
+license: MIT
+license_url: https://github.com/facebook/react/blob/02ef49580922f87180f32618b9d1c70b75b968b7/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/facebook/react/blob/02ef49580922f87180f32618b9d1c70b75b968b7/LICENSE]
+  notices: ['Retain Meta and contributors MIT notices and any selected file-level notices.']
+domains: [javascript, web_development, developer_tools]
+document_kinds: [javascript, tests, configuration]
+source_family: v4_runtime_react_js_train
+notes: 'Pinned v19.1.1 commit. First-party React runtime, DOM/reconciler/server and compiler JS source with authored colocated unit tests; excludes bundles, generated snapshots and __source__/__compiled__ test payloads. Complete pinned Git tree: 1,379 selected files / 14,191,170 bytes before transform.'
+acquisition:
+  include: ['packages/*/src/*.js', 'compiler/packages/*/src/*.js', 'scripts/*.js', 'package.json']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/bundles/*']
+  max_bytes: 17000000

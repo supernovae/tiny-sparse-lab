@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import bz2
+import gzip
 import hashlib
+import io
 import json
 import subprocess
 import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -13,7 +17,11 @@ import pytest
 import yaml
 
 from sparselab.corpus.acquisition import acquire, verify_acquisition, verify_snapshot
-from sparselab.corpus.project import load_project
+from sparselab.corpus.project import (
+    load_project,
+    release_declaration_payload,
+    source_declaration_payload,
+)
 
 
 def _yaml(path: Path, value: dict) -> None:
@@ -157,6 +165,45 @@ def test_git_pinned_revision_and_symlink(tmp_path: Path) -> None:
         ]["one"]
         == second["sources"]["one"]
     )
+
+
+def test_verified_pinned_git_snapshot_survives_adapter_module_edit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.corpus import acquisition
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.test")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "guide.md").write_text("A pinned source document.\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "source")
+    recipe = _fixture(
+        tmp_path,
+        kind="git",
+        acquisition={"include": ["guide.md"], "max_bytes": 1024},
+        revision=_git(repo, "rev-parse", "HEAD"),
+        uri=str(repo),
+    )
+    project = load_project(recipe)
+    work = tmp_path / "work"
+    original = acquire(project, work)
+    original_adapter = acquisition._adapter
+    monkeypatch.setattr(
+        acquisition,
+        "_adapter",
+        lambda source: {**original_adapter(source), "module_sha256": "0" * 64},
+    )
+    monkeypatch.setattr(
+        acquisition,
+        "_acquire_git",
+        lambda *_args, **_kwargs: pytest.fail("pinned snapshot was refetched"),
+    )
+    assert acquire(project, work) == original
+    (work / "corpora" / project.config.id / "acquisition.json").unlink()
+    assert acquire(project, work) == original
 
 
 def test_git_v2_acquires_pinned_nested_license_metadata(tmp_path: Path) -> None:
@@ -351,6 +398,239 @@ def test_hf_parquet_rows_are_bounded(
     )
 
 
+def _bounded_hf_fixture(
+    tmp_path: Path, data: bytes, path: str, *, rows: int = 3
+) -> Path:
+    return _fixture(
+        tmp_path,
+        kind="huggingface_dataset",
+        acquisition={
+            "config": "default",
+            "split": "train",
+            "bounded_shards": [
+                {
+                    "path": path,
+                    "expected_sha256": hashlib.sha256(data).hexdigest(),
+                    "max_shard_bytes": len(data),
+                    "max_scanned_rows": rows,
+                    "hash_modulus": 3,
+                    "hash_remainders": [0, 2],
+                }
+            ],
+            "text_field": "text",
+            "max_rows": 5,
+            "max_bytes": 4096,
+        },
+        revision="d" * 40,
+        uri="org/dataset",
+    )
+
+
+def _mock_hf_stream(
+    monkeypatch: pytest.MonkeyPatch, content: bytes
+) -> list[str]:
+    import huggingface_hub
+
+    calls: list[str] = []
+
+    def no_snapshot(**_kwargs: object) -> None:
+        raise AssertionError("bounded HF mode must not download a snapshot")
+
+    class Response(io.BytesIO):
+        url = "https://cdn.example.test/pinned-shard"
+
+    class Opener:
+        def open(self, request: urllib.request.Request, timeout: int) -> Response:
+            calls.append(request.full_url)
+            return Response(content)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", no_snapshot)
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_args: Opener())
+    return calls
+
+
+@pytest.mark.parametrize("format", ["jsonl", "json.gz", "parquet"])
+def test_hf_bounded_replay_hash_and_row_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, format: str
+) -> None:
+    rows = [
+        {
+            "text": f"passage {index}",
+            "id": f"source-{index}",
+            "url": f"https://example.org/{index}",
+        }
+        for index in range(6)
+    ]
+    if format == "parquet":
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        buffer = io.BytesIO()
+        pq.write_table(pa.Table.from_pylist(rows), buffer)
+        content = buffer.getvalue()
+    else:
+        raw = b"".join(json.dumps(row).encode() + b"\n" for row in rows)
+        content = gzip.compress(raw, mtime=0) if format.endswith(".gz") else raw
+    shard_path = f"default/train/data.{format}"
+    recipe = _bounded_hf_fixture(tmp_path, content, shard_path, rows=5)
+    calls = _mock_hf_stream(monkeypatch, content)
+    project = load_project(recipe)
+    first = acquire(project, tmp_path / "first")
+    second = acquire(project, tmp_path / "second")
+    assert len(calls) == 2
+    assert all("datasets/org/dataset/resolve/" in url for url in calls)
+    assert (
+        first["sources"]["one"]["snapshot_sha256"]
+        == second["sources"]["one"]["snapshot_sha256"]
+    )
+    snapshot = verify_snapshot(first["sources"]["one"]["snapshot_path"])
+    retrieval = snapshot["retrieval"]
+    selected_indices = [
+        index
+        for index in range(5)
+        if int(
+            hashlib.sha256(
+                json.dumps(
+                    ["d" * 40, shard_path, index], separators=(",", ":"), sort_keys=True
+                ).encode()
+            ).hexdigest(),
+            16,
+        ) % 3
+        in {0, 2}
+    ]
+    selection = retrieval["shards"][0]
+    assert selection["scanned_rows"] == 5
+    assert [
+        row["source_row_index"] for row in selection["selected_rows"]
+    ] == selected_indices
+    assert selection["source_shard_sha256"] == hashlib.sha256(content).hexdigest()
+    emitted = (
+        Path(first["sources"]["one"]["snapshot_path"])
+        / "files"
+        / selection["output_path"]
+    ).read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["text"] for line in emitted] == [
+        rows[index]["text"] for index in selected_indices
+    ]
+    assert all(
+        json.loads(line)["_sparselab_source"]["source_row_index"] == index
+        and json.loads(line)["_sparselab_source"]["id"] == rows[index]["id"]
+        and json.loads(line)["_sparselab_source"]["source_shard_sha256"]
+        == hashlib.sha256(content).hexdigest()
+        and json.loads(line)["_sparselab_source"]["source_row_sha256"]
+        == selection["selected_rows"][position]["source_row_sha256"]
+        for position, (line, index) in enumerate(zip(emitted, selected_indices))
+    )
+
+
+def test_hf_bounded_rejects_caps_bad_shards_and_bad_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = b'{"text":"first"}\n{"text":123}\n'
+    path = "default/train/data.jsonl"
+    recipe = _bounded_hf_fixture(tmp_path, content, path, rows=2)
+    _mock_hf_stream(monkeypatch, content)
+    with pytest.raises(TypeError, match="non-string"):
+        acquire(load_project(recipe), tmp_path / "work")
+    source_path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_path.read_text())
+    source["acquisition"]["bounded_shards"][0]["path"] = "../train/data.jsonl"
+    _yaml(source_path, source)
+    with pytest.raises(ValueError, match="unsafe logical path"):
+        load_project(recipe)
+    source["acquisition"]["bounded_shards"][0]["path"] = path
+    source["acquisition"]["bounded_shards"][0]["max_shard_bytes"] = len(content) - 1
+    _yaml(source_path, source)
+    with pytest.raises(ValueError, match="max_bytes"):
+        acquire(load_project(recipe), tmp_path / "work")
+    source["acquisition"]["bounded_shards"][0]["max_shard_bytes"] = len(content)
+    source["acquisition"]["bounded_shards"][0]["expected_sha256"] = "0" * 64
+    _yaml(source_path, source)
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        acquire(load_project(recipe), tmp_path / "work")
+    assert not (tmp_path / "work/corpora/example/acquisition.json").exists()
+
+
+def test_hf_bounded_output_caps_and_config_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = b'{"text":"one"}\n{"text":"two"}\n'
+    recipe = _bounded_hf_fixture(tmp_path, data, "default/train/data.jsonl", rows=2)
+    _mock_hf_stream(monkeypatch, data)
+    source_file = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_file.read_text(encoding="utf-8"))
+    shard = source["acquisition"]["bounded_shards"][0]
+    shard["hash_modulus"] = 1
+    shard["hash_remainders"] = [0]
+    source["acquisition"]["max_rows"] = 1
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="max_rows"):
+        acquire(load_project(recipe), tmp_path / "work")
+    source["acquisition"]["max_rows"] = 2
+    source["acquisition"]["max_bytes"] = 10
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="max_bytes"):
+        acquire(load_project(recipe), tmp_path / "work")
+    source["acquisition"]["max_bytes"] = 4096
+    shard["path"] = "default/test/data.jsonl"
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="declared split"):
+        load_project(recipe)
+    shard["path"] = "other/train/data.jsonl"
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="declared config"):
+        load_project(recipe)
+    shard["path"] = "default/train/data.zst"
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="JSONL stream"):
+        load_project(recipe)
+
+
+def test_v3_training_policy_requires_explicit_source_review(
+    tmp_path: Path,
+) -> None:
+    recipe = _fixture(tmp_path)
+    source_file = recipe.parent / "sources/one.yaml"
+    release_file = recipe.parent / "release.yaml"
+    source = yaml.safe_load(source_file.read_text(encoding="utf-8"))
+    release = yaml.safe_load(release_file.read_text(encoding="utf-8"))
+    source["schema_version"] = 3
+    source.pop("redistribution")
+    source["explicit_training_restriction"] = "none_found"
+    source["rights"] = {
+        "training_eligibility": "eligible",
+        "redistribution_mode": "redistributable_under_source_terms",
+        "spdx_expression": "MIT",
+    }
+    release["schema_version"] = 3
+    release["publication_mode"] = "metadata_reconstruction_only"
+    release["training_use_policy"] = "allowed_unless_explicitly_prohibited"
+    _yaml(source_file, source)
+    _yaml(release_file, release)
+    project = load_project(recipe)
+    assert source_declaration_payload(project.sources[0])[
+        "explicit_training_restriction"
+    ] == "none_found"
+    assert release_declaration_payload(project.release)[
+        "training_use_policy"
+    ] == "allowed_unless_explicitly_prohibited"
+    source["explicit_training_restriction"] = "incompatible"
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="prohibited basis"):
+        load_project(recipe)
+    source["rights"]["training_eligibility"] = "ineligible"
+    source["rights"]["training_restriction"] = {
+        "kind": "prohibited",
+        "basis": "Explicit no-training condition",
+    }
+    _yaml(source_file, source)
+    assert load_project(recipe).sources[0].explicit_training_restriction == "incompatible"
+    release.pop("training_use_policy")
+    _yaml(release_file, release)
+    with pytest.raises(ValueError, match="training_use_policy"):
+        load_project(recipe)
+
+
 def test_invalid_declarations_and_symlink(tmp_path: Path) -> None:
     recipe = _fixture(tmp_path)
     source_file = recipe.parent / "sources/one.yaml"
@@ -418,3 +698,136 @@ def test_generator_receipt_and_rejected_source(tmp_path: Path) -> None:
     assert generator_receipt["receipt"]["status"] == "generator"
     assert verify_snapshot(generator_receipt["snapshot_path"])["files"] == []
     assert acquire(project, tmp_path / "work", offline=True) == lock
+
+
+def _wikimedia_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, xml: bytes
+) -> tuple[Path, bytes]:
+    name = "enwikibooks-20260901-pages-articles-multistream.xml.bz2"
+    prefix = "https://dumps.wikimedia.org/enwikibooks/20260901/"
+    content = bz2.compress(xml)
+    sha1 = hashlib.sha1(content).hexdigest()
+    recipe = _fixture(
+        tmp_path,
+        kind="wikimedia_dump",
+        revision="20260901",
+        uri=prefix + name,
+        acquisition={
+            "expected_sha1": sha1,
+            "expected_sha256": hashlib.sha256(content).hexdigest(),
+            "checksum_uri": prefix + "enwikibooks-20260901-sha1sums.txt",
+            "max_compressed_bytes": len(content),
+            "max_decompressed_bytes": len(xml) + 1024,
+            "max_scanned_pages": 20,
+            "max_selected_pages": 20,
+            "max_emitted_bytes": 10000,
+        },
+    )
+
+    class Response(io.BytesIO):
+        def __init__(self, url: str, body: bytes) -> None:
+            super().__init__(body)
+            self.url = url
+
+    class Opener:
+        def open(self, request: urllib.request.Request, *, timeout: int) -> Response:
+            if request.full_url.endswith("sha1sums.txt"):
+                return Response(request.full_url, f"{sha1}  {name}\n".encode())
+            assert request.full_url == prefix + name
+            return Response(request.full_url, content)
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda: Opener())
+    return recipe, content
+
+
+def test_wikimedia_bounded_xml_provenance_and_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    xml = b"""<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xml:lang="en">
+<siteinfo><dbname>enwikibooks</dbname></siteinfo>
+<page><title>Programming/Python</title><ns>0</ns><id>17</id>
+<revision><id>93</id><timestamp>2026-08-31T00:00:00Z</timestamp>
+<text>== Code ==&#10;Use &lt;code&gt;print(1)&lt;/code&gt; and &lt;math&gt;x^2&lt;/math&gt;.
+[[File:example.png]] [[Python|Python language]] {{citation|unknown}}</text></revision></page>
+<page><title>Private secrets</title><ns>0</ns><id>18</id>
+<revision><id>94</id><timestamp>2026-08-31T00:00:00Z</timestamp><text>Secret key</text></revision></page>
+<page><title>Redirect</title><ns>0</ns><id>19</id><redirect title="Elsewhere"/>
+<revision><id>95</id><timestamp>2026-08-31T00:00:00Z</timestamp><text>Skip me</text></revision></page>
+</mediawiki>"""
+    recipe, content = _wikimedia_fixture(tmp_path, monkeypatch, xml)
+    project = load_project(recipe)
+    first = acquire(project, tmp_path / "first")
+    second = acquire(project, tmp_path / "second")
+    assert first["sources"]["one"]["snapshot_sha256"] == second["sources"]["one"]["snapshot_sha256"]
+    snapshot_path = Path(first["sources"]["one"]["snapshot_path"])
+    manifest = verify_snapshot(snapshot_path)
+    receipt = manifest["retrieval"]
+    assert receipt["source_sha256"] == hashlib.sha256(content).hexdigest()
+    assert receipt["scanned_pages"] == 3
+    assert [(r["page_id"], r["revision_id"]) for r in receipt["selected_pages"]] == [("17", "93")]
+    row = json.loads((snapshot_path / "files" / receipt["output_path"]).read_text())
+    assert row["_sparselab_source"]["page_uri"] == "https://en.wikibooks.org/?curid=17"
+    assert row["_sparselab_source"]["revision_timestamp"] == "2026-08-31T00:00:00Z"
+    assert "print(1)" in row["text"] and "x^2" in row["text"]
+    assert "example.png" not in row["text"] and "citation" not in row["text"]
+    assert acquire(project, tmp_path / "first", offline=True) == first
+    manifest["retrieval"]["selected_pages"][0]["page_id"] = "999"
+    (snapshot_path / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="snapshot identity mismatch"):
+        verify_snapshot(snapshot_path)
+
+
+def test_interrupted_wikimedia_acquisition_reuses_verified_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    xml = b"""<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xml:lang="en">
+<siteinfo><dbname>enwikibooks</dbname></siteinfo>
+<page><title>Programming/Python</title><ns>0</ns><id>17</id>
+<revision><id>93</id><timestamp>2026-08-31T00:00:00Z</timestamp>
+<text>Use Python to write useful programs with careful examples.</text></revision></page>
+</mediawiki>"""
+    recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, xml)
+    project = load_project(recipe)
+    work = tmp_path / "work"
+    first = acquire(project, work)
+    (work / "corpora" / project.config.id / "acquisition.json").unlink()
+
+    def no_network() -> None:
+        raise AssertionError("verified interrupted snapshot must not be fetched again")
+
+    monkeypatch.setattr(urllib.request, "build_opener", no_network)
+    restored = acquire(project, work)
+    assert restored["sources"]["one"] == first["sources"]["one"]
+
+
+def test_wikimedia_rejects_checksum_caps_and_doctype(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    xml = b"""<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xml:lang="en">
+<siteinfo><dbname>enwikibooks</dbname></siteinfo>
+<page><title>English programming</title><ns>0</ns><id>3</id>
+<revision><id>5</id><timestamp>2026-08-01T00:00:00Z</timestamp>
+<text>Useful English programming explanation.</text></revision></page></mediawiki>"""
+    recipe, content = _wikimedia_fixture(tmp_path, monkeypatch, xml)
+    source_path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_path.read_text())
+    source["acquisition"]["expected_sha256"] = "0" * 64
+    _yaml(source_path, source)
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        acquire(load_project(recipe), tmp_path / "wrong")
+    source["acquisition"]["expected_sha256"] = hashlib.sha256(content).hexdigest()
+    source["acquisition"]["max_compressed_bytes"] = len(content) - 1
+    _yaml(source_path, source)
+    with pytest.raises(ValueError, match="max_bytes"):
+        acquire(load_project(recipe), tmp_path / "compressed-cap")
+    source["acquisition"]["max_compressed_bytes"] = len(content)
+    source["acquisition"]["max_emitted_bytes"] = 10
+    _yaml(source_path, source)
+    with pytest.raises(ValueError, match="emitted JSONL"):
+        acquire(load_project(recipe), tmp_path / "output-cap")
+    malicious = xml.replace(
+        b"<mediawiki", b'<!DOCTYPE mediawiki [<!ENTITY bad SYSTEM "file:///etc/passwd">]><mediawiki', 1
+    )
+    recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, malicious)
+    with pytest.raises(ValueError, match="DTD/entities"):
+        acquire(load_project(recipe), tmp_path / "doctype")

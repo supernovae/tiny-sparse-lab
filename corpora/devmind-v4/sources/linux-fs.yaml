@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_linux_fs
+kind: git
+canonical_uri: https://github.com/torvalds/linux.git
+revision: 72d3fcf802c45d00b300f25b848a93c3a2bd7c7e
+license: GPL-2.0-only
+license_url: https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/COPYING, https://github.com/torvalds/linux/blob/72d3fcf802c45d00b300f25b848a93c3a2bd7c7e/Documentation/process/license-rules.rst]
+  notices: ['GPL-2.0-only is the default, not a blanket file grant; retain each file SPDX exception/copyright and exclude incompatible or unclear files.']
+domains: [operating_systems, storage, reliability]
+document_kinds: [code, prose]
+source_family: v2_linux_fs_train
+notes: 'Bounded kernel filesystem implementation and filesystem documentation. File SPDX identifiers may override the kernel default; omit third-party, tests, fixtures, generated and secret-bearing material after screening.'
+acquisition:
+  include: ['fs/ext4/*.c', 'fs/ext4/*.h', 'fs/btrfs/*.c', 'fs/btrfs/*.h', 'Documentation/filesystems/*.rst']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'Documentation/filesystems/udf/*']
+  max_bytes: 70000000

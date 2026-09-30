@@ -31,6 +31,7 @@ from sparselab.experiments.compiler import (
 from sparselab.training.manifest import source_identity
 
 _CARD_FORMAT = "capability_card_v2"
+_FAMILY_CARD_FORMAT = "capability_card_v3"
 _RESULT_FORMAT = "capability_result_v2"
 _EXACT_SCORER = "normalized_full_answer_exact_v1"
 _LITERAL_SCORER = "literal_full_answer_exact_v1"
@@ -95,12 +96,22 @@ class CapabilitySemanticQuery:
 
 
 @dataclass(frozen=True)
+class CapabilityCaseLineage:
+    split: str
+    source_document_family: str | None
+    world_id: str | None
+    template_family: str
+    parent_content_hashes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CapabilityCase:
     identifier: str
     prompt: str
     expected: str
     kind: str = "recall"
     semantic_query: CapabilitySemanticQuery | None = None
+    lineage: CapabilityCaseLineage | None = None
 
 
 @dataclass(frozen=True)
@@ -114,6 +125,8 @@ class CapabilityCard:
     scoring: Mapping[str, str]
     controls: Mapping[str, float]
     limitations: str
+
+    format: str = _CARD_FORMAT
 
     @property
     def digest(self) -> str:
@@ -131,6 +144,14 @@ def _case_payload(case: CapabilityCase) -> dict[str, Any]:
         payload["semantic_query"] = {
             "encoder": case.semantic_query.encoder.model_dump(mode="json"),
             "vector": list(case.semantic_query.vector),
+        }
+    if case.lineage is not None:
+        payload["lineage"] = {
+            "split": case.lineage.split,
+            "source_document_family": case.lineage.source_document_family,
+            "world_id": case.lineage.world_id,
+            "template_family": case.lineage.template_family,
+            "parent_content_hashes": list(case.lineage.parent_content_hashes),
         }
     return payload
 
@@ -543,16 +564,105 @@ def task_card_payload(
 ) -> dict[str, Any]:
     """Serialize generated cases through the existing strict capability schema."""
     card = _task_card(name, hypothesis, limitations, cases)
-    return {"format": _CARD_FORMAT, **_card_payload(card), "digest": card.digest}
+    return capability_card_payload(card)
+
+
+def capability_card_payload(card: CapabilityCard) -> dict[str, Any]:
+    """Serialize and validate a v2 or family-bound v3 card."""
+    payload = {"format": card.format, **_card_payload(card), "digest": card.digest}
+    _card_from_mapping(payload)
+    return payload
 
 
 def describe_capability_card(name: str) -> dict[str, Any]:
     card = capability_card(name)
-    return {"format": _CARD_FORMAT, **_card_payload(card), "digest": card.digest}
+    return capability_card_payload(card)
 
 
 def _is_positive_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _case_lineage(raw: Any, *, split: str = "test") -> CapabilityCaseLineage:
+    keys = {
+        "split",
+        "source_document_family",
+        "world_id",
+        "template_family",
+        "parent_content_hashes",
+    }
+    if not isinstance(raw, dict) or set(raw) != keys or raw["split"] != split:
+        raise ValueError("capability case lineage requires the declared split")
+    source, world, template, parents = (
+        raw["source_document_family"],
+        raw["world_id"],
+        raw["template_family"],
+        raw["parent_content_hashes"],
+    )
+    if (
+        any(
+            value is not None and (not isinstance(value, str) or not value.strip())
+            for value in (source, world)
+        )
+        or (source is None and world is None)
+        or not isinstance(template, str)
+        or not template.strip()
+        or not isinstance(parents, list)
+        or not parents
+        or any(
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(char not in "0123456789abcdef" for char in value)
+            for value in parents
+        )
+        or len(set(parents)) != len(parents)
+    ):
+        raise ValueError(
+            "capability case lineage requires family IDs and SHA-256 parents"
+        )
+    return CapabilityCaseLineage(split, source, world, template, tuple(parents))
+
+
+def check_capability_family_exclusion(
+    card: CapabilityCard, ledger: Mapping[str, list[dict[str, Any]]]
+) -> None:
+    """Reject v3 test cases sharing families, worlds or parent bytes with train/validation.
+
+    Ledger rows use the same lineage schema as card cases, with their own split.
+    This checks declared identities; the caller must independently audit near-duplicates.
+    """
+    if card.format != _FAMILY_CARD_FORMAT:
+        raise ValueError("family exclusion requires a v3 capability card")
+    capability_card_payload(card)
+    if not isinstance(ledger, Mapping) or set(ledger) != {"train", "validation"}:
+        raise ValueError("family ledger requires train and validation rows")
+    heldout = [case.lineage for case in card.cases]
+    if any(lineage is None for lineage in heldout):
+        raise ValueError("v3 cases require lineage")
+    for split, rows in ledger.items():
+        if not isinstance(rows, list):
+            raise TypeError("family ledger rows must be lists")
+        for row in rows:
+            prior = _case_lineage(row, split=split)
+            for current in heldout:
+                assert current is not None
+                if (
+                    (
+                        prior.source_document_family is not None
+                        and prior.source_document_family
+                        == current.source_document_family
+                    )
+                    or (
+                        prior.world_id is not None
+                        and prior.world_id == current.world_id
+                    )
+                    or prior.template_family == current.template_family
+                    or bool(
+                        set(prior.parent_content_hashes)
+                        & set(current.parent_content_hashes)
+                    )
+                ):
+                    raise ValueError(f"capability test lineage overlaps {split}")
 
 
 def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
@@ -569,7 +679,8 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
         "limitations",
     }
     unknown, missing = set(raw) - (required | {"digest"}), required - set(raw)
-    if unknown or missing or raw.get("format") != _CARD_FORMAT:
+    card_format = raw.get("format")
+    if unknown or missing or card_format not in {_CARD_FORMAT, _FAMILY_CARD_FORMAT}:
         raise ValueError(
             f"invalid capability card schema: missing={sorted(missing)}, unknown={sorted(unknown)}"
         )
@@ -587,6 +698,8 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
         raise ValueError("capability card name must be a safe nonempty string")
     if not _is_positive_int(data["version"]):
         raise ValueError("capability card version must be a positive integer")
+    if card_format == _FAMILY_CARD_FORMAT and data["version"] != 3:
+        raise ValueError("v3 capability cards require version 3")
     if data["scorer"] not in (_EXACT_SCORER, _LITERAL_SCORER):
         raise ValueError("user cards require a supported full-answer scorer")
     generation = data["generation"]
@@ -640,11 +753,14 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
         raise ValueError("capability card must contain nonempty cases")
     cases: list[CapabilityCase] = []
     for item in data["cases"]:
+        allowed = {"identifier", "prompt", "expected", "kind", "semantic_query"}
+        if card_format == _FAMILY_CARD_FORMAT:
+            allowed.add("lineage")
         if (
             not isinstance(item, dict)
-            or set(item)
-            - {"identifier", "prompt", "expected", "kind", "semantic_query"}
+            or set(item) - allowed
             or not {"identifier", "prompt", "expected", "kind"} <= set(item)
+            or (card_format == _FAMILY_CARD_FORMAT and "lineage" not in item)
         ):
             raise ValueError("capability card case schema is invalid")
         if (
@@ -677,6 +793,11 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
                 EncoderIdentity.model_validate(raw_query["encoder"]),
                 tuple(float(value) for value in raw_query["vector"]),
             )
+        lineage = (
+            _case_lineage(item["lineage"])
+            if card_format == _FAMILY_CARD_FORMAT
+            else None
+        )
         cases.append(
             CapabilityCase(
                 item["identifier"],
@@ -684,10 +805,23 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
                 item["expected"],
                 item["kind"],
                 semantic_query,
+                lineage,
             )
         )
     if len({case.identifier for case in cases}) != len(cases):
         raise ValueError("capability card case identifiers must be unique")
+    if card_format == _FAMILY_CARD_FORMAT:
+        worlds: set[str] = set()
+        parents: set[str] = set()
+        for case in cases:
+            assert case.lineage is not None
+            if case.lineage.world_id is not None:
+                if case.lineage.world_id in worlds:
+                    raise ValueError("capability card world appears in multiple cases")
+                worlds.add(case.lineage.world_id)
+            if parents.intersection(case.lineage.parent_content_hashes):
+                raise ValueError("capability card parent appears in multiple cases")
+            parents.update(case.lineage.parent_content_hashes)
     return CapabilityCard(
         data["name"],
         data["version"],
@@ -698,6 +832,7 @@ def _card_from_mapping(raw: Mapping[str, Any]) -> CapabilityCard:
         data["scoring"],
         data["controls"],
         data["limitations"],
+        card_format,
     )
 
 

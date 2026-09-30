@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_containerd
+kind: git
+canonical_uri: https://github.com/containerd/containerd.git
+revision: cf413d5d96ee4d4711ef799d5e5ad7b0a4a2de88
+license: Apache-2.0
+license_url: https://github.com/containerd/containerd/blob/cf413d5d96ee4d4711ef799d5e5ad7b0a4a2de88/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/containerd/containerd/blob/cf413d5d96ee4d4711ef799d5e5ad7b0a4a2de88/LICENSE]
+  notices: ['Retain containerd Authors attribution and applicable file notices; exclude bundled vendor dependencies and generated API bindings.']
+domains: [containers, distributed_systems, storage]
+document_kinds: [go, tests, prose, build]
+source_family: v3_system_containerd_train
+notes: 'Container lifecycle, snapshotters, image services, client and integration Go tests; excludes vendored module tree, generated protobuf and opaque testdata. Distinct from v2 OCI specification.'
+acquisition:
+  include: ['core/*.go', 'client/*.go', 'internal/*.go', 'pkg/*.go', 'plugins/*.go', 'cmd/*.go', 'integration/*.go', 'docs/*.md', 'Makefile']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/api/*', '*_generated.go', '*.pb.go', '*.pb.gw.go']
+  max_bytes: 30000000

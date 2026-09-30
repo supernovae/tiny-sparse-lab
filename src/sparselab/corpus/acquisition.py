@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import bz2
 import fnmatch
+import gzip
 import hashlib
+import html
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import tempfile
 import urllib.request
+import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -23,6 +29,7 @@ from sparselab.corpus.project import (
     LocalAcquisition,
     Project,
     SourceDeclaration,
+    WikimediaDumpAcquisition,
     project_path,
     safe_name,
     source_declaration_payload,
@@ -58,6 +65,22 @@ def _adapter(source: SourceDeclaration) -> dict[str, str]:
         "module_sha256": sha256_file(Path(__file__)),
     }
 
+
+
+def _reusable_immutable_adapter(source: SourceDeclaration, manifest: dict[str, Any]) -> bool:
+    """A pinned, verified snapshot survives incidental adapter-module edits.
+
+    The version still binds adapter semantics; the module digest stays recorded
+    in the snapshot for provenance rather than forcing a new network retrieval.
+    Mutable local and HTTP sources must still be reacquired.
+    """
+    actual = manifest["adapter"]
+    expected = _adapter(source)
+    return actual == expected or (
+        source.kind in {"git", "huggingface_dataset", "wikimedia_dump"}
+        and actual.get("id") == expected["id"]
+        and actual.get("version") == expected["version"]
+    )
 
 def _write_json(path: Path, value: object) -> None:
     with path.open("wb") as handle:
@@ -305,6 +328,178 @@ def _validate_hf_rows(path: Path, spec: HuggingFaceAcquisition, available: int) 
     return len(records)
 
 
+def _bounded_hf_rows(
+    path: Path, *, limit: int, max_line_bytes: int
+) -> Iterator[tuple[int, dict[str, Any]]]:
+    if path.name.endswith(".parquet"):
+        import pyarrow.parquet as pq
+
+        index = 0
+        for batch in pq.ParquetFile(path).iter_batches(batch_size=min(limit, 256)):
+            for row in batch.to_pylist():
+                if index >= limit:
+                    return
+                yield index, row
+                index += 1
+        return
+    stream = gzip.open if path.name.endswith(".gz") else open
+    with stream(path, "rb") as handle:
+        for index in range(limit):
+            line = handle.readline(max_line_bytes + 1)
+            if not line:
+                break
+            if len(line) > max_line_bytes:
+                raise ValueError("HF decompressed JSONL row exceeds max_bytes")
+            try:
+                yield index, json.loads(line)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError(f"malformed HF JSONL row {index}") from error
+
+
+def _bounded_hf_acquire(
+    source: SourceDeclaration, spec: HuggingFaceAcquisition, staging: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    from huggingface_hub import hf_hub_url
+
+    assert spec.bounded_shards is not None
+    repo_id = source.canonical_uri.removeprefix("https://huggingface.co/datasets/")
+    auth = hub_auth_kwargs()
+    inventory: list[dict[str, Any]] = []
+    receipts: list[dict[str, Any]] = []
+    total_bytes = 0
+    total_rows = 0
+    for shard in spec.bounded_shards:
+        url = hf_hub_url(
+            repo_id=repo_id,
+            filename=shard.path,
+            repo_type="dataset",
+            revision=source.revision,
+        )
+        if urlparse(url).scheme != "https" or urlparse(url).hostname != "huggingface.co":
+            raise ValueError("HF shard URL must point to the Hugging Face Hub")
+        headers = {"User-Agent": "SparseLab-Corpus-Forge/1"}
+        if auth.get("token"):
+            headers["Authorization"] = f"Bearer {auth['token']}"
+        request = urllib.request.Request(url, headers=headers)
+        input_path = staging / "hf-input" / shard.path
+        try:
+            with urllib.request.build_opener(_PrivateHubRedirect()).open(
+                request, timeout=30
+            ) as response:
+                if urlparse(response.url).scheme != "https":
+                    raise ValueError("HF shard redirect must use HTTPS")
+                digest, input_bytes = _copy_stream(
+                    response, input_path, shard.max_shard_bytes
+                )
+        except (*HUB_ACCESS_ERRORS, HTTPError) as error:
+            raise_for_hub_auth(error, credential_supplied=bool(auth.get("token")))
+        if digest != shard.expected_sha256.lower():
+            raise ValueError(f"HF shard SHA-256 mismatch: {shard.path}")
+
+        output_name = shard.path + ".sample.jsonl"
+        target = staging / "files" / output_name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        selected: list[dict[str, Any]] = []
+        output_digest = hashlib.sha256()
+        output_bytes = 0
+        scanned = 0
+        with target.open("wb") as output:
+            for index, row in _bounded_hf_rows(
+                input_path, limit=shard.max_scanned_rows, max_line_bytes=spec.max_bytes
+            ):
+                scanned += 1
+                if not isinstance(row, dict) or spec.text_field not in row:
+                    raise ValueError(
+                        f"HF text field missing at {shard.path} row {index}"
+                    )
+                if not isinstance(row[spec.text_field], str):
+                    raise TypeError(
+                        f"HF text field non-string at {shard.path} row {index}"
+                    )
+                if "_sparselab_source" in row:
+                    raise ValueError("HF source row collides with reserved provenance field")
+                try:
+                    row_digest = hashlib.sha256(canonical_json(row)).hexdigest()
+                except (TypeError, ValueError) as error:
+                    raise ValueError(
+                        f"HF row is not canonical JSON: {shard.path} row {index}"
+                    ) from error
+                row_hash = hashlib.sha256(
+                    canonical_json([source.revision, shard.path, index])
+                ).hexdigest()
+                if int(row_hash, 16) % shard.hash_modulus not in shard.hash_remainders:
+                    continue
+                if total_rows >= spec.max_rows:
+                    raise ValueError("HF bounded selection exceeds max_rows")
+                envelope: dict[str, Any] = {
+                    "source_shard_path": shard.path,
+                    "source_shard_sha256": digest,
+                    "dataset_revision": source.revision,
+                    "source_row_index": index,
+                    "source_row_sha256": row_digest,
+                }
+                for key in (
+                    "url", "id", "dump", "score", "language", "language_score",
+                    "token_count", "blob_id", "repo_name", "path", "detected_licenses",
+                ):
+                    value = row.get(key)
+                    if isinstance(value, (str, int, float, bool)) or value is None:
+                        if key in row:
+                            envelope[key] = value
+                    elif key == "detected_licenses":
+                        envelope[key] = canonical_json(value).decode("utf-8")
+                line = canonical_json({**row, "_sparselab_source": envelope}) + b"\n"
+                if len(line) > spec.max_bytes - total_bytes - output_bytes:
+                    raise ValueError("HF bounded selection exceeds max_bytes")
+                output.write(line)
+                output_digest.update(line)
+                output_bytes += len(line)
+                total_rows += 1
+                selected.append(
+                    {
+                        "source_row_index": index,
+                        "source_row_sha256": row_digest,
+                        "selection_hash": row_hash,
+                    }
+                )
+            output.flush()
+            os.fsync(output.fileno())
+        input_path.unlink()
+        if not selected:
+            target.unlink()
+        else:
+            total_bytes += output_bytes
+            inventory.append(
+                {
+                    "path": output_name,
+                    "sha256": output_digest.hexdigest(),
+                    "size": output_bytes,
+                }
+            )
+        receipts.append(
+            {
+                "source_shard_path": shard.path,
+                "source_shard_sha256": digest,
+                "source_shard_bytes": input_bytes,
+                "scanned_rows": scanned,
+                "selected_rows": selected,
+                "output_path": output_name if selected else None,
+            }
+        )
+    if not inventory:
+        raise ValueError("HF bounded selection produced no rows")
+    return inventory, {
+        "config": spec.config,
+        "split": spec.split,
+        "text_field": spec.text_field,
+        "max_rows": spec.max_rows,
+        "rows": total_rows,
+        "dataset_revision": source.revision,
+        "sampling": "sha256-revision-path-zero-index-modulus-v1",
+        "shards": receipts,
+    }
+
+
 def _acquire_hf(
     source: SourceDeclaration, staging: Path, cache_root: Path, offline: bool
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -313,6 +508,8 @@ def _acquire_hf(
     from huggingface_hub import snapshot_download
 
     spec = source.acquisition
+    if spec.bounded_shards is not None:
+        return _bounded_hf_acquire(source, spec, staging)
     assert isinstance(spec, HuggingFaceAcquisition)
     auth = hub_auth_kwargs()
     try:
@@ -383,6 +580,261 @@ def _acquire_hf(
     }
 
 
+_WIKI_NS = "{http://www.mediawiki.org/xml/export-0.11/}"
+_WIKI_BLOCKED = re.compile(
+    r"(?i)\b(?:confidential|copyright violation|copyvio|non-free|"
+    r"fair use|do not train|noai|imported from|transwiki)\b"
+)
+_WIKI_PRIVATE_TITLE = re.compile(r"(?i)\b(?:private secrets?|confidential data)\b")
+
+
+class _BoundedXML:
+    """Bound decompressed XML and reject document types before the XML parser sees them."""
+
+    def __init__(self, stream: Any, limit: int):
+        self.stream = stream
+        self.limit = limit
+        self.size = 0
+        self.previous = b""
+
+    def read(self, size: int = -1) -> bytes:
+        chunk = self.stream.read(min(65536, size if size >= 0 else 65536))
+        self.size += len(chunk)
+        if self.size > self.limit:
+            raise ValueError("Wikimedia decompressed XML exceeds limit")
+        combined = (self.previous + chunk).upper()
+        if b"<!DOCTYPE" in combined or b"<!ENTITY" in combined:
+            raise ValueError("Wikimedia XML DTD/entities are forbidden")
+        self.previous = combined[-8:]
+        return chunk
+
+
+def _wiki_text(wikitext: str) -> str:
+    # Remove entire templates, references, tables, files and categories; never
+    # expand templates or fetch links. Keep literal code and math element bodies.
+    text = re.sub(r"(?is)<ref\b[^>]*>.*?</ref\s*>|<ref\b[^>]*/>", "", wikitext)
+    text = re.sub(r"(?s)\{\|.*?\|\}", "", text)
+    while "{{" in text:
+        stripped = re.sub(r"\{\{[^{}]*\}\}", "", text)
+        if stripped == text:
+            return ""
+        text = stripped
+    text = re.sub(r"(?i)\[\[(?:file|image|category):[^\]]*\]\]", "", text)
+    text = re.sub(r"\[\[(?:[^]|]*\|)?([^]|]*)\]\]", r"\1", text)
+    text = re.sub(r"\[https?://[^\s\]]+(?:\s+([^\]]+))?\]", lambda m: m[1] or "", text)
+    text = re.sub(r"(?is)<!--.*?-->", "", text)
+    text = re.sub(r"(?i)</?(?!math\b|code\b|pre\b)[a-z][^>]*>", "", text)
+    text = re.sub(r"(?i)</?(?:math|code|pre)\b[^>]*>", "\n", text)
+    text = re.sub(r"(?m)^={2,}\s*(.*?)\s*={2,}\s*$", r"\1", text)
+    text = html.unescape(text.replace("'''", "").replace("''", ""))
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip()).strip()
+
+
+def _wiki_row(page: ET.Element, source: SourceDeclaration) -> dict[str, Any] | None:
+    title = page.findtext(_WIKI_NS + "title")
+    page_id = page.findtext(_WIKI_NS + "id")
+    if (
+        page.findtext(_WIKI_NS + "ns") != "0"
+        or page.find(_WIKI_NS + "redirect") is not None
+        or not title
+        or not page_id
+        or _WIKI_BLOCKED.search(title)
+        or _WIKI_PRIVATE_TITLE.search(title)
+    ):
+        return None
+    revisions = page.findall(_WIKI_NS + "revision")
+    if not revisions:
+        return None
+    revision = max(
+        revisions,
+        key=lambda item: (
+            item.findtext(_WIKI_NS + "timestamp") or "",
+            int(item.findtext(_WIKI_NS + "id") or 0),
+        ),
+    )
+    content = revision.find(_WIKI_NS + "text")
+    if content is None or content.get("deleted") is not None or not content.text:
+        return None
+    raw = content.text
+    if _WIKI_BLOCKED.search(raw) or re.search(r"(?i)\[\[(?:category|file|image):[^\]]*(?:import|non-free|copyright)", raw):
+        return None
+    text = _wiki_text(raw)
+    if not text or not re.search(r"[a-zA-Z]", text):
+        return None
+    # Skip predominantly non-Latin prose; retain mathematics/code with English context.
+    letters = [char for char in text if char.isalpha()]
+    if letters and sum(char.isascii() for char in letters) * 2 < len(letters):
+        return None
+    revision_id = revision.findtext(_WIKI_NS + "id")
+    timestamp = revision.findtext(_WIKI_NS + "timestamp")
+    if not revision_id or not timestamp:
+        return None
+    project = urlparse(source.canonical_uri).path.split("/")[1]
+    if project not in {"enwikibooks", "enwiki"}:
+        raise ValueError("unsupported Wikimedia project for page attribution")
+    site = "wikipedia" if project == "enwiki" else "wikibooks"
+    return {
+        "text": text,
+        "_sparselab_source": {
+            "source_uri": source.canonical_uri,
+            "dump_revision": source.revision,
+            "page_title": title,
+            "page_id": page_id,
+            "revision_id": revision_id,
+            "revision_timestamp": timestamp,
+            "page_uri": f"https://en.{site}.org/?curid={page_id}",
+        },
+    }
+
+
+def _acquire_wikimedia(
+    source: SourceDeclaration, staging: Path, offline: bool
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if offline:
+        raise ValueError("offline acquisition cannot fetch Wikimedia dump")
+    spec = source.acquisition
+    assert isinstance(spec, WikimediaDumpAcquisition)
+    opener = urllib.request.build_opener()
+    headers = {
+        "User-Agent": (
+            "SparseLab-Corpus-Forge/1 "
+            "(+https://github.com/supernovae/tiny-sparse-lab)"
+        )
+    }
+    with opener.open(
+        urllib.request.Request(spec.checksum_uri, headers=headers), timeout=30
+    ) as response:
+        if response.url != spec.checksum_uri:
+            raise ValueError("Wikimedia checksum redirect differs from pinned URI")
+        checksum = response.read(4_194_305)
+    if len(checksum) > 4_194_304:
+        raise ValueError("Wikimedia checksum manifest exceeds limit")
+    name = Path(urlparse(source.canonical_uri).path).name
+    matches = [
+        line.split()
+        for line in checksum.decode("ascii").splitlines()
+        if line.split()[1:] == [name]
+    ]
+    if len(matches) != 1 or matches[0][0].lower() != spec.expected_sha1.lower():
+        raise ValueError("Wikimedia official SHA-1 manifest mismatch")
+    compressed = staging / "wikimedia-input" / name
+    with opener.open(
+        urllib.request.Request(source.canonical_uri, headers=headers), timeout=60
+    ) as response:
+        if response.url != source.canonical_uri:
+            raise ValueError("Wikimedia dump redirect differs from pinned URI")
+        digest, compressed_bytes = _copy_stream(
+            response, compressed, spec.max_compressed_bytes
+        )
+    if spec.expected_sha256 and digest != spec.expected_sha256.lower():
+        raise ValueError("Wikimedia compressed SHA-256 mismatch")
+    source_sha1 = hashlib.sha1()
+    with compressed.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            source_sha1.update(chunk)
+    if source_sha1.hexdigest() != spec.expected_sha1.lower():
+        raise ValueError("Wikimedia compressed SHA-1 mismatch")
+    output_name = name + ".sample.jsonl"
+    output_path = staging / "files" / output_name
+    emitted = scanned = 0
+    rows: list[dict[str, str]] = []
+    with bz2.open(compressed, "rb") as decompressed, output_path.open("wb") as output:
+        guarded = _BoundedXML(decompressed, spec.max_decompressed_bytes)
+        context = ET.iterparse(guarded, events=("start", "end"))
+        root: ET.Element | None = None
+        english_site = False
+        for event, element in context:
+            if root is None:
+                root = element
+                if root.tag != _WIKI_NS + "mediawiki":
+                    raise ValueError("unsupported Wikimedia XML namespace")
+            if event == "end" and element.tag == _WIKI_NS + "siteinfo":
+                language = element.findtext(_WIKI_NS + "lang") or root.get(
+                    "{http://www.w3.org/XML/1998/namespace}lang"
+                )
+                expected_db = urlparse(source.canonical_uri).path.split("/")[1]
+                if language != "en" or element.findtext(_WIKI_NS + "dbname") != expected_db:
+                    raise ValueError("Wikimedia dump site identity or language mismatch")
+                english_site = True
+            if event != "end" or element.tag != _WIKI_NS + "page":
+                continue
+            if not english_site:
+                raise ValueError("Wikimedia dump lacks English siteinfo")
+            if scanned >= spec.max_scanned_pages or len(rows) >= spec.max_selected_pages:
+                break
+            scanned += 1
+            row = _wiki_row(element, source)
+            if row is not None:
+                line = canonical_json(row) + b"\n"
+                if len(line) > spec.max_emitted_bytes - emitted:
+                    raise ValueError("Wikimedia emitted JSONL exceeds limit")
+                output.write(line)
+                emitted += len(line)
+                rows.append({
+                    "page_id": row["_sparselab_source"]["page_id"],
+                    "revision_id": row["_sparselab_source"]["revision_id"],
+                    "row_sha256": hashlib.sha256(line).hexdigest(),
+                })
+            root.clear()
+        output.flush()
+        os.fsync(output.fileno())
+    compressed.unlink()
+    if not rows:
+        raise ValueError("Wikimedia bounded selection produced no pages")
+    return [{
+        "path": output_name,
+        "sha256": sha256_file(output_path),
+        "size": emitted,
+    }], {
+        "source_uri": source.canonical_uri,
+        "checksum_uri": spec.checksum_uri,
+        "source_sha1": spec.expected_sha1.lower(),
+        "source_sha256": digest,
+        "compressed_bytes": compressed_bytes,
+        "scanned_pages": scanned,
+        "selected_pages": rows,
+        "output_path": output_name,
+    }
+
+
+def _verify_wikimedia_receipt(path: Path, manifest: dict[str, Any]) -> None:
+    receipt = manifest["retrieval"]
+    source = SourceDeclaration.model_validate(manifest["declaration"])
+    spec = source.acquisition
+    assert isinstance(spec, WikimediaDumpAcquisition)
+    if (
+        receipt["source_uri"] != source.canonical_uri
+        or receipt["checksum_uri"] != spec.checksum_uri
+        or receipt["source_sha1"] != spec.expected_sha1.lower()
+        or (spec.expected_sha256 and receipt["source_sha256"] != spec.expected_sha256.lower())
+        or receipt["compressed_bytes"] > spec.max_compressed_bytes
+        or receipt["scanned_pages"] > spec.max_scanned_pages
+        or len(receipt["selected_pages"]) > spec.max_selected_pages
+        or len(manifest["files"]) != 1
+        or receipt["output_path"] != manifest["files"][0]["path"]
+        or manifest["files"][0]["size"] > spec.max_emitted_bytes
+    ):
+        raise ValueError("Wikimedia receipt mismatch")
+    rows = []
+    with (path / "files" / receipt["output_path"]).open("rb") as handle:
+        for line in handle:
+            row = json.loads(line)
+            metadata = row["_sparselab_source"]
+            if (
+                not isinstance(row["text"], str)
+                or metadata["source_uri"] != source.canonical_uri
+                or metadata["dump_revision"] != source.revision
+            ):
+                raise ValueError("Wikimedia row provenance mismatch")
+            rows.append({
+                "page_id": metadata["page_id"],
+                "revision_id": metadata["revision_id"],
+                "row_sha256": hashlib.sha256(line).hexdigest(),
+            })
+    if rows != receipt["selected_pages"]:
+        raise ValueError("Wikimedia page receipt mismatch")
+
+
 def verify_snapshot(path: Path | str, *, _staged: bool = False) -> dict[str, Any]:
     path = Path(path)
     try:
@@ -398,13 +850,14 @@ def verify_snapshot(path: Path | str, *, _staged: bool = False) -> dict[str, Any
             or manifest["adapter"]["id"] != source.kind
         ):
             raise ValueError("snapshot declaration/adapter identity mismatch")
-        expected = _digest(
-            {
-                "declaration_sha256": manifest["declaration_sha256"],
-                "adapter": manifest["adapter"],
-                "files": manifest["files"],
-            }
-        )
+        identity_fields = {
+            "declaration_sha256": manifest["declaration_sha256"],
+            "adapter": manifest["adapter"],
+            "files": manifest["files"],
+        }
+        if source.kind == "wikimedia_dump":
+            identity_fields["retrieval"] = manifest["retrieval"]
+        expected = _digest(identity_fields)
         if expected != manifest["snapshot_sha256"] or (
             not _staged and path.name != expected
         ):
@@ -430,6 +883,8 @@ def verify_snapshot(path: Path | str, *, _staged: bool = False) -> dict[str, Any
         }
         if actual != names:
             raise ValueError("snapshot file inventory mismatch")
+        if source.kind == "wikimedia_dump":
+            _verify_wikimedia_receipt(path, manifest)
         return manifest
     except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid/incomplete snapshot: {path}") from error
@@ -521,13 +976,44 @@ def acquire(
             old_path = snapshot_root / source.id / old["snapshot_sha256"]
             if old["declaration_sha256"] == declared_digest:
                 manifest = verify_snapshot(old_path)
-                if source.kind not in ("local", "http_document") and manifest[
-                    "adapter"
-                ] == _adapter(source):
+                if (
+                    source.kind not in ("local", "http_document")
+                    and manifest["declaration"] == source_declaration_payload(source)
+                    and _reusable_immutable_adapter(source, manifest)
+                ):
                     entries[source.id] = old
                     continue
         except OSError, ValueError, TypeError, KeyError, json.JSONDecodeError:
             pass
+        # An interrupted campaign can publish verified source snapshots before
+        # writing its final lock. Only immutable upstream revisions are reusable.
+        parent = snapshot_root / source.id
+        if source.kind in {"git", "huggingface_dataset", "wikimedia_dump"} and parent.exists():
+            for candidate in sorted(parent.iterdir()):
+                if not candidate.is_dir() or candidate.name.startswith("."):
+                    continue
+                try:
+                    manifest = verify_snapshot(candidate)
+                except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+                    continue
+                if (
+                    manifest["declaration_sha256"] != declared_digest
+                    or manifest["declaration"] != source_declaration_payload(source)
+                    or not _reusable_immutable_adapter(source, manifest)
+                ):
+                    continue
+                entries[source.id] = {
+                    "declaration_sha256": declared_digest,
+                    "snapshot_sha256": manifest["snapshot_sha256"],
+                    "snapshot_path": str(candidate.resolve()),
+                    "receipt": {
+                        "status": "acquired",
+                        "retrieval": manifest["retrieval"],
+                    },
+                }
+                break
+            if source.id in entries:
+                continue
         parent = snapshot_root / source.id
         parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=".acquire-", dir=parent))
@@ -546,6 +1032,8 @@ def acquire(
                 files, retrieval = _acquire_hf(
                     source, staging, base / "hf-cache", False
                 )
+            elif source.kind == "wikimedia_dump":
+                files, retrieval = _acquire_wikimedia(source, staging, False)
             else:
                 files = []
                 retrieval = {
@@ -554,13 +1042,14 @@ def acquire(
                     )
                 }
             adapter = _adapter(source)
-            identity = _digest(
-                {
-                    "declaration_sha256": declared_digest,
-                    "adapter": adapter,
-                    "files": files,
-                }
-            )
+            identity_fields = {
+                "declaration_sha256": declared_digest,
+                "adapter": adapter,
+                "files": files,
+            }
+            if source.kind == "wikimedia_dump":
+                identity_fields["retrieval"] = retrieval
+            identity = _digest(identity_fields)
             manifest = {
                 "schema_version": 1,
                 "source_id": source.id,

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_shellspec_shell
+kind: git
+canonical_uri: https://github.com/shellspec/shellspec.git
+revision: 90e48c950239f3b8a9fdfa3e869592872c77b981
+license: MIT
+license_url: https://github.com/shellspec/shellspec/blob/90e48c950239f3b8a9fdfa3e869592872c77b981/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/shellspec/shellspec/blob/90e48c950239f3b8a9fdfa3e869592872c77b981/LICENSE]
+  notices: ['Retain Koichi Nakashima MIT license and file-level notices.']
+domains: [shell, testing, developer_tools]
+document_kinds: [shell, tests, prose]
+source_family: v4_runtime_shellspec_shell_train
+notes: 'Pinned 0.28.1 commit. Authored POSIX-shell test framework, executable shell specs for parameter expansion, quoting, process and mock behavior, CLI and shell semantics reference. GitHub pinned-tree inventory: 188 selected files / 689,441 bytes before transform; exclude parser_definition_generated.sh and fixture/asset paths. Independent of v3 Git heldout.'
+acquisition:
+  include: ['lib/*.sh', 'libexec/*.sh', 'spec/*_spec.sh', 'shellspec', 'install.sh', 'docs/*.md']
+  exclude: ['lib/libexec/optparser/parser_definition_generated.sh', '*/fixtures/*', '*/generated/*', '*/vendor/*', '*/third_party/*', '*/testdata/*', '*/secrets/*']
+  max_bytes: 1100000

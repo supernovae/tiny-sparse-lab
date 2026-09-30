@@ -1,0 +1,31 @@
+schema_version: 3
+id: wikipedia_20260901
+kind: wikimedia_dump
+canonical_uri: https://dumps.wikimedia.org/enwiki/20260901/enwiki-20260901-pages-articles-multistream1.xml-p1p41242.bz2
+revision: '20260901'
+license: CC-BY-SA-4.0
+license_url: https://creativecommons.org/licenses/by-sa/4.0/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-SA-4.0
+  license_references:
+    - https://dumps.wikimedia.org/legal.html
+    - https://creativecommons.org/licenses/by-sa/4.0/
+    - https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use
+  notices:
+    - 'Attribute Wikipedia contributors by page/revision URI, link the CC BY-SA 4.0 license, indicate extracted text and modifications; retain applicable share-alike obligations.'
+    - 'Original text generally CC BY-SA 4.0/GFDL with imported/nonfree exceptions; exclude quotations, media and unreviewed third-party content. No raw content is approved for publication.'
+notes: 'One exact 20260901 enwiki articles split shard; official SHA-1 bound, adapter measures local SHA-256. First page-ID range is a source subsample, not a representative encyclopedia or proof of independent heldout topics. Page/revision IDs and text must be deduplicated against crawls before fitting.'
+domains: [encyclopedia, general_education]
+document_kinds: [prose]
+source_family: wikipedia_20260901_train
+acquisition:
+  expected_sha1: a97f62049996fd3d3ba03e6fc9593b2695b5b441
+  checksum_uri: https://dumps.wikimedia.org/enwiki/20260901/enwiki-20260901-sha1sums.txt
+  max_compressed_bytes: 350000000
+  max_decompressed_bytes: 1600000000
+  max_scanned_pages: 16000
+  max_selected_pages: 6000
+  max_emitted_bytes: 250000000

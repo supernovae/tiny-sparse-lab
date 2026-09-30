@@ -1,0 +1,31 @@
+schema_version: 3
+id: wikibooks_20260901
+kind: wikimedia_dump
+canonical_uri: https://dumps.wikimedia.org/enwikibooks/20260901/enwikibooks-20260901-pages-articles-multistream.xml.bz2
+revision: '20260901'
+license: CC-BY-SA-4.0
+license_url: https://creativecommons.org/licenses/by-sa/4.0/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-SA-4.0
+  license_references:
+    - https://dumps.wikimedia.org/legal.html
+    - https://creativecommons.org/licenses/by-sa/4.0/
+    - https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use
+  notices:
+    - 'Attribute English Wikibooks contributors by retained page and revision URI; link the CC BY-SA 4.0 license, indicate text extraction and other changes, and preserve applicable share-alike obligations.'
+    - 'Wikimedia says original text is generally CC BY-SA 4.0/GFDL; imported quotations, media, non-free excerpts and unresolved embedded rights are not licensed by the overall dump notice. Private research only until page-level review; do not republish raw text.'
+notes: 'Prospective bounded English Wikibooks tutorial source, not yet acquired or approved for raw redistribution. Publisher 20260901 dump is complete. Official publisher provides SHA-1, not SHA-256, for this dump; adapter records local SHA-256 of exact bytes after verifying official SHA-1. Retain page/revision attribution and partition entire book-root families before fitting; do not infer technical subject from general books.'
+domains: [general_education, programming]
+document_kinds: [prose]
+source_family: wikibooks_20260901
+acquisition:
+  expected_sha1: b77914248dbf39f4641956b79358cde5affa1dd0
+  checksum_uri: https://dumps.wikimedia.org/enwikibooks/20260901/enwikibooks-20260901-sha1sums.txt
+  max_compressed_bytes: 240000000
+  max_decompressed_bytes: 1200000000
+  max_scanned_pages: 30000
+  max_selected_pages: 10000
+  max_emitted_bytes: 250000000

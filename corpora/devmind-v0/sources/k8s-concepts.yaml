@@ -1,0 +1,16 @@
+schema_version: 1
+id: k8s_concepts
+kind: git
+canonical_uri: https://github.com/kubernetes/website.git
+revision: 69f4fc12ef397cacb60d3b6830ef7c6d6b87245e
+license: CC-BY-4.0
+license_url: https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE
+notes: 'Kubernetes Authors; retain attribution, license link and this change notice: extracted/normalized for DevMind v0. Excludes images and embedded third-party content pending review.'
+redistribution: redistributable
+domains: [containers, networking, storage, reliability, security]
+document_kinds: [prose]
+source_family: k8s_concepts_train
+acquisition:
+  include: ['content/en/docs/concepts/*.md']
+  exclude: ['content/en/docs/concepts/**/third-party/*']
+  max_bytes: 60000000

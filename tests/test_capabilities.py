@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,7 +11,10 @@ from tokenizers.pre_tokenizers import Whitespace
 
 from sparselab.data.chat_recall import cases
 from sparselab.evaluation.capabilities import (
+    CapabilityCaseLineage,
     capability_card,
+    capability_card_payload,
+    check_capability_family_exclusion,
     compare_results,
     describe_capability_card,
     evaluate_capability,
@@ -105,6 +110,126 @@ def test_described_card_round_trips_and_user_schema_is_strict(tmp_path: Path) ->
     path.write_text(__import__("json").dumps(payload))
     with pytest.raises(ValueError):
         capability_card(str(path))
+
+
+def _family_card_payload() -> dict[str, object]:
+    payload = describe_capability_card("chat-alias-recall-v1")
+    payload.pop("digest")
+    payload["format"] = "capability_card_v3"
+    payload["version"] = 3
+    payload["cases"] = payload["cases"][:2]
+    for index, case in enumerate(payload["cases"]):
+        case["lineage"] = {
+            "split": "test",
+            "source_document_family": f"test-doc-{index}",
+            "world_id": f"test-world-{index}",
+            "template_family": "test-template",
+            "parent_content_hashes": [f"{index + 1:064x}"],
+        }
+    return payload
+
+
+def test_family_card_round_trips_with_test_lineage(tmp_path: Path) -> None:
+    payload = _family_card_payload()
+    path = tmp_path / "family-card.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    card = capability_card(str(path))
+    serialized = capability_card_payload(card)
+    assert serialized["format"] == "capability_card_v3"
+    assert serialized["digest"] == card.digest
+    assert serialized["cases"][0]["lineage"] == payload["cases"][0]["lineage"]
+    assert card.cases[0].lineage == CapabilityCaseLineage(
+        "test", "test-doc-0", "test-world-0", "test-template", (f"{1:064x}",)
+    )
+    assert card.scorer == "normalized_full_answer_exact_v1"
+    check_capability_family_exclusion(
+        card,
+        {
+            "train": [
+                {
+                    "split": "train",
+                    "source_document_family": "train-doc",
+                    "world_id": "train-world",
+                    "template_family": "train-template",
+                    "parent_content_hashes": [f"{10:064x}"],
+                }
+            ],
+            "validation": [],
+        },
+    )
+    path.write_text(json.dumps(serialized), encoding="utf-8")
+    assert capability_card(str(path)) == card
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("split", "train"),
+        ("parent_content_hashes", []),
+        ("parent_content_hashes", ["not-a-sha256"]),
+        ("source_document_family", None),
+    ],
+)
+def test_family_card_rejects_invalid_lineage(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    payload = _family_card_payload()
+    payload["cases"][0]["lineage"][field] = value
+    if field == "source_document_family":
+        payload["cases"][0]["lineage"]["world_id"] = None
+    path = tmp_path / "bad-card.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
+        capability_card(str(path))
+
+
+@pytest.mark.parametrize("field", ["world_id", "parent_content_hashes"])
+def test_family_card_rejects_repeated_case_parents(tmp_path: Path, field: str) -> None:
+    payload = _family_card_payload()
+    payload["cases"][1]["lineage"][field] = payload["cases"][0]["lineage"][field]
+    path = tmp_path / "duplicate-card.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="world|parent"):
+        capability_card(str(path))
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["source_document_family", "world_id", "template_family", "parent_content_hashes"],
+)
+@pytest.mark.parametrize("split", ["train", "validation"])
+def test_family_exclusion_rejects_cross_split_identity(
+    tmp_path: Path, field: str, split: str
+) -> None:
+    payload = _family_card_payload()
+    path = tmp_path / "family-card.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    card = capability_card(str(path))
+    row = {
+        "split": split,
+        "source_document_family": "other-doc",
+        "world_id": "other-world",
+        "template_family": "other-template",
+        "parent_content_hashes": [f"{10:064x}"],
+    }
+    row[field] = payload["cases"][0]["lineage"][field]
+    with pytest.raises(ValueError, match=split):
+        check_capability_family_exclusion(
+            card,
+            {
+                "train": [row] if split == "train" else [],
+                "validation": [row] if split == "validation" else [],
+            },
+        )
+
+
+def test_v2_card_stays_unmodified_by_v3_serialization() -> None:
+    old = capability_card("chat-alias-recall-v1")
+    assert capability_card_payload(old) == describe_capability_card(old.name)
+    with pytest.raises(ValueError, match="v3"):
+        check_capability_family_exclusion(old, {"train": [], "validation": []})
+    with pytest.raises(ValueError, match="case schema"):
+        capability_card_payload(replace(old, format="capability_card_v3", version=3))
 
 
 def test_custom_response_budget_cannot_be_silently_replaced(tmp_path: Path) -> None:

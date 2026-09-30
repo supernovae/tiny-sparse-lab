@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_oci_image
+kind: git
+canonical_uri: https://github.com/opencontainers/image-spec.git
+revision: 147f9c13cedb47a0c4d9a11a222961073d585877
+license: Apache-2.0
+license_url: https://github.com/opencontainers/image-spec/blob/147f9c13cedb47a0c4d9a11a222961073d585877/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/opencontainers/image-spec/blob/147f9c13cedb47a0c4d9a11a222961073d585877/LICENSE]
+  notices: ['Retain OCI authors Apache-2.0 license and file-specific copyright/notices.']
+notes: 'Official OCI image manifest, configuration, layers, media type and descriptor invariants at v1.1.1; only first-party exact specification files, not the separate v2 runtime-spec validation family.'
+domains: [containers, protocols, distributed_systems]
+document_kinds: [prose]
+source_family: v3_oci_image_train
+acquisition:
+  include: ['spec.md', 'config.md', 'manifest.md', 'image-index.md', 'image-layout.md', 'layer.md', 'descriptor.md', 'media-types.md', 'annotations.md']
+  exclude: []
+  max_bytes: 2000000

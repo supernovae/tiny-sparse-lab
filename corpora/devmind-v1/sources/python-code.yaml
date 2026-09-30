@@ -1,0 +1,20 @@
+schema_version: 2
+id: python_code
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PSF-2.0
+  license_references: [https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE]
+  notices: ['Retain PSF/contributor copyrights and per-file 0BSD/other notices if encountered.']
+domains: [programming, testing_build, networking]
+document_kinds: [python]
+source_family: python_code_train
+acquisition:
+  include: ['Lib/pathlib/*.py', 'Lib/json/*.py', 'Lib/http/*.py', 'Lib/unittest/*.py']
+  exclude: ['Lib/http/cookies.py', 'Lib/unittest/__init__.py']
+  max_bytes: 1000000

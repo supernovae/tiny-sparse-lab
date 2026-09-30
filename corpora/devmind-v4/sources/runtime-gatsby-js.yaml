@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_gatsby_js
+kind: git
+canonical_uri: https://github.com/gatsbyjs/gatsby.git
+revision: e3d07175b0a0401cbbbcf0453a1b47747e084338
+license: MIT
+license_url: https://github.com/gatsbyjs/gatsby/blob/e3d07175b0a0401cbbbcf0453a1b47747e084338/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/gatsbyjs/gatsby/blob/e3d07175b0a0401cbbbcf0453a1b47747e084338/LICENSE]
+  notices: ['Retain Gatsbyjs and contributors MIT license, respecting any selected per-package notices.']
+domains: [javascript, build_systems, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_gatsby_js_train
+notes: 'Pinned gatsby@5.15.0 commit. Authored Gatsby runtime/build pipeline, CLI, source adapters, image and utility plugins with colocated tests; exclude benchmark fixture sites, bundled Yarn and Gatsby cache-dir generated files. Complete pinned Git tree: 178 selected files / 1,585,788 bytes before transform.'
+acquisition:
+  include: ['packages/gatsby/src/*.js', 'packages/gatsby/src/*.jsx', 'packages/gatsby-cli/src/*.js', 'packages/gatsby-source-contentful/src/*.js', 'packages/gatsby-source-wordpress/src/*.js', 'packages/gatsby-plugin-utils/src/*.js', 'packages/gatsby-plugin-image/src/*.js', 'packages/gatsby-plugin-sharp/src/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/cache-dir/*']
+  max_bytes: 2500000

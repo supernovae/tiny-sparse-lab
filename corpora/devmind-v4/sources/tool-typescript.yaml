@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_typescript
+kind: git
+canonical_uri: https://github.com/microsoft/TypeScript.git
+revision: c63de15a992d37f0d6cec03ac7631872838602cb
+license: Apache-2.0
+license_url: https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/LICENSE.txt]
+  notices: ['Retain Microsoft and contributor Apache-2.0 notices and check any selected per-file exceptions.']
+domains: [compilers, programming, developer_tools]
+document_kinds: [typescript]
+source_family: v3_tool_typescript_train
+notes: 'Pinned published v5.9.3 commit rather than current HEAD (whose legacy compiler layout no longer exists). Compiler and language services plus authored unit tests; do not select massive compiler baseline fixtures, generated diagnostics or third-party samples.'
+acquisition:
+  include: ['src/compiler/*.ts', 'src/compiler/factory/*.ts', 'src/compiler/transformers/*.ts', 'src/services/*.ts', 'src/services/codefixes/*.ts', 'src/services/refactors/*.ts', 'src/testRunner/unittests/*.ts']
+  exclude: ['src/compiler/_namespaces/*', 'src/services/_namespaces/*', '*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 21000000

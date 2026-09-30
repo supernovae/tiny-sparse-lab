@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_webpack_js
+kind: git
+canonical_uri: https://github.com/webpack/webpack.git
+revision: 07b1ac0213bcf9591a8dd5633535a43ecd248192
+license: MIT
+license_url: https://github.com/webpack/webpack/blob/07b1ac0213bcf9591a8dd5633535a43ecd248192/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/webpack/webpack/blob/07b1ac0213bcf9591a8dd5633535a43ecd248192/LICENSE]
+  notices: ['Retain JS Foundation and contributor MIT notice; inspect any selected file exceptions.']
+domains: [javascript, build_systems, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_webpack_js_train
+notes: 'Pinned v5.101.3 commit. First-party loader/chunk/compilation JS plus root-level authored unit and behavior tests; test/*Cases/* project fixtures and generated outputs excluded. Complete pinned Git tree: 664 selected files / 4,660,240 bytes before transform.'
+acquisition:
+  include: ['lib/*.js', 'test/*.test.js', 'test/*.unittest.js', 'test/*.longtest.js', 'test/*.basictest.js', 'bin/*.js']
+  exclude: ['test/*Cases/*', '*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*']
+  max_bytes: 6200000

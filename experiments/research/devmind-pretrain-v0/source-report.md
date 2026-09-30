@@ -1,0 +1,31 @@
+# DevMind v0 — A static corpus observation
+
+**Status:** frozen local candidate, not rights-cleared training data or a model-quality result. `training_started: false`: no DevMind run or checkpoint exists. Source project: [`corpora/devmind-v0/`](../../../corpora/devmind-v0/); rights caveats and exclusions: [source review](../../../corpora/devmind-v0/source-review.md). Acquired under `SPARSELAB_WORK_DIR=$PWD/sparselab-work/experiments/devmind-v0` with locked, provisioned environment (`uv run --locked --no-sync`, `PYTHONPATH=$PWD/src`). Exact frozen release: `devmind-v0@d0b1fc07d9e42de17efc664699354aced36a0e902d39982719715e62f6082427`; build `62c17b348bf81086bd9250b6ec28830f2886237dc8e9f8bd1306a4d658518dc6`. Reconstruct from the pinned Git source declarations; the ~575 MB mutable release, source snapshots and generated candidates remain ignored and are not checked in.
+
+| Acquired source/family | Files | Selected source bytes | Normalized passages |
+|---|---:|---:|---:|
+| Kubernetes concepts / train | 186 | 2,303,524 | 2,050 |
+| Kubernetes tasks / validation | 221 | 1,703,118 | 1,696 |
+| Kubernetes tutorials / test | 45 | 425,547 | 344 |
+| CPython library docs / train | 329 | 7,124,288 | 329 |
+| CPython owned Python subset / train | 26 | 589,068 | 26 |
+| CPython tutorial / validation | 17 | 267,587 | 17 |
+| Go docs / train | 33 | 37,103 | 40 |
+| Go net/http and encoding/json code / train | 286 | 4,885,271 | 286 |
+| Rust Book / train | 101 | 1,152,351 | 516 |
+| OpenStax Physics modules / train | 98 | 4,648,600 | 95 |
+| OpenStax `m54081` / validation | 1 | 16,357 | 1 |
+| OpenStax `m54082` / test | 1 | 2,818 | 1 |
+| Four owned, inert v1 world generators | no fetched files | 0 | 4,000 oracle scenarios |
+
+Selected source bytes total **23,155,632** across 1,344 Git files (the value is a byte count, **not token supply**). Corpus normalization emitted 5,421 documents, retained 5,401 after 20 same-split duplicate drops; LM train/validation/test views 3,342/1,714/345 documents. Four generators each emitted 800 train, 100 validation and 100 test worlds with distinct world/template families. Chat train/validation/test views: 27,228/5,022/1,670 assistant-only v2 records. Candidate inventories: 33,531 lexical and 43,228 semantic rows, not evidence of learned retrieval. Generated source-entailed answers 25,920 and oracle-verified scenarios 4,000; 33,961 rejection rows (mostly ambiguous/unbounded literal QA), with exactly three rejected source files (`m54116`, `m54280`, `m54602`). No observed exact cross-split document duplicate (`audit.leakage: []`), 28 same-split duplicate groups. `corpus audit`, `describe`, and `sample` verified the release; case/source lineage remains locally queryable. This is exact-duplicate and declared-family isolation, **not** a comprehensive near-duplicate or per-file terms certification.
+
+The measured *record* mix of selected **train** views is 30,570 records: 3,342 primary-source/schema-validated, 20,828 source-transformed/source-entailed, 6,400 deterministic/oracle-verified. Training shapes: 3,342 `raw_document`, 10,414 `source_grounded_qa`, 10,414 `paraphrased_qa`, 800 each `error_diagnosis`, `multi_turn_dialogue`, `stop_or_abstain`, `verification_episode`, 3,200 `tool_trace`. Generator adapter counts: 1,600 per four generators, 24,170 no generator. Domain labels overlap, so their sums are not a mixture denominator; selected normalized general-education passages: 97 and 1,639,190 UTF-8 bytes. **Actual tokens for every category are `null`** (`tokenizer_not_declared`); these record/byte observations do not establish the requested ≤10% general token share or ≥150M distinct eligible train tokens. Base LM release has no tool trace; tool episodes are chat-only. Gaps: no train/validation shell, YAML, JSON, TOML or logs as separately classified *documents*; Python/Go/Rust are absent in the heldout validation document kinds. Do not relabel prose snippets as separate modalities.
+
+## Preregistered cases and limitations
+
+Eleven v3 exact-answer diagnostic cards in [`cards/`](cards/) bind the frozen release and test-family parent hashes, test worlds and separate evaluation template IDs. Their [receipt](cards/receipt.json) records exact SHA and majority controls. Source-grounded, code/config and narrowly literal technical comprehension each contain **96** unique heldout passage parents; eight other cards contain **100** distinct test worlds each. Every card is **underpowered** against the frozen ≥200-independent-case promotion rule. The source-oriented cards share the same limited parent pool across capabilities, and several scenario cards query different facets of the same simulated worlds; scores would be correlated and cannot stand in for deep comprehension, real incident reasoning or actual live tool behavior. No model was evaluated, hence no accuracy, initial/random sampled output or bootstrap interval is reported. Majority/chance controls in cards describe answer frequencies only, not observed baseline-model performance. The v3 helper checked declared train/validation source-family, world, template and content-hash exclusion; near-duplicate prose and independent human test review remain open. The source-QA prompt shows an answer-bearing cited line by design and only tests literal extraction, not memorized domain facts.
+
+## Gate and next controlled action
+
+A release exists but its full per-file rights review is incomplete, every card is underpowered, and the B nine-kind fit/validation requirements cannot be met by current source families. The selected Git bytes alone are far below the requested 150M distinct-token target; no token count or general-share claim can be made. The declared bakeoff was attempted and stopped on the missing-kind gate; see the [tokenizer report](tokenizer-report.md). No C plan was locked or run. Cheapest reviewed change: add separately pinned and per-file-audited train **and validation** text documents for shell/YAML/JSON/TOML/logs and heldout Python/Go/Rust, enlarge independent test families, validate rights and near-duplicates, then issue a **new** corpus declaration/protocol/release. Do not add a crawl or weaken 150M, licensing, family or model gates to force a run.

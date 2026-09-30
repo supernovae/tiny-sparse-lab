@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_cilium
+kind: git
+canonical_uri: https://github.com/cilium/cilium.git
+revision: e7747e57ae32b8fa255ab27582a32ce7e27880c9
+license: Apache-2.0
+license_url: https://github.com/cilium/cilium/blob/e7747e57ae32b8fa255ab27582a32ce7e27880c9/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/cilium/cilium/blob/e7747e57ae32b8fa255ab27582a32ce7e27880c9/LICENSE, https://github.com/cilium/cilium/blob/e7747e57ae32b8fa255ab27582a32ce7e27880c9/bpf/COPYING]
+  notices: ['Retain Cilium contributors attribution; bpf/ is separately dual GPL-2.0-only OR BSD-2-Clause and is intentionally excluded from this Apache-2.0 selection. Screen file-level exceptions.']
+domains: [networking, kubernetes, security]
+document_kinds: [go, tests, prose]
+source_family: v3_system_cilium_train
+notes: 'Cilium Go control plane, network policy, eBPF operator, first-party integration Go tests and operations docs. Excludes separately licensed bpf/, vendor, generated CRDs, deployed manifests, images and fixture-rich integration data; distinct from v2 Kubernetes concepts docs.'
+acquisition:
+  include: ['pkg/*.go', 'daemon/*.go', 'operator/*.go', 'hubble/*.go', 'cilium-cli/*.go', 'cilium-dbg/*.go', 'clustermesh-apiserver/*.go', 'plugins/*.go', 'test/*.go', 'Documentation/*.rst', 'Documentation/*.md', 'Makefile']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/tests/*', 'test/fixtures/*', 'test/testdata/*', 'Documentation/_static/*', 'Documentation/_images/*', '*.pb.go', '*_generated.go', 'zz_generated*']
+  max_bytes: 130000000

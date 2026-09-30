@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_go_build_bootstrap
+kind: git
+canonical_uri: https://github.com/golang/go.git
+revision: 2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48
+license: BSD-3-Clause
+license_url: https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause
+  license_references: [https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE]
+  notices: ['Retain Go Authors BSD notice and any file-specific upstream attribution.']
+domains: [build_systems, go, bootstrapping]
+document_kinds: [go]
+source_family: v4_iac_go_build_bootstrap_train
+notes: 'Go toolchain distribution bootstrap/build scheduling and test orchestration, authored in src/cmd/dist; distinct from v3 src/cmd/go/internal, src/cmd/compile/internal and src/runtime and v2 standard-library paths. Do not import script testdata/fixtures or broad Go runtime implementation. Pinned tree selects 2 files / 102411 bytes.'
+acquisition:
+  include: ['src/cmd/dist/build.go', 'src/cmd/dist/test.go']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*_generated.go']
+  max_bytes: 700000

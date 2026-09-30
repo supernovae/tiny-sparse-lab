@@ -1,0 +1,20 @@
+schema_version: 2
+id: git_shell_train
+kind: git
+canonical_uri: https://github.com/git/git.git
+revision: a018953688f1b10bddf91bff8747068f5f4746a4
+license: GPL-2.0-only
+license_url: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING]
+  notices: ['Git contributors and individual test authors; retain exact GPLv2 terms and file copyright.']
+domains: [developer_workflows, source_control, shell, testing_build]
+document_kinds: [shell]
+source_family: git_shell_train
+acquisition:
+  include: ['t/t0*.sh']
+  exclude: ['t/t0*/*.sh']
+  max_bytes: 1400000

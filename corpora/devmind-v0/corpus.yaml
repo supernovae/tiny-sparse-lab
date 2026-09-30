@@ -1,0 +1,32 @@
+schema_version: 1
+id: devmind-v0
+sources:
+  - sources/code-test-worlds.yaml
+  - sources/deployment-worlds.yaml
+  - sources/filesystem-worlds.yaml
+  - sources/general-test.yaml
+  - sources/general-train.yaml
+  - sources/general-validation.yaml
+  - sources/go-code.yaml
+  - sources/go-docs.yaml
+  - sources/k8s-concepts.yaml
+  - sources/k8s-tasks.yaml
+  - sources/k8s-tutorials.yaml
+  - sources/platform-worlds.yaml
+  - sources/python-code.yaml
+  - sources/python-library.yaml
+  - sources/python-tutorial.yaml
+  - sources/rust-book.yaml
+transforms:
+  - transforms/lm.yaml
+  - transforms/source-qa.yaml
+  - transforms/platform.yaml
+  - transforms/deployment.yaml
+  - transforms/code-test.yaml
+  - transforms/scenarios.yaml
+  - transforms/chat.yaml
+  - transforms/tool.yaml
+  - transforms/lexical.yaml
+  - transforms/semantic.yaml
+splits: splits.yaml
+release: release.yaml

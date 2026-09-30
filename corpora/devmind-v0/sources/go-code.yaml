@@ -1,0 +1,15 @@
+schema_version: 1
+id: go_code
+kind: git
+canonical_uri: https://github.com/golang/go.git
+revision: 2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48
+license: BSD-3-Clause
+license_url: https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE
+notes: 'The Go Authors; preserve BSD notice/disclaimer. Bounded owned net/http and encoding code only; extracted/normalized for DevMind v0.'
+redistribution: redistributable
+domains: [programming, networking, testing]
+document_kinds: [go]
+source_family: go_code_train
+acquisition:
+  include: ['src/net/http/*.go', 'src/encoding/json/*.go']
+  max_bytes: 24000000

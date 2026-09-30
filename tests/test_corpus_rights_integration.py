@@ -134,6 +134,34 @@ def test_prospective_release_preserves_file_decisions_and_no_source_bytes(
     )
 
 
+def test_v3_private_research_freeze_and_public_manifest_remain_separate(
+    tmp_path: Path,
+) -> None:
+    spec = _prospective(tmp_path).model_dump(mode="json")
+    for source in spec["sources"]:
+        source["schema_version"] = 3
+        source["explicit_training_restriction"] = "none_found"
+    spec["release"]["schema_version"] = 3
+    spec["release"]["training_use_policy"] = "allowed_unless_explicitly_prohibited"
+    project = Project.model_validate(spec)
+    acquire(project, tmp_path)
+    release = freeze(build(project, tmp_path, offline=True), tmp_path)
+    report = json.loads((release / "license-report.json").read_text())
+    assert report["schema_version"] == 3
+    assert report["training_use_policy"] == "allowed_unless_explicitly_prohibited"
+    assert all(item["schema_version"] == 3 for item in [
+        json.loads(line)
+        for line in (release / "documents.jsonl").read_text().splitlines()
+    ])
+    public = publication_manifest(release)
+    assert public["training_use_policy"] == report["training_use_policy"]
+    assert all(
+        source["explicit_training_restriction"] == "none_found"
+        for source in public["sources"]
+    )
+    assert "A differently licensed passage." not in json.dumps(public)
+
+
 def test_conflicting_duplicate_rights_fail_closed(tmp_path: Path) -> None:
     spec = _prospective(tmp_path).model_dump(mode="json")
     original = next(

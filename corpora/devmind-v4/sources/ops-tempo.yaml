@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_tempo
+kind: git
+canonical_uri: https://github.com/grafana/tempo.git
+revision: f90d9df715e65a21c3d0cdf42602f9fd171603ea
+license: AGPL-3.0-only
+license_url: https://github.com/grafana/tempo/blob/f90d9df715e65a21c3d0cdf42602f9fd171603ea/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: AGPL-3.0-only
+  license_references: [https://github.com/grafana/tempo/blob/f90d9df715e65a21c3d0cdf42602f9fd171603ea/LICENSE]
+  notices: ['Preserve Grafana authorship and AGPL source/network obligations; screen copied external examples and file-level notices.']
+domains: [observability, tracing, operations]
+document_kinds: [prose, configuration]
+source_family: v4_ops_tempo_train
+notes: 'First-party Tempo operations, failure diagnosis, capacity and storage/network configuration; no generated API pages, images or fixtures.'
+acquisition:
+  include: ['docs/sources/tempo/operations/*.md', 'docs/sources/tempo/configuration/network/*.md', 'docs/sources/tempo/configuration/hosted-storage/*.md', 'docs/sources/tempo/configuration/parquet.md', 'docs/sources/tempo/metrics-from-traces/metrics-generator/cardinality.md', 'docs/sources/tempo/metrics-from-traces/metrics-generator/reduce-cardinality.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', '*/_images/*', '*/_static/*']
+  max_bytes: 650000

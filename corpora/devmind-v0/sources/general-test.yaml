@@ -1,0 +1,15 @@
+schema_version: 1
+id: general_test
+kind: git
+canonical_uri: https://github.com/openstax/osbooks-physics.git
+revision: dfdfd7a5356ecdd42e504de3df50d9153e33ea49
+license: CC-BY-4.0
+license_url: https://github.com/openstax/osbooks-physics/blob/dfdfd7a5356ecdd42e504de3df50d9153e33ea49/LICENSE
+notes: 'OpenStax, Rice University, Physics; CC BY attribution/license/change notice: CNXML extracted for DevMind v0; reserved test module; no media.'
+redistribution: redistributable
+domains: [general_education]
+document_kinds: [prose]
+source_family: general_test
+acquisition:
+  include: ['modules/m54082/index.cnxml']
+  max_bytes: 1000000

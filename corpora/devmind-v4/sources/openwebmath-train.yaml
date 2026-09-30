@@ -1,0 +1,36 @@
+schema_version: 3
+id: openwebmath_train
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/open-web-math/open-web-math
+revision: fde8ef8de2300f5e778f56261843dab89f230815
+license: ODC-By-1.0
+license_url: https://opendatacommons.org/licenses/by/1-0/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: ODC-By-1.0
+  license_references:
+    - https://opendatacommons.org/licenses/by/1-0/
+    - https://huggingface.co/datasets/open-web-math/open-web-math/blob/fde8ef8de2300f5e778f56261843dab89f230815/README.md
+    - https://commoncrawl.org/terms-of-use/
+  notices:
+    - 'Credit Keiran Paster, Marco Dos Santos, Zhangir Azerbayev and Jimmy Ba (OpenWebMath) and Common Crawl; retain page URL, crawl date and original-site notices. Publisher expressly does not change underlying page licenses.'
+    - 'Exclude URLs with no-ML/unknown origin, private data or incompatible site terms and math pages copied from unsupported Q&A sources; dataset ODC-By is not a page-level reuse grant.'
+notes: 'Prospective private research only, raw unpublished; no tokenizer fit. Preserve url,text,date,metadata (the last is an extraction JSON string); retain mathematical markup, inspect extraction quality, and deduplicate URL/domain/content against FineWeb-Edu and other crawls. One publisher train shard is not independent DevMind test evidence; reserve whole domain/host families before fitting.'
+domains: [mathematics]
+document_kinds: [prose]
+source_family: openwebmath_train
+acquisition:
+  config: data
+  split: train
+  text_field: text
+  max_rows: 1000000
+  max_bytes: 3000000000
+  bounded_shards:
+    - path: data/train-00000-of-00114-5a023365406cb9c4.parquet
+      expected_sha256: 18d7ef70a6ef61f09c020950626d7e6e61d1300f3f85beddbd3b3c6801071a41
+      max_shard_bytes: 236269000
+      max_scanned_rows: 1000000
+      hash_modulus: 1
+      hash_remainders: [0]

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_postgres_backend
+kind: git
+canonical_uri: https://github.com/postgres/postgres.git
+revision: b27ab709c4b348fdc3b785aa394ef611c52c3380
+license: PostgreSQL
+license_url: https://github.com/postgres/postgres/blob/b27ab709c4b348fdc3b785aa394ef611c52c3380/COPYRIGHT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PostgreSQL
+  license_references: [https://github.com/postgres/postgres/blob/b27ab709c4b348fdc3b785aa394ef611c52c3380/COPYRIGHT]
+  notices: ['Retain PostgreSQL Global Development Group copyright and license notices for software and documentation; unrecognized SPDX classifier is not independent file-level clearance.']
+domains: [storage, databases, reliability]
+document_kinds: [code]
+source_family: v2_postgres_backend_validation
+notes: 'First-party backend C source, validation held out from train. SGML docs omitted until entity-safe prose extraction; exclude extensions of uncertain provenance, fixtures, testdata, secrets and generated files.'
+acquisition:
+  include: ['src/backend/access/*.c', 'src/backend/storage/*.c', 'src/backend/optimizer/*.c']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*_generated.c']
+  max_bytes: 70000000

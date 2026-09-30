@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_k8s_concepts
+kind: git
+canonical_uri: https://github.com/kubernetes/website.git
+revision: 69f4fc12ef397cacb60d3b6830ef7c6d6b87245e
+license: CC-BY-4.0
+license_url: https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-4.0
+  license_references: [https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE, https://creativecommons.org/licenses/by/4.0/]
+  notices: ['Credit Kubernetes documentation contributors; retain CC BY license link and changes statement, screening embedded snippets and third-party content.']
+domains: [containers, distributed_systems, networking, deployment]
+document_kinds: [prose, yaml]
+source_family: v2_k8s_concepts_train
+notes: 'English Kubernetes concepts only; independently held-out tasks/tutorials must remain outside this family. Embedded code, image references, third-party quotations and unsafe examples require screening.'
+acquisition:
+  include: ['content/en/docs/concepts/*.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/_index.md']
+  max_bytes: 35000000

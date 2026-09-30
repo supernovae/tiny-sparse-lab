@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_systemd
+kind: git
+canonical_uri: https://github.com/systemd/systemd.git
+revision: 889bc48f101a7cbb56cb4be202e85e1f6d933151
+license: LGPL-2.1-or-later
+license_url: https://github.com/systemd/systemd/blob/889bc48f101a7cbb56cb4be202e85e1f6d933151/LICENSE.LGPL2.1
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: LGPL-2.1-or-later
+  license_references: [https://github.com/systemd/systemd/blob/889bc48f101a7cbb56cb4be202e85e1f6d933151/LICENSE.LGPL2.1, https://github.com/systemd/systemd/blob/889bc48f101a7cbb56cb4be202e85e1f6d933151/LICENSES/README.md]
+  notices: ['LGPL-2.1-or-later is the upstream default, not a blanket grant: check each file SPDX header, retain attribution and exclude different-license files before release.']
+domains: [operating_systems, service_management, networking]
+document_kinds: [code, tests, prose, configuration]
+source_family: v3_system_systemd_train
+notes: 'First-party init, reusable utilities, service/network control, systemctl and small source tests; excludes udev GPL exceptions, specific non-LGPL utility implementations, imported kernel UAPI headers, generated data, fuzz inputs and fixtures. Distinct repository from v2 Linux filesystem snapshot.'
+acquisition:
+  include: ['src/core/*.c', 'src/core/*.h', 'src/network/*.c', 'src/network/*.h', 'src/basic/*.c', 'src/basic/*.h', 'src/shared/*.c', 'src/shared/*.h', 'src/systemctl/*.c', 'src/systemctl/*.h', 'src/libsystemd/*.c', 'src/libsystemd/*.h', 'src/test/*.c', 'src/test/*.h', 'docs/*.md', 'units/*.service.in', 'units/*.target.in', 'meson.build']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/fuzz/*', '*/uapi/*', 'src/udev/*', 'src/basic/utf8.c', 'src/basic/sparse-endian.h', 'src/basic/siphash24.c', 'src/basic/siphash24.h', 'src/basic/MurmurHash2.c', 'src/basic/MurmurHash2.h', 'src/libsystemd/sd-journal/lookup3.c', 'src/libsystemd/sd-journal/lookup3.h']
+  max_bytes: 60000000

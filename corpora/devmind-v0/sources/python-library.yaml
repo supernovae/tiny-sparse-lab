@@ -1,0 +1,15 @@
+schema_version: 1
+id: python_library
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+notes: 'Python Software Foundation and contributors; preserve PSF and embedded documentation-example 0BSD notices; extract/normalize for DevMind v0.'
+redistribution: redistributable
+domains: [programming, operating_systems, networking, testing]
+document_kinds: [prose]
+source_family: python_library_train
+acquisition:
+  include: ['Doc/library/*.rst']
+  max_bytes: 60000000

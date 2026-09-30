@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_kafka
+kind: git
+canonical_uri: https://github.com/apache/kafka.git
+revision: 3c7b0661c132fc07b6e8da9daf991e31b0363b3e
+license: Apache-2.0
+license_url: https://github.com/apache/kafka/blob/3c7b0661c132fc07b6e8da9daf991e31b0363b3e/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/apache/kafka/blob/3c7b0661c132fc07b6e8da9daf991e31b0363b3e/LICENSE, https://github.com/apache/kafka/blob/3c7b0661c132fc07b6e8da9daf991e31b0363b3e/NOTICE]
+  notices: ['Preserve Apache Kafka NOTICE and applicable file headers; exclude generated RPC message definitions, third-party fixtures and binary release assets.']
+domains: [distributed_systems, streaming, storage]
+document_kinds: [java, scala, tests, prose, build]
+source_family: v3_system_kafka_train
+notes: 'First-party broker, clients, metadata quorum, coordinators, Connect and Streams main/test sources and design/operations documents. Omits test resources and generated protocol bindings. Distinct from v2 PostgreSQL and PromQL snapshots.'
+acquisition:
+  include: ['clients/src/main/*.java', 'clients/src/test/*.java', 'core/src/main/*.scala', 'core/src/test/*.scala', 'metadata/src/main/*.java', 'metadata/src/test/*.java', 'raft/src/main/*.java', 'raft/src/test/*.java', 'server/src/main/*.java', 'server/src/test/*.java', 'storage/src/main/*.java', 'storage/src/test/*.java', 'streams/src/main/*.java', 'streams/src/test/*.java', 'connect/*/src/main/*.java', 'connect/*/src/test/*.java', 'group-coordinator/src/main/*.java', 'group-coordinator/src/test/*.java', 'docs/design/*.md', 'docs/operations/*.md', 'build.gradle']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/src/test/resources/*', '*/src/main/resources/*', '*/testFixtures/*', '*Generated.java', '*_generated.java', '*.pb.java', 'clients/src/main/java/org/apache/kafka/common/message/*']
+  max_bytes: 160000000

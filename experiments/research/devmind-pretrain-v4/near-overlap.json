@@ -1,0 +1,3252 @@
+{
+  "candidate_union": [
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "tsdb/fileutil/preallocate_other.go#lines=1-25",
+        "raw_content_sha256": "765a3f0ef889d7a472922c117eaccfa55435461791e3d1a46569254a5b57aa24",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "2d7a0e45e333bc123f917d0d68c691c6485ebd9b2dd54cfb1720aed0a91d2a2a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.656,
+      "right": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7454545454545455,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7545454545454545,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7410714285714286,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7280701754385965,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/google/doc.go#lines=1-17",
+        "raw_content_sha256": "3b380997b0548731911bccf422a04ea0c6e9e27595ae45bef271801b08753459",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "011d5e217ab5bdd948e29de778e866f9f19fc8f3974d39215bee441d0824ad51",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7454545454545455,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7094017094017094,
+      "right": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7094017094017094,
+      "right": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6612903225806451,
+      "right": {
+        "location": "tsdb/fileutil/preallocate_other.go#lines=1-25",
+        "raw_content_sha256": "765a3f0ef889d7a472922c117eaccfa55435461791e3d1a46569254a5b57aa24",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "2d7a0e45e333bc123f917d0d68c691c6485ebd9b2dd54cfb1720aed0a91d2a2a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6666666666666666,
+      "right": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7592592592592593,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6535433070866141,
+      "right": {
+        "location": "client/v3/sort.go#lines=1-39",
+        "raw_content_sha256": "955fd46827544842c098cd962de20f3ea07539177d46c0a64a41598f9e703c6a",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6b61a0df1f37f7b18dee7b3211b80ef7c3ff4468fe52557bb7e27f696c6613ce",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7685185185185185,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.009615384615384616,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7870370370370371,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6833333333333333,
+      "right": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6859504132231405,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6859504132231405,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7410714285714286,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/sample/main.go#lines=1-22",
+        "raw_content_sha256": "f47cf6ac5596dc8cdc83e415b82cc2088413b151cb5d6c558903a6df71270f21",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b3d3b1da3802ca43524499e4cf936c378d2484da8d4e09b5094ff838fd2d061",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7592592592592593,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "tsdb/fileutil/preallocate_other.go#lines=1-25",
+        "raw_content_sha256": "765a3f0ef889d7a472922c117eaccfa55435461791e3d1a46569254a5b57aa24",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "2d7a0e45e333bc123f917d0d68c691c6485ebd9b2dd54cfb1720aed0a91d2a2a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.656,
+      "right": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7454545454545455,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7545454545454545,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7410714285714286,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7280701754385965,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/github/doc.go#lines=1-17",
+        "raw_content_sha256": "2777ba67fbfc488c8eba9745d7921143827a791cfb2180adb6290fe9e65f01b6",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "0b57e7bdfb4f0fbf65d57f205b267b7cae4a1bf38213a105ca8ed931487d829c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7454545454545455,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/sync_darwin.go#lines=1-27",
+        "raw_content_sha256": "7e3b4a1e7e2e6759356b9d4d9c978c66994e4ca9c49190dc898be3821e6a0462",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "0d12e1e5ea5238d33d01069498d50cb4246f4a7107dd1852b6f39ad8846108c9",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6776859504132231,
+      "right": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7614678899082569,
+      "right": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7614678899082569,
+      "right": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7068965517241379,
+      "right": {
+        "location": "tsdb/fileutil/preallocate_other.go#lines=1-25",
+        "raw_content_sha256": "765a3f0ef889d7a472922c117eaccfa55435461791e3d1a46569254a5b57aa24",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "2d7a0e45e333bc123f917d0d68c691c6485ebd9b2dd54cfb1720aed0a91d2a2a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7130434782608696,
+      "right": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/fileutil/mmap_js.go#lines=1-29",
+        "raw_content_sha256": "501c1beba44e69b39ae0df1b1ef0e824dab8118da7f9e8c59dc487c6bcbad468",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "3e07b3b4dd501d113a4081ce8c98517a686bb73586c02ca0ac395e7f624800a8",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.82,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "client/v3/sort.go#lines=1-39",
+        "raw_content_sha256": "955fd46827544842c098cd962de20f3ea07539177d46c0a64a41598f9e703c6a",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6b61a0df1f37f7b18dee7b3211b80ef7c3ff4468fe52557bb7e27f696c6613ce",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.83,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/fileutil/sync.go#lines=1-24",
+        "raw_content_sha256": "28c18733e75153d395aefc28f59bb07183e5abafbbb10876069899725f80f656",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "73be14848aed8a3ce97f6595a75c793a90519e77aa5103e35b00206b6270645f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.8137254901960784,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6693548387096774,
+      "right": {
+        "location": "tsdb/chunks/head_chunks_windows.go#lines=1-18",
+        "raw_content_sha256": "8090b4eda26a7cb2b343c98e6749288d1f0220bdd59ccc8ad0067360f4883217",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "977febc701ecb38bcac58149df28223e4303fac6a807d67a93d1b0b23aa2cf7c",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7321428571428571,
+      "right": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7345132743362832,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7345132743362832,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7980769230769231,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.82,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/buildkite/doc.go#lines=1-15",
+        "raw_content_sha256": "2b9d373d1304b82caacd99280c8f075bddccdaafd30c90528d5b4bb6ffdc937a",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "10b8d33f567aee8a49204fe0e2c51e7d31f680395fd38cbedd3c9b989457380c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "tsdb/fileutil/flock_js.go#lines=1-32",
+        "raw_content_sha256": "938a7cc86c5518f7e7e690439e6e90ef86660b867c85f0e182e8f4fd14a73f03",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "f03834e138c0473256c3d2e81ff34d5d9e74624621e5be49929c3205728e8f54",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.664,
+      "right": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.664,
+      "right": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7155172413793104,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7033898305084746,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6587301587301587,
+      "right": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6916666666666667,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/init.go#lines=1-17",
+        "raw_content_sha256": "2c75c435b81e0366dd040539e378a31d10b0438500692437c4e916b566c70f43",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "14d9504ab129788840ff2b038c861450484ebf8ff3a99bfa8dc667f5f0e8b077",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6916666666666667,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.664,
+      "right": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7068965517241379,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7155172413793104,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7033898305084746,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6916666666666667,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/predicate.go#lines=1-20",
+        "raw_content_sha256": "d2e36e817c5a3b142501151c6aa415f4489360ec83994b6396e08dcdfb4b5557",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "24778b22d6c4961dde1477886d186fbaa019774859d9ccc31f7a924ec5d1a48c",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7068965517241379,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7068965517241379,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6587301587301587,
+      "right": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6916666666666667,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "server/etcdserver/api/doc.go#lines=1-16",
+        "raw_content_sha256": "efe5a050fa4b27d6f3267e958a5cf48c426a814135de2059f80ec5241e38f045",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "2549dfcc9e4fab49b7633151de43bc95e710e40240fafb0f6dafc6c7c3b5a4a3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7068965517241379,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/preallocate_other.go#lines=1-25",
+        "raw_content_sha256": "765a3f0ef889d7a472922c117eaccfa55435461791e3d1a46569254a5b57aa24",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "2d7a0e45e333bc123f917d0d68c691c6485ebd9b2dd54cfb1720aed0a91d2a2a",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/preallocate_other.go#lines=1-25",
+        "raw_content_sha256": "765a3f0ef889d7a472922c117eaccfa55435461791e3d1a46569254a5b57aa24",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "2d7a0e45e333bc123f917d0d68c691c6485ebd9b2dd54cfb1720aed0a91d2a2a",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.656,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.656,
+      "right": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7454545454545455,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7545454545454545,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7410714285714286,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7280701754385965,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/bundle/constants.go#lines=1-17",
+        "raw_content_sha256": "4c809ab19e9d5535293e9c2125d610b019d8872218551cae3ead3387766d38f0",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "2dfd5565a220cfdfec46199cbdb769bcc39945c0ad2d95f3f8afe8ee2273ede2",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7454545454545455,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6612903225806451,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/dir_unix.go#lines=1-22",
+        "raw_content_sha256": "9ce97380e6edc528d6eb656fc2b112c4815a52c711d0cb2966e3d6b0a9d1b232",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "3713235254f0f93940ffbf4daabc5b41c086ceb2ed7f6ccfb109168eab99d422",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/cue/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "14ce72bc10352b5027f6cbaa732d3e7f00f1b9325188e1e2acc8d2e4abd1c982",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "4f95f26f6512e643dbbd4596a2b13933356a899cad5d7ce6bc2a4f72688e2c22",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6776859504132231,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/cue/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "14ce72bc10352b5027f6cbaa732d3e7f00f1b9325188e1e2acc8d2e4abd1c982",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "4f95f26f6512e643dbbd4596a2b13933356a899cad5d7ce6bc2a4f72688e2c22",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6859504132231405,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/cue/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "14ce72bc10352b5027f6cbaa732d3e7f00f1b9325188e1e2acc8d2e4abd1c982",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "4f95f26f6512e643dbbd4596a2b13933356a899cad5d7ce6bc2a4f72688e2c22",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/cue/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "14ce72bc10352b5027f6cbaa732d3e7f00f1b9325188e1e2acc8d2e4abd1c982",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "4f95f26f6512e643dbbd4596a2b13933356a899cad5d7ce6bc2a4f72688e2c22",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.664,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/cue/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "14ce72bc10352b5027f6cbaa732d3e7f00f1b9325188e1e2acc8d2e4abd1c982",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "4f95f26f6512e643dbbd4596a2b13933356a899cad5d7ce6bc2a4f72688e2c22",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6776859504132231,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/payload.go#lines=1-21",
+        "raw_content_sha256": "5f7869c871e2e862d8fa094d5f4c282c4955378e699ba99bc1647a53e2594bf4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "525b906ab5ecff796956658a9233c788851efb0043fa7bc194e1c736da62ced3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/payload.go#lines=1-21",
+        "raw_content_sha256": "5f7869c871e2e862d8fa094d5f4c282c4955378e699ba99bc1647a53e2594bf4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "525b906ab5ecff796956658a9233c788851efb0043fa7bc194e1c736da62ced3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.680327868852459,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/payload.go#lines=1-21",
+        "raw_content_sha256": "5f7869c871e2e862d8fa094d5f4c282c4955378e699ba99bc1647a53e2594bf4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "525b906ab5ecff796956658a9233c788851efb0043fa7bc194e1c736da62ced3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6693548387096774,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/payload.go#lines=1-21",
+        "raw_content_sha256": "5f7869c871e2e862d8fa094d5f4c282c4955378e699ba99bc1647a53e2594bf4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "525b906ab5ecff796956658a9233c788851efb0043fa7bc194e1c736da62ced3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6587301587301587,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/types/payload.go#lines=1-21",
+        "raw_content_sha256": "5f7869c871e2e862d8fa094d5f4c282c4955378e699ba99bc1647a53e2594bf4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "525b906ab5ecff796956658a9233c788851efb0043fa7bc194e1c736da62ced3",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "cmd/cosign/cli/fulcio/fulcio.go#lines=1-30",
+        "raw_content_sha256": "5a18e50c48f10b19bc18503cdb10c1a1b9027916a40495fabd3fd2afb36d49f4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "692f75e09884ce28896be9b144d281805024f831c5592e0fc1a9c7ced127d01d",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6776859504132231,
+      "right": {
+        "location": "pkg/cosign/rego/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "3e424f949364e90d6b980ecfd2255a613ac1e6a056a74c50cef58e4921588fc9",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "6a17f1c9ab62e545ed56d5789767a8e2fb8fcc037c79ee53120364719f94f2df",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "client/v3/sort.go#lines=1-39",
+        "raw_content_sha256": "955fd46827544842c098cd962de20f3ea07539177d46c0a64a41598f9e703c6a",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6b61a0df1f37f7b18dee7b3211b80ef7c3ff4468fe52557bb7e27f696c6613ce",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7663551401869159,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "pkg/providers/doc.go#lines=1-18",
+        "raw_content_sha256": "e897c920cafe7644baa3b4360194a24a3ba5ee793e18022450eee1c535fa1ec1",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9174b221d0cffe25c8561c6b629d4ebeb7bbb63c916a88ddea31ece0ca1d08ae",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7522935779816514,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7008547008547008,
+      "right": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7387387387387387,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6833333333333333,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6833333333333333,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/fileutil/mmap_amd64.go#lines=1-18",
+        "raw_content_sha256": "6d670d8f044715837bd072933cf2512a668da5924536c9ebe2e3c4a7d9388ab9",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "6263033b0fde424fb54d5131cf992cf7b4cb23d08ab7cd331d58347d87e38ab7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7387387387387387,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/cosign/cli/fulcio/fulcio.go#lines=1-30",
+        "raw_content_sha256": "5a18e50c48f10b19bc18503cdb10c1a1b9027916a40495fabd3fd2afb36d49f4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "692f75e09884ce28896be9b144d281805024f831c5592e0fc1a9c7ced127d01d",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6587301587301587,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "cmd/cosign/cli/fulcio/fulcio.go#lines=1-30",
+        "raw_content_sha256": "5a18e50c48f10b19bc18503cdb10c1a1b9027916a40495fabd3fd2afb36d49f4",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "692f75e09884ce28896be9b144d281805024f831c5592e0fc1a9c7ced127d01d",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/rego/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "3e424f949364e90d6b980ecfd2255a613ac1e6a056a74c50cef58e4921588fc9",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "6a17f1c9ab62e545ed56d5789767a8e2fb8fcc037c79ee53120364719f94f2df",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6859504132231405,
+      "right": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/rego/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "3e424f949364e90d6b980ecfd2255a613ac1e6a056a74c50cef58e4921588fc9",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "6a17f1c9ab62e545ed56d5789767a8e2fb8fcc037c79ee53120364719f94f2df",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6747967479674797,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/rego/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "3e424f949364e90d6b980ecfd2255a613ac1e6a056a74c50cef58e4921588fc9",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "6a17f1c9ab62e545ed56d5789767a8e2fb8fcc037c79ee53120364719f94f2df",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.664,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/cosign/rego/fuzz_test.go#lines=1-26",
+        "raw_content_sha256": "3e424f949364e90d6b980ecfd2255a613ac1e6a056a74c50cef58e4921588fc9",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "6a17f1c9ab62e545ed56d5789767a8e2fb8fcc037c79ee53120364719f94f2df",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6776859504132231,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "client/v3/sort.go#lines=1-39",
+        "raw_content_sha256": "955fd46827544842c098cd962de20f3ea07539177d46c0a64a41598f9e703c6a",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "6b61a0df1f37f7b18dee7b3211b80ef7c3ff4468fe52557bb7e27f696c6613ce",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6507936507936508,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.680327868852459,
+      "right": {
+        "location": "pkg/providers/doc.go#lines=1-18",
+        "raw_content_sha256": "e897c920cafe7644baa3b4360194a24a3ba5ee793e18022450eee1c535fa1ec1",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9174b221d0cffe25c8561c6b629d4ebeb7bbb63c916a88ddea31ece0ca1d08ae",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7094017094017094,
+      "right": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6890756302521008,
+      "right": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7477477477477478,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "client/pkg/systemd/doc.go#lines=1-16",
+        "raw_content_sha256": "49283592e3167d441ca36912d97b7f80f161e20ee696813dd4c12212e564a3fb",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "6c31111baff211c3842375bdb11fe90f82f893538e99ff642a0cf2310d1fab2f",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7663551401869159,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/doc.go#lines=1-18",
+        "raw_content_sha256": "e897c920cafe7644baa3b4360194a24a3ba5ee793e18022450eee1c535fa1ec1",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "9174b221d0cffe25c8561c6b629d4ebeb7bbb63c916a88ddea31ece0ca1d08ae",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6693548387096774,
+      "right": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/doc.go#lines=1-18",
+        "raw_content_sha256": "e897c920cafe7644baa3b4360194a24a3ba5ee793e18022450eee1c535fa1ec1",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "9174b221d0cffe25c8561c6b629d4ebeb7bbb63c916a88ddea31ece0ca1d08ae",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6587301587301587,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/doc.go#lines=1-18",
+        "raw_content_sha256": "e897c920cafe7644baa3b4360194a24a3ba5ee793e18022450eee1c535fa1ec1",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "9174b221d0cffe25c8561c6b629d4ebeb7bbb63c916a88ddea31ece0ca1d08ae",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6721311475409836,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "left_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "left_recognized_header": null,
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6974789915966386,
+      "right": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "left_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "left_recognized_header": null,
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6776859504132231,
+      "right": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "left_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "left_recognized_header": null,
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7345132743362832,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "go/cmd/vtctl/plugin_s3backupstorage.go#lines=1-21",
+        "raw_content_sha256": "039d727307c7d8ebacf10e3bb797bdc13ea1c2dfa4599a1742c2e39d0d4fcb81",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "left_document_id": "97100ed52f402acbdff909ee4f3665135f711b5e491a6b654b2a57b2c9646866",
+      "left_recognized_header": null,
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7522935779816514,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6859504132231405,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/oci/doc.go#lines=1-18",
+        "raw_content_sha256": "c573893e9843c0b915bc215b789a49edf42abdd1054f184184b7caf3368c7184",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "9a235b742d7f18712dd6bcec51c5e80924b321479fbe8209dad86e3bcc939cc8",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7008547008547008,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6666666666666666,
+      "right": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "right_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tsdb/goversion/goversion.go#lines=1-19",
+        "raw_content_sha256": "b999da6cea2783adb790da2636c48bd3b53d0195e6ef2a871021d6adb0950b44",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "left_document_id": "a8c67742f80270caacfce8a71644fff857bf24d970314a36f20dcf4e7ca8597a",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6666666666666666,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6693548387096774,
+      "right": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "right_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "right_recognized_header": null
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6693548387096774,
+      "right": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7217391304347827,
+      "right": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "right_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "pkg/providers/spiffe/doc.go#lines=1-17",
+        "raw_content_sha256": "02acd8ba9ee83188427d844b25f75422528878395e731a540aa1fc41502778cf",
+        "source_id": "v3_system_cosign",
+        "split": "validation"
+      },
+      "left_document_id": "affa79821b2c201f8ec7e4c096f6150b0bd7a6d280dbe889403503b1bd5253ec",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7387387387387387,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "go/vt/vtctl/plugin_zk2topo.go#lines=1-22",
+        "raw_content_sha256": "37c2563a0341f4071d5ab987a23fc292995f3115c313520f76c20b4fe5263549",
+        "source_id": "v3_system_vitess",
+        "split": "train"
+      },
+      "left_document_id": "b14cd36f9465781c3a94e75483d16fcf59d85c7663e7bb456f7b42e96be117fa",
+      "left_recognized_header": null,
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6833333333333333,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "tests/framework/testutils/path.go#lines=1-25",
+        "raw_content_sha256": "01401c4f0833f95af5dad8e6b0364a2b2ffc1707443d688bc539458482d0f5a2",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "b8a6c9ecc26b3ad2366e712a909e8e7258565a8e72f6702f987c2ebb6c4233b7",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.6833333333333333,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    },
+    {
+      "boilerplate_normalized_similarity": 0.0,
+      "left": {
+        "location": "server/etcdserver/cindex/doc.go#lines=1-16",
+        "raw_content_sha256": "a4d2a0601b3ee6167c326ea72429a8abaf8130762d8bb089816497372aa03113",
+        "source_id": "v3_system_etcd",
+        "split": "train"
+      },
+      "left_document_id": "cdd485105144e56727521162b75be4d5d28c08e60a5039f4d948bacaf54c6576",
+      "left_recognized_header": "apache",
+      "proposed_by": [
+        "raw"
+      ],
+      "raw_similarity": 0.7387387387387387,
+      "right": {
+        "location": "tsdb/fileutil/mmap_386.go#lines=1-18",
+        "raw_content_sha256": "67c2578d3603f076826b266239ee8b2f3b5d6e0209859e8a684507644bb50818",
+        "source_id": "v2_prometheus_promql",
+        "split": "test"
+      },
+      "right_document_id": "e7a75cb71c4d17a27955a20d942b239785d4c14fccf3a8f904807dc5f9a5fdba",
+      "right_recognized_header": "apache"
+    }
+  ],
+  "coverage": {
+    "excluded_oversize": {
+      "developer_train:documents": 82,
+      "developer_train:utf8_bytes": 10584951,
+      "engineering_heldout:documents": 228,
+      "engineering_heldout:utf8_bytes": 36712374,
+      "other_train:documents": 17,
+      "other_train:utf8_bytes": 1249923,
+      "wikibooks_heldout:documents": 7,
+      "wikibooks_heldout:utf8_bytes": 524335
+    },
+    "population": {
+      "developer_train:documents": 103878,
+      "developer_train:utf8_bytes": 735281099,
+      "engineering_heldout:documents": 9597,
+      "engineering_heldout:utf8_bytes": 72006574,
+      "other_train:documents": 692685,
+      "other_train:utf8_bytes": 3264104346,
+      "wikibooks_heldout:documents": 9957,
+      "wikibooks_heldout:utf8_bytes": 50365543
+    },
+    "removed_header": {
+      "apache:documents": 700,
+      "spdx_copyright:documents": 255
+    },
+    "sampled": {
+      "developer_train:documents": 3420,
+      "developer_train:utf8_bytes": 15710043,
+      "engineering_heldout:documents": 9369,
+      "engineering_heldout:utf8_bytes": 35294200,
+      "other_train:documents": 1990,
+      "other_train:utf8_bytes": 8416038,
+      "wikibooks_heldout:documents": 836,
+      "wikibooks_heldout:utf8_bytes": 3845644
+    }
+  },
+  "limitations": "Only deterministic sampled documents no longer than 48000 characters are screened in full. Both MinHash/LSH modes can miss lexical similarities and cannot establish semantic independence, paraphrase absence or coverage of excluded large files. Recognized headers are removed only in memory for diagnostic similarity; original source and release remain unchanged.",
+  "max_complete_document_characters": 48000,
+  "normalized_candidates": 0,
+  "normalized_cross_split_comparisons": 87,
+  "normalized_screened_documents": 15615,
+  "raw_candidates": 139,
+  "raw_cross_split_comparisons": 2077,
+  "raw_screened_documents": 15615,
+  "release_id": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+  "sampling_moduli": {
+    "developer_train": 30,
+    "engineering_heldout": 1,
+    "other_train": 350,
+    "wikibooks_heldout": 12
+  }
+}

@@ -1,0 +1,44 @@
+schema_version: 1
+id: devmind-v1
+sources:
+  - sources/code-test-worlds.yaml
+  - sources/deployment-worlds.yaml
+  - sources/filesystem-worlds.yaml
+  - sources/git-manual.yaml
+  - sources/git-shell-train.yaml
+  - sources/git-shell-validation.yaml
+  - sources/git-technical.yaml
+  - sources/go-code.yaml
+  - sources/go-url-validation.yaml
+  - sources/k8s-concepts.yaml
+  - sources/k8s-shell-validation.yaml
+  - sources/k8s-tasks.yaml
+  - sources/k8s-tutorials.yaml
+  - sources/k8s-yaml.yaml
+  - sources/linux-ext4.yaml
+  - sources/linux-filesystems-validation.yaml
+  - sources/linux-networking-test.yaml
+  - sources/linux-process.yaml
+  - sources/otel-docs.yaml
+  - sources/otel-yaml-validation.yaml
+  - sources/platform-worlds.yaml
+  - sources/python-asyncio-validation.yaml
+  - sources/python-code.yaml
+  - sources/python-library.yaml
+  - sources/rust-alloc-validation.yaml
+  - sources/rust-book-train.yaml
+  - sources/rust-book-validation.yaml
+  - sources/rust-core.yaml
+transforms:
+  - transforms/chat.yaml
+  - transforms/code-test.yaml
+  - transforms/deployment.yaml
+  - transforms/lexical.yaml
+  - transforms/lm.yaml
+  - transforms/platform.yaml
+  - transforms/scenarios.yaml
+  - transforms/semantic.yaml
+  - transforms/source-qa.yaml
+  - transforms/tool.yaml
+splits: splits.yaml
+release: release.yaml

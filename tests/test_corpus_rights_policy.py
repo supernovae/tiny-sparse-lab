@@ -29,9 +29,15 @@ def policy(**changes: object) -> RightsPolicy:
         ("PSF-2.0", "eligible"),
         ("0BSD", "eligible"),
         ("GPL-2.0-only WITH Linux-syscall-note", "eligible_with_obligations"),
+        ("GPL-2.0 WITH Linux-syscall-note", "eligible_with_obligations"),
+        ("GPL-2.0+", "eligible_with_obligations"),
+        ("LGPL-2.1", "eligible_with_obligations"),
+        ("AGPL-3.0", "eligible_with_obligations"),
+        ("(GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause", "eligible_with_obligations"),
         ("MPL-2.0", "eligible_with_obligations"),
         ("CC-BY-4.0", "eligible_with_obligations"),
         ("CC-BY-SA-4.0", "eligible_with_obligations"),
+        ("ODC-By-1.0", "eligible_with_obligations"),
         ("MIT OR Apache-2.0", "eligible"),
         ("MIT AND GPL-3.0-only", "eligible_with_obligations"),
         ("CC-BY-NC-SA-4.0", "review_required"),
@@ -58,6 +64,33 @@ def test_exact_spdx_and_license_classes(expression: str, expected: str) -> None:
         if expected == "review_required"
         else "redistributable_under_source_terms"
     )
+
+
+def test_prospective_training_keeps_unrecognized_license_obligations_separate() -> None:
+    declaration = policy(
+        spdx_expression="Publisher-Proprietary",
+        redistribution_mode="metadata_reconstruction_only",
+    )
+    legacy = resolve_file_rights(declaration, "articles/paper.txt", b"Public paper")
+    prospective = resolve_file_rights(
+        declaration,
+        "articles/paper.txt",
+        b"Public paper",
+        prospective_private_research=True,
+    )
+    assert legacy.training_eligibility == "review_required"
+    assert prospective.training_eligibility == "eligible_with_obligations"
+    assert prospective.redistribution_mode == "metadata_reconstruction_only"
+    blocked = resolve_file_rights(
+        policy(
+            training_eligibility="ineligible",
+            training_restriction={"kind": "prohibited", "basis": "No ML training"},
+        ),
+        "articles/paper.txt",
+        b"Public paper",
+        prospective_private_research=True,
+    )
+    assert blocked.training_eligibility == "ineligible"
 
 
 @pytest.mark.parametrize(
@@ -131,6 +164,12 @@ def test_file_copyright_is_retained_with_source_notices() -> None:
         "Retain copyright and license notice",
         "# SPDX-FileCopyrightText: 2024 Example Authors",
     )
+    go = resolve_file_rights(
+        policy(spdx_expression="BSD-3-Clause"),
+        "src/main.go",
+        b"// Copyright 2025 The Go Authors. All rights reserved.\n// Use of this source code is governed by a BSD-style license.",
+    )
+    assert go.notices[-1] == "// Copyright 2025 The Go Authors. All rights reserved."
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_go_build
+kind: git
+canonical_uri: https://github.com/golang/go.git
+revision: 2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48
+license: BSD-3-Clause
+license_url: https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause
+  license_references: [https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE]
+  notices: ['Retain Go Authors copyright, BSD license and file-specific upstream notices.']
+domains: [programming, build_systems, developer_systems]
+document_kinds: [go, prose]
+source_family: v3_tool_go_build_train
+notes: 'Same commit as v2_go_standard, extending into cmd/go, cmd/compile and runtime implementation and authored tests without v2 doc/*.md or src/net, os, encoding or crypto paths; omit vendored, generated and testdata scripts.'
+acquisition:
+  include: ['src/cmd/go/internal/*.go', 'src/cmd/compile/internal/*.go', 'src/runtime/*.go', 'src/runtime/HACKING.md']
+  exclude: ['*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/_gen/*', '*/rewrite/*', '*_gen.go', '*_generated.go', '*Gen.go', '*_string.go', '*/secrets/*', 'src/runtime/zz_*.go', 'src/runtime/z*.go']
+  max_bytes: 32000000

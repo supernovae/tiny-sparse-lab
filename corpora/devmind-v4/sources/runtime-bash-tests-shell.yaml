@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_bash_tests_shell
+kind: git
+canonical_uri: https://git.savannah.gnu.org/git/bash.git
+revision: b8c60bc9ca365f8261fa97900b6fa939f6ebc303
+license: GPL-3.0-or-later
+license_url: https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/COPYING?h=bash-5.3
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-3.0-or-later
+  license_references: ['https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/COPYING?h=bash-5.3']
+  notices: ['Selected 81 test scripts carry GNU GPL-3.0-or-later header. Omit five without per-file GPL header, including misc/dev-tcp.tests with historical external IP addresses. Preserve FSF notices.']
+domains: [shell, developer_tools, testing]
+document_kinds: [shell, tests]
+source_family: v4_runtime_bash_tests_shell_train
+notes: 'Official GNU Savannah Bash 5.3 tag. Authored direct executable shell tests for expansion, quoting, parser, arrays, file descriptors and process handling. No examples/ (third-party donated scripts may lack clear grants), fixture .sub outputs, expected .right snapshots or manuals (FDL declared separately). Complete shallow Git tree and per-file rights header screen: 81 selected test scripts / 273,503 bytes before transform.'
+acquisition:
+  include: ['tests/*.tests']
+  exclude: ['tests/comsub-eof.tests', 'tests/misc/dev-tcp.tests', 'tests/misc/read-nchars.tests', 'tests/misc/wait-bg.tests', 'tests/parser.tests', '*/fixtures/*', '*/generated/*', '*/vendor/*', '*/third_party/*', '*/testdata/*', '*/secrets/*']
+  max_bytes: 450000

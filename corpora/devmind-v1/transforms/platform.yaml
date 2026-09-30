@@ -1,0 +1,10 @@
+id: devmind_v1_scenarios_platform
+version: '2'
+kind: deterministic_scenarios
+parameters:
+  generator: platform_fault_v2
+  seed_ranges:
+    - {start: 0, end: 799, scenario_family: platform_train, template_family: platform_template_train_v2}
+    - {start: 800, end: 899, scenario_family: platform_validation, template_family: platform_template_validation_v2}
+    - {start: 900, end: 999, scenario_family: platform_test, template_family: platform_template_test_v2}
+inputs: [platform_worlds]

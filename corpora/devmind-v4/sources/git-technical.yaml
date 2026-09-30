@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_git_technical
+kind: git
+canonical_uri: https://github.com/git/git.git
+revision: a018953688f1b10bddf91bff8747068f5f4746a4
+license: GPL-2.0-only
+license_url: https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-only
+  license_references: [https://github.com/git/git/blob/a018953688f1b10bddf91bff8747068f5f4746a4/COPYING]
+  notices: ['Retain Git contributors copyright and GPL notice; screen file-level exceptions and cited material.']
+domains: [source_control, programming, developer_systems]
+document_kinds: [prose, code]
+source_family: v2_git_technical_validation
+notes: 'Git technical documentation and core implementation, whole-repo validation family; exclude shell tests, generated manpages, imported references, testdata, fixtures and vendored code.'
+acquisition:
+  include: ['Documentation/technical/*.txt', 'Documentation/git-*.txt', 'builtin/*.c']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'Documentation/technical/pack-format.txt']
+  max_bytes: 35000000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_openssl
+kind: git
+canonical_uri: https://github.com/openssl/openssl.git
+revision: 5fd4370326b5586c5cf1ee6c43e5dce10f311f3b
+license: Apache-2.0
+license_url: https://github.com/openssl/openssl/blob/5fd4370326b5586c5cf1ee6c43e5dce10f311f3b/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/openssl/openssl/blob/5fd4370326b5586c5cf1ee6c43e5dce10f311f3b/LICENSE.txt, https://github.com/openssl/openssl/blob/5fd4370326b5586c5cf1ee6c43e5dce10f311f3b/README.md]
+  notices: ['Retain OpenSSL project and file-level attribution; README notes export restrictions on cryptography. Exclude externally linked submodules, test keys/certificates and FIPS generated checksums.']
+domains: [security, cryptography, networking]
+document_kinds: [c, tests, prose, build]
+source_family: v3_system_openssl_train
+notes: 'Official OpenSSL public GitHub mirror for TLS/QUIC and cryptographic primitives, provider implementations, small tests and design guidance; avoid external Git submodules and cryptographic test assets.'
+acquisition:
+  include: ['crypto/*.c', 'crypto/*.h', 'ssl/*.c', 'ssl/*.h', 'providers/*.c', 'providers/*.h', 'apps/*.c', 'apps/*.h', 'test/*.c', 'test/*.h', 'doc/*.md', 'README-QUIC.md', 'README-PROVIDERS.md', 'build.info']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/external/*', 'test/certs/*', 'test/recipes/*/certs/*', '*/test/*/certs/*', 'crypto/ec/curve448/curve448_tables.c', '*.pem', '*.key', '*.crt', '*.der', '*.p12', '*.bin', '*_generated.c', '*_generated.h']
+  max_bytes: 50000000

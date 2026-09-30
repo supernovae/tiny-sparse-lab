@@ -1,0 +1,17 @@
+schema_version: 2
+id: code_test_worlds
+kind: deterministic_generator
+canonical_uri: sparselab://generators/code_test_workflow_v2
+revision: '2'
+license: MIT
+license_url: https://github.com/supernovae/tiny-sparse-lab/blob/bf5d727/LICENSE
+rights:
+  training_eligibility: eligible
+  redistribution_mode: redistributable_under_source_terms
+  spdx_expression: MIT
+  license_references: [https://github.com/supernovae/tiny-sparse-lab/blob/bf5d727/LICENSE]
+  notices: ['SparseLab-owned inert disposable code/test world, not verified user code.']
+domains: [programming, testing_build, developer_workflows]
+document_kinds: [scenario]
+source_family: code_test_train
+acquisition: {generator: code_test_workflow_v2, generator_version: '2'}
