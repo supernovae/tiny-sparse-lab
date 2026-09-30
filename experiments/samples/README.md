@@ -3,6 +3,13 @@
 Samples teach the workflow and are safe to copy. They are not claims that a
 mechanism improves quality or performance.
 
+- [TinyStories microlab](../../docs/tinystories-microlab.md): a small story model,
+  explicit FFN-width matrix, and continued training, with
+  [copyable configs](tinystories-microlab/).
+- [Chained training program](../../docs/experiment-programs.md): an offline
+  authored plan with preparation, immutable locking, and a checkpoint-bound
+  child phase.
+
 Start with a packaged scaffold:
 
 ```sh

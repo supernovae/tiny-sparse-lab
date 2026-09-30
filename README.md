@@ -1,274 +1,133 @@
-# Tiny Sparse Lab
+<p align="center">
+  <img src="docs/assets/sparselab-banner.svg" alt="Tiny Sparse Lab — Small models. Real experiments." width="100%">
+</p>
 
-**A small-model workbench for learning mechanisms, training bounded local capabilities, and keeping the evidence with each experiment.**
+<p align="center">
+  <a href="https://github.com/supernovae/tiny-sparse-lab/actions/workflows/ci.yml"><img src="https://github.com/supernovae/tiny-sparse-lab/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&amp;logoColor=white" alt="Python 3.14"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-7ceac4" alt="MIT license"></a>
+  <a href="docs/experiment-programs.md"><img src="https://img.shields.io/badge/Experiments-YAML%20DSL-a7a2ff" alt="YAML experiment DSL"></a>
+</p>
 
-Tiny Sparse Lab is a reference laboratory, not a production training service. One run uses one process and one selected CPU or accelerator. A local controller can queue whole independent experiments on registered local or SSH workers. PyTorch is canonical; optional MLX is a separate FP32 Apple-Metal engine with explicit feature boundaries. There is no distributed process group, expert sharding, or multi-host backward pass.
+<p align="center">
+  <a href="docs/tinystories-microlab.md">Build your first microlab</a> ·
+  <a href="docs/experiment-programs.md">Write a training program</a> ·
+  <a href="docs/using-sparselab.md">CLI guide</a> ·
+  <a href="docs/research/roadmap.md">Research roadmap</a>
+</p>
 
-**New to training models? Start with [From flashcards to a useful local assistant](docs/from-toy-to-useful.md).** The `amber → lumen` exercise is deliberately invented recall, not general intelligence; the guide moves from that bounded task to licensed local conversation data and honest evaluation.
+Tiny Sparse Lab is a workbench for building small language models and finding
+out what makes them learn. Start with a story-writing decoder, add sparse
+attention, routed experts, or Engram memory, and compare what changed in quality,
+speed, and memory. We're building a lab where a training program is readable
+YAML, each checkpoint carries its inputs and history, and the evidence stays
+with the experiment—from your first laptop run to a controlled research campaign.
 
-## What is implemented
+## What will you build?
 
-| Area | Current boundary |
-|---|---|
-| Decoder and inference | RMSNorm/RoPE causal decoder, SwiGLU, tied/untied embeddings, generation/chat, and checkpoint-bound transcripts. Supported PyTorch paths use a bounded request-local KV cache; MLX uses full-prefix decoding. |
-| Architectural experiments | PyTorch dense, sliding-window, block-sparse, and MLA attention; local Top-K MoE; token, byte-addressed, and portable Engram memory. MLX supports dense and native block-sparse attention, not blanket architecture parity. |
-| Training and objectives | Exact target-counted gradient accumulation, whole-transcript or assistant-only conversation loss, block recomputation, periodic validation, and safe-boundary interruption. Versioned tool-call transcripts are training data, not executable tools. |
-| Checkpoints and continuation | Immutable, hash-verified generations; offline verification; explicit recovery; full-state same-engine/backend child resume; guarded terminal AdamW budget extension with its original decay horizon; compatible weight promotion with fresh training state. Validated legacy and narrow Llama safetensor import are separate from resume. |
-| Runtime and memory | Discovery, disposable precision probes, shape-only capacity estimates, explicit config proposals, isolated smoke/warmup pilots, and measured memory/timing. PyTorch supports capability-checked mixed precision, activation offload, and Adafactor alongside default AdamW. |
-| Independent workers | Local/SSH stdio protocol, capability-filtered durable queues, physical-device leases, sealed inputs, cancellation, explicit child resume, verified artifact/metric ingestion, and explicit Cartesian matrices. |
-| Evidence and dashboard | Checkpoint-bound evaluation/capability cards, recorded comparisons, and read-only live Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, Learn, and Research pages. |
-| Boundaries | No distributed backward, expert all-to-all, shared optimizer, optimizer-state/parameter/expert offload, automatic tool execution, or production-serving guarantee. |
+| Try this | What the lab gives you |
+| --- | --- |
+| **A TinyStories microlab** | Fit a tokenizer, train a small decoder, measure held-out loss, and generate your own story continuations. [Walkthrough →](docs/tinystories-microlab.md) |
+| **An architecture comparison** | Dense, sliding-window, block-sparse, or MLA attention; local Top-K MoE; token, byte, and portable Engram memory. Declare changes and matched controls in YAML. [Architecture →](docs/architecture.md) |
+| **A training program with a history** | Bounded parameter sweeps, verified checkpoints, explicit resume, budget extension, and weight promotion between phases. [Experiment DSL →](docs/experiment-programs.md) |
+| **A local task model** | Train on licensed conversations with whole-transcript or assistant-only loss, then evaluate a specific held-out capability. [Instruction training →](docs/instruction-training.md) |
+| **A corpus you can trace** | Acquire, shape, freeze, and export data with Corpus Forge; retain source, rights, tokenizer, and preparation identities. [Offline recipe →](corpora/devmind-sample-v0/README.md) |
 
-## Verified status and remaining gates
+Watch loss curves, throughput, memory, and checkpoint history in the local
+dashboard. Queue whole independent experiments on local or SSH workers when
+one machine isn't enough for your sweep. Each training run uses one process and
+one device; the controller schedules independent runs.
 
-The dated **2026-09-22/23 acceptance records** capture **335 passing tests**, Ruff lint/format checks, installed-wheel execution outside the checkout, and real CPU, MPS, and MLX/Metal scenarios. Later regression results remain with the relevant evidence records and commits rather than the implementation backlog. These are implementation checks, not a claim that a tiny checkpoint is a useful general assistant.
+## First run
 
-| Evidence | What was actually exercised |
-|---|---|
-| [Single-host acceptance](artifacts/acceptance/single_host_gate_2026_09_22.json) | CPU FP32/BF16 and Adafactor continuation, actual MPS/MLX execution, safe interruption/recovery, promotion, offline artifacts, staging, and populated dashboard checks. |
-| [Independent-worker acceptance](artifacts/acceptance/independent_workers_2026_09_23.json) | Three overlapping logical CPU workers, progress through controller loss, idempotent launch replay, cancellation and bitwise child-resume comparison, forced executor loss, CLI matrices, source/capacity rejection, and an actual MLX worker. |
-| [Scientific studies](artifacts/acceptance/scientific_studies_2026_09_22.json) | Preregistered multi-seed/multi-budget context/Engram comparisons and domain adaptation with retention checks. Untouched context overrides remained **0/8** at every endpoint; adaptation did not establish reliable held-out domain behavior and caused severe forgetting. |
-| [Research workbench evidence](docs/research/sample-report.md) | Completed CPU/offline smoke and nano campaigns plus an MPS/FineWeb-Edu micro study; the observed alias-card scores were zero. The MLA report smoke exercised factorial, nondominance, allocation, and boundary outputs, not model quality or speedup. |
-| [Dense-LM token-budget study](experiments/research/dense-lm-token-budget-v1/results.md) | On one ROCm device, three full-state continuations of the fixed TinyStories reference lowered held-out loss at 8.39M and 16.78M target exposures. Some fixed-prompt continuations worsened or contradicted the prompt; no broader text-quality claim or automatic promotion follows. |
-| [Dense-LM scale comparison](experiments/research/dense-lm-scale-v1/results.md) | On one measured ROCm device, three ~50M fully dense seeds at 16.78M supervised targets lowered held-out loss relative to like-seeded mature ~30M references. Six-case fixed generation remained mixed, with higher update time and memory; no architecture or broad text-quality claim and no automatic promotion. |
-| [Dense-LM decoding study](experiments/research/dense-lm-decoding-v1/results.md) | Reused six mature 30M/50M checkpoints without training. Greedy regression remains frozen; 22 development prompts selected a sampled decoder, followed by 990 generated cells on 55 separate prompts. Sampling reduced mechanical repetition but caused visible drift; independent subjective text quality remains unreviewed. |
-
-The [research roadmap](docs/research/roadmap.md) separates implemented paths,
-smoke evidence, task-level results, and open questions about
-lexical/portable/semantic memory and useful task models. [`TODO.md`](TODO.md)
-contains only pending implementation work.
-
-The latest worker UI check captured actual rendered curve pixels; standard browser screenshots stalled, so runtime-table values were additionally verified through Streamlit's app harness. The earlier populated single-host dashboard screenshots remain in the acceptance record.
-
-## Start with a bounded local path
-
-Requirements: Python 3.14 and [uv](https://docs.astral.sh/uv/). Run commands from the repository root.
-
-SparseLab-managed temporary files use `sparselab-work/` under the nearest project root by default. Override it with `sparselab --work-dir PATH COMMAND` (the option precedes the command) or `SPARSELAB_WORK_DIR`; relative paths resolve from the current working directory. The setting controls implicit scratch and the base for default study/scaffold workspaces (`<work-dir>/experiments/<study-name>`). Generic non-study run readers and controllers still default to project-local `sparselab-work/runs/`. Keep every study coordinate and resumed child under one [experiment workspace](docs/workspaces.md), normally `sparselab-work/experiments/<EXPERIMENT_ID>/`, with a shared `runs/` store and one receipt. Explicit stores, run directories, and outputs remain separately selectable; point those under `sparselab-work/` too if you want them kept out of version control.
+You need **Python 3.14** and [uv](https://docs.astral.sh/uv/). Clone the repository,
+then check the training lifecycle with this offline fixture before downloading data:
 
 ```sh
+git clone https://github.com/supernovae/tiny-sparse-lab.git
+cd tiny-sparse-lab
 uv sync --locked --dev
-uv run sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-smoke
-uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-full
-uv run sparselab eval runtime-full
-uv run sparselab generate runtime-full --prompt "Once upon a time" --max-new-tokens 24
-uv run sparselab chat runtime-full --max-new-tokens 12
-uv run sparselab dashboard --runs-dir sparselab-work/runs
+uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
+uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml --json
+uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml \
+  --through warmup --output sparselab-work/first-run/stage
+uv run --locked sparselab train configs/runtime_smoke_cpu.yaml \
+  --runs-dir sparselab-work/first-run/runs --run-id first-run \
+  --stage-bundle sparselab-work/first-run/stage
+uv run --locked sparselab eval first-run --runs-dir sparselab-work/first-run/runs
+uv run --locked sparselab dashboard --runs-dir sparselab-work/first-run/runs
 ```
 
-The smoke configuration is intentionally tiny. It exercises tokenizer, prepared data, training, evaluation, checkpointing, and local inference; it does not demonstrate fluent generation, broad capability, a performance win, or hardware capacity at larger scale. `stage --through warmup` runs disposable pilot subprocesses and seals their evidence; it does not alter the full run's weights, optimizer, schedule, counters, cursor, or RNG.
+This tiny synthetic run checks that the lab works. For real story data, follow
+the **[TinyStories microlab](docs/tinystories-microlab.md)**: a ~590K-parameter
+starter, a two-cell YAML comparison, generation, and a continued training run.
+Choose your backend explicitly and keep outputs in a named `sparselab-work/`
+workspace. Use fresh run IDs and stage directories when repeating an experiment.
+Inspect the config and check free storage before scaling; a memory estimate
+still needs a measured warmup.
 
-For auditable offline corpus derivation without training, use the
-[`devmind-sample-v0` teaching recipe](corpora/devmind-sample-v0/README.md).
-`sparselab corpus acquire`, `build`, `freeze`, and `export` keep source snapshots
-and release views in the ignored `sparselab-work/corpora/` workspace. Frozen
-release IDs and exact export hashes bind tokenizer fitting, preparation, and run
-evidence; inspection commands verify artifacts before reading them. This small
-MIT-authored fixture and its path oracle are not a scientific campaign or
-evidence of model quality.
-Corpus Forge also tracks independent [origin, verification, and training-shape
-lineage](docs/corpus-provenance.md). Variant release recipes reuse source
-snapshots for controlled shape and generated-token ablations; measurement
-does not itself establish training usefulness.
-Prospective external sources use the [Corpus Forge rights policy](docs/rights-policy.md):
-training eligibility, source-backed redistribution, and model-weight licensing
-are separate decisions. The optional [memorization diagnostic](docs/memorization.md)
-inspects generated output; it is not a training gate. Historical DevMind releases
-and their fail-gates remain unchanged.
+**Already have a provisioned ROCm/CUDA/XPU environment?** Use
+`uv run --locked --no-sync …` throughout. The Linux source lock uses CPU PyTorch;
+syncing it can replace your vendor build. Follow the [worker setup guide](docs/workers.md#user-provisioned-ssh-workers).
 
-The separate [DevMind v2 expanded corpus protocol](experiments/research/devmind-pretrain-v2/protocol.md)
-and [`corpora/devmind-v2/`](corpora/devmind-v2/corpus.yaml) pin prospective private-research
-source selection, held-out families, exclusion policy, and reconstruction-only
-publication. Its source inventory is not a trained model, a fitted tokenizer,
-an authorization to redistribute raw text, or a verified capability gain.
+## Experiments as programs
 
-For large, offline-replayable TinyStories inputs, `sparselab data snapshot OUTPUT`
-captures one pinned ordered train/validation source snapshot into a
-new directory and rejects partial or reused destinations. Set `source: local_stories`,
-the snapshot's `train_path`, `validation_path`,
-`source_manifest_path`, pinned `revision`, and `license` in the run config.
-`sparselab data bakeoff CONFIG OUTPUT` fits 8,192/12,000/16,384 train-only
-BPEs from that saved source and records a 2,000-document development selection
-receipt; `sparselab data prepare CONFIG` verifies the source manifest and packs
-all configured distinct stories without token-cap truncation. Mutable source,
-tokenizers, and prepared arrays belong in a named ignored workspace; see the
-[data-rich research protocol](experiments/research/tinystories-dense-30m-data-rich-v1/protocol.md)
-for split boundaries and acceptance gates. These commands do not make a
-scientific comparison by themselves.
+The YAML DSL makes the question, changed settings, and checkpoint lineage
+reviewable before training. A matrix expands concrete configs; an authored plan
+adds artifact identities, comparison contracts, immutable locks, and phases:
 
-To explore the two retained seed-42 endpoints on this ROCm workstation, run
-the [data-rich checkpoint comparator](experiments/research/tinystories-dense-30m-data-rich-v1/compare.py)
-from the separate data-rich worktree. It verifies both checkpoint identities
-and uses each model's native tokenizer without silently truncating prompts:
-
-```sh
-cd /home/byron/src/tiny-sparse-lab-data-rich
-export UV_PROJECT_ENVIRONMENT=/home/byron/src/tiny-sparse-lab/.venv
-export PYTHONPATH="$PWD/src"
-export SPARSELAB_WORK_DIR="$PWD/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1"
-uv run --locked --no-sync python experiments/research/tinystories-dense-30m-data-rich-v1/compare.py
-uv run --locked --no-sync python experiments/research/tinystories-dense-30m-data-rich-v1/compare.py --prompt "Mia carried the little red boat to the pond." --decoder sampled --seed 11
+```yaml
+# Phase excerpt; see the guide for a complete runnable plan.
+phases:
+  - id: first-pass
+    transition: fresh
+  - id: longer-run
+    transition: extend_budget
+    parent: first-pass
+    selector: terminal
+    at_step: 20
+    set:
+      training.max_steps: 40
+      training.max_tokens: 1280
+      optimizer.decay_steps: 20
 ```
 
-The first command opens a one-line-per-prompt terminal session; an empty line
-or Ctrl-D exits. `--prompt-file FILE` accepts a multiline UTF-8 prompt;
-`--prompt "..." --json` prints raw completions, native token counts/IDs and
-checkpoint digests. The same text and decoder settings are used for both
-models, but their vocabularies and contexts differ. On the frozen 256-story
-same-text control the data-rich 30M had lower bits/byte than the earlier
-50M; hand-entered continuations are exploratory, not a prose-quality score.
-The 50M also differs in width, depth, training data, budget, context and
-precision, so this comparison **cannot attribute an outcome to data variety
-instead of depth**. Checkpoints and source snapshots must remain available
-in the two sibling worktrees; no new training is run.
+Prepare inputs → validate and lock the plan → dispatch the first phase → verify
+its ingested checkpoint → dispatch the child → collect and reconstruct evidence.
+Child phases are submitted explicitly after their parent completes. Full-state
+continuation and fresh-state weight promotion have different semantics.
 
-For a local **self-blind review of already generated text**, import a verified
-study's original outputs into a new, ignored, task-owned bundle, then open the
-dedicated review page (not the read-only telemetry dashboard):
+**[Run a complete training program →](docs/experiment-programs.md)**
+The guide covers working commands, checkpoint chaining, and current implementation
+gaps tracked in [TODO.md](TODO.md#experiment-ergonomics).
 
-```sh
-uv run --locked sparselab surface import data-rich-v1 \
-  --campaign-root /home/byron/src/tiny-sparse-lab-data-rich \
-  --sample quick --selection-seed 2026 --presentation-seed 2027 \
-  --output sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026
-uv run --locked sparselab surface review \
-  sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026 --port 8502
-```
+## Bring your machine
 
-The import reads existing, hash-verified campaign JSONLs; it does not run models,
-replace missing files or change old study evidence. Submit all A/B judgments,
-complete the write-once blind review, then explicitly reveal identities and
-descriptive counts. `sparselab surface chat` with two to four
-`--cell ALIAS=GENERATION_PATH` options instead generates *exploratory* local
-checkpoint replies; its votes are not sealed review evidence. See the
-[Surface Review v1 guide](docs/research/surface-review-v1.md)
-for old decoding and triage imports, profiles, dimensions, seed rules, privacy
-limits and the optional verified triage/dashboard overlay. One person's review
-does not establish population preference or promote a model.
+| Platform / backend | Status today |
+| --- | --- |
+| **macOS** | CPU and Apple Silicon PyTorch MPS exercised; optional MLX/Metal is a separate engine with a smaller feature set. |
+| **Linux / WSL2** | CPU path and Linux CI; accelerator execution requires the matching vendor framework and drivers. |
+| **AMD ROCm** | Training studies and native HIP sparse attention exercised on an RX 7900 XTX under WSL2. Other host/device combinations need their own checks. |
+| **NVIDIA CUDA** | Runtime selection and reference execution paths implemented; hardware validation and native CUDA sparse kernels are coming next. |
+| **Intel XPU** | Runtime selection implemented; hardware acceptance is coming next. |
 
-Use new run IDs and stage output directories for another experiment; existing artifacts are not silently overwritten. Source-checkout installs intentionally use the PyTorch CPU index on Linux. CUDA/ROCm/XPU workers need a vendor-provisioned environment and the project wheel, not a blind CPU-locked `uv sync`. **Even `uv run --locked` without `--no-sync` can replace an already installed vendor PyTorch with the locked CPU build.** On an accelerator worker, first check the installed framework/device (for ROCm: `uv run --locked --no-sync python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else "unavailable")'`); then use `uv run --locked --no-sync sparselab inspect CONFIG --json` and `stage --through warmup` with an explicit backend. If the device is unavailable or unrecognized, stop and ask for device-specific provisioning rather than syncing the CPU lockfile or silently changing backends. See [worker installation boundaries](docs/workers.md#user-provisioned-ssh-workers).
+Host OS and compute backend are separate choices. PyTorch is the reference engine;
+MLX supports FP32 dense/native block-sparse training, AdamW, and block recomputation,
+with explicit limits on other mechanisms. See [runtime support](docs/runtime.md)
+for setup, precision, feature boundaries, and acceptance evidence.
 
-Host environment and compute backend are separate: native Linux and WSL2 use
-the same backend selection and validation paths, while macOS supports CPU and
-its available Apple engines. WSL2 does not imply ROCm. See the
-[runtime host model](docs/runtime.md#host-environment-and-compute-backend) for
-recorded host metadata, vendor provisioning, and hardware acceptance limits.
+## Explore the lab
 
-### Safely stop, verify, and resume
+- **Learn:** [From flashcards to a local assistant](docs/from-toy-to-useful.md) · [Architecture](docs/architecture.md) · [Memory and fit](docs/memory.md)
+- **Operate:** [CLI](docs/using-sparselab.md) · [Training](docs/training.md) · [Checkpoints](docs/checkpointing.md) · [Workers](docs/workers.md)
+- **Investigate:** [Research workbench](docs/research/README.md) · [Learning cycle](docs/research/experiment-learning-cycle.md) · [Evidence and results](docs/lab-status.md) · [Retained checkpoint exploration](docs/checkpoint-exploration.md)
 
-`--stop-after-step` finishes a successful update boundary and leaves a durable checkpoint. Verify it before continuing into a new child run:
+This is a reference lab under active development. Small runs help you test a
+mechanism; fluent language, reliable task behavior, and architecture advantages
+need their own evidence. We retain negative results and compare checkpoints
+under recorded conditions—lower validation loss alone doesn't settle text quality.
 
-```sh
-uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
-uv run sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
-  --resume sparselab-work/runs/runtime-part/checkpoints/latest.json
-```
-
-Full resume requires the same compatible experiment and engine/backend, and restores training state. `--promote CHECKPOINT` instead starts fresh optimizer/schedule/RNG/cursor state from compatible weights. Neither path resizes a model. A separate validated weights importer supports historical SparseLab checkpoints and a narrow compatible Llama safetensor mapping, not arbitrary downloaded models. See [checkpointing](docs/checkpointing.md) and [reproducibility](docs/reproducibility.md).
-
-### Optional MLX on Apple Silicon
-
-After preparing the smoke tokenizer above:
-
-```sh
-uv sync --locked --dev --extra mlx
-uv run --extra mlx sparselab train --runs-dir sparselab-work/runs configs/smoke_mlx.yaml --run-id mlx-smoke
-uv run --extra mlx sparselab eval mlx-smoke
-```
-
-Keep `--extra mlx` on subsequent `uv run` commands, or invoke the installed `.venv/bin/sparselab` directly. MLX is a separate FP32 Metal engine with AdamW, dense/native block-sparse attention, and block recomputation. It does not support MoE, Engram, MLA, sliding-window attention, mixed precision, activation offload, or Adafactor. Core-only installations can verify native MLX checkpoints without the SDK but cannot execute them. See [runtime support](docs/runtime.md).
-
-### Queue independent experiments
-
-```sh
-WORK=sparselab-work/experiments/runtime-smoke
-export SPARSELAB_WORK_DIR="$WORK"
-mkdir -p "$WORK"
-uv run sparselab worker register local-cpu --backend cpu --store "$WORK/runs"
-uv run sparselab experiment submit configs/runtime_smoke_cpu.yaml --worker local-cpu --store "$WORK/runs"
-uv run sparselab controller run --store "$WORK/runs"
-```
-
-The controller runs in the foreground; use another terminal for `experiment list`, `experiment cancel RUN_ID`, or `experiment resume RUN_ID` with the same `--store`. An interrupted controller does not stop an already launched worker or authorize another optimizer execution. `sparselab run CONFIG --store ROOT` registers a local endpoint and composes dispatch/warmup/training without requiring a separate controller terminal. See [worker operation and failure semantics](docs/workers.md), including vendor-provisioned SSH environments, transfer deadlines, explicit matrices, and hardware limits.
-
-Inspect the checked-in three-seed matrix without preparing data or changing the queue:
-
-```sh
-uv run sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
-  --dry-run --store "$WORK/runs"
-```
-
-Remove `--dry-run` to enqueue its three independent runs. Launch the dashboard with `--runs-dir "$WORK/runs"` to inspect imported results; worker databases and WAL files stay on their own hosts.
-
-## Why does training use so much memory?
-
-Training holds more than weights: gradients, optimizer moments, retained activations for backward, attention working tensors, runtime buffers, temporary workspace, and safety headroom all matter. Inactive MoE experts and frozen memory tables remain resident even if a token does not select them. The estimator keeps these categories disjoint and conservative; it is a plan, not a measured peak.
-
-There are four different levers:
-
-- **Disk checkpoints** preserve durable restart state.
-- **Activation recomputation** reruns selected forward blocks during backward to retain fewer activations.
-- **Gradient accumulation** combines small microbatches into one optimizer update.
-- **Activation offload** copies autograd-saved tensors to host storage, with explicit transfer and host-headroom accounting. Unified-memory capacity gain remains zero.
-
-None of these creates distributed training. Inference KV caches are request-local and receive no training-memory discount. Supported PyTorch decoding can be compared against the full-prefix reference with the Python `generate(..., use_cache=False)` API; unsupported paths use full-prefix evaluation. Read [memory accounting](docs/memory.md), [activation recomputation](docs/activation-checkpointing.md), [gradient accumulation](docs/gradient-accumulation.md), and [activation offload](docs/offload.md) before interpreting a memory number.
-
-## Learn with controlled comparisons
-
-1. Establish the CPU baseline and inspect its shape-only parameter/memory inventory.
-2. Change one explicit mechanism—attention, MoE, or Engram—while matching data, tokenizer, budget, seed, optimizer, and runtime conditions.
-3. Verify checkpoint-bound evaluation and retain negative results: a zero delta, failed fit, or unavailable capability is evidence.
-4. Scale only after the smaller task learns; a synthetic or narrow score does not certify broad usefulness.
-
-
-## Research workbench
-
-Learn one mechanism or scaffold a declared controlled study without downloading data or starting a run: [research workbench](docs/research/README.md). It distinguishes configuration-only scaffolding from the explicit tokenizer/data/training commands, and explains static reports and read-only dashboard browsing.
-
-For the higher-level workflow—how to level-set a baseline, turn a limitation into a smaller question, preserve real failures, and decide whether to fix, stop, replicate, scale, branch, or promote—use the [experiment learning cycle](docs/research/experiment-learning-cycle.md).
-
-Copyable starting points and real campaign records have distinct homes under
-[`experiments/`](experiments/). Mutable execution output belongs in the ignored
-`sparselab-work/experiments/` tree.
-
-The [experiment plan DSL](docs/experiments.md#authored-experiment-plans-and-resolved-locks)
-separates authored YAML, explicit artifact preparation, immutable resolved
-locks, worker execution and content-addressed evidence. The
-[offline corpus-shape/fraction CPU example](experiments/samples/README.md#corpus-shape-and-exact-generated-fraction)
-teaches that workflow; its multi-factor contrasts and smoke runs are not
-research conclusions.
-
-Published reports: [FFN-substitution smoke](artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) and [nano/offline follow-up](artifacts/research-reports/a444e2869973568e28315aa2cac1a97454d7f9d7b8742fd69de8358e867e7daf/index.html); see [outcomes and interpretation](docs/research/sample-report.md).
-
-The [project review](docs/project-review.md) preserves the original local learning observations and failed controls. The completed [context/Engram study](docs/context-engram-study.md#execution-results--2026-09-22) and [domain adaptation study](docs/path-domain-corpus.md#2026-09-22-execution-record) add multi-seed outcomes, collision measurements, and retention checks without selecting favorable endpoints. The [capability workflow](docs/capabilities.md) explains held-out narrow claims; [instruction training](docs/instruction-training.md) explains licensed local conversations and assistant-only/tool-transcript supervision.
-
-For a non-specialist account of what changed, what the measurements mean, and
-why lower loss did not settle text quality, see the [token-budget review](docs/research/dense-lm-token-budget-review.md).
-
-## Documentation
-
-- [Model construction readiness](docs/lab-readiness.md) — local mechanism smoke matrix, workspace preflight, measured batch proposals, and CUDA scale gates.
-- [Using SparseLab](docs/using-sparselab.md) — commands, local artifacts, and dashboard.
-- [Runtime policy](docs/runtime.md) — selection, probes, stages, measurements, and proposals.
-- [Memory accounting](docs/memory.md) — disjoint categories, capacity uncertainty, and observations.
-- [Checkpointing](docs/checkpointing.md) and [reproducibility](docs/reproducibility.md) — verified state, recovery, resume, promotion, and identity.
-- [Gradient accumulation](docs/gradient-accumulation.md), [activation recomputation](docs/activation-checkpointing.md), and [activation offload](docs/offload.md) — resource mechanisms and their distinct contracts.
-- [Independent workers](docs/workers.md) — queue, local/SSH operation, cancellation, recovery, verified ingestion, and hardware gates.
-- [Architecture](docs/architecture.md), [MoE](docs/moe.md), [sparse attention](docs/sparse-attention.md), [MLA](docs/mla.md), and [Engram](docs/engram.md) — reference mechanisms.
-- [Training and resume](docs/training.md), [metrics](docs/metrics.md), [experiments](docs/experiments.md), and [evidence](docs/evidence.md) — local lifecycle and comparison practice.
-- [Context/Engram study](docs/context-engram-study.md) and [domain corpus/adaptation](docs/path-domain-corpus.md) — frozen inputs, executed comparisons, negative results, and limitations.
-- [Dense-LM token-budget review](docs/research/dense-lm-token-budget-review.md) and [measured results](experiments/research/dense-lm-token-budget-v1/results.md) — plain-language findings, frozen protocol, full observations, and limitations.
-- [Surface Review v1](docs/research/surface-review-v1.md) — sealed imports, local self-blind judgments and separate exploratory checkpoint chat.
-- [Research roadmap](docs/research/roadmap.md) — capability evidence, unresolved questions, and proposed experiments.
-- [Implementation backlog](TODO.md) — pending changes that require code.
-- [Agent guidance](AGENTS.md) — safe workspaces, performance calibration, experiment boundaries, and verification.
-
-## Data and contributions
-
-Synthetic data is an offline fixture. TinyStories artifacts retain pinned source/revision and license metadata locally; other downloaded datasets retain their own terms. The checked-in curated fixtures, provenance, study reports, and bounded acceptance artifacts are intentional. Do not commit downloaded corpora, prepared arrays, full run directories, or model checkpoints.
-
-Contributions should preserve explicit causal, configuration, artifact, and comparison contracts. Read [CONTRIBUTING.md](CONTRIBUTING.md), verify the affected local behavior, and add a focused regression only when it protects an observable contract.
+Contributions are welcome: start with [CONTRIBUTING.md](CONTRIBUTING.md),
+the [code backlog](TODO.md), or the [research roadmap](docs/research/roadmap.md).
+Code is [MIT licensed](LICENSE); datasets retain their own terms. Keep downloaded
+corpora, prepared arrays, and checkpoints in ignored workspaces.

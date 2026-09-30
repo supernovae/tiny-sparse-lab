@@ -1,0 +1,9 @@
+matrix_version: 1
+base_config: run.yaml
+axes:
+  architecture:
+    - label: baseline
+      set: {}
+    - label: wider-ffn
+      set:
+        model.ffn_dim: 384

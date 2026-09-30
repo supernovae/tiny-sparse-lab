@@ -70,8 +70,8 @@ MLX decoding currently uses full-prefix evaluation, not a KV cache. MoE,
 Engram memory, MLA, sliding-window attention, mixed precision, activation
 offload, and Adafactor remain explicitly unsupported on this engine.
 
-Install the Apple-arm64 extra with `uv sync --extra mlx`; retain it when using
-`uv run --extra mlx ...`, or invoke the installed `.venv/bin/sparselab` directly.
+Install the Apple-arm64 extra with `uv sync --locked --extra mlx`; retain it when using
+`uv run --locked --extra mlx ...`, or invoke the installed `.venv/bin/sparselab` directly.
 A core-only installation can inspect and verify native checkpoint files without
 the MLX SDK, but cannot execute native training or inference.
 
@@ -93,9 +93,9 @@ MPS and MLX use unified memory. Their device recommendation/driver allocation an
 `inspect` builds a shape-only parameter inventory and a conservative memory estimate; it does not construct the model or load tokenizer/data/package assets. The estimate uses disjoint categories—resident weights, registered runtime buffers, gradients, optimizer state, retained activations, attention working tensors, workspace, and headroom. It is a planning model, not a measured peak. Missing capacity information produces `UNKNOWN`; an artificial `budget_bytes` can demonstrate an exceedance but cannot prove physical fit.
 
 ```sh
-uv run sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
-uv run sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
+uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml --json
+uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
+uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
 ```
 
 A stage bundle is an immutable, verified copy of the effective inputs. `inspect` records only preflight inspection; `validate` additionally validates backend and artifacts; `smoke` and `warmup` run short, disposable subprocess pilots. Pilots do not advance the eventual training run's optimizer, schedule, cursor, counters, or RNG. A stage output must be new, or an identical complete bundle is re-verified and reused. If estimation or a pilot exceeds its safe ceiling, staging writes a proposal and stops; it does not rewrite the requested config.

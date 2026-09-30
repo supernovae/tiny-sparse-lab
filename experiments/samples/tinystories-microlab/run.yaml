@@ -1,0 +1,47 @@
+schema_version: 2
+name: tinystories-microlab
+seed: 42
+model:
+  vocab_size: 2048
+  hidden_dim: 128
+  num_layers: 2
+  num_heads: 4
+  ffn_dim: 256
+  max_seq_len: 128
+tokenizer:
+  path: ../../../sparselab-work/experiments/tinystories-microlab/tokenizer/tokenizer.json
+dataset:
+  source: tinystories
+  revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64
+  cache_dir: ../../../sparselab-work/experiments/tinystories-microlab/data
+  train_max_documents: 2000
+  validation_max_documents: 100
+  train_max_tokens: 200000
+  validation_max_tokens: 16384
+training:
+  seq_len: 64
+  micro_batch_size: 2
+  gradient_accumulation: 2
+  max_steps: 40
+  max_tokens: 10240
+optimizer:
+  name: adamw
+  peak: 0.0003
+  floor: 0.00003
+  warmup_steps: 4
+runtime:
+  engine: pytorch
+  backend: cpu
+  precision: fp32
+checkpoint:
+  every_steps: 20
+  keep_periodic: true
+evaluation:
+  every_steps: 20
+  max_batches: 4
+logging:
+  root_dir: ../../../sparselab-work/experiments/tinystories-microlab/runs
+  every_steps: 1
+staging:
+  smoke_steps: 2
+  warmup_steps: 5
