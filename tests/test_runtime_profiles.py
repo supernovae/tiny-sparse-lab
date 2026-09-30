@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 import yaml
@@ -76,6 +76,35 @@ def test_real_cpu_probe_and_authorization(tmp_path):
     )
     assert info.backend == "cpu"
     assert "forward_backward_optimizer" in info.tested_features
+
+
+def test_mlx_namespace_package_probe_uses_loaded_core_identity(tmp_path, monkeypatch):
+    from sparselab.runtime_identity_probe import probe
+
+    namespace = ModuleType("mlx")
+    namespace.__file__ = None
+    namespace.__path__ = [str(tmp_path)]
+    core = ModuleType("mlx.core")
+    core.__file__ = str(tmp_path / "core.so")
+    core.__version__ = "0.32.2"
+    core.metal = SimpleNamespace(is_available=lambda: True)
+    namespace.core = core
+    monkeypatch.setitem(sys.modules, "mlx", namespace)
+    monkeypatch.setitem(sys.modules, "mlx.core", core)
+    monkeypatch.setitem(sys.modules, "torch", None)
+
+    result = probe(
+        {
+            "id": "mlx-namespace",
+            "engine": "mlx",
+            "backend": "metal",
+            "device_index": 0,
+        }
+    )
+    assert result["framework_path"] == str(Path(core.__file__).resolve())
+    assert result["framework_version"] == "0.32.2"
+    assert result["available"] is True
+    assert result["torch_path"] is None
 
 
 @pytest.mark.parametrize("command", ["train", "stage", "run"])
