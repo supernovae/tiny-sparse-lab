@@ -1,0 +1,2 @@
+Local Campaign example tiny_docs document 4.
+A verified immutable release keeps normalized text and source lineage together.

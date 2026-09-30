@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,15 @@ def _field(value: Any, name: str) -> Any:
 
 
 _STREAM = 1024 * 1024
+
+
+def _remaining_timeout(timeout: float, deadline: float | None) -> float:
+    if deadline is None:
+        return timeout
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("controller tick deadline exhausted")
+    return min(timeout, remaining)
 
 
 def _receipt_items(receipt: Any) -> list[ArtifactIdentity]:
@@ -436,6 +446,7 @@ def _download(
     *,
     receive_root: Path,
     timeout: float,
+    deadline: float | None = None,
 ) -> None:
     from sparselab.workers.transport import call_worker
 
@@ -456,7 +467,7 @@ def _download(
                         "max_bytes": _MAX_CHUNK,
                     },
                     receive_dir=Path(receive_dir),
-                    timeout=timeout,
+                    timeout=_remaining_timeout(timeout, deadline),
                 )
                 result = reply.result
                 attachment = next(iter(reply.attachments.values()), None)
@@ -504,6 +515,7 @@ def ingest_attempt_artifacts(
     bundle: BundleManifest,
     records: ExperimentStore,
     timeout: float = 1800,
+    deadline: float | None = None,
 ) -> dict[str, object]:
     """Fetch and atomically publish an entire verified run inventory.
 
@@ -547,6 +559,7 @@ def ingest_attempt_artifacts(
                 path,
                 receive_root=controller_root,
                 timeout=timeout,
+                deadline=deadline,
             )
         verified = _verify_complete_run(
             staging, receipt, run_items, worker, spec, bundle, records

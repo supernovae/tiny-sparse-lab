@@ -94,16 +94,26 @@ def projected_data_bytes(config: RunConfig) -> int:
     return math.ceil(1.25 * targets * per_token) + 32 * 1024 * 1024
 
 
-def training_storage_checks(config: RunConfig) -> list[StorageCheck]:
+def training_storage_checks(
+    config: RunConfig, *, work_dir: Path | None = None, run_dir: Path | None = None
+) -> list[StorageCheck]:
     checkpoint = int(inspection_report(config)["estimated_checkpoint_bytes"])
     # Two retained generations and one in-flight generation. The estimate omits
     # serialization metadata and temporary buffers, hence the 25% allowance.
     checkpoint_growth = math.ceil(3.75 * checkpoint)
     cache_growth = projected_data_bytes(config)
     destinations = (
-        (config.logging.root_dir, checkpoint_growth, 256),
+        (
+            run_dir if run_dir is not None else config.logging.root_dir,
+            checkpoint_growth,
+            256,
+        ),
         (config.dataset.cache_dir, cache_growth, 128),
-        (resolve_work_dir(), max(64 * 1024 * 1024, checkpoint // 4), 128),
+        (
+            work_dir if work_dir is not None else resolve_work_dir(),
+            max(64 * 1024 * 1024, checkpoint // 4),
+            128,
+        ),
     )
     grouped: dict[int, tuple[Path, int, int]] = {}
     for path, bytes_needed, inodes_needed in destinations:

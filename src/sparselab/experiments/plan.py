@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Literal
 
@@ -19,6 +20,30 @@ _HEX = re.compile(r"^[0-9a-f]{64}$")
 
 class _UniqueLoader(yaml.SafeLoader):
     pass
+
+
+class _ExactUniqueLoader(_UniqueLoader):
+    """Use the same strict YAML reader with exact authored floating-point values."""
+
+
+def _exact_yaml_float(loader: _ExactUniqueLoader, node: yaml.ScalarNode) -> Decimal:
+    text = loader.construct_scalar(node).replace("_", "")
+    if text.lower().lstrip("+-") in {".nan", ".inf"}:
+        raise ValueError("non-finite YAML number")
+    try:
+        if ":" in text:
+            sign = -1 if text.startswith("-") else 1
+            parts = text.lstrip("+-").split(":")
+            result = Decimal(0)
+            for part in parts:
+                result = result * 60 + Decimal(part)
+            return sign * result
+        return Decimal(text)
+    except InvalidOperation as error:
+        raise ValueError(f"invalid YAML number: {text}") from error
+
+
+_ExactUniqueLoader.add_constructor("tag:yaml.org,2002:float", _exact_yaml_float)
 
 
 def _unique_mapping(
@@ -53,8 +78,8 @@ def _reject_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON number: {value}")
 
 
-def read_document(path: Path) -> dict[str, Any]:
-    """Read strict, duplicate-free authored YAML or JSON without executing tags."""
+def read_document(path: Path, *, exact_decimals: bool = False) -> dict[str, Any]:
+    """Read strict duplicate-free YAML/JSON; optionally retain decimal number precision."""
     try:
         text = path.read_text(encoding="utf-8")
         raw = (
@@ -62,9 +87,12 @@ def read_document(path: Path) -> dict[str, Any]:
                 text,
                 object_pairs_hook=_unique_json_pairs,
                 parse_constant=_reject_constant,
+                **({"parse_float": Decimal} if exact_decimals else {}),
             )
             if path.suffix.lower() == ".json"
-            else yaml.load(text, Loader=_UniqueLoader)
+            else yaml.load(
+                text, Loader=_ExactUniqueLoader if exact_decimals else _UniqueLoader
+            )
         )
     except (OSError, ValueError, yaml.YAMLError) as error:
         raise ValueError(f"invalid experiment document {path}: {error}") from error
@@ -72,7 +100,9 @@ def read_document(path: Path) -> dict[str, Any]:
         raise TypeError(f"experiment document {path} must be a mapping")
 
     def finite(value: object) -> None:
-        if isinstance(value, float) and not math.isfinite(value):
+        if (isinstance(value, float) and not math.isfinite(value)) or (
+            isinstance(value, Decimal) and not value.is_finite()
+        ):
             raise ValueError(f"non-finite value in experiment document {path}")
         if isinstance(value, dict):
             for nested in value.values():

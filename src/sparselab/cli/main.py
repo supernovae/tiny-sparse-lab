@@ -81,7 +81,7 @@ from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
-from sparselab.workdir import ensure_work_dir
+from sparselab.workdir import ensure_work_dir, resolve_work_dir
 from sparselab.workspace_cleanup import apply_cleanup, plan_cleanup, write_plan
 from sparselab.workspace_preflight import (
     tokenizer_storage_checks,
@@ -2760,6 +2760,9 @@ def build_parser() -> argparse.ArgumentParser:
     from sparselab.corpus.cli import add_commands as add_corpus_commands
 
     add_corpus_commands(commands)
+    from sparselab.campaign.cli import add_commands as add_campaign_commands
+
+    add_campaign_commands(commands)
     from sparselab.cli.surface import add_commands as add_surface_commands
 
     add_surface_commands(commands)
@@ -2770,9 +2773,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args, extras = parser.parse_known_args()
+    if extras:
+        if args.command == "campaign" and args.json:
+            from sparselab.campaign.cli import argument_error
+
+            argument_error(
+                args.campaign_command, f"unrecognized arguments: {' '.join(extras)}"
+            )
+        parser.error(f"unrecognized arguments: {' '.join(extras)}")
     set_token_file(args.hf_token_file)
-    ensure_work_dir(args.work_dir)
+    from sparselab.campaign.cli import READ_ONLY_COMMANDS
+
+    if args.command == "campaign" and args.campaign_command in READ_ONLY_COMMANDS:
+        args.work_dir = resolve_work_dir(args.work_dir)
+    else:
+        ensure_work_dir(args.work_dir)
     try:
         args.handler(args)
     except (HuggingFaceAccessError, HuggingFaceCredentialError) as error:

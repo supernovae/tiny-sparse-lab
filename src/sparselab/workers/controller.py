@@ -22,6 +22,16 @@ from sparselab.workers.store import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _remaining_timeout(default: float, deadline: float | None) -> float:
+    """Keep each protocol wait within the remaining shared tick budget."""
+    if deadline is None:
+        return default
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("controller tick deadline exhausted")
+    return min(default, remaining)
+
+
 class Controller:
     """A durable, foreground controller for whole independent experiments.
 
@@ -30,7 +40,12 @@ class Controller:
     """
 
     def __init__(
-        self, root: Path, poll_seconds: float = 2, *, transfer_timeout: float = 1800
+        self,
+        root: Path,
+        poll_seconds: float = 2,
+        *,
+        transfer_timeout: float = 1800,
+        read_only: bool = False,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("poll_seconds must be positive")
@@ -38,9 +53,10 @@ class Controller:
             raise ValueError("transfer_timeout must be finite and positive")
         self.transfer_timeout = transfer_timeout
         self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
+        if not read_only:
+            self.root.mkdir(parents=True, exist_ok=True)
         self.poll_seconds = poll_seconds
-        self.store = ControllerStore(self.root)
+        self.store = ControllerStore(self.root, read_only=read_only)
         self._lock_path = self.root / ".controller.lock"
 
     @staticmethod
@@ -71,6 +87,7 @@ class Controller:
         payload: dict[str, object],
         *,
         attachments: dict[str, Path] | None = None,
+        deadline: float | None = None,
     ) -> dict[str, object]:
         """Run metadata-only RPCs without leaking reply directories into CWD."""
         from sparselab.workers.transport import call_worker
@@ -82,6 +99,7 @@ class Controller:
                 payload,
                 attachments=attachments,
                 receive_dir=Path(directory),
+                timeout=_remaining_timeout(30, deadline),
             )
             return self._reply_result(reply)
 
@@ -122,7 +140,13 @@ class Controller:
         self.store.save_worker(str(worker.worker_id), record)
         return capabilities
 
-    def workers(self, name: str | None = None, *, refresh: bool = True) -> list[Any]:
+    def workers(
+        self,
+        name: str | None = None,
+        *,
+        refresh: bool = True,
+        deadline: float | None = None,
+    ) -> list[Any]:
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
 
         results: list[Any] = []
@@ -131,13 +155,17 @@ class Controller:
             capabilities_data = record["capabilities"]
             if refresh:
                 try:
-                    answer = self._rpc_result(definition, "discover", {})
+                    answer = self._rpc_result(
+                        definition, "discover", {}, deadline=deadline
+                    )
                     capabilities_data = self._dump(
                         self._capability_for_definition(
                             definition, answer.get("capabilities", answer)
                         )
                     )
                 except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        return results
                     # A transport failure only changes availability; it cannot turn an
                     # executing receipt into failure or completion.
                     capabilities_data = {**capabilities_data, "status": "unknown"}
@@ -258,7 +286,11 @@ class Controller:
     def list_experiments(self) -> list[dict[str, object]]:
         return self.store.attempts()
 
-    def cancel(self, run_id: str) -> dict[str, object]:
+    def cancel(
+        self, run_id: str, *, deadline: float | None = None
+    ) -> dict[str, object]:
+        if deadline is not None:
+            _remaining_timeout(30, deadline)
         result = self.store.request_cancel(run_id)
         if result["status"] != "CANCEL_REQUESTED":
             return result
@@ -278,6 +310,7 @@ class Controller:
                 worker,
                 "cancel",
                 {"attempt_id": result["attempt_id"], "reason": "user"},
+                timeout=_remaining_timeout(30, deadline),
             )
         except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
             # The durable request is reconciled on a later poll; no local
@@ -380,7 +413,7 @@ class Controller:
         return True, None
 
     def _validate_candidate(
-        self, capability: Any, spec: Any
+        self, capability: Any, spec: Any, *, deadline: float | None = None
     ) -> tuple[Any | None, str | None]:
         """Run the concrete probe that converts first-use discovery into evidence."""
         from sparselab.workers.transport import RemoteProtocolError, call_worker
@@ -397,6 +430,7 @@ class Controller:
                         "config": self._dump(spec.config),
                         "bundle_digest": spec.dispatch_bundle_digest,
                     },
+                    timeout=_remaining_timeout(30, deadline),
                 )
             )
         except RemoteProtocolError as error:
@@ -404,6 +438,8 @@ class Controller:
                 return None, "validation busy"
             return None, f"validation failed: {error.message}"
         except (OSError, TimeoutError) as error:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise
             return None, f"validation unavailable: {error}"
         if answer.get("validation_status") != "passed":
             reason = answer.get("reason")
@@ -412,11 +448,13 @@ class Controller:
         if not isinstance(runtime, dict):
             return None, "validation returned malformed runtime"
         try:
-            discovered = self._rpc_result(definition, "discover", {})
+            discovered = self._rpc_result(definition, "discover", {}, deadline=deadline)
             refreshed = self._capability_for_definition(
                 definition, discovered.get("capabilities", discovered)
             )
         except (OSError, TimeoutError, RemoteProtocolError) as error:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise
             return None, f"validated capability refresh unavailable: {error}"
         if refreshed.validation_status != "passed":
             return None, "validated capability refresh did not persist probe evidence"
@@ -430,13 +468,13 @@ class Controller:
         return refreshed, None
 
     def _eligible_worker(
-        self, attempt: dict[str, Any]
+        self, attempt: dict[str, Any], *, deadline: float | None = None
     ) -> tuple[Any | None, str | None]:
         spec = self._model("ExperimentSpec", attempt["spec"])
         choices: list[tuple[int, str, Any]] = []
         reasons: list[str] = []
         active = self.store.attempts(RECONCILABLE_QUEUE_STATES)
-        for capability in self.workers(refresh=True):
+        for capability in self.workers(refresh=True, deadline=deadline):
             if any(
                 item.get("worker_id") == capability.worker_id
                 and item.get("terminal_receipt") is None
@@ -451,7 +489,9 @@ class Controller:
                 continue
             tested = capability
             if capability.validation_status != "passed":
-                tested, reason = self._validate_candidate(capability, spec)
+                tested, reason = self._validate_candidate(
+                    capability, spec, deadline=deadline
+                )
                 if tested is None:
                     reasons.append(f"{capability.name}: {reason}")
                     continue
@@ -479,13 +519,20 @@ class Controller:
                 return path.parent, manifest
         raise ValueError("prepared dispatch bundle is unavailable")
 
-    def _launch(self, attempt: dict[str, Any], capability: Any) -> None:
+    def _launch(
+        self,
+        attempt: dict[str, Any],
+        capability: Any,
+        *,
+        deadline: float | None = None,
+    ) -> None:
         from sparselab.workers.bundles import verify_dispatch_bundle
         from sparselab.workers.transport import call_worker
 
         worker = self._worker_for_attempt({"worker_id": capability.worker_id})
         if worker is None:
             raise ValueError("assigned worker registration is unavailable")
+        _remaining_timeout(self.transfer_timeout, deadline)
         if attempt["status"] == "QUEUED":
             if not self.store.assign(attempt["attempt_id"], capability.worker_id):
                 return
@@ -502,7 +549,7 @@ class Controller:
             "install_bundle",
             {"manifest_digest": manifest.digest(), "mode": "check"},
             attachments={"bundle.json": bundle_root / "bundle.json"},
-            timeout=self.transfer_timeout,
+            timeout=_remaining_timeout(self.transfer_timeout, deadline),
         )
         missing = self._reply_result(check).get("missing_asset_digests")
         if not isinstance(missing, list) or any(
@@ -523,7 +570,7 @@ class Controller:
             "install_bundle",
             {"manifest_digest": manifest.digest(), "mode": "install"},
             attachments=attachments,
-            timeout=self.transfer_timeout,
+            timeout=_remaining_timeout(self.transfer_timeout, deadline),
         )
         install_result = self._reply_result(install)
         if install_result.get("bundle_digest") != spec.dispatch_bundle_digest:
@@ -542,6 +589,7 @@ class Controller:
                     "bundle_digest": spec.dispatch_bundle_digest,
                 },
                 attachments={"spec.json": spec_path},
+                timeout=_remaining_timeout(30, deadline),
             )
         finally:
             spec_path.unlink(missing_ok=True)
@@ -588,7 +636,9 @@ class Controller:
             status = "CANCELLED"
         self.store.set_receipt(attempt["attempt_id"], receipt, status)
 
-    def _poll_active(self, attempt: dict[str, Any]) -> None:
+    def _poll_active(
+        self, attempt: dict[str, Any], *, deadline: float | None = None
+    ) -> None:
         """Reconcile a durable receipt; only transport failures create UNKNOWN."""
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
 
@@ -600,15 +650,20 @@ class Controller:
             return
         try:
             if attempt["status"] == "CANCEL_REQUESTED":
-                self.cancel(attempt["run_id"])
+                self.cancel(attempt["run_id"], deadline=deadline)
             result = self._rpc_result(
-                worker, "status", {"attempt_id": attempt["attempt_id"]}
+                worker,
+                "status",
+                {"attempt_id": attempt["attempt_id"]},
+                deadline=deadline,
             )
             receipt = result.get("receipt")
             if not isinstance(receipt, dict):
                 return
             self._reconcile_receipt(attempt, receipt)
         except (OSError, TimeoutError, RemoteProtocolError, ProtocolError) as error:
+            if deadline is not None and time.monotonic() >= deadline:
+                return
             self.store.mark_unknown_if_nonterminal(
                 attempt["attempt_id"], f"worker status unavailable: {error}"
             )
@@ -624,9 +679,9 @@ class Controller:
         }
         try:
             if terminal:
-                self._ingest(attempt, worker, receipt, origin_id)
+                self._ingest(attempt, worker, receipt, origin_id, deadline=deadline)
             else:
-                self._ingest_records(worker, origin_id, drain=False)
+                self._ingest_records(worker, origin_id, drain=False, deadline=deadline)
         except (
             OSError,
             TimeoutError,
@@ -634,6 +689,8 @@ class Controller:
             ProtocolError,
             ValueError,
         ) as error:
+            if deadline is not None and time.monotonic() >= deadline:
+                return
             if terminal:
                 self.store.mark_ingestion_error(attempt["attempt_id"], error)
             else:
@@ -655,13 +712,14 @@ class Controller:
         worker: Any,
         receipt: dict[str, object],
         origin_id: str,
+        deadline: float | None = None,
     ) -> None:
         from sparselab.workers.artifacts import ingest_attempt_artifacts
 
         if self._artifact_free_terminal(receipt):
             self.store.mark_ingestion_not_required(attempt["attempt_id"])
             return
-        self._ingest_records(worker, origin_id, drain=True)
+        self._ingest_records(worker, origin_id, drain=True, deadline=deadline)
         spec = self._model("ExperimentSpec", attempt["spec"])
         _, bundle = self._dispatch_bundle(spec)
         ingest_attempt_artifacts(
@@ -672,10 +730,18 @@ class Controller:
             bundle=bundle,
             records=self.store.metrics,
             timeout=self.transfer_timeout,
+            deadline=deadline,
         )
         self.store.mark_ingestion_complete(attempt["attempt_id"])
 
-    def _ingest_records(self, worker: Any, origin_id: str, *, drain: bool) -> None:
+    def _ingest_records(
+        self,
+        worker: Any,
+        origin_id: str,
+        *,
+        drain: bool,
+        deadline: float | None = None,
+    ) -> None:
         from sparselab.workers.transport import call_worker
 
         cursor = self.store.imported_sequence(origin_id)
@@ -691,7 +757,7 @@ class Controller:
                         "max_bytes": 4_194_304,
                     },
                     receive_dir=Path(directory),
-                    timeout=self.transfer_timeout,
+                    timeout=_remaining_timeout(self.transfer_timeout, deadline),
                 )
                 result = self._reply_result(reply)
                 if result.get("origin_id") != origin_id:
@@ -802,7 +868,9 @@ class Controller:
             },
         )
 
-    def _replay_assigned(self, attempt: dict[str, Any]) -> bool:
+    def _replay_assigned(
+        self, attempt: dict[str, Any], *, deadline: float | None = None
+    ) -> bool:
         """Replay delivery only before an executor has claimed the same receipt."""
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
 
@@ -811,7 +879,10 @@ class Controller:
             return False
         try:
             result = self._rpc_result(
-                worker, "status", {"attempt_id": attempt["attempt_id"]}
+                worker,
+                "status",
+                {"attempt_id": attempt["attempt_id"]},
+                deadline=deadline,
             )
         except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
             # A missing reply is deliberately indistinguishable from a delivery
@@ -842,13 +913,16 @@ class Controller:
                     worker,
                     "cancel",
                     {"attempt_id": attempt["attempt_id"], "reason": "user"},
+                    deadline=deadline,
                 )
-            self._launch(attempt, capability)
+            self._launch(attempt, capability, deadline=deadline)
         except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
             return False
         return True
 
-    def _retry_ingestion(self, attempt: dict[str, Any]) -> None:
+    def _retry_ingestion(
+        self, attempt: dict[str, Any], *, deadline: float | None = None
+    ) -> None:
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
 
         receipt = attempt["terminal_receipt"]
@@ -859,12 +933,15 @@ class Controller:
             return
         try:
             result = self._rpc_result(
-                worker, "status", {"attempt_id": attempt["attempt_id"]}
+                worker,
+                "status",
+                {"attempt_id": attempt["attempt_id"]},
+                deadline=deadline,
             )
             origin_id = result.get("origin_id")
             if not isinstance(origin_id, str):
                 raise TypeError("worker status omitted outbox origin identity")
-            self._ingest(attempt, worker, receipt, origin_id)
+            self._ingest(attempt, worker, receipt, origin_id, deadline=deadline)
         except (
             OSError,
             TimeoutError,
@@ -872,33 +949,61 @@ class Controller:
             ProtocolError,
             ValueError,
         ) as error:
+            if deadline is not None and time.monotonic() >= deadline:
+                return
             self.store.mark_ingestion_error(attempt["attempt_id"], error)
 
-    def tick(self) -> dict[str, int]:
+    def tick(self, deadline: float | None = None) -> dict[str, int]:
+        """Reconcile durable attempts within an optional monotonic wait budget."""
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
 
         queued = self.store.attempts(frozenset({"QUEUED"}))
         assigned = 0
+
+        def exhausted() -> bool:
+            return deadline is not None and time.monotonic() >= deadline
+
         for attempt in queued:
-            capability, reason = self._eligible_worker(attempt)
+            if exhausted():
+                break
+            try:
+                capability, reason = self._eligible_worker(attempt, deadline=deadline)
+            except TimeoutError:
+                if exhausted():
+                    break
+                raise
+            if exhausted():
+                break
             if capability is None:
                 self.store.set_queued_reason(attempt["attempt_id"], reason)
                 continue
             try:
-                self._launch(attempt, capability)
+                self._launch(attempt, capability, deadline=deadline)
                 assigned += 1
             except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
-                # The CAS assignment is retained; the next tick performs the
-                # same-ID receipt reconciliation before any replay.
+                # CAS assignment remains eligible for same-ID receipt reconciliation.
+                if exhausted():
+                    break
                 continue
-        for attempt in self.store.attempts(RECONCILABLE_QUEUE_STATES):
-            if attempt["terminal_receipt"] is None:
-                self._poll_active(attempt)
-        for attempt in self.store.attempts(frozenset({"ASSIGNED", "CANCEL_REQUESTED"})):
-            if self._replay_assigned(attempt):
-                assigned += 1
-        for attempt in self.store.pending_ingestion():
-            self._retry_ingestion(attempt)
+        if not exhausted():
+            for attempt in self.store.attempts(RECONCILABLE_QUEUE_STATES):
+                if exhausted():
+                    break
+                if attempt["terminal_receipt"] is None:
+                    self._poll_active(attempt, deadline=deadline)
+        if not exhausted():
+            for attempt in self.store.attempts(
+                frozenset({"ASSIGNED", "CANCEL_REQUESTED"})
+            ):
+                if exhausted():
+                    break
+                if self._replay_assigned(attempt, deadline=deadline):
+                    assigned += 1
+        if not exhausted():
+            for attempt in self.store.pending_ingestion():
+                if exhausted():
+                    break
+                self._retry_ingestion(attempt, deadline=deadline)
         return {"queued": len(queued), "assigned": assigned}
 
     @contextmanager

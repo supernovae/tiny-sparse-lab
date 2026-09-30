@@ -38,9 +38,9 @@ class ControllerStore:
     and imports their immutable records through :class:`ExperimentStore`.
     """
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, read_only: bool = False) -> None:
         self.root = root
-        self.metrics = ExperimentStore(root)
+        self.metrics = ExperimentStore(root, read_only=read_only)
         self.path = self.metrics.path
 
     @contextmanager
