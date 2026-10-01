@@ -179,6 +179,7 @@ its interpreter or installed source differs. Choose a fresh task directory;
 never overwrite a running or previous acceptance campaign.
 
 ```sh
+set -eu
 git switch main
 git pull --ff-only
 git switch -c acceptance/runtime-contract-rocm
