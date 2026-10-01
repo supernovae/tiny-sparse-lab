@@ -1,0 +1,79 @@
+{
+  "record_version": 1,
+  "recorded_at_utc": "2026-10-01T17:45:29.551Z",
+  "claim": "Implementation verification and launch readiness; no DevMind v4 replay outcome is claimed here.",
+  "base_main_commit": "d47b2cdd725b444ad5d2297ee9096673fa7733c7",
+  "branch": "fix/pinned-corpus-implementation-replay",
+  "historical_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+  "checks": [
+    {
+      "check": "Ruff on all changed Python files",
+      "status": "PASS"
+    },
+    {
+      "check": "Focused replay/recovery/lifecycle/archive tests",
+      "passed": 33,
+      "seconds": 244.56
+    },
+    {
+      "check": "Full suite with -m 'not cuda and not rocm and not xpu and not network'",
+      "passed": 1323,
+      "skipped": 10,
+      "deselected": 2,
+      "seconds": 1136.26
+    },
+    {
+      "check": "Additional real uv-only subprocess boundary assertion",
+      "passed": 1,
+      "seconds": 11.39
+    },
+    {
+      "check": "Actual recovery inspect/plan before any replay state existed",
+      "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED",
+      "evidence": "pinned-replay-preflight.json"
+    },
+    {
+      "check": "Actual recovery reconstruct with --allow-network but without replay authorization",
+      "exit_code": 1,
+      "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+    },
+    {
+      "check": "Actual e260ea8 sample acquire/build/freeze with independent current verifier",
+      "status": "MATCH",
+      "evidence": "pinned-replay-smoke.json"
+    },
+    {
+      "check": "git diff --check",
+      "status": "PASS"
+    }
+  ],
+  "earlier_failed_verification": {
+    "cause": "16 GiB /tmp tmpfs exhausted by retained dedicated replay environments",
+    "passed": 17,
+    "failed": 6,
+    "errors": 10,
+    "evidence": "/srv/sparselab/state/experiments/devmind-pretrain-v4-pinned-replay/test-scratch-exhaustion.log",
+    "correction": "Moved TMPDIR and pytest --basetemp to persistent scratch; fixtures now remove their own environments at teardown. The subsequent focused and broader suites passed."
+  },
+  "scratch": "/srv/sparselab/state/scratch/pinned-replay-tests",
+  "filesystem": {
+    "root": "/srv/sparselab/state",
+    "device": "/dev/sde",
+    "capacity_bytes": 1081101176832,
+    "available_bytes": 1016265244672,
+    "total_inodes": 67108864,
+    "available_inodes": 66981324,
+    "required_free_margin_bytes": 270275294208,
+    "required_free_margin_inodes": 16777216,
+    "carried_forward_conservative_growth_reservation_bytes": 568000000000,
+    "projected_remaining_bytes": 448265244672,
+    "reserved_growth_inodes": 30000000,
+    "projected_remaining_inodes": 36981324,
+    "basis": "Original Try-2 conservative reservations, applied to newly observed free space. Existing partial acquisition and all previous evidence remain present. Unbounded Git cache growth requires a runtime margin guard."
+  },
+  "todo": "Removed completed implementation-identity replay acceptance item; future semantic-version design documented separately without changing legacy identity.",
+  "limits": [
+    "No DevMind v4 acquisition/build/release result yet.",
+    "No tokenizer/model/accelerator/long-run gate exercised by this implementation verification."
+  ]
+}
