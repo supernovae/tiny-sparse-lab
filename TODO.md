@@ -25,14 +25,6 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Experiment ergonomics
 
-- [ ] Fix authored experiment-plan locking across supported engines/backends.
-  `plan_version: 1` currently rejects non-CPU execution in
-  `src/sparselab/experiments/lock.py`; this is a backend-support bug, not a DSL
-  design boundary. Resolve and bind actual worker/device capabilities for
-  PyTorch CPU/MPS/ROCm/CUDA/XPU and supported MLX/Metal configurations, preserve
-  explicit precision and artifact identities, and reject unavailable or
-  incompatible targets without fallback. Add focused lock/dispatch regressions
-  and require actual hardware gates before claiming accelerator acceptance.
 - [ ] Support direct TinyStories and manifest-backed `local_stories` inputs in
   authored experiment locks. Bind their pinned source, tokenizer provenance,
   and verified prepared-data identities without requiring Corpus Forge

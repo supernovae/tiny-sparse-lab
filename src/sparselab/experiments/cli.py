@@ -237,6 +237,8 @@ def _lock(args: argparse.Namespace) -> None:
             "lock": str(path),
             "scientific_sha256": resolved.scientific_sha256,
             "plan_sha256": resolved.plan_sha256,
+            "valid_science": True,
+            "runtime_availability": "not_verified",
         },
     )
 
@@ -248,6 +250,7 @@ def locked_cell_request(
     workspace: Path,
     controller: Any,
     *,
+    runtime_binding_sha256: str | None = None,
     read_only: bool = False,
 ) -> dict[str, Any]:
     """Construct the same lock-bound worker request for CLI and campaign runs."""
@@ -302,6 +305,7 @@ def locked_cell_request(
             "config_sha256": cell.config_sha256,
             "parent_checkpoint_sha256": parent_digest,
             "execution_binding_sha256": binding_digest,
+            "runtime_binding_sha256": runtime_binding_sha256,
         },
     }
     if phase.transition in {"resume", "extend_budget"}:
@@ -313,14 +317,69 @@ def locked_cell_request(
     return request
 
 
+def _bind(args: argparse.Namespace) -> None:
+    from sparselab.experiments.binding import bind_runtime
+    from sparselab.experiments.lock import open_lock
+    from sparselab.workers.controller import Controller
+
+    locked = open_lock(Path(args.lock))
+    selected = [
+        cell for cell in locked.cells if args.cell is None or cell.id == args.cell
+    ]
+    if not selected:
+        raise ValueError("no locked cell matches --cell")
+    workspace = _workspace(locked.id)
+    profile = getattr(args, "runtime_profile_loaded", None)
+    controller = Controller(workspace / "controller") if args.worker else None
+    receipts = [
+        {
+            "cell_id": cell.id,
+            "binding": str(
+                bind_runtime(
+                    locked,
+                    cell,
+                    workspace,
+                    profile=profile,
+                    worker=args.worker,
+                    controller=controller,
+                )
+            ),
+        }
+        for cell in selected
+    ]
+    for receipt in receipts:
+        receipt["binding_sha256"] = Path(receipt["binding"]).stem
+    _emit(args, {"plan_sha256": locked.plan_sha256, "bindings": receipts})
+
+
+def _run_cells(locked: Any, args: argparse.Namespace) -> list[Any]:
+    """Select exactly the same immutable cells for preflight and submission."""
+    dependent = {phase.id for phase in locked.phases if phase.parent is not None}
+    selected = [
+        cell
+        for cell in locked.cells
+        if (args.cell is None or cell.id == args.cell)
+        and (
+            cell.phase == args.phase
+            if args.phase is not None
+            else cell.phase not in dependent
+        )
+    ]
+    if not selected:
+        raise ValueError("no locked cell matches --cell/--phase")
+    if args.binding is not None and len(selected) != 1:
+        raise ValueError("one --binding receipt can select only one locked cell")
+    return selected
+
+
 def _run(args: argparse.Namespace) -> None:
+    from sparselab.experiments.binding import bind_runtime, open_runtime_binding
     from sparselab.experiments.lock import open_lock
     from sparselab.workers.controller import Controller
     from sparselab.workers.models import WorkerDefinition
 
     locked = open_lock(Path(args.lock))
     from sparselab.recovery.provenance import declaration_preflight
-    from sparselab.workdir import ensure_work_dir
 
     if not locked.evaluations and not locked.evaluation_suite:
         raise ValueError(
@@ -340,55 +399,105 @@ def _run(args: argparse.Namespace) -> None:
         raise ValueError(
             "DECLARATION_IDENTITY_CHANGED: authored inputs differ from the frozen lock"
         )
-    ensure_work_dir(args.work_dir)
     workspace = _workspace(locked.id)
     controller = Controller(workspace / "controller")
-    dependent = {phase.id for phase in locked.phases if phase.parent is not None}
-    selected = [
-        cell
-        for cell in locked.cells
-        if (args.cell is None or cell.id == args.cell)
-        and (
-            cell.phase == args.phase
-            if args.phase is not None
-            else cell.phase not in dependent
-        )
-    ]
-    if not selected:
-        raise ValueError("no locked cell matches --cell/--phase")
-    worker = args.worker or locked.execution.get("worker")
+    selected = _run_cells(locked, args)
+    profile = getattr(args, "runtime_profile_loaded", None)
+    source_worker = args.worker or (
+        locked.execution.get("worker")
+        if profile is None and args.binding is None
+        else None
+    )
+    receipts: list[dict[str, Any]] = []
+    if args.binding is not None:
+        receipts = [
+            open_runtime_binding(
+                Path(args.binding), locked, selected[0], controller=controller
+            )
+        ]
+        if receipts[0]["source_kind"] == "worker":
+            source_worker = str(receipts[0]["descriptor"]["name"])
+        elif receipts[0]["source_kind"] == "profile":
+            from sparselab.runtime_profile import RuntimeProfile
+
+            profile = RuntimeProfile.model_validate(receipts[0]["descriptor"])
+        else:
+            raise ValueError("unsupported runtime binding source")
+    elif profile is not None:
+        receipts = [
+            {
+                "binding_sha256": bind_runtime(
+                    locked, cell, workspace, profile=profile
+                ).stem
+            }
+            for cell in selected
+        ]
+    elif source_worker is not None:
+        receipts = [
+            {
+                "binding_sha256": bind_runtime(
+                    locked, cell, workspace, worker=source_worker, controller=controller
+                ).stem
+            }
+            for cell in selected
+        ]
+    else:
+        from sparselab.runtime_profile import require_authorization
+
+        for cell in selected:
+            runtime = cell.config.runtime
+            if runtime.engine != "pytorch" or runtime.backend != "cpu":
+                raise ValueError(
+                    f"runtime binding required for non-CPU locked cell {cell.id}"
+                )
+            require_authorization(cell.config, None)
+    worker = source_worker
     if worker is None:
-        backend = selected[0].config.runtime.backend
-        engine = selected[0].config.runtime.engine
-        worker = f"plan-{locked.id}-{backend}"
-        capability = controller.register(
+        first = selected[0].config.runtime
+        if any(
+            (
+                cell.config.runtime.engine,
+                cell.config.runtime.backend,
+                cell.config.runtime.device_index,
+            )
+            != (first.engine, first.backend, first.device_index)
+            for cell in selected
+        ):
+            raise ValueError("one local worker cannot execute mixed locked runtimes")
+        worker = f"plan-{locked.id}-{first.backend}"
+        controller.register(
             WorkerDefinition(
                 worker_id=worker,
                 name=worker,
                 transport="local",
-                python=Path(sys.executable).absolute(),
+                python=profile.python
+                if profile is not None
+                else Path(sys.executable).absolute(),
                 root=workspace / "workers" / worker,
-                engine=engine,
-                backend=backend,
-                device_index=selected[0].config.runtime.device_index,
+                engine=first.engine,
+                backend=first.backend,
+                device_index=first.device_index,
             )
         )
-    else:
-        available = controller.workers(worker, refresh=True)
-        if len(available) != 1:
-            raise ValueError(f"selected worker {worker} is unavailable or ambiguous")
-        capability = available[0]
-    for cell in selected:
-        runtime = cell.config.runtime
-        if (
-            capability.engine != runtime.engine
-            or capability.backend != runtime.backend
-            or capability.device_index != runtime.device_index
-        ):
-            raise ValueError(f"worker runtime differs from locked cell {cell.id}")
+        if not receipts:
+            receipts = [
+                {
+                    "binding_sha256": bind_runtime(
+                        locked, cell, workspace, worker=worker, controller=controller
+                    ).stem
+                }
+                for cell in selected
+            ]
     requests = [
-        locked_cell_request(locked, cell, worker, workspace, controller)
-        for cell in selected
+        locked_cell_request(
+            locked,
+            cell,
+            worker,
+            workspace,
+            controller,
+            runtime_binding_sha256=receipt["binding_sha256"],
+        )
+        for cell, receipt in zip(selected, receipts, strict=True)
     ]
     for request in requests:
         request["declaration_provenance"] = provenance
@@ -456,6 +565,8 @@ def _handle(args: argparse.Namespace) -> None:
             _prepare(args)
         elif args.experiment_command == "lock":
             _lock(args)
+        elif args.experiment_command == "bind":
+            _bind(args)
         elif args.experiment_command == "run":
             _run(args)
         elif args.experiment_command == "collect":
@@ -480,6 +591,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "diff",
         "prepare",
         "lock",
+        "bind",
         "run",
         "collect",
         "explain",
@@ -501,10 +613,18 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             from sparselab.cli.main import _tokenizer_batch_arguments
 
             _tokenizer_batch_arguments(command)
-        if name == "run":
+        if name in {"bind", "run"}:
             command.add_argument("--cell")
+        if name == "bind":
+            sources = command.add_mutually_exclusive_group(required=True)
+            sources.add_argument("--runtime-profile", type=Path)
+            sources.add_argument("--worker")
+        if name == "run":
             command.add_argument("--phase")
-            command.add_argument("--worker")
+            sources = command.add_mutually_exclusive_group()
+            sources.add_argument("--runtime-profile", type=Path)
+            sources.add_argument("--worker")
+            sources.add_argument("--binding", type=Path)
         if name == "reconstruct":
             command.add_argument("--index")
         command.set_defaults(handler=_handle)

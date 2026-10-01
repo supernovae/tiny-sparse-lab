@@ -86,8 +86,8 @@ def preserve_rng_state() -> Iterator[None]:
         _restore_rng_state(mx, state)
 
 
-def validate(config: RunConfig) -> RuntimeInfo:
-    """Validate MLX's intentionally small, explicitly supported surface."""
+def validate_config(config: RunConfig) -> None:
+    """Check MLX semantics without importing or probing the optional SDK."""
     if config.runtime.engine != "mlx" or config.runtime.backend != "metal":
         raise EngineCapabilityError(
             "MLX engine requires runtime.engine=mlx and backend=metal"
@@ -110,6 +110,11 @@ def validate(config: RunConfig) -> RuntimeInfo:
         raise EngineCapabilityError("MLX supports AdamW only; Adafactor is unavailable")
     if config.optimizer.state_offload:
         raise EngineCapabilityError("optimizer state offload is unavailable for MLX")
+
+
+def validate(config: RunConfig) -> RuntimeInfo:
+    """Validate MLX semantics and availability on the selected machine."""
+    validate_config(config)
     if not _mlx_available():
         raise EngineCapabilityError("MLX runtime is unavailable")
     infos = [info for info in discover_runtimes() if info.engine == "mlx"]

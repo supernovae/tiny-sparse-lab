@@ -105,7 +105,7 @@ The guide covers working commands, checkpoint chaining, and current implementati
 gaps tracked in [TODO.md](TODO.md#experiment-ergonomics).
 
 [Campaign v1](docs/campaigns.md) adds declared DAGs, verified corpus readiness,
-input-bound approvals, and recoverable local CPU execution above those plans.
+input-bound approvals, and recoverable runtime-bound execution above those plans.
 Try the [tiny corpus/readiness/approval example](examples/tiny-campaign.yaml) in
 an isolated workspace; its outcomes are declared-policy results, not model quality.
 

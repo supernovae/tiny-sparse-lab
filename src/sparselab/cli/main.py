@@ -2901,61 +2901,202 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
 _PROFILE_EXEC_MARKER = "_SPARSELAB_RUNTIME_PROFILE_EXEC"
 
 
+def _ensure_runtime_interpreter(python: Path, digest: str, probe: Any) -> None:
+    """Validate an external interpreter once, then verify it again in its child."""
+    expected = Path(os.path.abspath(python))
+    marker = os.environ.get(_PROFILE_EXEC_MARKER)
+    if marker is not None:
+        previous, separator, nonce = marker.partition(":")
+        if not separator or not nonce or previous != digest:
+            raise ValueError("runtime interpreter re-exec marker mismatch")
+        if (
+            Path(os.path.abspath(sys.executable)) != expected
+            or Path(sys.executable).resolve() != expected.resolve()
+        ):
+            raise ValueError("runtime child interpreter differs from selected python")
+    elif Path(os.path.abspath(sys.executable)) != expected:
+        probe()
+        environment = os.environ.copy()
+        environment[_PROFILE_EXEC_MARKER] = f"{digest}:{secrets.token_hex(16)}"
+        os.execve(
+            str(python),
+            [
+                str(python),
+                "-c",
+                "from sparselab.cli.main import main; main()",
+                *sys.argv[1:],
+            ],
+            environment,
+        )
+        raise AssertionError("os.execve unexpectedly returned")
+    probe()
+
+
+def _registered_local_worker(
+    store: Path, name: str, *, optional: bool = False
+) -> Any | None:
+    from sparselab.workers.controller import Controller
+    from sparselab.workers.models import WorkerDefinition
+
+    if optional and not (store / "experiments.sqlite3").is_file():
+        return None
+    controller = Controller(store, read_only=True)
+    definitions = [
+        WorkerDefinition.model_validate(record["definition"])
+        for record in controller.store.worker_records()
+        if record["definition"]["name"] == name
+    ]
+    if len(definitions) != 1:
+        if optional and not definitions:
+            return None
+        raise ValueError(f"registered local worker {name} is unavailable or ambiguous")
+    definition = definitions[0]
+    if definition.transport != "local":
+        if optional:
+            return None
+        raise ValueError("remote worker cannot run checkpoint-bound local evaluation")
+    return definition
+
+
+def _prepare_local_worker(args: argparse.Namespace, definition: Any) -> None:
+    from sparselab.runtime_profile import RuntimeProfile
+
+    profile = RuntimeProfile.model_validate(
+        {
+            "runtime_profile_version": 1,
+            "id": definition.worker_id,
+            "python": definition.python,
+            "engine": definition.engine,
+            "backend": definition.backend,
+            "device_index": definition.device_index,
+        }
+    )
+    digest = hashlib.sha256(
+        json.dumps(definition.model_dump(mode="json"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    _ensure_runtime_interpreter(
+        definition.python, digest, lambda: probe_runtime_profile(profile)
+    )
+    args.runtime_worker_definition = definition
+
+
+def _campaign_evaluation_workers(args: argparse.Namespace) -> list[Any]:
+    from sparselab.campaign.engine import CampaignEngine
+    from sparselab.campaign.plan import (
+        Evaluation,
+        RuntimeAcceptance,
+        safe_path,
+    )
+    from sparselab.experiments.plan import load_plan
+
+    source = Path(args.source).absolute()
+    engine = CampaignEngine(source, resolve_work_dir(args.work_dir))
+    stages = {stage.id: stage for stage in engine.plan.stages}
+    actionable = engine.inspect("next")["next_action"].get("stage")
+    stage = stages.get(actionable)
+    if (
+        not isinstance(stage, Evaluation)
+        or stage.runtime is None
+        or stage.backend == "cpu"
+    ):
+        return []
+    runtime_stage = stages[stage.runtime]
+    if not isinstance(runtime_stage, RuntimeAcceptance) or runtime_stage.worker is None:
+        return []
+    plan_stage = stages[runtime_stage.plan]
+    locked_plan = load_plan(safe_path(source.parent, plan_stage.source))
+    store = (
+        engine.store.root
+        / "experiments"
+        / f"{plan_stage.id}-{locked_plan.id}"
+        / "controller"
+    )
+    definition = _registered_local_worker(store, runtime_stage.worker, optional=True)
+    return [definition] if definition is not None else []
+
+
 def _prepare_runtime_command(args: argparse.Namespace) -> None:
     """Gate direct execution before the CLI creates its scratch directory."""
     args.runtime_authorization = None
-    if args.command not in {"train", "stage", "eval", "generate", "chat", "run"}:
+    args.runtime_profile_loaded = None
+    is_legacy = args.command in {"train", "stage", "eval", "generate", "chat", "run"}
+    is_experiment = args.command == "experiment" and args.experiment_command in {
+        "bind",
+        "run",
+    }
+    is_campaign = args.command == "campaign" and args.campaign_command in {
+        "apply",
+        "resume",
+    }
+    is_snapshot = args.command == "research" and args.research_command == "snapshot"
+    is_suite = (
+        args.command == "evaluation"
+        and args.evaluation_command == "suite"
+        and args.suite_command == "run"
+    )
+    if not (is_legacy or is_experiment or is_campaign or is_snapshot or is_suite):
         return
     if args.command == "run" and args.worker is not None:
         if args.runtime_profile is not None:
-            raise ValueError(
-                "--runtime-profile is only used by run when auto-registering "
-                "a local worker; use --worker without a profile"
-            )
+            raise ValueError("--worker and --runtime-profile are mutually exclusive")
         return
     if args.command == "stage" and args.through == "inspect":
         if args.runtime_profile is not None:
             load_runtime_profile(args.runtime_profile)
         return
 
-    profile = (
-        load_runtime_profile(args.runtime_profile)
-        if args.runtime_profile is not None
-        else None
-    )
+    profile_path = getattr(args, "runtime_profile", None)
+    profile = load_runtime_profile(profile_path) if profile_path is not None else None
+    if is_experiment and args.experiment_command == "run" and args.binding is not None:
+        from sparselab.experiments.binding import inspect_runtime_binding
+        from sparselab.experiments.cli import _run_cells
+        from sparselab.experiments.lock import open_lock
+        from sparselab.runtime_profile import RuntimeProfile
+
+        locked = open_lock(Path(args.lock))
+        cell = _run_cells(locked, args)[0]
+        binding = inspect_runtime_binding(Path(args.binding), locked, cell)
+        if binding["source_kind"] == "profile":
+            profile = RuntimeProfile.model_validate(binding["descriptor"])
+    workers = _campaign_evaluation_workers(args) if is_campaign else []
+    if is_suite and getattr(args, "worker", None) is not None:
+        if args.store is None:
+            raise ValueError("--worker evaluation requires --store CONTROLLER_STORE")
+        workers.append(_registered_local_worker(Path(args.store), args.worker))
+    if workers and (
+        len({str(worker.python) for worker in workers}) != 1
+        or (
+            profile is not None
+            and any(
+                worker.python.resolve() != profile.python.resolve()
+                for worker in workers
+            )
+        )
+    ):
+        raise ValueError("one command cannot select different runtime interpreters")
     if profile is not None:
         digest = hashlib.sha256(profile.model_dump_json().encode("utf-8")).hexdigest()
-        expected_python = Path(os.path.abspath(profile.python))
-        marker = os.environ.get(_PROFILE_EXEC_MARKER)
-        if marker is not None:
-            previous_digest, separator, nonce = marker.partition(":")
-            if not separator or not nonce or previous_digest != digest:
-                raise ValueError("runtime profile re-exec marker mismatch")
-            if (
-                Path(os.path.abspath(sys.executable)) != expected_python
-                or Path(sys.executable).resolve() != expected_python.resolve()
-            ):
-                raise ValueError(
-                    "runtime profile child interpreter differs from profile.python"
-                )
-        elif Path(os.path.abspath(sys.executable)) != expected_python:
-            # Fail with an actionable import/source error before replacing the
-            # current CLI with an incompatible vendor interpreter.
-            probe_runtime_profile(profile)
-            environment = os.environ.copy()
-            environment[_PROFILE_EXEC_MARKER] = f"{digest}:{secrets.token_hex(16)}"
-            os.execve(
-                str(profile.python),
-                [
-                    str(profile.python),
-                    "-c",
-                    "from sparselab.cli.main import main; main()",
-                    *sys.argv[1:],
-                ],
-                environment,
-            )
-            raise AssertionError("os.execve unexpectedly returned")
-        args.runtime_profile_python = expected_python
+        _ensure_runtime_interpreter(
+            profile.python, digest, lambda: probe_runtime_profile(profile)
+        )
+        args.runtime_profile_python = Path(os.path.abspath(profile.python))
+        args.runtime_profile_loaded = profile
+    elif workers:
+        _prepare_local_worker(args, workers[0])
+    if is_suite:
+        from sparselab.evaluation.inference import evaluation_config
+        from sparselab.runtime_profile import authorize_worker
+
+        config = evaluation_config(
+            args.run_id, Path(args.runs_dir), args.checkpoint, args.backend
+        )
+        if profile is not None:
+            args.runtime_authorization = authorize_profile(profile, config)
+        elif workers:
+            args.runtime_authorization = authorize_worker(workers[0], config)
+        return
+    if is_experiment or is_campaign or is_snapshot:
+        return
 
     if args.command in {"train", "stage", "run"}:
         config = load_config(Path(args.config))

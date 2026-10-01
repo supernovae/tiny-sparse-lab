@@ -33,7 +33,7 @@ The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,89
 
 [Campaign v1](campaigns.md) orchestrates Corpus Forge releases and these plans
 with typed dependencies, declared readiness policies, input-bound authorization
-and recoverable local CPU execution. It does not replace ExperimentPlan's
+and recoverable runtime-bound execution. It does not replace ExperimentPlan's
 scientific configuration or infer data/architecture/quality thresholds.
 
 `experiment plan_version: 1` declarations describe a concrete base `RunConfig`,
@@ -75,17 +75,21 @@ uv run --locked sparselab experiment diff experiments/samples/corpus-shape-fract
 uv run --locked sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
 ```
 
-`lock` re-verifies artifact digests and effective data/tokenizer/runtime bindings,
-then publishes an immutable content-addressed resolved plan. A separate
-availability sidecar records local paths; the scientific identity does not claim
-that a future checkpoint already exists. `experiment run LOCK --cell CELL --json`
-submits a selected locked cell to the independent-worker queue; `sparselab
-controller run --store sparselab-work/experiments/<plan-id>/controller` executes
-and ingests it. A dependent phase must be submitted separately with `--phase`
-after the parent has an ingested, verified generation. A terminal selector pins
-the declared parent update; best-validation selection binds the exact verified
-generation before child dispatch. The immutable execution binding records its
-checkpoint SHA-256; an alias such as `latest.json` is not the child identity.
+`lock` re-verifies artifact digests and hardware-free runtime requirements,
+then publishes an immutable content-addressed scientific plan. Its separate
+availability sidecar records local input paths, not executable capability.
+Accelerator runs require per-cell operational receipts from `experiment bind
+LOCK --runtime-profile PROFILE` or `--worker NAME`; `experiment run` accepts
+those sources directly or a previously published `--binding RECEIPT`, always
+with fresh revalidation. Only explicit PyTorch CPU supports ambient local
+registration. Runtime binding does not change either lock digest.
+`experiment run LOCK --cell CELL --json` submits the selected cell;
+`sparselab controller run --store "$SPARSELAB_WORK_DIR/experiments/<plan-id>/controller"`
+executes and ingests it. A dependent phase must be submitted separately with
+`--phase` after the parent has an ingested, verified generation. Terminal and
+best-validation selectors bind the exact parent generation before dispatch.
+The parent `execution_binding_sha256` remains distinct from the operational
+`runtime_binding_sha256`; mutable aliases are never checkpoint identities.
 Resume, guarded budget extension, and weight promotion preserve their distinct
 trainer semantics.
 

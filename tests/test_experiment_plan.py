@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from sparselab.config.loading import load_config
+from sparselab.engines.base import EngineCapabilityError
 from sparselab.experiments.compiler import compare_configs
+from sparselab.experiments.lock import _runtime
 from sparselab.experiments.plan import load_plan, schema
 
 
@@ -83,3 +86,93 @@ def test_published_plan_schema_is_current() -> None:
         Path(__file__).resolve().parents[1] / "schemas/experiment-plan-v1.schema.json"
     )
     assert json.loads(published.read_text()) == schema()
+
+
+def test_accelerator_science_resolves_without_local_hardware() -> None:
+    config = load_config(
+        Path(__file__).resolve().parents[1] / "configs/runtime_smoke_cpu.yaml"
+    )
+    request = config.model_copy(
+        update={
+            "runtime": config.runtime.model_copy(
+                update={"backend": "rocm", "device_index": 0, "precision": "bf16"}
+            )
+        }
+    )
+    resolved, requested = _runtime(request, "rocm")
+    assert resolved.runtime.backend == "rocm"
+    assert resolved.runtime.precision == "bf16"
+    assert requested["backend"] == "rocm"
+    assert requested["precision"] == "bf16"
+    cpu_bf16, _ = _runtime(
+        config.model_copy(
+            update={
+                "runtime": config.runtime.model_copy(
+                    update={"backend": "cpu", "precision": "bf16"}
+                )
+            }
+        ),
+        "cpu",
+    )
+    assert cpu_bf16.runtime.precision == "bf16"
+
+
+@pytest.mark.parametrize(
+    ("backend", "engine", "precision", "index", "selected", "error"),
+    [
+        ("rocm", "pytorch", "bf16", 1, "cuda", "disagrees"),
+        ("auto", "pytorch", "bf16", 0, None, "explicit execution.backend=cpu"),
+        ("rocm", "pytorch", "auto", 0, "rocm", "precision=auto"),
+        ("cpu", "pytorch", "fp16", 0, "cpu", "does not support fp16"),
+        ("mps", "pytorch", "fp16", 0, "mps", "does not support fp16"),
+        ("cpu", "pytorch", "bf16", 1, "cpu", "device_index=0"),
+        ("mps", "pytorch", "fp32", 1, "mps", "device_index=0"),
+        ("metal", "pytorch", "fp32", 0, "metal", "unsupported runtime"),
+        ("rocm", "mlx", "fp32", 0, "rocm", "unsupported runtime"),
+    ],
+)
+def test_scientific_runtime_rejects_ambiguous_or_unsupported_requests(
+    backend: str,
+    engine: str,
+    precision: str,
+    index: int,
+    selected: str | None,
+    error: str,
+) -> None:
+    config = load_config(
+        Path(__file__).resolve().parents[1] / "configs/runtime_smoke_cpu.yaml"
+    )
+    config = config.model_copy(
+        update={
+            "runtime": config.runtime.model_copy(
+                update={
+                    "engine": engine,
+                    "backend": backend,
+                    "precision": precision,
+                    "device_index": index,
+                }
+            )
+        }
+    )
+    with pytest.raises(ValueError, match=error):
+        _runtime(config, selected)
+
+
+def test_mlx_scientific_validation_requires_no_mlx_sdk() -> None:
+    config = load_config(
+        Path(__file__).resolve().parents[1] / "configs/runtime_smoke_cpu.yaml"
+    )
+    config = config.model_copy(
+        update={
+            "runtime": config.runtime.model_copy(
+                update={"engine": "mlx", "backend": "metal", "precision": "fp32"}
+            )
+        }
+    )
+    resolved, _ = _runtime(config, "metal")
+    assert resolved.runtime.backend == "metal"
+    invalid = config.model_copy(
+        update={"runtime": config.runtime.model_copy(update={"precision": "bf16"})}
+    )
+    with pytest.raises(EngineCapabilityError, match="fp32 only"):
+        _runtime(invalid, "metal")

@@ -24,12 +24,15 @@ def _print(payload: dict, json_output: bool) -> None:
 
 
 def _suite_run(args: argparse.Namespace) -> None:
+    if args.store is not None and args.worker is None:
+        raise ValueError("--store requires --worker")
     output = run_suite(
         Path(args.suite),
         args.run_id,
         args.checkpoint,
         Path(args.runs_dir),
         args.backend,
+        authorization=getattr(args, "runtime_authorization", None),
     )
     index = verify_evaluation_index(output)
     if args.evidence_output:
@@ -100,6 +103,10 @@ def register_evaluation_parser(
         required=runs_dir_default is None,
     )
     run.add_argument("--backend")
+    source = run.add_mutually_exclusive_group()
+    source.add_argument("--runtime-profile")
+    source.add_argument("--worker")
+    run.add_argument("--store", help="controller store for the named local worker")
     run.add_argument("--json", action="store_true")
     run.add_argument("--evidence-output")
     run.set_defaults(handler=_suite_run)

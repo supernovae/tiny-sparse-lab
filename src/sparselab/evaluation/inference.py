@@ -109,6 +109,85 @@ class InferenceRun:
         return self.engine.evaluate(batches()).to_report()
 
 
+def _verified_checkpoint(
+    run: Path, checkpoint: str | None
+) -> tuple[RunConfig, dict[str, Any], Path, dict[str, Any], CheckpointManager]:
+    config = RunConfig.model_validate_json((run / "resolved_config.yaml").read_text())
+    manifest = read_manifest(run / "manifest.json")
+    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    if RunConfig.model_validate(manifest["effective_config"]) != config:
+        raise ValueError("resolved config differs from the verified run manifest")
+    selected = Path(checkpoint or "latest.json")
+    if not selected.is_absolute() and not selected.exists():
+        selected = (
+            run / selected
+            if selected.parts[0] == "checkpoints"
+            else run / "checkpoints" / selected
+        )
+    selected = selected.resolve()
+    expected_digest = None
+    if selected.name in {"latest.json", "best.json"}:
+        pointer = json.loads(selected.read_text())
+        relative = pointer.get("relative_path")
+        if (
+            not isinstance(relative, str)
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+        ):
+            raise ValueError("inference requires a validated v2 checkpoint pointer")
+        expected_digest = pointer["manifest_sha256"]
+        selected = (selected.parent / relative).resolve()
+    if selected.parent != run / "checkpoints" or not selected.is_dir():
+        raise ValueError(
+            "selected checkpoint must be a generation belonging to this run"
+        )
+    metadata = json.loads((selected / "manifest.json").read_text())
+    if expected_digest is not None and metadata["sha256"] != expected_digest:
+        raise ValueError("checkpoint pointer digest does not match selected generation")
+    manager = CheckpointManager(run, manifest_sha256=manifest_digest)
+    report = manager.verify(
+        selected, expected_manifest=manifest_digest, require_training_state=False
+    )
+    if not report.valid:
+        raise ValueError(f"invalid checkpoint: {report.errors}")
+    if (
+        metadata["engine"] != config.runtime.engine
+        or metadata["backend"] != config.runtime.backend
+    ):
+        raise ValueError(
+            "checkpoint runtime differs from the verified run configuration"
+        )
+    return config, manifest, selected, metadata, manager
+
+
+def _ephemeral_config(config: RunConfig, backend: str | None) -> RunConfig:
+    requested = backend or config.runtime.backend
+    if config.runtime.engine == "mlx" and backend not in {None, "auto", "metal"}:
+        raise ValueError(
+            "MLX inference only supports the stored metal backend; "
+            "backend overrides cannot select a PyTorch device"
+        )
+    return config.model_copy(
+        update={
+            "runtime": config.runtime.model_copy(
+                update={"backend": requested, "precision": "fp32", "device_index": 0}
+            )
+        }
+    )
+
+
+def evaluation_config(
+    run_id: str,
+    runs_dir: Path,
+    checkpoint: str | None = None,
+    backend: str | None = None,
+) -> RunConfig:
+    """Verify the training checkpoint, then select an ephemeral inference runtime."""
+    run = (runs_dir / run_id).resolve()
+    config, _, _, _, _ = _verified_checkpoint(run, checkpoint)
+    return _ephemeral_config(config, backend)
+
+
 def load_run(
     run_id: str,
     runs_dir: Path,
@@ -118,16 +197,12 @@ def load_run(
     authorization: RuntimeAuthorization | None = None,
 ) -> InferenceRun:
     run = (runs_dir / run_id).resolve()
-    config = RunConfig.model_validate_json((run / "resolved_config.yaml").read_text())
-    requested = backend or config.runtime.backend
-    runtime_config = config.model_copy(
-        update={"runtime": config.runtime.model_copy(update={"backend": requested})}
+    config, manifest, selected, metadata, manager = _verified_checkpoint(
+        run, checkpoint
     )
+    runtime_config = _ephemeral_config(config, backend)
+    requested = runtime_config.runtime.backend
     require_authorization(runtime_config, authorization)
-    manifest = read_manifest(run / "manifest.json")
-    manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
-    if RunConfig.model_validate(manifest["effective_config"]) != config:
-        raise ValueError("resolved config differs from the verified run manifest")
     artifacts: dict[str, str] = {}
     array_proofs: dict[str, VerifiedFile] = {}
     for entry in manifest["artifacts"]:
@@ -188,42 +263,7 @@ def load_run(
         receipt=receipt,
     )
 
-    selected = Path(checkpoint or "latest.json")
-    if not selected.is_absolute() and not selected.exists():
-        selected = run / "checkpoints" / selected
-    selected = selected.resolve()
-    expected_digest = None
-    if selected.name in {"latest.json", "best.json"}:
-        pointer = json.loads(selected.read_text())
-        relative = pointer.get("relative_path")
-        if (
-            not isinstance(relative, str)
-            or Path(relative).is_absolute()
-            or ".." in Path(relative).parts
-        ):
-            raise ValueError("inference requires a validated v2 checkpoint pointer")
-        expected_digest = pointer["manifest_sha256"]
-        selected = (selected.parent / relative).resolve()
-    if selected.parent != run / "checkpoints" or not selected.is_dir():
-        raise ValueError(
-            "selected checkpoint must be a generation belonging to this run"
-        )
-    metadata = json.loads((selected / "manifest.json").read_text())
-    if expected_digest is not None and metadata["sha256"] != expected_digest:
-        raise ValueError("checkpoint pointer digest does not match selected generation")
-    manager = CheckpointManager(run, manifest_sha256=manifest_digest)
-    report = manager.verify(
-        selected, expected_manifest=manifest_digest, require_training_state=False
-    )
-    if not report.valid:
-        raise ValueError(f"invalid checkpoint: {report.errors}")
-    if (
-        metadata["engine"] != config.runtime.engine
-        or metadata["backend"] != config.runtime.backend
-    ):
-        raise ValueError(
-            "checkpoint runtime differs from the verified run configuration"
-        )
+    # The checkpoint and training runtime were verified before authorization.
     if config.dataset.allocation_manifest_path is not None:
         allocation_name = config.dataset.allocation_manifest_path.name
         if f"allocation/{allocation_name}" not in artifacts:
@@ -357,17 +397,12 @@ def load_run(
             }
         identity["allocation"] = allocation_identity
     if config.runtime.engine == "mlx":
-        if backend not in {None, "auto", "metal"}:
-            raise ValueError(
-                "MLX inference only supports the stored metal backend; "
-                "backend overrides cannot select a PyTorch device"
-            )
         # Native construction changes MLX/Python/NumPy state.  Weight loading
         # does not need caller RNG, and no Torch model is constructed here.
         with torch.random.fork_rng(devices=[]), preserve_rng_state():
             engine = MLXEngine()
-            engine.validate(config, authorization=authorization)
-            engine.initialize(config, initial_weights=weights)
+            engine.validate(runtime_config, authorization=authorization)
+            engine.initialize(runtime_config, initial_weights=weights)
             model = engine.model
             assert model is not None
             model.eval()
@@ -390,14 +425,13 @@ def load_run(
 
     if config.runtime.engine != "pytorch":
         raise ValueError(f"unsupported inference engine: {config.runtime.engine}")
-    requested = backend or metadata["backend"]
     selected_device = select_device(requested)
     actual_backend = (
         "rocm"
         if selected_device.type == "cuda" and torch.version.hip
         else selected_device.type
     )
-    device = torch_device_for(actual_backend, config.runtime.device_index)
+    device = torch_device_for(actual_backend, runtime_config.runtime.device_index)
     model_config = config.model
     if model_config.memory_package_path is not None and learned_portability is None:
         if "portable_package" not in artifacts:
@@ -435,7 +469,7 @@ def load_run(
             "runtime": {
                 "engine": "pytorch",
                 "backend": actual_backend,
-                "device_index": config.runtime.device_index,
+                "device_index": runtime_config.runtime.device_index,
                 "device_name": device_name,
                 "framework_version": runtime.framework_version,
                 "os": runtime.os,

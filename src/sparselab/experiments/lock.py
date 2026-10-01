@@ -200,32 +200,41 @@ def _runtime(
     if backend == "auto":
         if selected != "cpu":
             raise ValueError(
-                "runtime.backend=auto needs a selected supported execution.backend (cpu)"
+                "runtime.backend=auto needs an explicit execution.backend=cpu"
             )
         backend = "cpu"
     if selected is not None and backend != selected:
         raise ValueError(
             f"runtime backend {backend} disagrees with selected execution.backend {selected}"
         )
-    if backend != "cpu" or config.runtime.engine != "pytorch":
-        raise ValueError(
-            f"backend {backend}/{config.runtime.engine} cannot lock until worker/device capability verification exists"
-        )
+    engine = config.runtime.engine
+    if not (
+        (engine == "pytorch" and backend in {"cpu", "mps", "rocm", "cuda", "xpu"})
+        or (engine == "mlx" and backend == "metal")
+    ):
+        raise ValueError(f"unsupported runtime engine/backend pair: {engine}/{backend}")
+    if backend in {"cpu", "mps", "metal"} and config.runtime.device_index != 0:
+        raise ValueError(f"{backend} supports only device_index=0")
     precision = config.runtime.precision
     if precision == "auto":
-        if backend != "cpu" or config.runtime.engine != "pytorch":
+        if selected != "cpu" or backend != "cpu" or engine != "pytorch":
             raise ValueError(
-                "runtime.precision=auto cannot be determined for the selected worker/backend"
+                "runtime.precision=auto requires explicit execution.backend=cpu"
             )
         precision = "fp32"
-    if backend == "cpu" and precision != "fp32":
-        raise ValueError("CPU runtime requires fp32 precision")
+    if backend in {"cpu", "mps"} and precision == "fp16":
+        raise ValueError(f"PyTorch {backend} does not support fp16 precision")
     runtime = config.runtime.model_copy(
         update={"backend": backend, "precision": precision}
     )
-    return RunConfig.model_validate(
+    resolved = RunConfig.model_validate(
         {**config.model_dump(mode="python"), "runtime": runtime}
-    ), requested
+    )
+    if engine == "mlx":
+        from sparselab.engines.mlx import validate_config
+
+        validate_config(resolved)
+    return resolved, requested
 
 
 def _effective(config: RunConfig) -> dict[str, Any]:
@@ -576,7 +585,7 @@ def resolve_plan(
     prepared: dict[str, Any] | None = None,
     max_runs: int = 1000,
 ) -> ResolvedExperimentPlan:
-    """Resolve only verifiable scientific inputs into a frozen executable plan."""
+    """Resolve verifiable scientific inputs without asserting runtime capability."""
     source = Path(source).resolve()
     package = source_identity()
     base = base_run_config(plan, source)

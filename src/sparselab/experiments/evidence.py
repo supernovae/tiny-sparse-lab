@@ -77,6 +77,7 @@ def _verify_attempt(
         "ingestion_status": row["ingestion_status"],
         "parent_checkpoint_sha256": plan.parent_checkpoint_sha256,
         "execution_binding_sha256": plan.execution_binding_sha256,
+        "runtime_binding_sha256": plan.runtime_binding_sha256,
     }
     receipt_value = row.get("terminal_receipt")
     if receipt_value is not None:

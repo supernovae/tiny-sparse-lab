@@ -380,7 +380,8 @@ class Controller:
 
     @staticmethod
     def _requested_features(spec: Any) -> set[str]:
-        memory = spec.config.runtime.memory
+        config = getattr(spec, "config", spec)
+        memory = config.runtime.memory
         features: set[str] = set()
         if memory.activation_checkpointing.enabled:
             features.add("activation_checkpointing")
@@ -459,41 +460,183 @@ class Controller:
             return False, f"schema/codec mismatch: {error}"
         return True, None
 
+    def validate_registered_worker(
+        self,
+        name: str,
+        config: RunConfig,
+        *,
+        source_sha256: str,
+        deadline: float | None = None,
+    ) -> tuple[Any, Any, dict[str, object]]:
+        """Refresh and test the actual cell config on the named registered worker."""
+        matches = [
+            item
+            for item in self.workers(name=name, refresh=True, deadline=deadline)
+            if item.name == name
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"registered worker {name!r} is unavailable")
+        capability = matches[0]
+        if capability.status != "idle":
+            raise ValueError(f"registered worker {name!r} is not idle")
+        if capability.source_identity_sha256 != source_sha256:
+            raise ValueError("registered worker source identity mismatch")
+        tested, evidence, reason = self._validate_candidate(
+            capability, config, source_sha256=source_sha256, deadline=deadline
+        )
+        if tested is None:
+            raise ValueError(reason or "registered worker validation failed")
+        definition = self._worker_for_attempt({"worker_id": capability.worker_id})
+        if definition is None:
+            raise ValueError("registered worker definition disappeared")
+        return definition, tested, evidence
+
     def _validate_candidate(
-        self, capability: Any, spec: Any, *, deadline: float | None = None
-    ) -> tuple[Any | None, str | None]:
-        """Run the concrete probe that converts first-use discovery into evidence."""
+        self,
+        capability: Any,
+        config: RunConfig,
+        *,
+        source_sha256: str,
+        bundle_digest: str | None = None,
+        deadline: float | None = None,
+    ) -> tuple[Any | None, dict[str, object] | None, str | None]:
+        """Run fresh actual-config validation and bind tested identity to registration."""
         from sparselab.workers.transport import RemoteProtocolError, call_worker
 
         definition = self._worker_for_attempt({"worker_id": capability.worker_id})
         if definition is None:
-            return None, "worker registration is unavailable"
+            return None, None, "worker registration is unavailable"
         try:
             answer = self._reply_result(
                 call_worker(
                     definition,
                     "validate",
                     {
-                        "config": self._dump(spec.config),
-                        "bundle_digest": spec.dispatch_bundle_digest,
+                        "config": self._dump(config),
+                        "bundle_digest": bundle_digest,
                     },
                     timeout=_remaining_timeout(30, deadline),
                 )
             )
         except RemoteProtocolError as error:
             if error.code == "BUSY":
-                return None, "validation busy"
-            return None, f"validation failed: {error.message}"
+                return None, None, "validation busy"
+            return None, None, f"validation failed: {error.message}"
         except (OSError, TimeoutError) as error:
             if deadline is not None and time.monotonic() >= deadline:
                 raise
-            return None, f"validation unavailable: {error}"
+            return None, None, f"validation unavailable: {error}"
         if answer.get("validation_status") != "passed":
             reason = answer.get("reason")
-            return None, f"validation failed: {reason or 'probe did not pass'}"
-        runtime = answer.get("runtime")
-        if not isinstance(runtime, dict):
-            return None, "validation returned malformed runtime"
+            return None, None, f"validation failed: {reason or 'probe did not pass'}"
+        from sparselab.runtime import RuntimeInfo
+
+        try:
+            runtime = RuntimeInfo.from_dict(answer["runtime"]).as_dict()
+        except KeyError, TypeError, ValueError:
+            return None, None, "validation returned malformed runtime"
+        if capability.source_identity_sha256 != source_sha256:
+            return None, None, "source identity mismatch"
+        if (runtime["engine"], runtime["backend"], runtime["device_index"]) != (
+            definition.engine,
+            definition.backend,
+            definition.device_index,
+        ):
+            return (
+                None,
+                None,
+                "tested runtime differs from registered engine/backend/device",
+            )
+        for field in (
+            "framework_version",
+            "runtime_version",
+            "driver_version",
+            "device_name",
+            "physical_device_id",
+        ):
+            discovered = capability.runtime.get(field)
+            tested_value = runtime.get(field)
+            if (
+                discovered is not None
+                and tested_value is not None
+                and discovered != tested_value
+            ):
+                return None, None, f"tested runtime {field} differs from discovery"
+        if (
+            config.runtime.engine != definition.engine
+            or config.runtime.backend not in {"auto", definition.backend}
+            or config.runtime.device_index != definition.device_index
+        ):
+            return None, None, "cell runtime differs from registered worker"
+        if (
+            config.runtime.precision != "auto"
+            and config.runtime.precision not in runtime["tested_precisions"]
+        ):
+            return (
+                None,
+                None,
+                f"requested precision {config.runtime.precision} was not tested",
+            )
+        missing = self._requested_features(config) - set(runtime["tested_features"])
+        if missing:
+            return (
+                None,
+                None,
+                "untested required features: " + ", ".join(sorted(missing)),
+            )
+        evidence = answer.get("runtime_authorization")
+        probe = evidence.get("probe") if isinstance(evidence, dict) else None
+        from sparselab.runtime_identity_probe import (
+            source_identity as runtime_source_identity,
+        )
+        from sparselab.training.manifest import (
+            source_identity as training_source_identity,
+        )
+
+        if (
+            training_source_identity()["sha256"] != source_sha256
+            or not isinstance(probe, dict)
+            or evidence.get("kind") != "worker"
+            or not isinstance(evidence.get("descriptor"), dict)
+            or {
+                key: value
+                for key, value in evidence["descriptor"].items()
+                if key not in {"transport", "host"}
+            }
+            != {
+                key: value
+                for key, value in self._dump(definition).items()
+                if key not in {"transport", "host"}
+            }
+            or probe.get("source_sha256") != runtime_source_identity()["source_sha256"]
+            or probe.get("available") is not True
+            or type(probe.get("device_count")) is not int
+            or definition.device_index >= probe["device_count"]
+            or (probe.get("engine"), probe.get("backend"), probe.get("device_index"))
+            != (definition.engine, definition.backend, definition.device_index)
+            or probe.get("profile_id") != definition.worker_id
+            or (
+                definition.backend in {"rocm", "cuda"}
+                and bool(probe.get("torch_hip")) != (definition.backend == "rocm")
+            )
+            or (definition.backend == "cuda" and not probe.get("torch_cuda"))
+            or (
+                definition.backend in {"rocm", "cuda"}
+                and probe.get(
+                    "torch_hip" if definition.backend == "rocm" else "torch_cuda"
+                )
+                != runtime.get("runtime_version")
+            )
+            or (
+                runtime.get("framework_version") is not None
+                and probe.get("framework_version") != runtime["framework_version"]
+            )
+            or (
+                runtime.get("device_name") is not None
+                and probe.get("device_name") != runtime["device_name"]
+            )
+        ):
+            return None, None, "tested runtime authorization identity mismatch"
         refreshed = self._capability_for_definition(
             definition,
             {
@@ -512,7 +655,7 @@ class Controller:
                 "capabilities": self._dump(refreshed),
             },
         )
-        return refreshed, None
+        return refreshed, answer.get("runtime_authorization"), None
 
     def _eligible_worker(
         self, attempt: dict[str, Any], *, deadline: float | None = None
@@ -536,8 +679,12 @@ class Controller:
                 continue
             # Each scheduling decision needs a successful probe of this registered
             # interpreter/device; a persisted capability is only passive evidence.
-            tested, reason = self._validate_candidate(
-                capability, spec, deadline=deadline
+            tested, _, reason = self._validate_candidate(
+                capability,
+                spec.config,
+                source_sha256=spec.source_identity_sha256,
+                bundle_digest=spec.dispatch_bundle_digest,
+                deadline=deadline,
             )
             if tested is None:
                 reasons.append(f"{capability.name}: {reason}")

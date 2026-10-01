@@ -90,6 +90,7 @@ def _dispatch(
             "runtime": report["runtime"],
             "validation_status": "passed" if report["ok"] else "failed",
             "reason": None if report["ok"] else report["message"],
+            "runtime_authorization": report.get("runtime_authorization"),
         }, {}
     if op == "install_bundle":
         from .bundles import _read_bundle_manifest, install_dispatch_bundle
