@@ -56,6 +56,7 @@ class CorpusRelease(Step):
     kind: Literal["corpus_release"]
     project: str
     expected_release_sha256: str | None = None
+    expected_build_sha256: str | None = None
 
     _project = field_validator("project")(_path)
 

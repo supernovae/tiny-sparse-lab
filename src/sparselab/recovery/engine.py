@@ -111,19 +111,21 @@ def _export_path(root: Path, release: Path, step: Any, source: Path) -> Path:
 
 
 def _location(
-    step: Any, root: Path, source: Path, paths: dict[str, Path]
+    step: Any, root: Path, source: Path, paths: dict[str, Path], replay_commit: str
 ) -> Path | None:
     if step.kind == "corpus_release":
         project = load_project(_reference(source, step.project))
-        return (
-            root
-            / "corpora"
+        if not step.expected_release_sha256:
+            return None
+        relative = (
+            Path("corpora")
             / project.config.id
             / "releases"
             / step.expected_release_sha256
-            if step.expected_release_sha256
-            else None
         )
+        ordinary = root / relative
+        historical = root / "replay" / "work" / replay_commit / relative
+        return ordinary if ordinary.exists() or not historical.exists() else historical
     if step.kind == "corpus_export":
         if step.corpus not in paths:
             return None
@@ -201,7 +203,16 @@ def _expected(step: Any) -> str | None:
 
 def _verify(step: Any, path: Path, source: Path, paths: dict[str, Path]) -> str:
     if step.kind == "corpus_release":
-        return str(verify_release(path)["release_id"])
+        release = verify_release(path)
+        if (
+            step.expected_build_sha256
+            and release["build_id"] != step.expected_build_sha256
+        ):
+            raise ValueError(
+                f"EXPECTED_DIGEST_MISMATCH: build: expected "
+                f"{step.expected_build_sha256}, actual {release['build_id']}"
+            )
+        return str(release["release_id"])
     if step.kind == "corpus_export":
         from sparselab.corpus.export import verify_release_export
 
@@ -284,7 +295,16 @@ def _verify(step: Any, path: Path, source: Path, paths: dict[str, Path]) -> str:
 def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
     """Refresh availability without creating the selected work root or aliases."""
     manifest, source = _manifest(source)
+    from sparselab.recovery.implementation_replay import implementation_preflight
     from sparselab.recovery.provenance import verify_source_commit
+
+    implementations = {
+        step.id: implementation_preflight(
+            source, manifest.source_commit, _reference(source, step.project)
+        )
+        for step in manifest.steps
+        if step.kind == "corpus_release"
+    }
 
     missing_local: set[Path] = set()
     for step in manifest.steps:
@@ -297,15 +317,16 @@ def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
                         for entry in item.acquisition.files
                         if not (project.root / entry.path).is_file()
                     )
-    verify_source_commit(
-        source, manifest.source_commit, missing_local=frozenset(missing_local)
-    )
+    if not any(item["repository"] is None for item in implementations.values()):
+        verify_source_commit(
+            source, manifest.source_commit, missing_local=frozenset(missing_local)
+        )
     root = Path(work_root).expanduser().resolve()
     paths: dict[str, Path] = {}
     rows: list[dict[str, Any]] = []
     for step in manifest.steps:
         expected = _expected(step)
-        path = _location(step, root, source, paths)
+        path = _location(step, root, source, paths, manifest.source_commit)
         if path is not None:
             paths[step.id] = path
         actual = None
@@ -327,6 +348,15 @@ def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
                     step.kind,
                 )
             )
+        elif (
+            step.kind == "corpus_release"
+            and implementations[step.id]["repository"] is None
+        ):
+            classification, reason, action = (
+                "MISSING_IMPLEMENTATION",
+                "historical Corpus Forge implementation is unavailable",
+                None,
+            )
         elif path is not None and path.exists():
             actual = _verify(step, path, source, paths)
             if expected and expected != actual:
@@ -334,6 +364,17 @@ def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
                     f"EXPECTED_DIGEST_MISMATCH: {step.id}: expected {expected}, actual {actual} at {path}"
                 )
             classification, reason, action = "PRESENT", "verified immutable bytes", None
+        elif (
+            step.kind == "corpus_release"
+            and implementations[step.id]["status"] != "MATCH"
+        ):
+            classification = implementations[step.id]["status"]
+            reason = (
+                "historical Corpus Forge implementation is unavailable"
+                if classification == "MISSING_IMPLEMENTATION"
+                else "historical identity-producing implementation differs; explicit replay required"
+            )
+            action = None
         elif step.kind == "checkpoint":
             classification, reason, action = (
                 (
@@ -402,6 +443,11 @@ def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
                 "action": action,
                 "reason": reason,
                 "path": str(path) if path else None,
+                **(
+                    {"implementation": implementations[step.id]}
+                    if step.id in implementations
+                    else {}
+                ),
             }
         )
     from sparselab.workdir import storage_checks
@@ -424,6 +470,25 @@ def plan_manifest(source: Path, work_root: Path) -> dict[str, Any]:
     commands: list[dict[str, Any]] = []
     paths = {row["id"]: row["path"] for row in result["steps"]}
     for step, row in zip(manifest.steps, result["steps"], strict=True):
+        if row["classification"] == "PINNED_IMPLEMENTATION_REPLAY_REQUIRED":
+            commands.append(
+                {
+                    "step": step.id,
+                    "command": (
+                        f"{prefix} recovery reconstruct {shlex.quote(str(source))} "
+                        "--replay-pinned-implementation"
+                    ),
+                    "output": row["path"],
+                    "requires_explicit_review": True,
+                    "requirements": {
+                        "network_permission": "add --allow-network only after source-rights review",
+                        "implementation": row["implementation"],
+                    },
+                }
+            )
+            break
+        if row["classification"] == "MISSING_IMPLEMENTATION":
+            break
         if row["classification"] in {"MISSING_EXTERNAL", "MISSING_NONRECONSTRUCTABLE"}:
             break
         if row["action"] is None:
@@ -522,6 +587,7 @@ def reconstruct_manifest(
     allow_network: bool = False,
     allow_uncommitted_declaration: bool = False,
     evidence_output: Path | None = None,
+    replay_pinned_implementation: bool = False,
 ) -> dict[str, Any]:
     """Replay only deterministic steps; never launch training or fabricate identities."""
     from sparselab.recovery.provenance import declaration_preflight
@@ -540,6 +606,17 @@ def reconstruct_manifest(
         ),
         before["steps"][0],
     )
+    for row in before["steps"]:
+        if row["classification"] == "MISSING_IMPLEMENTATION":
+            raise ValueError(f"MISSING_IMPLEMENTATION: {row['id']}: {row['reason']}")
+        if (
+            row["classification"] == "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            and not replay_pinned_implementation
+        ):
+            raise ValueError(
+                f"PINNED_IMPLEMENTATION_REPLAY_REQUIRED: {row['id']}: "
+                "review preflight and pass --replay-pinned-implementation explicitly"
+            )
     if first["classification"] == "MISSING_EXTERNAL" and (
         not allow_network
         or first["kind"] != "corpus_release"
@@ -565,6 +642,7 @@ def reconstruct_manifest(
     ensure_work_dir(root)
     paths = {row["id"]: Path(row["path"]) for row in before["steps"] if row["path"]}
     outcomes: list[dict[str, Any]] = []
+    replay_receipts: list[dict[str, Any]] = []
     for step, row in zip(manifest.steps, before["steps"], strict=True):
         if row["classification"] == "PRESENT":
             status = (
@@ -602,6 +680,45 @@ def reconstruct_manifest(
             )
             break
         if step.kind == "corpus_release":
+            if replay_pinned_implementation:
+                from sparselab.recovery.implementation_replay import replay_corpus
+
+                replay = replay_corpus(
+                    source,
+                    manifest.source_commit,
+                    _reference(source, step.project),
+                    root,
+                    allow_network=allow_network,
+                    expected_release_sha256=step.expected_release_sha256,
+                    expected_build_sha256=step.expected_build_sha256,
+                )
+                path = Path(replay["path"])
+                replay_receipts.append(
+                    {
+                        "step": step.id,
+                        "path": replay["receipt_path"],
+                        "receipt": replay["receipt"],
+                    }
+                )
+                actual = _verify(step, path, source, paths)
+                if _expected(step) and actual != _expected(step):
+                    raise ValueError(
+                        f"EXPECTED_DIGEST_MISMATCH: {step.id}: expected "
+                        f"{_expected(step)}, actual {actual}"
+                    )
+                paths[step.id] = path
+                outcomes.append(
+                    {
+                        "id": step.id,
+                        "status": "PRESENT" if _expected(step) else "UNSEALED_RESULT",
+                        "expected_sha256": _expected(step),
+                        "actual_sha256": actual,
+                        "path": str(path),
+                    }
+                )
+                if not _expected(step):
+                    break
+                continue
             from sparselab.corpus.acquisition import acquire
             from sparselab.corpus.pipeline import build
             from sparselab.corpus.release import freeze
@@ -628,7 +745,16 @@ def reconstruct_manifest(
                 )
                 break
             acquire(project, root, offline=remote and not allow_network)
-            path = freeze(build(project, root, offline=True), root)
+            build_path = build(project, root, offline=True)
+            if (
+                step.expected_build_sha256
+                and build_path.name != step.expected_build_sha256
+            ):
+                raise ValueError(
+                    f"EXPECTED_DIGEST_MISMATCH: build: expected "
+                    f"{step.expected_build_sha256}, actual {build_path.name} at {build_path}"
+                )
+            path = freeze(build_path, root)
         elif step.kind == "corpus_export":
             from sparselab.corpus.export import export_release
 
@@ -746,6 +872,7 @@ def reconstruct_manifest(
         "work_root": str(root),
         "storage_warnings": warnings,
         "outcomes": outcomes,
+        "implementation_replays": replay_receipts,
     }
     scientific_binding = _receipt_binding(receipt_body)
     receipt_id = digest("sparselab-recovery-receipt-v1", scientific_binding)

@@ -1,0 +1,540 @@
+{
+  "inspect": {
+    "format": "sparselab-recovery-v1",
+    "id": "devmind-pretrain-v4-pinned-replay",
+    "reason_codes": [
+      "MISSING_EXTERNAL",
+      "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+    ],
+    "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+    "status": "BLOCKED",
+    "steps": [
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED",
+        "expected_sha256": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+        "id": "corpus",
+        "implementation": {
+          "components": {
+            "acquisition": {
+              "affected_stage": "acquisition",
+              "current_sha256": "acde12f8c10e13c1c8bf3dd535fa19cc0f27287f9a6096b8617acb8fd5d76bb4",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/acquisition.py",
+              "pinned_sha256": "15e891576f81a8c2096e9559c07bef436cb6ed617b131f08af6d9c0e9be40974",
+              "role": "acquisition",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "export": {
+              "affected_stage": "export",
+              "current_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/corpus/export.py",
+              "pinned_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+              "role": "export",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "large_build": {
+              "affected_stage": "build",
+              "current_sha256": "525e2e1004c6b90a0ffe4047111c0ff28bdbc5fa412516de488079578d5c115d",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/large_build.py",
+              "pinned_sha256": "5df4e0965a91e38d0a76304f675b6e2d00fb190804dad8e0849f79285af690e5",
+              "role": "large_build",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "pipeline": {
+              "affected_stage": "build",
+              "current_sha256": "90c2447190e9b54acee904ad54c0b7c0749672f83b4235d7e864d3758e883805",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/pipeline.py",
+              "pinned_sha256": "d51b5f2cf108054d7b58d664c17b2dc9c356e5b27e25b1e04ee4d1e9830fdd8d",
+              "role": "pipeline",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "project": {
+              "affected_stage": "build",
+              "current_sha256": "e2eef1ca75101828faf11448a0af3368d3d8355a40b91c1bcdd2844ae5e4df47",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/project.py",
+              "pinned_sha256": "7f19a933d74d6e5e78d03e9abe7c8c33b1d9a185c9bed171bae3dee8a0e79f12",
+              "role": "project",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "project_config": {
+              "affected_stage": "build",
+              "current_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/config/models.py",
+              "pinned_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+              "role": "project_config",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "provenance": {
+              "affected_stage": "build",
+              "current_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/provenance.py",
+              "pinned_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+              "role": "provenance",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "pyproject": {
+              "affected_stage": "dependencies",
+              "current_sha256": "74498ecdd06ec4ee37ac516ef313d6942cfe177b4eb30db26e87f2c8d7547433",
+              "direct_identity_hash": false,
+              "path": "pyproject.toml",
+              "pinned_sha256": "bf8a15f2f03da0398b7f97c45107d456f6b3a3342ceab515c67c8a04721c913d",
+              "role": "pyproject",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "release": {
+              "affected_stage": "freeze",
+              "current_sha256": "e5d5d7b1bde9a7cd3b79036eb790e424dad0f5eaaa23fe52ad3b68a7620cd1e4",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/corpus/release.py",
+              "pinned_sha256": "03a9bdd173aa8b49317d3f2debde523397f5a3855002e6238a7e050a3e1db7d6",
+              "role": "release",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "rights": {
+              "affected_stage": "build",
+              "current_sha256": "df5e2d7951e892e82b35f845b2a8c502ce15815782d7118845ca49f611613083",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/rights.py",
+              "pinned_sha256": "ff3486999e00007da93aea661299be42b8a4f86682e1d0308a7c63a3a9cddf24",
+              "role": "rights",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "training_manifest": {
+              "affected_stage": "build",
+              "current_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/training/manifest.py",
+              "pinned_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+              "role": "training_manifest",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "uv_lock": {
+              "affected_stage": "dependencies",
+              "current_sha256": "1a663073c36192f35a6c3ee0b648b8b1fa43dc22020c08ac38acffd92a1887eb",
+              "direct_identity_hash": false,
+              "path": "uv.lock",
+              "pinned_sha256": "dbad957a010eef6f29679e6ae29239eec060f7d53cb140f1fef909edf50dafbc",
+              "role": "uv_lock",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            }
+          },
+          "repository": {
+            "commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+            "object_format": "sha1",
+            "origin_url": "git@github.com:supernovae/tiny-sparse-lab.git",
+            "project": "corpora/devmind-v4/corpus.yaml",
+            "root": "/home/byron/src/tiny-sparse-lab",
+            "tree": "24e31bd6db063f572193cf72c2dd36c9d24d839f"
+          },
+          "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+        },
+        "kind": "corpus_release",
+        "path": "/srv/sparselab/state/corpora/devmind-v4/releases/0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+        "reason": "historical identity-producing implementation differs; explicit replay required"
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "tokenizer-choice",
+        "kind": "external_required",
+        "path": null,
+        "reason": "No reviewed v4 tokenizer choice or verified bakeoff selection is declared."
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "model-zero-intent",
+        "kind": "external_required",
+        "path": null,
+        "reason": "MODEL-0 architecture, budget, base run and ExperimentPlan are not declared."
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "runtime-requirement",
+        "kind": "external_required",
+        "path": null,
+        "reason": "No portable v4 engine/backend/device requirement is declared."
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "evaluation-declaration",
+        "kind": "external_required",
+        "path": null,
+        "reason": "No v4 checkpoint-bound evaluation suite or readiness policy is declared."
+      }
+    ],
+    "storage_warnings": [],
+    "work_root": "/srv/sparselab/state"
+  },
+  "plan": {
+    "commands": [
+      {
+        "command": "sparselab --work-dir /srv/sparselab/state recovery reconstruct /home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v4/recovery-pinned-replay.yaml --replay-pinned-implementation",
+        "output": "/srv/sparselab/state/corpora/devmind-v4/releases/0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+        "requirements": {
+          "implementation": {
+            "components": {
+              "acquisition": {
+                "affected_stage": "acquisition",
+                "current_sha256": "acde12f8c10e13c1c8bf3dd535fa19cc0f27287f9a6096b8617acb8fd5d76bb4",
+                "direct_identity_hash": true,
+                "path": "src/sparselab/corpus/acquisition.py",
+                "pinned_sha256": "15e891576f81a8c2096e9559c07bef436cb6ed617b131f08af6d9c0e9be40974",
+                "role": "acquisition",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "export": {
+                "affected_stage": "export",
+                "current_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+                "direct_identity_hash": false,
+                "path": "src/sparselab/corpus/export.py",
+                "pinned_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+                "role": "export",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "MATCH"
+              },
+              "large_build": {
+                "affected_stage": "build",
+                "current_sha256": "525e2e1004c6b90a0ffe4047111c0ff28bdbc5fa412516de488079578d5c115d",
+                "direct_identity_hash": true,
+                "path": "src/sparselab/corpus/large_build.py",
+                "pinned_sha256": "5df4e0965a91e38d0a76304f675b6e2d00fb190804dad8e0849f79285af690e5",
+                "role": "large_build",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "pipeline": {
+                "affected_stage": "build",
+                "current_sha256": "90c2447190e9b54acee904ad54c0b7c0749672f83b4235d7e864d3758e883805",
+                "direct_identity_hash": true,
+                "path": "src/sparselab/corpus/pipeline.py",
+                "pinned_sha256": "d51b5f2cf108054d7b58d664c17b2dc9c356e5b27e25b1e04ee4d1e9830fdd8d",
+                "role": "pipeline",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "project": {
+                "affected_stage": "build",
+                "current_sha256": "e2eef1ca75101828faf11448a0af3368d3d8355a40b91c1bcdd2844ae5e4df47",
+                "direct_identity_hash": true,
+                "path": "src/sparselab/corpus/project.py",
+                "pinned_sha256": "7f19a933d74d6e5e78d03e9abe7c8c33b1d9a185c9bed171bae3dee8a0e79f12",
+                "role": "project",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "project_config": {
+                "affected_stage": "build",
+                "current_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+                "direct_identity_hash": false,
+                "path": "src/sparselab/config/models.py",
+                "pinned_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+                "role": "project_config",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "MATCH"
+              },
+              "provenance": {
+                "affected_stage": "build",
+                "current_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+                "direct_identity_hash": true,
+                "path": "src/sparselab/corpus/provenance.py",
+                "pinned_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+                "role": "provenance",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "MATCH"
+              },
+              "pyproject": {
+                "affected_stage": "dependencies",
+                "current_sha256": "74498ecdd06ec4ee37ac516ef313d6942cfe177b4eb30db26e87f2c8d7547433",
+                "direct_identity_hash": false,
+                "path": "pyproject.toml",
+                "pinned_sha256": "bf8a15f2f03da0398b7f97c45107d456f6b3a3342ceab515c67c8a04721c913d",
+                "role": "pyproject",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "release": {
+                "affected_stage": "freeze",
+                "current_sha256": "e5d5d7b1bde9a7cd3b79036eb790e424dad0f5eaaa23fe52ad3b68a7620cd1e4",
+                "direct_identity_hash": false,
+                "path": "src/sparselab/corpus/release.py",
+                "pinned_sha256": "03a9bdd173aa8b49317d3f2debde523397f5a3855002e6238a7e050a3e1db7d6",
+                "role": "release",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "rights": {
+                "affected_stage": "build",
+                "current_sha256": "df5e2d7951e892e82b35f845b2a8c502ce15815782d7118845ca49f611613083",
+                "direct_identity_hash": true,
+                "path": "src/sparselab/corpus/rights.py",
+                "pinned_sha256": "ff3486999e00007da93aea661299be42b8a4f86682e1d0308a7c63a3a9cddf24",
+                "role": "rights",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              },
+              "training_manifest": {
+                "affected_stage": "build",
+                "current_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+                "direct_identity_hash": false,
+                "path": "src/sparselab/training/manifest.py",
+                "pinned_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+                "role": "training_manifest",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "MATCH"
+              },
+              "uv_lock": {
+                "affected_stage": "dependencies",
+                "current_sha256": "1a663073c36192f35a6c3ee0b648b8b1fa43dc22020c08ac38acffd92a1887eb",
+                "direct_identity_hash": false,
+                "path": "uv.lock",
+                "pinned_sha256": "dbad957a010eef6f29679e6ae29239eec060f7d53cb140f1fef909edf50dafbc",
+                "role": "uv_lock",
+                "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+                "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+              }
+            },
+            "repository": {
+              "commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "object_format": "sha1",
+              "origin_url": "git@github.com:supernovae/tiny-sparse-lab.git",
+              "project": "corpora/devmind-v4/corpus.yaml",
+              "root": "/home/byron/src/tiny-sparse-lab",
+              "tree": "24e31bd6db063f572193cf72c2dd36c9d24d839f"
+            },
+            "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+          },
+          "network_permission": "add --allow-network only after source-rights review"
+        },
+        "requires_explicit_review": true,
+        "step": "corpus"
+      }
+    ],
+    "format": "sparselab-recovery-v1",
+    "id": "devmind-pretrain-v4-pinned-replay",
+    "reason_codes": [
+      "MISSING_EXTERNAL",
+      "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+    ],
+    "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+    "status": "BLOCKED",
+    "steps": [
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED",
+        "expected_sha256": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+        "id": "corpus",
+        "implementation": {
+          "components": {
+            "acquisition": {
+              "affected_stage": "acquisition",
+              "current_sha256": "acde12f8c10e13c1c8bf3dd535fa19cc0f27287f9a6096b8617acb8fd5d76bb4",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/acquisition.py",
+              "pinned_sha256": "15e891576f81a8c2096e9559c07bef436cb6ed617b131f08af6d9c0e9be40974",
+              "role": "acquisition",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "export": {
+              "affected_stage": "export",
+              "current_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/corpus/export.py",
+              "pinned_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+              "role": "export",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "large_build": {
+              "affected_stage": "build",
+              "current_sha256": "525e2e1004c6b90a0ffe4047111c0ff28bdbc5fa412516de488079578d5c115d",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/large_build.py",
+              "pinned_sha256": "5df4e0965a91e38d0a76304f675b6e2d00fb190804dad8e0849f79285af690e5",
+              "role": "large_build",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "pipeline": {
+              "affected_stage": "build",
+              "current_sha256": "90c2447190e9b54acee904ad54c0b7c0749672f83b4235d7e864d3758e883805",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/pipeline.py",
+              "pinned_sha256": "d51b5f2cf108054d7b58d664c17b2dc9c356e5b27e25b1e04ee4d1e9830fdd8d",
+              "role": "pipeline",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "project": {
+              "affected_stage": "build",
+              "current_sha256": "e2eef1ca75101828faf11448a0af3368d3d8355a40b91c1bcdd2844ae5e4df47",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/project.py",
+              "pinned_sha256": "7f19a933d74d6e5e78d03e9abe7c8c33b1d9a185c9bed171bae3dee8a0e79f12",
+              "role": "project",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "project_config": {
+              "affected_stage": "build",
+              "current_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/config/models.py",
+              "pinned_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+              "role": "project_config",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "provenance": {
+              "affected_stage": "build",
+              "current_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/provenance.py",
+              "pinned_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+              "role": "provenance",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "pyproject": {
+              "affected_stage": "dependencies",
+              "current_sha256": "74498ecdd06ec4ee37ac516ef313d6942cfe177b4eb30db26e87f2c8d7547433",
+              "direct_identity_hash": false,
+              "path": "pyproject.toml",
+              "pinned_sha256": "bf8a15f2f03da0398b7f97c45107d456f6b3a3342ceab515c67c8a04721c913d",
+              "role": "pyproject",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "release": {
+              "affected_stage": "freeze",
+              "current_sha256": "e5d5d7b1bde9a7cd3b79036eb790e424dad0f5eaaa23fe52ad3b68a7620cd1e4",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/corpus/release.py",
+              "pinned_sha256": "03a9bdd173aa8b49317d3f2debde523397f5a3855002e6238a7e050a3e1db7d6",
+              "role": "release",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "rights": {
+              "affected_stage": "build",
+              "current_sha256": "df5e2d7951e892e82b35f845b2a8c502ce15815782d7118845ca49f611613083",
+              "direct_identity_hash": true,
+              "path": "src/sparselab/corpus/rights.py",
+              "pinned_sha256": "ff3486999e00007da93aea661299be42b8a4f86682e1d0308a7c63a3a9cddf24",
+              "role": "rights",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            },
+            "training_manifest": {
+              "affected_stage": "build",
+              "current_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+              "direct_identity_hash": false,
+              "path": "src/sparselab/training/manifest.py",
+              "pinned_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+              "role": "training_manifest",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "MATCH"
+            },
+            "uv_lock": {
+              "affected_stage": "dependencies",
+              "current_sha256": "1a663073c36192f35a6c3ee0b648b8b1fa43dc22020c08ac38acffd92a1887eb",
+              "direct_identity_hash": false,
+              "path": "uv.lock",
+              "pinned_sha256": "dbad957a010eef6f29679e6ae29239eec060f7d53cb140f1fef909edf50dafbc",
+              "role": "uv_lock",
+              "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+              "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+            }
+          },
+          "repository": {
+            "commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+            "object_format": "sha1",
+            "origin_url": "git@github.com:supernovae/tiny-sparse-lab.git",
+            "project": "corpora/devmind-v4/corpus.yaml",
+            "root": "/home/byron/src/tiny-sparse-lab",
+            "tree": "24e31bd6db063f572193cf72c2dd36c9d24d839f"
+          },
+          "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+        },
+        "kind": "corpus_release",
+        "path": "/srv/sparselab/state/corpora/devmind-v4/releases/0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+        "reason": "historical identity-producing implementation differs; explicit replay required"
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "tokenizer-choice",
+        "kind": "external_required",
+        "path": null,
+        "reason": "No reviewed v4 tokenizer choice or verified bakeoff selection is declared."
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "model-zero-intent",
+        "kind": "external_required",
+        "path": null,
+        "reason": "MODEL-0 architecture, budget, base run and ExperimentPlan are not declared."
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "runtime-requirement",
+        "kind": "external_required",
+        "path": null,
+        "reason": "No portable v4 engine/backend/device requirement is declared."
+      },
+      {
+        "action": null,
+        "actual_sha256": null,
+        "classification": "MISSING_EXTERNAL",
+        "expected_sha256": null,
+        "id": "evaluation-declaration",
+        "kind": "external_required",
+        "path": null,
+        "reason": "No v4 checkpoint-bound evaluation suite or readiness policy is declared."
+      }
+    ],
+    "storage_warnings": [],
+    "work_root": "/srv/sparselab/state"
+  }
+}

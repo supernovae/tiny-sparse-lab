@@ -32,6 +32,7 @@ def _handle(args: argparse.Namespace) -> None:
                     allow_network=args.allow_network,
                     allow_uncommitted_declaration=args.allow_uncommitted_declaration,
                     evidence_output=args.evidence_output,
+                    replay_pinned_implementation=args.replay_pinned_implementation,
                 )
         failures = (
             [
@@ -55,6 +56,8 @@ def _handle(args: argparse.Namespace) -> None:
                 "MISSING_EXTERNAL",
                 "MISSING_NONRECONSTRUCTABLE",
                 "MISSING_RECONSTRUCTABLE",
+                "PINNED_IMPLEMENTATION_REPLAY_REQUIRED",
+                "MISSING_IMPLEMENTATION",
             }
         )
         result["reason_codes"] = sorted(reasons)
@@ -97,6 +100,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         command.add_argument("--json", action="store_true")
         if name == "reconstruct":
             command.add_argument("--allow-network", action="store_true")
+            command.add_argument(
+                "--replay-pinned-implementation",
+                action="store_true",
+                help="Explicitly execute the source commit's Corpus Forge in an isolated uv environment",
+            )
             command.add_argument("--allow-uncommitted-declaration", action="store_true")
             command.add_argument("--evidence-output", type=Path)
         command.set_defaults(handler=_handle)

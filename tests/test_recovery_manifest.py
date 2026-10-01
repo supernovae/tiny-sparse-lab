@@ -18,6 +18,17 @@ from sparselab.recovery.evidence import export_evidence
 from sparselab.recovery.manifest import RecoveryManifest
 
 
+def _copy_implementation(repository: Path) -> None:
+    """Fixture input commits pin producer bytes, not just scientific declarations."""
+    shutil.copytree(
+        Path(__file__).resolve().parents[1] / "src",
+        repository / "src",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copyfile(Path(__file__).resolve().parents[1] / name, repository / name)
+
+
 def _manifest(**overrides: object) -> dict[str, object]:
     value: dict[str, object] = {
         "recovery_version": 1,
@@ -159,8 +170,9 @@ def test_different_rebuilt_release_keeps_new_identity(tmp_path: Path) -> None:
         Path(__file__).resolve().parents[1] / "examples" / "tiny-campaign",
         repository / "corpus",
     )
+    _copy_implementation(repository)
     subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "corpus"], check=True)
+    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
     identity = ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test"]
     subprocess.run(
         ["git", "-C", str(repository), *identity, "commit", "-qm", "inputs"], check=True
@@ -279,6 +291,7 @@ def tiny_inputs(tmp_path: Path) -> tuple[Path, str]:
         Path(__file__).resolve().parents[1] / "configs/runtime_smoke_cpu.yaml",
         repository / "base.yaml",
     )
+    _copy_implementation(repository)
     subprocess.run(["git", "init", "-q", str(repository)], check=True)
     subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
     subprocess.run(
@@ -450,3 +463,106 @@ def test_standalone_preparation_recovers_domain_identity_not_manifest_filename(
     assert recovered["classification"] == "PRESENT"
     assert recovered["actual_sha256"] == manifest_sha
     assert Path(recovered["path"]).name == prepared.root.name
+
+
+def _corpus_recipe(commit: str, **expectations: str) -> dict[str, object]:
+    return _manifest(
+        source_commit=commit,
+        steps=[
+            {
+                "id": "release",
+                "kind": "corpus_release",
+                "project": "corpus/corpus.yaml",
+                **expectations,
+            },
+            {
+                "id": "model-choice",
+                "kind": "external_required",
+                "role": "family",
+                "reason": "Data-only fixture.",
+            },
+        ],
+    )
+
+
+def test_formatting_difference_requires_explicit_replay_before_acquisition(
+    tiny_inputs, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository, _ = tiny_inputs
+    implementation = repository / "src/sparselab/corpus/acquisition.py"
+    implementation.write_bytes(
+        implementation.read_bytes() + b"\n# Historical formatting.\n"
+    )
+    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.test",
+            "commit",
+            "-qm",
+            "Historical formatting",
+        ],
+        check=True,
+    )
+    commit = subprocess.check_output(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"], text=True
+    ).strip()
+    declaration = _publish_recipe(
+        repository, _corpus_recipe(commit, expected_release_sha256="0" * 64)
+    )
+    root = tmp_path / "uncreated"
+
+    def forbidden_acquisition(*args, **kwargs):
+        pytest.fail("implementation preflight must run before any acquisition")
+
+    monkeypatch.setattr("sparselab.corpus.acquisition.acquire", forbidden_acquisition)
+    inspected = inspect_manifest(declaration, root)
+    assert (
+        inspected["steps"][0]["classification"]
+        == "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+    )
+    planned = plan_manifest(declaration, root)
+    assert planned["commands"][0]["requires_explicit_review"] is True
+    assert "--replay-pinned-implementation" in planned["commands"][0]["command"]
+    with pytest.raises(ValueError, match="PINNED_IMPLEMENTATION_REPLAY_REQUIRED"):
+        reconstruct_manifest(declaration, root, allow_network=True)
+    assert not root.exists()
+
+
+def test_missing_implementation_commit_is_reported_without_creating_state(
+    tiny_inputs, tmp_path: Path
+) -> None:
+    repository, _ = tiny_inputs
+    declaration = _publish_recipe(
+        repository, _corpus_recipe("f" * 40, expected_release_sha256="0" * 64)
+    )
+    root = tmp_path / "uncreated"
+    inspected = inspect_manifest(declaration, root)
+    assert inspected["steps"][0]["classification"] == "MISSING_IMPLEMENTATION"
+    assert plan_manifest(declaration, root)["commands"] == []
+    with pytest.raises(ValueError, match="MISSING_IMPLEMENTATION"):
+        reconstruct_manifest(declaration, root, replay_pinned_implementation=True)
+    assert not root.exists()
+
+
+def test_build_expectation_stops_before_release_publication(
+    tiny_inputs, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository, commit = tiny_inputs
+    declaration = _publish_recipe(
+        repository, _corpus_recipe(commit, expected_build_sha256="0" * 64)
+    )
+    root = tmp_path / "state"
+
+    def forbidden_freeze(*args, **kwargs):
+        pytest.fail("divergent build must not be frozen")
+
+    monkeypatch.setattr("sparselab.corpus.release.freeze", forbidden_freeze)
+    with pytest.raises(ValueError, match="EXPECTED_DIGEST_MISMATCH: build"):
+        reconstruct_manifest(declaration, root)
+    assert not list(root.glob("corpora/*/releases"))
