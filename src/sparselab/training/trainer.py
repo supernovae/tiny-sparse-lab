@@ -228,15 +228,8 @@ def _copy_artifacts(
         if portable is not None and portable.is_file():
             from sparselab.workers.bundles import verify_portable_corpus_binding
 
-            verify_portable_corpus_binding(config, source_run)
-            for name in (
-                "manifest.json",
-                "report.json",
-                "license-report.json",
-                "audit.json",
-                "export.json",
-                "binding.json",
-            ):
+            binding = verify_portable_corpus_binding(config, source_run)
+            for name in (*binding["files"], "binding.json"):
                 shutil.copy2(source_run / "corpus" / name, corpus_dir / name)
             verify_portable_corpus_binding(
                 config,
@@ -593,11 +586,7 @@ def _train_impl(
         if portable is not None and (portable / "corpus" / "binding.json").is_file():
             from sparselab.workers.bundles import verify_portable_corpus_binding
 
-            binding = verify_portable_corpus_binding(config, portable)
-            if sha256_file(config.tokenizer.path) != binding["tokenizer_sha256"]:
-                raise ValueError(
-                    "executed tokenizer differs from portable corpus binding"
-                )
+            verify_portable_corpus_binding(config, portable)
         else:
             from sparselab.config.loading import load_config
 

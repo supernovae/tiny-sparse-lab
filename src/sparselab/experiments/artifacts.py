@@ -148,7 +148,18 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         if not isinstance(source, str) or type(vocab) is not int:
             raise ValueError("invalid tokenizer provenance")
         dataset = None
-        if manifest.get("corpus_export") is not None:
+        bakeoff = manifest.get("corpus_forge_bakeoff")
+        if bakeoff is not None:
+            if (
+                source != "local_text"
+                or not isinstance(bakeoff, dict)
+                or not isinstance(bakeoff.get("release_id"), str)
+            ):
+                raise ValueError("invalid bakeoff tokenizer provenance")
+            _safe_path(str(path.parent.parent.parent), path)
+            report = _json_file(path.parent.parent.parent / "report.json")
+            _safe_path(report["identity"]["release_path"], path)
+        elif manifest.get("corpus_export") is not None:
             from sparselab.config.models import RunConfig
 
             export = path.parent.parent
@@ -170,7 +181,11 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         tokenizer = load_tokenizer(path)
         if tokenizer.get_vocab_size() != vocab:
             raise ValueError("tokenizer vocabulary differs from manifest")
-        _identity(artifact, path.parent.name, sha256_file(path))
+        _identity(
+            artifact,
+            path.parent.name,
+            sha256_file(path),
+        )
     elif kind == "prepared_data":
         from sparselab.data.packing import load_prepared_data
 

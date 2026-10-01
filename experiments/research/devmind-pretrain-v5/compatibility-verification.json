@@ -1,0 +1,33 @@
+{
+  "compatibility_verification_version": 1,
+  "scientific_devmind_outcome": false,
+  "verification": {
+    "kind": "real schema3 local-release CLI plus relocated worker input smoke",
+    "status": "SCHEMA3_SELECTED_TOKENIZER_OFFLINE_TRAINING_VERIFIED",
+    "selected_vocab": 16384,
+    "tokens_seen": 64,
+    "checkpoint_valid": true,
+    "dispatch_sha256": "a5e20d88bf248d643c164af336cc337a98104db81ca9db4a86e4bc80a57018ad"
+  },
+  "evidence": {
+    "path": "/srv/sparselab/state/scratch/devmind-v5/compatibility-smoke-3/result.json",
+    "sha256": "1e40fce6a0b8235dd4b157010248b1ed69112fc1d5ae8558f7d082cdedc79cd6"
+  },
+  "focused_regressions": {
+    "other_relevant_tests": "77 passed, 1 skipped in 356.06s; final changed transition test corrected afterward",
+    "selected_transition": "1 passed in 52.26s",
+    "coverage": [
+      "Schema2/schema3 pilot release admission and invalid-rights/schema rejection",
+      "Selected tokenizer/release-export provenance without refit",
+      "Wrong winner and report/sample/manifest/tokenizer tampering rejection",
+      "Worker sealing and tiny full-shape CPU warmup/training after original source locations unavailable",
+      "Immutable full-state checkpoint at 64 supervised targets"
+    ],
+    "broader_suite": "running; no result claimed"
+  },
+  "pre_verification_corrections": [
+    "Removed an obsolete hand-stamped-marker test; genuine selected-report regression supersedes it",
+    "Removed incidental error-wording assertion",
+    "Corrected disposable two-update fixture warmup to one and routed prepared worker inputs through a real stage before CLI training"
+  ]
+}

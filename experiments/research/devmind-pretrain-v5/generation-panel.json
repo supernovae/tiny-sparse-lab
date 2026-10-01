@@ -1,0 +1,17 @@
+{
+  "generation_panel_version": 1,
+  "id": "devmind-v5-model0-descriptive",
+  "role": "descriptive_not_quality_gate",
+  "prompts": [
+    "def parse_config(path):",
+    "SELECT user_id FROM",
+    "#!/bin/sh\nset -eu\n"
+  ],
+  "decoder": {
+    "temperature": 0,
+    "top_k": 0,
+    "max_new_tokens": 64,
+    "seed": 42
+  },
+  "checkpoint_selection": "verified immutable terminal MODEL-0 generation; identical to heldout evaluation binding"
+}

@@ -23,6 +23,41 @@ from sparselab.progress import progress_phase
 SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
 
 
+def _verify_bakeoff_selection(path: Path, manifest: dict[str, object]) -> str:
+    """Authenticate the original selection and its train/held-out receipts."""
+    from sparselab.recovery.evidence import _selection
+
+    path = path.absolute()
+    report = path.parent.parent.parent / "report.json"
+    if (
+        path.name != "tokenizer.json"
+        or path.parent.parent.name != "candidates"
+        or path.parent.name != str(manifest["vocab_size"])
+        or any(
+            item.is_symlink()
+            for item in (
+                path,
+                path.with_name("tokenizer_manifest.json"),
+                path.parent,
+                path.parent.parent,
+                report.parent,
+                report,
+                report.with_name("fit.jsonl"),
+                report.with_name("validation.jsonl"),
+            )
+        )
+    ):
+        raise ValueError("invalid bakeoff candidate path")
+    digest, identifier = _selection(report)
+    binding = manifest["corpus_forge_bakeoff"]
+    if (
+        digest != manifest["sha256"]
+        or identifier != f"{binding['release_id']}:{manifest['vocab_size']}"
+    ):
+        raise ValueError("tokenizer is not the selected bakeoff candidate")
+    return identifier
+
+
 def _atomic_json(path: Path, value: object) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(
@@ -39,7 +74,7 @@ def load_tokenizer(path: Path) -> Tokenizer:
     return Tokenizer.from_file(str(path))
 
 
-def verify_tokenizer_artifact(
+def _verify_tokenizer_manifest(
     path: Path,
     *,
     source: str,
@@ -47,18 +82,29 @@ def verify_tokenizer_artifact(
     vocab_size: int,
     dataset: DatasetConfig | None = None,
 ) -> dict[str, object]:
-    """Fail closed on an incomplete or mismatched tokenizer artifact."""
+    """Check a candidate's own bytes and dataset without applying bakeoff selection."""
     manifest_path = path.with_name("tokenizer_manifest.json")
     if not path.is_file() or not manifest_path.is_file():
         raise FileNotFoundError(
             f"complete tokenizer artifact required at {path}; finish `sparselab tokenizer train CONFIG` first"
         )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    bakeoff = (
+        manifest.get("corpus_forge_bakeoff") if isinstance(manifest, dict) else None
+    )
     if (
         not isinstance(manifest, dict)
         or manifest.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest()
         or manifest.get("source") != source
-        or manifest.get("revision") != revision
+        or (
+            manifest.get("revision") != revision
+            and not (
+                isinstance(bakeoff, dict)
+                and dataset is not None
+                and dataset.corpus_release_path is not None
+                and revision == dataset.revision
+            )
+        )
         or manifest.get("vocab_size") != vocab_size
     ):
         raise ValueError(f"tokenizer artifact provenance or digest mismatch: {path}")
@@ -76,7 +122,16 @@ def verify_tokenizer_artifact(
             raise ValueError("tokenizer snapshot identity mismatch")
     if dataset is not None and dataset.corpus_release_path is not None:
         binding = verify_release_export(dataset)
-        if (
+        if bakeoff is not None:
+            if (
+                manifest.get("corpus_export") is not None
+                or binding["release_id"] != bakeoff.get("release_id")
+                or binding["vocab_size"] != vocab_size
+                or dataset.revision != bakeoff.get("release_id")
+                or dataset.source != "local_text"
+            ):
+                raise ValueError("tokenizer bakeoff release/export identity mismatch")
+        elif (
             manifest.get("corpus_export") != binding
             or manifest.get("training_contract", {}).get("corpus_export") != binding
         ):
@@ -85,6 +140,29 @@ def verify_tokenizer_artifact(
         raise ValueError(
             "corpus tokenizer verification requires frozen export configuration"
         )
+    return manifest
+
+
+def verify_tokenizer_artifact(
+    path: Path,
+    *,
+    source: str,
+    revision: str | None,
+    vocab_size: int,
+    dataset: DatasetConfig | None = None,
+) -> dict[str, object]:
+    """Verify the complete tokenizer, including its selection when bakeoff-produced."""
+    manifest = _verify_tokenizer_manifest(
+        path,
+        source=source,
+        revision=revision,
+        vocab_size=vocab_size,
+        dataset=dataset,
+    )
+    if manifest.get("corpus_forge_bakeoff") is not None:
+        if not isinstance(manifest["corpus_forge_bakeoff"], dict):
+            raise ValueError("invalid bakeoff provenance")
+        _verify_bakeoff_selection(path, manifest)
     return manifest
 
 

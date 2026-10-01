@@ -38,3 +38,35 @@ reports `UNKNOWN` usefulness per transform until paired evidence isolates the
 variable. Its integrity checks bind results to a run/checkpoint and registered
 card/scorer; they cannot establish an independent test population or causal
 effect. A release with no capability results has no capability matrix.
+
+## Tokenizer selection from a frozen release
+
+Pilot tokenizer-bakeoff declarations (`schema_version: 2`) accept verified
+rights-tracked release schemas 2 and 3. The release verifier remains the rights,
+lineage and immutable-identity gate; accepting schema 3 does not waive its
+training-use policy or admit legacy schema-1 releases.
+
+The three candidates use one train-only fit receipt and independent validation
+families. Reopening a bakeoff authenticates all candidate bytes/manifests,
+fit/held-out samples, measured scores and the smallest-vocabulary winner under
+the declaration's `near_best_ratio`. Consumer verification additionally requires
+the selected candidate, not any tokenizer with a bakeoff marker. An incomplete
+or hand-stamped marker is not a selection receipt.
+
+Keep the winner at `BAKEOFF/candidates/VOCAB/tokenizer.json` with the original
+`report.json`, samples and candidate manifests. Its manifest retains
+`source: local_text`, the fit-sample revision and `corpus_forge_bakeoff` binding.
+`data prepare` and authored tokenizer artifacts can verify that winner against
+an LM export of the same release and vocabulary without changing provenance,
+inventing a `corpus_export` sidecar or fitting again on the full export.
+The artifact identifier is the candidate-directory name (for example `16384`);
+the evidence-export identifier separately binds release ID and vocabulary.
+
+Worker preparation authenticates the original selection before sealing its
+tokenizer/prepared arrays. Portable corpus-binding v2 carries the unchanged
+selection-report bytes and fit/release binding, rather than labeling a bounded
+fit as full-export training. Offline workers verify that metadata closure,
+selected digest, vocabulary, release/export identities and sealed inventory;
+they do not reacquire the corpus or refit the tokenizer. Existing full-export
+tokenizers retain portable binding v1. Native runs preserve all verified metadata
+members, including the selection report, after source locations become unavailable.

@@ -253,6 +253,11 @@ def verify_portable_corpus_binding(
     """Authenticate relocated corpus/tokenizer evidence without source locations."""
     evidence = strict_json(assets / "corpus" / "binding.json")
     manifest = strict_json(assets / "tokenizer_manifest.json")
+    bakeoff = (
+        isinstance(evidence, dict)
+        and evidence.get("format") == "sparselab-portable-corpus-binding-v2"
+    )
+    origin_key = "tokenizer_bakeoff" if bakeoff else "tokenizer_export"
     if (
         not isinstance(evidence, dict)
         or set(evidence)
@@ -262,10 +267,11 @@ def verify_portable_corpus_binding(
             "tokenizer_sha256",
             "tokenizer_manifest_sha256",
             "corpus_export",
-            "tokenizer_export",
+            origin_key,
             "files",
         }
-        or evidence["format"] != "sparselab-portable-corpus-binding-v1"
+        or evidence["format"]
+        != f"sparselab-portable-corpus-binding-v{2 if bakeoff else 1}"
     ):
         raise ValueError("invalid portable corpus binding")
     if evidence["dataset_sha256"] != config_sha256(
@@ -278,9 +284,24 @@ def verify_portable_corpus_binding(
         != sha256_file(assets / "tokenizer_manifest.json")
         or manifest.get("sha256") != evidence["tokenizer_sha256"]
         or manifest.get("vocab_size") != config.model.vocab_size
-        or manifest.get("corpus_export") != evidence["tokenizer_export"]
-        or manifest.get("training_contract", {}).get("corpus_export")
-        != evidence["tokenizer_export"]
+        or (
+            not bakeoff
+            and (
+                manifest.get("corpus_export") != evidence["tokenizer_export"]
+                or manifest.get("training_contract", {}).get("corpus_export")
+                != evidence["tokenizer_export"]
+            )
+        )
+        or (
+            bakeoff
+            and (
+                manifest.get("corpus_forge_bakeoff") != evidence["tokenizer_bakeoff"]
+                or manifest.get("source") != "local_text"
+                or manifest.get("corpus_export") is not None
+                or manifest.get("training_contract", {}).get("corpus_export")
+                is not None
+            )
+        )
     ):
         raise ValueError("portable tokenizer corpus identity mismatch")
     expected = {
@@ -290,6 +311,8 @@ def verify_portable_corpus_binding(
         "audit.json",
         "export.json",
     }
+    if bakeoff:
+        expected.add("tokenizer-selection.json")
     files = evidence["files"]
     if not isinstance(files, dict) or set(files) != expected:
         raise ValueError("portable corpus evidence inventory is incomplete")
@@ -335,8 +358,44 @@ def verify_portable_corpus_binding(
         )
     ):
         raise ValueError("portable corpus release/export inner identity mismatch")
-    tokenizer_binding = evidence["tokenizer_export"]
-    if (
+    tokenizer_binding = evidence[origin_key]
+    if bakeoff:
+        from sparselab.corpus.tokenizer_bakeoff import (
+            VOCABS,
+            Declaration,
+            choose_candidate,
+        )
+
+        selection = strict_json(assets / "corpus" / "tokenizer-selection.json")
+        declaration = Declaration.model_validate(selection["identity"]["declaration"])
+        candidates = selection["candidates"]
+        chosen = choose_candidate(candidates, declaration.near_best_ratio)
+        candidate = next(item for item in candidates if item["vocab_size"] == chosen)
+        if (
+            not isinstance(tokenizer_binding, dict)
+            or selection["release_binding"] != tokenizer_binding
+            or selection["identity"]["release_id"] != config.dataset.revision
+            or tokenizer_binding.get("release_id") != config.dataset.revision
+            or tokenizer_binding.get("release_manifest_sha256")
+            != files["manifest.json"]
+            or tokenizer_binding.get("lm_train_sha256") != binding["train_sha256"]
+            or tokenizer_binding.get("lm_validation_sha256")
+            != binding["validation_sha256"]
+            or tokenizer_binding.get("fit_sample_sha256") != manifest.get("revision")
+            or tokenizer_binding.get("sample_receipt_sha256")
+            != hashlib.sha256(canonical_json(selection["sample_receipt"])).hexdigest()
+            or tokenizer_binding.get("declaration_sha256")
+            != selection["identity"]["declaration_sha256"]
+            or [item["vocab_size"] for item in candidates] != list(VOCABS)
+            or chosen != config.model.vocab_size
+            or selection["selected_vocab_size"] != chosen
+            or selection["selected_tokenizer"] != candidate["tokenizer_path"]
+            or candidate["tokenizer_sha256"] != evidence["tokenizer_sha256"]
+            or candidate["manifest_sha256"] != evidence["tokenizer_manifest_sha256"]
+            or candidate["manifest"] != manifest
+        ):
+            raise ValueError("portable selected-tokenizer origin mismatch")
+    elif (
         not isinstance(tokenizer_binding, dict)
         or tokenizer_binding.get("release_id") != manifest.get("revision")
         or tokenizer_binding.get("vocab_size") != config.model.vocab_size
@@ -393,20 +452,27 @@ def _copy_portable_corpus(config: RunConfig, assets: Path) -> None:
         )
     }
     sources["export.json"] = export / "export.json"
+    bakeoff = manifest.get("corpus_forge_bakeoff")
+    if bakeoff is not None:
+        sources["tokenizer-selection.json"] = (
+            tokenizer.parent.parent.parent / "report.json"
+        )
     pinned = {name: sha256_file(source) for name, source in sources.items()}
     for name, source in sources.items():
         _copy_tree(source, corpus / name)
     if pinned["export.json"] != binding["export_sha256"]:
         raise ValueError("verified corpus export changed before portable copy")
     evidence = {
-        "format": "sparselab-portable-corpus-binding-v1",
+        "format": f"sparselab-portable-corpus-binding-v{2 if bakeoff is not None else 1}",
         "dataset_sha256": config_sha256(config.dataset.model_dump(mode="json")),
         "tokenizer_sha256": sha256_file(tokenizer),
         "tokenizer_manifest_sha256": sha256_file(
             tokenizer.with_name("tokenizer_manifest.json")
         ),
         "corpus_export": binding,
-        "tokenizer_export": manifest["corpus_export"],
+        "tokenizer_bakeoff" if bakeoff is not None else "tokenizer_export": (
+            bakeoff if bakeoff is not None else manifest["corpus_export"]
+        ),
         "files": {name: sha256_file(corpus / name) for name in sorted(sources)},
     }
     if evidence["files"] != pinned or verify_release_export(config.dataset) != binding:

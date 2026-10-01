@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.corpus.release import verify_release
 from sparselab.data.tokenizer import (
+    _verify_tokenizer_manifest,
     load_tokenizer,
     train_tokenizer,
     verify_tokenizer_artifact,
@@ -387,7 +388,7 @@ def _verify_existing(
     for candidate in report["candidates"]:
         vocab = candidate["vocab_size"]
         token_path = output / "candidates" / str(vocab) / "tokenizer.json"
-        manifest = verify_tokenizer_artifact(
+        manifest = _verify_tokenizer_manifest(
             token_path,
             source="local_text",
             revision=dataset.revision,
@@ -422,7 +423,11 @@ def _verify_existing(
     if report["selected_tokenizer"] != str(
         output
         / "candidates"
-        / str(choose_candidate(report["candidates"]))
+        / str(
+            choose_candidate(
+                report["candidates"], identity["declaration"]["near_best_ratio"]
+            )
+        )
         / "tokenizer.json"
     ):
         raise ValueError("existing tokenizer selection mismatch")
@@ -444,10 +449,9 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         if not release.is_absolute():
             release = (declaration.parent / release).resolve()
     manifest = verify_release(release)
-    if (
-        spec.schema_version == 2
-        and manifest["build_identity"]["release"]["schema_version"] != 2
-    ):
+    if spec.schema_version == 2 and manifest["build_identity"]["release"][
+        "schema_version"
+    ] not in (2, 3):
         raise ValueError("pilot bakeoff requires a prospective rights-tracked release")
     selected, heldout, train = _selection(release, spec)
     receipt = _receipt(selected, heldout, train, spec)

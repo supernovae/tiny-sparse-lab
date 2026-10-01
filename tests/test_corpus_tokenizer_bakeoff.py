@@ -9,18 +9,14 @@ from pathlib import Path
 import pytest
 import yaml
 
-from sparselab.config.models import TokenizerTrainConfig
 from sparselab.corpus.tokenizer_bakeoff import (
     GROUPS,
     Declaration,
-    _bind_manifest,
-    _dataset,
     _distinct_sources,
     _selection,
     choose_candidate,
     load_declaration,
 )
-from sparselab.data.tokenizer import train_tokenizer, verify_tokenizer_artifact
 
 
 def _spec() -> Declaration:
@@ -173,53 +169,3 @@ def test_selection_rule_near_best_boundary() -> None:
     assert choose_candidate(candidates) == 24576
     candidates[0]["weighted_bytes_per_token"] = 1.96
     assert choose_candidate(candidates) == 16384
-
-
-def test_real_tokenizer_manifest_tamper_rejected(tmp_path: Path) -> None:
-    sample = tmp_path / "fit.jsonl"
-    validation = tmp_path / "validation.jsonl"
-    sample.write_text(
-        "".join(
-            json.dumps({"text": f"example {i}: some text and digits {i * 37}"}) + "\n"
-            for i in range(80)
-        )
-    )
-    validation.write_text(json.dumps({"text": "independent held-out text"}) + "\n")
-    dataset = _dataset(
-        sample,
-        validation,
-        hashlib.sha256(sample.read_bytes()).hexdigest(),
-        sum(
-            len(json.loads(line)["text"].encode())
-            for line in sample.read_text().splitlines()
-        ),
-        80,
-    )
-    config = TokenizerTrainConfig(
-        schema_version=1,
-        vocab_size=260,
-        max_documents=80,
-        output_dir=tmp_path / "candidate",
-        dataset=dataset,
-    )
-    artifact = train_tokenizer(config)
-    binding = {"release_id": "a" * 64, "sample_receipt_sha256": "b" * 64}
-    manifest = _bind_manifest(artifact, binding)
-    assert (
-        verify_tokenizer_artifact(
-            artifact,
-            source="local_text",
-            revision=dataset.revision,
-            vocab_size=260,
-            dataset=dataset,
-        )
-        == manifest
-    )
-    path = artifact.with_name("tokenizer_manifest.json")
-    path.write_text(
-        path.read_text().replace(
-            '"release_id":"' + "a" * 64, '"release_id":"' + "c" * 64
-        )
-    )
-    with pytest.raises(ValueError, match="incompatible Corpus Forge identity"):
-        _bind_manifest(artifact, binding)
