@@ -33,6 +33,12 @@ close a code item unless the named software acceptance criteria also pass.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.
+- [ ] Expose the saved implementation-replay failure receipt path and digest in
+  blocked recovery JSON. The pinned DevMind v4 build mismatch preserved a typed
+  receipt, but the CLI returned only the reason/digests and required manual
+  receipt discovery. Cover a real fixture build mismatch: the returned reference
+  must verify the exact failed attempt without directory scanning, producer
+  retries, or changes to the expected scientific identity.
 
 ## Backend implementation
 

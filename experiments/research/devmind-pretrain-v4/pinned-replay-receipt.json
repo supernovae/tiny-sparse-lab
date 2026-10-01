@@ -1,0 +1,794 @@
+{
+  "allow_network": true,
+  "error": "EXPECTED_BUILD_MISMATCH: actual=2c27d12fb9f80c63f0e228750093c0ec200a1793edc55908e5839480ecc58637 expected=79b568629fc6682c33bf1212eef0653cdb05d26a772654019458f44af2ceaee5",
+  "expected_build_sha256": "79b568629fc6682c33bf1212eef0653cdb05d26a772654019458f44af2ceaee5",
+  "expected_release_sha256": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+  "finished_at_utc": "2026-10-01T18:57:47.521636+00:00",
+  "format": "sparselab-implementation-replay-v1",
+  "operational_identity": {
+    "dependencies": [
+      "aiohappyeyeballs==2.7.1",
+      "aiohttp==3.14.3",
+      "aiosignal==1.4.0",
+      "altair==6.3.0",
+      "annotated-types==0.8.0",
+      "anyio==4.15.1",
+      "attrs==26.1.0",
+      "certifi==2026.7.22",
+      "charset-normalizer==3.5.1",
+      "click==8.5.0",
+      "datasets==4.8.5",
+      "dill==0.4.1",
+      "filelock==4.0.1",
+      "frozenlist==1.8.0",
+      "fsspec==2026.2.0",
+      "h11==0.16.0",
+      "hf-xet==1.6.0",
+      "httpcore==1.0.9",
+      "httptools==0.8.0",
+      "httpx==0.28.1",
+      "huggingface-hub==0.36.2",
+      "idna==3.20",
+      "itsdangerous==2.2.0",
+      "jinja2==3.1.6",
+      "jsonschema==4.26.0",
+      "jsonschema-specifications==2025.9.1",
+      "markupsafe==3.0.3",
+      "mpmath==1.3.0",
+      "multidict==6.9.1",
+      "multiprocess==0.70.19",
+      "narwhals==2.26.0",
+      "networkx==3.7",
+      "numpy==2.5.3",
+      "packaging==26.3",
+      "pandas==3.0.6",
+      "pillow==12.3.0",
+      "plotly==6.9.0",
+      "propcache==0.5.4",
+      "protobuf==7.36.2",
+      "psutil==7.2.2",
+      "pyarrow==25.0.1",
+      "pydantic==2.13.5",
+      "pydantic-core==2.46.5",
+      "pydeck==0.9.3",
+      "python-dateutil==2.9.0.post0",
+      "python-multipart==0.0.32",
+      "pyyaml==6.0.3",
+      "referencing==0.37.0",
+      "requests==2.34.2",
+      "rpds-py==2026.6.3",
+      "safetensors==0.8.0",
+      "setuptools==84.0.0",
+      "six==1.17.0",
+      "starlette==1.6.0",
+      "streamlit==1.64.0",
+      "sympy==1.14.0",
+      "tokenizers==0.22.2",
+      "toml==0.10.2",
+      "torch==2.14.0+cpu",
+      "tqdm==4.70.1",
+      "typing-extensions==4.16.0",
+      "typing-inspection==0.4.4",
+      "urllib3==2.8.0",
+      "uvicorn==0.53.0",
+      "watchdog==6.0.0",
+      "websockets==16.1.1",
+      "xxhash==4.0.1",
+      "yarl==1.25.1"
+    ],
+    "environment": "/srv/sparselab/state/replay/env/e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+    "environment_python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "lock_sha256": "dbad957a010eef6f29679e6ae29239eec060f7d53cb140f1fef909edf50dafbc",
+    "orchestrator": "/home/byron/src/tiny-sparse-lab/src/sparselab/recovery/implementation_replay.py",
+    "orchestrator_sha256": "57c89c6d9ae9029d5a2d860338eefce8af4851efaf42037ab78c8abb78b61607",
+    "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "uv": "uv 0.12.19 (x86_64-unknown-linux-gnu)",
+    "work_root": "/srv/sparselab/state"
+  },
+  "operations": [
+    {
+      "argv": [
+        "uv",
+        "sync",
+        "--project",
+        "/srv/sparselab/state/replay/source/e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "--locked",
+        "--no-install-project",
+        "--no-dev",
+        "--no-default-groups",
+        "--python",
+        "/home/byron/src/tiny-sparse-lab/.venv/bin/python"
+      ],
+      "phase": "dependencies",
+      "returncode": 0,
+      "stderr": "Resolved 85 packages in 1ms\nChecked 68 packages in 27ms\n",
+      "stderr_path": "/srv/sparselab/state/replay/logs/0406ebf03bf5405797c7c7496b67e4d4.dependencies.stderr",
+      "stderr_sha256": "b083728c4a466d50c1dfaee8bdfbb1933b5c96fdf89c0e93b014746562fcc332",
+      "stdout": "",
+      "stdout_path": "/srv/sparselab/state/replay/logs/0406ebf03bf5405797c7c7496b67e4d4.dependencies.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "--no-project",
+        "--no-sync",
+        "--python",
+        "/srv/sparselab/state/replay/env/e260ea866ded8ec5beb23cbacec1fb3c120c1d16/bin/python",
+        "python",
+        "-I",
+        "/home/byron/src/tiny-sparse-lab/src/sparselab/recovery/_implementation_worker.py",
+        "/srv/sparselab/state/replay/receipts/.invocation-l625ubmv/request.json",
+        "/srv/sparselab/state/replay/receipts/.invocation-l625ubmv/response.json"
+      ],
+      "phase": "historical_producers",
+      "returncode": 1,
+      "stderr": "warning: `--no-sync` has no effect when used alongside `--no-project`\nHistorical Corpus Forge replay failed in build\nTraceback (most recent call last):\n  File \"/home/byron/src/tiny-sparse-lab/src/sparselab/recovery/_implementation_worker.py\", line 174, in main\n    raise ValueError(\n        f\"EXPECTED_BUILD_MISMATCH: actual={build['build_id']} expected={request['expected_build_sha256']}\"\n    )\nValueError: EXPECTED_BUILD_MISMATCH: actual=2c27d12fb9f80c63f0e228750093c0ec200a1793edc55908e5839480ecc58637 expected=79b568629fc6682c33bf1212eef0653cdb05d26a772654019458f44af2ceaee5\n",
+      "stderr_path": "/srv/sparselab/state/replay/logs/980e9161db1045c7b56a96f1b9490163.historical_producers.stderr",
+      "stderr_sha256": "be34674bd0848e3b69ec5f624588e8a637e4a706948f0b08480f62909cd51c8b",
+      "stdout": "",
+      "stdout_path": "/srv/sparselab/state/replay/logs/980e9161db1045c7b56a96f1b9490163.historical_producers.stdout",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "preflight": {
+    "components": {
+      "acquisition": {
+        "affected_stage": "acquisition",
+        "current_sha256": "acde12f8c10e13c1c8bf3dd535fa19cc0f27287f9a6096b8617acb8fd5d76bb4",
+        "direct_identity_hash": true,
+        "path": "src/sparselab/corpus/acquisition.py",
+        "pinned_sha256": "15e891576f81a8c2096e9559c07bef436cb6ed617b131f08af6d9c0e9be40974",
+        "role": "acquisition",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "export": {
+        "affected_stage": "export",
+        "current_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+        "direct_identity_hash": false,
+        "path": "src/sparselab/corpus/export.py",
+        "pinned_sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa",
+        "role": "export",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "MATCH"
+      },
+      "large_build": {
+        "affected_stage": "build",
+        "current_sha256": "525e2e1004c6b90a0ffe4047111c0ff28bdbc5fa412516de488079578d5c115d",
+        "direct_identity_hash": true,
+        "path": "src/sparselab/corpus/large_build.py",
+        "pinned_sha256": "5df4e0965a91e38d0a76304f675b6e2d00fb190804dad8e0849f79285af690e5",
+        "role": "large_build",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "pipeline": {
+        "affected_stage": "build",
+        "current_sha256": "90c2447190e9b54acee904ad54c0b7c0749672f83b4235d7e864d3758e883805",
+        "direct_identity_hash": true,
+        "path": "src/sparselab/corpus/pipeline.py",
+        "pinned_sha256": "d51b5f2cf108054d7b58d664c17b2dc9c356e5b27e25b1e04ee4d1e9830fdd8d",
+        "role": "pipeline",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "project": {
+        "affected_stage": "build",
+        "current_sha256": "e2eef1ca75101828faf11448a0af3368d3d8355a40b91c1bcdd2844ae5e4df47",
+        "direct_identity_hash": true,
+        "path": "src/sparselab/corpus/project.py",
+        "pinned_sha256": "7f19a933d74d6e5e78d03e9abe7c8c33b1d9a185c9bed171bae3dee8a0e79f12",
+        "role": "project",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "project_config": {
+        "affected_stage": "build",
+        "current_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+        "direct_identity_hash": false,
+        "path": "src/sparselab/config/models.py",
+        "pinned_sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5",
+        "role": "project_config",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "MATCH"
+      },
+      "provenance": {
+        "affected_stage": "build",
+        "current_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+        "direct_identity_hash": true,
+        "path": "src/sparselab/corpus/provenance.py",
+        "pinned_sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589",
+        "role": "provenance",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "MATCH"
+      },
+      "pyproject": {
+        "affected_stage": "dependencies",
+        "current_sha256": "74498ecdd06ec4ee37ac516ef313d6942cfe177b4eb30db26e87f2c8d7547433",
+        "direct_identity_hash": false,
+        "path": "pyproject.toml",
+        "pinned_sha256": "bf8a15f2f03da0398b7f97c45107d456f6b3a3342ceab515c67c8a04721c913d",
+        "role": "pyproject",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "release": {
+        "affected_stage": "freeze",
+        "current_sha256": "e5d5d7b1bde9a7cd3b79036eb790e424dad0f5eaaa23fe52ad3b68a7620cd1e4",
+        "direct_identity_hash": false,
+        "path": "src/sparselab/corpus/release.py",
+        "pinned_sha256": "03a9bdd173aa8b49317d3f2debde523397f5a3855002e6238a7e050a3e1db7d6",
+        "role": "release",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "rights": {
+        "affected_stage": "build",
+        "current_sha256": "df5e2d7951e892e82b35f845b2a8c502ce15815782d7118845ca49f611613083",
+        "direct_identity_hash": true,
+        "path": "src/sparselab/corpus/rights.py",
+        "pinned_sha256": "ff3486999e00007da93aea661299be42b8a4f86682e1d0308a7c63a3a9cddf24",
+        "role": "rights",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      },
+      "training_manifest": {
+        "affected_stage": "build",
+        "current_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+        "direct_identity_hash": false,
+        "path": "src/sparselab/training/manifest.py",
+        "pinned_sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246",
+        "role": "training_manifest",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "MATCH"
+      },
+      "uv_lock": {
+        "affected_stage": "dependencies",
+        "current_sha256": "1a663073c36192f35a6c3ee0b648b8b1fa43dc22020c08ac38acffd92a1887eb",
+        "direct_identity_hash": false,
+        "path": "uv.lock",
+        "pinned_sha256": "dbad957a010eef6f29679e6ae29239eec060f7d53cb140f1fef909edf50dafbc",
+        "role": "uv_lock",
+        "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+        "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+      }
+    },
+    "repository": {
+      "commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+      "object_format": "sha1",
+      "origin_url": "git@github.com:supernovae/tiny-sparse-lab.git",
+      "project": "corpora/devmind-v4/corpus.yaml",
+      "root": "/home/byron/src/tiny-sparse-lab",
+      "tree": "24e31bd6db063f572193cf72c2dd36c9d24d839f"
+    },
+    "status": "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+  },
+  "project": "/home/byron/src/tiny-sparse-lab/corpora/devmind-v4/corpus.yaml",
+  "record_sha256": "c3a35ef88e40a18e34ebea9d8dd30571612efb4e17d0b50173ca7dfbd86ddec5",
+  "repository": {
+    "commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+    "object_format": "sha1",
+    "origin_url": "git@github.com:supernovae/tiny-sparse-lab.git",
+    "project": "corpora/devmind-v4/corpus.yaml",
+    "root": "/home/byron/src/tiny-sparse-lab",
+    "tree": "24e31bd6db063f572193cf72c2dd36c9d24d839f"
+  },
+  "requested_source": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v4/recovery-pinned-replay.yaml",
+  "scientific_identity": {},
+  "source": {
+    "inventory_sha256": "4591c18eb4fa2a75a3a848f6b22039224963f13065b89d91d0647b218ba1a702",
+    "manifest_path": "/srv/sparselab/state/replay/source-manifests/e260ea866ded8ec5beb23cbacec1fb3c120c1d16.json",
+    "tree": "24e31bd6db063f572193cf72c2dd36c9d24d839f"
+  },
+  "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+  "stage": "build",
+  "started_at_utc": "2026-10-01T17:51:39.787513+00:00",
+  "status": "FAILED",
+  "worker": {
+    "artifacts": {
+      "build_path": "/srv/sparselab/state/replay/work/e260ea866ded8ec5beb23cbacec1fb3c120c1d16/corpora/devmind-v4/builds/2c27d12fb9f80c63f0e228750093c0ec200a1793edc55908e5839480ecc58637",
+      "build_sha256": "2c27d12fb9f80c63f0e228750093c0ec200a1793edc55908e5839480ecc58637",
+      "snapshots": [
+        {
+          "sha256": "1fd7d154050076c46fd0c0b4bd3b24c76de63569fe76bfd99d96f5725c0d6004",
+          "source_id": "fineweb_edu_sample_10bt"
+        },
+        {
+          "sha256": "b0cac062f3e65dcd84c8063aff4e6818b6dee3e5fbadbf95e9451459c63552c9",
+          "source_id": "openwebmath_train"
+        },
+        {
+          "sha256": "3d92e68027225228f38d61927730b62ab58a2cbce8ab44866e592a84fcd5f14a",
+          "source_id": "pes2o_v2_fulltext"
+        },
+        {
+          "sha256": "5e0c55924aa8aa922b154136a5ab9f88a4fb04e7f159055f821e683a5999190a",
+          "source_id": "pes2o_v2_train"
+        },
+        {
+          "sha256": "ddd21bc0ae69ac905b60416fd5245859c66d6e8da84881a50560b86c98b5bac5",
+          "source_id": "v2_git_technical"
+        },
+        {
+          "sha256": "9ad6f047f1cd93086d508ef7083623015ad7033196fbc3d43c3821fd6179c969",
+          "source_id": "v2_go_faq"
+        },
+        {
+          "sha256": "69c8c4c210c9943032f728f3a6546c063fa3d5564d218dbc17dffdd09fe773ec",
+          "source_id": "v2_go_standard"
+        },
+        {
+          "sha256": "541170bbde440cd822f9e0a70731e6ceae66e7810a6adfcdb2b999de43959bfc",
+          "source_id": "v2_k8s_concepts"
+        },
+        {
+          "sha256": "bc2a153849c3854de22b8a685dab687a8e283afcffbe5b2029595757fcb3721c",
+          "source_id": "v2_linux_fs"
+        },
+        {
+          "sha256": "640081457cd251c9af3f23b18fe6814e936ffa7b1a3afaa1cc71fad61673a886",
+          "source_id": "v2_oci_runtime_specification"
+        },
+        {
+          "sha256": "4f4f83c38cba6a51670c0c70fb908aea94ce3f20322c4aa46969c89e60d2cd50",
+          "source_id": "v2_omp_harness"
+        },
+        {
+          "sha256": "570311e0e45ea3e0f82c364e7bb0b466afeafc0c6cac37442c9d8380589ffec4",
+          "source_id": "v2_otel_collector"
+        },
+        {
+          "sha256": "393e4aa912645cd047c29cdb2df036137c849116d73278472c8e61181548353e",
+          "source_id": "v2_otel_specification"
+        },
+        {
+          "sha256": "3fdbf42e800ef67c121c74cdc3e2ab2ab4d578009df20585a0fc6ba9ebd1d428",
+          "source_id": "v2_postgres_backend"
+        },
+        {
+          "sha256": "aebe5e0f42fff692389342bb92507b160e10fae5c4c78d439d76c9f8c936a7cf",
+          "source_id": "v2_prometheus_promql"
+        },
+        {
+          "sha256": "635b8be4ec03f32d267653d69ab337119174933bc26e25dd7ec8436edf307560",
+          "source_id": "v2_python_library"
+        },
+        {
+          "sha256": "8ad20a10d226f2bfcbb832ce933e6ab75bbfce8d88f843a137936f323e106d44",
+          "source_id": "v2_rust_core"
+        },
+        {
+          "sha256": "c2d65b5bcf44aa5c910a814d7e036fd67d769990b9eb6c89298d34889fc7a288",
+          "source_id": "v3_cloudevents"
+        },
+        {
+          "sha256": "3dfa9259a92eef731aaa1cb1ef47ad51fc624d1fb73fe956c4e86d83d520b2b1",
+          "source_id": "v3_oci_distribution"
+        },
+        {
+          "sha256": "d3f5376deac198563a408b7c595c11c834a7d03f126b5dffdc39392d68196b3c",
+          "source_id": "v3_oci_image"
+        },
+        {
+          "sha256": "ddbb3b456f641e69c81bd94f445bc535ed0267e068435e70a95d5c411c21a8b4",
+          "source_id": "v3_rfc8949"
+        },
+        {
+          "sha256": "f86a7e2b055194831569acac026a0fa4de4baa53244d4be279b676217d015a8e",
+          "source_id": "v3_system_cilium"
+        },
+        {
+          "sha256": "5af69d481a195f388f51a1c2386923d1c829bad5de9a717e5a7a140f0f28a34e",
+          "source_id": "v3_system_containerd"
+        },
+        {
+          "sha256": "2103fcec04ea9c18abc0476d934dd205a69adf75ee72fc9e37a26d6892a97f53",
+          "source_id": "v3_system_cosign"
+        },
+        {
+          "sha256": "c3a80640c516a8a954906f427213a3a29ba1a7eebd356e1e3e94394ba288565b",
+          "source_id": "v3_system_envoy"
+        },
+        {
+          "sha256": "ac8dbaccd1cc30cf039b49987eb007e9f829ec5c0a32584b0d6f55c63375ccf5",
+          "source_id": "v3_system_etcd"
+        },
+        {
+          "sha256": "01ff44355aed95a177a4c863b807ee0c4fc843e019a7aa81946868a6fe868af4",
+          "source_id": "v3_system_jaeger"
+        },
+        {
+          "sha256": "66b815c0613472908a66c2f30a2ea4e81818c01c079900480988312f89492757",
+          "source_id": "v3_system_kafka"
+        },
+        {
+          "sha256": "95f1990e8d6f3903e1a38f7fb3c5f825fb412d128e4dc8534c9639091d1a1385",
+          "source_id": "v3_system_musl"
+        },
+        {
+          "sha256": "b610d96a4427a3a5d560bd81ef2b7973035a0dc2f2fc77ee0592890b192d650e",
+          "source_id": "v3_system_nginx"
+        },
+        {
+          "sha256": "c450ac4a90653326e45c65765a779f03277b96ef5753608e5e2e84dcf1250174",
+          "source_id": "v3_system_openssl"
+        },
+        {
+          "sha256": "1cd23a7511d0abbb9c578438a157293f5922a1aa8321cf3996755605fa262b7e",
+          "source_id": "v3_system_runc"
+        },
+        {
+          "sha256": "7963f77c011f7fece0aca56eea8d2e3efb206dc2a10109bef0c0aa40bc167fd3",
+          "source_id": "v3_system_sqlite"
+        },
+        {
+          "sha256": "70818b1f290d2212e1b2268413755984fd6a07fd9975603e51d0fb496e435504",
+          "source_id": "v3_system_systemd"
+        },
+        {
+          "sha256": "2d7f29bffe397bfd82c0390df21b9b44f0bf5aef4da7448861001543d5c26297",
+          "source_id": "v3_system_tikv"
+        },
+        {
+          "sha256": "0a9f57d557cb4c54cffae18a25b55484155842462f8d80b6407fb16092ee13a0",
+          "source_id": "v3_system_util_linux"
+        },
+        {
+          "sha256": "2e5eb7dd1a73d277a4cd3edcefceddad8cfd8ebca9758018542ffb42da923c40",
+          "source_id": "v3_system_valkey"
+        },
+        {
+          "sha256": "3b009539be0d5a6b537d01e2964d3a3d42f7bcdd3e49b274bae019dea07be729",
+          "source_id": "v3_system_vitess"
+        },
+        {
+          "sha256": "d92694e6c074638aef0aff4d4d906ecbb3c97c34ad0498eb2d24721922ae5313",
+          "source_id": "v3_system_zookeeper"
+        },
+        {
+          "sha256": "6534649134b70228b43125e2bc19b6358a98ad69af8095b90264a062c1e4c957",
+          "source_id": "v3_tool_ansible"
+        },
+        {
+          "sha256": "1110a2f311e11f6f5adb66d963625a21c657b5a219b9c6fe2542dd250771bb7a",
+          "source_id": "v3_tool_cargo"
+        },
+        {
+          "sha256": "de576f74bbfc1efbb4013253bb7591b9798fecbc9fa749c5bb9219f5af064053",
+          "source_id": "v3_tool_cmake"
+        },
+        {
+          "sha256": "73e813b0dab6507c166538364c42bf8aa84d2c47f07f2982aab87d9704800932",
+          "source_id": "v3_tool_cpython_compiler"
+        },
+        {
+          "sha256": "e2e68f6d5b79ba474a070484f0acc358877463794af2bd650d3e0a57343b16df",
+          "source_id": "v3_tool_git_validation"
+        },
+        {
+          "sha256": "977ce839a9e17d1881326455af3a0ee5165781f5b6d31248ae91fe8839be2183",
+          "source_id": "v3_tool_go_build"
+        },
+        {
+          "sha256": "a7c2286e13420caeabbf66ba3f5b37503bf26b6c5bae074697ef2e1e27088aa6",
+          "source_id": "v3_tool_meson"
+        },
+        {
+          "sha256": "6c5c903f9b7702199d788233f600808c9118161bfe577692ff8d65f92fb04d9f",
+          "source_id": "v3_tool_ninja"
+        },
+        {
+          "sha256": "77f91cbfa5f2d9298c74e2de356e1d3ba24ae8bb31aba135de7efc182dcb0d45",
+          "source_id": "v3_tool_omp_lab"
+        },
+        {
+          "sha256": "45f641e59f359eb4f8e0c6328ec3a835b239ae80b93fce2ab3f04d5e02f31d82",
+          "source_id": "v3_tool_opentofu"
+        },
+        {
+          "sha256": "9e1e0c75e5f7acab3467401648e050e80ab90ae91d245a04afda8791a0a02124",
+          "source_id": "v3_tool_postgres_sql_validation"
+        },
+        {
+          "sha256": "e78ea58ab7b30f76f46c6dfdf372b1c47335fda82980424fb1faa53a0ab3ba9f",
+          "source_id": "v3_tool_pytest"
+        },
+        {
+          "sha256": "ac8c3576e6a852ca0d64e12d1bb99cb799ed6d7f868afde103070fb72f9a978d",
+          "source_id": "v3_tool_rust_book"
+        },
+        {
+          "sha256": "d6be14628e888746d6c66dda84ce8a5e1611b758dcd8efbcc3f054bfdadd97bc",
+          "source_id": "v3_tool_rust_compiler"
+        },
+        {
+          "sha256": "49fde8070d58b5c1cf3e27abf02c3dedf19ce008dc86d0db7ed8ef7db65f79ec",
+          "source_id": "v3_tool_spring"
+        },
+        {
+          "sha256": "90c412f605498931b76c186dc464074d189bd0fad53bd6893380f351c7c8f8f3",
+          "source_id": "v3_tool_tokio"
+        },
+        {
+          "sha256": "330e712f7fc263a2cd4fa60ce18ba415c86342806dcfab4aaaee2dacc24e6e35",
+          "source_id": "v3_tool_typescript"
+        },
+        {
+          "sha256": "3e5576cfcb4e39dc5b73cc9aded06f563ae27a3e1f637c2a72514daeed248bfe",
+          "source_id": "v4_db_clickhouse_sql"
+        },
+        {
+          "sha256": "9cdddb735077285f8106f2da6489ba4a1a045ce8fa3d640355beb038a9b424fe",
+          "source_id": "v4_db_doris_sql"
+        },
+        {
+          "sha256": "27e47a2b5d476f662ad922cca163af679d495ca21971d5aae2f2f3d1d35f8045",
+          "source_id": "v4_db_duckdb_docs"
+        },
+        {
+          "sha256": "246d300383d6f36c886963fa23636b5804ec11656d703b356546dabff3814bd2",
+          "source_id": "v4_db_duckdb_sql"
+        },
+        {
+          "sha256": "566be9ef1b35b8f904ffb810e40edad92e3404c13417b5a8ca96e2ece18cac62",
+          "source_id": "v4_db_h2_sql_validation"
+        },
+        {
+          "sha256": "58e91a7f6fd744f2bf1c37b0763aa95f6ff09d04973888cf2da7725c8949ef57",
+          "source_id": "v4_db_mariadb_sql"
+        },
+        {
+          "sha256": "5e92f2b6305bce1eb50bb181ccaa1c9bbdf9a6ceb9874fd63cfeadb4af5830ab",
+          "source_id": "v4_db_spark_sql"
+        },
+        {
+          "sha256": "3c3eb20fae3f3d3c21b0df4839d5ff85de6eb1218fc0d143bb2d8da972ccfdac",
+          "source_id": "v4_iac_ansible_docs"
+        },
+        {
+          "sha256": "8ea4dc603e13bc29ceecca16eb98a011da6d4d67b53c447aa97a07619c8fca36",
+          "source_id": "v4_iac_ansible_playbooks"
+        },
+        {
+          "sha256": "ab9f503c8e6433f816b13d8c2127f05cc1c620f29224c9e69f98f129f926bf93",
+          "source_id": "v4_iac_argocd_validation"
+        },
+        {
+          "sha256": "442e0931d8809a121067d3598906d92ffd1625f7b70bd789c69ab45ea1643c52",
+          "source_id": "v4_iac_bazel_validation"
+        },
+        {
+          "sha256": "ce130d4041fa52c5adb24dbe0c63b3244ad8633393d7757ad8bae4a80c6f98b1",
+          "source_id": "v4_iac_cargo_build"
+        },
+        {
+          "sha256": "04cb508be7e2a90d0354e42317824df607635421dac923af7e742406adb082af",
+          "source_id": "v4_iac_cmake_build"
+        },
+        {
+          "sha256": "d1e2017f2ce959ef5105068292c5a502938983f4c36a232c0f9d3fb5ba4104e6",
+          "source_id": "v4_iac_go_build_bootstrap"
+        },
+        {
+          "sha256": "8fbc9fc2da96f75a8758c0742924ae0f2d80fd29201a389dbf34399c7501ca1d",
+          "source_id": "v4_iac_grafana_charts"
+        },
+        {
+          "sha256": "dc0e09465d4866a2dc5d9041484d9a469daa6929e1cfc0ab72095c46d4cd4947",
+          "source_id": "v4_iac_helm_guides"
+        },
+        {
+          "sha256": "13a9f4702947c2ceaf0314e19aa7050bb4c52f6c2889ddd07d5aeb8604ce61e1",
+          "source_id": "v4_iac_kubernetes_operator"
+        },
+        {
+          "sha256": "6b9cfcaba66f81985c5a694ecc994e7721a44e0d6c567c48cc10cc002f360a28",
+          "source_id": "v4_iac_meson_build"
+        },
+        {
+          "sha256": "07afe454b3b0879eb40ae54f1a86bc4c03d731915b9073199897801353cf3998",
+          "source_id": "v4_iac_ninja_build"
+        },
+        {
+          "sha256": "7a6769adec955f0e73b122899d47c715b890f402061fd7afe562917a9a8fdeb0",
+          "source_id": "v4_iac_opentofu_config"
+        },
+        {
+          "sha256": "2b8c6ecef3707fa2f44960f7816c9ef04a32b3fcafe47132d7d5aea1b443684e",
+          "source_id": "v4_iac_systemd_units"
+        },
+        {
+          "sha256": "8cf7e1fce2c5e8f906e3dd674ff3d7f35c35c577d68d0042a39b44fc828ea457",
+          "source_id": "v4_ops_alloy"
+        },
+        {
+          "sha256": "5c95ec8c1396fdd0caa79286992aa852a198c32da3d6ef2970d56a66a63164d9",
+          "source_id": "v4_ops_cilium"
+        },
+        {
+          "sha256": "cd830eca3b09b013b72050559f8636b54d27bd724a2d6208d23fcd54fa1678b0",
+          "source_id": "v4_ops_cloudnativepg"
+        },
+        {
+          "sha256": "99b8daf9801c849ef70aa84a1a60d65d476022b9fadc26fc10c28869425b2d09",
+          "source_id": "v4_ops_containerd"
+        },
+        {
+          "sha256": "259fa710ef8b731f42a431a8068be3af0e4511d978765a575f0c4ce0e3012372",
+          "source_id": "v4_ops_curl"
+        },
+        {
+          "sha256": "f65673317d068570e660bf7aec87e3c40d014a1fb1e3075bab39ea6d636520da",
+          "source_id": "v4_ops_envoy"
+        },
+        {
+          "sha256": "70de270cec7ab941fecbdd5a15c19f2e46a0f261bec0569ef77deddb23f4345c",
+          "source_id": "v4_ops_etcd"
+        },
+        {
+          "sha256": "fbdeb7c003ee32117b94141242f829338e814d989d74db58df0edb109e8898a0",
+          "source_id": "v4_ops_grafana"
+        },
+        {
+          "sha256": "768d56e3a83235a182b23a77e7a582d478fcaeebe029df4c5bb7da09483abaf1",
+          "source_id": "v4_ops_iputils"
+        },
+        {
+          "sha256": "28f127d3b018ec573a5c63d6a2167ac8b33b0a06ccd27a866b01883c555eb4b2",
+          "source_id": "v4_ops_loki"
+        },
+        {
+          "sha256": "efd66cf30086916a697498009d896d3379fa9455af6ebd96929178f1308001f8",
+          "source_id": "v4_ops_mimir_heldout"
+        },
+        {
+          "sha256": "238cabaa85abdc43321a9b5673c00ea6a3f8aa6439f5b13a376077abb64bb2bc",
+          "source_id": "v4_ops_omp_tools"
+        },
+        {
+          "sha256": "322ffefe1a731c678ca3d4c45ad32fec6eaa90cecce8e81847e8de1de85ea329",
+          "source_id": "v4_ops_otel_helm"
+        },
+        {
+          "sha256": "f0775fc0539a9c68746a96d3e18595dad9b38f98db98c4b8889f5a9f65df6aee",
+          "source_id": "v4_ops_otel_proto_heldout"
+        },
+        {
+          "sha256": "dc6221ee7ac97e1c093c7ff49cf80986bcf8ff8320d700ea0fbfa955390b102b",
+          "source_id": "v4_ops_pgbackrest"
+        },
+        {
+          "sha256": "9df4a12cdcc34ea39506d2157ec2d76fabb1485686038703cd9a7789bc6373db",
+          "source_id": "v4_ops_strace"
+        },
+        {
+          "sha256": "07a506def7d9fea656993b5f9b9fa8cd114f26aa557912c5ebb40157ad14c151",
+          "source_id": "v4_ops_tempo"
+        },
+        {
+          "sha256": "c5f5ec14b2df0e7249def78c1e3af5b07a953a5bb6b16997de47835b3d2aa138",
+          "source_id": "v4_ops_thanos"
+        },
+        {
+          "sha256": "9d5a085ea0011e0c61cbdc59d9cf2c1369936013ec8a25fe86c3d080eeb4718b",
+          "source_id": "v4_ops_victoriametrics"
+        },
+        {
+          "sha256": "a0355e2dace3cd68e555b790c486fe84be3669f2609bb7d979c209ecae0a8797",
+          "source_id": "v4_ops_zalando_postgres"
+        },
+        {
+          "sha256": "295eeff6b3c7e19171671883c91c6d1e681ed0a276dd8ee74b3c1277fb3f2172",
+          "source_id": "v4_runtime_angular_ts"
+        },
+        {
+          "sha256": "ce34b6a8c246040a27f96418785f328725ff6e2d132a354a62429843121fc755",
+          "source_id": "v4_runtime_angularjs_js"
+        },
+        {
+          "sha256": "42ee135b22cc3d4446da3fc1f356173299a593062883b21c4e26d2914a54ef54",
+          "source_id": "v4_runtime_babel_ts"
+        },
+        {
+          "sha256": "fef53ef8a5d3137add9eaee263c2334fbeec0fc621da45599dbedbb75445e2f7",
+          "source_id": "v4_runtime_bash_manual_shell"
+        },
+        {
+          "sha256": "69caba7049323365ad30a6f9e34f082cb4f2fac3b801937a13f171064db293ce",
+          "source_id": "v4_runtime_bash_tests_shell"
+        },
+        {
+          "sha256": "6982c230cf25db6003be3569548560c9fe9d2f118b3cfeb54701ff31afa835a8",
+          "source_id": "v4_runtime_bats_shell_heldout"
+        },
+        {
+          "sha256": "179f81f3cdf7670eaff36b2af225b4873084a7cf1aa7c2d3631a043e09a98a7f",
+          "source_id": "v4_runtime_eslint_js_heldout"
+        },
+        {
+          "sha256": "5af184079744de5d27357425545f57e0997e1ab2e75f362154a3a187f25c40f7",
+          "source_id": "v4_runtime_gatsby_js"
+        },
+        {
+          "sha256": "ff27f3bdcebc8b6bd7b54555b1fd0ff90ef9bedf508a8d1b36692bd4e75ca070",
+          "source_id": "v4_runtime_linux_selftests_shell"
+        },
+        {
+          "sha256": "c30d999da69335fbc044bb0b537c8d41b4d50fd0c2f8f2a88b505db636596a0b",
+          "source_id": "v4_runtime_metro_js"
+        },
+        {
+          "sha256": "7350a4d5086f4445a5f012b2cf16c4ab56487ef50045ae2960d49e60994bcf50",
+          "source_id": "v4_runtime_node_js"
+        },
+        {
+          "sha256": "c9b3815644d00a6e6b3f8fa4cc31c0363f77564007d8bb73d7ea1b0e49688513",
+          "source_id": "v4_runtime_npm_cli_js"
+        },
+        {
+          "sha256": "6f49b8b0c6b1fb565ea0386de9511cea5f8305af4236f9a0fd32620f5a697b8a",
+          "source_id": "v4_runtime_playwright_ts"
+        },
+        {
+          "sha256": "09645d87433da3dad7b2e2752f194f1b7bb702f84fc0944ee0a5e1240e8f9c1a",
+          "source_id": "v4_runtime_prettier_js"
+        },
+        {
+          "sha256": "f2859487f05f03f25d53c3fa03664a2a87f8413c8fbcff519455083962e4ff8c",
+          "source_id": "v4_runtime_react_js"
+        },
+        {
+          "sha256": "966041ecbffeb3a08ab308f141f1383ee02d221455805e9709fb871268665b12",
+          "source_id": "v4_runtime_react_native_js"
+        },
+        {
+          "sha256": "74004ac324c664b9bc583229418fa0d7560cb9a7718132d7f70d32db08c2b02a",
+          "source_id": "v4_runtime_relay_js"
+        },
+        {
+          "sha256": "be36c145bd3607ed89122ffb0edf4b9cfa222c5888d774aac99ab3634c9a4977",
+          "source_id": "v4_runtime_shellspec_shell"
+        },
+        {
+          "sha256": "d88bb899537128fb52838742fb17ed5326f34fae1a5676f4ea50d550183bbecc",
+          "source_id": "v4_runtime_undici_js"
+        },
+        {
+          "sha256": "6eead97c56eb47758ee89a398786d8e3fd09d4cac9eee0a08418f622b150aea4",
+          "source_id": "v4_runtime_util_linux_shell"
+        },
+        {
+          "sha256": "b6c6783e1e9e2c751216723902a84249f7765b1e9e8816c1bff59a724d16a3f2",
+          "source_id": "v4_runtime_vite_ts"
+        },
+        {
+          "sha256": "4d6b30962b6461dc34d00085724188a33f4c1c69c05ee91b3c2791b47dd6823f",
+          "source_id": "v4_runtime_vitest_ts_heldout"
+        },
+        {
+          "sha256": "f3af7c6dc3a22226cc30d802ad34bdb6b33526b83f95ae0741c5ccfae5c4fb98",
+          "source_id": "v4_runtime_vscode_ts"
+        },
+        {
+          "sha256": "6349ea64e223479aba79cdf7c8ff06dc56da6087ea7a4ae80d7fa3049623705b",
+          "source_id": "v4_runtime_webpack_js"
+        },
+        {
+          "sha256": "f6195308bd21d7f64108e1d112f31bcdada7c2f22d198c20f3dc39fbd08bf6b6",
+          "source_id": "wikibooks_20260901"
+        },
+        {
+          "sha256": "cefa756e0a240d71c53e3aa7bfe78cdcda2ba2d7697da383c6cdcfb8a4f4cc10",
+          "source_id": "wikipedia_20260901"
+        }
+      ]
+    },
+    "error": "EXPECTED_BUILD_MISMATCH: actual=2c27d12fb9f80c63f0e228750093c0ec200a1793edc55908e5839480ecc58637 expected=79b568629fc6682c33bf1212eef0653cdb05d26a772654019458f44af2ceaee5",
+    "error_type": "ValueError",
+    "phase": "build",
+    "status": "FAILED",
+    "version": 1
+  }
+}
