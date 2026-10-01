@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_h2_sql_validation
+kind: git
+canonical_uri: https://github.com/h2database/h2database.git
+revision: 75b7ab54dfa0d86c012300b86d055ec8eddf227f
+license: MPL-2.0 OR EPL-1.0
+license_url: https://github.com/h2database/h2database/blob/75b7ab54dfa0d86c012300b86d055ec8eddf227f/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MPL-2.0 OR EPL-1.0
+  license_references: [https://github.com/h2database/h2database/blob/75b7ab54dfa0d86c012300b86d055ec8eddf227f/LICENSE.txt, https://h2database.com/html/license.html]
+  notices: ['H2 SQL test files carry H2 Group dual MPL-2.0/EPL-1.0 copyright headers; preserve per-file headers and comply with the chosen MPL-2.0 branch.']
+domains: [databases, sql, query_planning]
+document_kinds: [sql, tests]
+source_family: v4_db_h2_sql_heldout
+notes: 'Whole independent H2 Java database is new SQL-focused validation family: neither H2 code nor any H2 SQL from alternate paths/revisions goes to train. Native query, DDL, DML and expression scripts only; compatibility scripts that could adapt PostgreSQL/SQLite source are omitted. H2 scripts interleave real SQL with expected-result annotations.'
+acquisition:
+  include: ['h2/src/test/org/h2/test/scripts/*.sql']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'h2/src/test/org/h2/test/scripts/compatibility/*', '*password*', '*credential*', '*secret*']
+  max_bytes: 1800000

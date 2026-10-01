@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_strace
+kind: git
+canonical_uri: https://github.com/strace/strace.git
+revision: bf822b2dd9ca0d51e992629f6f30687ed8abe696
+license: LGPL-2.1-or-later
+license_url: https://github.com/strace/strace/blob/bf822b2dd9ca0d51e992629f6f30687ed8abe696/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: LGPL-2.1-or-later
+  license_references: [https://github.com/strace/strace/blob/bf822b2dd9ca0d51e992629f6f30687ed8abe696/COPYING]
+  notices: ['COPYING credits strace developers and LGPL-2.1-or-later; separately GPL-licensed tests and bundled kernel UAPI deliberately excluded.']
+domains: [operating_systems, diagnostics, operations]
+document_kinds: [prose]
+source_family: v4_ops_strace_train
+notes: 'Authored strace.1 source manual on syscall diagnostics, process following, filtering and trace output plus command log-merging manual. Avoid bundled UAPI, tests and generated pages.'
+acquisition:
+  include: ['doc/strace.1.in', 'doc/strace-log-merge.1.in']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/bundled/*', '*/generated/*']
+  max_bytes: 80000

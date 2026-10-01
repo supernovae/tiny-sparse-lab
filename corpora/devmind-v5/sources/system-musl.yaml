@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_musl
+kind: git
+canonical_uri: https://git.musl-libc.org/git/musl
+revision: c4e1bb3994c14ed5112c894d15a451bf00f0d501
+license: MIT
+license_url: https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT?id=c4e1bb3994c14ed5112c894d15a451bf00f0d501
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: ['https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT?id=c4e1bb3994c14ed5112c894d15a451bf00f0d501']
+  notices: ['COPYRIGHT identifies permissively licensed derived portions including BSD-licensed regex and math; preserve their individual headers and attribution.']
+domains: [operating_systems, libc, portability]
+document_kinds: [code, build]
+source_family: v3_system_musl_train
+notes: 'Official musl.libc.org Git, C runtime and public API headers. Excludes imported fixtures, generated and vendored material; no overlap with v2 CPython or Go standard-library paths.'
+acquisition:
+  include: ['src/*.c', 'src/*.S', 'include/*.h', 'arch/*.h', 'arch/*.s', 'ldso/*.c', 'crt/*.c', 'Makefile']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*']
+  max_bytes: 6000000

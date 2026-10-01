@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_doris_sql
+kind: git
+canonical_uri: https://github.com/apache/doris.git
+revision: 7c2f99b1bc03c0b43a877fe90837172f4de637c3
+license: Apache-2.0
+license_url: https://github.com/apache/doris/blob/7c2f99b1bc03c0b43a877fe90837172f4de637c3/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/apache/doris/blob/7c2f99b1bc03c0b43a877fe90837172f4de637c3/LICENSE.txt, https://github.com/apache/doris/blob/7c2f99b1bc03c0b43a877fe90837172f4de637c3/NOTICE.txt]
+  notices: ['Retain Apache-2.0 and project NOTICE; inspect file-level upstream headers. Excludes large synthetic SQL/fixture inserts and copied TPC/SSB benchmarks.']
+domains: [databases, sql, analytics]
+document_kinds: [sql, tests]
+source_family: v4_db_doris_sql_train
+notes: 'Apache Doris native .sql regression queries and schema scripts; independent from ClickHouse/MariaDB/DuckDB and v3 whole-repository PostgreSQL/SQLite heldouts. Groovy harnesses and generated benchmark/insert fixtures deliberately omitted.'
+acquisition:
+  include: ['regression-test/suites/*.sql']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/postgres/*', '*/postgresql/*', '*/tpc*/*', '*/ssb*/*', '*/benchmark/*', '*/data/*', '*password*', '*credential*', '*secret*', 'regression-test/suites/datatype_p0/nested_types/query/sql/nested_with_join.sql', 'regression-test/suites/query_p0/large_wide_table/ddl/insert.sql', 'regression-test/suites/query_p0/sql_functions/json_functions/json_table.sql']
+  max_bytes: 12000000

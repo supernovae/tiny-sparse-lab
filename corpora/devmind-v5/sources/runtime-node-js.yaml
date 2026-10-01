@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_node_js
+kind: git
+canonical_uri: https://github.com/nodejs/node.git
+revision: 9774069718d9f80578079d252dddf37ae6fd550d
+license: MIT
+license_url: https://github.com/nodejs/node/blob/9774069718d9f80578079d252dddf37ae6fd550d/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/nodejs/node/blob/9774069718d9f80578079d252dddf37ae6fd550d/LICENSE]
+  notices: ['Retain Node.js contributor and legacy Joyent MIT notices; LICENSE also enumerates bundled third-party libraries, all excluded here under deps/. Check selected file-level notices.']
+domains: [javascript, runtimes, developer_tools]
+document_kinds: [javascript, tests, prose, configuration]
+source_family: v4_runtime_node_js_train
+notes: 'Pinned v22.16.0 commit. Authored Node runtime and internal libraries, parallel/sequential tests for async, fs, network and processes, API manuals, first-party eslint rules and project config. GitHub pinned-tree inventory: 4,160 selected files / 15,870,312 bytes before transform. No deps/, fixture trees, generated assets, lockfiles, or snapshots.'
+acquisition:
+  include: ['lib/*.js', 'test/parallel/test-*.js', 'test/sequential/test-*.js', 'test/common/*.js', 'doc/api/*.md', 'tools/eslint-rules/*.js', 'eslint.config.mjs', 'lib/eslint.config_partial.mjs', 'test/eslint.config_partial.mjs', 'package.json']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/node_modules/*', '*/__snapshots__/*', '*/secrets/*']
+  max_bytes: 18000000

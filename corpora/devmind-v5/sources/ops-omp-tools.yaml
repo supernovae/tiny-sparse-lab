@@ -1,0 +1,42 @@
+schema_version: 3
+id: v4_ops_omp_tools
+kind: git
+canonical_uri: https://github.com/open-horizon-labs/oh-omp.git
+revision: fd7ed8c21dd5bdcf4d9e4b1f0a86a93c399d56c0
+license: MIT
+license_url: https://github.com/open-horizon-labs/oh-omp/blob/fd7ed8c21dd5bdcf4d9e4b1f0a86a93c399d56c0/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/open-horizon-labs/oh-omp/blob/fd7ed8c21dd5bdcf4d9e4b1f0a86a93c399d56c0/LICENSE]
+  notices: ['Retain copyright for Mario Zechner and Can Bölük and MIT license notice; preserve upstream/fork attribution and file-specific notices.']
+domains: [developer_tools, processes, code_editing]
+document_kinds: [prose, typescript]
+source_family: v4_ops_omp_tools_train
+notes: 'Small first-party oh-omp source excerpt: tool-facing file/read/search/edit/process/async/LSP/task prompts, scoped tool schema/async/LSP code and authored session/subagent runtime docs. No generated traces, user sessions or unrelated tiny-sparse-lab OMP harness paths.'
+acquisition:
+  include:
+    - packages/coding-agent/src/prompts/tools/read.md
+    - packages/coding-agent/src/prompts/tools/write.md
+    - packages/coding-agent/src/prompts/tools/grep.md
+    - packages/coding-agent/src/prompts/tools/find.md
+    - packages/coding-agent/src/prompts/tools/search-tool-bm25.md
+    - packages/coding-agent/src/prompts/tools/hashline.md
+    - packages/coding-agent/src/prompts/tools/ast-edit.md
+    - packages/coding-agent/src/prompts/tools/bash.md
+    - packages/coding-agent/src/prompts/tools/async-result.md
+    - packages/coding-agent/src/prompts/tools/await.md
+    - packages/coding-agent/src/prompts/tools/cancel-job.md
+    - packages/coding-agent/src/prompts/tools/lsp.md
+    - packages/coding-agent/src/prompts/tools/task.md
+    - packages/coding-agent/src/tools/jtd-to-json-schema.ts
+    - packages/coding-agent/src/tools/await-tool.ts
+    - packages/coding-agent/src/async/job-manager.ts
+    - packages/coding-agent/src/lsp/edits.ts
+    - docs/bash-tool-runtime.md
+    - docs/session.md
+    - docs/task-agent-discovery.md
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', '*/logs/*', '*/traces/*', '*/sessions/*']
+  max_bytes: 115000

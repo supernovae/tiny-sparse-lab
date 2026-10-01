@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_vscode_ts
+kind: git
+canonical_uri: https://github.com/microsoft/vscode.git
+revision: 488a1f239235055e34e673291fb8d8c810886f81
+license: MIT
+license_url: https://github.com/microsoft/vscode/blob/488a1f239235055e34e673291fb8d8c810886f81/LICENSE.txt
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/microsoft/vscode/blob/488a1f239235055e34e673291fb8d8c810886f81/LICENSE.txt]
+  notices: ['Retain Microsoft and contributor MIT notices; selected editor/workbench files carry Microsoft MIT headers. Exclude all bundled extensions and test perf data.']
+domains: [typescript, developer_tools, editors]
+document_kinds: [typescript, tests]
+source_family: v4_runtime_vscode_ts_train
+notes: 'Pinned 1.102.3 commit. First-party TypeScript editor, platform/services/diagnostics and workbench implementation plus authored tests; independent of v3 TypeScript compiler paths. Explicitly omit 1.38MB extHost perf payload, 0.66MB oversized notebook test containing repeated mock data, four generated enum/proposal/debug/MCP declaration files, vendor/fixture paths and extensions. Complete pinned Git tree: 4,155 selected files / 49,230,347 bytes before transform.'
+acquisition:
+  include: ['src/vs/platform/*.ts', 'src/vs/editor/*.ts', 'src/vs/workbench/*.ts']
+  exclude: ['src/vs/editor/common/standalone/standaloneEnums.ts', 'src/vs/platform/extensions/common/extensionsApiProposals.ts', 'src/vs/workbench/contrib/debug/common/debugProtocol.d.ts', 'src/vs/workbench/contrib/mcp/common/modelContextProtocol.ts', '*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/thirdParty/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/testData/*', '*.test.perf-data.ts', 'src/vs/workbench/contrib/notebook/test/browser/diff/notebookDiffService.test.ts']
+  max_bytes: 56000000

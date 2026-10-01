@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_duckdb_sql
+kind: git
+canonical_uri: https://github.com/duckdb/duckdb.git
+revision: 96063b9e39749cc0f087bb11501d7edbee527957
+license: MIT
+license_url: https://github.com/duckdb/duckdb/blob/96063b9e39749cc0f087bb11501d7edbee527957/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/duckdb/duckdb/blob/96063b9e39749cc0f087bb11501d7edbee527957/LICENSE]
+  notices: ['Retain DuckDB Foundation MIT copyright and license; only first-party SQLLogicTest scripts, not linked fixture data or bundled benchmark suites.']
+domains: [databases, sql, query_planning]
+document_kinds: [sql, tests]
+source_family: v4_db_duckdb_sql_train
+notes: 'Independent DuckDB SQLLogicTest scenarios include embedded real SQL queries, planner/explain checks and schema changes. Neither SQLite nor PostgreSQL source tree or revision is admitted to train; omit TPC benchmarks, external extension/data, secrets and fixture-heavy cases.'
+acquisition:
+  include: ['test/sql/*.test']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'test/sql/tpcds/*', 'test/sql/tpch/*', 'test/sql/extensions/*', 'test/sql/aoc24/*', 'test/sql/copy/*', 'test/sql/multi_file/*', 'test/sql/outofcore/*', 'test/sql/storage/*', 'test/sql/attach/*', 'test/sql/sql_export/*', '*password*', '*credential*', '*secret*']
+  max_bytes: 12000000

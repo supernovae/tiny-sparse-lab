@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_go_standard
+kind: git
+canonical_uri: https://github.com/golang/go.git
+revision: 2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48
+license: BSD-3-Clause
+license_url: https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause
+  license_references: [https://github.com/golang/go/blob/2a2f42823b1877f5f9189609ba7b4d2ebdcfaf48/LICENSE]
+  notices: ['Retain Go Authors BSD copyright/license/disclaimer and file-specific upstream notices.']
+domains: [programming, networking, developer_systems]
+document_kinds: [go, prose]
+source_family: v2_go_standard_train
+notes: 'Go standard-library implementation and language documentation; exclude generated code, vendored dependencies, testdata and fixtures; no rights inferred from repository license for exceptions.'
+acquisition:
+  include: ['doc/*.md', 'src/net/*.go', 'src/os/*.go', 'src/encoding/*.go', 'src/crypto/*.go']
+  exclude: ['*/testdata/*', '*/tests/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*_test.go', '*_gen.go', 'src/crypto/x509/root_*.go']
+  max_bytes: 100000000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_util_linux_shell
+kind: git
+canonical_uri: https://github.com/util-linux/util-linux.git
+revision: 8a937b74de272becd891fb0d1530fc5bb0514e7e
+license: GPL-2.0-or-later
+license_url: https://github.com/util-linux/util-linux/blob/8a937b74de272becd891fb0d1530fc5bb0514e7e/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-2.0-or-later
+  license_references: [https://github.com/util-linux/util-linux/blob/8a937b74de272becd891fb0d1530fc5bb0514e7e/COPYING, https://github.com/util-linux/util-linux/blob/8a937b74de272becd891fb0d1530fc5bb0514e7e/README.licensing]
+  notices: ['Selected tests/ts/column/table bears a GPL-2.0-or-later file notice; README.licensing requires file-header review across selected scripts before release.']
+domains: [shell, operating_systems, administration]
+document_kinds: [shell, tests]
+source_family: v4_runtime_util_linux_shell_train
+notes: 'Reuses v3_system_util_linux pinned revision but selects only authored shell test scripts from column, script, kill and misc; v3 selected tests/ts/libmount and tests/ts/blkid only, with no overlapping paths. GitHub pinned-tree inventory: 27 files / 61,112 bytes before transform. Excludes test input/output fixtures; script tests remain a coherent shell behavior sample despite referenced fixtures not being selected.'
+acquisition:
+  include: ['tests/ts/column/*', 'tests/ts/script/*', 'tests/ts/kill/*', 'tests/ts/misc/*']
+  exclude: ['*/fixtures/*', '*/files/*', '*/dumps/*', '*/vendor/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 150000

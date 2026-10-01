@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_grafana_charts
+kind: git
+canonical_uri: https://github.com/grafana/helm-charts.git
+revision: 434266a8ba2e1e859b58d82084d976cc411580cc
+license: Apache-2.0
+license_url: https://github.com/grafana/helm-charts/blob/434266a8ba2e1e859b58d82084d976cc411580cc/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/grafana/helm-charts/blob/434266a8ba2e1e859b58d82084d976cc411580cc/LICENSE]
+  notices: ['Retain Helm/Grafana chart notices and contributor attribution; chart metadata may cite other software, and CRDs imported from other projects are excluded.']
+domains: [helm, observability, deployment]
+document_kinds: [yaml, go_template, prose]
+source_family: v4_iac_grafana_charts_train
+notes: 'Grafana-maintained Promtail, Tempo distributed and enterprise metrics chart values, authored templates and explanation templates; exclude helm-docs generated README.md, chart dependencies, CI sample values and all CRD dumps. Promtail chart is deprecated upstream: retain for language examples, not deployment advice. Pinned Git tree about 0.62 MB selected before filters.'
+acquisition:
+  include: ['charts/promtail/Chart.yaml', 'charts/promtail/values.yaml', 'charts/promtail/templates/*', 'charts/promtail/README.md.gotmpl', 'charts/tempo-distributed/Chart.yaml', 'charts/tempo-distributed/values.yaml', 'charts/tempo-distributed/templates/*', 'charts/tempo-distributed/README.md.gotmpl', 'charts/enterprise-metrics/Chart.yaml', 'charts/enterprise-metrics/values.yaml', 'charts/enterprise-metrics/templates/*', 'charts/enterprise-metrics/README.md.gotmpl']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/crds/*', '*/charts/*/charts/*', '*/ci/*', '*/templates/tests/*', '*/README.md']
+  max_bytes: 1300000

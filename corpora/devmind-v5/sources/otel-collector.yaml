@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_otel_collector
+kind: git
+canonical_uri: https://github.com/open-telemetry/opentelemetry-collector.git
+revision: 2d516bc090fd4d9571d474a5c87f7d2bdac78591
+license: Apache-2.0
+license_url: https://github.com/open-telemetry/opentelemetry-collector/blob/2d516bc090fd4d9571d474a5c87f7d2bdac78591/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/open-telemetry/opentelemetry-collector/blob/2d516bc090fd4d9571d474a5c87f7d2bdac78591/LICENSE]
+  notices: ['Retain OpenTelemetry Authors license, applicable NOTICE and modifications; screen component headers and copied examples.']
+domains: [observability, distributed_systems, configuration]
+document_kinds: [go, prose]
+source_family: v2_otel_collector_train
+notes: 'First-party Collector configuration, receivers, exporters, service and architecture documents. Exclude generated bindings, vendors, examples of unknown origin, test fixtures and private credentials.'
+acquisition:
+  include: ['config/*.go', 'receiver/*.go', 'exporter/*.go', 'service/*.go', 'docs/*.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*_test.go', '*_generated.go']
+  max_bytes: 70000000

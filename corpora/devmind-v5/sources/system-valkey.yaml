@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_valkey
+kind: git
+canonical_uri: https://github.com/valkey-io/valkey.git
+revision: 72230552513e220b90427dd139293f553c04f65c
+license: BSD-3-Clause
+license_url: https://github.com/valkey-io/valkey/blob/72230552513e220b90427dd139293f553c04f65c/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause
+  license_references: [https://github.com/valkey-io/valkey/blob/72230552513e220b90427dd139293f553c04f65c/COPYING]
+  notices: ['Keep Valkey and Redis Ltd attribution in BSD license and per-file notices; avoid third-party embedded codecs and bundled dependency directories.']
+domains: [databases, caching, networking]
+document_kinds: [c, tcl, tests, prose]
+source_family: v3_system_valkey_train
+notes: 'BSD-licensed fork of Redis before its licensing cutover: select first-party server/cluster data structures and authored Tcl unit/integration cases; skip fixtures, keys and bundled deps.'
+acquisition:
+  include: ['src/*.c', 'src/*.h', 'tests/unit/*.tcl', 'tests/integration/*.tcl', 'tests/sentinel/*.tcl', 'tests/README.md', 'README.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'tests/assets/*', 'tests/tmp/*', 'src/fuzzer_*.c', 'src/lzf_*.c', 'src/lzf*.h', 'src/mt19937-64.c', 'src/mt19937-64.h', 'src/sha1.c', 'src/sha1.h', 'src/siphash.c', 'src/ziplist.c', '*.pem', '*.key', '*.crt']
+  max_bytes: 22000000

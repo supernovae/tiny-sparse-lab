@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_tikv
+kind: git
+canonical_uri: https://github.com/tikv/tikv.git
+revision: 7709ab9d738d16f856df990ad9ffb5c1908f84f8
+license: Apache-2.0
+license_url: https://github.com/tikv/tikv/blob/7709ab9d738d16f856df990ad9ffb5c1908f84f8/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/tikv/tikv/blob/7709ab9d738d16f856df990ad9ffb5c1908f84f8/LICENSE, https://github.com/tikv/tikv/blob/7709ab9d738d16f856df990ad9ffb5c1908f84f8/README.md]
+  notices: ['Retain TiKV Authors copyright and component notices; avoid generated protobuf bindings, copied test corpora and externally maintained dependencies.']
+domains: [databases, storage, distributed_systems]
+document_kinds: [rust, tests, prose, build]
+source_family: v3_system_tikv_train
+notes: 'First-party Raft storage, transactional KV, CDC, backups and encryption crates, plus Rust integration tests and maintenance/design docs. Does not copy v2 PostgreSQL paths; RocksDB dependency is external, not selected.'
+acquisition:
+  include: ['src/*.rs', 'components/*.rs', 'cmd/*.rs', 'tests/*.rs', 'doc/*.md', 'Cargo.toml', 'README.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/target/*', '*/proto/*', 'fuzz/*', 'patches/*', 'tests/fixtures/*', 'tests/testdata/*', 'components/engine_rocks/rocksdb/*', '*.pb.rs', '*_generated.rs']
+  max_bytes: 105000000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_relay_js
+kind: git
+canonical_uri: https://github.com/facebook/relay.git
+revision: bb57add21df15877469d143c0e45162935bfedbf
+license: MIT
+license_url: https://github.com/facebook/relay/blob/bb57add21df15877469d143c0e45162935bfedbf/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/facebook/relay/blob/bb57add21df15877469d143c0e45162935bfedbf/LICENSE]
+  notices: ['Retain Meta and contributors MIT notices.']
+domains: [javascript, web_development, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_relay_js_train
+notes: 'Pinned v19.0.0 commit. Relay runtime store, query/network logic, React bindings, test utility implementations and authored tests; omit numerous __generated__ query artifacts and fixture trees. Complete pinned Git tree: 552 selected files / 5,875,942 bytes before transform.'
+acquisition:
+  include: ['packages/relay-runtime/*.js', 'packages/react-relay/*.js', 'packages/relay-test-utils/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*']
+  max_bytes: 7500000

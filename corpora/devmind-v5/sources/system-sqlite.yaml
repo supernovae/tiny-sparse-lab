@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_sqlite
+kind: git
+canonical_uri: https://github.com/sqlite/sqlite.git
+revision: 1f7010d4ec424169c68b4299dc0c43ef3d11ea93
+license: LicenseRef-SQLite-Public-Domain
+license_url: https://github.com/sqlite/sqlite/blob/1f7010d4ec424169c68b4299dc0c43ef3d11ea93/LICENSE.md
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: LicenseRef-SQLite-Public-Domain
+  license_references: [https://github.com/sqlite/sqlite/blob/1f7010d4ec424169c68b4299dc0c43ef3d11ea93/LICENSE.md, https://sqlite.org/copyright.html]
+  notices: ['LicenseRef denotes SQLite authors public-domain dedication rather than an OSI/SPDX standard license; confirm territorial treatment before redistribution. LICENSE.md explicitly excludes build-tool licensing exceptions from src, test and ext.']
+domains: [databases, storage, sql]
+document_kinds: [c, tests, tcl]
+source_family: v3_system_sqlite_heldout
+notes: 'Whole independent database heldout family: upstream LICENSE.md identifies src, ext and test as public-domain; skip non-public-domain autosetup/autoconf/configure and bundled build products. Not v2 PostgreSQL backend.'
+acquisition:
+  include: ['src/*.c', 'src/*.h', 'ext/*.c', 'ext/*.h', 'test/*.test', 'test/*.tcl']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'ext/fts5/tool/*', 'test/fuzzdata*', 'test/zipfile*']
+  max_bytes: 85000000

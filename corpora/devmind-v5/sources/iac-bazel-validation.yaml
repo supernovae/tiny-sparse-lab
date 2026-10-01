@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_bazel_validation
+kind: git
+canonical_uri: https://github.com/bazelbuild/bazel.git
+revision: bd258719f307490e8bff15fe310a1bb71d0b2830
+license: Apache-2.0
+license_url: https://github.com/bazelbuild/bazel/blob/bd258719f307490e8bff15fe310a1bb71d0b2830/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/bazelbuild/bazel/blob/bd258719f307490e8bff15fe310a1bb71d0b2830/LICENSE]
+  notices: ['Retain Bazel Apache and contributor notices, and screen file-level exceptions; license lists a separately licensed src/main/cpp/util/md5.cc not selected.']
+domains: [build_systems, bazel, configuration]
+document_kinds: [starlark, java, prose]
+source_family: v4_iac_bazel_validation_heldout
+notes: 'Whole independent Bazel repository reserved for build-system validation and test; never train on any Bazel revision, path or derivative. Authored Starlark builtins, simple first-party BUILD examples, explanatory builtins README, and select rule implementations probe a language not present in CMake/Meson train. Exclude vendored rules, external dependencies and generated docs. Pinned tree approximately 1.75 MB.'
+acquisition:
+  include: ['src/main/starlark/builtins_bzl/*.bzl', 'src/main/starlark/builtins_bzl/README.md', 'examples/*/BUILD', 'src/main/java/com/google/devtools/build/lib/rules/*.java']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/external/*', '*/md5.cc', '*/protobuf/*']
+  max_bytes: 3500000

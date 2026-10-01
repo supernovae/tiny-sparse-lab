@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_ansible_playbooks
+kind: git
+canonical_uri: https://github.com/ansible/ansible.git
+revision: a900ea9d0c3665d4013d305dabe6d0af2c3231f8
+license: GPL-3.0-or-later
+license_url: https://github.com/ansible/ansible/blob/a900ea9d0c3665d4013d305dabe6d0af2c3231f8/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-3.0-or-later
+  license_references: [https://github.com/ansible/ansible/blob/a900ea9d0c3665d4013d305dabe6d0af2c3231f8/COPYING, https://github.com/ansible/ansible/blob/a900ea9d0c3665d4013d305dabe6d0af2c3231f8/test/integration/targets/systemd/tasks/main.yml]
+  notices: ['Keep GPL-3.0-or-later and playbook/module authorship notices; check each module file independently; avoid integration files containing credentials.']
+domains: [configuration_management, deployment, service_management]
+document_kinds: [yaml, python]
+source_family: v4_iac_ansible_playbooks_train
+notes: 'Owned core configuration definitions, GPL-header core modules and narrowly selected integration test playbooks exercising package and service lifecycle; v3 selected playbook/executor/inventory/CLI/action Python and unit tests, not these files. Explicit task lists are first-party behavioral examples, not imported roles or bulk fixture assets. Selected Git-tree files approximately 0.45 MB.'
+acquisition:
+  include: ['lib/ansible/config/base.yml', 'lib/ansible/keyword_desc.yml', 'lib/ansible/modules/apt.py', 'lib/ansible/modules/systemd_service.py', 'lib/ansible/modules/cron.py', 'lib/ansible/modules/template.py', 'lib/ansible/modules/service.py', 'test/integration/targets/apt/tasks/*.yml', 'test/integration/targets/systemd/tasks/*.yml', 'test/integration/targets/service/tasks/*.yml', 'test/integration/targets/ansible-config/tasks/main.yml']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/files/*', '*/templates/*', '*/collections/*']
+  max_bytes: 1000000

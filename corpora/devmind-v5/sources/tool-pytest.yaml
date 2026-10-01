@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_pytest
+kind: git
+canonical_uri: https://github.com/pytest-dev/pytest.git
+revision: 2887015cade4757385308e7a7d8083557fc637e2
+license: MIT
+license_url: https://github.com/pytest-dev/pytest/blob/2887015cade4757385308e7a7d8083557fc637e2/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/pytest-dev/pytest/blob/2887015cade4757385308e7a7d8083557fc637e2/LICENSE]
+  notices: ['Retain pytest and contributors MIT license and embedded file notices.']
+domains: [testing, developer_tools, programming]
+document_kinds: [python, prose]
+source_family: v3_tool_pytest_train
+notes: 'Pytest core and authored collection/assertion/mark tests plus how-to guidance; omit testing/example_scripts, docs assets and generated examples.'
+acquisition:
+  include: ['src/_pytest/*.py', 'testing/test_*.py', 'doc/en/how-to/*.rst']
+  exclude: ['*/fixtures/*', '*/example_scripts/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 4200000

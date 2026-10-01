@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_python_library
+kind: git
+canonical_uri: https://github.com/python/cpython.git
+revision: 333071231d3a46cccc32d7f44b99328c3299d0b1
+license: PSF-2.0
+license_url: https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: PSF-2.0
+  license_references: [https://github.com/python/cpython/blob/333071231d3a46cccc32d7f44b99328c3299d0b1/LICENSE]
+  notices: ['Retain Python Software Foundation license history and file-specific contributor/0BSD example notices; screen selected files before any export.']
+domains: [programming, developer_systems]
+document_kinds: [prose, python]
+source_family: v2_python_library_train
+notes: 'First-party library documentation and standard-library implementation only; exclude generated and third-party examples, secrets and fixtures. Source declarations are prospective, not file-level clearance.'
+acquisition:
+  include: ['Doc/library/*.rst', 'Lib/*.py']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', 'Lib/site-packages/*', 'Lib/ensurepip/_bundled/*']
+  max_bytes: 120000000

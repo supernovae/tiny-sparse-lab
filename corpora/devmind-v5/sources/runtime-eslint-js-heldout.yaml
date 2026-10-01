@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_eslint_js_heldout
+kind: git
+canonical_uri: https://github.com/eslint/eslint.git
+revision: a90d7c4fe5ef83054e29d21d7ffb442103429d03
+license: MIT
+license_url: https://github.com/eslint/eslint/blob/a90d7c4fe5ef83054e29d21d7ffb442103429d03/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/eslint/eslint/blob/a90d7c4fe5ef83054e29d21d7ffb442103429d03/LICENSE]
+  notices: ['Retain OpenJS Foundation and other contributors MIT notice and any file-level notices.']
+domains: [javascript, developer_tools, static_analysis]
+document_kinds: [javascript, tests, prose, configuration]
+source_family: v4_runtime_eslint_js_heldout
+notes: 'Pinned v9.33.0 commit; reserve this entire independently developed repository as JavaScript heldout, never use other ESLint paths or revisions in v4 train. Authored linter/rules, behavioral tests, rules and use docs, and configuration only. GitHub pinned-tree inventory: 1,106 selected files / 12,250,146 bytes before transform. No test fixtures, bundled assets, snapshots or lockfiles.'
+acquisition:
+  include: ['lib/*.js', 'tests/lib/*.js', 'docs/src/rules/*.md', 'docs/src/use/*.md', 'docs/src/extend/*.md', 'eslint.config.js', 'package.json']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__snapshots__/*', '*/vendor/*', '*/generated/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/testdata/*', '*/third_party/*']
+  max_bytes: 14000000

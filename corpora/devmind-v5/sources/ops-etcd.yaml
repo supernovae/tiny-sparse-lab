@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_etcd
+kind: git
+canonical_uri: https://github.com/etcd-io/etcd.git
+revision: 7583cc6e7e2756bb4166d646fe48d2fa1863b4b6
+license: Apache-2.0
+license_url: https://github.com/etcd-io/etcd/blob/7583cc6e7e2756bb4166d646fe48d2fa1863b4b6/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/etcd-io/etcd/blob/7583cc6e7e2756bb4166d646fe48d2fa1863b4b6/LICENSE]
+  notices: ['Preserve etcd contributor notices; only explicit hand-authored CLI/diagnostics docs, no v3 Documentation/*.md or Go code.']
+domains: [distributed_systems, operations, diagnostics]
+document_kinds: [prose]
+source_family: v4_ops_etcd_train
+notes: 'etcdctl and etcdutl operational reference, log/database/metric diagnosis and authored systemd deployment guidance; every path is disjoint from v3_system_etcd Documentation/*.md and *.go.'
+acquisition:
+  include: ['etcdctl/README.md', 'etcdutl/README.md', 'etcdctl/doc/mirror_maker.md', 'tools/etcd-dump-db/README.md', 'tools/etcd-dump-logs/README.md', 'tools/etcd-dump-metrics/README.md', 'contrib/systemd/etcd3-multinode/README.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*']
+  max_bytes: 130000

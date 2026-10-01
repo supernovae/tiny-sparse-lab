@@ -1,0 +1,47 @@
+{
+  "historical_disposition_version": 1,
+  "decision": "Preserve v2/v3/v4 as nonreconstructable historical releases; author v5 as separately identified reproducible successor",
+  "authorization": "Current reviewed user request",
+  "meaning": "NONRECONSTRUCTABLE_WITH_AVAILABLE_CLOSURE is not proof that recovery is permanently impossible if original authenticated metadata/snapshots later become available",
+  "historical_artifacts_modified": false,
+  "evidence": [
+    {
+      "path": "experiments/research/devmind-pretrain-v4/ancestry-replay-blocker.json",
+      "sha256": "1cad7ec4d2df0f0642d25bab4e7c00d5c7da050d5c8cc8826e8dd9cd8c101cf1"
+    },
+    {
+      "path": "experiments/research/devmind-pretrain-v4/pinned-replay-blocker.json",
+      "sha256": "f9e70d4cbbf0291ea179ab2c00516b5e6b9955f0993fa3cb49b055d1b56103bd"
+    },
+    {
+      "path": "experiments/research/devmind-pretrain-v4/model0-try2-blocker.json",
+      "sha256": "33821fe01b6b09b6f0614eb21872a8244dda1ba933ddd0bd6321f70dc9fc9516"
+    }
+  ],
+  "releases": [
+    {
+      "id": "devmind-v2",
+      "source_commit": "078b8f5ed533c1dd915394ea57033de646ae5d15",
+      "expected_build_sha256": "36abf24160bf55d3e76dae5e67766dca7ef61d73e217f007f215bd76b92652bf",
+      "expected_release_sha256": "50ee7ae6355ae97aeae44544d9f1f66362249767f315b1e98346f3b8df216b6d",
+      "disposition": "NONRECONSTRUCTABLE_WITH_AVAILABLE_CLOSURE",
+      "observation": "Authentic pinned acquisition/build produced 21b85b0f3e1f9a78fdd24dc276d5c254a2b94c2c1ce6b879580874bc92bd2de2; failed exact build gate before freeze"
+    },
+    {
+      "id": "devmind-v3",
+      "source_commit": "b87134335efb8eaeccd91a246fadad4242fd9635",
+      "expected_build_sha256": "fed21f674ee5385c80d73a99bbb869b23843a682e69986d5859e27fd76a36f55",
+      "expected_release_sha256": "5b189369a569a39df0ef000d0c0227053404b4aa74c17aad491f4536e8ff5324",
+      "disposition": "NONRECONSTRUCTABLE_WITH_AVAILABLE_CLOSURE",
+      "observation": "Independent v3 ancestry replay was not run: required exact v2 parent closure unavailable after the first gate mismatch"
+    },
+    {
+      "id": "devmind-v4",
+      "source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+      "expected_build_sha256": "79b568629fc6682c33bf1212eef0653cdb05d26a772654019458f44af2ceaee5",
+      "expected_release_sha256": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+      "disposition": "NONRECONSTRUCTABLE_WITH_AVAILABLE_CLOSURE",
+      "observation": "Current-producer identity diverged; clean pinned replay also failed exact build; ancestry remained blocked at v2"
+    }
+  ]
+}

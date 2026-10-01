@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_ninja_build
+kind: git
+canonical_uri: https://github.com/ninja-build/ninja.git
+revision: 4e4df1e567eb3c1475a51af261cba2bfff60b4be
+license: Apache-2.0
+license_url: https://github.com/ninja-build/ninja/blob/4e4df1e567eb3c1475a51af261cba2bfff60b4be/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/ninja-build/ninja/blob/4e4df1e567eb3c1475a51af261cba2bfff60b4be/COPYING]
+  notices: ['Preserve Ninja Apache license and notices; verify files under misc are authored here.']
+domains: [build_systems, ninja, cmake]
+document_kinds: [ninja, cmake, python]
+source_family: v4_iac_ninja_build_train
+notes: 'Actual first-party Ninja build/CMake configuration and manifest-generation source plus two hand-authored .ninja scenarios; v3 only selects src/*.cc, src/*.h and doc/manual.asciidoc. Pinned Git tree ~50 KB.'
+acquisition:
+  include: ['CMakeLists.txt', 'configure.py', 'misc/long-slow-build.ninja', 'misc/inherited-fds.ninja', 'misc/ninja_syntax.py']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/oss-fuzz/*']
+  max_bytes: 110000

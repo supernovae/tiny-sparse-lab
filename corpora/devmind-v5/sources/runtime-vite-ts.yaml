@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_vite_ts
+kind: git
+canonical_uri: https://github.com/vitejs/vite.git
+revision: 931684ef1ea8b120fcc2f1f2b001b8d24d85daa7
+license: MIT
+license_url: https://github.com/vitejs/vite/blob/931684ef1ea8b120fcc2f1f2b001b8d24d85daa7/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/vitejs/vite/blob/931684ef1ea8b120fcc2f1f2b001b8d24d85daa7/LICENSE, https://github.com/vitejs/vite/blob/931684ef1ea8b120fcc2f1f2b001b8d24d85daa7/packages/vite/LICENSE.md]
+  notices: ['Retain Vite/VoidZero contributor MIT notices; bundled dependencies enumerated in packages/vite/LICENSE.md belong to published artifacts and are not selected.']
+domains: [typescript, build_systems, developer_tools]
+document_kinds: [typescript, tests, prose, configuration]
+source_family: v4_runtime_vite_ts_train
+notes: 'Pinned v7.1.0 commit. Vite authored TS server/client/build/plugin sources, authored tests, developer documentation and project configs; disjoint repository and files from v3_tool_typescript_train. GitHub pinned-tree inventory: 219 selected files / 1,938,127 bytes before transform. Excludes playground/template fixture projects, snapshots, assets and lockfiles.'
+acquisition:
+  include: ['packages/vite/src/*.ts', 'packages/plugin-legacy/src/*.ts', 'packages/create-vite/src/*.ts', 'scripts/*.ts', 'docs/guide/*.md', 'eslint.config.js', 'vitest.config*.ts', 'package.json', 'packages/vite/package.json', 'packages/plugin-legacy/package.json']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__snapshots__/*', '*/vendor/*', '*/generated/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/testdata/*', '*/third_party/*', '*/template-*/*']
+  max_bytes: 3000000
