@@ -12,11 +12,6 @@ item below with its issue link. A code item is complete only when its tests and
 documentation land. An experiment result, including a negative result, does not
 close a code item unless the named software acceptance criteria also pass.
 
-## Runtime forecasting and progress
-
-- [ ] [Runtime forecasting and progress (#3)](https://github.com/supernovae/tiny-sparse-lab/issues/3).
-  [Implementation brief](docs/prompts/runtime-forecasting-and-throughput.md).
-
 ## Throughput and resource proposals
 
 - [ ] Add optional bottleneck observations that distinguish accelerator-bound,
