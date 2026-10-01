@@ -811,5 +811,14 @@ The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_
 
 Native CUDA sparse kernels, actual XPU acceptance, and overlapping real Mac/AMD/Intel execution remain open in [the implementation backlog](../TODO.md). Native HIP sparse attention has been exercised and benchmarked on the RX 7900 XTX; ROCm runtime acceptance remains limited to one WSL2 host and does not establish cross-host support.
 
+The [registered-runtime ROCm gate](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
+records isolated `rocm-gfx1100-v1` provisioning and a fresh RX 7900 XTX BF16
+Campaign: one ingested attempt, two optimizer steps, 64 supervised targets,
+and a verified full-state checkpoint. Explicit ROCm and CPU FP32 evaluation
+share that checkpoint and retain ROCm training identity; threshold-free
+readiness is `READY_FOR_NEXT_STAGE`. The checkout's CPU Torch version, paths,
+and hashes remained unchanged. This is local execution/runtime-contract
+acceptance, not a model-quality, performance, or cross-host portability result.
+
 See [memory accounting](memory.md), [activation recomputation](activation-checkpointing.md),
 and [activation offload](offload.md) for the estimate/measurement boundaries.

@@ -1,0 +1,283 @@
+{
+  "acceptance_version": 1,
+  "status": "ROCM_ACCEPTANCE_COMPLETE",
+  "claim": "Local execution/runtime-contract acceptance only; no model-quality, performance, superiority, or cross-host portability claim.",
+  "branch": "acceptance/runtime-environments-rocm-20261001T134938Z",
+  "feature_commit": "671770fe72e376e79c1b7114c973427ddd3c4e97",
+  "source_commit": "0ae4d842955b320819bd7c72b424dc357bfb8f07",
+  "source_sha256": "d019bfecfe8093a9f88bfb539e68d0df75520402df0a815ca9cffd1807c30864",
+  "training_source_identity_sha256": "5acb9c7ae964c2c703c5bcc5731097d56395f7b336fd1be10ea0d0ef0f32a4d6",
+  "roots": {
+    "runtime": "/home/byron/.local/share/sparselab/runtimes",
+    "operational": "/home/byron/.local/share/sparselab/runtime-environments-v1-verification-20261001T134339Z",
+    "work": "/srv/sparselab/state/experiments/runtime-contract-rocm-20261001T134938Z",
+    "campaign": "/srv/sparselab/state/experiments/runtime-contract-rocm-20261001T134938Z/campaigns/runtime-contract-rocm-bf16-20261001T134938Z/569d9fd9e368edc5fa6344d6d63be845a77833e92a9e8155c31ed8fd17b26fac",
+    "run": "/srv/sparselab/state/experiments/runtime-contract-rocm-20261001T134938Z/campaigns/runtime-contract-rocm-bf16-20261001T134938Z/569d9fd9e368edc5fa6344d6d63be845a77833e92a9e8155c31ed8fd17b26fac/experiments/plan-runtime-contract-rocm-bf16-20261001T134938Z/controller/c28bce85-e383-44e3-a54d-21c49af73bc3"
+  },
+  "sample": "experiments/samples/runtime-contract-rocm-20261001T134938Z",
+  "protocol": {
+    "id": "runtime-contract-rocm-bf16-20261001T134938Z",
+    "plan_sha256": "410bee8f6fca0e60a01078fb519d27b37c762c76d2f4e95a0db5c0895e95e876",
+    "scientific_sha256": "435ab64f40625bb3a7ad3783b814e77627b23a0d161c7113008359d7322929ca",
+    "campaign_declaration_sha256": "569d9fd9e368edc5fa6344d6d63be845a77833e92a9e8155c31ed8fd17b26fac",
+    "seed": 7,
+    "prepared_train_tokens": 129,
+    "prepared_validation_tokens": 81,
+    "packing": "contiguous-eos-v6",
+    "supervision": "all_tokens",
+    "tokenizer_sha256": "bb1957c240cd98811e3ecb7d62a240dffa6cc7af83bca6bee9e5baf9cfa882b5",
+    "prepared_manifest_sha256": "ad8c60c84de2985bc0dbcc1218f4966540c4310f38a42f4ca27cba5625b896b8"
+  },
+  "runtime": {
+    "id": "rocm-7900xtx",
+    "recipe": "rocm-gfx1100-v1",
+    "recipe_version": 1,
+    "recipe_sha256": "38f19ed383e472b2569093e574b1084a58f6253c92239c79a71a676f974c5ccb",
+    "indexes": [
+      "https://stable.repo.amd.com/rocm/whl-next/",
+      "https://stable.repo.amd.com/rocm/core/whl-next/"
+    ],
+    "python": "/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx/bin/python",
+    "python_version": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "torch": {
+      "cuda": null,
+      "hip": "7.15.26333",
+      "installed": true,
+      "path": "/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx/lib/python3.14/site-packages/torch/__init__.py",
+      "version": "2.13.0+rocm10.0.0"
+    },
+    "device": "AMD Radeon RX 7900 XTX",
+    "backend": "rocm",
+    "training_precision": "bf16",
+    "doctor_status": "READY",
+    "tested_features": [
+      "forward_backward_optimizer",
+      "optimizer:adamw"
+    ]
+  },
+  "cpu": {
+    "id": "cpu-py314",
+    "doctor_status": "READY",
+    "torch_unchanged": true,
+    "version": "2.14.0+cpu",
+    "hip": null,
+    "cuda": null,
+    "path": "/home/byron/src/tiny-sparse-lab/.venv/lib/python3.14/site-packages/torch/__init__.py",
+    "sha256": "bd4a10ff16357ed78f45aaf4b46ce5b771fdc0e8549402206e324d0eb792c672",
+    "native_path": "/home/byron/src/tiny-sparse-lab/.venv/lib/python3.14/site-packages/torch/_C.cpython-314-x86_64-linux-gnu.so",
+    "native_sha256": "84e5dbae6f83962c817966e22393252a4ef2eed5a31e40cad26a540919825bd2"
+  },
+  "run": {
+    "id": "c28bce85-e383-44e3-a54d-21c49af73bc3",
+    "experiment_id": "d954412a-2ca1-4876-82e0-5cac36c83bb2",
+    "attempt_id": "60ba38f8-9bc3-4ce3-8411-363ae8c5a37c",
+    "attempt_count": 1,
+    "controller_row_count": 1,
+    "status": "COMPLETE",
+    "ingestion_status": "COMPLETE",
+    "cell": "main:single",
+    "binding_sha256": "6e8f12d06a11f6f20f7d2f11b7167980a8e0b76bce07cc98d7a2160eb55bd6d6",
+    "generation": "step_00000002_gen_000003",
+    "checkpoint_sha256": "5fe89a04768409b6144a4f63ac76add8e3adc62e523fcdc14b01eecdfb759859",
+    "checkpoint_manifest_file_sha256": "43a5d407f49b0f513b2a4532f3fac8640e2e57a6860b00f90115269b3e8b07ef",
+    "resume_level": "full",
+    "step": 2,
+    "target_tokens": 64,
+    "backend": "rocm"
+  },
+  "evaluations": {
+    "rocm": {
+      "index_sha256": "1103291582458d2de76429dd95b039f61f7005b5b5972085880eb5d411a85cca",
+      "checkpoint_sha256": "5fe89a04768409b6144a4f63ac76add8e3adc62e523fcdc14b01eecdfb759859",
+      "evaluation_backend": "rocm",
+      "precision": "fp32",
+      "training_backend": "rocm",
+      "record_sha256": "81b1e93f45a0bfce6b830d6ce360494cc7d562e32ca4b33b1a0e14714d6ae999",
+      "heldout_loss": 6.200425744056702,
+      "valid_targets": 64
+    },
+    "cpu": {
+      "index_sha256": "bfa5e7d08eb537efa4604b9af27e0f0c6c3cdd283a54cf4b1e5a9b90e89443e6",
+      "checkpoint_sha256": "5fe89a04768409b6144a4f63ac76add8e3adc62e523fcdc14b01eecdfb759859",
+      "evaluation_backend": "cpu",
+      "precision": "fp32",
+      "training_backend": "rocm",
+      "record_sha256": "c0199825a011c3be8a168c9eba51740169774ae23f68ccfb9ceda19a42541bd1",
+      "heldout_loss": 6.20042610168457,
+      "valid_targets": 64
+    }
+  },
+  "rocm_evaluation_note": "Explicit --runtime rocm-7900xtx command reused the verified immutable Campaign ROCm evaluation; explicit --backend cpu command had no runtime/profile/worker and produced a separate CPU evaluation.",
+  "readiness": {
+    "state": "READY_FOR_NEXT_STAGE",
+    "index_sha256": "1103291582458d2de76429dd95b039f61f7005b5b5972085880eb5d411a85cca",
+    "result_sha256": "56f73e55064ab656ac0f1799c093c37ad501facc89879739c9564bac09971579",
+    "policy_sha256": "d4cfda3766aa1d32953567029e51482ff502b9a2fcba87eee8e252d93487f9dc",
+    "max_heldout_loss": null,
+    "quality_threshold": false
+  },
+  "snapshots": {
+    "bound": "READY_FOR_EXECUTION",
+    "unbound": "BLOCKED",
+    "unbound_reason_codes": [
+      "RUNTIME_REQUIRED"
+    ]
+  },
+  "evidence": {
+    "provision": {
+      "base": "runtime",
+      "path": "rocm-7900xtx/provision-receipt.json",
+      "sha256": "68f8f227d89157a507628406b62cc73073dc2f87bba945042e6e4148022055f9"
+    },
+    "controller_proof": {
+      "base": "work",
+      "path": "controller-binding-proof.json",
+      "sha256": "a2c6029a81fad038e2cb769105cb94e2d9486ca23fa7591f1dc421177382c37f"
+    },
+    "collect": {
+      "base": "work",
+      "path": "campaigns/runtime-contract-rocm-bf16-20261001T134938Z/569d9fd9e368edc5fa6344d6d63be845a77833e92a9e8155c31ed8fd17b26fac/experiments/plan-runtime-contract-rocm-bf16-20261001T134938Z/evidence/a71118e8f4884ec6e83a34d2135d48ccd2262c5176454d516d696c395b521021.json",
+      "index_sha256": "a71118e8f4884ec6e83a34d2135d48ccd2262c5176454d516d696c395b521021",
+      "file_sha256": "55731c39a8c5843eabbb75c3bc92723cdc06d816487b101ae6a689cc10cfa4aa"
+    },
+    "binding": {
+      "base": "work",
+      "path": "campaigns/runtime-contract-rocm-bf16-20261001T134938Z/569d9fd9e368edc5fa6344d6d63be845a77833e92a9e8155c31ed8fd17b26fac/experiments/plan-runtime-contract-rocm-bf16-20261001T134938Z/runtime-bindings/410bee8f6fca0e60a01078fb519d27b37c762c76d2f4e95a0db5c0895e95e876/main:single/6e8f12d06a11f6f20f7d2f11b7167980a8e0b76bce07cc98d7a2160eb55bd6d6.json",
+      "binding_sha256": "6e8f12d06a11f6f20f7d2f11b7167980a8e0b76bce07cc98d7a2160eb55bd6d6",
+      "file_sha256": "aca1dbbda4b3e36fc30766e632f349b8daaf02f0d9223e88a694c71e33e1ca52"
+    },
+    "readiness": {
+      "base": "run",
+      "path": "evaluations/readiness-56f73e55064ab656ac0f1799c093c37ad501facc89879739c9564bac09971579.json",
+      "sha256": "c420cc69d4332425c649659f3df1cf4bb3cdc9f596df12e3bd4c08e099f69f1d"
+    },
+    "observations": {
+      "preflight": {
+        "base": "operational",
+        "path": "preflight-before.json",
+        "sha256": "d5824f780a497351ff9efc0045c73a3840598c0b08791f6422e4b7c759cf9ea5"
+      },
+      "cpu_after_provision": {
+        "base": "operational",
+        "path": "after.json",
+        "sha256": "d14a3bfd491f42612a2055133b14cdb44a90e4d10e787167f88bb2887e8ed1ed"
+      },
+      "doctor_rocm": {
+        "base": "operational",
+        "path": "doctor-rocm.json",
+        "sha256": "0a52749b6dd51c6835c241ad613ebfbbd6fe66bca0e7822d29182241e7c33bba"
+      },
+      "doctor_cpu": {
+        "base": "operational",
+        "path": "doctor-cpu-final.json",
+        "sha256": "3a08f10c7b16efa792b14b847c763ec4f7608b2825be2c6c6b4ac76cf2e0280b"
+      },
+      "snapshot_bound": {
+        "base": "work",
+        "path": "snapshot-final-bound.json",
+        "sha256": "460c39574af2d4fe7c7893755e0577eda051e61084c44156e4caaaa2a6432750"
+      },
+      "snapshot_unbound": {
+        "base": "work",
+        "path": "snapshot-final-unbound.json",
+        "sha256": "af878b49a8c03c69a9d72f6472792c6f8234fb17293e550cd719f2256b3aa3e9"
+      },
+      "campaign_final": {
+        "base": "work",
+        "path": "campaign-final-status.json",
+        "sha256": "2ae1a9324bd7b3d4cd316b8f1ec928a97d1fdd14b6cc8019d8cb8a755a584436"
+      },
+      "evaluation_rocm_command": {
+        "base": "work",
+        "path": "evaluation-rocm-command.json",
+        "sha256": "fc1490e72739ef056f6f23d8c594edae7e212736063cb28d3dfa9805e9bdd1fa"
+      },
+      "evaluation_cpu_command": {
+        "base": "work",
+        "path": "evaluation-cpu-command.json",
+        "sha256": "c0655490bb773129867646479a509d2cd04f9833875a0c2e3a203c215dbf8f8b"
+      },
+      "cpu_final": {
+        "base": "operational",
+        "path": "cpu-after-acceptance.json",
+        "sha256": "4ed9c7ea04dbf949c9391ef0ca4ee0be76a4d6aa6cecafdb0610e2216e2dc65a"
+      }
+    },
+    "receipts": {
+      "tokenizer": {
+        "base": "campaign",
+        "path": "receipts/tokenizer/27c6e30e6b1b1553fef236b8dc6644e9c15f4e5831a051c635a30d26c7331199.json",
+        "sha256": "9a1d423f10a05d61313319e75e7e7e6fa1f980b7493f78d06d3e7d63187ceefc"
+      },
+      "packed": {
+        "base": "campaign",
+        "path": "receipts/packed/9e4837d23fd4330be606dc48dd60c54a64b078521f6821e2fc905442727a1311.json",
+        "sha256": "6a29a56ee28e9826ff558766b0183fc2f3e94a73064e494d6bfd1e9214709569"
+      },
+      "plan": {
+        "base": "campaign",
+        "path": "receipts/plan/89725ed70b252a5b6624455755dbaefeabc9f69976367c951720cff13e8b521f.json",
+        "sha256": "cd61bd8325641f9f148a77929d1d57a93a05572e0a57f70fb2193fb5ed0bbf23"
+      },
+      "runtime": {
+        "base": "campaign",
+        "path": "receipts/runtime/60ebf37b0b9b6e7c2855a5f1a23a5df3ac84bd21ad48e1b4f2687fc4f584b506.json",
+        "sha256": "2c42d18e889703ccdc6eaf104cbb0bd7fdd0e75f21d5eed1340d8f93b57c5835"
+      },
+      "gate": {
+        "base": "campaign",
+        "path": "receipts/gate/ed426cd6f21c00a4ce411fd7df6662f7e52e5f88fce63be3f50a00a9a3cd8ce2.json",
+        "sha256": "fd3b0a4566643321b4eeb374b5b50d21395d1fde48a3cc910f3ec1e7b6a31395"
+      },
+      "run": {
+        "base": "campaign",
+        "path": "receipts/run/e72a1c5207a01d75d5f6de38b8f103662fd2bb6f4b39bb3b3b622d8cabbb0b89.json",
+        "sha256": "82beb4ba444e049f28a7a747249e5f90612c274860a7d3c3b47822ecc7ab368d"
+      },
+      "collect": {
+        "base": "campaign",
+        "path": "receipts/collect/99d66690b2f5dbc4b807e9879cb2f7a491d39b534cd573344cc814dcc5e1aa77.json",
+        "sha256": "50219b374189fac0ff5bccf35454b7be2312ac5adaad19d36204901c18066910"
+      },
+      "evaluation": {
+        "base": "campaign",
+        "path": "receipts/evaluation/29e743b94e37aa3214f1b265b4131bc57d2457e5034630c8acb576a095366476.json",
+        "sha256": "aacdf2d31af823cae79024652669f4acf6d1ca53a78413ca0e80bd600f398f01"
+      },
+      "readiness": {
+        "base": "campaign",
+        "path": "receipts/readiness/0291832c0c420a8e2844380ae6a71d40b529e2e47ea2983f3711a6eae7cd5c44.json",
+        "sha256": "23cc2be6c0cca4374f8f3e7070b88dd5becbee077d044f8f0c34912594234c43"
+      }
+    }
+  },
+  "checks": {
+    "focused_tests": 208,
+    "linux_cpu_suite": {
+      "passed": 1308,
+      "skipped": 3
+    },
+    "ruff_check": "PASSED",
+    "ruff_format_check": "PASSED",
+    "uv_lock_check": "PASSED",
+    "base_only_torch_free_cli": "PASSED",
+    "cpu_campaign": "COMPLETE",
+    "rocm_warmup": "COMPLETE",
+    "campaign_stages": {
+      "tokenizer": "COMPLETE",
+      "packed": "COMPLETE",
+      "plan": "COMPLETE",
+      "runtime": "COMPLETE",
+      "gate": "COMPLETE",
+      "run": "COMPLETE",
+      "collect": "COMPLETE",
+      "evaluation": "COMPLETE",
+      "readiness": "COMPLETE"
+    }
+  },
+  "limits": [
+    "Single RX 7900 XTX WSL2 host and pinned Python 3.14/ROCm 10 recipe only.",
+    "No CUDA, XPU, MPS, native MLX, macOS hardware, multi-device, long-run, or cross-host ROCm gate exercised.",
+    "HIP runtime reports 7.15.26333 despite the vendor wheel label rocm10.0.0; both recorded as observed."
+  ]
+}
