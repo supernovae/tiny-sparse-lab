@@ -11,10 +11,11 @@ For YAML plans and checkpoint chaining, use [training programs](experiment-progr
 
 ```sh
 uv sync --locked --dev
+export SPARSELAB_WORK_DIR=/data/sparselab
 uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run --locked sparselab data prepare configs/smoke_cpu.yaml
 uv run --locked sparselab inspect configs/smoke_combined_cpu.yaml --json
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/smoke_combined_cpu.yaml --run-id combined-smoke
+uv run --locked sparselab train --runs-dir "$SPARSELAB_WORK_DIR/runs" configs/smoke_combined_cpu.yaml --run-id combined-smoke
 uv run --locked sparselab eval combined-smoke
 uv run --locked sparselab generate combined-smoke --prompt "Once upon a time" --max-new-tokens 24
 ```
@@ -30,12 +31,39 @@ guide](test-speed.md) gives local commands and explains the full PR gates.
 
 ## Scratch and artifact locations
 
-Implicit temporary files default to `sparselab-work/` under the nearest `pyproject.toml` directory, or `./sparselab-work` outside a project. Set `SPARSELAB_WORK_DIR` or pass the global `--work-dir PATH` before the subcommand to select another path; the CLI option takes precedence, and relative paths resolve from the current directory. SparseLab initializes Python and child-process temporary-file settings before command execution. External tools that ignore `TMPDIR` need an explicit temporary path under the selected work directory. Study submission and research scaffolding also derive default execution workspaces from `<work-dir>/experiments/<study-name>`. Planning alone does not create the execution workspace. SSH workers use their own remote environment and project root; configure `SPARSELAB_WORK_DIR` on that host to override its default. See [explicit campaign cleanup](workspaces.md#explicit-campaign-cleanup) for bounded retention proposals.
+Implicit persistent state defaults to `${XDG_DATA_HOME}/sparselab` when `XDG_DATA_HOME` is absolute and nonempty, otherwise `~/.local/share/sparselab`. For substantial campaigns, set `SPARSELAB_WORK_DIR=/data/sparselab` on a sufficiently large filesystem. Global `--work-dir PATH` (before the subcommand) overrides that environment variable; an explicit relative path stays relative to the current directory. Durable `experiments/`, `runs/` and artifact/receipt stores share that root; temporary files go to its disposable `scratch/`, and optional `cache/` is reconstructable, not evidence. Read-only inspection does not create the root. Long-lived payloads inside **any** Git checkout trigger a containment warning but are not redirected; check explicit destinations too.
 
-This setting does not move explicit `--runs-dir`, `--store`, `--output`, or `--transcript` destinations. Atomic staging stays beside its destination; use `sparselab-work/` for those paths when they should remain ignored by git. Work-directory selection does not change run or artifact identity.
+Explicit `--runs-dir`, `--store`, `--output`, `dataset.cache_dir` and `logging.root_dir` retain their literal paths, including historical receipts. Selecting an external root does **not** move an existing `sparselab-work/` directory or reinterpret prior data; intentional relocation requires a new location binding/manifest and re-verification of referenced bytes. Study submission and research scaffolding derive implicit workspaces from `<work-dir>/experiments/<study-name>`; SSH hosts need their own adequately sized persistent root.
 
 
-For a replicated experiment, use one [experiment workspace](workspaces.md) and pass its `runs/` directory to every producer and consumer. Explicit `logging.root_dir` values in historical YAMLs retain their original meaning; `train --runs-dir PATH` overrides that execution destination without editing the YAML. There is no fallback lookup in the old repository-root `runs/`; supply `--runs-dir runs` to read a retained historical store.
+For a replicated experiment, use one [experiment workspace](workspaces.md) and pass its persistent `runs/` directory to every producer and consumer. `train --runs-dir PATH` overrides an execution destination without editing the YAML; historical config paths remain unchanged.
+
+## Declaration-to-archive commands
+
+```sh
+uv run --locked sparselab research snapshot <plan-or-campaign> --json
+uv run --locked sparselab recovery inspect <recovery.yaml> --json
+uv run --locked sparselab recovery plan <recovery.yaml> --json
+uv run --locked sparselab recovery reconstruct <recovery.yaml> --json
+uv run --locked sparselab research evidence export --kind corpus_release <verified-release> \
+  --declaration <recovery.yaml> --output <small-evidence.json> --json
+uv run --locked sparselab campaign status <campaign.yaml> --json
+uv run --locked sparselab campaign reconstruct <campaign.yaml> --json
+uv run --locked sparselab campaign apply <campaign.yaml> --execute-runs --json
+uv run --locked sparselab evaluation suite run <suite.yaml> <run-id> \
+  --checkpoint <generation> --runs-dir "$SPARSELAB_WORK_DIR/runs" --json
+uv run --locked sparselab readiness model <policy.yaml> <evaluation-index.json> --json
+uv run --locked sparselab readiness review <evaluation-index.json> --reviewer <id> \
+  --decision approve --note '<reason>' --output <review.json>
+uv run --locked sparselab family show <family.yaml> --json
+uv run --locked sparselab family graph <family.yaml> --json
+uv run --locked sparselab family compare <family.yaml> <node-a> <node-b> --json
+uv run --locked sparselab family verify <family.yaml> --json
+uv run --locked sparselab archive create <recovery.yaml> --mode thin --output <new.tar>
+uv run --locked sparselab archive verify <new.tar> --json
+```
+
+`research evidence export` also accepts `tokenizer_selection`, `prepared_data`, `runtime_probe`, `experiment_lock`, `checkpoint` and `evaluation_index`. Recovery `inspect`/`plan` are read-only; `reconstruct` never trains. `campaign apply|resume` without `--execute-runs` cannot enqueue a new training run. Reviewed `family promote|reject|supersede` require `--readiness`, `--evaluation`, `--approval`, `--note`; supersede also requires `--successor`. See the [complete recovery and promotion protocol](research/lifecycle-recovery.md) for commit-before-compute, checksummed evidence, human decisions, missing checkpoint limits and archive rights.
 
 ## Chat with a saved run
 
@@ -45,7 +73,7 @@ uv run --locked sparselab chat chat-engram --checkpoint best.json --message "Wha
 uv run --locked sparselab chat chat-engram --temperature 0.6 --top-k 20 --seed 42 --transcript sparselab-work/transcripts/conversation.json
 ```
 
-Generic run readers accepting `--runs-dir` default to `sparselab-work/runs/` beside the nearest `pyproject.toml` found by walking upward from the current directory. Chat, evaluation, generation, and other run consumers therefore work from repository subdirectories such as `src/`. Outside a project, the default is `./sparselab-work/runs`; the installed package location is never used as a data root. An explicit `--runs-dir` is used as supplied, with relative paths anchored to the current directory and no fallback search. For a custom or relocated run store, pass `--runs-dir /absolute/path/to/runs`. Study collection instead infers the receipt’s sibling `runs/` when their run-directory argument is omitted.
+Run readers without an explicit `--runs-dir` use the same selected persistent root's `runs/` directory. Explicit run stores remain as supplied, relative to the current directory; for a retained historical in-checkout store pass its old exact location. Study collection may infer a receipt's sibling `runs/` when its run-directory argument is omitted.
 
 Interactive chat accepts one turn at a time; `/exit` or `/quit` finishes, `/reset` clears context. `--message` performs one scripted turn; `--json` emits structured responses. `--transcript` saves actual model prompts/replies, dropped-turn counts, generation settings, and a frozen checkpoint digest; existing files are never overwritten. Sampling is opt-in and locally seeded. EOS and generated role boundaries stop the assistant turn.
 

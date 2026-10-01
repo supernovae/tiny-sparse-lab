@@ -22,11 +22,24 @@ If you are unsure what to run next, start with the [experiment learning cycle](e
 The [research roadmap](roadmap.md) tracks capability evidence and open scientific
 questions. Use [`experiments/samples/`](../../experiments/samples/) for copyable
 teaching material and [`experiments/research/`](../../experiments/research/) for
-real campaign definitions and iteration records. Mutable execution output belongs
-under the ignored `sparselab-work/experiments/` tree. Missing code belongs in
+real campaign definitions and iteration records. Mutable output belongs in the
+external persistent root (`$SPARSELAB_WORK_DIR/experiments/`, or the XDG/home default);
+declarations and compact verified evidence belong in Git. Missing code belongs in
 [`TODO.md`](../../TODO.md). Verified semantic retrieval accepts pre-encoded
 vectors; a teacher-representation compiler and natural-language query encoder are
 not shipped.
+
+## Durable research and compact evidence
+
+The [declaration-to-artifact lifecycle](lifecycle-recovery.md) explains commit-before-compute, read-only `research snapshot`, recovery manifests, checkpoint-bound EvaluationSuite/ModelReadiness, human-reviewed ModelFamily actions, and thin/portable archives. Publish small verified references without checking in data/checkpoints:
+
+```sh
+uv run --locked sparselab research evidence export --kind corpus_release <verified-release-dir> \
+  --declaration <recovery.yaml> --output <evidence/release.json> --json
+git add <evidence/release.json> && git commit -m "Record verified corpus identity"
+```
+
+The digest pins bytes and provenance, **not** scientific quality. A tokenizer-selection reference needs a verified selection receipt; a runtime probe is an observation. An absent external source and a lost checkpoint require different responses.
 
 ## Known-good decision records
 

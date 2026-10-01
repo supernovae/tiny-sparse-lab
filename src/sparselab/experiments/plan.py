@@ -319,6 +319,7 @@ class ExperimentPlan(StrictModel):
     comparisons: tuple[Comparison, ...] = ()
     phases: tuple[Phase, ...] = ()
     evaluations: tuple[Evaluation, ...] = ()
+    evaluation_suite: str | None = None
     execution: Execution = Execution()
     retention: Retention = Retention()
 
@@ -326,6 +327,10 @@ class ExperimentPlan(StrictModel):
     def valid_plan(self) -> ExperimentPlan:
         if not _ID.fullmatch(self.id):
             raise ValueError("plan id must be a safe nonempty identifier")
+        if self.evaluation_suite is not None:
+            from sparselab.campaign.plan import safe_path
+
+            safe_path(Path.cwd(), self.evaluation_suite)
         for label, values in (
             ("axes", self.axes),
             ("comparisons", self.comparisons),
@@ -379,8 +384,9 @@ def base_run_config(plan: ExperimentPlan, source: Path) -> RunConfig:
 
     if isinstance(plan.base_run, RunConfig):
         return plan.base_run
-    reference = Path(plan.base_run)
-    candidate = reference if reference.is_absolute() else source.parent / reference
+    from sparselab.recovery.provenance import declaration_reference
+
+    candidate = declaration_reference(source, plan.base_run)
     try:
         return RunConfig.model_validate(
             _resolve_paths(read_document(candidate), candidate.parent.resolve())

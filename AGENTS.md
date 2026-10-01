@@ -31,24 +31,34 @@ from an agent's confidence or a passing smoke test.
 
 ## Workspaces and storage
 
-- Use a descriptive, task-owned directory such as
-  `sparselab-work/runtime-forecasting/` or set `SPARSELAB_WORK_DIR` to a named
-  directory on a filesystem with enough capacity. Pass `--work-dir` when the CLI
-  supports it.
-- Name workspaces for the task or experiment, not the CPU/GPU backend. Keep
-  backend/device choices in runtime parameters and run metadata, with distinct
-  run IDs sharing the task's `runs/` store.
-- Do not use anonymous `/tmp` paths for long preparation, training, checkpoints,
-  downloads, or campaign output. OS temp space may be small even when the project
-  filesystem is large. Python and child-process temp paths are redirected after
-  SparseLab initializes its work directory, but external commands launched
-  before that still need an explicit work path.
-- Before expensive work, check free bytes and inodes for the actual workspace and
-  estimate checkpoint/cache growth. Stop before launch if the safe margin is
+- Select an external persistent root independent of checkout, branch, and
+  worktree. The default is `${XDG_DATA_HOME}/sparselab` when XDG is absolute
+  and nonempty, otherwise `~/.local/share/sparselab`; substantial campaigns
+  should use `export SPARSELAB_WORK_DIR=/data/sparselab` on an adequately sized
+  filesystem. Global `--work-dir` wins over the environment. A legacy relative
+  `SPARSELAB_WORK_DIR=sparselab-work` is an explicit override, not the default;
+  do not automatically migrate or delete it.
+- Name task workspaces under the persistent root, such as
+  `$SPARSELAB_WORK_DIR/experiments/runtime-forecasting/`, not for the CPU/GPU
+  backend. Keep backend/device choices in runtime parameters and run metadata,
+  with distinct run IDs sharing the task's `runs/` store.
+- The root contains downloads, immutable evidence, prepared data, checkpoints,
+  receipts and logs. Its `scratch/` contains disposable temporary files, and
+  optional `cache/` holds only reconstructable caches. Neither scratch nor cache
+  is scientific evidence. Do not use anonymous `/tmp` for long preparation,
+  training, checkpoints, downloads, or campaign output.
+- In-checkout overrides and configured long-lived output/cache paths there are
+  respected but warn `STORAGE_INSIDE_GIT_CHECKOUT`. Treat branch, checkout and
+  root paths as operational locations, not scientific identities; record source
+  commit and declaration/content digests. Explicit output/cache destinations
+  and old receipt paths retain their meaning. Relocation needs a new location
+  binding and verification, not rewriting old receipts.
+- Before expensive work, check free bytes and inodes for actual output locations
+  and estimate checkpoint/cache growth. Stop before launch if the safe margin is
   inadequate. Never delete or prune data that the current task does not own.
-- Keep mutable or large outputs under `sparselab-work/`, which is ignored. Check
-  in only small protocols, configs, summaries, and evidence references that are
-  intended to be durable and reviewable.
+- Check in only small protocols, configs, summaries, and evidence references
+  intended to be durable and reviewable; keep mutable or large outputs in the
+  external persistent root.
 
 ## Configuration and performance
 
@@ -77,7 +87,7 @@ from an agent's confidence or a passing smoke test.
 - Copyable teaching material belongs in `experiments/samples/`. A real scientific
   campaign belongs in `experiments/research/<campaign>/` and must bind its source
   configs/protocol, acceptance gates, and evidence references. Mutable execution
-  output belongs in `sparselab-work/experiments/<campaign>/`.
+  output belongs under the external persistent root's `experiments/<campaign>/`.
 - Register scientific questions and next tests in the research lifecycle or
   `docs/research/roadmap.md`; keep `TODO.md` for missing or defective code only.
 - Preserve failed, negative, censored, and interrupted runs. A completed command

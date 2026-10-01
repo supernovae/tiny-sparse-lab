@@ -31,7 +31,8 @@ def authored(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path, dict
     project_root = root / "project"
     shutil.copytree("corpora/devmind-sample-v0", project_root)
     project_path = project_root / "corpus.yaml"
-    base = Path("configs/runtime_smoke_cpu.yaml").resolve()
+    base = root / "run.yaml"
+    shutil.copyfile("configs/runtime_smoke_cpu.yaml", base)
     workspace = root / "workspace"
     project = load_project(project_path)
     acquire(project, workspace)
@@ -59,18 +60,18 @@ def authored(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path, dict
     plan = {
         "plan_version": 1,
         "id": "frozen-tokenizer-comparison",
-        "base_run": str(base),
+        "base_run": "run.yaml",
         "artifacts": {"shared_tokenizer": spec},
         "corpus_variants": [
             {
                 "id": "full",
-                "project": str(project_path),
+                "project": "project/corpus.yaml",
                 "tokenizer_artifact": "shared_tokenizer",
                 "release_set": {"fraction": fraction},
             },
             {
                 "id": "filtered",
-                "project": str(project_path),
+                "project": "project/corpus.yaml",
                 "tokenizer_artifact": "shared_tokenizer",
                 "release_set": {
                     "fraction": fraction,
@@ -175,6 +176,38 @@ def test_same_frozen_tokenizer_across_distinct_releases(
     )
     # This tiny exact-budget pair filters an unselected candidate and alters validation;
     # it proves identity handling, not a model-quality corpus-shape effect.
+
+
+def test_relocated_corpus_rejects_forged_inner_release_binding(
+    authored: tuple[Path, Path, dict], tmp_path: Path
+) -> None:
+    from sparselab.training.manifest import canonical_json
+    from sparselab.workers.bundles import verify_portable_corpus_binding
+
+    path, workspace, raw = authored
+    plan = ExperimentPlan.model_validate(raw)
+    prepared = prepare_plan(plan, path, workspace)
+    cell = resolve_plan(plan, path, prepared=prepared).cells[0]
+    bundle = tmp_path / "dispatch"
+    prepare_dispatch_bundle(cell.config, bundle)
+    assets = bundle / "assets"
+    verified = verify_portable_corpus_binding(cell.config, assets)
+    assert verified["corpus_export"]["export_sha256"] == sha256_file(
+        assets / "corpus/export.json"
+    )
+
+    export_path = assets / "corpus/export.json"
+    export = json.loads(export_path.read_text())
+    export["release_manifest_sha256"] = "0" * 64
+    export_path.write_bytes(canonical_json(export) + b"\n")
+    record_path = assets / "corpus/binding.json"
+    record = json.loads(record_path.read_text())
+    forged_sha = sha256_file(export_path)
+    record["files"]["export.json"] = forged_sha
+    record["corpus_export"]["export_sha256"] = forged_sha
+    record_path.write_bytes(canonical_json(record) + b"\n")
+    with pytest.raises(ValueError, match="inner identity"):
+        verify_portable_corpus_binding(cell.config, assets)
 
 
 def test_reuse_rejects_bad_strategy_and_fraction_pin(
@@ -399,7 +432,7 @@ def test_external_pretraining_promotes_chat_variant(
     alternate_export = export_release(
         Path(parent_record["release_path"]),
         "lm",
-        Path(raw["base_run"]),
+        path.parent / raw["base_run"],
         301,
         workspace,
     )

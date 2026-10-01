@@ -1,0 +1,113 @@
+# Lifecycle recovery and scientific lineage
+
+A Git commit records *intent*; a content digest records *which bytes*; a verified checkpoint and evaluation record show *what actually ran*. None by itself establishes model quality. Keep the scientific declaration closure (corpus project, source pins and rights, training config, ExperimentPlan, runtime requirement, EvaluationSuite, readiness policy, RecoveryManifest and ModelFamily) in Git. Keep downloads, releases, tokenizer files, prepared arrays, locks, checkpoint generations, receipts and logs in an adequately sized **external persistent state root**. Git branches, worktrees, checkout locations and the state-root path do not define scientific identity. Record the commit object ID and exact declaration hashes instead.
+
+Campaign stage receipts and execution attempts keep their Campaign namespace.
+Linked and standalone recovery recipes materialize deterministic artifacts under
+the same selected persistent root; switching command families does not silently
+select a second recovery store. Historical absolute availability paths remain
+recorded and are freshly verified, never rewritten as though bytes moved.
+Campaign status reports verified collected checkpoints separately from an
+unbound planned logical run name; it maps a recipe checkpoint only when its
+scientific binding is unambiguous.
+
+```sh
+# Normal development branch, in the existing checkout (no automatic worktree):
+git switch main
+git pull --ff-only
+git switch -c feat/<task>
+export SPARSELAB_WORK_DIR=/data/sparselab
+# Commit authored scientific inputs before corpus acquisition, tokenizer fit,
+# experiment preparation or model training.
+git add <declarations> && git commit -m "Declare scientific inputs"
+uv run --locked sparselab research snapshot <plan-or-campaign> --json
+uv run --locked sparselab recovery inspect <recovery.yaml> --json
+uv run --locked sparselab recovery plan <recovery.yaml> --json
+```
+
+`research snapshot` is read-only and reports Git closure status, fresh prerequisite verification, declared evaluation and runtime, and available storage. `BLOCKED` is not a request to proceed blindly: inspect the reason codes and commit the corrected declarations. A mutation with `--allow-uncommitted-declaration` explicitly records exact dirty/untracked hashes but does not relax immutable artifact, runtime, approval or pinned source checks. `RecoveryManifest.source_commit` pins the earlier input commit, not the commit containing its own self-reference. A historic expected digest is a comparison target, not present-byte proof. There is no automatic Git commit, push, network retrieval, training or scientific decision.
+
+Authored capability cards are scientific inputs and belong to the committed
+closure. Checkpoint-bound result references and Surface Review bundles can be
+declared before their output bytes exist: an absent result is unavailable and an
+unfinished human review is skipped, not permission to invent evidence. Existing
+result references are authenticated when consumed; invalid present review seals
+remain hard failures. A pending review does not abort independent numeric gates.
+
+## From declarations to a model decision
+
+1. Declare and commit the corpus project, source acquisitions and source/redistribution rights; run Corpus Forge `corpus acquire`, `corpus build`, `corpus freeze` explicitly, then `corpus export` to obtain release-bound run/tokenizer configurations. Reopen the immutable release. A remote pinned source requires deliberate network permission; an unavailable source or publication right remains an external blocker.
+2. Commit the tokenizer-selection evidence and complete ExperimentPlan/base run, including architecture, objective, token and step budgets, declared evaluation suite and runtime requirement **before** `experiment prepare`. Run `tokenizer train`, `data prepare` or the committed plan's variant preparation, then `experiment lock`. A verified preparation receipt and lock pin resulting content identities; a missing expected digest is `UNSEALED_RESULT`, not a reconstructed historical output.
+3. Publish a compact verified reference, for example:
+
+   ```sh
+   uv run --locked sparselab research evidence export --kind corpus_release <verified-release-dir> \
+     --declaration <recovery.yaml> --output <tracked-evidence/release.json> --json
+   uv run --locked sparselab research evidence export --kind experiment_lock <verified-lock.json> \
+     --declaration <recovery.yaml> --output <tracked-evidence/lock.json> --json
+   git add <tracked-evidence> && git commit -m "Record verified scientific identities"
+   ```
+
+   Other accepted kinds are `tokenizer_selection`, `prepared_data`, `runtime_probe`, `checkpoint`, and `evaluation_index`. A tokenizer selection needs its real verified bakeoff selection receipt: a tokenizer file alone is not a selection. A runtime probe reference is an observation, not runtime acceptance. Evidence exports retain a verified digest and location reference; they do **not** commit payloads or certify scientific quality. Reusing the output path with a different scientific binding fails rather than overwriting prior evidence.
+
+   For an archive, name the compact records explicitly in
+   `RecoveryManifest.evidence` and commit them with the updated recipe. These
+   later output records (including a lock's authenticated availability sidecar)
+   belong to the **current** committed declaration closure but are not inputs
+   pinned to the earlier `source_commit`; publishing output evidence does not
+   require rewriting the input pin. The recipe never hashes itself. Changing
+   scientific inputs does require a newly reviewed input commit and recipe.
+   Name lifecycle receipts under their family node after the decision is issued:
+   the node identity excludes operational receipt references, while changes to
+   the checked-in family declaration still require reviewing its input pin.
+   Supported explicit archive records are compact scientific references,
+   evaluation-index/readiness references, canonical reconstruction receipts,
+   reviewed lifecycle receipts, and a raw experiment lock together with its
+   adjacent `<plan_sha>.availability.json`. Portable model archives include
+   the selected run manifest, declared suite/source/result bytes, policy and
+   human-review receipt (plus any sealed Surface Review bundle), not just their
+   top-level index JSON. Missing required bytes block portable creation.
+4. Bind the mandatory EvaluationSuite and ModelReadiness policy in a Campaign; verify corpus readiness separately from model readiness. Use `campaign plan`/`status` for historical stage state and fresh recoverability, then `campaign apply` for verified deterministic stages. Model dispatch requires a committed declaration, bound runtime/lock/approval where declared, and **explicit** `campaign apply <campaign.yaml> --execute-runs` (or `resume --execute-runs`) to enqueue new training. Without that flag it stops at `next_action: execute_run`. Losing a checkpoint or an old approval never grants permission to replace or retrain it.
+5. Run the locked ExperimentPlan on a selected local/SSH worker and verify one immutable checkpoint generation. Run a declared suite, not an implicit collection of tests:
+
+   ```sh
+   uv run --locked sparselab evaluation suite run <suite.yaml> <run-id> \
+     --checkpoint <step_N_gen_M> --runs-dir "$SPARSELAB_WORK_DIR/runs" --json
+   uv run --locked sparselab readiness model <policy.yaml> <suite-index.json> --json
+   uv run --locked sparselab readiness review <suite-index.json> --reviewer <human-id> \
+     --decision approve --note 'Reviewed checkpoint-bound evidence' --output <review.json>
+   uv run --locked sparselab readiness model <policy.yaml> <suite-index.json> \
+     --review <review.json> --json
+   ```
+
+   Suite roles separate numeric gates, diagnostics, descriptions, exploration and blinded Surface Review. Unsupported evaluators become `UNAVAILABLE`; absent review is `SKIPPED_REVIEW`, never a fabricated judgment. `INCONCLUSIVE`, `DO_NOT_ADVANCE`, `NEEDS_REVIEW` and `READY_FOR_NEXT_STAGE` have distinct meanings. One named reviewer is one person, not consensus. A numeric pass alone cannot substitute for required human approval.
+6. Declare ordered parent/child ModelFamily nodes with pinned corpus, tokenizer, plan, architecture, objective, budgets, and optional checkpoint/index/readiness identities. Inspect `family show`, `family graph`, `family compare` and `family verify` before any action. Comparisons report factual ancestry/settings/evaluation identities, not causality. Use `family promote|reject|supersede <family.yaml> <node> --readiness <result.json> --evaluation <index.json> --approval <review.json> --note '<reason>'` (also `--successor <node>` for supersede). These human-reviewed immutable lifecycle actions are **not** ExperimentPlan weight-transition `promote`. Publish compact lifecycle receipts and name them under `lifecycle_receipts` in the family declaration so archives can inventory decisions after loss of local state.
+7. Invoke `archive create <recovery.yaml> --mode thin --output <new-archive.tar>` only after reviewing the explicit inventory. `archive verify <archive.tar> --json` checks exact TAR membership and hashes without extracting. Thin archives contain small declarations/evidence and **identify unresolved external payloads**; they do not prove absent data. Portable archives require all locally verified required bytes, sufficient destination space/inodes and rights allowing publication. A `metadata_reconstruction_only` corpus or partial `external_required` recipe cannot become portable. Archives never appear automatically.
+
+Portable verification reopens the bundled recipe and model graph and requires
+their pinned payload closure. Rewriting the outer TAR index, relabeling a
+checkpoint manifest, or replacing its weight bytes cannot substitute for inner
+artifact verification. Reviewed lifecycle actions must still satisfy their
+approval/readiness and successor-lineage rules. Thin unresolved references are
+not permitted in portable archives. Streaming verification bounds both individual
+metadata records and aggregate retained metadata.
+
+## What happens if the persistent state root disappears?
+
+```sh
+export SPARSELAB_WORK_DIR=/data/sparselab
+uv run --locked sparselab recovery inspect <recovery.yaml> --json
+uv run --locked sparselab recovery plan <recovery.yaml> --json
+uv run --locked sparselab research snapshot <plan-or-campaign> --json
+# Only after checking source availability, storage and network permission:
+uv run --locked sparselab recovery reconstruct <recovery.yaml> --json
+# For pinned remote sources, explicitly add --allow-network after rights review.
+uv run --locked sparselab campaign reconstruct <campaign.yaml> --json
+uv run --locked sparselab campaign status <campaign.yaml> --json
+```
+
+The first three commands must not create the root or scratch. `reconstruct` only replays declared deterministic corpus acquisition/build/freeze, export, tokenizer training, data preparation and experiment lock, comparing rebuilt bytes to expected digests. It **never** trains, evaluates, approves or promotes a model. `UNSEALED_RESULT` needs a new explicitly reviewed and committed identity; a different digest is a discrepancy, never an alias for the old release. `campaign reconstruct` cannot recreate lost historical Campaign receipts and does not dispatch training. Fresh recoverability differs from historic last-committed stage outcome.
+
+Recoverable: committed local inputs and deterministic outputs with verified dependencies. Externally required: inaccessible pinned downloads, explicit tokenizer/model/runtime/evaluation decisions not yet authored, or unresolved redistribution rights. Nonreconstructable: a lost checkpoint generation and optimizer state unless a verified independent copy exists. A family parent checkpoint does not recreate a lost child or make unrun planned nodes complete. Restore such bytes from a verified portable archive if rights allow; otherwise retain their pinned missing identity, do **not** silently retrain under it. A deliberately relocated state root needs new location binding/manifest and re-verification of original referenced bytes—not editing old receipts or assuming paths moved. `scratch/` and optional `cache/` are disposable, never scientific evidence. Explicit old output/cache/run paths retain their original meaning, including legacy `sparselab-work/`; selecting an external root does not migrate them.
+
+The [DevMind v4 recovery declaration](../../experiments/research/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.

@@ -540,6 +540,12 @@ class ExperimentSpec(WorkerModel):
     plan: PlanMetadata | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    declaration_provenance: dict[str, Any] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    storage_checks: list[dict[str, str]] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
 
     @field_validator(
         "tokenizer_batch_documents", "tokenizer_batch_source_bytes", mode="before"

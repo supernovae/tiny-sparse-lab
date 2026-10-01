@@ -168,6 +168,17 @@ def _prepare(args: argparse.Namespace) -> None:
     from sparselab.training.manifest import canonical_json
 
     plan, source = _declaration(args)
+    from sparselab.recovery.provenance import declaration_preflight
+    from sparselab.workdir import ensure_work_dir
+
+    if not plan.evaluations and not plan.evaluation_suite:
+        raise ValueError(
+            "EVALUATION_NOT_DECLARED: prepare requires an evaluation declaration"
+        )
+    provenance = declaration_preflight(
+        source, "experiment", args.allow_uncommitted_declaration
+    )
+    ensure_work_dir(args.work_dir)
     workspace = _workspace(plan.id)
     resource_envelope = args.resource_envelope_value
     record = prepare_plan(
@@ -178,10 +189,18 @@ def _prepare(args: argparse.Namespace) -> None:
         tokenizer_batch_documents=args.tokenizer_batch_documents,
         tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
     )
+    record["declaration_provenance"] = provenance
+    record["storage_checks"] = getattr(args, "storage_checks", [])
     path = workspace / "preparation.json"
     encoded = canonical_json(record) + b"\n"
     if path.exists():
-        if path.read_bytes() != encoded:
+        from sparselab.experiments.plan import read_document
+
+        previous = read_document(path)
+        operational = {"declaration_provenance", "storage_checks"}
+        if {
+            key: value for key, value in previous.items() if key not in operational
+        } != {key: value for key, value in record.items() if key not in operational}:
             raise ValueError(
                 f"existing preparation record changed: {path}; use a new plan ID"
             )
@@ -300,6 +319,28 @@ def _run(args: argparse.Namespace) -> None:
     from sparselab.workers.models import WorkerDefinition
 
     locked = open_lock(Path(args.lock))
+    from sparselab.recovery.provenance import declaration_preflight
+    from sparselab.workdir import ensure_work_dir
+
+    if not locked.evaluations and not locked.evaluation_suite:
+        raise ValueError(
+            "EVALUATION_NOT_DECLARED: run requires an evaluation declaration"
+        )
+    declaration_source = locked.availability.get("declaration_source")
+    if declaration_source is None:
+        raise ValueError("DECLARATION_SOURCE_UNAVAILABLE: re-lock the committed plan")
+    provenance = declaration_preflight(
+        Path(declaration_source), "experiment", args.allow_uncommitted_declaration
+    )
+    actual_hashes = {
+        declaration["path"]: declaration["sha256"]
+        for declaration in provenance["declarations"]
+    }
+    if actual_hashes != locked.availability.get("declaration_hashes"):
+        raise ValueError(
+            "DECLARATION_IDENTITY_CHANGED: authored inputs differ from the frozen lock"
+        )
+    ensure_work_dir(args.work_dir)
     workspace = _workspace(locked.id)
     controller = Controller(workspace / "controller")
     dependent = {phase.id for phase in locked.phases if phase.parent is not None}
@@ -349,6 +390,9 @@ def _run(args: argparse.Namespace) -> None:
         locked_cell_request(locked, cell, worker, workspace, controller)
         for cell in selected
     ]
+    for request in requests:
+        request["declaration_provenance"] = provenance
+        request["storage_checks"] = getattr(args, "storage_checks", [])
     submissions = controller.submit_many(requests)
     _emit(
         args,
@@ -448,6 +492,8 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             else "lock"
         )
         command.add_argument("--json", action="store_true")
+        if name in {"prepare", "run"}:
+            command.add_argument("--allow-uncommitted-declaration", action="store_true")
         if name in {"validate", "inspect", "diff", "lock"}:
             command.add_argument("--max-runs", type=int, default=1000)
         if name == "prepare":

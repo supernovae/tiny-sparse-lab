@@ -258,6 +258,8 @@ class Controller:
             "dispatch_bundle_digest": bundle.digest(),
             "matrix": request.get("matrix"),
             "plan": request.get("plan"),
+            "declaration_provenance": request.get("declaration_provenance"),
+            "storage_checks": request.get("storage_checks", []),
             "resource_envelope": (
                 envelope.model_dump(mode="json") if envelope is not None else None
             ),

@@ -98,7 +98,14 @@ from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
-from sparselab.workdir import ensure_work_dir, resolve_work_dir
+from sparselab.workdir import (
+    ensure_scratch_dir,
+    ensure_work_dir,
+    record_storage_observation,
+    resolve_work_dir,
+    storage_checks,
+    warn_storage_checks,
+)
 from sparselab.workspace_cleanup import apply_cleanup, plan_cleanup, write_plan
 from sparselab.workspace_preflight import (
     tokenizer_storage_checks,
@@ -1554,7 +1561,7 @@ def _research_scaffold(args: argparse.Namespace) -> None:
 
     registry, _ = _lifecycle_registry(args)
     with tempfile.TemporaryDirectory(
-        prefix="sparselab-scaffold-preview-", dir=ensure_work_dir(args.work_dir)
+        prefix="sparselab-scaffold-preview-", dir=ensure_scratch_dir(args.work_dir)
     ) as preview_root:
         preview = scaffold_research(
             args.reference,
@@ -2131,13 +2138,8 @@ def _tokenizer_batch_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    cwd = Path.cwd()
-    project_root = next(
-        (path for path in (cwd, *cwd.parents) if (path / "pyproject.toml").is_file()),
-        cwd,
-    )
-    runs_dir_default = str(project_root / "sparselab-work" / "runs")
+def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
+    runs_dir_default = str(resolve_work_dir(work_dir) / "runs")
     parser = argparse.ArgumentParser(
         prog="sparselab", description="Tiny Sparse Lab educational transformer tools."
     )
@@ -2145,7 +2147,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--work-dir",
         type=Path,
         default=None,
-        help="Scratch directory (default: sparselab-work/ under the nearest project; SPARSELAB_WORK_DIR overrides)",
+        help="Persistent state root (flag > SPARSELAB_WORK_DIR > XDG data/home default)",
     )
     parser.add_argument(
         "--hf-token-file",
@@ -2272,7 +2274,7 @@ def build_parser() -> argparse.ArgumentParser:
     facts_evaluate.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     facts_evaluate.add_argument("--checkpoint")
     facts_evaluate.add_argument(
@@ -2288,7 +2290,7 @@ def build_parser() -> argparse.ArgumentParser:
     transfer_evaluate.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     transfer_evaluate.add_argument("--source-checkpoint")
     transfer_evaluate.add_argument("--target-checkpoint")
@@ -2307,7 +2309,7 @@ def build_parser() -> argparse.ArgumentParser:
     engram_export.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     engram_export.add_argument("--checkpoint")
     engram_export.add_argument(
@@ -2368,6 +2370,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--family", action="append", choices=tuple(SMOKE_FAMILIES), default=[]
     )
     readiness_smoke.set_defaults(handler=_readiness_smoke)
+    from sparselab.evaluation.cli import register_readiness_parser
+
+    register_readiness_parser(readiness_commands)
     training = commands.add_parser("train")
     training.add_argument("config")
     training.add_argument(
@@ -2423,7 +2428,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     evaluation.add_argument("--checkpoint")
     evaluation.add_argument(
@@ -2439,7 +2444,7 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     evidence.add_argument("--json", action="store_true")
     evidence.set_defaults(handler=_evidence)
@@ -2467,7 +2472,7 @@ def build_parser() -> argparse.ArgumentParser:
     capability_evaluate.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     capability_evaluate.add_argument(
         "--checkpoint", help="latest.json, best.json, or a generation path"
@@ -2483,7 +2488,7 @@ def build_parser() -> argparse.ArgumentParser:
     capability_compare.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     capability_compare.add_argument("--base-checkpoint")
     capability_compare.add_argument("--variant-checkpoint")
@@ -2516,7 +2521,8 @@ def build_parser() -> argparse.ArgumentParser:
     study_submit.add_argument("--worker")
     study_submit.add_argument("--stage-bundle")
     study_submit.add_argument(
-        "--store", help="Defaults to sparselab-work/experiments/<study-name>/runs"
+        "--store",
+        help="Defaults to selected persistent root/experiments/<study-name>/runs",
     )
     study_submit.add_argument("--lifecycle")
     study_submit.add_argument("--evidence-root", default=".")
@@ -2575,6 +2581,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Discover studies, build Phase E tasks, and mine training-only corpus statistics.",
     )
     research_commands = research.add_subparsers(dest="research_command", required=True)
+    from sparselab.recovery.evidence import (
+        register_research_evidence_parser as register_evidence_parser,
+    )
+    from sparselab.recovery.snapshot import register_parser as register_snapshot_parser
+
+    register_snapshot_parser(research_commands)
+    register_evidence_parser(research_commands)
     research_list = research_commands.add_parser("list")
     research_list.add_argument("--json", action="store_true")
     research_list.set_defaults(handler=_research_list)
@@ -2806,7 +2819,7 @@ def build_parser() -> argparse.ArgumentParser:
     generation.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     generation.add_argument("--checkpoint")
     generation.add_argument("--temperature", type=float, default=0.0)
@@ -2827,7 +2840,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     chat.add_argument(
         "--checkpoint", help="latest.json, best.json, or a generation path"
@@ -2851,7 +2864,7 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument(
         "--runs-dir",
         default=runs_dir_default,
-        help="Run directory (default: sparselab-work/runs at the nearest project)",
+        help="Run directory (default: selected persistent state root/runs)",
     )
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.add_argument("--reports-dir", default="artifacts/research-reports")
@@ -2873,6 +2886,15 @@ def build_parser() -> argparse.ArgumentParser:
     from sparselab.workers.cli import add_commands
 
     add_commands(commands, default_store=Path(runs_dir_default))
+    from sparselab.archive import register_parser as register_archive_parser
+    from sparselab.evaluation.cli import register_evaluation_parser
+    from sparselab.family.cli import register_parser as register_family_parser
+    from sparselab.recovery.cli import register_parser as register_recovery_parser
+
+    register_recovery_parser(commands)
+    register_evaluation_parser(commands, runs_dir_default=runs_dir_default)
+    register_family_parser(commands)
+    register_archive_parser(commands)
     return parser
 
 
@@ -2961,8 +2983,69 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         args.runtime_authorization = authorize_profile(profile, config)
 
 
+def _read_only_command(args: argparse.Namespace) -> bool:
+    from sparselab.campaign.cli import READ_ONLY_COMMANDS
+
+    if args.command == "campaign":
+        return args.campaign_command in READ_ONLY_COMMANDS
+    if args.command == "recovery":
+        return args.recovery_command in {"inspect", "plan"}
+    if args.command == "family":
+        return args.family_command in {"show", "graph", "compare", "verify"}
+    if args.command == "archive":
+        return args.archive_command == "verify"
+    if args.command == "experiment":
+        return args.experiment_command in {"validate", "inspect", "diff", "explain"}
+    if args.command == "research":
+        return args.research_command in {
+            "snapshot",
+            "list",
+            "describe",
+            "status",
+            "next",
+            "validate",
+            "baseline",
+        }
+    if args.command == "runtime":
+        return args.runtime_command in {"probe", "status"}
+    if args.command == "corpus":
+        return args.corpus_command not in {
+            "acquire",
+            "build",
+            "freeze",
+            "export",
+            "tokenizer-bakeoff",
+        }
+    return args.command in {"inspect", "checkpoint", "evidence", "triage"}
+
+
+def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:
+    checks = storage_checks(resolve_work_dir(args.work_dir))
+    for field in ("runs_dir", "store", "output"):
+        value = getattr(args, field, None)
+        if value:
+            checks.extend(storage_checks(Path(value), kind=field))
+    config_path = getattr(args, "config", None)
+    if config_path and args.command in {"train", "stage", "data", "tokenizer", "run"}:
+        config = (
+            load_tokenizer_config(Path(config_path))
+            if args.command == "tokenizer"
+            else load_config(Path(config_path))
+        )
+        checks.extend(storage_checks(config.dataset.cache_dir, kind="dataset_cache"))
+        if hasattr(config, "logging"):
+            checks.extend(storage_checks(config.logging.root_dir, kind="logging_root"))
+        if args.command == "tokenizer":
+            checks.extend(storage_checks(config.output_dir, kind="tokenizer_output"))
+    return checks
+
+
 def main() -> None:
-    parser = build_parser()
+    global_parser = argparse.ArgumentParser(add_help=False)
+    global_parser.add_argument("--work-dir", type=Path)
+    # Only the prefix before the verb contains global arguments.
+    global_args, _ = global_parser.parse_known_args(sys.argv[1:])
+    parser = build_parser(global_args.work_dir)
     args, extras = parser.parse_known_args()
     if extras:
         if args.command == "campaign" and args.json:
@@ -3023,12 +3106,40 @@ def main() -> None:
         except (ValueError, OSError) as error:
             raise SystemExit(f"sparselab: {error}") from None
     set_token_file(args.hf_token_file)
-    from sparselab.campaign.cli import READ_ONLY_COMMANDS
-
-    if args.command == "campaign" and args.campaign_command in READ_ONLY_COMMANDS:
-        args.work_dir = resolve_work_dir(args.work_dir)
-    elif not (args.command == "runtime" and args.runtime_command == "probe"):
-        ensure_work_dir(args.work_dir)
+    args.work_dir = resolve_work_dir(args.work_dir)
+    os.environ["SPARSELAB_WORK_DIR"] = str(args.work_dir)
+    args.storage_checks = _command_storage_checks(args)
+    read_only = _read_only_command(args)
+    deferred = args.command in {"campaign", "recovery", "archive"} or (
+        args.command == "experiment" and args.experiment_command in {"prepare", "run"}
+    )
+    if not read_only:
+        if args.command not in {"campaign", "recovery"}:
+            warn_storage_checks(args.storage_checks)
+        if not deferred:
+            ensure_work_dir(args.work_dir)
+            if (
+                args.command in {"train", "tokenizer"}
+                or (args.command == "data" and args.data_command == "prepare")
+                or (
+                    args.command == "corpus"
+                    and args.corpus_command
+                    in {
+                        "acquire",
+                        "build",
+                        "freeze",
+                        "export",
+                        "tokenizer-bakeoff",
+                    }
+                )
+            ):
+                record_storage_observation(
+                    args.work_dir,
+                    args.storage_checks,
+                    args.command,
+                    target=getattr(args, "config", None)
+                    or getattr(args, "project", None),
+                )
     try:
         args.handler(args)
     except (HuggingFaceAccessError, HuggingFaceCredentialError) as error:

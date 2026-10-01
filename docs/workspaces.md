@@ -7,39 +7,60 @@ IDs and immutable manifests; they are not peer repository-root directories.
 Name every workspace for its task or experiment, independently of its execution
 backend. CPU, ROCm, CUDA, and other backends are runtime parameters recorded in
 configs and manifests. For example, runtime acceptance across devices shares
-`sparselab-work/experiments/runtime-acceptance/runs/`; runtime smoke configs share
-`sparselab-work/experiments/runtime-smoke/runs/`. Use distinct run IDs for each
-execution, including backend labels when useful, rather than separate
+`$SPARSELAB_WORK_DIR/experiments/runtime-acceptance/runs/`; runtime smoke configs
+share `$SPARSELAB_WORK_DIR/experiments/runtime-smoke/runs/`. Use distinct run IDs
+for each execution, including backend labels when useful, rather than separate
 `runs-rocm` or `runs-cpu` stores. Worker environments remain backend-specific.
 
+The implicit persistent root is `${XDG_DATA_HOME}/sparselab` when
+`XDG_DATA_HOME` is nonempty and absolute; otherwise it is
+`~/.local/share/sparselab`. For large campaigns, explicitly choose an adequately
+sized filesystem, for example `export SPARSELAB_WORK_DIR=/data/sparselab`.
+The global `--work-dir PATH` overrides that environment variable, which overrides
+the implicit root. An explicit relative path remains relative to the current
+directory, including legacy `SPARSELAB_WORK_DIR=sparselab-work`. The root is not
+derived from the repository, branch, or worktree. Merely resolving it does not
+create it; read-only inspection does not need to initialize it.
+
 ```text
-sparselab-work/experiments/dense-lm-v1/
-  receipt.json
-  runs/              # shared controller/store, run IDs, parent and child runs
-  staging/
-  exercises/
-  captures/
-  local-reports/
+<persistent-root>/
+  experiments/dense-lm-v1/
+    receipt.json
+    runs/              # shared controller/store, run IDs, parent and child runs
+    staging/
+    exercises/
+    captures/
+    local-reports/
+  runs/                # implicit generic controller/store
+  scratch/             # disposable temporary files
+  cache/               # optional reconstructable caches, never scientific evidence
 ```
 
 The source tree holds source, tests, configs, documentation, and declarative
-research/lifecycle records. Ignored `sparselab-work/` holds mutable execution
-state. `artifacts/acceptance/` and content-addressed `artifacts/research-reports/`
-hold deliberately published compact evidence. Promoting a model does not promote
-its full mutable workspace into version control. Reusable tokenizer and prepared
-data caches keep their existing shared identities and locations; they need not
-be duplicated into each experiment.
+research/lifecycle records. The persistent root holds downloads, prepared arrays,
+checkpoints, immutable execution evidence, receipts, and logs. Its `scratch/`
+directory contains disposable temporary files; `cache/` is reserved for optional
+reconstructable caches. The old ignored in-checkout `sparselab-work/` remains
+selectable explicitly, but is not moved or pruned automatically. A selected
+persistent root or explicit long-lived output/cache destination inside any Git
+checkout receives a `STORAGE_INSIDE_GIT_CHECKOUT` warning: execution is permitted,
+but losing the checkout may lose the bytes. Published compact evidence may be
+versioned separately; a digest or commit identifies content, not its root path.
+Promoting a model does not promote its full mutable workspace into version
+control. Reusable tokenizer and prepared-data caches keep their configured
+identities and locations; they need not be duplicated into each experiment.
 
 ## Explicit campaign cleanup
 
-Set `SPARSELAB_WORK_DIR` to the campaign workspace when preparing campaign-local
-data caches. New prepared-data caches inside that workspace receive an ownership
-marker; existing caches without a marker and caches outside the workspace are
+Choose the campaign workspace under the selected persistent root when preparing
+campaign-local data caches. New prepared-data caches inside that workspace receive
+an ownership marker; existing caches without a marker and caches outside it are
 never cleanup candidates. Shared data and worker dispatch caches are outside this
-workflow.
+workflow. Keep `SPARSELAB_WORK_DIR` pointing at the persistent root, not a nested
+experiment: explicit cache locations remain separate.
 
 ```sh
-WORK=sparselab-work/experiments/dense-lm-v1
+WORK="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}/experiments/dense-lm-v1"
 uv run --locked sparselab workspace cleanup plan "$WORK" \
   --output "$WORK/local-reports/cleanup-plan.json"
 # Review the JSON paths, identities, and reclaimable bytes before applying.
@@ -65,8 +86,7 @@ Use one variable for a study, including worker registration, submission,
 controller operation, collection, and resume:
 
 ```sh
-WORK=sparselab-work/experiments/dense-lm-v1
-export SPARSELAB_WORK_DIR="$WORK"
+WORK="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}/experiments/dense-lm-v1"
 mkdir -p "$WORK"
 uv run --locked sparselab study submit configs/references/dense-lm-v1/study.yaml \
   --store "$WORK/runs" --receipt "$WORK/receipt.json"
@@ -83,25 +103,25 @@ required; separate seed stores are not required. Resume a controller run using
 that store, linked by IDs and checkpoint identities. Keep the original submission
 receipt as history; do not replace its submitted run IDs with resumed child IDs.
 
-Choose `WORK=/mnt/nvme/sparselab/experiments/dense-lm-v1` for an external disk.
-Explicit `--store`, `--runs-dir`, `--output`, and transcript destinations retain
-their supplied meaning. The global `--work-dir "$WORK"` (before the subcommand)
-or `SPARSELAB_WORK_DIR="$WORK"` also keeps implicit scratch inside the experiment.
-This scratch setting alone does not override explicit destinations. Direct
-training should pass `--runs-dir "$WORK/runs"` on every parent and child command;
-legacy `logging.root_dir` values remain unchanged when no override is supplied.
+Choose `export SPARSELAB_WORK_DIR=/data/sparselab` on a disk sized for the
+campaign, then set `WORK="$SPARSELAB_WORK_DIR/experiments/dense-lm-v1"`.
+Explicit `--store`, `--runs-dir`, `--output`, transcript destinations, old
+`logging.root_dir`, and `dataset.cache_dir` retain their supplied meaning.
+The global `--work-dir /data/sparselab` (before the subcommand) overrides the
+environment for implicit stores and scratch but never relocates explicit paths.
+Direct training should pass `--runs-dir "$WORK/runs"` on every parent and child
+command when using a task-specific store.
 
 A study without store or receipt overrides chooses
 `<work-dir>/experiments/<study-name>/runs` and a sibling `receipt.json`. The generic
-non-study CLI store/reader default is `sparselab-work/runs/` under the nearest
-project root (or current directory outside a project). Existing root-level runs
-remain readable with explicit `--runs-dir runs`; defaults do not search historical
-locations or silently reinterpret configured paths.
+non-study CLI store/reader default is `<work-dir>/runs/`. Existing root-level
+runs remain readable with explicit `--runs-dir runs`; defaults do not search
+historical locations or silently reinterpret configured paths.
 
 Future experiments follow the same pattern:
 
 ```text
-sparselab-work/experiments/
+<persistent-root>/experiments/
   dense-lm-v1/
   dense-lm-token-budget-v1/
   dense-lm-scale-v1/
@@ -117,6 +137,10 @@ and the manual instructions invoked direct training without overriding them.
 This was a workflow convention, not controller isolation. New instructions use
 one explicit shared store; frozen source configs and published evidence retain
 their original values.
+
+Intentional relocation to a genuinely different persistent root requires a new
+location binding or manifest and re-verification of the referenced bytes. Do not
+rewrite past receipts to imply that historical absolute paths moved.
 
 Before moving retained bytes, distinguish scientific identity (hashes, run IDs,
 checkpoint and input identities), historical location (where execution or capture

@@ -2,7 +2,22 @@
 
 One worker executes a whole experiment with its own optimizer, RNG, local database, checkpoints, and immutable inputs. The controller owns a separate local queue and read-only-result projection. Local and SSH workers use the same versioned, finite stdio endpoint; neither is a persistent GPU daemon. This is independent experiment scheduling, not distributed training.
 
-The global `--work-dir PATH` option (before the command) or `SPARSELAB_WORK_DIR` redirects implicit local temporary files to a configurable directory. Its default is `sparselab-work/` below the nearest project root. Study submission and research scaffolding also use it as the base for implicit `<work-dir>/experiments/<study-name>` workspaces. Explicit stores remain independent; generic controller commands still default to project-local `sparselab-work/runs/`. Local worker child processes inherit the controller's temporary-directory environment; SSH workers resolve their own default on the remote host, so set the variable in the remote environment for a separate override.
+The global `--work-dir PATH` option (before the command) selects the persistent
+root ahead of `SPARSELAB_WORK_DIR`; the implicit root is
+`${XDG_DATA_HOME}/sparselab` for an absolute, nonempty XDG setting, otherwise
+`~/.local/share/sparselab`. For substantial work use, for example,
+`export SPARSELAB_WORK_DIR=/data/sparselab` on a sufficiently sized filesystem.
+Study submission and research scaffolding use that root for implicit
+`<work-dir>/experiments/<study-name>` workspaces, and generic controller commands
+use `<work-dir>/runs`. Local worker child processes inherit temporary-directory
+settings pointing to `<work-dir>/scratch`, not the durable root; RPC fallback
+scratch is disposable. SSH workers resolve their own root on the remote host,
+so configure their environment separately. Explicit `--store`, `--runs-dir`,
+`--output`, cache and configured logging paths keep their exact meaning; they
+are not relocated by the selected root. An in-checkout persistent root or
+explicit long-lived output/cache path warns `STORAGE_INSIDE_GIT_CHECKOUT` but
+continues. Legacy `sparselab-work/` is selectable explicitly and never migrated
+automatically; branches or worktrees do not create scientific or storage IDs.
 
 
 ## Local operation
@@ -10,8 +25,8 @@ The global `--work-dir PATH` option (before the command) or `SPARSELAB_WORK_DIR`
 Prepare the tokenizer and use a concrete configuration whose backend and precision the worker supports:
 
 ```sh
-WORK=sparselab-work/experiments/runtime-smoke
-export SPARSELAB_WORK_DIR="$WORK"
+export SPARSELAB_WORK_DIR=/data/sparselab
+WORK="$SPARSELAB_WORK_DIR/experiments/runtime-smoke"
 mkdir -p "$WORK"
 sparselab worker register cpu-one --backend cpu --store "$WORK/runs"
 sparselab worker status cpu-one --json --store "$WORK/runs"

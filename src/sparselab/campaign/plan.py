@@ -46,6 +46,30 @@ def safe_path(base: Path, reference: str) -> Path:
     return target
 
 
+def operational_path(base: Path, reference: str) -> Path:
+    """Validate an existing or missing artifact/lock location without rebasing it.
+
+    Scientific declaration references use ``safe_path`` instead. Operational
+    locations can be absolute in the independent persistent state root.
+    """
+    declared = Path(reference)
+    if (
+        not reference
+        or "\x00" in reference
+        or "\\" in reference
+        or PureWindowsPath(reference).drive
+        or ".." in declared.parts
+        or declared == Path(".")
+    ):
+        raise ValueError(f"unsafe operational path: {reference!r}")
+    target = declared if declared.is_absolute() else base / declared
+    target = target.absolute()
+    for component in (target, *target.parents):
+        if component.is_symlink():
+            raise ValueError(f"symlinked operational path: {component}")
+    return target
+
+
 class Stage(StrictModel):
     id: str
     scope: Scope
@@ -179,13 +203,34 @@ class Evaluation(Stage):
     kind: Literal["evaluation"]
     scope: Literal["evaluation"]
     collect: str
+    suite: str
+
+    @field_validator("suite")
+    @classmethod
+    def valid_suite(cls, value: str) -> str:
+        safe_path(Path("."), value)
+        return value
 
 
 class ModelReadiness(Stage):
     kind: Literal["model_readiness"]
     scope: Literal["model"]
     evaluation: str
-    max_heldout_loss: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    policy: str
+    review: str | None = None
+
+    @field_validator("review")
+    @classmethod
+    def valid_review(cls, value: str | None) -> str | None:
+        if value is not None:
+            operational_path(Path("."), value)
+        return value
+
+    @field_validator("policy")
+    @classmethod
+    def valid_policy(cls, value: str) -> str:
+        safe_path(Path("."), value)
+        return value
 
 
 class Approval(Stage):
@@ -224,6 +269,14 @@ class CampaignPlan(StrictModel):
     campaign_version: Literal[1]
     id: str
     stages: tuple[CampaignStage, ...] = Field(min_length=1)
+    recovery: str | None = None
+
+    @field_validator("recovery")
+    @classmethod
+    def valid_recovery(cls, value: str | None) -> str | None:
+        if value is not None:
+            safe_path(Path("."), value)
+        return value
 
     @model_validator(mode="after")
     def valid_plan(self) -> CampaignPlan:
@@ -355,13 +408,21 @@ def load_campaign(path: Path) -> CampaignPlan:
         for stage in plan.stages:
             if isinstance(stage, (ArtifactReference, TokenizerReference)):
                 assert stage.artifact.path is not None
-                safe_path(path.parent, stage.artifact.path)
+                operational_path(path.parent, stage.artifact.path)
             elif isinstance(stage, CorpusRelease):
                 safe_path(path.parent, stage.project)
             elif isinstance(stage, ExperimentPlanStage):
                 safe_path(path.parent, stage.source)
                 if stage.lock is not None:
-                    safe_path(path.parent, stage.lock)
+                    operational_path(path.parent, stage.lock)
+            elif isinstance(stage, Evaluation):
+                safe_path(path.parent, stage.suite)
+            elif isinstance(stage, ModelReadiness):
+                safe_path(path.parent, stage.policy)
+                if stage.review is not None:
+                    operational_path(path.parent, stage.review)
+        if plan.recovery is not None:
+            safe_path(path.parent, plan.recovery)
         return plan
     except (ValidationError, ValueError) as error:
         raise ValueError(f"invalid campaign plan {path}: {error}") from error

@@ -50,6 +50,7 @@ def test_repeated_prepared_lock_inputs_scan_once_and_reject_tampering(
             },
         }
     )
+    (tmp_path / "plan.yaml").write_text(plan.model_dump_json())
     original = manifest_module.sha256_file
     reads: list[Path] = []
 

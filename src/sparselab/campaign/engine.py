@@ -12,8 +12,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from sparselab.campaign.plan import load_campaign, safe_path
+from sparselab.campaign.plan import load_campaign, operational_path, safe_path
 from sparselab.campaign.state import CampaignStore, digest
+from sparselab.workdir import storage_checks, warn_storage_checks
 
 
 class CampaignEngine:
@@ -26,11 +27,15 @@ class CampaignEngine:
         self.source = Path(source).resolve()
         self.plan = load_campaign(self.source)
         self.store = CampaignStore(self.plan, Path(work_dir))
+        self.work_dir = Path(work_dir).resolve()
         self.after_commit = after_commit
         self.stages = {stage.id: stage for stage in self.plan.stages}
 
     def _path(self, reference: str) -> Path:
         return safe_path(self.source.parent, reference)
+
+    def _operational_path(self, reference: str) -> Path:
+        return operational_path(self.source.parent, reference)
 
     @staticmethod
     def _identity(kind: str, identifier: str, sha256: str) -> list[dict[str, str]]:
@@ -49,6 +54,186 @@ class CampaignEngine:
             "availability": {},
             **kwargs,
         }
+
+    def _provenance_closure(self, provenance: dict) -> list[dict[str, str | None]]:
+        """Compare scientific closure bytes, not branch, HEAD or availability paths."""
+        entries = provenance.get("declarations") or []
+        if entries and provenance.get("status") != "UNKNOWN":
+            return sorted(
+                (
+                    {"path": entry["path"], "sha256": entry["sha256"]}
+                    for entry in entries
+                ),
+                key=lambda entry: entry["path"],
+            )
+        # An explicit UNKNOWN override still needs a byte-bound closure when
+        # declarations live outside a Git repository.
+        from sparselab.recovery.provenance import declaration_paths, repository_root
+        from sparselab.training.manifest import sha256_file
+
+        root = repository_root(self.source) or self.source.parent
+
+        return sorted(
+            (
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    "sha256": sha256_file(path) if path.is_file() else None,
+                }
+                for path in declaration_paths(self.source, "campaign")
+            ),
+            key=lambda entry: entry["path"],
+        )
+
+    @staticmethod
+    def _require_declaration_files(provenance: dict) -> None:
+        closure = provenance["closure"]
+        missing = [item["path"] for item in closure if item.get("sha256") is None]
+        if not closure or missing:
+            raise ValueError(
+                "MISSING_DECLARATION_INPUT: "
+                + (
+                    ", ".join(sorted(missing))
+                    if missing
+                    else "empty scientific closure"
+                )
+            )
+
+    def _allow_recovery_publication(self, prior: dict, current: dict) -> bool:
+        """Accept only committed, verified output inventory additions after a stage."""
+        import hashlib
+        import subprocess
+
+        import yaml
+
+        from sparselab.campaign.state import read_canonical
+        from sparselab.experiments.plan import (
+            _reject_constant,
+            _unique_json_pairs,
+            _UniqueLoader,
+        )
+        from sparselab.recovery.engine import inspect_manifest
+        from sparselab.recovery.evidence import export_evidence
+        from sparselab.recovery.manifest import RecoveryManifest, load_manifest
+        from sparselab.recovery.provenance import _git, repository_root
+
+        if self.plan.recovery is None or current.get("status") != "CLEAN_AND_COMMITTED":
+            return False
+        root = repository_root(self.source)
+        commit = prior.get("source_commit")
+        if root is None or not isinstance(commit, str):
+            return False
+        manifest_path = self._path(self.plan.recovery)
+        name = manifest_path.relative_to(root).as_posix()
+        old = {item["path"]: item["sha256"] for item in prior["closure"]}
+        new = {item["path"]: item["sha256"] for item in current["closure"]}
+        if name not in old or name not in new or old[name] == new[name]:
+            return False
+        try:
+            old_bytes = _git(root, "show", f"{commit}:{name}")
+            if hashlib.sha256(old_bytes).hexdigest() != old[name]:
+                return False  # An uncommitted prior recipe has no trusted old intent.
+            text = old_bytes.decode("utf-8")
+            payload = (
+                json.loads(
+                    text,
+                    object_pairs_hook=_unique_json_pairs,
+                    parse_constant=_reject_constant,
+                )
+                if manifest_path.suffix == ".json"
+                else yaml.load(text, Loader=_UniqueLoader)
+            )
+            previous = RecoveryManifest.model_validate(payload)
+            updated = load_manifest(manifest_path)
+            if previous.model_dump(exclude={"steps", "evidence"}) != updated.model_dump(
+                exclude={"steps", "evidence"}
+            ):
+                return False
+            if updated.evidence[: len(previous.evidence)] != previous.evidence:
+                return False
+            expected_updates: dict[str, str] = {}
+            if len(previous.steps) != len(updated.steps):
+                return False
+            for before, after in zip(previous.steps, updated.steps, strict=True):
+                original = before.model_dump()
+                revised = after.model_dump()
+                for field in tuple(original):
+                    if not field.startswith("expected_"):
+                        continue
+                    old_value, new_value = original[field], revised[field]
+                    if old_value is None and isinstance(new_value, str):
+                        expected_updates[before.id] = new_value
+                        original[field] = new_value
+                if original != revised:
+                    return False
+            appended = updated.evidence[len(previous.evidence) :]
+            if not appended and not expected_updates:
+                return False
+            additions = {
+                self._path(self.plan.recovery)
+                .parent.joinpath(reference)
+                .relative_to(root)
+                .as_posix()
+                for reference in appended
+            }
+            if additions & old.keys() or set(new) != set(old) | additions:
+                return False
+            if any(old[path] != new[path] for path in old if path != name):
+                return False
+            for reference in appended:
+                from sparselab.recovery.provenance import declaration_reference
+
+                evidence_path = declaration_reference(manifest_path, reference)
+                record = read_canonical(evidence_path)
+                if record.get("format") != "scientific-evidence-reference-v1":
+                    return False
+                export_evidence(
+                    record["kind"],
+                    Path(record["external_location"]),
+                    evidence_path,
+                    source_commit=record["source_commit"],
+                    declaration_hashes=record["declaration_hashes"],
+                )
+            if expected_updates:
+                rows = {
+                    item["id"]: item
+                    for item in inspect_manifest(manifest_path, self.work_dir)["steps"]
+                }
+                if any(
+                    rows[step]["classification"] != "PRESENT"
+                    or rows[step]["actual_sha256"] != expected
+                    for step, expected in expected_updates.items()
+                ):
+                    return False
+            return True
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            UnicodeError,
+            yaml.YAMLError,
+            subprocess.CalledProcessError,
+        ):
+            return False
+
+    def _assert_declaration_identity(self, state: dict, provenance: dict) -> None:
+        current = provenance["closure"]
+        for row in state["stages"]:
+            if "stage_input_sha256" not in row and not row.get("receipt"):
+                continue
+            prior = row.get("declaration_provenance")
+            if not isinstance(prior, dict) or "closure" not in prior:
+                raise ValueError(
+                    f"DECLARATION_IDENTITY_UNKNOWN: stage {row['id']} "
+                    "has no committed closure binding"
+                )
+            if prior["closure"] != current and not self._allow_recovery_publication(
+                prior, provenance
+            ):
+                raise ValueError(
+                    f"DECLARATION_IDENTITY_CHANGED: stage {row['id']} "
+                    "was committed against different scientific declaration bytes"
+                )
 
     def _rows(self, state: dict) -> dict[str, dict]:
         return {row["id"]: row for row in state["stages"]}
@@ -128,7 +313,9 @@ class CampaignEngine:
             evidence = read_evidence(lock, Path(row["availability"]["workspace"]), path)
             if evidence["index_sha256"] != output["sha256"]:
                 raise ValueError("evidence index changed")
-            self._check_collection(stage, evidence, rows)
+            cell = self._check_collection(stage, evidence, rows)
+            if row.get("measurements") != self._selected_collection_checkpoint(cell):
+                raise ValueError("collected checkpoint binding changed")
         elif kind == "experiment_run":
             from sparselab.evaluation.evidence import experiment_evidence
             from sparselab.workers.controller import Controller
@@ -163,14 +350,47 @@ class CampaignEngine:
                 raise ValueError("approval receipt missing or changed")
             if output["sha256"] != binding:
                 raise ValueError("approval binding changed")
+        elif kind == "evaluation":
+            from sparselab.evaluation.suite import verify_evaluation_index
+            from sparselab.training.manifest import sha256_file
+
+            index = verify_evaluation_index(path)
+            collect = self.stages[stage.collect]
+            collected = self._upstream(rows, stage.collect)["measurements"]
+            run = self._upstream(rows, collect.run)
+            if (
+                index["index_sha256"] != output["sha256"]
+                or index["run_id"] != run["outputs"][0]["identifier"]
+                or index["suite_sha256"] != sha256_file(self._path(stage.suite))
+                or index["checkpoint_sha256"] != collected["sha256"]
+                or index["checkpoint"] != f"checkpoints/{collected['generation']}"
+            ):
+                raise ValueError(
+                    "evaluation suite or collected checkpoint binding changed"
+                )
+        elif kind == "model_readiness":
+            from sparselab.evaluation.readiness import verify_readiness_result
+            from sparselab.training.manifest import sha256_file
+
+            result = verify_readiness_result(path)
+            evaluation = self._upstream(rows, stage.evaluation)
+            expected_review = (
+                str(self._operational_path(stage.review))
+                if stage.review is not None
+                else None
+            )
+            if (
+                result["result_sha256"] != output["sha256"]
+                or result["index_sha256"] != evaluation["outputs"][0]["sha256"]
+                or result["policy_sha256"] != sha256_file(self._path(stage.policy))
+                or result["review"] != expected_review
+            ):
+                raise ValueError("model readiness result binding changed")
         elif kind in {
-            "evaluation",
-            "model_readiness",
             "corpus_readiness",
             "token_measurement",
             "runtime_acceptance",
         }:
-            # Their immutable identity binds every upstream input and measured result.
             expected = digest(f"campaign-{kind}-v1", self._science(row))
             if output is None or output["sha256"] != expected:
                 raise ValueError(f"{kind} result identity changed")
@@ -186,6 +406,26 @@ class CampaignEngine:
     def _check_lock(self, stage: Any, rows: dict[str, dict], lock: Any) -> None:
         tokenizer = self._upstream(rows, stage.tokenizer)["outputs"][0]
         prepared = self._upstream(rows, stage.prepared)["outputs"][0]
+        from sparselab.evaluation.suite import load_suite
+        from sparselab.training.manifest import sha256_file
+
+        suites = {
+            self._path(item.suite)
+            for item in self.plan.stages
+            if item.kind == "evaluation" and self.stages[item.collect].plan == stage.id
+        }
+        if suites:
+            if len(suites) != 1:
+                raise ValueError(
+                    "one locked plan cannot bind conflicting evaluation suites"
+                )
+            suite_path = next(iter(suites))
+            suite = load_suite(suite_path)
+            if lock.evaluation_suite != {
+                "id": suite.id,
+                "sha256": sha256_file(suite_path),
+            }:
+                raise ValueError("Campaign suite differs from locked evaluation suite")
         declared = {
             item.cell
             for item in self.plan.stages
@@ -249,15 +489,48 @@ class CampaignEngine:
             raise ValueError("selected locked cell has no complete ingested evidence")
         return cell
 
+    @staticmethod
+    def _selected_collection_checkpoint(cell: dict) -> dict:
+        """Pin the unique latest verified generation in the immutable collection."""
+        complete = [
+            attempt
+            for attempt in cell["attempts"]
+            if attempt["status"] == "complete"
+            and attempt["run_id"] == cell["selected_run_id"]
+        ]
+        if len(complete) != 1 or not complete[0].get("checkpoints"):
+            raise ValueError("collection has no unique verified checkpoint generation")
+        checkpoints = complete[0]["checkpoints"]
+        latest_step = max(checkpoint["step"] for checkpoint in checkpoints)
+        latest = [
+            checkpoint
+            for checkpoint in checkpoints
+            if checkpoint["step"] == latest_step
+        ]
+        if len(latest) != 1:
+            raise ValueError("ambiguous latest generation in collected evidence")
+        selected = latest[0]
+        return {
+            "generation": selected["path"],
+            "sha256": selected["digest"],
+            "step": selected["step"],
+        }
+
     def _availability(self, stage: Any) -> str | None:
         if stage.kind in {"artifact_reference", "tokenizer_reference"}:
-            path = self._path(stage.artifact.path)
+            path = self._operational_path(stage.artifact.path)
         elif stage.kind == "corpus_release":
             path = self._path(stage.project)
         elif stage.kind == "experiment_plan":
             path = self._path(stage.source)
-            if stage.mode == "reference" and not self._path(stage.lock).exists():
-                return f"missing declared local lock: {self._path(stage.lock)}"
+            if stage.mode == "reference":
+                lock_path = self._operational_path(stage.lock)
+                if not lock_path.exists():
+                    return f"missing declared local lock: {lock_path}"
+        elif stage.kind == "evaluation":
+            path = self._path(stage.suite)
+        elif stage.kind == "model_readiness":
+            path = self._path(stage.policy)
         else:
             return None
         if not path.exists():
@@ -291,10 +564,18 @@ class CampaignEngine:
                         member = safe_path(project.root, entry.path)
                         if not member.is_file():
                             return f"missing declared corpus source: {member}"
-        elif stage.mode == "reference":
+        elif stage.kind == "experiment_plan" and stage.mode == "reference":
             from sparselab.experiments.lock import open_lock
 
-            open_lock(self._path(stage.lock))
+            open_lock(self._operational_path(stage.lock))
+        elif stage.kind == "evaluation":
+            from sparselab.evaluation.suite import load_suite
+
+            load_suite(path)
+        elif stage.kind == "model_readiness":
+            from sparselab.evaluation.readiness import load_policy
+
+            load_policy(path)
         return None
 
     def _project(self, state: dict) -> dict:
@@ -394,19 +675,265 @@ class CampaignEngine:
             "next_action": next_action,
         }
 
+    def _observed_checkpoints(
+        self, state: dict, manifest_path: Path, recipe_rows: list[dict]
+    ) -> list[dict]:
+        """Separate verified Campaign generations from logical recovery run names."""
+        from sparselab.recovery.manifest import load_manifest
+        from sparselab.training.checkpoints import CheckpointManager
+        from sparselab.training.mlx_checkpoints import strict_json
+
+        recipe = load_manifest(manifest_path)
+        persisted = self._rows(state)
+        observed: list[dict] = []
+        for collect in self.plan.stages:
+            if collect.kind != "experiment_collect":
+                continue
+            row = persisted[collect.id]
+            selected = row.get("measurements")
+            if row["state"] != "COMPLETE" or not isinstance(selected, dict):
+                continue
+            if not {"generation", "sha256"} <= selected.keys():
+                continue
+            run = self.stages[collect.run]
+            run_row = persisted[run.id]
+            run_path = Path(run_row.get("availability", {}).get("path", ""))
+            generation = selected["generation"]
+            checkpoint = run_path / "checkpoints" / generation
+            expected = selected["sha256"]
+            plan_stage = self.stages[collect.plan]
+            plan_row = persisted[collect.plan]
+            plan_sha = (
+                plan_row["outputs"][0]["sha256"] if plan_row.get("outputs") else None
+            )
+            entry = {
+                "id": f"observed_checkpoint:{collect.id}",
+                "kind": "checkpoint",
+                "expected_sha256": expected,
+                "actual_sha256": None,
+                "path": str(checkpoint),
+                "run_id": (run_row.get("outputs") or [{}])[0].get("identifier"),
+                "generation": generation,
+                "plan_sha256": plan_sha,
+            }
+            try:
+                self._verify(run, run_row, persisted)
+                self._verify(collect, row, persisted)
+                report = CheckpointManager(run_path).verify(checkpoint)
+                if not report.valid:
+                    raise ValueError(f"collected checkpoint invalid: {report.errors}")
+                actual = strict_json(checkpoint / "manifest.json")["sha256"]
+                if actual != expected:
+                    raise ValueError("collected checkpoint digest differs from receipt")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                entry.update(
+                    classification=(
+                        "ERROR" if checkpoint.exists() else "MISSING_NONRECONSTRUCTABLE"
+                    ),
+                    reason=f"historical Campaign collection cannot be reverified: {error}",
+                )
+            else:
+                entry.update(
+                    classification="PRESENT",
+                    actual_sha256=actual,
+                    reason="freshly verified Campaign collection and exact generation",
+                )
+                compatible = [
+                    step
+                    for step in recipe.steps
+                    if step.kind == "experiment_lock"
+                    and step.expected_plan_sha256 == plan_sha
+                    and self._path(plan_stage.source)
+                    == safe_path(manifest_path.parent, step.plan)
+                ]
+                mapped = [
+                    step
+                    for step in recipe.steps
+                    if step.kind == "checkpoint"
+                    and step.expected_sha256 == actual
+                    and step.cell
+                    in {
+                        generation,
+                        generation.split("_gen_", 1)[0],
+                    }
+                ]
+                if len(compatible) == len(mapped) == 1:
+                    for declared in recipe_rows:
+                        if declared["id"] == mapped[0].id:
+                            declared.update(
+                                classification="PRESENT",
+                                actual_sha256=actual,
+                                action=None,
+                                reason="pinned digest and plan match verified Campaign generation",
+                            )
+                            break
+            observed.append(entry)
+        return observed
+
+    def _recoverability(self, state: dict) -> list[dict]:
+        """Fresh availability, independent of historical stage outcomes."""
+        if self.plan.recovery is not None:
+            from sparselab.recovery.engine import inspect_manifest
+
+            manifest = self._path(self.plan.recovery)
+            if not manifest.is_file():
+                return [
+                    {
+                        "id": "declaration",
+                        "kind": "recovery",
+                        "classification": "MISSING_EXTERNAL",
+                        "reason": f"missing recovery manifest: {manifest}",
+                    }
+                ]
+            try:
+                from sparselab.training.manifest import sha256_file
+
+                manifest_sha = sha256_file(manifest)
+                rows = [
+                    {
+                        "id": "declaration",
+                        "kind": "recovery",
+                        "classification": "PRESENT",
+                        "expected_sha256": manifest_sha,
+                        "actual_sha256": manifest_sha,
+                        "reason": "recovery declaration available",
+                    },
+                    *inspect_manifest(manifest, self.work_dir)["steps"],
+                ]
+                rows.extend(self._observed_checkpoints(state, manifest, rows))
+                return rows
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                return [
+                    {
+                        "id": "declaration",
+                        "kind": "recovery",
+                        "classification": "ERROR",
+                        "reason_code": "RECOVERY_INSPECTION_FAILED",
+                        "reason": str(error),
+                    }
+                ]
+        rows = self._rows(state)
+        result = []
+        for stage in self.plan.ordered_stages():
+            row = rows[stage.id]
+            output = row.get("outputs", [])
+            if not output:
+                classification = (
+                    "NOT_CREATED"
+                    if row["state"] in {"NOT_STARTED", "READY", "BLOCKED"}
+                    and not row.get("stage_input_sha256")
+                    else "MISSING_EXTERNAL"
+                )
+                reason = (
+                    "no committed output"
+                    if classification == "NOT_CREATED"
+                    else "output availability unknown"
+                )
+            else:
+                try:
+                    self._verify(stage, row, rows)
+                except (OSError, ValueError, KeyError, TypeError) as error:
+                    path = Path(row.get("availability", {}).get("path", ""))
+                    if stage.kind == "experiment_run":
+                        classification = "MISSING_NONRECONSTRUCTABLE"
+                    elif path.exists() and row.get("availability", {}).get("path"):
+                        classification = "ERROR"
+                    else:
+                        classification = "MISSING_EXTERNAL"
+                    reason = str(error)
+                else:
+                    classification, reason = "PRESENT", "verified"
+            result.append(
+                {
+                    "id": stage.id,
+                    "kind": stage.kind,
+                    "classification": classification,
+                    "expected_sha256": output[0]["sha256"] if output else None,
+                    "reason": reason,
+                }
+            )
+        return result
+
+    def reconstruct(
+        self,
+        *,
+        allow_network: bool = False,
+        allow_uncommitted_declaration: bool = False,
+        evidence_output: Path | None = None,
+    ) -> dict:
+        if self.plan.recovery is None:
+            raise ValueError("campaign reconstruct requires a linked recovery manifest")
+        from sparselab.recovery.engine import reconstruct_manifest
+        from sparselab.recovery.provenance import declaration_preflight
+
+        provenance = declaration_preflight(
+            self.source, "campaign", allow_uncommitted=allow_uncommitted_declaration
+        )
+        checks = warn_storage_checks(storage_checks(self.work_dir))
+        result = reconstruct_manifest(
+            self._path(self.plan.recovery),
+            self.work_dir,
+            allow_network=allow_network,
+            allow_uncommitted_declaration=allow_uncommitted_declaration,
+            evidence_output=evidence_output,
+        )
+        return {
+            **self.inspect("status"),
+            "reconstruction": result,
+            "declaration_provenance": provenance,
+            "storage_checks": checks,
+        }
+
+    def _submitted_run(self, stage: Any, rows: dict[str, dict]) -> bool:
+        from sparselab.workers.controller import Controller
+
+        lock = self._lock(rows, stage.plan)
+        prior = rows[stage.id].get("measurements", {})
+        submitted = (
+            isinstance(prior, dict)
+            and {"experiment_id", "attempt_id", "run_id"} <= prior.keys()
+        )
+        workspace = Path(rows[stage.plan]["availability"]["workspace"])
+        controller_dir = workspace / "controller"
+        if not controller_dir.exists():
+            if submitted:
+                raise ValueError(
+                    "LOST_SUBMISSION: controller state vanished after run submission"
+                )
+            return False
+        controller = Controller(controller_dir, read_only=True)
+        matches = self._attempts(controller, lock, stage.cell)
+        if len(matches) > 1:
+            raise ValueError("ambiguous controller attempts for locked cell")
+        if submitted and (
+            not matches
+            or self._run_identity(matches[0])
+            != {key: prior[key] for key in ("experiment_id", "attempt_id", "run_id")}
+        ):
+            raise ValueError(
+                "LOST_SUBMISSION: previously submitted attempt is missing or replaced"
+            )
+        return bool(matches)
+
     def inspect(self, command: str = "plan") -> dict:
         if command not in {"plan", "next", "status", "explain"}:
             raise ValueError(f"unknown inspection command {command}")
         persisted = self.store.read()
         if command == "status" and persisted is not None:
             return {
-                key: persisted[key]
-                for key in ("id", "declaration_sha256", "stages", "next_action")
+                **{
+                    key: persisted[key]
+                    for key in ("id", "declaration_sha256", "stages", "next_action")
+                },
+                "recoverability": self._recoverability(persisted),
             }
         state = persisted or self.store.initial()
         if command != "status":
             state = self.store.reconcile(state)
-        return self._project(state)
+        projected = self._project(state)
+        if command == "status":
+            projected["recoverability"] = self._recoverability(state)
+        return projected
 
     def _record(self, state: dict, row: dict) -> None:
         state["stages"] = [
@@ -418,24 +945,76 @@ class CampaignEngine:
         state["next_action"] = projection["next_action"]
         self.store.save(state)
 
-    def apply(self, resume: bool = False, max_wait_seconds: float = 120) -> dict:
+    def apply(
+        self,
+        resume: bool = False,
+        max_wait_seconds: float = 120,
+        *,
+        execute_runs: bool = False,
+        allow_uncommitted_declaration: bool = False,
+    ) -> dict:
+        from sparselab.recovery.provenance import declaration_preflight
+
         if max_wait_seconds < 0 or not math.isfinite(max_wait_seconds):
             raise ValueError("max wait seconds must be finite and nonnegative")
+        provenance = declaration_preflight(
+            self.source, "campaign", allow_uncommitted=allow_uncommitted_declaration
+        )
+        provenance = {
+            **provenance,
+            "allow_uncommitted_declaration": allow_uncommitted_declaration,
+            "closure": self._provenance_closure(provenance),
+        }
+        self._require_declaration_files(provenance)
+        checks = warn_storage_checks(storage_checks(self.work_dir))
         with self.store.locked():
             previous = self.store.read()
             if resume and previous is None:
                 raise ValueError("cannot resume a campaign without durable state")
+            if previous is not None:
+                self._assert_declaration_identity(previous, provenance)
             state = self.store.reconcile(previous or self.store.initial())
+            self._assert_declaration_identity(state, provenance)
             if previous is None or state != previous:
                 self._record(state, state["stages"][0])
             while True:
                 projection = self._project(state)
                 action = projection["next_action"]
                 if action["action"] not in {"apply", "resume"}:
-                    return projection
+                    return {
+                        **projection,
+                        "declaration_provenance": provenance,
+                        "storage_checks": checks,
+                    }
                 stage = self.stages[action["stage"]]
                 rows = self._rows(state)
                 row = rows[stage.id]
+                submitted = False
+                dispatch_error: OSError | ValueError | KeyError | TypeError | None = (
+                    None
+                )
+                if stage.kind == "experiment_run":
+                    try:
+                        submitted = self._submitted_run(stage, rows)
+                    except (OSError, ValueError, KeyError, TypeError) as error:
+                        dispatch_error = error
+                if (
+                    stage.kind == "experiment_run"
+                    and not execute_runs
+                    and not submitted
+                    and dispatch_error is None
+                ):
+                    return {
+                        **projection,
+                        "next_action": {
+                            "action": "execute_run",
+                            "stage": stage.id,
+                            "reason": "new model execution requires --execute-runs",
+                            "identities": {"outputs": row.get("outputs", [])},
+                        },
+                        "declaration_provenance": provenance,
+                        "storage_checks": checks,
+                    }
                 if row["state"] == "RUNNING" and stage.kind != "experiment_run":
                     reason = "uncommitted interrupted attempt"
                     attempts = list(row["attempts"])
@@ -464,13 +1043,27 @@ class CampaignEngine:
                         *row.get("attempts", []),
                         {"state": "RUNNING", "reason": "dispatch"},
                     ],
+                    "declaration_provenance": provenance,
+                    "storage_checks": checks,
                 }
                 self._record(state, row)
                 rows = self._rows(state)
                 try:
-                    result = self.dispatch(stage, rows, max_wait_seconds)
+                    if dispatch_error is not None:
+                        raise dispatch_error
+                    result = self.dispatch(
+                        stage, rows, max_wait_seconds, execute_runs=execute_runs
+                    )
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     result = self._result("FAILED", "DO_NOT_ADVANCE", reason=str(error))
+                from sparselab.recovery.provenance import (
+                    declaration_paths,
+                    git_provenance,
+                )
+
+                current = git_provenance(declaration_paths(self.source, "campaign"))
+                current["closure"] = self._provenance_closure(current)
+                self._assert_declaration_identity(state, current)
                 row.update(result)
                 row["attempts"][-1] = {"state": row["state"], "reason": row["reason"]}
                 if row["state"] in {
@@ -485,7 +1078,11 @@ class CampaignEngine:
                 if self.after_commit is not None and row["state"] == "COMPLETE":
                     self.after_commit(stage.id, state)
                 if row["state"] != "COMPLETE":
-                    return self._project(state)
+                    return {
+                        **self._project(state),
+                        "declaration_provenance": provenance,
+                        "storage_checks": checks,
+                    }
 
     def approve(
         self, gate: str, decision: str = "approve", note: str | None = None
@@ -496,7 +1093,14 @@ class CampaignEngine:
             state = self.store.read()
             if state is None:
                 raise ValueError("campaign has no pending gate")
+            from sparselab.recovery.provenance import declaration_paths, git_provenance
+
+            provenance = git_provenance(declaration_paths(self.source, "campaign"))
+            provenance["closure"] = self._provenance_closure(provenance)
+            self._require_declaration_files(provenance)
+            self._assert_declaration_identity(state, provenance)
             state = self.store.reconcile(state)
+            self._assert_declaration_identity(state, provenance)
             self._project(state)
             stage = self.stages.get(gate)
             if stage is None or stage.kind != "approval":
@@ -598,7 +1202,12 @@ class CampaignEngine:
         return {key: row[key] for key in ("experiment_id", "attempt_id", "run_id")}
 
     def dispatch(
-        self, stage: Any, rows: dict[str, dict], max_wait_seconds: float
+        self,
+        stage: Any,
+        rows: dict[str, dict],
+        max_wait_seconds: float,
+        *,
+        execute_runs: bool = False,
     ) -> dict:
         """Run one declared adapter; return science identities separately from availability."""
         kind = stage.kind
@@ -606,7 +1215,7 @@ class CampaignEngine:
         if kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            path = self._path(stage.artifact.path)
+            path = self._operational_path(stage.artifact.path)
             if not path.exists():
                 return self._result(
                     "BLOCKED",
@@ -719,9 +1328,22 @@ class CampaignEngine:
                     reason=f"missing experiment plan: {source}",
                 )
             plan = load_plan(source)
+            from sparselab.experiments.plan import base_run_config
+
+            config = base_run_config(plan, source)
+            configured_checks = [
+                check
+                for kind, target in (
+                    ("cache", config.dataset.cache_dir),
+                    ("output", config.logging.root_dir),
+                )
+                if Path(target).is_absolute()
+                for check in storage_checks(target, kind=kind)
+            ]
+            warn_storage_checks(configured_checks)
             workspace = self.store.root / "experiments" / f"{stage.id}-{plan.id}"
             if stage.mode == "reference":
-                path = self._path(stage.lock)
+                path = self._operational_path(stage.lock)
                 if not path.exists():
                     return self._result(
                         "BLOCKED",
@@ -758,6 +1380,7 @@ class CampaignEngine:
             return self._result(
                 outputs=self._identity("experiment_plan", lock.id, lock.plan_sha256),
                 availability={"path": str(path), "workspace": str(workspace)},
+                storage_checks=[*rows[stage.id]["storage_checks"], *configured_checks],
             )
         if kind == "runtime_acceptance":
             from sparselab.workspace_preflight import training_storage_checks
@@ -853,10 +1476,28 @@ class CampaignEngine:
                 raise ValueError("experiment_run must select exactly one locked cell")
             cell = cells[0]
             workspace = Path(rows[stage.plan]["availability"]["workspace"])
+            if not execute_runs and not self._submitted_run(stage, rows):
+                raise ValueError("new model execution requires --execute-runs")
             controller = Controller(workspace / "controller")
             matches = self._attempts(controller, lock, cell.id)
             if len(matches) > 1:
                 raise ValueError("ambiguous controller attempts for locked cell")
+            previous = rows[stage.id].get("measurements", {})
+            if (
+                isinstance(previous, dict)
+                and {"experiment_id", "attempt_id", "run_id"} <= previous.keys()
+                and (
+                    not matches
+                    or self._run_identity(matches[0])
+                    != {
+                        key: previous[key]
+                        for key in ("experiment_id", "attempt_id", "run_id")
+                    }
+                )
+            ):
+                raise ValueError(
+                    "LOST_SUBMISSION: refusing to replace prior run attempt"
+                )
             if not matches:
                 worker = f"campaign-{stage.id}-{lock.id}"
                 controller.register(
@@ -871,9 +1512,19 @@ class CampaignEngine:
                         device_index=cell.config.runtime.device_index,
                     )
                 )
-                controller.submit_many(
-                    [locked_cell_request(lock, cell, worker, workspace, controller)]
-                )
+                request = locked_cell_request(lock, cell, worker, workspace, controller)
+                request["declaration_provenance"] = rows[stage.id][
+                    "declaration_provenance"
+                ]
+                request["storage_checks"] = [
+                    *rows[stage.id]["storage_checks"],
+                    *(
+                        check
+                        for check in rows[stage.plan].get("storage_checks", [])
+                        if check not in rows[stage.id]["storage_checks"]
+                    ),
+                ]
+                controller.submit_many([request])
             deadline = time.monotonic() + max_wait_seconds
             while True:
                 matches = self._attempts(controller, lock, cell.id)
@@ -932,105 +1583,92 @@ class CampaignEngine:
             workspace = Path(rows[stage.plan]["availability"]["workspace"])
             evidence = collect_evidence(lock, workspace)
             verified = read_evidence(lock, workspace, Path(evidence["index_path"]))
-            self._check_collection(stage, verified, rows)
+            cell = self._check_collection(stage, verified, rows)
+            selected = self._selected_collection_checkpoint(cell)
             return self._result(
                 outputs=self._identity(kind, stage.id, verified["index_sha256"]),
+                measurements=selected,
                 availability={
                     "path": verified["index_path"],
                     "workspace": str(workspace),
                 },
             )
         if kind == "evaluation":
-            from sparselab.evaluation.evidence import experiment_evidence
+            from sparselab.evaluation.suite import run_suite, verify_evaluation_index
 
             collect = self.stages[stage.collect]
             self._lock(rows, collect.plan)
-            self._upstream(rows, stage.collect)
+            collected = self._upstream(rows, stage.collect)["measurements"]
             run = self._upstream(rows, collect.run)
-            observed = experiment_evidence(Path(run["availability"]["path"]))
-            if observed["run_id"] != run["outputs"][0]["identifier"]:
-                raise ValueError("evaluation run identity changed")
+            run_path = Path(run["availability"]["path"])
+            index_path = run_suite(
+                self._path(stage.suite),
+                run["outputs"][0]["identifier"],
+                str(run_path / "checkpoints" / collected["generation"]),
+                run_path.parent,
+            )
+            index = verify_evaluation_index(index_path)
+            if (
+                index["run_id"] != run["outputs"][0]["identifier"]
+                or index["checkpoint_sha256"] != collected["sha256"]
+                or index["checkpoint"] != f"checkpoints/{collected['generation']}"
+            ):
+                raise ValueError("suite index differs from collected run/checkpoint")
             facts = {
-                "run_id": observed["run_id"],
-                "evidence_level": observed["evidence_level"],
-                "quality_observations": observed["quality_observations"],
-                "rejected_reports": observed["rejected_reports"],
-                "missing_reports": observed["missing_reports"],
+                "checkpoint_sha256": index["checkpoint_sha256"],
+                "index_sha256": index["index_sha256"],
+                "evaluations": [
+                    {"id": item["id"], "status": item["status"]}
+                    for item in index["evaluations"]
+                ],
             }
-            if observed["evidence_level"] != "checkpointed_held_out":
-                return self._result(
-                    "INCONCLUSIVE",
-                    "INCONCLUSIVE",
-                    reason="no complete checkpoint-bound heldout evidence",
-                    measurements=facts,
-                )
             return self._result(
                 measurements=facts,
-                outputs=self._identity(
-                    kind,
-                    stage.id,
-                    digest(
-                        f"campaign-{kind}-v1",
-                        {"stage_input_sha256": input_sha, "measurements": facts},
-                    ),
-                ),
+                outputs=self._identity(kind, stage.id, index["index_sha256"]),
+                availability={"path": str(index_path)},
             )
         if kind == "model_readiness":
-            evaluation = self._upstream(rows, stage.evaluation)["measurements"]
-            if (
-                stage.max_heldout_loss is None
-                or evaluation["evidence_level"] != "checkpointed_held_out"
-            ):
-                return self._result(
-                    "INCONCLUSIVE",
-                    "INCONCLUSIVE",
-                    reason="no declared threshold or complete heldout evidence",
-                )
-            observations = evaluation["quality_observations"]
-            if not observations:
-                return self._result(
-                    "INCONCLUSIVE",
-                    "INCONCLUSIVE",
-                    reason="missing heldout observations",
-                )
-            latest = max(item["step"] for item in observations)
-            matches = [item for item in observations if item["step"] == latest]
-            if any(item != matches[0] for item in matches[1:]):
-                raise ValueError(
-                    "conflicting heldout observations at latest checkpoint step"
-                )
-            loss = matches[0].get("loss")
-            if (
-                isinstance(loss, bool)
-                or not isinstance(loss, (int, float))
-                or not math.isfinite(loss)
-            ):
-                return self._result(
-                    "INCONCLUSIVE",
-                    "INCONCLUSIVE",
-                    reason="latest heldout loss absent or invalid",
-                )
+            from sparselab.evaluation.readiness import (
+                assess_readiness,
+                verify_readiness_result,
+            )
+
+            evaluation = self._upstream(rows, stage.evaluation)
+            result_path = assess_readiness(
+                self._path(stage.policy),
+                Path(evaluation["availability"]["path"]),
+                self._operational_path(stage.review) if stage.review else None,
+            )
+            assessed = verify_readiness_result(result_path)
+            state = assessed["state"]
             facts = {
-                "step": latest,
-                "observed_loss": loss,
-                "required_max_heldout_loss": stage.max_heldout_loss,
+                "checkpoint_sha256": assessed["checkpoint_sha256"],
+                "index_sha256": assessed["index_sha256"],
+                "completed_evaluations": assessed["completed_evaluations"],
+                "missing_gates": assessed["missing_gates"],
             }
-            if loss > stage.max_heldout_loss:
-                return self._result(
-                    "BLOCKED",
-                    "DO_NOT_ADVANCE",
-                    reason="heldout loss exceeds declared threshold",
-                    measurements=facts,
-                )
+            result_state = (
+                "COMPLETE"
+                if state == "READY_FOR_NEXT_STAGE"
+                else "BLOCKED"
+                if state == "DO_NOT_ADVANCE"
+                else "INCONCLUSIVE"
+            )
+            outcome = (
+                state
+                if state in {"READY_FOR_NEXT_STAGE", "DO_NOT_ADVANCE"}
+                else "INCONCLUSIVE"
+            )
             return self._result(
+                result_state,
+                outcome,
+                reason=f"model policy assessed: {state}",
                 measurements=facts,
-                outputs=self._identity(
-                    kind,
-                    stage.id,
-                    digest(
-                        f"campaign-{kind}-v1",
-                        {"stage_input_sha256": input_sha, "measurements": facts},
-                    ),
+                outputs=(
+                    self._identity(kind, stage.id, assessed["result_sha256"])
+                    if state == "READY_FOR_NEXT_STAGE"
+                    else []
                 ),
+                availability={"path": str(result_path)},
             )
         raise ValueError(f"unsupported campaign adapter {kind}")

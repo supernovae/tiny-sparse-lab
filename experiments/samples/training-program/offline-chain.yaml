@@ -1,6 +1,7 @@
 plan_version: 1
 id: offline-training-chain-v1
 base_run: run.yaml
+evaluation_suite: experiments/samples/heldout-suite.yaml
 phases:
   - id: pretrain
     transition: fresh

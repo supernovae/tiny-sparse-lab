@@ -291,7 +291,7 @@ def _verify_complete_run(
             "tokenizer.json",
             "tokenizer_manifest.json",
             "portable_package",
-        } and not name.startswith(("data/", "portable_package/")):
+        } and not name.startswith(("data/", "portable_package/", "corpus/")):
             continue
         received = expected.get(name)
         if received is None or (received.sha256, received.size_bytes) != (
