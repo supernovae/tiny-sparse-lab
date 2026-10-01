@@ -426,9 +426,7 @@ def _bounded_hf_fixture(
     )
 
 
-def _mock_hf_stream(
-    monkeypatch: pytest.MonkeyPatch, content: bytes
-) -> list[str]:
+def _mock_hf_stream(monkeypatch: pytest.MonkeyPatch, content: bytes) -> list[str]:
     import huggingface_hub
 
     calls: list[str] = []
@@ -495,7 +493,8 @@ def test_hf_bounded_replay_hash_and_row_provenance(
                 ).encode()
             ).hexdigest(),
             16,
-        ) % 3
+        )
+        % 3
         in {0, 2}
     ]
     selection = retrieval["shards"][0]
@@ -505,10 +504,14 @@ def test_hf_bounded_replay_hash_and_row_provenance(
     ] == selected_indices
     assert selection["source_shard_sha256"] == hashlib.sha256(content).hexdigest()
     emitted = (
-        Path(first["sources"]["one"]["snapshot_path"])
-        / "files"
-        / selection["output_path"]
-    ).read_text(encoding="utf-8").splitlines()
+        (
+            Path(first["sources"]["one"]["snapshot_path"])
+            / "files"
+            / selection["output_path"]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
     assert [json.loads(line)["text"] for line in emitted] == [
         rows[index]["text"] for index in selected_indices
     ]
@@ -608,12 +611,14 @@ def test_v3_training_policy_requires_explicit_source_review(
     _yaml(source_file, source)
     _yaml(release_file, release)
     project = load_project(recipe)
-    assert source_declaration_payload(project.sources[0])[
-        "explicit_training_restriction"
-    ] == "none_found"
-    assert release_declaration_payload(project.release)[
-        "training_use_policy"
-    ] == "allowed_unless_explicitly_prohibited"
+    assert (
+        source_declaration_payload(project.sources[0])["explicit_training_restriction"]
+        == "none_found"
+    )
+    assert (
+        release_declaration_payload(project.release)["training_use_policy"]
+        == "allowed_unless_explicitly_prohibited"
+    )
     source["explicit_training_restriction"] = "incompatible"
     _yaml(source_file, source)
     with pytest.raises(ValueError, match="prohibited basis"):
@@ -624,7 +629,9 @@ def test_v3_training_policy_requires_explicit_source_review(
         "basis": "Explicit no-training condition",
     }
     _yaml(source_file, source)
-    assert load_project(recipe).sources[0].explicit_training_restriction == "incompatible"
+    assert (
+        load_project(recipe).sources[0].explicit_training_restriction == "incompatible"
+    )
     release.pop("training_use_policy")
     _yaml(release_file, release)
     with pytest.raises(ValueError, match="training_use_policy"):
@@ -758,13 +765,18 @@ def test_wikimedia_bounded_xml_provenance_and_receipt(
     project = load_project(recipe)
     first = acquire(project, tmp_path / "first")
     second = acquire(project, tmp_path / "second")
-    assert first["sources"]["one"]["snapshot_sha256"] == second["sources"]["one"]["snapshot_sha256"]
+    assert (
+        first["sources"]["one"]["snapshot_sha256"]
+        == second["sources"]["one"]["snapshot_sha256"]
+    )
     snapshot_path = Path(first["sources"]["one"]["snapshot_path"])
     manifest = verify_snapshot(snapshot_path)
     receipt = manifest["retrieval"]
     assert receipt["source_sha256"] == hashlib.sha256(content).hexdigest()
     assert receipt["scanned_pages"] == 3
-    assert [(r["page_id"], r["revision_id"]) for r in receipt["selected_pages"]] == [("17", "93")]
+    assert [(r["page_id"], r["revision_id"]) for r in receipt["selected_pages"]] == [
+        ("17", "93")
+    ]
     row = json.loads((snapshot_path / "files" / receipt["output_path"]).read_text())
     assert row["_sparselab_source"]["page_uri"] == "https://en.wikibooks.org/?curid=17"
     assert row["_sparselab_source"]["revision_timestamp"] == "2026-08-31T00:00:00Z"
@@ -826,7 +838,9 @@ def test_wikimedia_rejects_checksum_caps_and_doctype(
     with pytest.raises(ValueError, match="emitted JSONL"):
         acquire(load_project(recipe), tmp_path / "output-cap")
     malicious = xml.replace(
-        b"<mediawiki", b'<!DOCTYPE mediawiki [<!ENTITY bad SYSTEM "file:///etc/passwd">]><mediawiki', 1
+        b"<mediawiki",
+        b'<!DOCTYPE mediawiki [<!ENTITY bad SYSTEM "file:///etc/passwd">]><mediawiki',
+        1,
     )
     recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, malicious)
     with pytest.raises(ValueError, match="DTD/entities"):

@@ -69,9 +69,9 @@ def test_raw_spans_count_physical_lf_lines_not_unicode_separators() -> None:
     assert (span["byte_start"], span["byte_end"]) == (0, len(raw))
 
     lone_cr = b"first\rsecond"
-    normalized, physical = _records_for_file(
-        lone_cr, "document.txt", source, "c" * 64
-    )[0]
+    normalized, physical = _records_for_file(lone_cr, "document.txt", source, "c" * 64)[
+        0
+    ]
     assert normalized["text"] == "first\nsecond"
     assert (physical["line_start"], physical["line_end"]) == (1, 1)
     assert (physical["byte_start"], physical["byte_end"]) == (0, len(lone_cr))
@@ -145,8 +145,7 @@ def test_prospective_hf_rows_keep_provenance_and_exclude_private_material() -> N
     }
     rejected: list[dict[str, object]] = []
     raw = b"".join(
-        json.dumps(row).encode() + b"\n"
-        for row in (safe, secret, excluded_platform)
+        json.dumps(row).encode() + b"\n" for row in (safe, secret, excluded_platform)
     )
     name = "sample/10BT/000_00000.parquet.sample.jsonl"
     pairs = _records_for_file(
@@ -172,7 +171,9 @@ def test_prospective_hf_rows_keep_provenance_and_exclude_private_material() -> N
     ]
 
 
-def test_scholarly_abstracts_and_full_papers_keep_distinct_kinds_and_corpus_ids() -> None:
+def test_scholarly_abstracts_and_full_papers_keep_distinct_kinds_and_corpus_ids() -> (
+    None
+):
     project = load_project(
         Path(__file__).resolve().parents[1] / "corpora/devmind-v2/corpus.yaml"
     )

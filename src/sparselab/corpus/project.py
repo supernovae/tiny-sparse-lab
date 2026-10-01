@@ -101,9 +101,11 @@ class HFBoundedShard(StrictModel):
             raise ValueError("bounded HF shard must be Parquet or JSONL stream")
         if not _HEX.fullmatch(self.expected_sha256):
             raise ValueError("bounded HF shard needs a SHA-256 checksum")
-        if not self.hash_remainders or len(set(self.hash_remainders)) != len(
-            self.hash_remainders
-        ) or any(not 0 <= n < self.hash_modulus for n in self.hash_remainders):
+        if (
+            not self.hash_remainders
+            or len(set(self.hash_remainders)) != len(self.hash_remainders)
+            or any(not 0 <= n < self.hash_modulus for n in self.hash_remainders)
+        ):
             raise ValueError("invalid bounded HF hash remainders")
         return self
 
@@ -134,7 +136,8 @@ class HuggingFaceAcquisition(StrictModel):
                 ):
                     raise ValueError("bounded HF shard is outside declared config")
                 if self.split not in parts and not any(
-                    part.startswith((self.split + "-", self.split + ".")) for part in parts
+                    part.startswith((self.split + "-", self.split + "."))
+                    for part in parts
                 ):
                     raise ValueError("bounded HF shard is outside declared split")
         for value in (self.config, self.split, self.text_field):
@@ -152,16 +155,18 @@ class WikimediaDumpAcquisition(StrictModel):
     max_scanned_pages: int = Field(gt=0)
     max_selected_pages: int = Field(gt=0)
     max_emitted_bytes: int = Field(gt=0)
+
     @property
     def max_rows(self) -> int:
         return self.max_selected_pages
-
 
     @model_validator(mode="after")
     def pinned_checksum(self) -> WikimediaDumpAcquisition:
         if not re.fullmatch(r"[a-fA-F0-9]{40}", self.expected_sha1):
             raise ValueError("Wikimedia dump needs official SHA-1 checksum")
-        if self.expected_sha256 is not None and not _HEX.fullmatch(self.expected_sha256):
+        if self.expected_sha256 is not None and not _HEX.fullmatch(
+            self.expected_sha256
+        ):
             raise ValueError("Wikimedia dump SHA-256 must be hex")
         return self
 
@@ -308,7 +313,9 @@ class SourceDeclaration(StrictModel):
             base = "https://dumps.wikimedia.org/"
             book = f"enwikibooks/{self.revision}/"
             wiki = f"enwiki/{self.revision}/"
-            book_name = f"enwikibooks-{self.revision}-pages-articles-multistream.xml.bz2"
+            book_name = (
+                f"enwikibooks-{self.revision}-pages-articles-multistream.xml.bz2"
+            )
             wikipedia_name = (
                 rf"enwiki-{self.revision}-pages-articles-multistream\d+"
                 r"\.xml-p\d+p\d+\.bz2"
@@ -322,11 +329,18 @@ class SourceDeclaration(StrictModel):
                 is not None
             )
             if not is_book and not is_wikipedia:
-                raise ValueError("Wikimedia dump requires exact dated HTTPS article file")
+                raise ValueError(
+                    "Wikimedia dump requires exact dated HTTPS article file"
+                )
             prefix = base + (book if is_book else wiki)
             project_name = "enwikibooks" if is_book else "enwiki"
-            if spec.checksum_uri != prefix + f"{project_name}-{self.revision}-sha1sums.txt":
-                raise ValueError("Wikimedia dump requires matching official checksum URI")
+            if (
+                spec.checksum_uri
+                != prefix + f"{project_name}-{self.revision}-sha1sums.txt"
+            ):
+                raise ValueError(
+                    "Wikimedia dump requires matching official checksum URI"
+                )
         if self.schema_version == 1:
             if (
                 self.rights is not None
@@ -351,7 +365,10 @@ class SourceDeclaration(StrictModel):
                 raise ValueError(
                     "v2/v3 source needs rights, not legacy redistribution/rejection"
                 )
-            if self.schema_version == 2 and self.explicit_training_restriction is not None:
+            if (
+                self.schema_version == 2
+                and self.explicit_training_restriction is not None
+            ):
                 raise ValueError("explicit_training_restriction requires v3 source")
             if self.schema_version == 3:
                 state = self.explicit_training_restriction
@@ -364,10 +381,16 @@ class SourceDeclaration(StrictModel):
                     or restriction.kind != "prohibited"
                 ):
                     raise ValueError("incompatible training requires prohibited basis")
-                if state in {"restricted", "unknown"} and self.rights.training_eligibility not in {
-                    "review_required", "ineligible"
+                if state in {
+                    "restricted",
+                    "unknown",
+                } and self.rights.training_eligibility not in {
+                    "review_required",
+                    "ineligible",
                 }:
-                    raise ValueError("restricted/unknown training requires rights review")
+                    raise ValueError(
+                        "restricted/unknown training requires rights review"
+                    )
                 if state == "none_found" and restriction is not None:
                     raise ValueError("none_found conflicts with a training restriction")
             if self.rights.nested_metadata_path and self.kind != "git":
@@ -612,7 +635,9 @@ class Project(StrictModel):
             source.schema_version != self.release.schema_version
             for source in self.sources
         ):
-            raise ValueError("source rights schema must match release publication policy")
+            raise ValueError(
+                "source rights schema must match release publication policy"
+            )
         return self
 
 

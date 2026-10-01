@@ -149,10 +149,13 @@ def test_v3_private_research_freeze_and_public_manifest_remain_separate(
     report = json.loads((release / "license-report.json").read_text())
     assert report["schema_version"] == 3
     assert report["training_use_policy"] == "allowed_unless_explicitly_prohibited"
-    assert all(item["schema_version"] == 3 for item in [
-        json.loads(line)
-        for line in (release / "documents.jsonl").read_text().splitlines()
-    ])
+    assert all(
+        item["schema_version"] == 3
+        for item in [
+            json.loads(line)
+            for line in (release / "documents.jsonl").read_text().splitlines()
+        ]
+    )
     public = publication_manifest(release)
     assert public["training_use_policy"] == report["training_use_policy"]
     assert all(

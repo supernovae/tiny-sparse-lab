@@ -33,7 +33,10 @@ def policy(**changes: object) -> RightsPolicy:
         ("GPL-2.0+", "eligible_with_obligations"),
         ("LGPL-2.1", "eligible_with_obligations"),
         ("AGPL-3.0", "eligible_with_obligations"),
-        ("(GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause", "eligible_with_obligations"),
+        (
+            "(GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause",
+            "eligible_with_obligations",
+        ),
         ("MPL-2.0", "eligible_with_obligations"),
         ("CC-BY-4.0", "eligible_with_obligations"),
         ("CC-BY-SA-4.0", "eligible_with_obligations"),

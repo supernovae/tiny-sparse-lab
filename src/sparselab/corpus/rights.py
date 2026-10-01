@@ -232,7 +232,10 @@ def _license_class(expression: str) -> str:
             exception = tokens[position]
             position += 1
             if exception != "Linux-syscall-note" or token not in {
-                "GPL-2.0", "GPL-2.0-only", "GPL-2.0+", "GPL-2.0-or-later"
+                "GPL-2.0",
+                "GPL-2.0-only",
+                "GPL-2.0+",
+                "GPL-2.0-or-later",
             }:
                 return {"unknown"}
         if token in _PERMISSIVE:
@@ -454,7 +457,9 @@ def resolve_file_rights(
     elif (
         policy.training_eligibility == "eligible_with_obligations"
         or classification == "obligations"
-        or (prospective_private_research and classification in {"unknown", "restricted"})
+        or (
+            prospective_private_research and classification in {"unknown", "restricted"}
+        )
         or (classification == "permissive" and not policy.notices)
     ):
         training = "eligible_with_obligations"

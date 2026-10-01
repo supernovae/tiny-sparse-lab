@@ -68,8 +68,10 @@ def test_streamed_measurement_matches_small_overlap_census(
         "".join(json.dumps({"text": text}) + "\n" for text in texts)
     )
     (root / "lm/train.lineage.jsonl").write_text(
-        "".join(json.dumps({"record_id": row["record_id"], "split": "train"}) + "\n"
-                for row in records)
+        "".join(
+            json.dumps({"record_id": row["record_id"], "split": "train"}) + "\n"
+            for row in records
+        )
     )
     spec = {
         "lm": {"selected": True, "training_splits": ["train"]},
@@ -107,8 +109,10 @@ def test_large_view_omits_ngrams_without_retaining_texts(tmp_path: Path) -> None
             (root / view / f"{split}.jsonl").write_text("")
             (root / view / f"{split}.lineage.jsonl").write_text("")
     row = {
-        "record_id": "source", "origin": "primary_source",
-        "parent_document_ids": ["parent"], "source_family_ids": [],
+        "record_id": "source",
+        "origin": "primary_source",
+        "parent_document_ids": ["parent"],
+        "source_family_ids": [],
     }
     (root / "lineage.jsonl").write_text(json.dumps(row) + "\n")
     for name in ("generations.jsonl", "scenarios.jsonl"):
@@ -123,6 +127,7 @@ def test_large_view_omits_ngrams_without_retaining_texts(tmp_path: Path) -> None
     assert concentration["ngram_3_distinct"] is None
     assert concentration["ngram_count_reason"] == "omitted_above_20m_character_bound"
     assert concentration["parent_document_counts"] == {"parent": 1}
+
 
 def test_report_keeps_record_and_exact_token_denominators_separate(
     tmp_path: Path,

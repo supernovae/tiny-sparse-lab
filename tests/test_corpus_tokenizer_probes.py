@@ -39,16 +39,24 @@ def _tokenizer(tmp_path: Path) -> Path:
     return path
 
 
-def test_probe_scores_real_tokenizer_deterministically_without_writing(tmp_path: Path) -> None:
+def test_probe_scores_real_tokenizer_deterministically_without_writing(
+    tmp_path: Path,
+) -> None:
     suite = load_probe_suite(_SUITE)
     assert {sample["group"] for sample in suite["samples"]} == set(GROUPS)
-    assert all(sample["provenance"] == "synthetic_syntax" for sample in suite["samples"] if sample["group"] == "logs")
+    assert all(
+        sample["provenance"] == "synthetic_syntax"
+        for sample in suite["samples"]
+        if sample["group"] == "logs"
+    )
     tokenizer = _tokenizer(tmp_path)
     before = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
     first = probe_tokenizer(tokenizer, _SUITE)
     assert first == probe_tokenizer(tokenizer, _SUITE)
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir()} == before
-    assert first["tokenizer_sha256"] == hashlib.sha256(tokenizer.read_bytes()).hexdigest()
+    assert (
+        first["tokenizer_sha256"] == hashlib.sha256(tokenizer.read_bytes()).hexdigest()
+    )
     assert first["suite_sha256"] == hashlib.sha256(_SUITE.read_bytes()).hexdigest()
     loaded = Tokenizer.from_file(str(tokenizer))
     for group in GROUPS:
@@ -79,7 +87,10 @@ def test_probe_rejects_missing_tokenizer(tmp_path: Path) -> None:
             lambda suite: suite["samples"].append(dict(suite["samples"][0])),
             "duplicate probe sample id",
         ),
-        (lambda suite: suite["samples"][0].update(group="fiction"), "invalid probe group"),
+        (
+            lambda suite: suite["samples"][0].update(group="fiction"),
+            "invalid probe group",
+        ),
         (lambda suite: suite["samples"][0].update(text=" "), "nonempty text"),
         (
             lambda suite: suite["samples"][0].update(provenance="source_document"),
@@ -119,7 +130,7 @@ def test_probe_suite_validation(tmp_path: Path, mutation, expected: str) -> None
 
 
 def test_probe_rejects_non_object_and_malformed_json(tmp_path: Path) -> None:
-    for payload in ('[]', '{broken', '"text"'):
+    for payload in ("[]", "{broken", '"text"'):
         path = tmp_path / "invalid.json"
         path.write_text(payload, encoding="utf-8")
         with pytest.raises(ValueError):

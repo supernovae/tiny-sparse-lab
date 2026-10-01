@@ -19,7 +19,7 @@ def memory_bytes() -> tuple[int, int, int | None]:
     try:
         rss_pages = int(Path("/proc/self/statm").read_text().split()[1])
         rss = rss_pages * os.sysconf("SC_PAGE_SIZE")
-    except (OSError, IndexError, ValueError):
+    except OSError, IndexError, ValueError:
         rss = 0
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak_bytes = peak if sys.platform == "darwin" else peak * 1024
@@ -30,7 +30,7 @@ def memory_bytes() -> tuple[int, int, int | None]:
                 if line.startswith("MemAvailable:"):
                     available = int(line.split()[1]) * 1024
                     break
-    except (OSError, IndexError, ValueError):
+    except OSError, IndexError, ValueError:
         pass
     return rss, peak_bytes, available
 
@@ -116,14 +116,18 @@ class BuildProgress:
             "elapsed_seconds": round(elapsed, 3),
             "documents_per_second": round(self.documents / elapsed, 3),
             "input_bytes_per_second": round(self.input_bytes / elapsed, 3),
-            "estimated_remaining_seconds": round(estimate, 3) if estimate is not None else None,
+            "estimated_remaining_seconds": round(estimate, 3)
+            if estimate is not None
+            else None,
             "rss_bytes": rss,
             "peak_rss_bytes": peak,
             "system_available_bytes": available,
         }
         self.journal.parent.mkdir(parents=True, exist_ok=True)
         with self.journal.open("ab") as output:
-            output.write(json.dumps(row, sort_keys=True, separators=(",", ":")).encode() + b"\n")
+            output.write(
+                json.dumps(row, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+            )
             output.flush()
             os.fsync(output.fileno())
         self.last_time = now

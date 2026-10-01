@@ -67,7 +67,9 @@ def _repin(release: Path, tmp_path: Path, relative: str, mutate) -> Path:
         "size": path.stat().st_size,
     }
     manifest["release_id"] = hashlib.sha256(
-        canonical_json({key: value for key, value in manifest.items() if key != "release_id"})
+        canonical_json(
+            {key: value for key, value in manifest.items() if key != "release_id"}
+        )
     ).hexdigest()
     manifest_path.write_bytes(canonical_json(manifest) + b"\n")
     destination = release.parent / manifest["release_id"]
@@ -78,7 +80,11 @@ def _repin(release: Path, tmp_path: Path, relative: str, mutate) -> Path:
 @pytest.mark.parametrize(
     ("file", "mutate", "error"),
     [
-        ("lm/train.jsonl", lambda rows: rows[0].update(text="tampered training text"), "LM"),
+        (
+            "lm/train.jsonl",
+            lambda rows: rows[0].update(text="tampered training text"),
+            "LM",
+        ),
         (
             "lineage.jsonl",
             lambda rows: rows[0].update(rendered_sha256="0" * 64),

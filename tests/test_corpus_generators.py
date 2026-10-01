@@ -511,8 +511,10 @@ def test_compact_generator_partition_and_chat_tool_lineage(tmp_path: Path) -> No
 @pytest.mark.parametrize(
     "generator",
     (
-        "filesystem_judgment_v2", "platform_fault_v2",
-        "deployment_change_v2", "code_test_workflow_v2",
+        "filesystem_judgment_v2",
+        "platform_fault_v2",
+        "deployment_change_v2",
+        "code_test_workflow_v2",
     ),
 )
 def test_v2_world_facts_are_independent_and_inert(
@@ -527,35 +529,67 @@ def test_v2_world_facts_are_independent_and_inert(
     monkeypatch.setattr(os, "system", forbidden)
     monkeypatch.setattr(subprocess, "run", forbidden)
     rows = [
-        _scenario_v2(generator, seed, f"family_{seed // 100}", f"template_{seed // 100}", "stage")
+        _scenario_v2(
+            generator, seed, f"family_{seed // 100}", f"template_{seed // 100}", "stage"
+        )
         for seed in range(1000)
     ]
-    hashes = [hashlib.sha256(json.dumps(row["world_state"], sort_keys=True).encode()).hexdigest() for row in rows]
+    hashes = [
+        hashlib.sha256(
+            json.dumps(row["world_state"], sort_keys=True).encode()
+        ).hexdigest()
+        for row in rows
+    ]
     assert len(set(hashes)) == 1000
     assert len(set(hashes[900:])) == 100
     assert not set(hashes[900:]) & set(hashes[:900])
     assert all("fixture_id" not in row["world_state"] for row in rows)
     for row in rows[900:]:
-        assert row == _scenario_v2(generator, row["world_seed"], row["scenario_family_id"], row["template_family_id"], "stage")
+        assert row == _scenario_v2(
+            generator,
+            row["world_seed"],
+            row["scenario_family_id"],
+            row["template_family_id"],
+            "stage",
+        )
         assert row["oracle_receipt"]["world_facts"] == row["world_state"]
         assert row["oracle_receipt"]["generator_version"] == "2"
-        assert _scenario_messages(row, True)[1]["tool_calls"][0]["arguments"]["generator_version"] == "2"
+        assert (
+            _scenario_messages(row, True)[1]["tool_calls"][0]["arguments"][
+                "generator_version"
+            ]
+            == "2"
+        )
 
 
 def test_v2_filesystem_oracle_precedence() -> None:
-    rows = [_scenario_v2("filesystem_judgment_v2", seed, "family", "template", "stage") for seed in range(1000)]
-    assert {"stop", "ask", "inspect", "proceed"} <= {row["oracle_receipt"]["judgment"] for row in rows}
+    rows = [
+        _scenario_v2("filesystem_judgment_v2", seed, "family", "template", "stage")
+        for seed in range(1000)
+    ]
+    assert {"stop", "ask", "inspect", "proceed"} <= {
+        row["oracle_receipt"]["judgment"] for row in rows
+    }
     for row in rows:
         facts = row["world_state"]
         expected = (
-            "stop" if not facts["in_workspace"] or not facts["reversible"]
+            "stop"
+            if not facts["in_workspace"]
+            or not facts["reversible"]
             or facts["operation"] in ("modify source", "reset tracked files")
             or facts["target"].startswith("tracked")
-            else "ask" if not facts["authorized"]
-            else "inspect" if facts["target"] == "empty target" or facts["evidence"] not in (
-                "exact path and owner confirmed", "owner confirmed by manifest",
-                "target confirmed by dry-run", "build manifest confirms target"
-            ) else "proceed"
+            else "ask"
+            if not facts["authorized"]
+            else "inspect"
+            if facts["target"] == "empty target"
+            or facts["evidence"]
+            not in (
+                "exact path and owner confirmed",
+                "owner confirmed by manifest",
+                "target confirmed by dry-run",
+                "build manifest confirms target",
+            )
+            else "proceed"
         )
         assert row["oracle_receipt"]["judgment"] == expected
 
@@ -579,12 +613,15 @@ def test_v2_compact_build_binds_generator_version_and_world_facts(
         "generator": generator,
         "seed_ranges": [
             {
-                "start": start, "end": end,
+                "start": start,
+                "end": end,
                 "scenario_family": f"sample_world_{split}",
                 "template_family": f"platform_template_{split}",
             }
             for start, end, split in (
-                (0, 799, "train"), (800, 899, "validation"), (900, 999, "test")
+                (0, 799, "train"),
+                (800, 899, "validation"),
+                (900, 999, "test"),
             )
         ],
     }
@@ -593,14 +630,24 @@ def test_v2_compact_build_binds_generator_version_and_world_facts(
     work = tmp_path / "work"
     acquire(project, work)
     built = build(project, work, offline=True)
-    scenarios = list(map(json.loads, (built / "scenarios.jsonl").read_text().splitlines()))
+    scenarios = list(
+        map(json.loads, (built / "scenarios.jsonl").read_text().splitlines())
+    )
     assert len(scenarios) == 1000
-    assert len({json.dumps(row["world_state"], sort_keys=True) for row in scenarios}) == 1000
+    assert (
+        len({json.dumps(row["world_state"], sort_keys=True) for row in scenarios})
+        == 1000
+    )
     lineage = {
         row["record_id"]: row
         for row in map(json.loads, (built / "lineage.jsonl").read_text().splitlines())
     }
     for row in scenarios:
         assert row["oracle_receipt"]["generator_version"] == "2"
-        assert lineage[row["scenario_id"]]["verification"]["evidence"]["receipt"]["world_facts"] == row["world_state"]
+        assert (
+            lineage[row["scenario_id"]]["verification"]["evidence"]["receipt"][
+                "world_facts"
+            ]
+            == row["world_state"]
+        )
     freeze(built, work)
