@@ -1,0 +1,23 @@
+{
+  "producer_record_version": 1,
+  "producer_commit": "51be77ba7fb186b3a4af47e9bfe487c7afa84273",
+  "producer_tree": "e634d32f20714e3aa1c839d130cf7ac232ade5bf",
+  "corpus_project": "corpora/devmind-v5/corpus.yaml",
+  "protocol": "experiments/research/devmind-pretrain-v5/protocol.md",
+  "package_source_identity_sha256": "c20c8b96bfb845e86f947d61cf4222f33e0d05711908a4508b28979be50b0c92",
+  "source_snapshot_imports": 0,
+  "execution": "Tested replay_corpus default v1: exact Git source export and dedicated locked uv CPU/data environment; primary acquires a new identity, recovery enforces committed primary build/release/snapshot expectations",
+  "initial_primary_expected_build": null,
+  "initial_primary_expected_release": null,
+  "primary_identity_policy": "First fully independently verified v5 build/frozen release becomes immutable v5 expectation before independent recovery; never replaces historical v2/v3/v4 digests",
+  "local_dense_readiness": {
+    "status": "passed",
+    "path": "/srv/sparselab/state/scratch/devmind-v5/readiness-dense/readiness.json",
+    "sha256": "390e58891815c04a17ca2201c7a868a902125c49a56a7754e4ccc18a41313ffd",
+    "limitations": [
+      "tiny synthetic data and short runs establish CLI wiring and recovery only",
+      "CUDA, ROCm, XPU, MLX, large-model fit, throughput, and model quality are not tested"
+    ]
+  },
+  "broader_cpu_regressions": "Running independently against held-fixed package files; complete outcome to be bound after completion"
+}
