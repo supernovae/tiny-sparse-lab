@@ -1,0 +1,23 @@
+{
+  "status": "ACQUISITION_IMPLEMENTATION_IDENTITY_DIVERGENCE",
+  "historical_source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+  "execution_commit": "651bb35d8ce24b602c12c5869673a6de0519db24",
+  "project_sha256": "ee95707a159d4fbc62e8f22cce6301010cbf86a500db6c010a2d282e1166e6b6",
+  "expected_release_sha256": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+  "actual_release_sha256": null,
+  "historical_adapter_module_sha256": "15e891576f81a8c2096e9559c07bef436cb6ed617b131f08af6d9c0e9be40974",
+  "actual_adapter_module_sha256": "acde12f8c10e13c1c8bf3dd535fa19cc0f27287f9a6096b8617acb8fd5d76bb4",
+  "adapter_ast_equal": true,
+  "source_id": "v4_db_clickhouse_sql",
+  "source_revision": "5ac4352fc81602c8c3824c9ebfad10a4b0e900ab",
+  "declaration_sha256": "f34535d58b0a4bfe4daf5998db06c42f3ddd4d06934c570884cbc37da19ae32e",
+  "verified_snapshot_sha256": "d2809715da66e7c7df5fdbd68cd5fe3cd1ac214260053cc64702dc4b17744a22",
+  "same_files_pinned_implementation_snapshot_sha256": "3e5576cfcb4e39dc5b73cc9aded06f563ae27a3e1f637c2a72514daeed248bfe",
+  "counterfactual_limit": "The pinned-implementation digest is calculated using the verified current file inventory; it is not an observed historical snapshot receipt.",
+  "selected_file_count": 11713,
+  "snapshot_path": "/srv/sparselab/state/corpora/devmind-v4/snapshots/v4_db_clickhouse_sql/d2809715da66e7c7df5fdbd68cd5fe3cd1ac214260053cc64702dc4b17744a22",
+  "reconstruction": "Explicitly stopped at acquisition after verifying implementation identity divergence; partial files retained, no build or release produced.",
+  "available_bytes_after_stop": 1018651287552,
+  "available_inodes_after_stop": 67080718,
+  "next_gate": "Restore a verified original release/snapshot closure or explicitly review pinned-implementation reconstruction; do not alias current output or rewrite historical digests."
+}

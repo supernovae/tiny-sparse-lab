@@ -1,0 +1,79 @@
+{
+  "record_version": 1,
+  "claim": "Operational preflight only; no reconstructed corpus or trained model is claimed.",
+  "starting_commit": "d47b2cdd725b444ad5d2297ee9096673fa7733c7",
+  "branch": "research/devmind-model0-try2",
+  "work_root": "/srv/sparselab/state",
+  "task_root": "/srv/sparselab/state/experiments/devmind-pretrain-v4-model0-try2",
+  "filesystem": {
+    "device": "/dev/sde",
+    "type": "ext4",
+    "capacity_bytes": 1081101176832,
+    "available_bytes": 1026098290688,
+    "total_inodes": 67108864,
+    "available_inodes": 67108371,
+    "required_free_margin_bytes": 270275294208,
+    "required_free_margin_inodes": 16777216
+  },
+  "host_ram": {"total_bytes": 33608609792, "available_bytes": 31128776704},
+  "source_declarations": {
+    "count": 123,
+    "git": 116,
+    "huggingface_dataset": 4,
+    "http_document": 1,
+    "wikimedia_dump": 2,
+    "max_bytes_sum_excluding_wikimedia": 17014310000,
+    "wikimedia_max_emitted_bytes": 500000000,
+    "wikimedia_max_compressed_bytes": 590000000,
+    "wikimedia_max_decompressed_bytes": 2800000000,
+    "training_eligibility": "123 eligible_with_obligations",
+    "explicit_training_restriction": "123 none_found",
+    "publication": "metadata_reconstruction_only; preserve source-specific rights and notices",
+    "project_sha256": "ee95707a159d4fbc62e8f22cce6301010cbf86a500db6c010a2d282e1166e6b6"
+  },
+  "projection": {
+    "status": "PRELIMINARY_ACQUISITION_RESERVATION",
+    "components_bytes": {
+      "source_snapshots": 20000000000,
+      "remote_git_and_download_cache_reservation": 300000000000,
+      "build_release_reservation": 100000000000,
+      "export_reservation": 25000000000,
+      "bakeoff_samples_candidates": 4000000000,
+      "prepared_ids_recovery_chunks": 18000000000,
+      "stage_worker_copies": 40000000000,
+      "checkpoint_generations_copies": 60000000000,
+      "receipts_logs": 1000000000
+    },
+    "total_bytes": 568000000000,
+    "projected_remaining_bytes": 458098290688,
+    "reserved_growth_inodes": 30000000,
+    "projected_remaining_inodes": 37108371,
+    "basis": "17.51431 GB declared emitted/raw source caps; historical 82 GB entire v4 workspace; about 1.1 billion uint32 IDs = 4.4 GB per copy; 69,317,760 parameters * 16 bytes = 1,109,084,160 bytes parameter/gradient/AdamW planning inventory per generation. These are planning reservations, not measured future outputs.",
+    "limits": [
+      "Remote Git cache has no declared upper bound. The 300 GB reservation is operational, not a guaranteed maximum; monitor capacity and stop before consuming the 25% filesystem margin.",
+      "No base RunConfig exists yet: workspace preflight, exact checkpoint generations, export sizes and preparation counts remain unavailable. Recompute before each later expensive phase.",
+      "No existing v4 cache or release was present under the selected root. Prior acceptance roots are preserved."
+    ]
+  },
+  "runtime": {
+    "id": "rocm-7900xtx",
+    "status": "READY",
+    "python": "/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx/bin/python",
+    "device": "AMD Radeon RX 7900 XTX",
+    "device_index": 0,
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "source_sha256": "d019bfecfe8093a9f88bfb539e68d0df75520402df0a815ca9cffd1807c30864",
+    "tested_precision": "bf16",
+    "tested_features": ["forward_backward_optimizer", "optimizer:adamw"],
+    "device_free_bytes": 23292223488,
+    "device_total_bytes": 25708240896,
+    "measured_at": "2026-10-01T15:04:42.622554+00:00"
+  },
+  "backlog_audit": {
+    "removed": "Closed issue #3 runtime forecasting and progress only",
+    "commit": "f12506d",
+    "focused_tests": "29 passed",
+    "remaining_items": "unchanged"
+  }
+}

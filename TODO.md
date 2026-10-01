@@ -12,11 +12,6 @@ item below with its issue link. A code item is complete only when its tests and
 documentation land. An experiment result, including a negative result, does not
 close a code item unless the named software acceptance criteria also pass.
 
-## Runtime forecasting and progress
-
-- [ ] [Runtime forecasting and progress (#3)](https://github.com/supernovae/tiny-sparse-lab/issues/3).
-  [Implementation brief](docs/prompts/runtime-forecasting-and-throughput.md).
-
 ## Throughput and resource proposals
 
 - [ ] Add optional bottleneck observations that distinguish accelerator-bound,
@@ -38,6 +33,15 @@ close a code item unless the named software acceptance criteria also pass.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.
+- [ ] Add implementation-identity preflight and explicit pinned-implementation
+  replay for deterministic recovery. DevMind v4 MODEL-0 Try 2 demonstrated that
+  a formatting-only acquisition module change alters fresh snapshot identities
+  despite unchanged declarations and Python AST. Detect this before downloads;
+  preserve recorded adapter provenance and require reviewed replay of the
+  original implementation rather than rewriting receipts or aliasing digests.
+  Tests must reconstruct the original fixture identity across a formatting-only
+  checkout change and reject unreviewed implementation substitutions; document
+  the source-commit versus execution-implementation contract.
 
 ## Backend implementation
 
