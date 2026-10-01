@@ -324,6 +324,8 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "snapshot", help="Read-only committed declaration and fresh execution preflight"
     )
     command.add_argument("source", type=Path)
-    command.add_argument("--runtime-profile", type=Path)
+    runtime_source = command.add_mutually_exclusive_group()
+    runtime_source.add_argument("--runtime-profile", type=Path)
+    runtime_source.add_argument("--runtime", metavar="ID")
     command.add_argument("--json", action="store_true")
     command.set_defaults(handler=_handle)

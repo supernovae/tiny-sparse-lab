@@ -18,9 +18,13 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import psutil
-import torch
 
-from sparselab.workdir import ensure_work_dir
+try:
+    import torch
+except ModuleNotFoundError as error:
+    if error.name != "torch":
+        raise
+    torch = None
 
 if TYPE_CHECKING:
     from sparselab.runtime_profile import RuntimeAuthorization
@@ -147,6 +151,8 @@ def _os_identity() -> str:
 
 
 def _backend_available(backend: str) -> bool:
+    if torch is None:
+        return False
     if backend == "cpu":
         return True
     if backend == "mps":
@@ -220,13 +226,16 @@ def discover_runtimes(
     for backend in ("cpu", "mps", "cuda", "rocm", "xpu"):
         supported = _backend_available(backend)
         measure = (
-            measurement_device is not None
+            torch is not None
+            and measurement_device is not None
             and torch_device_for(backend).type == measurement_device.type
         )
         index = (measurement_device.index or 0) if measure else 0
         limitations: list[str] = []
-        if backend in {"cuda", "rocm"} and (
-            (backend == "rocm") != bool(torch.version.hip)
+        if (
+            torch is not None
+            and backend in {"cuda", "rocm"}
+            and ((backend == "rocm") != bool(torch.version.hip))
         ):
             limitations.append("PyTorch build targets the other CUDA/HIP API")
         elif not supported:
@@ -329,8 +338,10 @@ def discover_runtimes(
                 device_index=index,
                 device_name=name,
                 physical_device_id=physical_device_id,
-                framework_version=torch.__version__,
-                runtime_version=torch.version.hip or torch.version.cuda,
+                framework_version=torch.__version__ if torch is not None else None,
+                runtime_version=(torch.version.hip or torch.version.cuda)
+                if torch is not None
+                else None,
                 driver_version=None,
                 os=_os_identity(),
                 system_total_bytes=total,
@@ -441,7 +452,6 @@ def _probe_runtime(
         },
         separators=(",", ":"),
     ).encode("utf-8")
-    ensure_work_dir()
     try:
         completed = subprocess.run(
             [sys.executable, "-m", "sparselab.runtime_probe"],
@@ -526,7 +536,7 @@ def _resolved_precision(requested: str) -> str:
 
 def _validate_mlx_runtime(config: Any) -> RuntimeInfo:
     """Validate semantic support in-process, then probe a fixed tiny native graph."""
-    from sparselab.engines.mlx import validate as validate_mlx
+    from sparselab.engines.mlx_policy import validate as validate_mlx
 
     validate_mlx(config)
     runtime = config.runtime

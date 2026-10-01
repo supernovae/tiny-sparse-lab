@@ -10,11 +10,11 @@ speed, device fit, or model quality.
 
 ## Smallest capability gate
 
-Run from the repository root with the locked environment. The output must be a
+Run from the repository root with the locked CPU-development environment. The output must be a
 new task-owned directory; the command will not reuse or overwrite one.
 
 ```sh
-uv run --locked sparselab readiness smoke \
+uv run --locked --extra cpu sparselab readiness smoke \
   --output sparselab-work/experiments/lab-readiness-YYYYMMDD
 ```
 

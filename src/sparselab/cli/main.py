@@ -2348,7 +2348,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--through", default="smoke", choices=("inspect", "validate", "smoke", "warmup")
     )
     staging.add_argument("--output", required=True)
-    staging.add_argument("--runtime-profile", type=Path)
+    stage_runtime = staging.add_mutually_exclusive_group()
+    stage_runtime.add_argument("--runtime-profile", type=Path)
+    stage_runtime.add_argument("--runtime", metavar="ID")
     staging.add_argument("--resource-envelope", type=Path)
     _tokenizer_batch_arguments(staging)
     staging.set_defaults(handler=_stage)
@@ -2390,7 +2392,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     training.add_argument("--allow-runtime-drift", action="store_true")
     training.add_argument("--stop-after-step", type=int)
     training.add_argument("--stage-bundle")
-    training.add_argument("--runtime-profile", type=Path)
+    train_runtime = training.add_mutually_exclusive_group()
+    train_runtime.add_argument("--runtime-profile", type=Path)
+    train_runtime.add_argument("--runtime", metavar="ID")
     training.add_argument("--resource-envelope", type=Path)
     _tokenizer_batch_arguments(training)
     training.set_defaults(handler=_train)
@@ -2434,7 +2438,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     evaluation.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
-    evaluation.add_argument("--runtime-profile", type=Path)
+    eval_runtime = evaluation.add_mutually_exclusive_group()
+    eval_runtime.add_argument("--runtime-profile", type=Path)
+    eval_runtime.add_argument("--runtime", metavar="ID")
     evaluation.set_defaults(handler=_eval)
     evidence = commands.add_parser(
         "evidence",
@@ -2828,7 +2834,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     generation.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
-    generation.add_argument("--runtime-profile", type=Path)
+    generation_runtime = generation.add_mutually_exclusive_group()
+    generation_runtime.add_argument("--runtime-profile", type=Path)
+    generation_runtime.add_argument("--runtime", metavar="ID")
     generation.set_defaults(handler=_generate)
     chat = commands.add_parser(
         "chat", help="Chat with a verified local PyTorch or native MLX checkpoint."
@@ -2858,7 +2866,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     chat.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
-    chat.add_argument("--runtime-profile", type=Path)
+    chat_runtime = chat.add_mutually_exclusive_group()
+    chat_runtime.add_argument("--runtime-profile", type=Path)
+    chat_runtime.add_argument("--runtime", metavar="ID")
     chat.set_defaults(handler=_chat)
     dashboard = commands.add_parser("dashboard")
     dashboard.add_argument(
@@ -3036,17 +3046,27 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     )
     if not (is_legacy or is_experiment or is_campaign or is_snapshot or is_suite):
         return
-    if args.command == "run" and args.worker is not None:
-        if args.runtime_profile is not None:
-            raise ValueError("--worker and --runtime-profile are mutually exclusive")
-        return
-    if args.command == "stage" and args.through == "inspect":
-        if args.runtime_profile is not None:
-            load_runtime_profile(args.runtime_profile)
-        return
+    from sparselab.runtime_environments import profile_for_id
 
+    runtime_id = getattr(args, "runtime", None)
     profile_path = getattr(args, "runtime_profile", None)
-    profile = load_runtime_profile(profile_path) if profile_path is not None else None
+    if runtime_id is not None and profile_path is not None:
+        raise ValueError("--runtime and --runtime-profile are mutually exclusive")
+    if args.command == "run" and args.worker is not None:
+        if runtime_id is not None or profile_path is not None:
+            raise ValueError(
+                "--worker and --runtime/--runtime-profile are mutually exclusive"
+            )
+        return
+    profile = (
+        profile_for_id(runtime_id)
+        if runtime_id is not None
+        else load_runtime_profile(profile_path)
+        if profile_path is not None
+        else None
+    )
+    if args.command == "stage" and args.through == "inspect":
+        return
     if is_experiment and args.experiment_command == "run" and args.binding is not None:
         from sparselab.experiments.binding import inspect_runtime_binding
         from sparselab.experiments.cli import _run_cells

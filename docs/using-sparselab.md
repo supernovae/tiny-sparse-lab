@@ -10,14 +10,14 @@ For YAML plans and checkpoint chaining, use [training programs](experiment-progr
 ## Prepare, inspect, and train
 
 ```sh
-uv sync --locked --dev
+uv sync --locked --extra cpu --dev
 export SPARSELAB_WORK_DIR=/data/sparselab
-uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run --locked sparselab data prepare configs/smoke_cpu.yaml
-uv run --locked sparselab inspect configs/smoke_combined_cpu.yaml --json
-uv run --locked sparselab train --runs-dir "$SPARSELAB_WORK_DIR/runs" configs/smoke_combined_cpu.yaml --run-id combined-smoke
-uv run --locked sparselab eval combined-smoke
-uv run --locked sparselab generate combined-smoke --prompt "Once upon a time" --max-new-tokens 24
+uv run --locked --extra cpu sparselab tokenizer train configs/tokenizer_smoke.yaml
+uv run --locked --extra cpu sparselab data prepare configs/smoke_cpu.yaml
+uv run --locked --extra cpu sparselab inspect configs/smoke_combined_cpu.yaml --json
+uv run --locked --extra cpu sparselab train --runs-dir "$SPARSELAB_WORK_DIR/runs" configs/smoke_combined_cpu.yaml --run-id combined-smoke
+uv run --locked --extra cpu sparselab eval combined-smoke
+uv run --locked --extra cpu sparselab generate combined-smoke --prompt "Once upon a time" --max-new-tokens 24
 ```
 
 `inspect` reports a shape-only architecture/parameter inventory, conservative memory estimates, runtime information, and recommendations without constructing the model. `train` writes run-local immutable inputs and checkpoint generations. `eval` measures next-token loss over valid supervised targets in the **run-owned** validation data and saves the exact checkpoint identity. `generate` prints prompt plus continuation (greedy by default). A smoke run proves execution, not useful language ability; the [capability workflow](capabilities.md) defines narrow measured tasks.
@@ -41,26 +41,26 @@ For a replicated experiment, use one [experiment workspace](workspaces.md) and p
 ## Declaration-to-archive commands
 
 ```sh
-uv run --locked sparselab research snapshot <plan-or-campaign> --json
-uv run --locked sparselab recovery inspect <recovery.yaml> --json
-uv run --locked sparselab recovery plan <recovery.yaml> --json
-uv run --locked sparselab recovery reconstruct <recovery.yaml> --json
-uv run --locked sparselab research evidence export --kind corpus_release <verified-release> \
+uv run --locked --extra cpu sparselab research snapshot <plan-or-campaign> --json
+uv run --locked --extra cpu sparselab recovery inspect <recovery.yaml> --json
+uv run --locked --extra cpu sparselab recovery plan <recovery.yaml> --json
+uv run --locked --extra cpu sparselab recovery reconstruct <recovery.yaml> --json
+uv run --locked --extra cpu sparselab research evidence export --kind corpus_release <verified-release> \
   --declaration <recovery.yaml> --output <small-evidence.json> --json
-uv run --locked sparselab campaign status <campaign.yaml> --json
-uv run --locked sparselab campaign reconstruct <campaign.yaml> --json
-uv run --locked sparselab campaign apply <campaign.yaml> --execute-runs --json
-uv run --locked sparselab evaluation suite run <suite.yaml> <run-id> \
+uv run --locked --extra cpu sparselab campaign status <campaign.yaml> --json
+uv run --locked --extra cpu sparselab campaign reconstruct <campaign.yaml> --json
+uv run --locked --extra cpu sparselab campaign apply <campaign.yaml> --execute-runs --json
+uv run --locked --extra cpu sparselab evaluation suite run <suite.yaml> <run-id> \
   --checkpoint <generation> --runs-dir "$SPARSELAB_WORK_DIR/runs" --json
-uv run --locked sparselab readiness model <policy.yaml> <evaluation-index.json> --json
-uv run --locked sparselab readiness review <evaluation-index.json> --reviewer <id> \
+uv run --locked --extra cpu sparselab readiness model <policy.yaml> <evaluation-index.json> --json
+uv run --locked --extra cpu sparselab readiness review <evaluation-index.json> --reviewer <id> \
   --decision approve --note '<reason>' --output <review.json>
-uv run --locked sparselab family show <family.yaml> --json
-uv run --locked sparselab family graph <family.yaml> --json
-uv run --locked sparselab family compare <family.yaml> <node-a> <node-b> --json
-uv run --locked sparselab family verify <family.yaml> --json
-uv run --locked sparselab archive create <recovery.yaml> --mode thin --output <new.tar>
-uv run --locked sparselab archive verify <new.tar> --json
+uv run --locked --extra cpu sparselab family show <family.yaml> --json
+uv run --locked --extra cpu sparselab family graph <family.yaml> --json
+uv run --locked --extra cpu sparselab family compare <family.yaml> <node-a> <node-b> --json
+uv run --locked --extra cpu sparselab family verify <family.yaml> --json
+uv run --locked --extra cpu sparselab archive create <recovery.yaml> --mode thin --output <new.tar>
+uv run --locked --extra cpu sparselab archive verify <new.tar> --json
 ```
 
 `research evidence export` also accepts `tokenizer_selection`, `prepared_data`, `runtime_probe`, `experiment_lock`, `checkpoint` and `evaluation_index`. Recovery `inspect`/`plan` are read-only; `reconstruct` never trains. `campaign apply|resume` without `--execute-runs` cannot enqueue a new training run. Reviewed `family promote|reject|supersede` require `--readiness`, `--evaluation`, `--approval`, `--note`; supersede also requires `--successor`. See the [complete recovery and promotion protocol](research/lifecycle-recovery.md) for commit-before-compute, checksummed evidence, human decisions, missing checkpoint limits and archive rights.
@@ -68,9 +68,9 @@ uv run --locked sparselab archive verify <new.tar> --json
 ## Chat with a saved run
 
 ```sh
-uv run --locked sparselab chat combined-smoke --max-new-tokens 12
-uv run --locked sparselab chat chat-engram --checkpoint best.json --message "What value belongs to the alias amber?" --system "Answer the requested alias with only its value." --max-new-tokens 12 --json
-uv run --locked sparselab chat chat-engram --temperature 0.6 --top-k 20 --seed 42 --transcript sparselab-work/transcripts/conversation.json
+uv run --locked --extra cpu sparselab chat combined-smoke --max-new-tokens 12
+uv run --locked --extra cpu sparselab chat chat-engram --checkpoint best.json --message "What value belongs to the alias amber?" --system "Answer the requested alias with only its value." --max-new-tokens 12 --json
+uv run --locked --extra cpu sparselab chat chat-engram --temperature 0.6 --top-k 20 --seed 42 --transcript sparselab-work/transcripts/conversation.json
 ```
 
 Run readers without an explicit `--runs-dir` use the same selected persistent root's `runs/` directory. Explicit run stores remain as supplied, relative to the current directory; for a retained historical in-checkout store pass its old exact location. Study collection may infer a receipt's sibling `runs/` when its run-directory argument is omitted.
@@ -96,8 +96,8 @@ Local conversations support explicit v2 `all_tokens` or `assistant_only` supervi
 ## Inspect and verify a checkpoint
 
 ```sh
-uv run --locked sparselab checkpoint inspect sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
-uv run --locked sparselab checkpoint verify sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab checkpoint inspect sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
 ```
 
 PyTorch and MLX share immutable generations, run-owned inference assets, checkpoint-bound evaluation, recovery, and promotion. Native MLX execution requires the optional pinned runtime; offline checkpoint inspection/verification does not. Supported PyTorch generation uses a bounded request-local KV cache; the Python `generate(..., use_cache=False)` API provides the full-prefix reference. MLX and unsupported cache configurations use full-prefix decoding. These execution checks are not model-quality evidence.
@@ -108,12 +108,11 @@ PyTorch and MLX share immutable generations, run-owned inference assets, checkpo
 WORK=sparselab-work/experiments/runtime-smoke
 export SPARSELAB_WORK_DIR="$WORK"
 mkdir -p "$WORK"
-uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output "$WORK/staging/guide-stage"
-uv run --locked sparselab run configs/runtime_smoke_cpu.yaml --store "$WORK/runs"
-uv run --locked sparselab experiment list --json --store "$WORK/runs"
-uv run --locked sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
+uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output "$WORK/staging/guide-stage"
+uv run --locked --extra cpu sparselab run configs/runtime_smoke_cpu.yaml --store "$WORK/runs"
+uv run --locked --extra cpu sparselab experiment list --json --store "$WORK/runs"
+uv run --locked --extra cpu sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
   --dry-run --store "$WORK/runs"
-```
 
 The standalone stage command produces isolated pilot evidence; it does not initialize a later experiment from pilot weights. Direct `train` never silently runs pilots. Composed `run` prepares and dispatches through the same worker queue, including worker-side validation/pilots, then waits for terminal ingestion. Without `--worker`, it registers a local endpoint; an existing controller may drive the store while the command waits.
 
@@ -122,8 +121,8 @@ Use a fresh stage directory, or reuse only an identical verified bundle. Matrix 
 ## Verify withheld-fact fixture evidence
 
 ```sh
-uv run --locked sparselab facts manifest --seed 0 --output artifacts/withheld-facts-seed-0.json
-uv run --locked sparselab facts audit artifacts/withheld-facts-seed-0.json
+uv run --locked --extra cpu sparselab facts manifest --seed 0 --output artifacts/withheld-facts-seed-0.json
+uv run --locked --extra cpu sparselab facts audit artifacts/withheld-facts-seed-0.json
 ```
 
 The audit proves the deterministic fixture’s data separation only. It is not a model score or transfer result. Use `sparselab facts evaluate RUN_ID MANIFEST` for retained completions from a real checkpoint, and `facts transfer-evaluate SOURCE_RUN TARGET_RUN MANIFEST` only for the explicit byte-memory adapter-transfer boundary. Read [withheld facts](withheld-facts.md) before drawing conclusions.
@@ -131,7 +130,7 @@ The audit proves the deterministic fixture’s data separation only. It is not a
 ## View recorded local runs
 
 ```sh
-uv run --locked sparselab dashboard --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab dashboard --runs-dir sparselab-work/runs
 ```
 
 The read-only, localhost-only viewer includes Overview, Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, and searchable Learn pages. Session-scoped refresh preserves selections and marks stale reads. Runtime shows actual worker/backend/precision/optimizer conditions; memory distinguishes native peaks from sampled lower bounds; checkpoint views separate local best from inherited lineage.

@@ -1,6 +1,6 @@
-# Opt-in vendor environment for the existing Python 3.14 gfx1100 worker.
-# These hardware-specific pins apply to native Linux and WSL2 alike.
-# Install the project wheel into the provisioned environment; do not CPU-sync it.
+# rocm-gfx1100-v1: candidate Python 3.14 / ROCm 10.0.0 gfx1100 vendor pins.
+# Require vendor-supported Linux/WSL2 host, driver and device prerequisites.
+# Install SparseLab with --no-deps; never CPU-sync the vendor environment.
 --extra-index-url https://stable.repo.amd.com/rocm/whl-next/
 --extra-index-url https://stable.repo.amd.com/rocm/core/whl-next/
 triton==3.8.0+git4cff872c.rocm10.0.0; sys_platform == 'linux'

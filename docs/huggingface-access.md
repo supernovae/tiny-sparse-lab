@@ -1,6 +1,6 @@
 # Hugging Face access
 
-SparseLab uses Hugging Face Hub for Corpus Forge `huggingface_dataset` acquisition, explicit `https://huggingface.co/...` HTTP documents, remote TinyStories/FineWeb-Edu/Cosmopedia streams, the one-time local TinyStories snapshot, and the pinned Pythia reference-model download. Configure credentials **before** launching `uv run --locked sparselab ...` so these requests use your account rather than an anonymous Hub session.
+SparseLab uses Hugging Face Hub for Corpus Forge `huggingface_dataset` acquisition, explicit `https://huggingface.co/...` HTTP documents, remote TinyStories/FineWeb-Edu/Cosmopedia streams, the one-time local TinyStories snapshot, and the pinned Pythia reference-model download. Configure credentials **before** launching `uv run --locked --extra cpu sparselab ...` so these requests use your account rather than an anonymous Hub session.
 
 ## Set up a token
 
@@ -8,8 +8,8 @@ Create a **read** token at [Hugging Face token settings](https://huggingface.co/
 
 ```sh
 # Recommended for an interactive workstation: stored in your user account's Hub cache.
-uv run --locked hf auth login
-uv run --locked hf auth whoami
+uv run --locked --extra cpu hf auth login
+uv run --locked --extra cpu hf auth whoami
 ```
 
 Alternatively, set `HF_TOKEN` in the **process environment before launch**, for
@@ -18,7 +18,7 @@ time, so setting one inside an already running Python session is too late. For
 one explicit CLI invocation, supply a token **file path**, not the token itself:
 
 ```sh
-uv run --locked sparselab --hf-token-file "$HOME/.config/sparselab/hf-token" \
+uv run --locked --extra cpu sparselab --hf-token-file "$HOME/.config/sparselab/hf-token" \
   corpus acquire corpora/my-corpus/corpus.yaml
 ```
 
@@ -28,7 +28,7 @@ user, or use your worker's mounted secret facility. Precedence is
 session's environment token or login without printing the secret:
 
 ```sh
-uv run --locked hf auth whoami
+uv run --locked --extra cpu hf auth whoami
 ```
 
 Avoid putting tokens in YAML, source declarations, shell history, literal CLI

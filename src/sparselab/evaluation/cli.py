@@ -105,6 +105,7 @@ def register_evaluation_parser(
     run.add_argument("--backend")
     source = run.add_mutually_exclusive_group()
     source.add_argument("--runtime-profile")
+    source.add_argument("--runtime", metavar="ID")
     source.add_argument("--worker")
     run.add_argument("--store", help="controller store for the named local worker")
     run.add_argument("--json", action="store_true")

@@ -618,11 +618,13 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         if name == "bind":
             sources = command.add_mutually_exclusive_group(required=True)
             sources.add_argument("--runtime-profile", type=Path)
+            sources.add_argument("--runtime", metavar="ID")
             sources.add_argument("--worker")
         if name == "run":
             command.add_argument("--phase")
             sources = command.add_mutually_exclusive_group()
             sources.add_argument("--runtime-profile", type=Path)
+            sources.add_argument("--runtime", metavar="ID")
             sources.add_argument("--worker")
             sources.add_argument("--binding", type=Path)
         if name == "reconstruct":
