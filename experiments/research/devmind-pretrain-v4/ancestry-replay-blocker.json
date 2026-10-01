@@ -1,0 +1,190 @@
+{
+  "ancestry_evidence_version": 1,
+  "kind": "verified_historical_ancestry_gate_failure",
+  "verdict": "CORPUS_LINEAGE_REPLAY_BLOCKED",
+  "starting_commit": "2241cc7bdabbc373dd234a95c2e43a54db1e36e0",
+  "execution_commit": "906435203c58a7b0af9cc8d908ef2f0f78c58532",
+  "branch": "research/devmind-model0-try2-ancestry",
+  "state_root": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry",
+  "lineage_sha256": "8b3eb1f3c476e8e8668a5fff66978f57af3ae068ed702dcf26601c3c0fffcf7e",
+  "stage": "v2",
+  "first_failed_gate": "build",
+  "source_commit": "078b8f5ed533c1dd915394ea57033de646ae5d15",
+  "source": {
+    "inventory_sha256": "b8c3bd95591f6d698bfa23ecb19dd1096bf8160980df798a22eadb70c7dec8f5",
+    "manifest_path": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry/replay/source-manifests/078b8f5ed533c1dd915394ea57033de646ae5d15.json",
+    "source_root": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry/replay/source/078b8f5ed533c1dd915394ea57033de646ae5d15",
+    "tree": "090b5d8f20ff583e7136fc3973ada5a52bfcb113"
+  },
+  "current_verifier": "VERIFIED_FAILURE",
+  "receipt": {
+    "path": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry/replay/receipts/2e508fcf7a9c46e091ad6dbfd5f1e47d.json",
+    "sha256": "850c6d2a78671283f6729b7c0a63eae7854d99c32dc9d52dea1df2e7f85bb65d",
+    "record_sha256": "399b85e2cd71534892b087938535e820960521d3cd4591f764af01f683c0a895"
+  },
+  "acquisition_closure": {
+    "path": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry/replay/acquisition-closures/2e508fcf7a9c46e091ad6dbfd5f1e47d.json",
+    "sha256": "61c02674331f8c8a9f6cd4f8dfaa46a18c44461a0e4cf9288bea4f6b8cda36ef"
+  },
+  "independent_verification": {
+    "path": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry/replay/logs/independent-v2-failure-verification.json",
+    "sha256": "e109fdbded7b20dde14d5226cf4b4ab0cdb9e84182707794c2a710e42d8c4fe3"
+  },
+  "expected_project_sha256": null,
+  "observed_project_sha256": "e58e647981f4a879439ff1785045023e652255ef5f8778769d09ac4c0932f54d",
+  "expected_build_sha256": "36abf24160bf55d3e76dae5e67766dca7ef61d73e217f007f215bd76b92652bf",
+  "observed_build_sha256": "21b85b0f3e1f9a78fdd24dc276d5c254a2b94c2c1ce6b879580874bc92bd2de2",
+  "expected_release_sha256": "50ee7ae6355ae97aeae44544d9f1f66362249767f315b1e98346f3b8df216b6d",
+  "observed_release_sha256": null,
+  "freeze_called": false,
+  "observed_snapshots": {
+    "fineweb_edu_sample_10bt": "6cb7782ad25574a8fe93b71358673337899a2b922bf70edffee6cfdf4a732370",
+    "openwebmath_train": "58b6d4dfdf8556b5ae66c6529d5d41bcd527e3b84859990e795a8629cbc56079",
+    "pes2o_v2_fulltext": "84cd498a6ea279c07ef6badd603f8dabf0679c4ef1ee6f06c91c06faacecdfcb",
+    "pes2o_v2_train": "7d235b03ae178f84a03570779a75c6bca28bd5a097a0ea95af05dc77ac0e1169",
+    "v2_git_technical": "7a245b9fce30882d67eb40a40a60f97b54290187f0d55595dffc58622e6a1205",
+    "v2_go_faq": "de00ba52f32804008cae8e5f2a2fd477b1c90f974a64dc391bf10f76cbe1dff2",
+    "v2_go_standard": "7be9c624cf70fcf7b51d6e458db5830ee25d78023585e0413b7e1c822bbb9754",
+    "v2_k8s_concepts": "ce80630ad568db517e50463b25479220b15083a60b6ca438fb915ce1f4cbcf21",
+    "v2_linux_fs": "0e8f8ec1a2aa8ac3eb60f0d389d0e8067679872e08a9b2d6bbade7c98d6db32c",
+    "v2_oci_runtime_specification": "6dfc683759d1285ba38fbc7593ed71bbd58f42b27d5222a05178d2aa6a72761c",
+    "v2_omp_harness": "231f908b857e6025f8e570fd028516b09e9f2b6128183dd38e8fb82d7e0c6455",
+    "v2_otel_collector": "ccc7cbb1a3326c7af5686d8693e9b3ce8a003b12e07fa00baf3c6497aeb46925",
+    "v2_otel_specification": "42af4201046b1d9debdc9bfd0eda246748721f3b499f2eb5daec95f2bc67f963",
+    "v2_postgres_backend": "b251242acb44e02f6f1422cb0192b28382cded9b7a9d5f6de54a8c49db0a5058",
+    "v2_prometheus_promql": "067466bc4be117011fd54647bfc6095a31a643602e607246540330b60fa88f03",
+    "v2_python_library": "8d3d5525ef05cb5d1811ca498c7165699621cd787e637f99955b9a5385af434e",
+    "v2_rust_core": "8ba045945af20d71adad82df952772e422e1978a7b1b750769f744360f8a4423",
+    "wikibooks_20260901": "f6b0a74aff24f6a159a7961bb92e2b88b4095ce41ab6c6861bc7a0f76bdaae2f",
+    "wikipedia_20260901": "9da18d02c7050c87723cdfd07da4aee952121dc3598c53a079af6dbc864704b1"
+  },
+  "observed_snapshot_provenance": {
+    "fineweb_edu_sample_10bt": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "openwebmath_train": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "pes2o_v2_fulltext": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "pes2o_v2_train": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_git_technical": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_go_faq": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_go_standard": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_k8s_concepts": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_linux_fs": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_oci_runtime_specification": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_omp_harness": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_otel_collector": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_otel_specification": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_postgres_backend": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_prometheus_promql": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_python_library": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "v2_rust_core": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "wikibooks_20260901": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b",
+    "wikipedia_20260901": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b"
+  },
+  "producing_modules": {
+    "acquisition": {
+      "path": "src/sparselab/corpus/acquisition.py",
+      "sha256": "32f94cae274e6c98057608e37fb59473cf8ba417cfa0aa85d7ab164abbd8c56b"
+    },
+    "export": {
+      "path": "src/sparselab/corpus/export.py",
+      "sha256": "65b1dcfda4398fff51f70a9a9aacc73ae8b1291f1c2386b2c95de12e670a2efa"
+    },
+    "large_build": {
+      "path": "src/sparselab/corpus/large_build.py",
+      "sha256": "5df4e0965a91e38d0a76304f675b6e2d00fb190804dad8e0849f79285af690e5"
+    },
+    "pipeline": {
+      "path": "src/sparselab/corpus/pipeline.py",
+      "sha256": "d6d819215c745d61d9ec832e69543bce7160fe006ea5ac719157298dbccef8f6"
+    },
+    "project": {
+      "path": "src/sparselab/corpus/project.py",
+      "sha256": "7f19a933d74d6e5e78d03e9abe7c8c33b1d9a185c9bed171bae3dee8a0e79f12"
+    },
+    "project_config": {
+      "path": "src/sparselab/config/models.py",
+      "sha256": "9f9859e01c6ceaf480d3ea30d133197287a8db7f89802c4420affd7363718bf5"
+    },
+    "provenance": {
+      "path": "src/sparselab/corpus/provenance.py",
+      "sha256": "a73e9cdf6d0705988f50833e856261dabb26ba3bfb33df5f802b54f137cfb589"
+    },
+    "pyproject": {
+      "path": "pyproject.toml",
+      "sha256": "bf8a15f2f03da0398b7f97c45107d456f6b3a3342ceab515c67c8a04721c913d"
+    },
+    "release": {
+      "path": "src/sparselab/corpus/release.py",
+      "sha256": "03a9bdd173aa8b49317d3f2debde523397f5a3855002e6238a7e050a3e1db7d6"
+    },
+    "rights": {
+      "path": "src/sparselab/corpus/rights.py",
+      "sha256": "ff3486999e00007da93aea661299be42b8a4f86682e1d0308a7c63a3a9cddf24"
+    },
+    "training_manifest": {
+      "path": "src/sparselab/training/manifest.py",
+      "sha256": "0609e784771d6dc5fdd95e32536b526bac58a9b88b6db28feebb40cb2f881246"
+    },
+    "uv_lock": {
+      "path": "uv.lock",
+      "sha256": "dbad957a010eef6f29679e6ae29239eec060f7d53cb140f1fef909edf50dafbc"
+    }
+  },
+  "original_identity_payload": {
+    "status": "NOT_LOCATED_IN_INSPECTED_RECORDS_AND_STORES",
+    "uncomparable_leaf": "identity.lock.<source_id>.snapshot_sha256 and other original build identity leaves",
+    "root_cause": "UNPROVEN"
+  },
+  "secondary_diagnostics": {
+    "normalized_documents": 710034,
+    "retained_documents": 709326,
+    "lm_splits": {
+      "train": 698643,
+      "validation": 10571,
+      "test": 112
+    },
+    "historical_protocol_vs_observed": {
+      "fineweb_train_documents": [
+        360871,
+        360868
+      ],
+      "openwebmath_train_documents": [
+        45089,
+        45092
+      ],
+      "wikipedia_train_utf8_bytes": [
+        104291290,
+        104276300
+      ],
+      "all_train_utf8_bytes": [
+        3313224913,
+        3313252138
+      ]
+    }
+  },
+  "unexecuted": [
+    "v2-freeze",
+    "v3-import",
+    "v3-replay",
+    "v4-import",
+    "v4-intermediate",
+    "v4-final",
+    "tokenizer-bakeoff",
+    "release-export",
+    "v6-preparation",
+    "model0-rocm-runtime",
+    "model0-campaign",
+    "checkpoint",
+    "evaluation",
+    "readiness",
+    "family",
+    "continuation-recovery"
+  ],
+  "software_verification": {
+    "focused_passed": 44,
+    "broader_passed": 1339,
+    "broader_skipped": 10,
+    "broader_deselected": 2,
+    "ruff": "PASS",
+    "actual_local_git_coordinator_smoke": "MATCH"
+  }
+}
