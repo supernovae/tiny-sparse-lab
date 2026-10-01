@@ -75,7 +75,11 @@ def _handle(args: argparse.Namespace) -> None:
                 ],
             }
         else:
-            engine = CampaignEngine(source, resolve_work_dir(args.work_dir))
+            engine = CampaignEngine(
+                source,
+                resolve_work_dir(args.work_dir),
+                runtime_profile=getattr(args, "runtime_profile_loaded", None),
+            )
             # Lower-level adapters may print progress; stdout remains one JSON object.
             with redirect_stdout(sys.stderr):
                 if args.campaign_command in READ_ONLY_COMMANDS:
@@ -177,6 +181,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         if name in {"apply", "resume"}:
             command.add_argument("--max-wait-seconds", type=_wait_seconds, default=120)
             command.add_argument("--execute-runs", action="store_true")
+            command.add_argument("--runtime-profile", type=Path)
         if name in {"apply", "resume", "reconstruct"}:
             command.add_argument("--allow-uncommitted-declaration", action="store_true")
         if name == "reconstruct":

@@ -221,12 +221,238 @@ def test_bf16_requirement_needs_disposable_update(tmp_path, monkeypatch):
 
     def precision_update(requested, *, authorization):
         calls.append((requested.runtime.precision, authorization))
-        return SimpleNamespace(tested_precisions=("fp32",))
+        return SimpleNamespace(tested_precisions=("fp32",), as_dict=dict)
 
     monkeypatch.setattr(runtime, "validate_runtime", precision_update)
     with pytest.raises(ValueError, match="BF16.*not verified"):
         authorize_profile(profile, config)
     assert [precision for precision, _ in calls] == ["bf16"]
+
+
+def test_requested_bf16_without_profile_requirement_still_tests_optimizer(
+    tmp_path, monkeypatch
+):
+    _, config = fake_runtime(monkeypatch, training_config(tmp_path), "rocm")
+    config = config.model_copy(
+        update={"runtime": config.runtime.model_copy(update={"precision": "bf16"})}
+    )
+    profile = RuntimeProfile.model_validate(profile_value(backend="rocm"))
+    calls = []
+
+    def tested_update(requested, *, authorization):
+        calls.append(requested.runtime.precision)
+        return SimpleNamespace(tested_precisions=("fp32",), as_dict=dict)
+
+    monkeypatch.setattr(runtime, "validate_runtime", tested_update)
+    with pytest.raises(ValueError, match="BF16.*not verified"):
+        authorize_profile(profile, config)
+    assert calls == ["bf16"]
+
+
+def test_runtime_receipt_is_immutable_cell_scoped_and_revalidated(
+    tmp_path, monkeypatch
+):
+    import sparselab.runtime_profile as profiles
+    from sparselab.experiments.binding import (
+        bind_runtime,
+        inspect_runtime_binding,
+        open_runtime_binding,
+    )
+    from sparselab.training.manifest import config_sha256, source_identity
+
+    evidence, config = fake_runtime(monkeypatch, training_config(tmp_path), "rocm")
+    calls = []
+
+    def tested_update(requested, *, authorization):
+        calls.append(requested.runtime.precision)
+        return SimpleNamespace(
+            as_dict=lambda: {
+                "tested_precisions": [requested.runtime.precision],
+                "tested_features": [],
+                "engine": requested.runtime.engine,
+                "backend": requested.runtime.backend,
+                "device_index": requested.runtime.device_index,
+            }
+        )
+
+    monkeypatch.setattr(runtime, "validate_runtime", tested_update)
+    cell = SimpleNamespace(
+        id="main:single",
+        phase="main",
+        config=config,
+        config_sha256=config_sha256(config.model_dump(mode="json")),
+    )
+    lock = SimpleNamespace(
+        plan_sha256="a" * 64,
+        scientific_sha256="b" * 64,
+        source_identity=source_identity(),
+        phases=(),
+        cells=(cell,),
+    )
+    profile = RuntimeProfile.model_validate(profile_value(backend="rocm"))
+    receipt = bind_runtime(lock, cell, tmp_path, profile=profile)
+    assert calls == [config.runtime.precision]
+    assert (
+        inspect_runtime_binding(receipt, lock, cell)["binding_sha256"] == receipt.stem
+    )
+    original = receipt.read_bytes()
+    assert open_runtime_binding(receipt, lock, cell)["binding_sha256"] == receipt.stem
+    assert bind_runtime(lock, cell, tmp_path, profile=profile) == receipt
+    assert receipt.read_bytes() == original
+    other = SimpleNamespace(
+        id="main:different", config=config, config_sha256=cell.config_sha256
+    )
+    with pytest.raises(ValueError, match="identity|cell"):
+        inspect_runtime_binding(receipt, lock, other)
+    monkeypatch.setattr(
+        profiles,
+        "_probe",
+        lambda *args, **kwargs: {**evidence, "device_name": "Drifted Accelerator"},
+    )
+    with pytest.raises(ValueError, match="identity|changed|differs"):
+        open_runtime_binding(receipt, lock, cell)
+    monkeypatch.setattr(profiles, "_probe", lambda *args, **kwargs: dict(evidence))
+    receipt.write_bytes(original.replace(b"main:single", b"main:changed"))
+    with pytest.raises(ValueError, match="identity|bytes"):
+        inspect_runtime_binding(receipt, lock, cell)
+    import argparse
+    import json
+    import os
+
+    import sparselab.cli.main as cli
+    import sparselab.experiments.lock as locking
+
+    tampered = json.loads(original)
+    tampered["descriptor"]["python"] = "/tmp/attacker-python"
+    receipt.write_text(json.dumps(tampered), encoding="utf-8")
+    monkeypatch.setattr(locking, "open_lock", lambda _: lock)
+    monkeypatch.setattr(
+        os, "execve", lambda *args: pytest.fail("tampered receipt executed Python")
+    )
+    args = argparse.Namespace(
+        command="experiment",
+        experiment_command="run",
+        lock=str(receipt),
+        binding=str(receipt),
+        runtime_profile=None,
+        worker=None,
+        cell="main:single",
+        phase=None,
+    )
+    with pytest.raises(ValueError, match="identity|bytes"):
+        cli._prepare_runtime_command(args)
+
+
+def test_profile_binding_rejects_failed_actual_precision_probe(tmp_path, monkeypatch):
+    from sparselab.experiments.binding import bind_runtime
+    from sparselab.training.manifest import config_sha256, source_identity
+
+    _, config = fake_runtime(monkeypatch, training_config(tmp_path), "rocm")
+    cell = SimpleNamespace(
+        id="main:single",
+        config=config,
+        config_sha256=config_sha256(config.model_dump(mode="json")),
+    )
+    lock = SimpleNamespace(
+        plan_sha256="a" * 64,
+        scientific_sha256="b" * 64,
+        source_identity=source_identity(),
+        cells=(cell,),
+    )
+    profile = RuntimeProfile.model_validate(profile_value(backend="rocm"))
+
+    def failing_probe(requested, *, authorization):
+        raise RuntimeError("optimizer update failed")
+
+    monkeypatch.setattr(runtime, "validate_runtime", failing_probe)
+    with pytest.raises(RuntimeError, match="optimizer update"):
+        bind_runtime(lock, cell, tmp_path, profile=profile)
+    assert not (tmp_path / "runtime-bindings").exists()
+
+
+def test_registered_ssh_worker_validates_probe_source_and_remote_transport(
+    tmp_path, monkeypatch
+):
+    from dataclasses import replace
+
+    from sparselab.runtime_identity_probe import probe
+    from sparselab.training.manifest import source_identity
+    from sparselab.workers import transport
+    from sparselab.workers.controller import Controller
+    from sparselab.workers.models import WorkerCapabilities, WorkerDefinition
+
+    config = training_config(tmp_path)
+    definition = WorkerDefinition(
+        worker_id="remote-cpu",
+        name="remote-cpu",
+        transport="ssh",
+        host="fixture-host",
+        python=Path(sys.executable).absolute(),
+        root=tmp_path,
+        engine="pytorch",
+        backend="cpu",
+        device_index=0,
+    )
+    request = {
+        "id": definition.worker_id,
+        "engine": "pytorch",
+        "backend": "cpu",
+        "device_index": 0,
+    }
+    observed = probe(request)
+    cpu = next(info for info in runtime.discover_runtimes() if info.backend == "cpu")
+    tested = replace(
+        cpu,
+        device_name=observed["device_name"],
+        framework_version=observed["framework_version"],
+        tested_precisions=("fp32",),
+        tested_features=(),
+        validated_at="fixture-validation",
+    )
+    from sparselab.workers.execution import _caps
+
+    capability = WorkerCapabilities.model_validate(
+        _caps(definition, validation_status="unverified", runtime=tested)
+    )
+    controller = Controller(tmp_path / "controller")
+    monkeypatch.setattr(controller, "_worker_for_attempt", lambda _: definition)
+    monkeypatch.setattr(controller.store, "save_worker", lambda *args: None)
+    seen = []
+
+    def fake_call_worker(worker, operation, payload, **kwargs):
+        seen.append(payload["config"])
+        return SimpleNamespace(
+            result={
+                "validation_status": "passed",
+                "reason": None,
+                "runtime": tested.as_dict(),
+                "runtime_authorization": {
+                    "authorization_version": 1,
+                    "kind": "worker",
+                    "descriptor": {
+                        **definition.model_dump(mode="json"),
+                        "transport": "local",
+                        "host": None,
+                    },
+                    "probe": observed,
+                },
+            }
+        )
+
+    monkeypatch.setattr(transport, "call_worker", fake_call_worker)
+    verified, evidence, reason = controller._validate_candidate(
+        capability, config, source_sha256=source_identity()["sha256"]
+    )
+    assert reason is None
+    assert verified.runtime["tested_precisions"] == ["fp32"]
+    assert evidence["probe"]["source_sha256"] == observed["source_sha256"]
+    assert seen == [config.model_dump(mode="json")]
+    observed["source_sha256"] = "0" * 64
+    verified, _, reason = controller._validate_candidate(
+        capability, config, source_sha256=source_identity()["sha256"]
+    )
+    assert verified is None
+    assert "identity" in reason
 
 
 @pytest.mark.parametrize(
@@ -248,3 +474,27 @@ def test_authorization_rejects_runtime_drift(tmp_path, monkeypatch, field, repla
     evidence[field] = replacement
     with pytest.raises(ValueError, match="identity changed|source changed"):
         require_authorization(config, authorization)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"backend": "cpu"},
+        {"device_index": 1},
+        {"engine": "mlx", "backend": "metal"},
+    ],
+)
+def test_sealed_authorization_cannot_select_another_runtime(
+    tmp_path, monkeypatch, target
+):
+    from sparselab.runtime_profile import require_authorization
+
+    evidence, config = fake_runtime(monkeypatch, training_config(tmp_path), "rocm")
+    evidence["device_count"] = 2
+    profile = RuntimeProfile.model_validate(profile_value(backend="rocm"))
+    authorization = authorize_profile(profile, config)
+    selected = config.model_copy(
+        update={"runtime": config.runtime.model_copy(update=target)}
+    )
+    with pytest.raises(ValueError, match="runtime selection"):
+        require_authorization(selected, authorization)

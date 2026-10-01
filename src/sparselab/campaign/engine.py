@@ -14,6 +14,7 @@ from typing import Any
 
 from sparselab.campaign.plan import load_campaign, operational_path, safe_path
 from sparselab.campaign.state import CampaignStore, digest
+from sparselab.runtime_profile import RuntimeProfile
 from sparselab.workdir import storage_checks, warn_storage_checks
 
 
@@ -23,13 +24,58 @@ class CampaignEngine:
         source: Path,
         work_dir: Path,
         after_commit: Callable[[str, dict], None] | None = None,
+        *,
+        runtime_profile: RuntimeProfile | None = None,
     ) -> None:
         self.source = Path(source).resolve()
         self.plan = load_campaign(self.source)
         self.store = CampaignStore(self.plan, Path(work_dir))
         self.work_dir = Path(work_dir).resolve()
         self.after_commit = after_commit
+        self.runtime_profile = runtime_profile
         self.stages = {stage.id: stage for stage in self.plan.stages}
+
+    def _runtime_binding(
+        self,
+        rows: dict[str, dict],
+        runtime_stage: str,
+        lock: Any,
+        cell: Any,
+        controller: Any,
+    ) -> dict | None:
+        """Revalidate the accepted cell and source only before new execution."""
+        from sparselab.experiments.binding import open_runtime_binding
+
+        accepted = self._upstream(rows, runtime_stage)
+        entry = (
+            accepted.get("availability", {}).get("runtime_bindings", {}).get(cell.id)
+        )
+        declaration = self.stages[runtime_stage]
+        if entry is None:
+            if (
+                declaration.profile_id is not None
+                or declaration.worker is not None
+                or cell.config.runtime.engine != "pytorch"
+                or cell.config.runtime.backend != "cpu"
+            ):
+                raise ValueError("RUNTIME_REQUIRED: accepted cell binding absent")
+            return None
+        binding = open_runtime_binding(
+            Path(entry["path"]), lock, cell, controller=controller
+        )
+        if binding["binding_sha256"] != entry["binding_sha256"]:
+            raise ValueError("accepted runtime binding digest changed")
+        if binding["source_kind"] == "profile":
+            if (
+                self.runtime_profile is None
+                or self.runtime_profile.model_dump(mode="json") != binding["descriptor"]
+            ):
+                raise ValueError(
+                    "RUNTIME_REQUIRED: accepted profile must be supplied unchanged"
+                )
+        elif declaration.worker != binding["descriptor"]["name"]:
+            raise ValueError("accepted worker differs from runtime declaration")
+        return binding
 
     def _path(self, reference: str) -> Path:
         return safe_path(self.source.parent, reference)
@@ -324,7 +370,7 @@ class CampaignEngine:
             controller = Controller(
                 Path(row["availability"]["workspace"]) / "controller", read_only=True
             )
-            matches = self._attempts(controller, lock, stage.cell)
+            matches = self._attempts(controller, lock, stage, rows)
             if len(matches) != 1 or matches[0]["run_id"] != output["identifier"]:
                 raise ValueError("completed run is missing or ambiguous")
             if (
@@ -902,7 +948,7 @@ class CampaignEngine:
                 )
             return False
         controller = Controller(controller_dir, read_only=True)
-        matches = self._attempts(controller, lock, stage.cell)
+        matches = self._attempts(controller, lock, stage, rows)
         if len(matches) > 1:
             raise ValueError("ambiguous controller attempts for locked cell")
         if submitted and (
@@ -1130,11 +1176,15 @@ class CampaignEngine:
             self._record(state, row)
             return self._project(state)
 
-    @staticmethod
-    def _attempts(controller: Any, lock: Any, cell: str) -> list[dict]:
+    def _attempts(
+        self, controller: Any, lock: Any, stage: Any, rows: dict
+    ) -> list[dict]:
+        from sparselab.experiments.binding import inspect_runtime_binding
         from sparselab.experiments.cli import locked_cell_request
         from sparselab.training.manifest import config_sha256
         from sparselab.workers.models import ExperimentSpec
+
+        cell = stage.cell
 
         matches = [
             row
@@ -1143,6 +1193,25 @@ class CampaignEngine:
             and (row["spec"].get("plan") or {}).get("cell_id") == cell
         ]
         selected = next(item for item in lock.cells if item.id == cell)
+        entry = (
+            self._upstream(rows, stage.runtime)
+            .get("availability", {})
+            .get("runtime_bindings", {})
+            .get(cell)
+        )
+        runtime_digest = None
+        if entry is not None:
+            binding = inspect_runtime_binding(Path(entry["path"]), lock, selected)
+            runtime_digest = binding["binding_sha256"]
+            if runtime_digest != entry["binding_sha256"]:
+                raise ValueError("accepted runtime digest differs from receipt")
+        elif (
+            selected.config.runtime.backend != "cpu"
+            or selected.config.runtime.engine != "pytorch"
+        ):
+            raise ValueError(
+                "RUNTIME_REQUIRED: attempted accelerator cell has no accepted binding"
+            )
         for row in matches:
             spec = ExperimentSpec.model_validate(row["spec"])
             expected = locked_cell_request(
@@ -1152,6 +1221,7 @@ class CampaignEngine:
                 controller.root.parent,
                 controller,
                 read_only=True,
+                runtime_binding_sha256=runtime_digest,
             )
             if (
                 spec.config.model_dump(mode="json")
@@ -1389,7 +1459,9 @@ class CampaignEngine:
             selected = {
                 item.cell
                 for item in self.plan.stages
-                if item.kind == "experiment_run" and item.plan == stage.plan
+                if item.kind == "experiment_run"
+                and item.plan == stage.plan
+                and item.runtime == stage.id
             }
             if not selected:
                 if len(lock.cells) != 1:
@@ -1398,15 +1470,34 @@ class CampaignEngine:
             cells = [cell for cell in lock.cells if cell.id in selected]
             if len(cells) != len(selected):
                 raise ValueError("runtime references an absent locked cell")
-            if any(
-                cell.config.runtime.backend != "cpu"
-                or cell.config.runtime.engine != "pytorch"
-                for cell in cells
+            profile = self.runtime_profile if stage.profile_id is not None else None
+            if stage.worker is not None and self.runtime_profile is not None:
+                return self._result(
+                    "BLOCKED",
+                    "DO_NOT_ADVANCE",
+                    reason="named worker runtime rejects a simultaneous profile",
+                )
+            if stage.profile_id is not None and (
+                profile is None or profile.id != stage.profile_id
             ):
                 return self._result(
                     "BLOCKED",
                     "DO_NOT_ADVANCE",
-                    reason="Campaign v1 executes local CPU/PyTorch cells only",
+                    reason="RUNTIME_REQUIRED: matching profile_id",
+                )
+            if (
+                profile is None
+                and stage.worker is None
+                and any(
+                    cell.config.runtime.backend != "cpu"
+                    or cell.config.runtime.engine != "pytorch"
+                    for cell in cells
+                )
+            ):
+                return self._result(
+                    "BLOCKED",
+                    "DO_NOT_ADVANCE",
+                    reason="RUNTIME_REQUIRED: explicit profile or worker",
                 )
             workspace = Path(rows[stage.plan]["availability"]["workspace"])
             checks = [
@@ -1423,15 +1514,48 @@ class CampaignEngine:
                     reason="insufficient training storage headroom",
                     availability={"storage_checks": checks},
                 )
+            from sparselab.experiments.binding import bind_runtime, open_runtime_binding
+            from sparselab.workers.controller import Controller
+
+            bindings = {}
+            if profile is not None or stage.worker is not None:
+                controller = Controller(workspace / "controller")
+                for cell in cells:
+                    try:
+                        path = bind_runtime(
+                            lock,
+                            cell,
+                            workspace,
+                            profile=profile,
+                            worker=stage.worker,
+                            controller=controller,
+                        )
+                        binding = open_runtime_binding(
+                            path, lock, cell, controller=controller
+                        )
+                    except (OSError, ValueError, RuntimeError) as error:
+                        return self._result(
+                            "BLOCKED", "DO_NOT_ADVANCE", reason=str(error)
+                        )
+                    bindings[cell.id] = {
+                        "path": str(path),
+                        "binding_sha256": binding["binding_sha256"],
+                        "tested_runtime": binding["tested_runtime"],
+                    }
             facts = {
                 "headroom": "adequate",
-                "engine": "pytorch",
-                "backend": "cpu",
                 "cells": sorted(selected),
+                "runtimes": {
+                    cell.id: cell.config.runtime.model_dump(mode="json")
+                    for cell in cells
+                },
+                "runtime_bindings": {
+                    key: value["binding_sha256"] for key, value in bindings.items()
+                },
             }
             return self._result(
                 measurements=facts,
-                availability={"storage_checks": checks},
+                availability={"storage_checks": checks, "runtime_bindings": bindings},
                 outputs=self._identity(
                     kind,
                     stage.id,
@@ -1479,7 +1603,7 @@ class CampaignEngine:
             if not execute_runs and not self._submitted_run(stage, rows):
                 raise ValueError("new model execution requires --execute-runs")
             controller = Controller(workspace / "controller")
-            matches = self._attempts(controller, lock, cell.id)
+            matches = self._attempts(controller, lock, stage, rows)
             if len(matches) > 1:
                 raise ValueError("ambiguous controller attempts for locked cell")
             previous = rows[stage.id].get("measurements", {})
@@ -1499,20 +1623,52 @@ class CampaignEngine:
                     "LOST_SUBMISSION: refusing to replace prior run attempt"
                 )
             if not matches:
-                worker = f"campaign-{stage.id}-{lock.id}"
-                controller.register(
-                    WorkerDefinition(
-                        worker_id=worker,
-                        name=worker,
-                        transport="local",
-                        python=Path(sys.executable).absolute(),
-                        root=workspace / "workers" / worker,
-                        engine="pytorch",
-                        backend="cpu",
-                        device_index=cell.config.runtime.device_index,
+                try:
+                    binding = self._runtime_binding(
+                        rows, stage.runtime, lock, cell, controller
                     )
+                except (OSError, ValueError, RuntimeError) as error:
+                    return self._result("BLOCKED", "DO_NOT_ADVANCE", reason=str(error))
+                worker = f"campaign-{stage.id}-{lock.id}"
+                runtime_digest = None
+                if binding is not None:
+                    runtime_digest = binding["binding_sha256"]
+                    if binding["source_kind"] == "worker":
+                        worker = binding["descriptor"]["name"]
+                    else:
+                        controller.register(
+                            WorkerDefinition(
+                                worker_id=worker,
+                                name=worker,
+                                transport="local",
+                                python=Path(binding["descriptor"]["python"]),
+                                root=workspace / "workers" / worker,
+                                engine=cell.config.runtime.engine,
+                                backend=cell.config.runtime.backend,
+                                device_index=cell.config.runtime.device_index,
+                            )
+                        )
+                else:
+                    controller.register(
+                        WorkerDefinition(
+                            worker_id=worker,
+                            name=worker,
+                            transport="local",
+                            python=Path(sys.executable).absolute(),
+                            root=workspace / "workers" / worker,
+                            engine="pytorch",
+                            backend="cpu",
+                            device_index=0,
+                        )
+                    )
+                request = locked_cell_request(
+                    lock,
+                    cell,
+                    worker,
+                    workspace,
+                    controller,
+                    runtime_binding_sha256=runtime_digest,
                 )
-                request = locked_cell_request(lock, cell, worker, workspace, controller)
                 request["declaration_provenance"] = rows[stage.id][
                     "declaration_provenance"
                 ]
@@ -1527,7 +1683,7 @@ class CampaignEngine:
                 controller.submit_many([request])
             deadline = time.monotonic() + max_wait_seconds
             while True:
-                matches = self._attempts(controller, lock, cell.id)
+                matches = self._attempts(controller, lock, stage, rows)
                 if len(matches) != 1:
                     raise ValueError("controller submission missing or conflicting")
                 attempt = matches[0]
@@ -1597,15 +1753,63 @@ class CampaignEngine:
             from sparselab.evaluation.suite import run_suite, verify_evaluation_index
 
             collect = self.stages[stage.collect]
-            self._lock(rows, collect.plan)
+            lock = self._lock(rows, collect.plan)
             collected = self._upstream(rows, stage.collect)["measurements"]
             run = self._upstream(rows, collect.run)
             run_path = Path(run["availability"]["path"])
+            from sparselab.evaluation.inference import evaluation_config
+            from sparselab.runtime_profile import rederive_authorization
+            from sparselab.workers.controller import Controller
+
+            run_id = run["outputs"][0]["identifier"]
+            checkpoint = str(run_path / "checkpoints" / collected["generation"])
+            config = evaluation_config(
+                run_id, run_path.parent, checkpoint, stage.backend
+            )
+            authorization = None
+            if stage.runtime is not None:
+                run_stage = self.stages[collect.run]
+                cell = next(cell for cell in lock.cells if cell.id == run_stage.cell)
+                workspace = Path(rows[collect.plan]["availability"]["workspace"])
+                try:
+                    binding = self._runtime_binding(
+                        rows,
+                        stage.runtime,
+                        lock,
+                        cell,
+                        Controller(workspace / "controller"),
+                    )
+                    if binding is None:
+                        if config.runtime.backend != "cpu":
+                            raise ValueError(
+                                "RUNTIME_REQUIRED: evaluation binding absent"
+                            )
+                    else:
+                        if (
+                            binding["source_kind"] == "worker"
+                            and binding["descriptor"]["transport"] != "local"
+                        ):
+                            raise ValueError(
+                                "remote worker evaluation unsupported; declare backend: cpu"
+                            )
+                        authorization = rederive_authorization(
+                            binding["runtime_authorization"], config
+                        )
+                except (OSError, ValueError, RuntimeError) as error:
+                    return self._result("BLOCKED", "DO_NOT_ADVANCE", reason=str(error))
+            elif config.runtime.backend != "cpu" or config.runtime.engine != "pytorch":
+                return self._result(
+                    "BLOCKED",
+                    "DO_NOT_ADVANCE",
+                    reason="RUNTIME_REQUIRED: accelerator checkpoint evaluation needs runtime",
+                )
             index_path = run_suite(
                 self._path(stage.suite),
-                run["outputs"][0]["identifier"],
-                str(run_path / "checkpoints" / collected["generation"]),
+                run_id,
+                checkpoint,
                 run_path.parent,
+                stage.backend,
+                authorization=authorization,
             )
             index = verify_evaluation_index(index_path)
             if (
@@ -1617,6 +1821,7 @@ class CampaignEngine:
             facts = {
                 "checkpoint_sha256": index["checkpoint_sha256"],
                 "index_sha256": index["index_sha256"],
+                "evaluation_runtime": index["evaluation_runtime"],
                 "evaluations": [
                     {"id": item["id"], "status": item["status"]}
                     for item in index["evaluations"]

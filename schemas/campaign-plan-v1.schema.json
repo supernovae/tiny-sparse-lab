@@ -3,21 +3,16 @@
     "Approval": {
       "additionalProperties": false,
       "properties": {
-        "bind": {
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "title": "Bind",
-          "type": "array"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "approval",
-          "title": "Kind",
+        "scope": {
+          "enum": [
+            "release",
+            "model"
+          ],
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -28,13 +23,18 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
-          "enum": [
-            "release",
-            "model"
-          ],
-          "title": "Scope",
+        "kind": {
+          "const": "approval",
+          "title": "Kind",
           "type": "string"
+        },
+        "bind": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Bind",
+          "type": "array"
         }
       },
       "required": [
@@ -50,22 +50,6 @@
       "additionalProperties": false,
       "description": "An external immutable identity, or a named future producer (not both).",
       "properties": {
-        "from_phase": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "From Phase"
-        },
-        "identifier": {
-          "title": "Identifier",
-          "type": "string"
-        },
         "kind": {
           "enum": [
             "source_snapshot",
@@ -83,6 +67,31 @@
           "title": "Kind",
           "type": "string"
         },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "producer": {
+          "title": "Producer",
+          "type": "string"
+        },
+        "identifier": {
+          "title": "Identifier",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
         "path": {
           "anyOf": [
             {
@@ -95,9 +104,17 @@
           "default": null,
           "title": "Path"
         },
-        "producer": {
-          "title": "Producer",
-          "type": "string"
+        "from_phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Phase"
         },
         "selector": {
           "anyOf": [
@@ -115,18 +132,6 @@
           "default": null,
           "title": "Selector"
         },
-        "sha256": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Sha256"
-        },
         "state": {
           "anyOf": [
             {
@@ -142,11 +147,6 @@
           ],
           "default": null,
           "title": "State"
-        },
-        "version": {
-          "minimum": 1,
-          "title": "Version",
-          "type": "integer"
         }
       },
       "required": [
@@ -161,25 +161,9 @@
     "ArtifactReference": {
       "additionalProperties": false,
       "properties": {
-        "artifact": {
-          "$ref": "#/$defs/Artifact"
-        },
         "id": {
           "title": "Id",
           "type": "string"
-        },
-        "kind": {
-          "const": "artifact_reference",
-          "title": "Kind",
-          "type": "string"
-        },
-        "requires": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "title": "Requires",
-          "type": "array"
         },
         "scope": {
           "enum": [
@@ -192,6 +176,22 @@
           ],
           "title": "Scope",
           "type": "string"
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "kind": {
+          "const": "artifact_reference",
+          "title": "Kind",
+          "type": "string"
+        },
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
         }
       },
       "required": [
@@ -206,21 +206,14 @@
     "CorpusReadiness": {
       "additionalProperties": false,
       "properties": {
-        "corpus": {
-          "title": "Corpus",
-          "type": "string"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "corpus_readiness",
-          "title": "Kind",
+        "scope": {
+          "const": "corpus",
+          "title": "Scope",
           "type": "string"
-        },
-        "policy": {
-          "$ref": "#/$defs/CorpusReadinessPolicy"
         },
         "requires": {
           "default": [],
@@ -230,10 +223,17 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
-          "const": "corpus",
-          "title": "Scope",
+        "kind": {
+          "const": "corpus_readiness",
+          "title": "Kind",
           "type": "string"
+        },
+        "corpus": {
+          "title": "Corpus",
+          "type": "string"
+        },
+        "policy": {
+          "$ref": "#/$defs/CorpusReadinessPolicy"
         },
         "tokenizer": {
           "anyOf": [
@@ -262,12 +262,6 @@
       "additionalProperties": false,
       "description": "Authored minima, independent of the frozen release's mixture.",
       "properties": {
-        "min_heldout_families": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Min Heldout Families",
-          "type": "integer"
-        },
         "min_unique_train_bytes_by_domain": {
           "additionalProperties": {
             "minimum": 0,
@@ -284,17 +278,6 @@
           "title": "Min Unique Train Tokens By Domain",
           "type": "object"
         },
-        "passes": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SourcePassRequirement"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "required_nonzero_languages": {
           "default": [],
           "items": {
@@ -310,6 +293,23 @@
           },
           "title": "Required Nonzero Shapes",
           "type": "array"
+        },
+        "min_heldout_families": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Min Heldout Families",
+          "type": "integer"
+        },
+        "passes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcePassRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "CorpusReadinessPolicy",
@@ -322,13 +322,9 @@
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "corpus_release",
-          "title": "Kind",
-          "type": "string"
-        },
-        "project": {
-          "title": "Project",
+        "scope": {
+          "const": "corpus",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -339,9 +335,13 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
-          "const": "corpus",
-          "title": "Scope",
+        "kind": {
+          "const": "corpus_release",
+          "title": "Kind",
+          "type": "string"
+        },
+        "project": {
+          "title": "Project",
           "type": "string"
         }
       },
@@ -357,17 +357,13 @@
     "Evaluation": {
       "additionalProperties": false,
       "properties": {
-        "collect": {
-          "title": "Collect",
-          "type": "string"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
+        "scope": {
           "const": "evaluation",
-          "title": "Kind",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -378,14 +374,50 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
+        "kind": {
           "const": "evaluation",
-          "title": "Scope",
+          "title": "Kind",
+          "type": "string"
+        },
+        "collect": {
+          "title": "Collect",
           "type": "string"
         },
         "suite": {
           "title": "Suite",
           "type": "string"
+        },
+        "backend": {
+          "anyOf": [
+            {
+              "enum": [
+                "cpu",
+                "mps",
+                "cuda",
+                "rocm",
+                "xpu",
+                "metal"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backend"
+        },
+        "runtime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime"
         }
       },
       "required": [
@@ -405,13 +437,9 @@
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "experiment_collect",
-          "title": "Kind",
-          "type": "string"
-        },
-        "plan": {
-          "title": "Plan",
+        "scope": {
+          "const": "evaluation",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -422,13 +450,17 @@
           "title": "Requires",
           "type": "array"
         },
-        "run": {
-          "title": "Run",
+        "kind": {
+          "const": "experiment_collect",
+          "title": "Kind",
           "type": "string"
         },
-        "scope": {
-          "const": "evaluation",
-          "title": "Scope",
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
+        "run": {
+          "title": "Run",
           "type": "string"
         }
       },
@@ -445,25 +477,38 @@
     "ExperimentPlanStage": {
       "additionalProperties": false,
       "properties": {
-        "corpus": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Corpus"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
+        "scope": {
+          "const": "model",
+          "title": "Scope",
+          "type": "string"
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
         "kind": {
           "const": "experiment_plan",
           "title": "Kind",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "lock",
+            "reference"
+          ],
+          "title": "Mode",
           "type": "string"
         },
         "lock": {
@@ -478,38 +523,25 @@
           "default": null,
           "title": "Lock"
         },
-        "mode": {
-          "enum": [
-            "lock",
-            "reference"
-          ],
-          "title": "Mode",
+        "tokenizer": {
+          "title": "Tokenizer",
           "type": "string"
         },
         "prepared": {
           "title": "Prepared",
           "type": "string"
         },
-        "requires": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "title": "Requires",
-          "type": "array"
-        },
-        "scope": {
-          "const": "model",
-          "title": "Scope",
-          "type": "string"
-        },
-        "source": {
-          "title": "Source",
-          "type": "string"
-        },
-        "tokenizer": {
-          "title": "Tokenizer",
-          "type": "string"
+        "corpus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Corpus"
         }
       },
       "required": [
@@ -527,21 +559,13 @@
     "ExperimentRun": {
       "additionalProperties": false,
       "properties": {
-        "cell": {
-          "title": "Cell",
-          "type": "string"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "experiment_run",
-          "title": "Kind",
-          "type": "string"
-        },
-        "plan": {
-          "title": "Plan",
+        "scope": {
+          "const": "model",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -552,13 +576,21 @@
           "title": "Requires",
           "type": "array"
         },
+        "kind": {
+          "const": "experiment_run",
+          "title": "Kind",
+          "type": "string"
+        },
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
         "runtime": {
           "title": "Runtime",
           "type": "string"
         },
-        "scope": {
-          "const": "model",
-          "title": "Scope",
+        "cell": {
+          "title": "Cell",
           "type": "string"
         }
       },
@@ -576,21 +608,13 @@
     "ModelReadiness": {
       "additionalProperties": false,
       "properties": {
-        "evaluation": {
-          "title": "Evaluation",
-          "type": "string"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "model_readiness",
-          "title": "Kind",
-          "type": "string"
-        },
-        "policy": {
-          "title": "Policy",
+        "scope": {
+          "const": "model",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -600,6 +624,19 @@
           },
           "title": "Requires",
           "type": "array"
+        },
+        "kind": {
+          "const": "model_readiness",
+          "title": "Kind",
+          "type": "string"
+        },
+        "evaluation": {
+          "title": "Evaluation",
+          "type": "string"
+        },
+        "policy": {
+          "title": "Policy",
+          "type": "string"
         },
         "review": {
           "anyOf": [
@@ -612,11 +649,6 @@
           ],
           "default": null,
           "title": "Review"
-        },
-        "scope": {
-          "const": "model",
-          "title": "Scope",
-          "type": "string"
         }
       },
       "required": [
@@ -636,13 +668,9 @@
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "runtime_acceptance",
-          "title": "Kind",
-          "type": "string"
-        },
-        "plan": {
-          "title": "Plan",
+        "scope": {
+          "const": "runtime",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -653,10 +681,38 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
-          "const": "runtime",
-          "title": "Scope",
+        "kind": {
+          "const": "runtime_acceptance",
+          "title": "Kind",
           "type": "string"
+        },
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
+        "profile_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile Id"
+        },
+        "worker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worker"
         }
       },
       "required": [
@@ -680,9 +736,9 @@
           "title": "Basis",
           "type": "string"
         },
-        "max_required": {
+        "requested_total": {
           "exclusiveMinimum": 0,
-          "title": "Max Required",
+          "title": "Requested Total",
           "type": "integer"
         },
         "mixture": {
@@ -693,9 +749,9 @@
           "title": "Mixture",
           "type": "object"
         },
-        "requested_total": {
+        "max_required": {
           "exclusiveMinimum": 0,
-          "title": "Requested Total",
+          "title": "Max Required",
           "type": "integer"
         }
       },
@@ -711,17 +767,13 @@
     "TokenMeasurement": {
       "additionalProperties": false,
       "properties": {
-        "corpus": {
-          "title": "Corpus",
-          "type": "string"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "token_measurement",
-          "title": "Kind",
+        "scope": {
+          "const": "tokenizer",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -732,9 +784,13 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
-          "const": "tokenizer",
-          "title": "Scope",
+        "kind": {
+          "const": "token_measurement",
+          "title": "Kind",
+          "type": "string"
+        },
+        "corpus": {
+          "title": "Corpus",
           "type": "string"
         },
         "tokenizer": {
@@ -755,16 +811,13 @@
     "TokenizerReference": {
       "additionalProperties": false,
       "properties": {
-        "artifact": {
-          "$ref": "#/$defs/Artifact"
-        },
         "id": {
           "title": "Id",
           "type": "string"
         },
-        "kind": {
-          "const": "tokenizer_reference",
-          "title": "Kind",
+        "scope": {
+          "const": "tokenizer",
+          "title": "Scope",
           "type": "string"
         },
         "requires": {
@@ -775,10 +828,13 @@
           "title": "Requires",
           "type": "array"
         },
-        "scope": {
-          "const": "tokenizer",
-          "title": "Scope",
+        "kind": {
+          "const": "tokenizer_reference",
+          "title": "Kind",
           "type": "string"
+        },
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
         }
       },
       "required": [
@@ -801,18 +857,6 @@
     "id": {
       "title": "Id",
       "type": "string"
-    },
-    "recovery": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Recovery"
     },
     "stages": {
       "items": {
@@ -875,6 +919,18 @@
       "minItems": 1,
       "title": "Stages",
       "type": "array"
+    },
+    "recovery": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recovery"
     }
   },
   "required": [

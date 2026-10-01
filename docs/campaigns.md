@@ -117,10 +117,10 @@ Every stage has `id`, `kind`, `scope` and optional `requires` (default `[]`).
 | `tokenizer_reference` | `tokenizer` | External `artifact` of kind `tokenizer`; provenance manifest required |
 | `token_measurement` | `tokenizer` | Verified `corpus` release and `tokenizer`; actual selected-view/split counts |
 | `experiment_plan` | `model` | `source`, `mode: lock|reference`, `tokenizer`, `prepared`, optional `corpus`; reference mode requires `lock` |
-| `runtime_acceptance` | `runtime` | `plan`; CPU/PyTorch runtime and actual storage-headroom checks |
+| `runtime_acceptance` | `runtime` | `plan`, optional mutually exclusive logical `profile_id` or registered `worker`; per-cell fresh runtime bindings and storage-headroom checks |
 | `experiment_run` | `model` | `plan`, matching `runtime`, exact `cell` |
 | `experiment_collect` | `evaluation` | `plan`, matching `run`; seals the selected cell, complete ingested evidence, and unique highest-step verified checkpoint generation/digest |
-| `evaluation` | `evaluation` | `collect`, mandatory declaration-relative `suite`; evaluates precisely the collected generation, never a mutable `latest.json` alias |
+| `evaluation` | `evaluation` | `collect`, declaration-relative `suite`, optional `runtime` acceptance reference or explicit `backend: cpu` without a runtime reference; exact collected generation and evaluation runtime |
 | `model_readiness` | `model` | `evaluation`, mandatory declaration-relative `policy`, optional operational `review` receipt; verifies typed readiness against the suite index and the exact human review binding |
 | `approval` | `release` or `model` | Nonempty `bind` of declared ancestors |
 
@@ -284,8 +284,19 @@ needed.
 
 ## Explicit v1 limits
 
-No tokenizer bakeoff, architecture selection, auto-generated evaluation protocol,
-accelerator execution or worker-farm scheduling stage is provided. V1 uses pinned
-tokenizer references and verified local CPU/PyTorch plan/worker adapters. Capacity
-checks are local execution readiness, not evidence of fit on other hardware,
-throughput superiority, useful model behavior, causality or portability.
+No tokenizer bakeoff, architecture selection, auto-generated evaluation protocol
+or worker-farm scheduling stage is provided. V1 uses pinned tokenizer references
+and verified runtime-bound plan/worker adapters. Accelerator acceptance requires
+a matching declared profile ID or named worker; pass `--runtime-profile PROFILE`
+to each apply/resume that needs it. Each runtime stage authorizes only its assigned
+run cells, and new dispatch revalidates the accepted identity.
+
+Evaluation can reuse a profile/local-worker runtime stage with `runtime: STAGE`.
+An accelerator checkpoint without that reference blocks; an explicit
+`backend: cpu` evaluation omits the reference and records its CPU override.
+Remote registered workers can train, but local suite evaluation has no SSH RPC:
+declare explicit CPU evaluation or report that unsupported boundary.
+See the [literal hardware acceptance runbook](runtime.md#post-merge-rocm-contract-acceptance-runbook).
+Capacity/probe checks establish bounded execution readiness, not evidence of
+fit on other hardware, throughput superiority, useful model behavior, causality
+or portability.

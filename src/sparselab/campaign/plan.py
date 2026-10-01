@@ -175,6 +175,23 @@ class RuntimeAcceptance(Stage):
     kind: Literal["runtime_acceptance"]
     scope: Literal["runtime"]
     plan: str
+    profile_id: str | None = None
+    worker: str | None = None
+
+    @field_validator("profile_id", "worker")
+    @classmethod
+    def valid_runtime_source(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value
+        ):
+            raise ValueError("runtime source must be a safe identifier")
+        return value
+
+    @model_validator(mode="after")
+    def exclusive_source(self) -> RuntimeAcceptance:
+        if self.profile_id is not None and self.worker is not None:
+            raise ValueError("runtime profile_id and worker are mutually exclusive")
+        return self
 
 
 class ExperimentRun(Stage):
@@ -204,6 +221,16 @@ class Evaluation(Stage):
     scope: Literal["evaluation"]
     collect: str
     suite: str
+    backend: Literal["cpu", "mps", "cuda", "rocm", "xpu", "metal"] | None = None
+    runtime: str | None = None
+
+    @model_validator(mode="after")
+    def valid_runtime(self) -> Evaluation:
+        if self.backend == "cpu" and self.runtime is not None:
+            raise ValueError("explicit CPU evaluation must not inherit a runtime")
+        if self.backend not in {None, "cpu"} and self.runtime is None:
+            raise ValueError("accelerator evaluation requires runtime acceptance")
+        return self
 
     @field_validator("suite")
     @classmethod
@@ -362,6 +389,11 @@ class CampaignPlan(StrictModel):
                     raise ValueError(f"stage {stage.id} run belongs to another plan")
             elif isinstance(stage, Evaluation):
                 input_is(stage.collect, ("experiment_collect", None))
+                if stage.runtime is not None:
+                    input_is(stage.runtime, ("runtime_acceptance", None))
+                    collect = by_id[stage.collect]
+                    if by_id[stage.runtime].plan != collect.plan:
+                        raise ValueError("evaluation runtime belongs to another plan")
             elif isinstance(stage, ModelReadiness):
                 input_is(stage.evaluation, ("evaluation", None))
             elif isinstance(stage, Approval):

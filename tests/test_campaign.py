@@ -1547,3 +1547,342 @@ def test_committed_recovery_output_inventory_can_extend_without_changing_intent(
     )
     with pytest.raises(ValueError, match="DECLARATION_IDENTITY_CHANGED"):
         engine.apply()
+
+
+def _accelerator_campaign(tmp_path, monkeypatch):
+    from test_runtime_profiles import fake_runtime, profile_value
+
+    from sparselab.campaign.engine import CampaignEngine
+    from sparselab.config.models import RunConfig
+    from sparselab.runtime_profile import RuntimeProfile
+
+    source = make_full_campaign(tmp_path, monkeypatch)
+    run_path = tmp_path / "run.yaml"
+    config = RunConfig.model_validate(yaml.safe_load(run_path.read_text()))
+    probe, config = fake_runtime(monkeypatch, config, "rocm")
+    from sparselab import runtime
+
+    fixture = json.loads(
+        (
+            Path(__file__).parent / "fixtures/contracts/worker_capabilities_v1.json"
+        ).read_text()
+    )
+    tested = runtime.RuntimeInfo.from_dict(
+        {
+            **fixture["runtime"],
+            "backend": "rocm",
+            "torch_device": "cuda:0",
+            "device_name": "Fixture Accelerator",
+            "runtime_version": "fixture-hip",
+            "tested_precisions": ["fp32", "bf16"],
+            "tested_features": [
+                "forward_backward_optimizer",
+                "activation_checkpointing",
+            ],
+        }
+    )
+    monkeypatch.setattr(runtime, "validate_runtime", lambda *args, **kwargs: tested)
+    run_path.write_text(yaml.safe_dump(config.model_dump(mode="json")))
+    plan_path = tmp_path / "experiment.yaml"
+    plan = yaml.safe_load(plan_path.read_text())
+    plan["execution"] = {"backend": "rocm"}
+    plan_path.write_text(yaml.safe_dump(plan))
+    campaign = yaml.safe_load(source.read_text())
+    next(stage for stage in campaign["stages"] if stage["id"] == "runtime")[
+        "profile_id"
+    ] = "offline-cpu"
+    source.write_text(yaml.safe_dump(campaign))
+    profile = RuntimeProfile.model_validate(profile_value(backend="rocm"))
+    return source, profile, probe, CampaignEngine
+
+
+@pytest.mark.parametrize("backend", [None, "cpu", "cuda", "rocm"])
+def test_campaign_accelerator_acceptance_requires_matching_source(
+    tmp_path, monkeypatch, backend
+):
+    source, profile, _, engine_type = _accelerator_campaign(tmp_path, monkeypatch)
+    selected = (
+        None if backend is None else profile.model_copy(update={"backend": backend})
+    )
+    engine = engine_type(source, tmp_path / "work", runtime_profile=selected)
+    rows = by_id(engine.apply(allow_uncommitted_declaration=True))
+    assert rows["runtime"]["state"] == ("COMPLETE" if backend == "rocm" else "BLOCKED")
+    assert rows["run"]["state"] == "BLOCKED"
+    if backend == "rocm":
+        entry = rows["runtime"]["availability"]["runtime_bindings"]["main:single"]
+        assert entry["tested_runtime"]["backend"] == "rocm"
+        assert (
+            rows["runtime"]["measurements"]["runtime_bindings"]["main:single"]
+            == entry["binding_sha256"]
+        )
+    from sparselab.workers.controller import Controller
+
+    workspace = Path(rows["plan"]["availability"]["workspace"])
+    if backend is None:
+        assert not (workspace / "controller").exists()
+    else:
+        assert (
+            Controller(workspace / "controller", read_only=True).list_experiments()
+            == []
+        )
+
+
+def test_campaign_runtime_drift_blocks_without_ambient_worker(tmp_path, monkeypatch):
+    from sparselab.workers.controller import Controller
+
+    source, profile, probe, engine_type = _accelerator_campaign(tmp_path, monkeypatch)
+    engine = engine_type(source, tmp_path / "work", runtime_profile=profile)
+    initial = by_id(engine.apply(allow_uncommitted_declaration=True))
+    assert initial["runtime"]["state"] == "COMPLETE"
+    engine.approve("gate")
+    probe["device_name"] = "Changed accelerator"
+    rows = by_id(engine.apply(execute_runs=True, allow_uncommitted_declaration=True))
+    assert rows["run"]["state"] == "BLOCKED"
+    assert "fresh" in rows["run"]["reason"] or "changed" in rows["run"]["reason"]
+    workspace = Path(rows["plan"]["availability"]["workspace"])
+    controller = Controller(workspace / "controller", read_only=True)
+    assert controller.list_experiments() == []
+    assert controller.store.worker_records() == []
+
+
+def test_campaign_bound_profile_dispatch_persists_operational_identity(
+    tmp_path, monkeypatch
+):
+    from sparselab.training.manifest import source_identity
+    from sparselab.workers.controller import Controller
+
+    source, profile, _, engine_type = _accelerator_campaign(tmp_path, monkeypatch)
+    engine = engine_type(source, tmp_path / "work", runtime_profile=profile)
+    initial = by_id(engine.apply(allow_uncommitted_declaration=True))
+    entry = initial["runtime"]["availability"]["runtime_bindings"]["main:single"]
+    engine.approve("gate")
+    fixture = json.loads(
+        (
+            Path(__file__).parent / "fixtures/contracts/worker_capabilities_v1.json"
+        ).read_text()
+    )
+
+    def discovery(self, definition, op, payload, **kwargs):
+        assert op == "discover"
+        capability = {
+            **fixture,
+            **definition.model_dump(mode="json"),
+            "source_identity_sha256": source_identity()["sha256"],
+            "runtime": {
+                **fixture["runtime"],
+                "backend": "rocm",
+                "torch_device": "cuda:0",
+                "device_name": "Fixture Accelerator",
+            },
+        }
+        return {"capabilities": capability}
+
+    monkeypatch.setattr(Controller, "_rpc_result", discovery)
+    rows = by_id(
+        engine.apply(
+            execute_runs=True, max_wait_seconds=0, allow_uncommitted_declaration=True
+        )
+    )
+    assert rows["run"]["state"] == "RUNNING"
+    workspace = Path(rows["plan"]["availability"]["workspace"])
+    controller = Controller(workspace / "controller", read_only=True)
+    (attempt,) = controller.list_experiments()
+    (registered,) = controller.store.worker_records()
+    assert registered["definition"]["python"] == str(profile.python)
+    assert registered["definition"]["backend"] == "rocm"
+    assert attempt["spec"]["config"]["runtime"]["backend"] == "rocm"
+    assert attempt["spec"]["plan"]["runtime_binding_sha256"] == entry["binding_sha256"]
+    assert attempt["spec"]["plan"]["execution_binding_sha256"] is None
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"profile_id": "../bad"},
+        {"worker": "/absolute/path"},
+        {"profile_id": "profile", "worker": "worker"},
+    ],
+)
+def test_runtime_acceptance_rejects_unsafe_or_ambiguous_source(changes):
+    from sparselab.campaign.plan import RuntimeAcceptance
+
+    with pytest.raises(ValueError):
+        RuntimeAcceptance(
+            id="runtime",
+            kind="runtime_acceptance",
+            scope="runtime",
+            requires=("plan",),
+            plan="plan",
+            **changes,
+        )
+
+
+def test_cpu_evaluation_cannot_inherit_accelerator_authorization():
+    from sparselab.campaign.plan import Evaluation
+
+    with pytest.raises(ValueError, match="CPU"):
+        Evaluation(
+            id="evaluate",
+            kind="evaluation",
+            scope="evaluation",
+            collect="collect",
+            suite="suite.yaml",
+            backend="cpu",
+            runtime="runtime",
+        )
+
+
+def test_runtime_binding_preserves_science_and_prior_blocked_receipt(
+    tmp_path, monkeypatch
+):
+    from sparselab.experiments.binding import bind_runtime, open_runtime_binding
+    from sparselab.experiments.lock import open_lock
+
+    source, profile, _, engine_type = _accelerator_campaign(tmp_path, monkeypatch)
+    blocked = engine_type(source, tmp_path / "work")
+    before_rows = by_id(blocked.apply(allow_uncommitted_declaration=True))
+    lock_path = Path(before_rows["plan"]["availability"]["path"])
+    original = open_lock(lock_path)
+    lock_bytes = lock_path.read_bytes()
+    availability_path = lock_path.with_suffix(".availability.json")
+    availability_bytes = availability_path.read_bytes()
+    old_receipts = {
+        path: path.read_bytes()
+        for path in (blocked.store.root / "receipts/runtime").glob("*.json")
+    }
+    assert before_rows["runtime"]["state"] == "BLOCKED"
+    workspace = Path(before_rows["plan"]["availability"]["workspace"])
+    path = bind_runtime(original, original.cells[0], workspace, profile=profile)
+    binding = open_runtime_binding(path, original, original.cells[0])
+    assert binding["scientific_sha256"] == original.scientific_sha256
+    assert binding["tested_runtime"]["backend"] == "rocm"
+    interpreter_alias = tmp_path / "vendor-python"
+    interpreter_alias.symlink_to(profile.python)
+    relocated_profile = profile.model_copy(update={"python": interpreter_alias})
+    relocated_path = bind_runtime(
+        original, original.cells[0], workspace, profile=relocated_profile
+    )
+    relocated = open_runtime_binding(relocated_path, original, original.cells[0])
+    assert relocated["binding_sha256"] != binding["binding_sha256"]
+    assert relocated["scientific_sha256"] == binding["scientific_sha256"]
+    # A new operational receipt must never replace a committed Campaign outcome.
+    replay = engine_type(source, tmp_path / "work", runtime_profile=profile)
+    assert (
+        by_id(replay.apply(allow_uncommitted_declaration=True))["runtime"]["state"]
+        == "BLOCKED"
+    )
+    assert lock_path.read_bytes() == lock_bytes
+    assert availability_path.read_bytes() == availability_bytes
+    assert open_lock(lock_path).scientific_sha256 == original.scientific_sha256
+    assert all(path.read_bytes() == content for path, content in old_receipts.items())
+
+
+def test_mixed_cells_accept_only_their_declared_runtime_source(tmp_path, monkeypatch):
+    source, profile, _, engine_type = _accelerator_campaign(tmp_path, monkeypatch)
+    plan_path = tmp_path / "experiment.yaml"
+    plan = yaml.safe_load(plan_path.read_text())
+    plan.pop("execution")
+    plan["axes"] = [
+        {
+            "name": "target",
+            "choices": [
+                {"label": "cpu", "set": {"runtime.backend": "cpu"}},
+                {"label": "rocm", "set": {"runtime.backend": "rocm"}},
+            ],
+        }
+    ]
+    plan_path.write_text(yaml.safe_dump(plan))
+    campaign = yaml.safe_load(source.read_text())
+    stages = campaign["stages"]
+    position = next(i for i, stage in enumerate(stages) if stage["id"] == "runtime")
+    stages.insert(
+        position,
+        {
+            "id": "cpu-runtime",
+            "kind": "runtime_acceptance",
+            "scope": "runtime",
+            "requires": ["plan"],
+            "plan": "plan",
+        },
+    )
+    next(stage for stage in stages if stage["id"] == "run")["cell"] = "main:target=rocm"
+    stages.append(
+        {
+            "id": "cpu-run",
+            "kind": "experiment_run",
+            "scope": "model",
+            "requires": ["plan", "cpu-runtime", "gate"],
+            "plan": "plan",
+            "runtime": "cpu-runtime",
+            "cell": "main:target=cpu",
+        }
+    )
+    source.write_text(yaml.safe_dump(campaign))
+    engine = engine_type(source, tmp_path / "work", runtime_profile=profile)
+    rows = by_id(engine.apply(allow_uncommitted_declaration=True))
+    assert rows["cpu-runtime"]["state"] == rows["runtime"]["state"] == "COMPLETE"
+    assert rows["cpu-runtime"]["measurements"]["cells"] == ["main:target=cpu"]
+    assert rows["runtime"]["measurements"]["cells"] == ["main:target=rocm"]
+    assert set(rows["runtime"]["availability"]["runtime_bindings"]) == {
+        "main:target=rocm"
+    }
+
+
+def test_profile_campaign_evaluation_rederives_for_checkpoint_runtime(
+    tmp_path, monkeypatch
+):
+    from test_runtime_profiles import profile_value
+
+    from sparselab.evaluation.suite import verify_evaluation_index
+    from sparselab.workers.controller import Controller
+
+    source = make_full_campaign(tmp_path, monkeypatch)
+    value = yaml.safe_load(source.read_text())
+    next(stage for stage in value["stages"] if stage["id"] == "runtime")[
+        "profile_id"
+    ] = "offline-cpu"
+    evaluation = next(stage for stage in value["stages"] if stage["id"] == "evaluation")
+    evaluation["runtime"] = "runtime"
+    evaluation["requires"].append("runtime")
+    source.write_text(yaml.safe_dump(value))
+    profile = tmp_path / "profile.yaml"
+    profile.write_text(yaml.safe_dump(profile_value()))
+    work = tmp_path / "work"
+    accepted = by_id(
+        invoke_cli(source, work, "apply", "--runtime-profile", str(profile))
+    )
+    assert accepted["runtime"]["state"] == "COMPLETE"
+    invoke_cli(source, work, "approve", "gate")
+    rows = by_id(
+        invoke_cli(
+            source,
+            work,
+            "apply",
+            "--execute-runs",
+            "--runtime-profile",
+            str(profile),
+            "--max-wait-seconds",
+            "600",
+        )
+    )
+    assert (
+        rows["run"]["state"]
+        == rows["collect"]["state"]
+        == rows["evaluation"]["state"]
+        == "COMPLETE"
+    )
+    index = verify_evaluation_index(Path(rows["evaluation"]["availability"]["path"]))
+    assert index["evaluation_runtime"]["backend"] == "cpu"
+    assert index["evaluation_runtime"]["observed"]["precision"] == "fp32"
+    assert index["runtime_authorization"]["kind"] == "profile"
+    controller = Controller(
+        Path(rows["run"]["availability"]["workspace"]) / "controller", read_only=True
+    )
+    (attempt,) = controller.list_experiments()
+    assert attempt["status"] == attempt["ingestion_status"] == "COMPLETE"
+    assert (
+        attempt["spec"]["plan"]["runtime_binding_sha256"]
+        == rows["runtime"]["availability"]["runtime_bindings"]["main:single"][
+            "binding_sha256"
+        ]
+    )

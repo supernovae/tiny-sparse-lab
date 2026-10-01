@@ -194,9 +194,12 @@ def _backend(config: Any) -> tuple[str, str, int]:
 def _match(
     config: Any, engine: str, backend: str, index: int, probe: dict[str, object]
 ) -> None:
-    if _backend(config) != (engine, backend, index):
+    selection = _backend(config)
+    observed = (probe.get("engine"), probe.get("backend"), probe.get("device_index"))
+    if selection != (engine, backend, index) or observed != (engine, backend, index):
         raise ValueError(
-            f"runtime selection {_backend(config)} differs from authorized {(engine, backend, index)}"
+            f"runtime selection {selection} differs from authorized {(engine, backend, index)} "
+            f"or probed {observed}"
         )
     if (
         probe.get("available") is not True
@@ -210,6 +213,8 @@ def _match(
         backend == "rocm"
     ):
         raise ValueError(f"{backend} requires a matching CUDA/HIP Torch build")
+    if backend == "cuda" and not probe.get("torch_cuda"):
+        raise ValueError("cuda requires a matching CUDA Torch build")
 
 
 class RuntimeAuthorization:
@@ -238,7 +243,11 @@ class RuntimeAuthorization:
 
 
 def _seal(
-    kind: str, descriptor: dict[str, object], probe: dict[str, object]
+    kind: str,
+    descriptor: dict[str, object],
+    probe: dict[str, object],
+    *,
+    tested_runtime: dict[str, object] | None = None,
 ) -> RuntimeAuthorization:
     evidence: dict[str, object] = {
         "authorization_version": 1,
@@ -246,6 +255,8 @@ def _seal(
         "descriptor": descriptor,
         "probe": probe,
     }
+    if tested_runtime is not None:
+        evidence["tested_runtime"] = tested_runtime
     return RuntimeAuthorization(
         _TOKEN,
         evidence,
@@ -303,8 +314,10 @@ def authorize_profile(profile: RuntimeProfile, config: Any) -> RuntimeAuthorizat
         raise ValueError(
             "BF16 unsupported requirement cannot be proven by this runtime"
         )
+    if requirements.bf16 is False and config.runtime.precision == "bf16":
+        raise ValueError("requested BF16 conflicts with profile bf16=false requirement")
     authorization = _seal("profile", profile.model_dump(mode="json"), probe)
-    if requirements.bf16 is True:
+    if requirements.bf16 is True or config.runtime.precision == "bf16":
         if not hasattr(config, "model_copy"):
             raise ValueError(
                 "BF16 requirement needs a complete RunConfig for disposable optimizer validation"
@@ -319,6 +332,12 @@ def authorize_profile(profile: RuntimeProfile, config: Any) -> RuntimeAuthorizat
             raise ValueError(
                 "BF16 optimizer update was not verified on selected runtime"
             )
+        authorization = _seal(
+            "profile",
+            profile.model_dump(mode="json"),
+            probe,
+            tested_runtime=tested.as_dict(),
+        )
     return authorization
 
 

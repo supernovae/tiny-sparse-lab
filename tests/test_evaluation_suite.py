@@ -5,12 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
+import torch
 from test_surface_review import cells
 from test_training import config
 
 from sparselab.campaign.state import publish_immutable
+from sparselab.evaluation import inference
 from sparselab.evaluation.capabilities import describe_capability_card
 from sparselab.evaluation.suite import (
     EvaluationSuite,
@@ -24,6 +28,7 @@ from sparselab.evaluation.surface_review import (
     record_surface_judgment,
     reveal_surface_review,
 )
+from sparselab.runtime_profile import _seal
 from sparselab.training.manifest import canonical_json
 from sparselab.training.trainer import train
 
@@ -123,6 +128,15 @@ def test_evaluation_index_verifies_generation_and_excludes_untrusted_evidence(
     timestamp = result["created_at_utc"]
     assert run_suite(source, "suite-run", generation, runs, backend="cpu") == index_path
     assert verify_evaluation_index(index_path)["created_at_utc"] == timestamp
+    assert result["evaluation_runtime"] == {
+        "engine": "pytorch",
+        "backend": "cpu",
+        "precision": "fp32",
+        "device_index": 0,
+        "observed": json.loads(Path(result["evaluations"][0]["path"]).read_text())[
+            "identity"
+        ]["runtime"],
+    }
     pointer = run / "checkpoints" / "latest.json"
     old = pointer.read_bytes()
     try:
@@ -216,6 +230,111 @@ def test_unavailable_backend_retains_verified_generation(evaluated_run):
     )
     selected = verify_evaluation_index(pointer)
     assert selected["evaluations"][0]["status"] == "UNAVAILABLE"
+
+
+def test_checkpoint_runtime_binding_and_cpu_override(evaluated_run, monkeypatch):
+    source, runs = evaluated_run
+    generation = (
+        "checkpoints/" + min((runs / "suite-run/checkpoints").glob("step_*")).name
+    )
+    original = inference._verified_checkpoint
+
+    def rocm_checkpoint(run, checkpoint):
+        config, manifest, selected, metadata, manager = original(run, checkpoint)
+        runtime = config.runtime.model_copy(
+            update={"backend": "rocm", "precision": "bf16", "device_index": 2}
+        )
+        config = config.model_copy(update={"runtime": runtime})
+        manifest = {
+            **manifest,
+            "runtime": {**manifest["runtime"], "backend": "rocm", "device_index": 2},
+        }
+        return (
+            config,
+            manifest,
+            selected,
+            {**metadata, "backend": "rocm"},
+            manager,
+        )
+
+    monkeypatch.setattr(inference, "_verified_checkpoint", rocm_checkpoint)
+    ephemeral = inference.evaluation_config("suite-run", runs, generation)
+    assert (
+        ephemeral.runtime.backend,
+        ephemeral.runtime.precision,
+        ephemeral.runtime.device_index,
+    ) == ("rocm", "fp32", 0)
+    assert (
+        inference.evaluation_config(
+            "suite-run", runs, generation, "cpu"
+        ).runtime.backend
+        == "cpu"
+    )
+    unavailable = verify_evaluation_index(
+        run_suite(source, "suite-run", generation, runs)
+    )
+    assert unavailable["evaluations"][0]["status"] == "UNAVAILABLE"
+    assert unavailable["evaluation_runtime"]["backend"] == "rocm"
+    assert unavailable["evaluation_runtime"]["observed"] is None
+
+    cpu = verify_evaluation_index(
+        run_suite(source, "suite-run", generation, runs, backend="cpu")
+    )
+    assert cpu["evaluations"][0]["status"] == "COMPLETED"
+    assert cpu["evaluation_runtime"]["observed"]["backend"] == "cpu"
+    result = json.loads(Path(cpu["evaluations"][0]["path"]).read_text())
+    assert result["identity"]["training_runtime"]["backend"] == "rocm"
+    assert result["identity"]["training_runtime"]["device_index"] == 2
+    assert result["identity"]["config"]["runtime"]["device_index"] == 2
+    assert result["identity"]["runtime"]["device_index"] == 0
+    assert (
+        json.loads((runs / "suite-run/resolved_config.yaml").read_text())["runtime"][
+            "backend"
+        ]
+        == "cpu"
+    )
+
+    probe = {
+        "profile_id": "mock-rocm",
+        "engine": "pytorch",
+        "backend": "rocm",
+        "device_index": 0,
+        "available": True,
+        "device_count": 1,
+        "torch_hip": "6.0",
+        "package_root": "/mock/source",
+        "source_sha256": "f" * 64,
+    }
+    authorization = _seal("profile", {"python": "/mock/interpreter"}, probe)
+    monkeypatch.setattr("sparselab.runtime_profile._check_current", lambda *_: None)
+    monkeypatch.setattr(inference, "select_device", lambda *_: torch.device("cuda"))
+    monkeypatch.setattr(inference, "torch_device_for", lambda *_: torch.device("cpu"))
+    monkeypatch.setattr(inference.torch.version, "hip", "6.0")
+    discover = inference.discover_runtimes
+    monkeypatch.setattr(
+        inference,
+        "discover_runtimes",
+        lambda: [
+            replace(info, backend="rocm")
+            for info in discover()
+            if info.backend == "cpu"
+        ],
+    )
+    rocm = verify_evaluation_index(
+        run_suite(source, "suite-run", generation, runs, authorization=authorization)
+    )
+    assert rocm["evaluations"][0]["status"] == "COMPLETED"
+    assert rocm["evaluation_runtime"]["observed"]["backend"] == "rocm"
+    assert rocm["evaluation_runtime"]["observed"]["device_index"] == 0
+    with pytest.raises(ValueError, match="runtime selection"):
+        run_suite(
+            source,
+            "suite-run",
+            generation,
+            runs,
+            backend="cpu",
+            authorization=authorization,
+        )
 
 
 def test_authenticated_reference_reopens_underlying_evaluation(evaluated_run, tmp_path):

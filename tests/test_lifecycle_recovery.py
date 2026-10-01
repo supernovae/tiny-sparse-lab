@@ -28,7 +28,9 @@ from sparselab.experiments.prepare import prepare_plan
 from sparselab.recovery.engine import (
     inspect_manifest,
     plan_manifest,
+    reconstruct_manifest,
 )
+from sparselab.recovery.snapshot import snapshot
 from sparselab.training.manifest import sha256_file
 
 
@@ -353,6 +355,155 @@ def lost_state(tmp_path_factory: pytest.TempPathFactory):
     _commit(repo, "Declare explicit approved corpus-bound Campaign")
     shutil.rmtree(persistent)
     yield repo, persistent, manifest, expected
+
+
+def test_rocm_reconstructs_science_and_stops_before_runtime(
+    lost_state, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_repo, old_root, _, _ = lost_state
+    repo = tmp_path / "repo"
+    root = tmp_path / "persistent"
+    shutil.copytree(original_repo, repo)
+    base_path = repo / "base.yaml"
+    base = yaml.safe_load(base_path.read_text())
+    base["runtime"].update(
+        engine="pytorch", backend="rocm", precision="bf16", device_index=0
+    )
+    for section, field in (
+        ("tokenizer", "path"),
+        ("dataset", "cache_dir"),
+        ("logging", "root_dir"),
+    ):
+        base[section][field] = base[section][field].replace(str(old_root), str(root))
+    base_path.write_text(yaml.safe_dump(base))
+    plan_path = repo / "plan.yaml"
+    plan = yaml.safe_load(plan_path.read_text())
+    plan["execution"]["backend"] = "rocm"
+    plan["artifacts"]["selected_tokenizer"]["path"] = plan["artifacts"][
+        "selected_tokenizer"
+    ]["path"].replace(str(old_root), str(root))
+    plan_path.write_text(yaml.safe_dump(plan))
+    manifest_path = repo / "recovery.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    manifest["runtime_requirement"].update(backend="rocm")
+    for step in manifest["steps"]:
+        if step["id"] in {"export", "tokenizer", "prepared", "lock"}:
+            step.pop(
+                {
+                    "export": "expected_export_sha256",
+                    "tokenizer": "expected_tokenizer_sha256",
+                    "prepared": "expected_manifest_sha256",
+                    "lock": "expected_plan_sha256",
+                }[step["id"]],
+                None,
+            )
+    _git(repo, "add", "base.yaml", "plan.yaml")
+    _git(repo, "commit", "-qm", "Select explicit ROCm science")
+    manifest["source_commit"] = _git(repo, "rev-parse", "HEAD")
+    manifest_path.write_text(yaml.safe_dump(manifest))
+    _commit(repo, "Publish ROCm recovery declaration")
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(root))
+    keys = {
+        "export": "expected_export_sha256",
+        "tokenizer": "expected_tokenizer_sha256",
+        "prepared": "expected_manifest_sha256",
+        "lock": "expected_plan_sha256",
+    }
+    for name, field in keys.items():
+        partial = reconstruct_manifest(manifest_path, root)
+        outcome = partial["outcomes"][-1]
+        assert outcome["id"] == name
+        assert outcome["status"] == "UNSEALED_RESULT"
+        next(step for step in manifest["steps"] if step["id"] == name)[field] = outcome[
+            "actual_sha256"
+        ]
+        if name == "tokenizer":
+            plan["artifacts"]["selected_tokenizer"]["path"] = outcome["path"]
+            plan["artifacts"]["selected_tokenizer"]["sha256"] = outcome["actual_sha256"]
+            plan_path.write_text(yaml.safe_dump(plan))
+            _git(repo, "add", "plan.yaml")
+            _git(repo, "commit", "-qm", "Pin reconstructed tokenizer in ROCm plan")
+            manifest["source_commit"] = _git(repo, "rev-parse", "HEAD")
+        manifest_path.write_text(yaml.safe_dump(manifest))
+        _commit(repo, f"Pin reconstructed ROCm {name} identity")
+    reconstruct_manifest(manifest_path, root)
+    rows = {row["id"]: row for row in inspect_manifest(manifest_path, root)["steps"]}
+    assert all(
+        rows[name]["classification"] == "PRESENT"
+        for name in ("release", "export", "tokenizer", "prepared", "lock")
+    )
+    assert rows["checkpoint"]["classification"] == "NOT_CREATED"
+    locked = rows["lock"]["actual_sha256"]
+    preflight = snapshot(plan_path, root)
+    assert preflight["state"] == "BLOCKED"
+    assert "RUNTIME_REQUIRED" in preflight["reason_codes"]
+    assert "RUNTIME_REQUIREMENT_UNSUPPORTED" not in preflight["reason_codes"]
+    assert (
+        next(
+            item
+            for item in preflight["expected_inputs"]
+            if item["kind"] == "experiment_lock"
+        )["actual_sha256"]
+        == locked
+    )
+    assert not (root / "runs").exists()
+    assert not (root / "workers").exists()
+    shutil.rmtree(root)
+    replay = reconstruct_manifest(manifest_path, root)
+    assert [row["id"] for row in replay["outcomes"]] == [
+        "release",
+        "export",
+        "tokenizer",
+        "prepared",
+        "lock",
+    ]
+    assert {
+        row["id"]: row["actual_sha256"]
+        for row in inspect_manifest(manifest_path, root)["steps"]
+        if row["id"] in {"release", "export", "tokenizer", "prepared", "lock"}
+    }["lock"] == locked
+    assert not (root / "workers").exists()
+    # An authored CPU base is not proof that every selected cell is CPU.
+    base["runtime"].update(backend="cpu", precision="fp32")
+    base_path.write_text(yaml.safe_dump(base))
+    plan["execution"].pop("backend")
+    plan["axes"] = [
+        {
+            "name": "device",
+            "choices": [
+                {
+                    "label": "cpu",
+                    "set": {
+                        "runtime.backend": "cpu",
+                        "runtime.precision": "fp32",
+                        "inputs.corpus_variant": "selected",
+                    },
+                },
+                {
+                    "label": "accelerator",
+                    "set": {
+                        "runtime.backend": "rocm",
+                        "runtime.precision": "bf16",
+                        "inputs.corpus_variant": "selected",
+                    },
+                },
+            ],
+        }
+    ]
+    plan_path.write_text(yaml.safe_dump(plan))
+    _commit(repo, "Declare mixed CPU and ROCm cells from CPU base")
+    mixed = snapshot(plan_path, root)
+    assert mixed["state"] == "BLOCKED"
+    assert "RUNTIME_REQUIRED" in mixed["reason_codes"]
+    assert "RUNTIME_REQUIREMENT_UNSUPPORTED" not in mixed["reason_codes"]
+    assert {cell["backend"] for cell in mixed["runtime_requirement"]["cells"]} == {
+        "cpu",
+        "rocm",
+    }
+    assert any(
+        row["kind"] == "experiment_lock" and row["classification"] == "PRESENT"
+        for row in mixed["expected_inputs"]
+    )
 
 
 def test_tiny_committed_recipe_survives_total_state_loss_then_explicit_run(lost_state):

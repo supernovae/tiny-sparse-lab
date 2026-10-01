@@ -1206,6 +1206,7 @@ def _verify_portable_evaluations(
                         record["suite_sha256"],
                         record["checkpoint_sha256"],
                         record["evaluations"],
+                        record["evaluation_runtime"],
                     )
                 )
             ).hexdigest()

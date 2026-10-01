@@ -15,6 +15,7 @@ from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
 from sparselab.config.models import StrictModel
 from sparselab.engines.base import EngineCapabilityError
 from sparselab.experiments.plan import read_document
+from sparselab.runtime_profile import RuntimeAuthorization
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
 
@@ -136,11 +137,15 @@ class UnsupportedEvidenceReference(ValueError):
 
 
 def _index_binding(
-    suite_sha256: str, checkpoint_sha256: str, rows: list[dict[str, Any]]
+    suite_sha256: str,
+    checkpoint_sha256: str,
+    rows: list[dict[str, Any]],
+    evaluation_runtime: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "suite_sha256": suite_sha256,
         "checkpoint_sha256": checkpoint_sha256,
+        "evaluation_runtime": evaluation_runtime,
         "evaluations": [
             {
                 "id": row["id"],
@@ -214,6 +219,8 @@ def run_suite(
     checkpoint: str,
     runs_dir: Path,
     backend: str | None = None,
+    *,
+    authorization: RuntimeAuthorization | None = None,
 ) -> Path:
     """Evaluate one verified generation; unsupported declared evaluators remain unavailable."""
     from sparselab.evaluation.capabilities import (
@@ -221,7 +228,11 @@ def run_suite(
         load_capability_card,
         write_capability_result,
     )
-    from sparselab.evaluation.inference import load_run, write_inference_result
+    from sparselab.evaluation.inference import (
+        evaluation_config,
+        load_run,
+        write_inference_result,
+    )
 
     source, runs_dir = Path(source).resolve(), Path(runs_dir).resolve()
     suite = load_suite(source)
@@ -229,16 +240,18 @@ def run_suite(
     loaded = None
     unavailable_backend = None
     try:
-        loaded = load_run(run_id, runs_dir, checkpoint, backend)
+        loaded = load_run(
+            run_id, runs_dir, checkpoint, backend, authorization=authorization
+        )
     except (EngineCapabilityError, NotImplementedError, ValueError) as error:
         authorization_reason = (
             "requires --runtime-profile or a registered compatible worker"
         )
         runtime_backend = backend
         if runtime_backend is None and str(error).endswith(authorization_reason):
-            runtime_backend = read_document(run / "manifest.json")["effective_config"][
-                "runtime"
-            ]["backend"]
+            runtime_backend = evaluation_config(
+                run_id, runs_dir, checkpoint, backend
+            ).runtime.backend
         authorization_missing = (
             str(error) == f"{runtime_backend} {authorization_reason}"
         )
@@ -296,6 +309,19 @@ def run_suite(
         generation = identity["checkpoint_relative_path"]
         checkpoint_sha256 = identity["checkpoint_sha256"]
         _selected_checkpoint(run, generation, checkpoint_sha256)
+    if loaded is not None:
+        requested_runtime = loaded.config.runtime
+    else:
+        requested_runtime = evaluation_config(
+            run_id, runs_dir, generation, backend
+        ).runtime
+    evaluation_runtime = {
+        "engine": requested_runtime.engine,
+        "backend": backend or requested_runtime.backend,
+        "precision": "fp32",
+        "device_index": 0,
+        "observed": None if loaded is None else identity["runtime"],
+    }
     rows: list[dict[str, Any]] = []
     for item in suite.evaluations:
         started = time.monotonic()
@@ -412,12 +438,16 @@ def run_suite(
         "checkpoint": generation,
         "checkpoint_sha256": checkpoint_sha256,
         "evaluations": rows,
+        "evaluation_runtime": evaluation_runtime,
+        "runtime_authorization": None
+        if authorization is None
+        else authorization.as_dict(),
         "provenance": _provenance(source, suite),
         "created_at_utc": utc_now(),
     }
     # Stable scientific binding, with timing and timestamp preserved on replay.
     binding = _index_binding(
-        payload["suite_sha256"], payload["checkpoint_sha256"], rows
+        payload["suite_sha256"], payload["checkpoint_sha256"], rows, evaluation_runtime
     )
     index_sha = hashlib.sha256(canonical_json(binding)).hexdigest()
     payload["index_sha256"] = index_sha
@@ -447,6 +477,13 @@ def verify_evaluation_index(path: Path) -> dict[str, Any]:
     ):
         raise ValueError("evaluation index run mismatch")
     _selected_checkpoint(run, record["checkpoint"], record["checkpoint_sha256"])
+    evaluation_runtime = record["evaluation_runtime"]
+    if (
+        not isinstance(evaluation_runtime, dict)
+        or evaluation_runtime.get("precision") != "fp32"
+        or evaluation_runtime.get("device_index") != 0
+    ):
+        raise ValueError("invalid evaluation runtime selection")
     rows = record["evaluations"]
     if not isinstance(rows, list) or len(rows) != len(suite.evaluations):
         raise ValueError("evaluation index coverage mismatch")
@@ -509,6 +546,18 @@ def verify_evaluation_index(path: Path) -> dict[str, Any]:
                 != record["checkpoint"]
             ):
                 raise ValueError("evaluation result checkpoint mismatch")
+            if item.kind in {"heldout_lm", "capability_card"} and (
+                result["identity"].get("runtime") != evaluation_runtime["observed"]
+                or result["identity"]["runtime"].get("engine")
+                != evaluation_runtime["engine"]
+                or result["identity"]["runtime"].get("backend")
+                != evaluation_runtime["backend"]
+                or result["identity"]["runtime"].get("precision")
+                != evaluation_runtime["precision"]
+                or result["identity"]["runtime"].get("device_index")
+                != evaluation_runtime["device_index"]
+            ):
+                raise ValueError("evaluation result runtime mismatch")
             if item.kind == "heldout_lm":
                 if result.get("metrics") != row["result"]:
                     raise ValueError("heldout result mismatch")
@@ -535,7 +584,9 @@ def verify_evaluation_index(path: Path) -> dict[str, Any]:
             or row["sha256"] is not None
         ):
             raise ValueError("invalid unavailable evaluation row")
-    binding = _index_binding(record["suite_sha256"], record["checkpoint_sha256"], rows)
+    binding = _index_binding(
+        record["suite_sha256"], record["checkpoint_sha256"], rows, evaluation_runtime
+    )
     if (
         hashlib.sha256(canonical_json(binding)).hexdigest() != record["index_sha256"]
         or path.name != f"suite-{record['index_sha256']}.json"

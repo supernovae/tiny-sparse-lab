@@ -5,10 +5,237 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json
+
+if TYPE_CHECKING:
+    from sparselab.experiments.lock import ResolvedCell, ResolvedExperimentPlan
+    from sparselab.runtime_profile import RuntimeProfile
+    from sparselab.workers.controller import Controller
+
+
+def _runtime_payload(
+    lock: ResolvedExperimentPlan,
+    cell: ResolvedCell,
+    *,
+    profile: RuntimeProfile | None = None,
+    worker: str | None = None,
+    controller: Controller | None = None,
+) -> dict[str, Any]:
+    from sparselab.runtime import validate_runtime
+    from sparselab.runtime_identity_probe import (
+        source_identity as runtime_source_identity,
+    )
+    from sparselab.runtime_profile import authorize_profile
+    from sparselab.training.manifest import config_sha256, source_identity
+
+    if (profile is None) == (worker is None):
+        raise ValueError("exactly one runtime profile or registered worker is required")
+    if cell not in lock.cells:
+        raise ValueError("runtime binding cell is not in the selected lock")
+    if config_sha256(cell.config.model_dump(mode="json")) != cell.config_sha256:
+        raise ValueError("runtime binding cell config identity changed")
+    if source_identity()["sha256"] != lock.source_identity["sha256"]:
+        raise ValueError("locked source identity differs from current package")
+    if profile is not None:
+        sealed = authorize_profile(profile, cell.config)
+        authorization = sealed.as_dict()
+        descriptor = profile.model_dump(mode="json")
+        kind = "profile"
+        tested_runtime = authorization.get("tested_runtime")
+        if cell.config.runtime.precision != "bf16" or tested_runtime is None:
+            tested_runtime = validate_runtime(
+                cell.config, authorization=sealed
+            ).as_dict()
+        memory = cell.config.runtime.memory
+        required_features = {
+            name
+            for name, selected in (
+                ("activation_checkpointing", memory.activation_checkpointing.enabled),
+                ("activation_offload", memory.activation_offload.enabled),
+            )
+            if selected
+        }
+        if cell.config.runtime.precision not in tested_runtime[
+            "tested_precisions"
+        ] or not required_features.issubset(tested_runtime["tested_features"]):
+            raise ValueError("requested runtime precision/features were not tested")
+    else:
+        if controller is None:
+            raise ValueError("registered worker runtime binding requires a controller")
+        definition, tested, authorization = controller.validate_registered_worker(
+            worker, cell.config, source_sha256=lock.source_identity["sha256"]
+        )
+        descriptor = definition.model_dump(mode="json")
+        kind = "worker"
+        tested_runtime = tested.runtime
+    probe = authorization["probe"]
+    if probe.get("source_sha256") != runtime_source_identity()["source_sha256"]:
+        raise ValueError(
+            "runtime interpreter source identity differs from current package"
+        )
+    return {
+        "format": "sparselab-runtime-binding-v1",
+        "plan_sha256": lock.plan_sha256,
+        "scientific_sha256": lock.scientific_sha256,
+        "cell_id": cell.id,
+        "config_sha256": cell.config_sha256,
+        "source_kind": kind,
+        "descriptor": descriptor,
+        "runtime_authorization": authorization,
+        "tested_runtime": tested_runtime,
+    }
+
+
+def _runtime_digest(payload: dict[str, Any]) -> str:
+    # Evidence timestamps and free-memory readings are not operational identity.
+    def stable(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: stable(item)
+                for key, item in value.items()
+                if key
+                not in {
+                    "measured_at",
+                    "validated_at",
+                    "last_seen_at",
+                    "receipt_sha256",
+                    "system_available_bytes",
+                    "device_free_bytes",
+                    "device_driver_allocated_bytes",
+                }
+            }
+        if isinstance(value, list):
+            return [stable(item) for item in value]
+        return value
+
+    return hashlib.sha256(canonical_json(stable(payload))).hexdigest()
+
+
+def bind_runtime(
+    lock: ResolvedExperimentPlan,
+    cell: ResolvedCell,
+    workspace: Path,
+    *,
+    profile: RuntimeProfile | None = None,
+    worker: str | None = None,
+    controller: Controller | None = None,
+) -> Path:
+    """Publish one immutable operational receipt after fresh selected-runtime validation."""
+    payload = _runtime_payload(
+        lock, cell, profile=profile, worker=worker, controller=controller
+    )
+    digest = _runtime_digest(payload)
+    payload["binding_sha256"] = digest
+    payload["receipt_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
+    path = (
+        Path(workspace)
+        / "runtime-bindings"
+        / lock.plan_sha256
+        / cell.id
+        / f"{digest}.json"
+    )
+    encoded = canonical_json(payload) + b"\n"
+    if path.is_symlink():
+        raise ValueError("runtime binding receipt must not be a symlink")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as stream:
+            stream.write(encoded)
+            stream.flush()
+    except FileExistsError:
+        inspect_runtime_binding(path, lock, cell)
+    return path
+
+
+def inspect_runtime_binding(
+    path: Path, lock: ResolvedExperimentPlan, cell: ResolvedCell
+) -> dict[str, Any]:
+    """Authenticate receipt bytes and locked cell before selecting an interpreter.
+
+    Inspection does not authorize runtime execution; callers must reopen freshly.
+    """
+    from sparselab.training.manifest import config_sha256
+
+    if cell not in lock.cells or cell.config_sha256 != config_sha256(
+        cell.config.model_dump(mode="json")
+    ):
+        raise ValueError("runtime receipt does not belong to the verified lock cell")
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("runtime binding receipt is missing or symlinked")
+    encoded = path.read_bytes()
+    payload = json.loads(encoded)
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("binding_sha256"), str
+    ):
+        raise ValueError("invalid runtime binding receipt payload")  # noqa: TRY004 - malformed serialized evidence
+    digest = payload.pop("binding_sha256")
+    receipt_hash = payload.pop("receipt_sha256", None)
+    if (
+        payload.get("format") != "sparselab-runtime-binding-v1"
+        or digest != _runtime_digest(payload)
+        or receipt_hash
+        != hashlib.sha256(
+            canonical_json({**payload, "binding_sha256": digest})
+        ).hexdigest()
+        or path.name != f"{digest}.json"
+        or path.parent.name != cell.id
+        or path.parent.parent.name != lock.plan_sha256
+        or encoded
+        != canonical_json(
+            {**payload, "binding_sha256": digest, "receipt_sha256": receipt_hash}
+        )
+        + b"\n"
+    ):
+        raise ValueError("runtime binding receipt identity or bytes changed")
+    if (
+        payload.get("plan_sha256") != lock.plan_sha256
+        or payload.get("scientific_sha256") != lock.scientific_sha256
+        or payload.get("cell_id") != cell.id
+        or payload.get("config_sha256") != cell.config_sha256
+    ):
+        raise ValueError("runtime binding receipt belongs to a different lock or cell")
+    return {**payload, "binding_sha256": digest, "receipt_sha256": receipt_hash}
+
+
+def open_runtime_binding(
+    path: Path,
+    lock: ResolvedExperimentPlan,
+    cell: ResolvedCell,
+    *,
+    controller: Controller | None = None,
+) -> dict[str, Any]:
+    """Authenticate and freshly rederive capability; saved JSON is not authority."""
+    from sparselab.runtime_profile import RuntimeProfile
+
+    receipt = inspect_runtime_binding(path, lock, cell)
+    payload = {
+        key: value
+        for key, value in receipt.items()
+        if key not in {"binding_sha256", "receipt_sha256"}
+    }
+    digest = receipt["binding_sha256"]
+    kind = payload.get("source_kind")
+    descriptor = payload.get("descriptor")
+    if kind == "profile":
+        profile = RuntimeProfile.model_validate(descriptor)
+        fresh = _runtime_payload(lock, cell, profile=profile)
+    elif kind == "worker":
+        if not isinstance(descriptor, dict):
+            raise ValueError("runtime worker definition is missing")
+        fresh = _runtime_payload(
+            lock, cell, worker=descriptor["name"], controller=controller
+        )
+    else:
+        raise ValueError("unknown runtime binding source")
+    if _runtime_digest(fresh) != digest:
+        raise ValueError(
+            "bound runtime identity differs from freshly validated runtime"
+        )
+    return receipt
 
 
 def select_generation(

@@ -500,6 +500,7 @@ class PlanMetadata(WorkerModel):
     config_sha256: str
     parent_checkpoint_sha256: str | None = None
     execution_binding_sha256: str | None = None
+    runtime_binding_sha256: str | None = None
 
     @field_validator(
         "plan_sha256",
@@ -507,6 +508,7 @@ class PlanMetadata(WorkerModel):
         "config_sha256",
         "parent_checkpoint_sha256",
         "execution_binding_sha256",
+        "runtime_binding_sha256",
     )
     @classmethod
     def valid_digest(cls, value: str | None, info: Any) -> str | None:
@@ -858,13 +860,31 @@ def validate_operation_result(op: str, result: Mapping[str, Any]) -> dict[str, A
     if op == "launch":
         return AttemptReceipt.model_validate(value).model_dump(mode="json")
     if op == "validate":
-        if set(value) != {"runtime", "validation_status", "reason"}:
+        if set(value) != {
+            "runtime",
+            "validation_status",
+            "reason",
+            "runtime_authorization",
+        }:
             raise ValueError("invalid validate result fields")
         RuntimeInfo.from_dict(value["runtime"])
         if value["validation_status"] not in {"passed", "failed"} or (
             value["reason"] is not None and not isinstance(value["reason"], str)
         ):
             raise ValueError("invalid validate result")
+        evidence = value["runtime_authorization"]
+        if evidence is not None and (
+            not isinstance(evidence, dict)
+            or evidence.get("authorization_version") != 1
+            or evidence.get("kind") != "worker"
+            or not isinstance(evidence.get("descriptor"), dict)
+            or not isinstance(evidence.get("probe"), dict)
+        ):
+            raise ValueError("invalid worker runtime authorization evidence")
+        if value["validation_status"] == "passed" and evidence is None:
+            raise ValueError(
+                "passed validation requires runtime authorization evidence"
+            )
         return value
     if op == "install_bundle":
         if set(value) != {"bundle_digest", "missing_asset_digests", "installed"}:

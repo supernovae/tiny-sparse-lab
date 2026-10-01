@@ -14,11 +14,14 @@ from sparselab.recovery.provenance import (
     declaration_reference,
     git_provenance,
 )
+from sparselab.runtime_profile import RuntimeProfile
 from sparselab.workdir import resolve_work_dir, storage_checks
 from sparselab.workspace_preflight import training_storage_checks
 
 
-def snapshot(source: Path, work_dir: Path | None = None) -> dict[str, Any]:
+def snapshot(
+    source: Path, work_dir: Path | None = None, *, profile: RuntimeProfile | None = None
+) -> dict[str, Any]:
     source = Path(source).absolute()
     root = resolve_work_dir(work_dir)
     raw = read_document(source)
@@ -49,6 +52,7 @@ def snapshot(source: Path, work_dir: Path | None = None) -> dict[str, Any]:
         nonlocal runtime, storage, evaluation
         from sparselab.experiments.artifacts import verify_artifact
         from sparselab.experiments.lock import _runtime, resolve_plan
+        from sparselab.runtime_profile import authorize_profile
 
         plan = load_plan(plan_source)
         try:
@@ -64,36 +68,14 @@ def snapshot(source: Path, work_dir: Path | None = None) -> dict[str, Any]:
                 }
             )
             return
+        # The base configuration is only a fallback when inputs cannot be resolved:
+        # axes and phases can select an entirely different valid runtime.
         try:
-            config, _ = _runtime(config, plan.execution.backend)
+            base_runtime, _ = _runtime(config, plan.execution.backend)
+            base_error = None
         except ValueError as error:
-            reasons.append(
-                "RUNTIME_REQUIREMENT_UNDEFINED"
-                if config.runtime.backend == "auto" and plan.execution.backend is None
-                else "RUNTIME_REQUIREMENT_UNSUPPORTED"
-            )
-            inputs.append(
-                {
-                    "id": plan.id,
-                    "kind": "runtime",
-                    "classification": "MISSING_EXTERNAL",
-                    "reason": str(error),
-                }
-            )
-        else:
-            candidate = {
-                "engine": config.runtime.engine,
-                "backend": config.runtime.backend,
-                "device_index": config.runtime.device_index,
-                "requirements": {},
-            }
-            if runtime is None:
-                runtime = candidate
-            elif any(
-                runtime[key] != candidate[key]
-                for key in ("engine", "backend", "device_index")
-            ):
-                reasons.append("RUNTIME_REQUIREMENT_MISMATCH")
+            base_runtime = None
+            base_error = error
         if plan.evaluation_suite:
             from sparselab.evaluation.suite import load_suite
 
@@ -153,6 +135,48 @@ def snapshot(source: Path, work_dir: Path | None = None) -> dict[str, Any]:
                     "verification_scope": "resolved inputs; publication not required",
                 }
             )
+            cell_requirements = [
+                {
+                    "plan": plan.id,
+                    "cell_id": cell.id,
+                    "engine": cell.config.runtime.engine,
+                    "backend": cell.config.runtime.backend,
+                    "device_index": cell.config.runtime.device_index,
+                    "precision": cell.config.runtime.precision,
+                    "requirements": {},
+                }
+                for cell in resolved.cells
+            ]
+            if runtime is not None and "cells" in runtime:
+                cell_requirements = [*runtime["cells"], *cell_requirements]
+            elif runtime is not None:
+                cell_requirements = [runtime, *cell_requirements]
+            if len(cell_requirements) == 1:
+                runtime = {
+                    key: value
+                    for key, value in cell_requirements[0].items()
+                    if key not in {"plan", "cell_id"}
+                }
+            else:
+                runtime = {"cells": cell_requirements}
+            if profile is None and any(
+                item["backend"] != "cpu" for item in cell_requirements
+            ):
+                reasons.append("RUNTIME_REQUIRED")
+            if profile is not None:
+                for cell in resolved.cells:
+                    try:
+                        authorize_profile(profile, cell.config)
+                    except (ValueError, RuntimeError) as error:
+                        reasons.append("RUNTIME_REQUIRED")
+                        inputs.append(
+                            {
+                                "id": cell.id,
+                                "kind": "runtime",
+                                "classification": "MISSING_EXTERNAL",
+                                "reason": str(error),
+                            }
+                        )
         except (OSError, ValueError, TypeError, KeyError) as error:
             reasons.append("REQUIRED_ARTIFACT_UNVERIFIED")
             inputs.append(
@@ -163,6 +187,31 @@ def snapshot(source: Path, work_dir: Path | None = None) -> dict[str, Any]:
                     "reason": str(error),
                 }
             )
+            if base_error is not None:
+                reasons.append(
+                    "RUNTIME_REQUIREMENT_UNDEFINED"
+                    if config.runtime.backend == "auto"
+                    and plan.execution.backend is None
+                    else "RUNTIME_REQUIREMENT_UNSUPPORTED"
+                )
+                inputs.append(
+                    {
+                        "id": plan.id,
+                        "kind": "runtime",
+                        "classification": "MISSING_EXTERNAL",
+                        "reason": str(base_error),
+                    }
+                )
+            elif base_runtime is not None and runtime is None:
+                runtime = {
+                    "engine": base_runtime.runtime.engine,
+                    "backend": base_runtime.runtime.backend,
+                    "device_index": base_runtime.runtime.device_index,
+                    "precision": base_runtime.runtime.precision,
+                    "requirements": {},
+                }
+            if profile is None and config.runtime.backend not in {"cpu", "auto"}:
+                reasons.append("RUNTIME_REQUIRED")
 
     if kind == "experiment":
         inspect_plan(source)
@@ -248,7 +297,12 @@ def snapshot(source: Path, work_dir: Path | None = None) -> dict[str, Any]:
 
 def _handle(args: argparse.Namespace) -> None:
     try:
-        result = snapshot(Path(args.source), args.work_dir)
+        from sparselab.runtime_profile import load_runtime_profile
+
+        profile = getattr(args, "runtime_profile_loaded", None)
+        if profile is None and args.runtime_profile is not None:
+            profile = load_runtime_profile(args.runtime_profile)
+        result = snapshot(Path(args.source), args.work_dir, profile=profile)
     except (OSError, ValueError, TypeError, KeyError) as error:
         result = {
             "format": "sparselab-research-snapshot-v1",
@@ -270,5 +324,6 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "snapshot", help="Read-only committed declaration and fresh execution preflight"
     )
     command.add_argument("source", type=Path)
+    command.add_argument("--runtime-profile", type=Path)
     command.add_argument("--json", action="store_true")
     command.set_defaults(handler=_handle)
