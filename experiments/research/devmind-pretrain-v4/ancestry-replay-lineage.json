@@ -1,0 +1,64 @@
+{
+  "lineage_version": 1,
+  "kind": "operational_historical_corpus_ancestry_replay",
+  "starting_commit": "2241cc7bdabbc373dd234a95c2e43a54db1e36e0",
+  "state_root": "/srv/sparselab/state/experiments/devmind-model0-try2-ancestry",
+  "stages": [
+    {
+      "id": "v2",
+      "source_corpus_generation": "devmind-v2",
+      "historical_producing_commit": "078b8f5ed533c1dd915394ea57033de646ae5d15",
+      "project_path": "corpora/devmind-v2/corpus.yaml",
+      "phase": "release",
+      "expected_project_sha256": null,
+      "expected_build_sha256": "36abf24160bf55d3e76dae5e67766dca7ef61d73e217f007f215bd76b92652bf",
+      "expected_release_sha256": "50ee7ae6355ae97aeae44544d9f1f66362249767f315b1e98346f3b8df216b6d",
+      "inherited_snapshot_count": 0,
+      "new_source_count": 19,
+      "next_corpus_generation": "devmind-v3"
+    },
+    {
+      "id": "v3",
+      "source_corpus_generation": "devmind-v3",
+      "historical_producing_commit": "b87134335efb8eaeccd91a246fadad4242fd9635",
+      "project_path": "corpora/devmind-v3/corpus.yaml",
+      "phase": "release",
+      "expected_project_sha256": null,
+      "expected_build_sha256": "fed21f674ee5385c80d73a99bbb869b23843a682e69986d5859e27fd76a36f55",
+      "expected_release_sha256": "5b189369a569a39df0ef000d0c0227053404b4aa74c17aad491f4536e8ff5324",
+      "inherited_snapshot_count": 19,
+      "new_source_count": 39,
+      "next_corpus_generation": "devmind-v4-intermediate"
+    },
+    {
+      "id": "v4-intermediate",
+      "source_corpus_generation": "devmind-v4",
+      "historical_producing_commit": "4a01123beacd4f6a5191ae845bd976568d5d06f5",
+      "project_path": "corpora/devmind-v4/corpus.yaml",
+      "phase": "build",
+      "expected_project_sha256": "2a5c988d5e1eccca8b52f78b391ee4ab50358813c1982195d111733f1c394ae8",
+      "expected_build_sha256": "dba7359677569d8ed905d3f5fe7552d323b240e969354b9b19c551b899f4d985",
+      "expected_release_sha256": null,
+      "inherited_snapshot_count": 58,
+      "new_source_count": 65,
+      "next_corpus_generation": "devmind-v4-final"
+    },
+    {
+      "id": "v4-final",
+      "source_corpus_generation": "devmind-v4",
+      "historical_producing_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+      "project_path": "corpora/devmind-v4/corpus.yaml",
+      "phase": "release",
+      "expected_project_sha256": "ee95707a159d4fbc62e8f22cce6301010cbf86a500db6c010a2d282e1166e6b6",
+      "expected_build_sha256": "79b568629fc6682c33bf1212eef0653cdb05d26a772654019458f44af2ceaee5",
+      "expected_release_sha256": "0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4",
+      "previous_snapshot_count": 123,
+      "inherited_snapshot_count": 121,
+      "changed_snapshot_count": 2,
+      "new_snapshot_count": 2,
+      "new_source_count": 0,
+      "changed_source_ids": ["v4_iac_cmake_build", "v4_runtime_metro_js"],
+      "next_corpus_generation": "original-model0-try2-tokenizer"
+    }
+  ]
+}

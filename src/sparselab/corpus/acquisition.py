@@ -937,10 +937,15 @@ def _project_sha(project: Project) -> str:
     )
 
 
-def verify_acquisition(project: Project, work_root: Path | str) -> dict[str, Any]:
+def verify_acquisition(
+    project: Project, work_root: Path | str, *, lock_path: Path | None = None
+) -> dict[str, Any]:
     base = Path(work_root) / "corpora" / project.config.id
+    selected = Path(lock_path) if lock_path is not None else base / "acquisition.json"
+    if selected.is_symlink() or any(parent.is_symlink() for parent in selected.parents):
+        raise ValueError("symlinked acquisition lock")
     try:
-        lock = json.loads((base / "acquisition.json").read_text(encoding="utf-8"))
+        lock = json.loads(selected.read_text(encoding="utf-8"))
         if (
             lock["schema_version"] != 1
             or lock["project_id"] != project.config.id
