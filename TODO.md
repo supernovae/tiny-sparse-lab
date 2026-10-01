@@ -39,6 +39,13 @@ close a code item unless the named software acceptance criteria also pass.
   receipt discovery. Cover a real fixture build mismatch: the returned reference
   must verify the exact failed attempt without directory scanning, producer
   retries, or changes to the expected scientific identity.
+- [ ] Add typed recovery declarations for a later corpus to inherit specified
+  snapshot IDs from a verified parent closure without reacquisition. Cover
+  v2→v3→v4 preserving 19 then 58 IDs and refusing tampered parent evidence.
+- [ ] Add a compact durable metadata closure binding project/declaration
+  identity, source-ID→snapshot-SHA mapping, recorded algorithm/file provenance,
+  full build identity payload and release identity, sufficient to explain a
+  digest without redistributing source bytes; verify tampering and round trips.
 
 ## Backend implementation
 
