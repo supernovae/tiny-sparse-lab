@@ -187,36 +187,32 @@ def test_registered_checkpoint_is_never_proposed(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("explicit", [False, True])
-def test_cli_routes_child_and_external_tool_temp_to_work_dir(
+def test_cli_keeps_persistent_root_separate_from_all_temporary_factories(
     tmp_path: Path, explicit: bool
 ) -> None:
     workspace, _ = _workspace(tmp_path)
-    work = tmp_path / "scratch"
+    root = tmp_path / "persistent-state"
     platform_temp = tmp_path / "platform-temp"
     platform_temp.mkdir()
     env = os.environ.copy()
     env.update(
-        {
-            "TMPDIR": str(platform_temp),
-            "TEMP": str(platform_temp),
-            "TMP": str(platform_temp),
-        }
+        TMPDIR=str(platform_temp),
+        TEMP=str(platform_temp),
+        TMP=str(platform_temp),
+        SPARSELAB_WORK_DIR=str(tmp_path / "overridden") if explicit else str(root),
     )
-    if explicit:
-        env["SPARSELAB_WORK_DIR"] = str(tmp_path / "overridden")
-        options = ["--work-dir", str(work)]
-    else:
-        env["SPARSELAB_WORK_DIR"] = str(work)
-        options = []
+    options = ["--work-dir", str(root)] if explicit else []
     script = (
         "import json, os, subprocess, sys, tempfile; "
         "from sparselab.cli.main import main; main(); "
+        "parent = tempfile.mkdtemp(); "
         "child = subprocess.check_output([sys.executable, '-c', "
-        "'import tempfile; print(tempfile.gettempdir())'], text=True).strip(); "
+        "'import tempfile; print(tempfile.mkdtemp())'], text=True).strip(); "
         "external = subprocess.check_output(['mktemp', '-d', "
         "os.path.join(os.environ['TMPDIR'], 'tool.XXXXXXXX')], text=True).strip(); "
-        "print(json.dumps({'python': tempfile.gettempdir(), "
-        "'child': child, 'external': external})); os.rmdir(external)"
+        "print(json.dumps({'parent': parent, 'child': child, 'external': external, "
+        "'persistent': os.environ['SPARSELAB_WORK_DIR']})); "
+        "os.rmdir(parent); os.rmdir(child); os.rmdir(external)"
     )
     result = subprocess.run(
         [
@@ -238,6 +234,10 @@ def test_cli_routes_child_and_external_tool_temp_to_work_dir(
         check=True,
     )
     observed = json.loads(result.stdout.splitlines()[-1])
-    assert observed["python"] == str(work)
-    assert observed["child"] == str(work)
-    assert Path(observed["external"]).parent == work
+    assert observed["persistent"] == str(root)
+    assert {Path(observed[key]).parent for key in ("parent", "child", "external")} == {
+        root / "scratch"
+    }
+    assert root.is_dir() and (root / "scratch").is_dir()
+    assert not (tmp_path / "overridden").exists()
+    assert not list(platform_temp.iterdir())

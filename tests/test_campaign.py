@@ -127,6 +127,64 @@ def test_symlink_path_rejected(tmp_path: Path) -> None:
         load_campaign(path)
 
 
+def test_operational_artifact_accepts_external_absolute_location(
+    tmp_path: Path,
+) -> None:
+    from sparselab.campaign.engine import CampaignEngine
+
+    artifact = {
+        "kind": "tokenizer",
+        "version": 1,
+        "producer": "fixture",
+        "identifier": "selected",
+        "sha256": "a" * 64,
+        "path": str(tmp_path / "external-state/tokenizer/tokenizer.json"),
+    }
+    source = tmp_path / "campaign.yaml"
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "campaign_version": 1,
+                "id": "external-input",
+                "stages": [
+                    {
+                        "id": "tokenizer",
+                        "kind": "tokenizer_reference",
+                        "scope": "tokenizer",
+                        "artifact": artifact,
+                    }
+                ],
+            }
+        )
+    )
+    assert load_campaign(source).stages[0].artifact.path == artifact["path"]
+    work = tmp_path / "workspace"
+    status = CampaignEngine(source, work).inspect("status")
+    assert by_id(status)["tokenizer"]["state"] == "BLOCKED"
+    assert artifact["path"] in by_id(status)["tokenizer"]["reason"]
+    assert not work.exists()
+
+    artifact["path"] = str(tmp_path / "external-state/../escape.json")
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "campaign_version": 1,
+                "id": "external-input",
+                "stages": [
+                    {
+                        "id": "tokenizer",
+                        "kind": "tokenizer_reference",
+                        "scope": "tokenizer",
+                        "artifact": artifact,
+                    }
+                ],
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="unsafe operational path"):
+        load_campaign(source)
+
+
 def test_author_order_and_schema(tmp_path: Path) -> None:
     value = declaration()
     value["stages"] = [value["stages"][2], value["stages"][1], value["stages"][0]]
@@ -205,10 +263,35 @@ def make_full_campaign(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "path": str(prepared.root.relative_to(tmp_path)),
     }
     (tmp_path / "run.yaml").write_text(yaml.safe_dump(config.model_dump(mode="json")))
+    (tmp_path / "evaluation-suite.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "evaluation_suite_version": 1,
+                "id": "fixture-heldout",
+                "evaluations": [
+                    {"id": "heldout", "role": "gate", "kind": "heldout_lm"}
+                ],
+            }
+        )
+    )
+    (tmp_path / "model-readiness.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "readiness_version": 1,
+                "id": "fixture-readiness",
+                "require_verified_checkpoint": True,
+                "required_gate_ids": ["heldout"],
+                "min_completed_evaluations": 1,
+                "max_heldout_loss": {"evaluation_id": "heldout", "value": 100.0},
+                "require_human_review": False,
+            }
+        )
+    )
     experiment = {
         "plan_version": 1,
         "id": "fixture",
         "base_run": "run.yaml",
+        "evaluation_suite": "evaluation-suite.yaml",
         "artifacts": {"tokenizer": tokenizer_artifact, "prepared": prepared_artifact},
         "inputs": {"tokenizer": "tokenizer", "prepared_data": "prepared"},
     }
@@ -293,6 +376,7 @@ def make_full_campaign(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                 "scope": "evaluation",
                 "requires": ["collect"],
                 "collect": "collect",
+                "suite": "evaluation-suite.yaml",
             },
             {
                 "id": "model",
@@ -300,7 +384,7 @@ def make_full_campaign(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
                 "scope": "model",
                 "requires": ["evaluation"],
                 "evaluation": "evaluation",
-                "max_heldout_loss": 100.0,
+                "policy": "model-readiness.yaml",
             },
         ]
     )
@@ -493,6 +577,11 @@ def invoke_cli(
             command,
             str(source),
             *arguments,
+            *(
+                ("--allow-uncommitted-declaration",)
+                if command in {"apply", "resume", "reconstruct"}
+                else ()
+            ),
             "--json",
         ],
         capture_output=True,
@@ -530,9 +619,19 @@ def test_engine_full_cpu_and_no_redispatch(
         "--note",
         "fixture-only wiring acceptance",
     )
-    running = invoke_cli(path, tmp_path / "work", "apply", "--max-wait-seconds", "0")
+    stopped = invoke_cli(path, tmp_path / "work", "apply")
+    assert stopped["next_action"]["action"] == "execute_run"
+    assert by_id(stopped)["run"]["state"] == "READY"
+    running = invoke_cli(
+        path,
+        tmp_path / "work",
+        "apply",
+        "--execute-runs",
+        "--max-wait-seconds",
+        "0",
+    )
     assert by_id(running)["run"]["state"] == "RUNNING"
-    result = invoke_cli(path, tmp_path / "work", "resume", "--max-wait-seconds", "120")
+    result = invoke_cli(path, tmp_path / "work", "resume", "--max-wait-seconds", "600")
     rows = by_id(result)
     assert {row["state"] for row in rows.values()} == {"COMPLETE"}
     evidence = experiment_evidence(Path(rows["run"]["availability"]["path"]))
@@ -542,25 +641,33 @@ def test_engine_full_cpu_and_no_redispatch(
         == 2
     )
     assert rows["model"]["outcome"] == "READY_FOR_NEXT_STAGE"
-    latest_loss = max(evidence["quality_observations"], key=lambda item: item["step"])[
-        "loss"
-    ]
-    for threshold, state, outcome in (
-        (None, "INCONCLUSIVE", "INCONCLUSIVE"),
-        (latest_loss, "COMPLETE", "READY_FOR_NEXT_STAGE"),
-        (latest_loss - 0.000001, "BLOCKED", "DO_NOT_ADVANCE"),
-    ):
-        policy = engine.stages["model"].model_copy(
-            update={"max_heldout_loss": threshold}
-        )
-        measured = engine.dispatch(policy, rows, 0)
-        assert (measured["state"], measured["outcome"]) == (state, outcome)
+    from sparselab.evaluation.readiness import verify_readiness_result
+    from sparselab.evaluation.suite import verify_evaluation_index
+
+    index = verify_evaluation_index(Path(rows["evaluation"]["availability"]["path"]))
+    readiness = verify_readiness_result(Path(rows["model"]["availability"]["path"]))
+    assert readiness["index_sha256"] == index["index_sha256"]
+    assert readiness["state"] == "READY_FOR_NEXT_STAGE"
+    assert index["checkpoint_sha256"] == readiness["checkpoint_sha256"]
     controller = Controller(
         Path(rows["run"]["availability"]["workspace"]) / "controller", read_only=True
     )
     attempts = controller.list_experiments()
     assert len(attempts) == 1
     assert attempts[0]["status"] == attempts[0]["ingestion_status"] == "COMPLETE"
+    assert attempts[0]["spec"]["declaration_provenance"]["status"] == "UNKNOWN"
+    assert (
+        attempts[0]["spec"]["declaration_provenance"]["allow_uncommitted_declaration"]
+        is True
+    )
+    assert rows["run"]["declaration_provenance"]["status"] == "UNKNOWN"
+    receipt = next((engine.store.root / "receipts/run").glob("*.json"))
+    assert (
+        json.loads(receipt.read_text())["data"]["declaration_provenance"][
+            "allow_uncommitted_declaration"
+        ]
+        is True
+    )
     before = {
         str(p.relative_to(engine.store.root)): (p.read_bytes(), p.stat().st_mtime_ns)
         for p in engine.store.root.rglob("*.json")
@@ -580,6 +687,89 @@ def test_engine_full_cpu_and_no_redispatch(
     assert (
         sum(p.stat().st_size for p in tmp_path.rglob("*") if p.is_file()) < 100_000_000
     )
+
+
+def test_evaluation_stays_bound_to_collected_checkpoint_when_latest_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.campaign.engine import CampaignEngine
+    from sparselab.evaluation.readiness import issue_review, verify_readiness_result
+    from sparselab.evaluation.suite import verify_evaluation_index
+    from sparselab.training.manifest import canonical_json
+
+    source = make_full_campaign(tmp_path, monkeypatch)
+    value = yaml.safe_load(source.read_text())
+    next(stage for stage in value["stages"] if stage["id"] == "model")["review"] = (
+        "model-review.json"
+    )
+    source.write_text(yaml.safe_dump(value))
+    policy_path = tmp_path / "model-readiness.yaml"
+    policy = yaml.safe_load(policy_path.read_text())
+    policy["require_human_review"] = True
+    policy_path.write_text(yaml.safe_dump(policy))
+    work = tmp_path / "work"
+
+    def after_commit(stage_id: str, state: dict) -> None:
+        if stage_id == "collect":
+            raise KeyboardInterrupt("pause after immutable collection")
+
+    engine = CampaignEngine(source, work, after_commit=after_commit)
+    engine.apply(allow_uncommitted_declaration=True)
+    engine.approve("gate")
+    with pytest.raises(KeyboardInterrupt, match="pause after immutable collection"):
+        engine.apply(
+            max_wait_seconds=600,
+            execute_runs=True,
+            allow_uncommitted_declaration=True,
+        )
+    collected = by_id(engine.inspect("status"))["collect"]["measurements"]
+
+    def after_evaluation(stage_id: str, state: dict) -> None:
+        if stage_id == "evaluation":
+            raise KeyboardInterrupt("pause before named model review")
+
+    with pytest.raises(KeyboardInterrupt, match="pause before named model review"):
+        CampaignEngine(source, work, after_commit=after_evaluation).apply(
+            resume=True, allow_uncommitted_declaration=True
+        )
+    index_path = Path(
+        by_id(engine.inspect("status"))["evaluation"]["availability"]["path"]
+    )
+    index = verify_evaluation_index(index_path)
+    assert index["checkpoint"] == f"checkpoints/{collected['generation']}"
+    assert index["checkpoint_sha256"] == collected["sha256"]
+    review = issue_review(
+        index_path,
+        reviewer="fixture-reviewer",
+        decision="approve",
+        note="I reviewed this exact heldout index",
+        output=tmp_path / "model-review.json",
+    )
+    result = CampaignEngine(source, work).apply(
+        resume=True, allow_uncommitted_declaration=True
+    )
+    rows = by_id(result)
+    readiness = verify_readiness_result(Path(rows["model"]["availability"]["path"]))
+    assert readiness["review_sha256"] == review["receipt_sha256"]
+    assert rows["model"]["outcome"] == "READY_FOR_NEXT_STAGE"
+    run = Path(by_id(engine.inspect("status"))["run"]["availability"]["path"])
+    earliest = min(
+        (path for path in (run / "checkpoints").glob("step_*_gen_*")),
+        key=lambda path: json.loads((path / "manifest.json").read_text())["step"],
+    )
+    assert earliest.name != collected["generation"]
+    pointer = run / "checkpoints/latest.json"
+    value = json.loads(pointer.read_text())
+    value["relative_path"] = earliest.name
+    value["manifest_sha256"] = json.loads((earliest / "manifest.json").read_text())[
+        "sha256"
+    ]
+    pointer.write_bytes(canonical_json(value) + b"\n")
+    assert (
+        verify_evaluation_index(index_path)["checkpoint_sha256"] == collected["sha256"]
+    )
+    with pytest.raises((ValueError, OSError)):
+        CampaignEngine(source, work).inspect("plan")
 
 
 def test_crash_after_commit_replays_receipt_not_adapter(
@@ -603,7 +793,7 @@ def test_crash_after_commit_replays_receipt_not_adapter(
 
     engine = CampaignEngine(path, tmp_path / "work", after_commit=interrupt)
     with pytest.raises(KeyboardInterrupt):
-        engine.apply()
+        engine.apply(allow_uncommitted_declaration=True)
     receipts = list((engine.store.root / "receipts/corpus").glob("*.json"))
     assert len(receipts) == 1
     before = (receipts[0].read_bytes(), receipts[0].stat().st_mtime_ns)
@@ -611,27 +801,29 @@ def test_crash_after_commit_replays_receipt_not_adapter(
     original_dispatch = recovered.dispatch
     dispatched = []
 
-    def recording_dispatch(stage, rows, max_wait_seconds):
+    def recording_dispatch(stage, rows, max_wait_seconds, *, execute_runs=False):
         dispatched.append(stage.id)
-        return original_dispatch(stage, rows, max_wait_seconds)
+        return original_dispatch(
+            stage, rows, max_wait_seconds, execute_runs=execute_runs
+        )
 
     monkeypatch.setattr(recovered, "dispatch", recording_dispatch)
-    resumed = by_id(recovered.apply(resume=True))
+    resumed = by_id(recovered.apply(resume=True, allow_uncommitted_declaration=True))
     assert "corpus" not in dispatched
     assert resumed["ready"]["state"] == "COMPLETE"
     assert resumed["gate"]["state"] == "AWAITING_APPROVAL"
     assert (receipts[0].read_bytes(), receipts[0].stat().st_mtime_ns) == before
     recovered.approve("gate")
-    terminal = recovered.apply(resume=True)
+    terminal = recovered.apply(resume=True, allow_uncommitted_declaration=True)
     independent = tmp_path / "independent"
     independent.mkdir()
     shutil.copytree(tmp_path / "recipe", independent / "recipe")
     independent_source = independent / "campaign.yaml"
     independent_source.write_text(path.read_text())
     uninterrupted = CampaignEngine(independent_source, independent / "work")
-    uninterrupted.apply()
+    uninterrupted.apply(allow_uncommitted_declaration=True)
     uninterrupted.approve("gate")
-    other = uninterrupted.apply()
+    other = uninterrupted.apply(allow_uncommitted_declaration=True)
 
     def stable(result):
         return [
@@ -652,11 +844,11 @@ def test_receipt_tampering_never_reruns(
 
     path = make_full_campaign(tmp_path, monkeypatch)
     engine = CampaignEngine(path, tmp_path / "work")
-    engine.apply()
+    engine.apply(allow_uncommitted_declaration=True)
     receipt = next((engine.store.root / "receipts/corpus").glob("*.json"))
     receipt.write_text("{}\n")
     with pytest.raises((ValueError, TypeError, KeyError)):
-        engine.apply(resume=True)
+        engine.apply(resume=True, allow_uncommitted_declaration=True)
 
 
 def test_deficit_new_declaration_does_not_mutate_old_state(
@@ -671,7 +863,7 @@ def test_deficit_new_declaration_does_not_mutate_old_state(
     value["stages"][1]["policy"] = {"min_unique_train_bytes_by_domain": {"absent": 1}}
     path.write_text(yaml.safe_dump(value))
     first = CampaignEngine(path, tmp_path / "work")
-    blocked = by_id(first.apply())
+    blocked = by_id(first.apply(allow_uncommitted_declaration=True))
     assert blocked["ready"]["state"] == "BLOCKED"
     assert blocked["ready"]["outcome"] == "EXPAND_MORE"
     assert blocked["tokenizer"]["state"] == "BLOCKED"
@@ -692,7 +884,7 @@ def test_deficit_new_declaration_does_not_mutate_old_state(
 
     second = CampaignEngine(second_path, tmp_path / "work", after_commit=interrupt)
     with pytest.raises(KeyboardInterrupt):
-        second.apply()
+        second.apply(allow_uncommitted_declaration=True)
     projected = by_id(CampaignEngine(second_path, tmp_path / "work").inspect())
     assert projected["ready"]["state"] == "COMPLETE"
     assert projected["tokenizer"]["state"] == "READY"
@@ -707,7 +899,7 @@ def test_approval_replay_rejection_and_namespace(
 
     path = make_full_campaign(tmp_path, monkeypatch)
     engine = CampaignEngine(path, tmp_path / "work")
-    engine.apply()
+    engine.apply(allow_uncommitted_declaration=True)
     approved = by_id(engine.approve("gate", note="original authorization"))
     assert approved["gate"]["state"] == "COMPLETE"
     approval = next((engine.store.root / "approvals/gate").glob("*.json"))
@@ -733,7 +925,11 @@ def test_changed_reference_digest_fails_closed(
     value = yaml.safe_load(path.read_text())
     value["stages"][2]["artifact"]["sha256"] = "0" * 64
     path.write_text(yaml.safe_dump(value))
-    result = by_id(CampaignEngine(path, tmp_path / "work").apply())
+    result = by_id(
+        CampaignEngine(path, tmp_path / "work").apply(
+            allow_uncommitted_declaration=True
+        )
+    )
     assert result["tokenizer"]["state"] == "FAILED"
     assert result["plan"]["state"] == "BLOCKED"
 
@@ -777,11 +973,11 @@ def test_receipt_reconciles_crash_before_index(
 
     monkeypatch.setattr(engine.store, "save", fail_after_receipt)
     with pytest.raises(KeyboardInterrupt):
-        engine.apply()
+        engine.apply(allow_uncommitted_declaration=True)
     receipt = next((engine.store.root / "receipts/corpus").glob("*.json"))
     before = receipt.read_bytes()
     resumed = CampaignEngine(path, tmp_path / "work")
-    result = by_id(resumed.apply(resume=True))
+    result = by_id(resumed.apply(resume=True, allow_uncommitted_declaration=True))
     assert result["corpus"]["state"] == "COMPLETE"
     assert result["ready"]["state"] == "COMPLETE"
     assert result["gate"]["state"] == "AWAITING_APPROVAL"
@@ -799,7 +995,11 @@ def test_synthetic_plan_rejects_claimed_corpus_binding(
     stage["corpus"] = "corpus"
     stage["requires"].append("corpus")
     path.write_text(yaml.safe_dump(value))
-    rows = by_id(CampaignEngine(path, tmp_path / "work").apply())
+    rows = by_id(
+        CampaignEngine(path, tmp_path / "work").apply(
+            allow_uncommitted_declaration=True
+        )
+    )
     assert rows["plan"]["state"] == "FAILED"
     assert rows["runtime"]["state"] == "BLOCKED"
 
@@ -828,7 +1028,11 @@ def test_plan_rejects_different_verified_prepared_input(
         path=str(different.root.relative_to(tmp_path)),
     )
     path.write_text(yaml.safe_dump(value))
-    rows = by_id(CampaignEngine(path, tmp_path / "work").apply())
+    rows = by_id(
+        CampaignEngine(path, tmp_path / "work").apply(
+            allow_uncommitted_declaration=True
+        )
+    )
     assert rows["prepared"]["state"] == "COMPLETE"
     assert rows["plan"]["state"] == "FAILED"
 
@@ -840,12 +1044,20 @@ def test_status_is_historical_but_plan_reverifies(
 
     path = make_full_campaign(tmp_path, monkeypatch)
     engine = CampaignEngine(path, tmp_path / "work")
-    engine.apply()
+    engine.apply(allow_uncommitted_declaration=True)
     (tmp_path / "tokenizer/tokenizer.json").unlink()
     history = by_id(engine.inspect("status"))
     assert history["tokenizer"]["state"] == "COMPLETE"
     assert history["tokenizer"]["verification"] == "last_committed"
     assert history["tokenizer"]["verified_at"]
+    assert (
+        next(
+            row
+            for row in engine.inspect("status")["recoverability"]
+            if row["id"] == "tokenizer"
+        )["classification"]
+        == "MISSING_EXTERNAL"
+    )
     with pytest.raises((ValueError, OSError)):
         engine.inspect("plan")
 
@@ -866,14 +1078,15 @@ def test_cli_readonly_on_nonexistent_workspace(tmp_path: Path, command: str) -> 
         )
 
 
-def test_missing_input_is_durable_block_not_failure(tmp_path: Path) -> None:
+def test_missing_declaration_input_blocks_before_workspace(tmp_path: Path) -> None:
     value = declaration()
     path = tmp_path / "missing.yaml"
     path.write_text(yaml.safe_dump(value))
     work = tmp_path / "work"
-    result = invoke_cli(path, work, "apply")
-    assert by_id(result)["corpus"]["state"] == "BLOCKED"
-    assert str(tmp_path / "recipe") in by_id(result)["corpus"]["reason"]
+    result = invoke_cli(path, work, "apply", expected_code=1)
+    assert result["state"] == "FAILED"
+    assert "recipe" in result["error"]["reason"]
+    assert not work.exists()
     historical = invoke_cli(path, work, "status")
     assert by_id(historical)["corpus"]["state"] == "BLOCKED"
     assert by_id(historical)["gate"]["state"] == "BLOCKED"
@@ -894,15 +1107,15 @@ def test_stale_running_records_interruption(
     path.write_text(yaml.safe_dump(value))
     engine = CampaignEngine(path, tmp_path / "work")
 
-    def interrupt(stage, rows, max_wait_seconds):
+    def interrupt(stage, rows, max_wait_seconds, *, execute_runs=False):
         raise KeyboardInterrupt
 
     monkeypatch.setattr(engine, "dispatch", interrupt)
     with pytest.raises(KeyboardInterrupt):
-        engine.apply()
+        engine.apply(allow_uncommitted_declaration=True)
     assert by_id(engine.inspect("status"))["corpus"]["state"] == "RUNNING"
     recovered = CampaignEngine(path, tmp_path / "work")
-    rows = by_id(recovered.apply(resume=True))
+    rows = by_id(recovered.apply(resume=True, allow_uncommitted_declaration=True))
     assert rows["corpus"]["state"] == "COMPLETE"
     assert [a["state"] for a in rows["corpus"]["attempts"]] == [
         "INTERRUPTED",
@@ -928,7 +1141,7 @@ def test_resume_recovers_committed_approval_before_gate_receipt(
     value["stages"][0]["project"] = "recipe/corpus.yaml"
     path.write_text(yaml.safe_dump(value))
     engine = CampaignEngine(path, tmp_path / "work")
-    engine.apply()
+    engine.apply(allow_uncommitted_declaration=True)
 
     def interrupt(stage, row):
         raise KeyboardInterrupt("approval durable; gate receipt not published")
@@ -948,7 +1161,7 @@ def test_state_receipt_conflict_is_rejected(tmp_path: Path) -> None:
 
     source = Path(__file__).resolve().parents[1] / "examples/tiny-campaign.yaml"
     engine = CampaignEngine(source, tmp_path / "work")
-    rows = by_id(engine.apply())
+    rows = by_id(engine.apply(allow_uncommitted_declaration=True))
     changed = copy.deepcopy(rows["corpus"])
     changed["outputs"][0]["sha256"] = "0" * 64
     with pytest.raises(ValueError, match="conflicting committed"):
@@ -965,7 +1178,7 @@ def test_controller_attempt_cannot_spoof_locked_cell(
 
     path = make_full_campaign(tmp_path, monkeypatch)
     engine = CampaignEngine(path, tmp_path / "work")
-    rows = by_id(engine.apply())
+    rows = by_id(engine.apply(allow_uncommitted_declaration=True))
     engine.approve("gate")
     lock = open_lock(Path(rows["plan"]["availability"]["path"]))
     workspace = Path(rows["plan"]["availability"]["workspace"])
@@ -977,7 +1190,7 @@ def test_controller_attempt_cannot_spoof_locked_cell(
         update={"seed": request["config"].seed + 1}
     )
     controller.submit_many([request])
-    result = by_id(engine.apply(max_wait_seconds=0))
+    result = by_id(engine.apply(max_wait_seconds=0, allow_uncommitted_declaration=True))
     assert result["run"]["state"] == "FAILED"
     assert "locked cell" in result["run"]["reason"]
     assert result["collect"]["state"] == "BLOCKED"
@@ -992,17 +1205,62 @@ def test_terminal_interrupted_worker_is_not_runnable(
 
     path = make_full_campaign(tmp_path, monkeypatch)
     engine = CampaignEngine(path, tmp_path / "work")
-    engine.apply()
+    engine.apply(allow_uncommitted_declaration=True)
     engine.approve("gate")
-    queued = by_id(engine.apply(max_wait_seconds=0))["run"]
+    queued = by_id(
+        engine.apply(
+            max_wait_seconds=0, execute_runs=True, allow_uncommitted_declaration=True
+        )
+    )["run"]
     controller = Controller(Path(queued["availability"]["workspace"]) / "controller")
     assert controller.cancel(queued["measurements"]["run_id"])["status"] == "CANCELLED"
-    result = engine.apply(resume=True, max_wait_seconds=0)
+    result = engine.apply(
+        resume=True, max_wait_seconds=0, allow_uncommitted_declaration=True
+    )
     assert by_id(result)["run"]["state"] == "INTERRUPTED"
     assert by_id(result)["collect"]["state"] == "BLOCKED"
     assert result["next_action"]["action"] == "wait"
-    assert engine.apply()["next_action"]["action"] == "wait"
+    assert (
+        engine.apply(allow_uncommitted_declaration=True)["next_action"]["action"]
+        == "wait"
+    )
     assert len(controller.list_experiments()) == 1
+
+
+def test_lost_submitted_attempt_never_enqueues_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from sparselab.campaign.engine import CampaignEngine
+
+    path = make_full_campaign(tmp_path, monkeypatch)
+    engine = CampaignEngine(path, tmp_path / "work")
+    engine.apply(allow_uncommitted_declaration=True)
+    engine.approve("gate")
+    queued = by_id(
+        engine.apply(
+            max_wait_seconds=0,
+            execute_runs=True,
+            allow_uncommitted_declaration=True,
+        )
+    )["run"]
+    assert set(queued["measurements"]) == {"experiment_id", "attempt_id", "run_id"}
+    controller = Path(queued["availability"]["workspace"]) / "controller"
+    shutil.rmtree(controller)
+
+    result = by_id(
+        engine.apply(
+            resume=True,
+            max_wait_seconds=0,
+            execute_runs=True,
+            allow_uncommitted_declaration=True,
+        )
+    )
+    assert result["run"]["state"] == "FAILED"
+    assert "LOST_SUBMISSION" in result["run"]["reason"]
+    assert result["run"]["measurements"] == queued["measurements"]
+    assert not controller.exists()
 
 
 @pytest.mark.parametrize(
@@ -1038,7 +1296,7 @@ def test_runtime_uses_explicit_workspace_not_unrelated_default(
     unrelated.symlink_to("/proc", target_is_directory=True)
     monkeypatch.setenv("SPARSELAB_WORK_DIR", str(unrelated))
     engine = CampaignEngine(path, tmp_path / "work")
-    rows = by_id(engine.apply())
+    rows = by_id(engine.apply(allow_uncommitted_declaration=True))
     assert rows["runtime"]["state"] == "COMPLETE"
     assert rows["gate"]["state"] == "AWAITING_APPROVAL"
 
@@ -1064,3 +1322,228 @@ def test_initial_status_does_not_claim_missing_input_is_ready(tmp_path: Path) ->
     assert by_id(result)["corpus"]["state"] == "BLOCKED"
     assert by_id(result)["ready"]["blocked_by"] == ["corpus"]
     assert not work.exists()
+
+
+def test_uncommitted_campaign_preflight_blocks_before_store_creation(
+    tmp_path: Path,
+) -> None:
+    from sparselab.campaign.engine import CampaignEngine
+
+    source = tmp_path / "campaign.yaml"
+    source.write_text(yaml.safe_dump(declaration()))
+    work = tmp_path / "persistent-state"
+    engine = CampaignEngine(source, work)
+    with pytest.raises(ValueError, match="UNKNOWN"):
+        engine.apply()
+    assert not work.exists()
+    with pytest.raises(ValueError, match="linked recovery manifest"):
+        engine.reconstruct(allow_uncommitted_declaration=True)
+    assert not work.exists()
+
+
+def test_committed_campaign_checkout_warning_and_shared_external_root(
+    tmp_path: Path,
+) -> None:
+    import shutil
+    import subprocess
+    import sys
+
+    repo = Path(__file__).resolve().parents[1]
+    first = tmp_path / "first-checkout"
+    first.mkdir()
+    subprocess.run(["git", "init", "-q", str(first)], check=True)
+    subprocess.run(
+        ["git", "-C", str(first), "config", "user.email", "fixture@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(first), "config", "user.name", "Fixture"],
+        check=True,
+    )
+    shutil.copytree(repo / "examples/tiny-campaign", first / "tiny-campaign")
+    (first / "campaign.yaml").write_bytes(
+        (repo / "examples/tiny-campaign.yaml").read_bytes()
+    )
+    subprocess.run(["git", "-C", str(first), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(first), "commit", "-qm", "Declare tiny campaign"],
+        check=True,
+    )
+
+    def command(checkout: Path, work: Path, verb: str) -> tuple[dict, str]:
+        process = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "sparselab",
+                "--work-dir",
+                str(work),
+                "campaign",
+                verb,
+                str(checkout / "campaign.yaml"),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        assert process.returncode == 0, process.stdout + process.stderr
+        return json.loads(process.stdout), process.stderr
+
+    inside = first / "legacy-state"
+    selected, warnings = command(first, inside, "apply")
+    assert "STORAGE_INSIDE_GIT_CHECKOUT" in warnings
+    assert selected["storage_checks"][0]["git_root"] == str(first)
+    assert by_id(selected)["corpus"]["storage_checks"][0]["reason_code"] == (
+        "STORAGE_INSIDE_GIT_CHECKOUT"
+    )
+    outside = tmp_path / "persistent-state"
+    external, no_warning = command(first, outside, "apply")
+    assert "STORAGE_INSIDE_GIT_CHECKOUT" not in no_warning
+    assert external["storage_checks"] == []
+    second = tmp_path / "second-checkout"
+    subprocess.run(["git", "clone", "-q", str(first), str(second)], check=True)
+    current, no_warning = command(second, outside, "status")
+    assert "STORAGE_INSIDE_GIT_CHECKOUT" not in no_warning
+    assert current["declaration_sha256"] == external["declaration_sha256"]
+    assert by_id(current)["corpus"]["outputs"] == by_id(external)["corpus"]["outputs"]
+    assert (
+        by_id(current)["corpus"]["availability"]
+        == by_id(external)["corpus"]["availability"]
+    )
+    assert not (second / "legacy-state").exists()
+    from sparselab.campaign.engine import CampaignEngine
+
+    state_path = CampaignEngine(first / "campaign.yaml", outside).store.index
+    before = state_path.read_bytes()
+    (first / "unrelated.log").write_text("not scientific intent\n")
+    command(first, outside, "apply")
+    assert state_path.read_bytes() == before
+
+    source_file = first / "tiny-campaign/texts/tiny_docs-0.txt"
+    source_file.write_bytes(source_file.read_bytes() + b"\nrevised scientific input\n")
+    subprocess.run(["git", "-C", str(first), "add", str(source_file)], check=True)
+    subprocess.run(
+        ["git", "-C", str(first), "commit", "-qm", "Revise one corpus source"],
+        check=True,
+    )
+    changed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(outside),
+            "campaign",
+            "apply",
+            str(first / "campaign.yaml"),
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert changed.returncode == 1
+    assert (
+        "DECLARATION_IDENTITY_CHANGED" in json.loads(changed.stdout)["error"]["reason"]
+    )
+    assert state_path.read_bytes() == before
+
+
+def test_committed_recovery_output_inventory_can_extend_without_changing_intent(
+    tmp_path: Path,
+) -> None:
+    import shutil
+    import subprocess
+
+    from sparselab.campaign.engine import CampaignEngine
+    from sparselab.recovery.evidence import export_evidence
+
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for key, value in (
+        ("user.email", "fixture@example.test"),
+        ("user.name", "Fixture"),
+    ):
+        subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+    shutil.copytree(
+        Path(__file__).resolve().parents[1] / "examples/tiny-campaign",
+        repo / "tiny-campaign",
+    )
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "Pin corpus inputs"], check=True
+    )
+    source_commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    recovery = {
+        "recovery_version": 1,
+        "id": "tiny-recovery",
+        "source_commit": source_commit,
+        "steps": [
+            {
+                "id": "later",
+                "kind": "external_required",
+                "role": "human_decision",
+                "reason": "not selected",
+            },
+        ],
+    }
+    (repo / "recovery.yaml").write_text(yaml.safe_dump(recovery))
+    campaign = {
+        "campaign_version": 1,
+        "id": "tiny-recovery-campaign",
+        "recovery": "recovery.yaml",
+        "stages": [
+            {
+                "id": "corpus",
+                "kind": "corpus_release",
+                "scope": "corpus",
+                "project": "tiny-campaign/corpus.yaml",
+            }
+        ],
+    }
+    (repo / "campaign.yaml").write_text(yaml.safe_dump(campaign))
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "Declare recovery"], check=True
+    )
+    engine = CampaignEngine(repo / "campaign.yaml", tmp_path / "persistent-state")
+    initial = by_id(engine.apply())["corpus"]
+    assert initial["state"] == "COMPLETE"
+
+    probe = tmp_path / "runtime-probe.json"
+    probe.write_text('{"format_version":1,"status":"observation"}')
+    (repo / "evidence").mkdir()
+    reference = repo / "evidence/probe.json"
+    export_evidence(
+        "runtime_probe",
+        probe,
+        reference,
+        source_commit=source_commit,
+        declaration_hashes=[],
+    )
+    recovery["evidence"] = ["evidence/probe.json"]
+    (repo / "recovery.yaml").write_text(yaml.safe_dump(recovery))
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "Publish verified output"], check=True
+    )
+    updated = by_id(engine.apply())["corpus"]
+    assert updated["outputs"] == initial["outputs"]
+
+    recovery["steps"][0]["reason"] = "different scientific decision"
+    (repo / "recovery.yaml").write_text(yaml.safe_dump(recovery))
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "Change source intent"], check=True
+    )
+    with pytest.raises(ValueError, match="DECLARATION_IDENTITY_CHANGED"):
+        engine.apply()

@@ -247,6 +247,174 @@ def _continuation_assets(destination: Path, selected: Path, *, resume: bool) -> 
             _copy_tree(source, destination / "continuation" / "run_assets" / name)
 
 
+def verify_portable_corpus_binding(
+    config: RunConfig, assets: Path
+) -> dict[str, object]:
+    """Authenticate relocated corpus/tokenizer evidence without source locations."""
+    evidence = strict_json(assets / "corpus" / "binding.json")
+    manifest = strict_json(assets / "tokenizer_manifest.json")
+    if (
+        not isinstance(evidence, dict)
+        or set(evidence)
+        != {
+            "format",
+            "dataset_sha256",
+            "tokenizer_sha256",
+            "tokenizer_manifest_sha256",
+            "corpus_export",
+            "tokenizer_export",
+            "files",
+        }
+        or evidence["format"] != "sparselab-portable-corpus-binding-v1"
+    ):
+        raise ValueError("invalid portable corpus binding")
+    if evidence["dataset_sha256"] != config_sha256(
+        config.dataset.model_dump(mode="json")
+    ):
+        raise ValueError("portable corpus dataset differs from requested configuration")
+    if (
+        evidence["tokenizer_sha256"] != sha256_file(assets / "tokenizer.json")
+        or evidence["tokenizer_manifest_sha256"]
+        != sha256_file(assets / "tokenizer_manifest.json")
+        or manifest.get("sha256") != evidence["tokenizer_sha256"]
+        or manifest.get("vocab_size") != config.model.vocab_size
+        or manifest.get("corpus_export") != evidence["tokenizer_export"]
+        or manifest.get("training_contract", {}).get("corpus_export")
+        != evidence["tokenizer_export"]
+    ):
+        raise ValueError("portable tokenizer corpus identity mismatch")
+    expected = {
+        "manifest.json",
+        "report.json",
+        "license-report.json",
+        "audit.json",
+        "export.json",
+    }
+    files = evidence["files"]
+    if not isinstance(files, dict) or set(files) != expected:
+        raise ValueError("portable corpus evidence inventory is incomplete")
+    for name, digest in files.items():
+        if (
+            not isinstance(digest, str)
+            or sha256_file(assets / "corpus" / name) != digest
+        ):
+            raise ValueError(f"portable corpus evidence changed: {name}")
+    export = strict_json(assets / "corpus" / "export.json")
+    release = strict_json(assets / "corpus" / "manifest.json")
+    binding = evidence["corpus_export"]
+    view = "lm" if config.dataset.source == "local_text" else "chat"
+    splits = export.get("splits")
+    release_files = release.get("files")
+    if (
+        not isinstance(splits, dict)
+        or not isinstance(release_files, dict)
+        or not isinstance(binding, dict)
+        or release.get("release_id")
+        != hashlib.sha256(
+            canonical_json(
+                {key: value for key, value in release.items() if key != "release_id"}
+            )
+        ).hexdigest()
+        or export.get("release_id") != release.get("release_id")
+        or export.get("release_id") != config.dataset.revision
+        or export.get("view") != view
+        or export.get("vocab_size") != config.model.vocab_size
+        or export.get("release_manifest_sha256") != files["manifest.json"]
+        or export.get("report_sha256") != files["report.json"]
+        or export.get("license_report_sha256") != files["license-report.json"]
+        or any(
+            not isinstance(release_files.get(name), dict)
+            or release_files[name].get("sha256") != files[name]
+            for name in ("report.json", "license-report.json", "audit.json")
+        )
+        or any(
+            not isinstance(splits.get(split), dict)
+            or splits[split].get("path") != f"{view}/{split}.jsonl"
+            or splits[split].get("sha256") != binding.get(f"{split}_sha256")
+            for split in ("train", "validation")
+        )
+    ):
+        raise ValueError("portable corpus release/export inner identity mismatch")
+    tokenizer_binding = evidence["tokenizer_export"]
+    if (
+        not isinstance(tokenizer_binding, dict)
+        or tokenizer_binding.get("release_id") != manifest.get("revision")
+        or tokenizer_binding.get("vocab_size") != config.model.vocab_size
+    ):
+        raise ValueError("portable tokenizer origin export identity mismatch")
+    if (
+        not isinstance(binding, dict)
+        or binding.get("export_sha256") != files["export.json"]
+        or binding.get("release_id") != config.dataset.revision
+        or binding.get("report_sha256") != files["report.json"]
+        or binding.get("license_report_sha256") != files["license-report.json"]
+        or binding.get("vocab_size") != config.model.vocab_size
+    ):
+        raise ValueError("portable corpus export evidence mismatch")
+    return evidence
+
+
+def _copy_portable_corpus(config: RunConfig, assets: Path) -> None:
+    from sparselab.corpus.export import verify_release_export
+    from sparselab.experiments.artifacts import verify_artifact
+    from sparselab.experiments.plan import Artifact
+
+    binding = verify_release_export(config.dataset)
+    tokenizer = config.tokenizer.path
+    verify_artifact(
+        Artifact(
+            kind="tokenizer",
+            version=1,
+            producer="sparselab",
+            identifier=tokenizer.parent.name,
+            sha256=sha256_file(tokenizer),
+            path=str(tokenizer),
+        ),
+        tokenizer.parent.parent / "run.yaml",
+    )
+    manifest = strict_json(tokenizer.with_name("tokenizer_manifest.json"))
+    if (
+        manifest.get("vocab_size") != config.model.vocab_size
+        or load_tokenizer(tokenizer).get_vocab_size() != config.model.vocab_size
+    ):
+        raise ValueError("selected tokenizer vocabulary differs from model")
+    corpus = assets / "corpus"
+    corpus.mkdir()
+    release = config.dataset.corpus_release_path
+    export = config.dataset.corpus_export_path
+    assert release is not None and export is not None
+    sources = {
+        name: release / name
+        for name in (
+            "manifest.json",
+            "report.json",
+            "license-report.json",
+            "audit.json",
+        )
+    }
+    sources["export.json"] = export / "export.json"
+    pinned = {name: sha256_file(source) for name, source in sources.items()}
+    for name, source in sources.items():
+        _copy_tree(source, corpus / name)
+    if pinned["export.json"] != binding["export_sha256"]:
+        raise ValueError("verified corpus export changed before portable copy")
+    evidence = {
+        "format": "sparselab-portable-corpus-binding-v1",
+        "dataset_sha256": config_sha256(config.dataset.model_dump(mode="json")),
+        "tokenizer_sha256": sha256_file(tokenizer),
+        "tokenizer_manifest_sha256": sha256_file(
+            tokenizer.with_name("tokenizer_manifest.json")
+        ),
+        "corpus_export": binding,
+        "tokenizer_export": manifest["corpus_export"],
+        "files": {name: sha256_file(corpus / name) for name in sorted(sources)},
+    }
+    if evidence["files"] != pinned or verify_release_export(config.dataset) != binding:
+        raise ValueError("corpus evidence changed during portable bundle publication")
+    (corpus / "binding.json").write_bytes(canonical_json(evidence) + b"\n")
+    verify_portable_corpus_binding(config, assets)
+
+
 def prepare_dispatch_bundle(
     config: RunConfig,
     output: Path,
@@ -340,7 +508,26 @@ def prepare_dispatch_bundle(
                 prepared_config, prepared, prepared_inputs=stage_bundle
             )
             os.rename(prepared / "assets", work / "assets")
-            shutil.rmtree(prepared)
+        if config.dataset.corpus_release_path is not None:
+            assets = work / "assets"
+            if (assets / "corpus" / "binding.json").is_file():
+                verify_portable_corpus_binding(config, assets)
+            elif (
+                parent_details is not None
+                and (parent_details[0] / "corpus" / "binding.json").is_file()
+                and strict_json(parent_details[0] / "corpus" / "binding.json").get(
+                    "dataset_sha256"
+                )
+                == config_sha256(config.dataset.model_dump(mode="json"))
+            ):
+                if (assets / "corpus").exists():
+                    raise ValueError("parent corpus evidence lacks a portable binding")
+                _copy_tree(parent_details[0] / "corpus", assets / "corpus")
+                verify_portable_corpus_binding(config, assets)
+            else:
+                if (assets / "corpus").exists():
+                    raise ValueError("parent corpus evidence lacks a portable binding")
+                _copy_portable_corpus(config, assets)
         if parent_details is not None:
             run, _, parent, generation_manifest = parent_details
             parent_artifacts = {
@@ -519,6 +706,8 @@ def _verify_bundle_inputs(bundle_root: Path, config: RunConfig, manifest: Any) -
     tokenizer = load_tokenizer(assets / "tokenizer.json")
     if tokenizer.get_vocab_size() != config.model.vocab_size:
         raise ValueError("bundle tokenizer vocabulary does not match model")
+    if config.dataset.corpus_release_path is not None:
+        verify_portable_corpus_binding(config, assets)
     if not len(data.train) or not len(data.validation):
         raise ValueError("bundle prepared data is empty")
     if config.model.memory_package_path is not None:

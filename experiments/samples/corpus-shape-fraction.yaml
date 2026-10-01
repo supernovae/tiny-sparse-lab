@@ -1,24 +1,25 @@
 plan_version: 1
 id: corpus-shape-fraction-sample-v5
-base_run: ../../configs/runtime_smoke_cpu.yaml
+base_run: configs/runtime_smoke_cpu.yaml
+evaluation_suite: heldout-suite.yaml
 corpus_variants:
   - id: raw
-    project: ../../corpora/devmind-sample-v0/corpus.yaml
+    project: corpora/devmind-sample-v0/corpus.yaml
     vocab_size: 300
     view: chat
     release_set:
       include_shapes: [raw_document, troubleshooting_scenario]
   - id: shaped
-    project: ../../corpora/devmind-sample-v0/corpus.yaml
+    project: corpora/devmind-sample-v0/corpus.yaml
     vocab_size: 300
     view: chat
     release_set:
       include_shapes: [raw_document, troubleshooting_scenario, tool_trace]
   - id: full
-    project: ../../corpora/devmind-sample-v0/corpus.yaml
+    project: corpora/devmind-sample-v0/corpus.yaml
     vocab_size: 300
   - id: fractional
-    project: ../../corpora/devmind-sample-v0/corpus.yaml
+    project: corpora/devmind-sample-v0/corpus.yaml
     vocab_size: 300
     release_set:
       fraction:

@@ -1,0 +1,370 @@
+"""Real checkpoint-bound evaluation and immutable index behavior."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+
+import pytest
+from test_surface_review import cells
+from test_training import config
+
+from sparselab.campaign.state import publish_immutable
+from sparselab.evaluation.capabilities import describe_capability_card
+from sparselab.evaluation.suite import (
+    EvaluationSuite,
+    run_suite,
+    verify_evaluation_index,
+)
+from sparselab.evaluation.surface_review import (
+    complete_surface_review,
+    create_surface_bundle,
+    open_surface_bundle,
+    record_surface_judgment,
+    reveal_surface_review,
+)
+from sparselab.training.manifest import canonical_json
+from sparselab.training.trainer import train
+
+
+@pytest.fixture(scope="module")
+def evaluated_run(tmp_path_factory):
+    root = tmp_path_factory.mktemp("evaluation-suite")
+    base = config(root)
+    small = base.model_copy(
+        update={
+            "training": base.training.model_copy(update={"max_steps": 2}),
+            "optimizer": base.optimizer.model_copy(update={"warmup_steps": 0}),
+        }
+    )
+    train(small, run_id="suite-run")
+    source = root / "suite.json"
+    source.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "tiny",
+                "evaluations": [
+                    {"id": "loss", "role": "gate", "kind": "heldout_lm"},
+                    {
+                        "id": "surface",
+                        "role": "blinded_surface",
+                        "kind": "surface_review",
+                        "source": "surface.json",
+                    },
+                    {
+                        "id": "external",
+                        "role": "descriptive",
+                        "kind": "evidence_reference",
+                        "source": "external.json",
+                    },
+                ],
+            }
+        )
+    )
+    return source, small.logging.root_dir
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"evaluations": [{"id": "loss", "role": "gate", "kind": "heldout_lm"}] * 2},
+        {
+            "evaluations": [
+                {
+                    "id": "x",
+                    "role": "gate",
+                    "kind": "evidence_reference",
+                    "source": "x.json",
+                }
+            ]
+        },
+        {"evaluations": [{"id": "x", "role": "blinded_surface", "kind": "heldout_lm"}]},
+        {
+            "evaluations": [
+                {
+                    "id": "x",
+                    "role": "diagnostic",
+                    "kind": "capability_card",
+                    "source": "../escape",
+                }
+            ]
+        },
+        {
+            "evaluations": [
+                {"id": "x", "role": "gate", "kind": "heldout_lm", "unexpected": True}
+            ]
+        },
+    ],
+)
+def test_invalid_suite(change):
+    with pytest.raises(ValueError):
+        EvaluationSuite.model_validate(
+            {"evaluation_suite_version": 1, "id": "tiny", **change}
+        )
+
+
+def test_evaluation_index_verifies_generation_and_excludes_untrusted_evidence(
+    evaluated_run,
+):
+    source, runs = evaluated_run
+    run = runs / "suite-run"
+    generation = min((run / "checkpoints").glob("step_*")).name
+    index_path = run_suite(source, "suite-run", generation, runs, backend="cpu")
+    result = verify_evaluation_index(index_path)
+    assert [item["status"] for item in result["evaluations"]] == [
+        "COMPLETED",
+        "SKIPPED_REVIEW",
+        "UNAVAILABLE",
+    ]
+    assert result["checkpoint"] == f"checkpoints/{generation}"
+    assert result["evaluations"][0]["result"]["loss"] >= 0
+    timestamp = result["created_at_utc"]
+    assert run_suite(source, "suite-run", generation, runs, backend="cpu") == index_path
+    assert verify_evaluation_index(index_path)["created_at_utc"] == timestamp
+    pointer = run / "checkpoints" / "latest.json"
+    old = pointer.read_bytes()
+    try:
+        pointer.write_text(
+            json.dumps(
+                {
+                    "relative_path": generation,
+                    "manifest_sha256": result["checkpoint_sha256"],
+                }
+            )
+        )
+        assert (
+            verify_evaluation_index(index_path)["checkpoint_sha256"]
+            == result["checkpoint_sha256"]
+        )
+    finally:
+        pointer.write_bytes(old)
+
+
+def test_missing_or_moved_result_fails_verification(evaluated_run, tmp_path):
+    source, runs = evaluated_run
+    generation = min((runs / "suite-run/checkpoints").glob("step_*")).name
+    index_path = run_suite(source, "suite-run", generation, runs, backend="cpu")
+    result = verify_evaluation_index(index_path)
+    path = result["evaluations"][0]["path"]
+    moved = tmp_path / "lost.json"
+    shutil.move(path, moved)
+    try:
+        with pytest.raises(ValueError, match="missing or changed"):
+            verify_evaluation_index(index_path)
+    finally:
+        shutil.move(moved, path)
+
+
+def test_capability_card_results_reopen_and_detect_changed_card(
+    evaluated_run, tmp_path
+):
+    _, runs = evaluated_run
+    card = describe_capability_card("chat-alias-recall-v1")
+    card["cases"] = [{**card["cases"][0], "prompt": "hello", "expected": "hello"}]
+    card["generation"]["max_new_tokens"] = 1
+    card["digest"] = hashlib.sha256(
+        canonical_json(
+            {
+                key: value
+                for key, value in card.items()
+                if key not in {"digest", "format"}
+            }
+        )
+    ).hexdigest()
+    card_file = tmp_path / "card.json"
+    card_file.write_text(json.dumps(card))
+    source = tmp_path / "capability-suite.json"
+    source.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "capability",
+                "evaluations": [
+                    {
+                        "id": "card",
+                        "role": "gate",
+                        "kind": "capability_card",
+                        "source": "card.json",
+                    }
+                ],
+            }
+        )
+    )
+    generation = min((runs / "suite-run/checkpoints").glob("step_*")).name
+    index = run_suite(source, "suite-run", generation, runs, backend="cpu")
+    assert verify_evaluation_index(index)["evaluations"][0]["status"] == "COMPLETED"
+    old = card_file.read_bytes()
+    try:
+        card_file.write_text(old.decode().replace("hello", "changed"))
+        with pytest.raises(ValueError, match="evaluation source changed"):
+            verify_evaluation_index(index)
+    finally:
+        card_file.write_bytes(old)
+
+
+def test_unavailable_backend_retains_verified_generation(evaluated_run):
+    source, runs = evaluated_run
+    generation = min((runs / "suite-run/checkpoints").glob("step_*")).name
+    index = run_suite(source, "suite-run", generation, runs, backend="missing-backend")
+    rows = verify_evaluation_index(index)["evaluations"]
+    assert rows[0]["status"] == "UNAVAILABLE"
+    assert rows[1]["status"] == "SKIPPED_REVIEW"
+    pointer = run_suite(
+        source, "suite-run", "latest.json", runs, backend="missing-backend"
+    )
+    selected = verify_evaluation_index(pointer)
+    assert selected["evaluations"][0]["status"] == "UNAVAILABLE"
+
+
+def test_authenticated_reference_reopens_underlying_evaluation(evaluated_run, tmp_path):
+    source, runs = evaluated_run
+    generation = min((runs / "suite-run/checkpoints").glob("step_*")).name
+    original = run_suite(source, "suite-run", generation, runs, backend="cpu")
+    verified = verify_evaluation_index(original)
+    reference = tmp_path / "reference.json"
+    publish_immutable(
+        reference,
+        {
+            "format": "scientific-evidence-reference-v1",
+            "kind": "evaluation_index",
+            "sha256": verified["index_sha256"],
+            "external_location": str(original),
+        },
+    )
+    derived_suite = tmp_path / "referencing-suite.json"
+    derived_suite.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "reference",
+                "evaluations": [
+                    {
+                        "id": "evidence",
+                        "role": "descriptive",
+                        "kind": "evidence_reference",
+                        "source": "reference.json",
+                    }
+                ],
+            }
+        )
+    )
+    index = run_suite(derived_suite, "suite-run", generation, runs, backend="cpu")
+    assert verify_evaluation_index(index)["evaluations"][0]["status"] == "COMPLETED"
+    before = reference.read_bytes()
+    try:
+        reference.write_bytes(before.replace(b"evaluation_index", b"tokenizer"))
+        with pytest.raises(ValueError, match="evaluation source changed"):
+            verify_evaluation_index(index)
+    finally:
+        reference.write_bytes(before)
+
+
+def test_sealed_single_reviewer_surface_is_verified_not_automated(
+    evaluated_run, tmp_path
+):
+    source, runs = evaluated_run
+    generation = min((runs / "suite-run/checkpoints").glob("step_*")).name
+    selected = verify_evaluation_index(
+        run_suite(source, "suite-run", generation, runs, backend="cpu")
+    )
+    bundle = tmp_path / "sealed"
+    create_surface_bundle(
+        cells(1),
+        profile="full",
+        selection_seed=23,
+        presentation_seed=42,
+        output_dir=bundle,
+        source_artifacts=[{"checkpoint_sha256": selected["checkpoint_sha256"]}],
+    )
+    case = open_surface_bundle(bundle)["blind"]["cases"][0]
+    record_surface_judgment(
+        bundle,
+        case["blind_case_id"],
+        {dimension: "A" for dimension in case["dimensions"]},
+        [],
+        "2026-09-28T12:00:00Z",
+    )
+    complete_surface_review(bundle)
+    reveal_surface_review(bundle)
+    derived_suite = tmp_path / "review-suite.json"
+    derived_suite.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "review",
+                "evaluations": [
+                    {
+                        "id": "human",
+                        "role": "blinded_surface",
+                        "kind": "surface_review",
+                        "source": "sealed",
+                    }
+                ],
+            }
+        )
+    )
+    index = run_suite(derived_suite, "suite-run", generation, runs, backend="cpu")
+    assert verify_evaluation_index(index)["evaluations"][0]["status"] == "COMPLETED"
+    wrong = max((runs / "suite-run/checkpoints").glob("step_*")).name
+    if wrong != generation:
+        with pytest.raises(ValueError, match="checkpoint binding"):
+            run_suite(derived_suite, "suite-run", wrong, runs, backend="cpu")
+
+
+@pytest.mark.parametrize("completed_review", [False, True])
+def test_pending_surface_review_preserves_completed_numeric_gate(
+    evaluated_run, tmp_path, completed_review
+):
+    _, runs = evaluated_run
+    generation = min((runs / "suite-run/checkpoints").glob("step_*"))
+    checkpoint_sha = json.loads((generation / "manifest.json").read_text())["sha256"]
+    bundle = tmp_path / "pending"
+    create_surface_bundle(
+        cells(1),
+        profile="full",
+        selection_seed=23,
+        presentation_seed=42,
+        output_dir=bundle,
+        source_artifacts=[{"checkpoint_sha256": checkpoint_sha}],
+    )
+    if completed_review:
+        case = open_surface_bundle(bundle)["blind"]["cases"][0]
+        record_surface_judgment(
+            bundle,
+            case["blind_case_id"],
+            {dimension: "A" for dimension in case["dimensions"]},
+            [],
+            "2026-09-28T12:00:00Z",
+        )
+        complete_surface_review(bundle)
+    source = tmp_path / "suite.json"
+    source.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "pending",
+                "evaluations": [
+                    {"id": "loss", "role": "gate", "kind": "heldout_lm"},
+                    {
+                        "id": "review",
+                        "role": "blinded_surface",
+                        "kind": "surface_review",
+                        "source": "pending",
+                    },
+                ],
+            }
+        )
+    )
+    index = verify_evaluation_index(
+        run_suite(source, "suite-run", generation.name, runs, backend="cpu")
+    )
+    assert [row["status"] for row in index["evaluations"]] == [
+        "COMPLETED",
+        "SKIPPED_REVIEW",
+    ]
+    if completed_review:
+        (bundle / "review.json").write_text("{}")
+        with pytest.raises(ValueError):
+            run_suite(source, "suite-run", generation.name, runs, backend="cpu")

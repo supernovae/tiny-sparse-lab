@@ -1686,6 +1686,18 @@
       "title": "Corpus Variants",
       "type": "array"
     },
+    "evaluation_suite": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evaluation Suite"
+    },
     "evaluations": {
       "default": [],
       "items": {

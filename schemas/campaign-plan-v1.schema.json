@@ -382,13 +382,18 @@
           "const": "evaluation",
           "title": "Scope",
           "type": "string"
+        },
+        "suite": {
+          "title": "Suite",
+          "type": "string"
         }
       },
       "required": [
         "id",
         "scope",
         "kind",
-        "collect"
+        "collect",
+        "suite"
       ],
       "title": "Evaluation",
       "type": "object"
@@ -584,18 +589,9 @@
           "title": "Kind",
           "type": "string"
         },
-        "max_heldout_loss": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Max Heldout Loss"
+        "policy": {
+          "title": "Policy",
+          "type": "string"
         },
         "requires": {
           "default": [],
@@ -604,6 +600,18 @@
           },
           "title": "Requires",
           "type": "array"
+        },
+        "review": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review"
         },
         "scope": {
           "const": "model",
@@ -615,7 +623,8 @@
         "id",
         "scope",
         "kind",
-        "evaluation"
+        "evaluation",
+        "policy"
       ],
       "title": "ModelReadiness",
       "type": "object"
@@ -792,6 +801,18 @@
     "id": {
       "title": "Id",
       "type": "string"
+    },
+    "recovery": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recovery"
     },
     "stages": {
       "items": {

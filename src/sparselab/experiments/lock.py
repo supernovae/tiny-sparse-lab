@@ -92,6 +92,7 @@ class ResolvedExperimentPlan(StrictModel):
     comparisons: tuple[ResolvedComparison, ...]
     phases: tuple[ResolvedPhase, ...]
     evaluations: tuple[dict[str, Any], ...]
+    evaluation_suite: dict[str, str] | None = None
     execution: dict[str, Any]
     retention: dict[str, Any]
     scientific_sha256: str
@@ -303,10 +304,9 @@ def _variant_identity(
     )
     from sparselab.data.tokenizer import load_tokenizer
     from sparselab.experiments.prepare import verified_reuse_tokenizer
+    from sparselab.recovery.provenance import declaration_reference
 
-    project_path = Path(declaration.project)
-    if not project_path.is_absolute():
-        project_path = source.parent / project_path
+    project_path = declaration_reference(source, declaration.project)
     project = load_project(project_path)
     expected_release = ReleaseDeclaration.model_validate(
         {
@@ -591,6 +591,15 @@ def resolve_plan(
         "variants": {},
         "cell_paths": {},
         "workspace": plan.execution.workspace,
+        "declaration_source": str(source),
+        "declaration_hashes": {},
+    }
+    from sparselab.recovery.provenance import declaration_paths, repository_root
+
+    declaration_root = repository_root(source) or source.parent
+    availability["declaration_hashes"] = {
+        path.relative_to(declaration_root).as_posix(): sha256_file(path)
+        for path in declaration_paths(source, "experiment")
     }
     for name, artifact in plan.artifacts.items():
         if artifact.from_phase is not None:
@@ -931,6 +940,15 @@ def resolve_plan(
             raise ValueError(
                 f"evaluation {evaluation.id} requires a verified checkpoint"
             )
+    suite_identity = None
+    if plan.evaluation_suite:
+        from sparselab.evaluation.suite import load_suite
+        from sparselab.recovery.provenance import declaration_reference
+
+        suite_path = declaration_reference(source, plan.evaluation_suite)
+        suite = load_suite(suite_path)
+        suite_identity = {"id": suite.id, "sha256": sha256_file(suite_path)}
+        availability["evaluation_suite"] = str(suite_path)
     data = {
         "lock_version": 1,
         "id": plan.id,
@@ -941,6 +959,7 @@ def resolve_plan(
         "comparisons": tuple(comparisons),
         "phases": phases,
         "evaluations": tuple(item.model_dump(mode="json") for item in plan.evaluations),
+        "evaluation_suite": suite_identity,
         "execution": {**plan.execution.model_dump(mode="json"), "workspace": None},
         "retention": plan.retention.model_dump(mode="json"),
         "availability": availability,
@@ -1047,6 +1066,14 @@ def open_lock(path: Path) -> ResolvedExperimentPlan:
     package = source_identity()
     if canonical_json(lock.source_identity) != canonical_json(package):
         raise ValueError("experiment lock source implementation identity changed")
+    if lock.evaluation_suite is not None:
+        suite_path = Path(availability["evaluation_suite"])
+        if sha256_file(suite_path) != lock.evaluation_suite["sha256"]:
+            raise ValueError("experiment evaluation suite identity changed")
+        from sparselab.evaluation.suite import load_suite
+
+        if load_suite(suite_path).id != lock.evaluation_suite["id"]:
+            raise ValueError("experiment evaluation suite ID changed")
     for name, identity in lock.artifacts.items():
         if identity.get("from_phase") is not None:
             if identity["from_phase"] not in {phase.id for phase in lock.phases}:

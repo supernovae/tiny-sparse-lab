@@ -81,9 +81,9 @@ def prepare_variant(
     )
     if not base_run_path.is_file():
         raise ValueError(f"corpus variant {variant.id} needs a file-backed base_run")
-    project_path = Path(variant.project)
-    if not project_path.is_absolute():
-        project_path = source.parent / project_path
+    from sparselab.recovery.provenance import declaration_reference
+
+    project_path = declaration_reference(source, variant.project)
     project = load_project(project_path)
     values = project.release.model_dump(mode="python")
     values.update(variant.release_set)
@@ -193,18 +193,19 @@ def prepare_plan(
             workspace=workspace,
             rss_bytes=current_process_rss_bytes(),
         )
-    ensure_work_dir(workspace)
     from sparselab.experiments.plan import base_run_config
 
     base = base_run_config(plan, source)
     require_storage(training_storage_checks(base))
+    ensure_work_dir()
+    workspace.mkdir(parents=True, exist_ok=True)
     if not isinstance(plan.base_run, str):
         if plan.corpus_variants:
             raise ValueError("corpus variants need a file-backed base_run")
         return {"format": "experiment-preparation-v1", "id": plan.id, "variants": []}
-    base_path = Path(plan.base_run)
-    if not base_path.is_absolute():
-        base_path = source.parent / base_path
+    from sparselab.recovery.provenance import declaration_reference
+
+    base_path = declaration_reference(source, plan.base_run)
     records = [
         prepare_variant(
             variant,

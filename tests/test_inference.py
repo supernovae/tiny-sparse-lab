@@ -73,7 +73,6 @@ def test_selected_checkpoint_identity_is_not_latest(trained_run, tmp_path):
 
 
 def _chat_cli(monkeypatch, capsys, cwd, *options):
-    monkeypatch.delenv("SPARSELAB_WORK_DIR", raising=False)
     monkeypatch.chdir(cwd)
     monkeypatch.setattr(
         sys,
@@ -94,21 +93,22 @@ def _chat_cli(monkeypatch, capsys, cwd, *options):
     return json.loads(capsys.readouterr().out)
 
 
-def test_chat_finds_project_run_from_source_subdirectory(
+def test_chat_uses_selected_store_from_any_checkout_directory(
     trained_run, tmp_path, monkeypatch, capsys
 ):
-    (tmp_path / "pyproject.toml").write_text("")
-    source = tmp_path / "src"
-    source.mkdir()
-    shutil.copytree(
-        trained_run.logging.root_dir / "original",
-        tmp_path / "sparselab-work/runs/original",
-    )
+    checkout = tmp_path / "checkout"
+    source = checkout / "src"
+    source.mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text("")
+    store = tmp_path / "persistent-state"
+    shutil.copytree(trained_run.logging.root_dir / "original", store / "runs/original")
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(store))
 
-    from_root = _chat_cli(monkeypatch, capsys, tmp_path)
+    from_root = _chat_cli(monkeypatch, capsys, checkout)
     from_source = _chat_cli(monkeypatch, capsys, source)
-
+    pointer = json.loads((store / "runs/original/checkpoints/latest.json").read_text())
     assert from_source == from_root
+    assert from_root["identity"]["checkpoint_sha256"] == pointer["manifest_sha256"]
 
 
 def test_chat_explicit_run_directory_remains_cwd_relative(

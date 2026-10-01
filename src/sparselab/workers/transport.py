@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from sparselab.training.manifest import canonical_json
-from sparselab.workdir import ensure_work_dir
+from sparselab.workdir import ensure_scratch_dir, ensure_work_dir
 from sparselab.workers.models import (
     PROTOCOL_VERSION,
     REQUEST_OPERATIONS,
@@ -414,7 +414,9 @@ def call_worker(
         raise ValueError("attachment responses require an explicit receive_dir")
     owns_receive_dir = receive_dir is None
     receive_dir = (
-        Path(tempfile.mkdtemp(prefix="sparselab-worker-reply-", dir=ensure_work_dir()))
+        Path(
+            tempfile.mkdtemp(prefix="sparselab-worker-reply-", dir=ensure_scratch_dir())
+        )
         if receive_dir is None
         else Path(receive_dir)
     )

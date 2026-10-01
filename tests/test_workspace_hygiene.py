@@ -16,6 +16,8 @@ def test_reference_exercise_defaults_inside_selected_experiment(
     from sparselab.evaluation import reference_exercise
 
     work = tmp_path / "sparselab-work" / "experiments" / "dense-lm-v1"
+    persistent_root = tmp_path / "persistent-state"
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(persistent_root))
     observation = {"identity": "fixed", "historical_location": "runs-old/parent"}
     monkeypatch.setattr(
         reference_exercise, "exercise_checkpoint", lambda *a, **kw: observation
@@ -41,6 +43,9 @@ def test_reference_exercise_defaults_inside_selected_experiment(
     args.handler(args)
     assert explicit.read_bytes() == outputs[0].read_bytes()
     assert not list(tmp_path.glob("runs*"))
+    # Explicit run and output destinations must not be reinterpreted as paths
+    # under the selected persistent root.
+    assert not persistent_root.exists()
 
 
 def test_workspace_is_git_ignored() -> None:

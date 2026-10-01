@@ -220,18 +220,46 @@ def _copy_artifacts(
             source_run / "tokenizer_manifest.json", run / "tokenizer_manifest.json"
         )
     if config.dataset.corpus_release_path is not None:
-        binding = verify_release_export(config.dataset)
+        portable = (
+            source_run / "corpus" / "binding.json" if source_run is not None else None
+        )
         corpus_dir = run / "corpus"
         corpus_dir.mkdir()
-        evidence = ("manifest.json", "report.json", "license-report.json", "audit.json")
-        for name in evidence:
-            shutil.copy2(config.dataset.corpus_release_path / name, corpus_dir / name)
-        shutil.copy2(
-            config.dataset.corpus_export_path / "export.json",
-            corpus_dir / "export.json",
-        )
-        if sha256_file(corpus_dir / "export.json") != binding["export_sha256"]:
-            raise ValueError("corpus export changed while copying run evidence")
+        if portable is not None and portable.is_file():
+            from sparselab.workers.bundles import verify_portable_corpus_binding
+
+            verify_portable_corpus_binding(config, source_run)
+            for name in (
+                "manifest.json",
+                "report.json",
+                "license-report.json",
+                "audit.json",
+                "export.json",
+                "binding.json",
+            ):
+                shutil.copy2(source_run / "corpus" / name, corpus_dir / name)
+            verify_portable_corpus_binding(
+                config,
+                run if (run / "tokenizer_manifest.json").is_file() else source_run,
+            )
+        else:
+            binding = verify_release_export(config.dataset)
+            evidence = (
+                "manifest.json",
+                "report.json",
+                "license-report.json",
+                "audit.json",
+            )
+            for name in evidence:
+                shutil.copy2(
+                    config.dataset.corpus_release_path / name, corpus_dir / name
+                )
+            shutil.copy2(
+                config.dataset.corpus_export_path / "export.json",
+                corpus_dir / "export.json",
+            )
+            if sha256_file(corpus_dir / "export.json") != binding["export_sha256"]:
+                raise ValueError("corpus export changed while copying run evidence")
     shutil.copytree(data.root, run / "data")
     mask_required = supervision_requires_mask(data.manifest)
     for split in ("train", "validation"):
@@ -561,43 +589,53 @@ def _train_impl(
         raise ValueError("max_wall_seconds must be positive and finite")
     deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
     if config.dataset.corpus_release_path is not None:
-        from sparselab.config.loading import load_config
+        portable = stage_bundle / "assets" if stage_bundle is not None else None
+        if portable is not None and (portable / "corpus" / "binding.json").is_file():
+            from sparselab.workers.bundles import verify_portable_corpus_binding
 
-        export_path = config.dataset.corpus_export_path
-        if export_path is None:
-            raise ValueError("corpus release requires a verified export")
-        exported_tokenizer = load_config(export_path / "run.yaml").tokenizer.path
-        if config.tokenizer.path == exported_tokenizer:
-            verify_tokenizer_artifact(
-                config.tokenizer.path,
-                source=config.dataset.source,
-                revision=config.dataset.revision,
-                vocab_size=config.model.vocab_size,
-                dataset=config.dataset,
-            )
-        else:
-            from sparselab.experiments.artifacts import verify_artifact
-            from sparselab.experiments.plan import Artifact
-
-            tokenizer_path = config.tokenizer.path
-            verify_artifact(
-                Artifact(
-                    kind="tokenizer",
-                    version=1,
-                    producer="sparselab",
-                    identifier=tokenizer_path.parent.name,
-                    sha256=sha256_file(tokenizer_path),
-                    path=str(tokenizer_path),
-                ),
-                export_path / "run.yaml",
-            )
-            if (
-                load_tokenizer(tokenizer_path).get_vocab_size()
-                != config.model.vocab_size
-            ):
+            binding = verify_portable_corpus_binding(config, portable)
+            if sha256_file(config.tokenizer.path) != binding["tokenizer_sha256"]:
                 raise ValueError(
-                    "verified external tokenizer vocabulary differs from model"
+                    "executed tokenizer differs from portable corpus binding"
                 )
+        else:
+            from sparselab.config.loading import load_config
+
+            export_path = config.dataset.corpus_export_path
+            if export_path is None:
+                raise ValueError("corpus release requires a verified export")
+            exported_tokenizer = load_config(export_path / "run.yaml").tokenizer.path
+            if config.tokenizer.path == exported_tokenizer:
+                verify_tokenizer_artifact(
+                    config.tokenizer.path,
+                    source=config.dataset.source,
+                    revision=config.dataset.revision,
+                    vocab_size=config.model.vocab_size,
+                    dataset=config.dataset,
+                )
+            else:
+                from sparselab.experiments.artifacts import verify_artifact
+                from sparselab.experiments.plan import Artifact
+
+                tokenizer_path = config.tokenizer.path
+                verify_artifact(
+                    Artifact(
+                        kind="tokenizer",
+                        version=1,
+                        producer="sparselab",
+                        identifier=tokenizer_path.parent.name,
+                        sha256=sha256_file(tokenizer_path),
+                        path=str(tokenizer_path),
+                    ),
+                    export_path / "run.yaml",
+                )
+                if (
+                    load_tokenizer(tokenizer_path).get_vocab_size()
+                    != config.model.vocab_size
+                ):
+                    raise ValueError(
+                        "verified external tokenizer vocabulary differs from model"
+                    )
     operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):

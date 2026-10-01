@@ -37,6 +37,17 @@ def _emit(args: argparse.Namespace, payload: dict[str, Any]) -> None:
         for field in ("deficits", "outputs", "blocked_by", "bindings"):
             if stage.get(field):
                 print(f"  {field}: {json.dumps(stage[field], sort_keys=True)}")
+    for row in payload.get("recoverability", []):
+        print(
+            f"recoverability {row['id']} | {row['kind']} | "
+            f"{row['classification']} | {row.get('reason', '')}"
+        )
+    if "reconstruction" in payload:
+        for row in payload["reconstruction"].get("steps", []):
+            print(
+                f"reconstructed {row['id']} | {row['kind']} | "
+                f"{row['classification']} | {row.get('reason', '')}"
+            )
     if "next_action" in payload:
         print(f"next_action: {json.dumps(payload['next_action'], sort_keys=True)}")
 
@@ -73,10 +84,18 @@ def _handle(args: argparse.Namespace) -> None:
                     payload = engine.approve(
                         args.gate, decision=args.decision, note=args.note
                     )
+                elif args.campaign_command == "reconstruct":
+                    payload = engine.reconstruct(
+                        allow_network=args.allow_network,
+                        allow_uncommitted_declaration=args.allow_uncommitted_declaration,
+                        evidence_output=args.evidence_output,
+                    )
                 else:
                     payload = engine.apply(
                         resume=args.campaign_command == "resume",
                         max_wait_seconds=args.max_wait_seconds,
+                        execute_runs=args.execute_runs,
+                        allow_uncommitted_declaration=args.allow_uncommitted_declaration,
                     )
             if args.campaign_command == "explain":
                 declarations = {
@@ -148,6 +167,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "next",
         "apply",
         "resume",
+        "reconstruct",
         "explain",
         "approve",
     ):
@@ -156,6 +176,12 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command.add_argument("--json", action="store_true")
         if name in {"apply", "resume"}:
             command.add_argument("--max-wait-seconds", type=_wait_seconds, default=120)
+            command.add_argument("--execute-runs", action="store_true")
+        if name in {"apply", "resume", "reconstruct"}:
+            command.add_argument("--allow-uncommitted-declaration", action="store_true")
+        if name == "reconstruct":
+            command.add_argument("--allow-network", action="store_true")
+            command.add_argument("--evidence-output", type=Path)
         if name == "approve":
             command.add_argument("gate", metavar="GATE")
             command.add_argument(
