@@ -176,6 +176,58 @@ directory first; pytest owns and replaces its explicitly selected base directory
 The fixtures remove their dedicated environments after each test while retaining
 small source/artifact/receipt diagnostics.
 
+### Bounded ancestry replay and archived acquisition locks
+
+The opt-in Python replay API accepts a historical Git project, an explicit
+external corpus work root, a `build` or `release` phase, and a verified parent
+receipt with exact unchanged/changed snapshot maps. This emits version-2
+operational receipts; ordinary recovery reconstruction and version-1 receipts
+retain their original behavior. An ancestry request requires an exact build
+gate; a release phase additionally requires an exact release gate.
+
+Historical declarations are authenticated against their Git objects before
+dependency installation. Imported directories must preserve declaration bytes,
+snapshot identity, complete file inventory, manifest bytes and original adapter
+provenance from the recursively verified parent. The selected historical
+producer must accept every imported snapshot through its immutable reuse path
+before acquisition; source-scoped guards refuse inherited reacquisition. New
+snapshots retain the selected producer's acquisition hash. No manifest is
+re-stamped with a later producer hash.
+
+Acquisition success archives the **unaltered** lock bytes before build, including
+when a later gate fails. `verify_acquisition(project, work_root,
+lock_path=archived_lock)` applies the normal project, canonical snapshot path,
+file inventory and receipt checks without replacing the active lock.
+`verify_replay_receipt` authenticates archived locks, logs, source trees, parent
+links and artifacts. An intermediate build-only receipt remains verifiable
+after a later acquisition updates the same corpus workspace's active lock.
+Build-only success records a real build and `release: null`; it never freezes.
+
+The DevMind coordinator is deliberately task-scoped, **not** a declarative
+inheritance DSL. Its committed lineage fixes four historical producers and
+gates; each invocation attempts only the named next stage, re-verifies parents,
+and preserves the first failure without automatic retry:
+
+```sh
+export SPARSELAB_WORK_DIR=/srv/sparselab/state
+TASK="$SPARSELAB_WORK_DIR/experiments/devmind-model0-try2-ancestry"
+uv run --locked --extra cpu python \
+  experiments/research/devmind-pretrain-v4/replay_ancestry.py \
+  --state-root "$TASK" --through v2 --validate-only
+# After source-rights review, storage admission, tested code and an explicit
+# decision to acquire; monitor free bytes/inodes throughout Git cache growth:
+uv run --locked --extra cpu python \
+  experiments/research/devmind-pretrain-v4/replay_ancestry.py \
+  --state-root "$TASK" --through v2 --allow-network
+# Advance separately through v3, v4-intermediate and v4-final, only after MATCH.
+```
+
+The coordinator enforces pre-launch byte/inode reservations plus a 25% free
+floor; it does not itself monitor live storage growth. Execution must provide
+that monitoring. Typed declarative inheritance and a compact durable identity
+metadata closure remain separate code work in `TODO.md`; the operational
+coordinator does not close either item or prove historical release recovery.
+
 ### Future identity design boundary
 
 Historical schema-v1/v2/v3 semantics remain unchanged. A future separately
