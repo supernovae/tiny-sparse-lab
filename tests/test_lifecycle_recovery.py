@@ -74,6 +74,13 @@ def lost_state(tmp_path_factory: pytest.TempPathFactory):
     _git(repo, "config", "user.name", "Fixture Reviewer")
     _git(repo, "config", "user.email", "fixture@example.invalid")
     shutil.copytree(
+        Path(__file__).resolve().parents[1] / "src",
+        repo / "src",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copyfile(Path(__file__).resolve().parents[1] / name, repo / name)
+    shutil.copytree(
         Path(__file__).resolve().parents[1] / "examples/tiny-campaign", repo / "recipe"
     )
     splits = yaml.safe_load((repo / "recipe/splits.yaml").read_text())

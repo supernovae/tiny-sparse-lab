@@ -111,3 +111,77 @@ The first three commands must not create the root or scratch. `reconstruct` only
 Recoverable: committed local inputs and deterministic outputs with verified dependencies. Externally required: inaccessible pinned downloads, explicit tokenizer/model/runtime/evaluation decisions not yet authored, or unresolved redistribution rights. Nonreconstructable: a lost checkpoint generation and optimizer state unless a verified independent copy exists. A family parent checkpoint does not recreate a lost child or make unrun planned nodes complete. Restore such bytes from a verified portable archive if rights allow; otherwise retain their pinned missing identity, do **not** silently retrain under it. A deliberately relocated state root needs new location binding/manifest and re-verification of original referenced bytes—not editing old receipts or assuming paths moved. `scratch/` and optional `cache/` are disposable, never scientific evidence. Explicit old output/cache/run paths retain their original meaning, including legacy `sparselab-work/`; selecting an external root does not migrate them.
 
 The [DevMind v4 recovery declaration](../../experiments/research/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.
+
+## Explicit historical Corpus Forge implementation replay
+
+Legacy Corpus Forge identities include exact implementation-file hashes:
+acquisition snapshots bind `corpus/acquisition.py`; builds bind
+`corpus/pipeline.py`, `corpus/project.py`, and `corpus/provenance.py`, with
+`corpus/rights.py` for schema 2/3 and `corpus/large_build.py` for the large
+schema-3 LM path. Freeze carries those identities and verified file/stage
+inventories into the release. Export binds release, configuration and split
+bytes rather than adding its own implementation-file hash. Consequently,
+replaying acquisition alone is insufficient when historical build bytes differ.
+
+`recovery inspect` and `recovery plan` compare the locally available
+`RecoveryManifest.source_commit` implementation with the current implementation
+before acquisition. Their per-corpus `implementation` record is operational:
+it lists historical/current component hashes and affected stages. Matching
+implementation permits normal deterministic reconstruction; a difference reports
+`PINNED_IMPLEMENTATION_REPLAY_REQUIRED`, and unavailable historical implementation
+reports `MISSING_IMPLEMENTATION`. These read-only calls do not download sources,
+materialize a tree, create an environment, or create the selected state root.
+
+Review that inventory and source rights before explicitly authorizing replay:
+
+```sh
+export SPARSELAB_WORK_DIR=/data/sparselab
+uv run --locked --extra cpu sparselab recovery inspect recovery.yaml --json
+uv run --locked --extra cpu sparselab recovery plan recovery.yaml --json
+# Explicit code-execution authorization; --allow-network separately authorizes sources:
+uv run --locked --extra cpu sparselab recovery reconstruct recovery.yaml \
+  --replay-pinned-implementation --allow-network --json
+```
+
+Replay is execution of reviewed historical code, **not a sandbox for untrusted
+Git commits**. It exports exact Git object bytes outside the checkout, never a
+worktree or dirty working-tree copy. The source tree has a verified inventory
+and is read-only after publication where supported. Existing different bytes
+fail closed; they are not repaired in place. A dedicated uv-managed data/build
+environment is separate from both the checkout `.venv` and registered model
+runtimes. Its dependency lock, Python and uv identities are recorded.
+
+The subprocess imports the exported historical source: its producing functions'
+`__file__` paths point at historical bytes. It executes acquisition, build and
+freeze historically; the current interpreter independently verifies the
+resulting snapshots/build/release. No current producer receives substituted
+historical hashes. Operational receipts distinguish the current orchestrator,
+historical source tree/environment, and each artifact's recorded provenance.
+Existing partial current-code acquisition stays untouched. Historical products
+live under `$SPARSELAB_WORK_DIR/replay/work/<commit>/`; recovery can resolve the
+verified release there without rewriting earlier location receipts.
+
+An optional `expected_build_sha256` on a `corpus_release` recovery step adds a
+stop-before-freeze gate. `expected_release_sha256` remains the final immutable
+gate. Supply reviewed historical expectations; neither field is automatically
+updated from a differing result. Failures retain operational receipts and partial
+outputs. A successful corpus replay does not resolve other missing scientific
+decisions, authorize training, or establish model quality.
+
+Replay integration tests install real locked environments. Use adequately sized
+external scratch rather than a small `/tmp` tmpfs, for example
+`TMPDIR="$SPARSELAB_WORK_DIR/scratch/replay-tests/tmp"` with pytest's
+`--basetemp="$SPARSELAB_WORK_DIR/scratch/replay-tests/pytest"`. Create the temporary
+directory first; pytest owns and replaces its explicitly selected base directory.
+The fixtures remove their dedicated environments after each test while retaining
+small source/artifact/receipt diagnostics.
+
+### Future identity design boundary
+
+Historical schema-v1/v2/v3 semantics remain unchanged. A future separately
+versioned Corpus Forge identity should use deliberately reviewed semantic
+algorithm/version IDs in artifact identity, retaining exact commit/file hashes
+as implementation provenance. Algorithm changes require explicit versions and
+deterministic regressions. Python AST equality is incident evidence only, not
+a semantic identity algorithm. This replay mechanism does not migrate old
+artifacts or introduce a new corpus identity schema.

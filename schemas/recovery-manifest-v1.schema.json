@@ -102,6 +102,18 @@
     "CorpusRelease": {
       "additionalProperties": false,
       "properties": {
+        "expected_build_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Build Sha256"
+        },
         "expected_release_sha256": {
           "anyOf": [
             {
