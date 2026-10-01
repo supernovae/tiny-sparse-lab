@@ -47,24 +47,27 @@ then check the training lifecycle with this offline fixture before downloading d
 git clone https://github.com/supernovae/tiny-sparse-lab.git
 cd tiny-sparse-lab
 uv sync --locked --dev
+export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml --json
 uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml \
-  --through warmup --output sparselab-work/first-run/stage
+  --through warmup --output "$SPARSELAB_WORK_DIR/first-run/stage"
 uv run --locked sparselab train configs/runtime_smoke_cpu.yaml \
-  --runs-dir sparselab-work/first-run/runs --run-id first-run \
-  --stage-bundle sparselab-work/first-run/stage
-uv run --locked sparselab eval first-run --runs-dir sparselab-work/first-run/runs
-uv run --locked sparselab dashboard --runs-dir sparselab-work/first-run/runs
+  --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs" --run-id first-run \
+  --stage-bundle "$SPARSELAB_WORK_DIR/first-run/stage"
+uv run --locked sparselab eval first-run --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
+uv run --locked sparselab dashboard --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
 ```
 
 This tiny synthetic run checks that the lab works. For real story data, follow
 the **[TinyStories microlab](docs/tinystories-microlab.md)**: a ~590K-parameter
 starter, a two-cell YAML comparison, generation, and a continued training run.
-Choose your backend explicitly and keep outputs in a named `sparselab-work/`
-workspace. Use fresh run IDs and stage directories when repeating an experiment.
-Inspect the config and check free storage before scaling; a memory estimate
-still needs a measured warmup.
+Choose your backend explicitly and keep expensive outputs on an adequately sized
+external filesystem (`SPARSELAB_WORK_DIR=/data/sparselab` is recommended for
+substantial campaigns). Example configurations with explicit output/cache locations
+retain those destinations even when the global root changes. Use fresh run IDs and
+stage directories when repeating an experiment; check free storage and runtime
+warmup measurements before scaling.
 
 **Already have a provisioned ROCm/CUDA/XPU environment?** Use
 `uv run --locked --no-sync …` throughout. The Linux source lock uses CPU PyTorch;
@@ -106,6 +109,15 @@ input-bound approvals, and recoverable local CPU execution above those plans.
 Try the [tiny corpus/readiness/approval example](examples/tiny-campaign.yaml) in
 an isolated workspace; its outcomes are declared-policy results, not model quality.
 
+For durable declaration-to-artifact-to-checkpoint work, use a normal branch in
+the same checkout: `git switch main; git pull --ff-only; git switch -c feat/<task>`.
+Commit authored inputs before acquisition, tokenizer fit, preparation or training;
+there is no automatic worktree, commit, push or relocation of legacy
+`sparselab-work/`. The [lifecycle and recovery protocol](docs/research/lifecycle-recovery.md)
+explains how a shared external persistent root, compact SHA evidence, read-only
+recovery, declared evaluations, human readiness review and rights-aware archives
+fit together. Branch names and checkout paths are not scientific identity.
+
 ## Bring your machine
 
 | Platform / backend | Status today |
@@ -124,7 +136,7 @@ for setup, precision, feature boundaries, and acceptance evidence.
 ## Explore the lab
 
 - **Learn:** [From flashcards to a local assistant](docs/from-toy-to-useful.md) · [Architecture](docs/architecture.md) · [Memory and fit](docs/memory.md)
-- **Operate:** [CLI](docs/using-sparselab.md) · [Training](docs/training.md) · [Checkpoints](docs/checkpointing.md) · [Workers](docs/workers.md)
+- **Operate:** [CLI](docs/using-sparselab.md) · [Lifecycle recovery](docs/research/lifecycle-recovery.md) · [Training](docs/training.md) · [Checkpoints](docs/checkpointing.md) · [Workers](docs/workers.md)
 - **Investigate:** [Research workbench](docs/research/README.md) · [Learning cycle](docs/research/experiment-learning-cycle.md) · [Evidence and results](docs/lab-status.md) · [Retained checkpoint exploration](docs/checkpoint-exploration.md)
 
 This is a reference lab under active development. Small runs help you test a
@@ -135,4 +147,6 @@ under recorded conditions—lower validation loss alone doesn't settle text qual
 Contributions are welcome: start with [CONTRIBUTING.md](CONTRIBUTING.md),
 the [code backlog](TODO.md), or the [research roadmap](docs/research/roadmap.md).
 Code is [MIT licensed](LICENSE); datasets retain their own terms. Keep downloaded
-corpora, prepared arrays, and checkpoints in ignored workspaces.
+corpora, prepared arrays, checkpoints, immutable receipts and logs in an external
+persistent state root rather than Git. Git retains checked-in declarations and
+compact verified evidence; their digests establish identity, not quality.

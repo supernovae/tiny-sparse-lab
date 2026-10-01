@@ -1,0 +1,24 @@
+recovery_version: 1
+id: devmind-pretrain-v4-recovery
+source_commit: e260ea866ded8ec5beb23cbacec1fb3c120c1d16
+steps:
+  - id: corpus
+    kind: corpus_release
+    project: corpora/devmind-v4/corpus.yaml
+    expected_release_sha256: 0f06976e1c90309c7920cd23b1079179ba3cd026fdde55e934c1320fe6dc5fd4
+  - id: tokenizer-choice
+    kind: external_required
+    role: tokenizer_selection
+    reason: No reviewed v4 tokenizer choice or verified bakeoff selection is declared.
+  - id: model-zero-intent
+    kind: external_required
+    role: experiment_plan
+    reason: MODEL-0 architecture, budget, base run and ExperimentPlan are not declared.
+  - id: runtime-requirement
+    kind: external_required
+    role: runtime_requirement
+    reason: No portable v4 engine/backend/device requirement is declared.
+  - id: evaluation-declaration
+    kind: external_required
+    role: evaluation_suite
+    reason: No v4 checkpoint-bound evaluation suite or readiness policy is declared.
