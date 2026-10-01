@@ -126,17 +126,18 @@ def _verify_rights_files(
             # The resolver examines only the first 30 lines (and no lines for
             # dataset shards). Never materialize a whole source shard here.
             with _safe(folder, path).open("rb") as stream:
-                raw = b"" if path.endswith((".jsonl", ".json", ".parquet")) else b"".join(
-                    stream.readline() for _ in range(30)
+                raw = (
+                    b""
+                    if path.endswith((".jsonl", ".json", ".parquet"))
+                    else b"".join(stream.readline() for _ in range(30))
                 )
             resolved = resolve_file_rights(
                 policy,
                 path,
                 raw,
                 nested_metadata=metadata,
-                prospective_private_research=source.get(
-                    "explicit_training_restriction"
-                ) == "none_found",
+                prospective_private_research=source.get("explicit_training_restriction")
+                == "none_found",
             )
             if recorded["rights"] != resolved.model_dump(mode="json") or (
                 recorded.get("license_url") != source["license_url"]
@@ -174,16 +175,12 @@ def _validate_rows_v3(root: Path) -> None:
     receipt = _load(
         root / ("build.json" if (root / "build.json").exists() else "manifest.json")
     )
-    pinned_snapshots = {
-        row["source_id"]: row["sha256"] for row in receipt["snapshots"]
-    }
-    if (
-        len(pinned_snapshots) != len(receipt["snapshots"])
-        or pinned_snapshots != {
-            source["id"]: source["snapshot_sha256"]
-            for source in source_rows if source["snapshot_sha256"]
-        }
-    ):
+    pinned_snapshots = {row["source_id"]: row["sha256"] for row in receipt["snapshots"]}
+    if len(pinned_snapshots) != len(receipt["snapshots"]) or pinned_snapshots != {
+        source["id"]: source["snapshot_sha256"]
+        for source in source_rows
+        if source["snapshot_sha256"]
+    }:
         raise ValueError("source snapshot inventory mismatch")
     snapshots = {}
     for source in source_rows:
@@ -197,7 +194,14 @@ def _validate_rows_v3(root: Path) -> None:
         declaration = snapshot["declaration"]
         if any(
             source[key] != declaration[key]
-            for key in ("id", "kind", "canonical_uri", "revision", "license", "source_family")
+            for key in (
+                "id",
+                "kind",
+                "canonical_uri",
+                "revision",
+                "license",
+                "source_family",
+            )
         ) or source.get("origin", "primary_source") != declaration.get(
             "origin", "primary_source"
         ):
@@ -231,9 +235,7 @@ def _validate_rows_v3(root: Path) -> None:
             db.execute(
                 "CREATE TABLE stage_docs (stage TEXT, id TEXT, PRIMARY KEY (stage, id))"
             )
-            db.execute(
-                "CREATE TABLE view_docs (id TEXT PRIMARY KEY)"
-            )
+            db.execute("CREATE TABLE view_docs (id TEXT PRIMARY KEY)")
             db.execute("CREATE TABLE duplicate_keys (key TEXT, id TEXT)")
             for span in _iter_rows(root / "spans.jsonl"):
                 try:
@@ -245,7 +247,10 @@ def _validate_rows_v3(root: Path) -> None:
                     raise ValueError("duplicate document evidence span") from error
             for doc in _iter_rows(root / "documents.jsonl"):
                 text = doc["text"]
-                if doc["content_sha256"] != hashlib.sha256(text.encode("utf-8")).hexdigest():
+                if (
+                    doc["content_sha256"]
+                    != hashlib.sha256(text.encode("utf-8")).hexdigest()
+                ):
                     raise ValueError("document content digest mismatch")
                 span_row = db.execute(
                     "SELECT data FROM spans WHERE id=?", (doc["document_id"],)
@@ -257,10 +262,21 @@ def _validate_rows_v3(root: Path) -> None:
                     db.execute(
                         "INSERT INTO docs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
-                            doc["document_id"], doc["source_id"], doc["split"],
-                            doc["representative_id"], doc["drop_reason"],
-                            span["raw_path"], span["line_start"], text,
-                            json.dumps({key: value for key, value in doc.items() if key != "text"}),
+                            doc["document_id"],
+                            doc["source_id"],
+                            doc["split"],
+                            doc["representative_id"],
+                            doc["drop_reason"],
+                            span["raw_path"],
+                            span["line_start"],
+                            text,
+                            json.dumps(
+                                {
+                                    key: value
+                                    for key, value in doc.items()
+                                    if key != "text"
+                                }
+                            ),
                         ),
                     )
                 except sqlite3.IntegrityError as error:
@@ -279,13 +295,16 @@ def _validate_rows_v3(root: Path) -> None:
                 "CREATE INDEX docs_raw_order_idx "
                 "ON docs(source, raw_path, line_start, id)"
             )
-            if db.execute(
-                "SELECT COUNT(*) FROM docs LEFT JOIN spans ON docs.id=spans.id "
-                "WHERE spans.id IS NULL"
-            ).fetchone()[0] or db.execute(
-                "SELECT COUNT(*) FROM spans LEFT JOIN docs ON docs.id=spans.id "
-                "WHERE docs.id IS NULL"
-            ).fetchone()[0]:
+            if (
+                db.execute(
+                    "SELECT COUNT(*) FROM docs LEFT JOIN spans ON docs.id=spans.id "
+                    "WHERE spans.id IS NULL"
+                ).fetchone()[0]
+                or db.execute(
+                    "SELECT COUNT(*) FROM spans LEFT JOIN docs ON docs.id=spans.id "
+                    "WHERE docs.id IS NULL"
+                ).fetchone()[0]
+            ):
                 raise ValueError("document evidence span inventory mismatch")
             if db.execute(
                 "SELECT COUNT(*) FROM docs AS doc LEFT JOIN docs AS representative "
@@ -337,7 +356,8 @@ def _validate_rows_v3(root: Path) -> None:
                         or doc.get("schema_version") != 3
                         or doc.get("rights") != decision
                         or doc.get("file_sha256") != file["sha256"]
-                        or doc["license"] != (
+                        or doc["license"]
+                        != (
                             decision["detected_spdx_expression"]
                             or source["rights_policy"]["spdx_expression"]
                             or source["license"]
@@ -346,8 +366,12 @@ def _validate_rows_v3(root: Path) -> None:
                     ):
                         raise ValueError("document rights attribution mismatch")
                     raw_path = _safe(
-                        root.parent.parent / "snapshots" / doc["source_id"]
-                        / source["snapshot_sha256"] / "files", span["raw_path"]
+                        root.parent.parent
+                        / "snapshots"
+                        / doc["source_id"]
+                        / source["snapshot_sha256"]
+                        / "files",
+                        span["raw_path"],
                     )
                     if raw_path != previous_file:
                         stack.close()
@@ -369,7 +393,8 @@ def _validate_rows_v3(root: Path) -> None:
                     )
                     if (
                         span.get("normalizer") != normalizer
-                        or doc["document_id"] != _digest(
+                        or doc["document_id"]
+                        != _digest(
                             [
                                 source["snapshot_sha256"],
                                 doc["source_location"],
@@ -412,12 +437,16 @@ def _validate_rows_v3(root: Path) -> None:
                             f"{span['raw_path']}#lines={start}-{end}"
                         ):
                             raise ValueError("document source location mismatch")
-                    elif "#row=" in doc["source_location"] and raw_path.suffix == ".jsonl":
+                    elif (
+                        "#row=" in doc["source_location"]
+                        and raw_path.suffix == ".jsonl"
+                    ):
                         index = span["line_start"]
                         if (
                             index < 1
                             or span["line_end"] != index
-                            or doc["source_location"] != f"{span['raw_path']}#row={index}"
+                            or doc["source_location"]
+                            != f"{span['raw_path']}#row={index}"
                             or span["byte_start"] is not None
                             or span["byte_end"] is not None
                         ):
@@ -435,13 +464,21 @@ def _validate_rows_v3(root: Path) -> None:
                         if (
                             not isinstance(item, dict)
                             or not isinstance(
-                                item.get(snapshots[doc["source_id"]]["declaration"]
-                                         ["acquisition"]["text_field"]), str
+                                item.get(
+                                    snapshots[doc["source_id"]]["declaration"][
+                                        "acquisition"
+                                    ]["text_field"]
+                                ),
+                                str,
                             )
                             or _normalized(
-                                item[snapshots[doc["source_id"]]["declaration"]
-                                     ["acquisition"]["text_field"]]
-                            ) != doc["text"]
+                                item[
+                                    snapshots[doc["source_id"]]["declaration"][
+                                        "acquisition"
+                                    ]["text_field"]
+                                ]
+                            )
+                            != doc["text"]
                             or doc["raw_content_sha256"] != doc["content_sha256"]
                         ):
                             raise ValueError("document raw row content mismatch")
@@ -467,13 +504,15 @@ def _validate_rows_v3(root: Path) -> None:
                     or row["drop_reason"] != doc["drop_reason"]
                     or row["source_family_ids"] != [doc["source_family"]]
                     or row["split"] != doc["split"]
-                    or row["origin"] != sources[doc["source_id"]].get(
-                        "origin", "primary_source"
-                    )
+                    or row["origin"]
+                    != sources[doc["source_id"]].get("origin", "primary_source")
                     or row["modalities"] != [doc["modality"]]
                     or row["domains"] != doc["domains"]
-                    or row["shape"] != shape_for_record(
-                        "document", "raw_document", domains=doc["domains"],
+                    or row["shape"]
+                    != shape_for_record(
+                        "document",
+                        "raw_document",
+                        domains=doc["domains"],
                         parent_document_ids=[record_id],
                     )
                     or row["verification"]["status"] != "schema_validated"
@@ -496,12 +535,15 @@ def _validate_rows_v3(root: Path) -> None:
             ).fetchone()[0]:
                 raise ValueError("document lineage mismatch")
             receipt = _load(
-                root / ("build.json" if (root / "build.json").exists() else "manifest.json")
+                root
+                / ("build.json" if (root / "build.json").exists() else "manifest.json")
             )
             identity = receipt.get("identity", receipt.get("build_identity"))
             transforms = identity["transforms"]
             for stage in receipt["stages"]:
-                transform = next(spec for spec in transforms if spec["id"] == stage["id"])
+                transform = next(
+                    spec for spec in transforms if spec["id"] == stage["id"]
+                )
                 selected_sources = set(transform["inputs"]) & set(sources)
                 for row in _iter_rows(root / "stages" / f"{stage['id']}.jsonl"):
                     doc = db.execute(
@@ -516,7 +558,9 @@ def _validate_rows_v3(root: Path) -> None:
                         or (selected_sources and doc[2] not in selected_sources)
                         or doc[3]
                     ):
-                        raise ValueError("LM stage record differs from selected document")
+                        raise ValueError(
+                            "LM stage record differs from selected document"
+                        )
                     try:
                         db.execute(
                             "INSERT INTO stage_docs VALUES (?, ?)",
@@ -528,7 +572,11 @@ def _validate_rows_v3(root: Path) -> None:
                     "SELECT COUNT(*) FROM docs WHERE dropped IS NULL AND "
                     "(? = 1 OR source IN (SELECT value FROM json_each(?))) "
                     "AND id NOT IN (SELECT id FROM stage_docs WHERE stage=?)",
-                    (not bool(selected_sources), json.dumps(sorted(selected_sources)), stage["id"]),
+                    (
+                        not bool(selected_sources),
+                        json.dumps(sorted(selected_sources)),
+                        stage["id"],
+                    ),
                 ).fetchone()[0]
                 if count:
                     raise ValueError("LM stage omitted selected documents")
@@ -544,20 +592,18 @@ def _validate_rows_v3(root: Path) -> None:
             )
             shapes = release.get("include_shapes")
             origins = release.get("include_origins")
-            eligible = (
-                (shapes is None or "raw_document" in shapes)
-                and (
-                    origins is None
-                    or any(
-                        source.get("origin", "primary_source") in origins
-                        for source in sources.values()
-                    )
+            eligible = (shapes is None or "raw_document" in shapes) and (
+                origins is None
+                or any(
+                    source.get("origin", "primary_source") in origins
+                    for source in sources.values()
                 )
             )
             for split in ("train", "validation", "test"):
-                with (root / "lm" / f"{split}.jsonl").open("rb") as view, (
-                    root / "lm" / f"{split}.lineage.jsonl"
-                ).open("rb") as links:
+                with (
+                    (root / "lm" / f"{split}.jsonl").open("rb") as view,
+                    (root / "lm" / f"{split}.lineage.jsonl").open("rb") as links,
+                ):
                     for payload, link in zip_longest(view, links):
                         if payload is None or link is None:
                             raise ValueError("LM lineage count mismatch")
@@ -582,7 +628,8 @@ def _validate_rows_v3(root: Path) -> None:
                             not eligible
                             or source not in allowed_sources
                             or origins is not None
-                            and sources[source].get("origin", "primary_source") not in origins
+                            and sources[source].get("origin", "primary_source")
+                            not in origins
                         ):
                             raise ValueError("LM view includes an unselected document")
                         try:
@@ -596,9 +643,11 @@ def _validate_rows_v3(root: Path) -> None:
                         raise ValueError("unexpected chat records in LM-only release")
             if eligible:
                 for source_id in allowed_sources:
-                    if origins is not None and sources[source_id].get(
-                        "origin", "primary_source"
-                    ) not in origins:
+                    if (
+                        origins is not None
+                        and sources[source_id].get("origin", "primary_source")
+                        not in origins
+                    ):
                         continue
                     if db.execute(
                         "SELECT COUNT(*) FROM docs WHERE source=? AND dropped IS NULL "
@@ -607,8 +656,11 @@ def _validate_rows_v3(root: Path) -> None:
                     ).fetchone()[0]:
                         raise ValueError("LM view omitted selected documents")
             for name in (
-                "chat/records.jsonl", "scenarios.jsonl", "generations.jsonl",
-                "lexical/candidates.jsonl", "semantic/candidates.jsonl",
+                "chat/records.jsonl",
+                "scenarios.jsonl",
+                "generations.jsonl",
+                "lexical/candidates.jsonl",
+                "semantic/candidates.jsonl",
                 "tool_episodes.jsonl",
             ):
                 if (root / name).stat().st_size:
@@ -670,7 +722,9 @@ def _validate_rows(root: Path) -> None:
                 source.get("explicit_training_restriction")
                 != declaration.get("explicit_training_restriction")
             ):
-                raise ValueError("source training restriction state differs from declaration")
+                raise ValueError(
+                    "source training restriction state differs from declaration"
+                )
         elif source["redistribution"] != declaration["redistribution"]:
             raise ValueError("source declaration attribution mismatch")
     prospective = any("rights_policy" in source for source in sources.values())
@@ -697,14 +751,16 @@ def _validate_rows(root: Path) -> None:
             if file is None or file["role"] != "document":
                 raise ValueError("document lacks pinned file rights")
             decision = file["rights"]
-            if source.get("explicit_training_restriction", "none_found") != "none_found":
+            if (
+                source.get("explicit_training_restriction", "none_found")
+                != "none_found"
+            ):
                 raise ValueError("document source has unresolved training restriction")
             if (
                 decision["training_eligibility"]
                 not in ("eligible", "eligible_with_obligations")
-                or doc.get("schema_version") != (
-                    3 if "explicit_training_restriction" in source else 2
-                )
+                or doc.get("schema_version")
+                != (3 if "explicit_training_restriction" in source else 2)
                 or doc.get("rights") != decision
                 or doc.get("file_sha256") != file["sha256"]
                 or doc["license"]
@@ -1261,9 +1317,9 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
             if split not in {"train", "validation"}:
                 raise ValueError("test split cannot be a training view")
             with (build_dir / view / f"{split}.jsonl").open("rb") as stream:
-                if not any(chunk.strip() for chunk in iter(
-                    lambda: stream.read(64 * 1024), b""
-                )):
+                if not any(
+                    chunk.strip() for chunk in iter(lambda: stream.read(64 * 1024), b"")
+                ):
                     raise ValueError(f"selected {view}/{split} training view is empty")
     payload = _manifest_payload(build)
     release_id = _digest(payload)
@@ -1344,7 +1400,11 @@ def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, A
         )
         if receipt["snapshot_sha256"] != snapshot["sha256"]:
             raise ValueError("release snapshot identity mismatch")
-    (_validate_rows_v3 if _streaming_v3(manifest["build_identity"]) else _validate_rows)(path)
+    (
+        _validate_rows_v3
+        if _streaming_v3(manifest["build_identity"])
+        else _validate_rows
+    )(path)
     return manifest
 
 

@@ -72,7 +72,12 @@ def _verify_prepared(path: Path, identity: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("prepared source shard provenance mismatch")
     for name, expected in receipt["files"].items():
         item = path / name
-        if item.is_symlink() or not item.is_file() or item.stat().st_size != expected["size"] or sha256_file(item) != expected["sha256"]:
+        if (
+            item.is_symlink()
+            or not item.is_file()
+            or item.stat().st_size != expected["size"]
+            or sha256_file(item) != expected["sha256"]
+        ):
             raise ValueError(f"prepared source shard changed: {name}")
     return receipt
 
@@ -115,7 +120,9 @@ def _prepare_file(
             docs = stack.enter_context((staging / "docs.jsonl").open("wb"))
             spans = stack.enter_context((staging / "spans.jsonl").open("wb"))
             rejected = stack.enter_context((staging / "rejected.jsonl").open("wb"))
-            if source.kind in {"huggingface_dataset", "wikimedia_dump"} and file["path"].endswith(".jsonl"):
+            if source.kind in {"huggingface_dataset", "wikimedia_dump"} and file[
+                "path"
+            ].endswith(".jsonl"):
                 with source_path.open("rb") as stream:
                     index = 0
                     for raw in stream:
@@ -130,8 +137,12 @@ def _prepare_file(
                         dropped: list[dict[str, Any]] = []
                         try:
                             rows = _records_for_file(
-                                raw, file["path"], source, snapshot_sha,
-                                file_rights=decision, rejected_records=dropped,
+                                raw,
+                                file["path"],
+                                source,
+                                snapshot_sha,
+                                file_rights=decision,
+                                rejected_records=dropped,
                                 full_file_sha256=file["sha256"],
                                 first_row_index=index,
                             )
@@ -144,14 +155,20 @@ def _prepare_file(
                         for row in dropped:
                             _output(rejected, row)
                             counts["rejected"] += 1
-                        progress.update(documents=1, input_bytes=len(raw), output_records=len(rows))
+                        progress.update(
+                            documents=1, input_bytes=len(raw), output_records=len(rows)
+                        )
             else:
                 raw = source_path.read_bytes()
                 dropped = []
                 try:
                     rows = _records_for_file(
-                        raw, file["path"], source, snapshot_sha,
-                        file_rights=decision, rejected_records=dropped,
+                        raw,
+                        file["path"],
+                        source,
+                        snapshot_sha,
+                        file_rights=decision,
+                        rejected_records=dropped,
                     )
                 except (ValueError, UnicodeError, KeyError, TypeError) as exc:
                     raise _SourceParseError(str(exc)) from exc
@@ -160,19 +177,30 @@ def _prepare_file(
                     _output(spans, span)
                 for row in dropped:
                     _output(rejected, row)
-                counts = {"documents": len(rows), "rejected": len(dropped), "input_bytes": len(raw)}
-                progress.update(documents=len(rows), input_bytes=len(raw), output_records=len(rows))
+                counts = {
+                    "documents": len(rows),
+                    "rejected": len(dropped),
+                    "input_bytes": len(raw),
+                }
+                progress.update(
+                    documents=len(rows), input_bytes=len(raw), output_records=len(rows)
+                )
             for output in (docs, spans, rejected):
                 output.flush()
                 os.fsync(output.fileno())
         if counts["input_bytes"] != file["size"]:
-            raise ValueError("prepared source shard input size differs from acquisition")
+            raise ValueError(
+                "prepared source shard input size differs from acquisition"
+            )
         receipt = {
             "schema_version": 1,
             "identity": identity,
             "counts": counts,
             "files": {
-                name: {"size": (staging / name).stat().st_size, "sha256": sha256_file(staging / name)}
+                name: {
+                    "size": (staging / name).stat().st_size,
+                    "sha256": sha256_file(staging / name),
+                }
                 for name in _PREPARED_FILES
             },
         }
@@ -185,7 +213,9 @@ def _prepare_file(
     return destination
 
 
-def _sources_and_rights(project: Any, lock: dict[str, Any], rights_files: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _sources_and_rights(
+    project: Any, lock: dict[str, Any], rights_files: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     sources = [
         {
             "id": source.id,
@@ -193,16 +223,33 @@ def _sources_and_rights(project: Any, lock: dict[str, Any], rights_files: list[d
             "canonical_uri": source.canonical_uri,
             "revision": source.revision,
             "license": source.license,
-            "redistribution": source.rights.redistribution_mode if source.rights else source.redistribution,
-            **({"license_url": source.license_url, "rights_policy": source.rights.model_dump(mode="json")} if source.rights else {}),
+            "redistribution": source.rights.redistribution_mode
+            if source.rights
+            else source.redistribution,
+            **(
+                {
+                    "license_url": source.license_url,
+                    "rights_policy": source.rights.model_dump(mode="json"),
+                }
+                if source.rights
+                else {}
+            ),
             "explicit_training_restriction": source.explicit_training_restriction,
             "origin": source.origin,
             "source_family": source.source_family,
-            "snapshot_sha256": lock["sources"].get(source.id, {}).get("snapshot_sha256"),
+            "snapshot_sha256": lock["sources"]
+            .get(source.id, {})
+            .get("snapshot_sha256"),
             "reproducibility_class": "script_reproducible_not_redistributed"
-            if source.rights.redistribution_mode in {
-                "reference_only", "derived_only", "unknown", "rejected",
-                "metadata_reconstruction_only", "not_redistributable", "review_required",
+            if source.rights.redistribution_mode
+            in {
+                "reference_only",
+                "derived_only",
+                "unknown",
+                "rejected",
+                "metadata_reconstruction_only",
+                "not_redistributable",
+                "review_required",
             }
             else "fully_reproducible",
         }
@@ -213,11 +260,17 @@ def _sources_and_rights(project: Any, lock: dict[str, Any], rights_files: list[d
     bytes_by_state: Counter[str] = Counter()
     expressions: Counter[str] = Counter()
     modes: Counter[str] = Counter()
-    source_spdx = {source.id: source.rights.spdx_expression for source in project.sources}
+    source_spdx = {
+        source.id: source.rights.spdx_expression for source in project.sources
+    }
     for item in files:
         rights = item["rights"]
         bytes_by_state[rights["training_eligibility"]] += item["size"]
-        expressions[rights["detected_spdx_expression"] or source_spdx[item["source_id"]] or "unknown"] += 1
+        expressions[
+            rights["detected_spdx_expression"]
+            or source_spdx[item["source_id"]]
+            or "unknown"
+        ] += 1
         modes[rights["redistribution_mode"]] += 1
     rights_report = {
         "schema_version": 3,
@@ -233,7 +286,12 @@ def _sources_and_rights(project: Any, lock: dict[str, Any], rights_files: list[d
                 "source_tokens": None,
                 "token_count_reason": "tokenizer_not_declared",
             }
-            for state in ("eligible", "eligible_with_obligations", "review_required", "ineligible")
+            for state in (
+                "eligible",
+                "eligible_with_obligations",
+                "review_required",
+                "ineligible",
+            )
         },
         "spdx_expressions": dict(expressions),
         "redistribution_modes": dict(modes),
@@ -278,15 +336,18 @@ def _index_prepared(
         source.id: (
             0
             if source.kind in {"git", "wikimedia_dump", "http_document"}
-            else 1 if source.id.startswith("pes2o") else 2
+            else 1
+            if source.id.startswith("pes2o")
+            else 2
         )
         for source in project.sources
     }
     total = 0
     for shard in prepared:
-        with (shard / "docs.jsonl").open("rb") as docs, (
-            shard / "spans.jsonl"
-        ).open("rb") as spans:
+        with (
+            (shard / "docs.jsonl").open("rb") as docs,
+            (shard / "spans.jsonl").open("rb") as spans,
+        ):
             for raw_doc, raw_span in zip(docs, spans, strict=True):
                 doc = json.loads(raw_doc)
                 span = json.loads(raw_span)
@@ -370,7 +431,11 @@ def _deduplicate(
                 if len(heldout) > 1:
                     _write_json(
                         diagnostics,
-                        {"error": "cross-split exact text overlap", "method": method, "sha256": _digest(key)},
+                        {
+                            "error": "cross-split exact text overlap",
+                            "method": method,
+                            "sha256": _digest(key),
+                        },
                     )
                     raise ValueError("cross-split exact text overlap")
                 priority = next(iter(heldout)) if heldout else None
@@ -414,16 +479,31 @@ def _deduplicate(
         "SELECT rowid,split FROM documents ORDER BY rowid"
     ):
         component = root(number)
-        heldout_mask[component] |= 1 if split == "validation" else 2 if split == "test" else 0
+        heldout_mask[component] |= (
+            1 if split == "validation" else 2 if split == "test" else 0
+        )
     if any(mask == 3 for mask in heldout_mask.values()):
-        _write_json(diagnostics, {"error": "validation/test page or paper origin overlap"})
+        _write_json(
+            diagnostics, {"error": "validation/test page or paper origin overlap"}
+        )
         raise ValueError("validation/test page or paper origin overlap")
     for number, identifier, split, source_rank, kind in connection.execute(
         "SELECT rowid,document_id,split,source_rank,document_kind FROM documents ORDER BY rowid"
     ):
         component = root(number)
-        preferred_split = "validation" if heldout_mask[component] == 1 else "test" if heldout_mask[component] == 2 else None
-        choice = (split != preferred_split if preferred_split else False, source_rank, kind != "paper", identifier)
+        preferred_split = (
+            "validation"
+            if heldout_mask[component] == 1
+            else "test"
+            if heldout_mask[component] == 2
+            else None
+        )
+        choice = (
+            split != preferred_split if preferred_split else False,
+            source_rank,
+            kind != "paper",
+            identifier,
+        )
         if component not in winner or choice < winner[component][:4]:
             winner[component] = (*choice, identifier, split)
     dropped = 0
@@ -436,27 +516,29 @@ def _deduplicate(
         reason = (
             "contaminated_heldout"
             if selected != identifier and split == "train" and retained_split != "train"
-            else "duplicate" if selected != identifier else None
+            else "duplicate"
+            if selected != identifier
+            else None
         )
         dropped += reason is not None
         updates.append((selected, reason, number))
         if len(updates) >= 10_000:
             connection.executemany(
-                "UPDATE documents SET representative_id=?,drop_reason=? WHERE rowid=?", updates
+                "UPDATE documents SET representative_id=?,drop_reason=? WHERE rowid=?",
+                updates,
             )
             connection.commit()
             updates.clear()
     if updates:
         connection.executemany(
-            "UPDATE documents SET representative_id=?,drop_reason=? WHERE rowid=?", updates
+            "UPDATE documents SET representative_id=?,drop_reason=? WHERE rowid=?",
+            updates,
         )
         connection.commit()
     return groups, dropped
 
 
-def _write_audit(
-    target: Path, groups: Path, rejected: Path, *, dropped: int
-) -> None:
+def _write_audit(target: Path, groups: Path, rejected: Path, *, dropped: int) -> None:
     with target.open("wb") as output:
         output.write(b'{"drop_count":' + str(dropped).encode() + b',"duplicates":[')
         with groups.open("rb") as source:
@@ -502,8 +584,10 @@ def _document_lineage(
         "origin_schema_version": 1,
         "domains": doc["domains"],
         "shape": shape_for_record(
-            "document", "raw_document",
-            domains=doc["domains"], parent_document_ids=[record_id],
+            "document",
+            "raw_document",
+            domains=doc["domains"],
+            parent_document_ids=[record_id],
         ),
         "verification": verification(
             "schema_validated",
@@ -547,7 +631,9 @@ def _emit_build(
     source_counts: Counter[str] = Counter()
     kinds: Counter[str] = Counter()
     source_scale: dict[str, dict[str, dict[str, int]]] = defaultdict(dict)
-    domain_scale: dict[str, dict[str, int]] = defaultdict(lambda: {"documents": 0, "utf8_bytes": 0})
+    domain_scale: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"documents": 0, "utf8_bytes": 0}
+    )
     split_counts: Counter[str] = Counter()
     lm_counts: Counter[str] = Counter()
     count = 0
@@ -556,6 +642,7 @@ def _emit_build(
     stage_digest.update(b"[" + canonical_json(stage_id) + b",[")
 
     with ExitStack() as stack:
+
         def writer(name: str) -> Any:
             path = staging / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -568,8 +655,11 @@ def _emit_build(
         views = {split: writer(f"lm/{split}.jsonl") for split in _SPLITS}
         links = {split: writer(f"lm/{split}.lineage.jsonl") for split in _SPLITS}
         for path in (
-            "lexical/candidates.jsonl", "semantic/candidates.jsonl",
-            "scenarios.jsonl", "generations.jsonl", "tool_episodes.jsonl",
+            "lexical/candidates.jsonl",
+            "semantic/candidates.jsonl",
+            "scenarios.jsonl",
+            "generations.jsonl",
+            "tool_episodes.jsonl",
             "chat/records.jsonl",
         ):
             writer(path)
@@ -608,14 +698,21 @@ def _emit_build(
                 domain_scale[domain]["utf8_bytes"] += byte_size
             counts = source_scale[doc["source_id"]].setdefault(
                 split,
-                {"documents": 0, "utf8_bytes": 0, "characters": 0, "whitespace_words": 0},
+                {
+                    "documents": 0,
+                    "utf8_bytes": 0,
+                    "characters": 0,
+                    "whitespace_words": 0,
+                },
             )
             counts["documents"] += 1
             counts["utf8_bytes"] += byte_size
             counts["characters"] += len(text)
             counts["whitespace_words"] += len(text.split())
 
-            selected_for_stage = not selected_sources or doc["source_id"] in selected_sources
+            selected_for_stage = (
+                not selected_sources or doc["source_id"] in selected_sources
+            )
             if selected_for_stage:
                 output = {"record_id": record_id, "text": text, "split": split}
                 encoded = canonical_json(output)
@@ -624,34 +721,47 @@ def _emit_build(
                     stage_digest.update(b",")
                 stage_digest.update(encoded)
                 stage_count += 1
-            if selected_for_stage and (
-                release_spec.get("include_shapes") is None
-                or "raw_document" in release_spec["include_shapes"]
-            ) and (
-                release_spec.get("include_origins") is None
-                or origin in release_spec["include_origins"]
+            if (
+                selected_for_stage
+                and (
+                    release_spec.get("include_shapes") is None
+                    or "raw_document" in release_spec["include_shapes"]
+                )
+                and (
+                    release_spec.get("include_origins") is None
+                    or origin in release_spec["include_origins"]
+                )
             ):
                 _output(views[split], {"text": text})
                 _output(links[split], {"record_id": record_id, "split": split})
                 lm_counts[split] += 1
                 progress.update(output_records=1)
-        for handle in (documents, spans, lineage, stage, *views.values(), *links.values()):
+        for handle in (
+            documents,
+            spans,
+            lineage,
+            stage,
+            *views.values(),
+            *links.values(),
+        ):
             handle.flush()
             os.fsync(handle.fileno())
 
     stage_digest.update(b"]]")
     stage_path = staging / "stages" / f"{stage_id}.jsonl"
-    stages = [{
-        "id": stage_id,
-        "kind": stage_spec["kind"],
-        "version": stage_spec["version"],
-        "parameters_sha256": _digest(stage_spec["parameters"]),
-        "inputs": stage_spec["inputs"],
-        "implementation_sha256": identity["implementation_sha256"],
-        "output_sha256": sha256_file(stage_path),
-        "output_count": stage_count,
-        "output_id": stage_digest.hexdigest(),
-    }]
+    stages = [
+        {
+            "id": stage_id,
+            "kind": stage_spec["kind"],
+            "version": stage_spec["version"],
+            "parameters_sha256": _digest(stage_spec["parameters"]),
+            "inputs": stage_spec["inputs"],
+            "implementation_sha256": identity["implementation_sha256"],
+            "output_sha256": sha256_file(stage_path),
+            "output_count": stage_count,
+            "output_id": stage_digest.hexdigest(),
+        }
+    ]
     with (staging / "rejected.jsonl").open("wb") as output:
         for event in source_events:
             if isinstance(event, Path):
@@ -663,7 +773,9 @@ def _emit_build(
         output.flush()
         os.fsync(output.fileno())
     _write_audit(
-        staging / "audit.json", groups_path, staging / "rejected.jsonl",
+        staging / "audit.json",
+        groups_path,
+        staging / "rejected.jsonl",
         dropped=dropped,
     )
     _write_json(staging / "splits.json", project.splits.model_dump(mode="json"))
@@ -699,7 +811,9 @@ def _emit_build(
         "source_concentration": {
             source: amount / (count - dropped)
             for source, amount in sorted(source_counts.items())
-        } if count != dropped else {},
+        }
+        if count != dropped
+        else {},
         "kind_counts": dict(kinds),
         "lexical_count": 0,
         "semantic_count": 0,
@@ -726,11 +840,17 @@ def _emit_build(
             ),
         },
         "rights": {
-            key: value for key, value in rights_report.items()
-            if key in {
-                "training_eligibility", "spdx_expressions", "redistribution_modes",
-                "unresolved_rights_files", "weight_license_status",
-                "publication_mode", "training_use_policy",
+            key: value
+            for key, value in rights_report.items()
+            if key
+            in {
+                "training_eligibility",
+                "spdx_expressions",
+                "redistribution_modes",
+                "unresolved_rights_files",
+                "weight_license_status",
+                "publication_mode",
+                "training_use_policy",
             }
         },
     }
@@ -794,18 +914,33 @@ def build_large(
     progress.record("verifying_snapshots")
     for source in sources:
         lock_row = lock["sources"].get(source.id)
-        if source.redistribution == "rejected" or not lock_row or not lock_row.get("snapshot_path"):
+        if (
+            source.redistribution == "rejected"
+            or not lock_row
+            or not lock_row.get("snapshot_path")
+        ):
             continue
         snapshot_path = Path(lock_row["snapshot_path"])
         snapshot = verify_snapshot(snapshot_path)
         nested_path = source.rights.nested_metadata_path if source.rights else None
         nested_metadata = (
-            {nested_path: json.loads((snapshot_path / "files" / nested_path).read_text(encoding="utf-8"))}
-            if nested_path else {}
+            {
+                nested_path: json.loads(
+                    (snapshot_path / "files" / nested_path).read_text(encoding="utf-8")
+                )
+            }
+            if nested_path
+            else {}
         )
         for file in sorted(snapshot["files"], key=lambda item: item["path"]):
             inputs.append(
-                (source, file, snapshot_path / "files" / file["path"], lock_row, nested_metadata)
+                (
+                    source,
+                    file,
+                    snapshot_path / "files" / file["path"],
+                    lock_row,
+                    nested_metadata,
+                )
             )
             if file["path"] != nested_path:
                 total_bytes += file["size"]
@@ -814,46 +949,75 @@ def build_large(
     for source, file, path, lock_row, nested_metadata in inputs:
         name = file["path"]
         if name in nested_metadata:
-            rights_files.append({
-                "source_id": source.id, "path": name, "sha256": file["sha256"],
-                "size": file["size"], "role": "license_metadata",
-                "canonical_uri": source.canonical_uri, "revision": source.revision,
-            })
+            rights_files.append(
+                {
+                    "source_id": source.id,
+                    "path": name,
+                    "sha256": file["sha256"],
+                    "size": file["size"],
+                    "role": "license_metadata",
+                    "canonical_uri": source.canonical_uri,
+                    "revision": source.revision,
+                }
+            )
             continue
         decision = (
             resolve_file_rights(
-                source.rights, name,
+                source.rights,
+                name,
                 b"" if name.endswith(".jsonl") else path.read_bytes(),
                 nested_metadata=nested_metadata,
                 prospective_private_research=source.schema_version == 3,
             )
-            if source.rights else None
+            if source.rights
+            else None
         )
         if decision:
-            rights_files.append({
-                "source_id": source.id, "path": name,
-                "sha256": file["sha256"], "size": file["size"],
-                "role": "document", "canonical_uri": source.canonical_uri,
-                "revision": source.revision, "license_url": source.license_url,
-                "rights": decision.model_dump(mode="json"),
-            })
-            if decision.training_eligibility not in {"eligible", "eligible_with_obligations"}:
-                source_events.append({
-                    "source_id": source.id, "path": name,
-                    "reason": f"rights {decision.training_eligibility}: {decision.reason}",
-                })
+            rights_files.append(
+                {
+                    "source_id": source.id,
+                    "path": name,
+                    "sha256": file["sha256"],
+                    "size": file["size"],
+                    "role": "document",
+                    "canonical_uri": source.canonical_uri,
+                    "revision": source.revision,
+                    "license_url": source.license_url,
+                    "rights": decision.model_dump(mode="json"),
+                }
+            )
+            if decision.training_eligibility not in {
+                "eligible",
+                "eligible_with_obligations",
+            }:
+                source_events.append(
+                    {
+                        "source_id": source.id,
+                        "path": name,
+                        "reason": f"rights {decision.training_eligibility}: {decision.reason}",
+                    }
+                )
                 progress.update(input_bytes=file["size"])
                 continue
         try:
             shard = _prepare_file(
-                source=source, file=file, source_path=path, decision=decision,
-                snapshot_sha=lock_row["snapshot_sha256"], prepared_root=prepared_root,
-                build_id=build_id, progress=progress,
+                source=source,
+                file=file,
+                source_path=path,
+                decision=decision,
+                snapshot_sha=lock_row["snapshot_sha256"],
+                prepared_root=prepared_root,
+                build_id=build_id,
+                progress=progress,
             )
         except _SourceParseError as exc:
-            source_events.append({
-                "source_id": source.id, "path": name, "reason": str(exc),
-            })
+            source_events.append(
+                {
+                    "source_id": source.id,
+                    "path": name,
+                    "reason": str(exc),
+                }
+            )
             progress.update(input_bytes=file["size"])
             progress.record("source_rejected")
             continue
@@ -871,7 +1035,8 @@ def build_large(
             progress.update(phase="deduplicating")
             groups_path = Path(index_dir) / "groups.jsonl"
             group_count, dropped = _deduplicate(
-                connection, groups_path,
+                connection,
+                groups_path,
                 diagnostics=root / "diagnostics" / f"{build_id}.json",
                 progress=progress,
             )

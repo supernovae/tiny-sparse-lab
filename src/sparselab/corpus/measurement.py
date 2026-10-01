@@ -339,9 +339,10 @@ def _measure_views(
                 if link is None or rendered is None:
                     raise ValueError("view and lineage lengths disagree")
                 text, chat_row = rendered
-                if link["split"] != split or (
-                    record := _record(connection, link["record_id"])
-                ) is None:
+                if (
+                    link["split"] != split
+                    or (record := _record(connection, link["record_id"])) is None
+                ):
                     raise ValueError("view lineage reference mismatch")
                 generation = generations.get(record.get("generation_id"))
                 scenario = scenarios.get(record.get("scenario_id"))
@@ -507,7 +508,8 @@ def _summarize_release(
             continue
         generated_count += 1
         unverified_generated += row["verification"]["status"] in {
-            "unverified", "schema_validated"
+            "unverified",
+            "schema_validated",
         }
         generated_parents.update(
             parent for parent in row["parent_document_ids"] if parent in test_parents

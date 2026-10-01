@@ -25,7 +25,9 @@ def load_probe_suite(suite_path: Path) -> dict[str, Any]:
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise ValueError("probe suite must be valid UTF-8 JSON") from exc
     if not isinstance(suite, dict) or suite.keys() != _SUITE_KEYS:
-        raise ValueError("probe suite must contain only schema_version, suite_id, samples")
+        raise ValueError(
+            "probe suite must contain only schema_version, suite_id, samples"
+        )
     if type(suite["schema_version"]) is not int or suite["schema_version"] != 1:
         raise ValueError("unsupported probe suite schema_version")
     if not isinstance(suite["suite_id"], str) or not suite["suite_id"].strip():
@@ -60,7 +62,9 @@ def load_probe_suite(suite_path: Path) -> dict[str, Any]:
         try:
             sample["text"].encode("utf-8")
         except UnicodeEncodeError as exc:
-            raise ValueError(f"probe sample {sample_id} is not valid UTF-8 text") from exc
+            raise ValueError(
+                f"probe sample {sample_id} is not valid UTF-8 text"
+            ) from exc
         provenance = sample["provenance"]
         if not isinstance(provenance, str) or provenance not in _PROVENANCE:
             raise ValueError(f"invalid probe provenance for {sample_id}")

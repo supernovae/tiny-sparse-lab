@@ -28,15 +28,21 @@ from sparselab.training.manifest import canonical_json
 PILOT_VERSION = 1
 V2_GENERATORS = frozenset(
     {
-        "filesystem_judgment_v2", "platform_fault_v2",
-        "deployment_change_v2", "code_test_workflow_v2",
+        "filesystem_judgment_v2",
+        "platform_fault_v2",
+        "deployment_change_v2",
+        "code_test_workflow_v2",
     }
 )
 
 
 def causal_hash(item: dict) -> str:
     world = item["world_state"]
-    if not isinstance(world, dict) or not world or item["oracle_receipt"]["world_facts"] != world:
+    if (
+        not isinstance(world, dict)
+        or not world
+        or item["oracle_receipt"]["world_facts"] != world
+    ):
         raise ValueError("world facts disagree with oracle receipt")
     if "fixture_id" in world or "world_seed" in world:
         raise ValueError("identity cannot count as causal world facts")
@@ -47,18 +53,24 @@ def check_worlds(scenarios: list[dict]) -> None:
     seen: dict[tuple[str, str], str] = {}
     for row in scenarios:
         if row["generator_id"] not in V2_GENERATORS or row["generator_version"] != "2":
-            raise ValueError("pilot release requires v2 scenario generators exclusively")
+            raise ValueError(
+                "pilot release requires v2 scenario generators exclusively"
+            )
         seed = row["world_seed"]
         expected = "train" if seed < 800 else "validation" if seed < 900 else "test"
         if seed >= 1000 or row["split"] != expected:
             raise ValueError("v2 world seed crosses its split partition")
         identity = (row["generator_id"], causal_hash(row))
         if identity in seen:
-            raise ValueError(f"repeated causal world facts: {seen[identity]} and {row['generator_world_id']}")
+            raise ValueError(
+                f"repeated causal world facts: {seen[identity]} and {row['generator_world_id']}"
+            )
         seen[identity] = row["generator_world_id"]
 
 
-def check_release_lineage(documents: list[dict], scenarios: list[dict]) -> dict[str, list[dict]]:
+def check_release_lineage(
+    documents: list[dict], scenarios: list[dict]
+) -> dict[str, list[dict]]:
     """Reject identical source parents, text, worlds or templates across splits."""
     check_worlds(scenarios)
     seen: dict[tuple[str, object], str] = {}
@@ -69,18 +81,27 @@ def check_release_lineage(documents: list[dict], scenarios: list[dict]) -> dict[
             raise ValueError("unknown source split")
         for key in (
             ("family", doc["source_family"]),
-            ("parent", doc["source_id"], doc["source_revision"], doc["source_location"].split("#", 1)[0]),
+            (
+                "parent",
+                doc["source_id"],
+                doc["source_revision"],
+                doc["source_location"].split("#", 1)[0],
+            ),
             ("content", doc["content_sha256"]),
         ):
             previous = seen.setdefault(key, split)
             if previous != split:
                 raise ValueError("source parent or content crosses splits")
         if split != "test":
-            ledger[split].append({
-                "split": split, "source_document_family": doc["source_family"],
-                "world_id": None, "template_family": f"source_{split}_v1",
-                "parent_content_hashes": list(strict.parent_hashes(doc)),
-            })
+            ledger[split].append(
+                {
+                    "split": split,
+                    "source_document_family": doc["source_family"],
+                    "world_id": None,
+                    "template_family": f"source_{split}_v1",
+                    "parent_content_hashes": list(strict.parent_hashes(doc)),
+                }
+            )
     for row in scenarios:
         split = row["split"]
         for key in (
@@ -92,16 +113,21 @@ def check_release_lineage(documents: list[dict], scenarios: list[dict]) -> dict[
             if previous != split:
                 raise ValueError("scenario world or template crosses splits")
         if split != "test":
-            ledger[split].append({
-                "split": split, "source_document_family": None,
-                "world_id": row["generator_world_id"],
-                "template_family": row["template_family_id"],
-                "parent_content_hashes": [causal_hash(row)],
-            })
+            ledger[split].append(
+                {
+                    "split": split,
+                    "source_document_family": None,
+                    "world_id": row["generator_world_id"],
+                    "template_family": row["template_family_id"],
+                    "parent_content_hashes": [causal_hash(row)],
+                }
+            )
     return ledger
 
 
-def pilot_source_cases(name: str, generated: list[dict], documents: dict[str, dict]) -> list[CapabilityCase]:
+def pilot_source_cases(
+    name: str, generated: list[dict], documents: dict[str, dict]
+) -> list[CapabilityCase]:
     if name == "code_config_understanding":
         allowed = {"code", "python", "go", "rust", "shell", "yaml", "json", "toml"}
     elif name == "technical_comprehension":
@@ -109,9 +135,13 @@ def pilot_source_cases(name: str, generated: list[dict], documents: dict[str, di
     else:
         allowed = None
     matching = [
-        row for row in generated
+        row
+        for row in generated
         if row.get("validation_status") == "source_entailed"
-        and (allowed is None or documents[row["evidence"]["document_id"]]["document_kind"] in allowed)
+        and (
+            allowed is None
+            or documents[row["evidence"]["document_id"]]["document_kind"] in allowed
+        )
     ]
     return strict.source_cases(name, matching, documents)
 
@@ -148,13 +178,21 @@ def pilot_scenario_cases(name: str, scenarios: list[dict]) -> list[CapabilityCas
         else:
             prompt = f"Disposable code/test world: {facts}\nIs another intervention needed? Output the oracle judgment only."
             answer = receipt["judgment"]
-        cases.append(CapabilityCase(
-            f"{name}-{row['generator_world_id']}", prompt, answer, "custom",
-            lineage=CapabilityCaseLineage(
-                "test", None, row["generator_world_id"],
-                row["template_family_id"], (causal_hash(row),),
-            ),
-        ))
+        cases.append(
+            CapabilityCase(
+                f"{name}-{row['generator_world_id']}",
+                prompt,
+                answer,
+                "custom",
+                lineage=CapabilityCaseLineage(
+                    "test",
+                    None,
+                    row["generator_world_id"],
+                    row["template_family_id"],
+                    (causal_hash(row),),
+                ),
+            )
+        )
     return cases
 
 
@@ -163,7 +201,10 @@ def freeze(release: Path, output: Path) -> dict:
     if output.exists():
         raise ValueError("sealed pilot card output already exists")
     manifest_bytes = (release / "manifest.json").read_bytes()
-    if verified["release_id"] != release.name or json.loads(manifest_bytes)["release_id"] != release.name:
+    if (
+        verified["release_id"] != release.name
+        or json.loads(manifest_bytes)["release_id"] != release.name
+    ):
         raise ValueError("release path does not match frozen manifest identity")
     documents = list(strict.rows(release / "documents.jsonl"))
     by_id = {doc["document_id"]: doc for doc in documents}
@@ -200,8 +241,11 @@ def freeze(release: Path, output: Path) -> dict:
                     "card; correlated cards share worlds or source parents as recorded "
                     "in receipt.json. Not promotion-eligible: the independent ≥200-case "
                     "gate remains in freeze_cards.py. "
-                    + ("Literal-span proxy, not technical reasoning." if name in strict.SOURCE_CARDS
-                       else "Simulated causal facts, not an operational run.")
+                    + (
+                        "Literal-span proxy, not technical reasoning."
+                        if name in strict.SOURCE_CARDS
+                        else "Simulated causal facts, not an operational run."
+                    )
                 ),
             )
             check_capability_family_exclusion(card, ledger)
@@ -212,7 +256,8 @@ def freeze(release: Path, output: Path) -> dict:
             if not shared or name == other:
                 continue
             field = (
-                "shared_source_parent_with" if name in strict.SOURCE_CARDS
+                "shared_source_parent_with"
+                if name in strict.SOURCE_CARDS
                 else "shared_world_with"
             )
             info[field][other] = shared
@@ -231,7 +276,8 @@ def freeze(release: Path, output: Path) -> dict:
                 "fewer_than_100": sum(
                     row["generator_id"] == generator and row["split"] == "test"
                     for row in scenarios
-                ) < 100,
+                )
+                < 100,
             }
             for generator in sorted(V2_GENERATORS)
         },
@@ -243,7 +289,9 @@ def freeze(release: Path, output: Path) -> dict:
         path = output / f"{card.name}.json"
         path.write_bytes(canonical_json(capability_card_payload(card)) + b"\n")
         check_capability_family_exclusion(load_capability_card(path), ledger)
-        receipt["cards"][card.name]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        receipt["cards"][card.name]["sha256"] = hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
     (output / "receipt.json").write_bytes(canonical_json(receipt) + b"\n")
     return receipt
 

@@ -402,13 +402,18 @@ def _origin_keys(document: dict[str, Any]) -> tuple[str, ...]:
         )
         path = parsed.path.rstrip("/") or "/"
         keys.add("url:" + host + path + ("?" + query if query else ""))
-        if host in {"en.wikipedia.org", "en.wikibooks.org"} and path.startswith("/wiki/"):
-            keys.add("wiki:" + host + ":" + unquote(path[6:]).replace("_", " ").casefold())
+        if host in {"en.wikipedia.org", "en.wikibooks.org"} and path.startswith(
+            "/wiki/"
+        ):
+            keys.add(
+                "wiki:" + host + ":" + unquote(path[6:]).replace("_", " ").casefold()
+            )
     if document["source_id"].startswith("pes2o") and metadata.get("id"):
         keys.add("paper:semantic_scholar:" + str(metadata["id"]))
     page_title = metadata.get("page_title")
     if isinstance(page_title, str) and document["source_id"] in {
-        "wikipedia_20260901", "wikibooks_20260901"
+        "wikipedia_20260901",
+        "wikibooks_20260901",
     }:
         wiki_host = (
             "en.wikipedia.org"
@@ -448,10 +453,10 @@ def _records_for_file(
         if streaming_rows or suffix in {".parquet", ".md", ".markdown"}
         else _normalized(raw_text)
     )
-    if (
-        suffix in {".jsonl", ".json", ".parquet"}
-        and source.kind in {"huggingface_dataset", "wikimedia_dump"}
-    ):
+    if suffix in {".jsonl", ".json", ".parquet"} and source.kind in {
+        "huggingface_dataset",
+        "wikimedia_dump",
+    }:
         if suffix == ".parquet":
             import pyarrow.parquet as pq
 
@@ -473,18 +478,45 @@ def _records_for_file(
                 for key, value in {**item, **upstream}.items()
                 if key
                 in {
-                    "url", "id", "dump", "date", "file_path", "language",
-                    "score", "int_score", "token_count", "language_score",
-                    "title", "license", "license_type", "path", "repo_name",
-                    "blob_id", "source_row_index", "source_shard_path",
-                    "source_row_sha256", "source_shard_sha256", "source",
-                    "corpusid", "doi", "year", "page_uri", "page_title",
-                    "page_id", "revision_id", "revision_timestamp",
-                    "source_uri", "dump_revision",
+                    "url",
+                    "id",
+                    "dump",
+                    "date",
+                    "file_path",
+                    "language",
+                    "score",
+                    "int_score",
+                    "token_count",
+                    "language_score",
+                    "title",
+                    "license",
+                    "license_type",
+                    "path",
+                    "repo_name",
+                    "blob_id",
+                    "source_row_index",
+                    "source_shard_path",
+                    "source_row_sha256",
+                    "source_shard_sha256",
+                    "source",
+                    "corpusid",
+                    "doi",
+                    "year",
+                    "page_uri",
+                    "page_title",
+                    "page_id",
+                    "revision_id",
+                    "revision_timestamp",
+                    "source_uri",
+                    "dump_revision",
                 }
                 and isinstance(value, (str, int, float, bool))
             }
-            content = _normalized(item[field]) if streaming_rows and isinstance(item[field], str) else item[field]
+            content = (
+                _normalized(item[field])
+                if streaming_rows and isinstance(item[field], str)
+                else item[field]
+            )
             passages.append((content, [], n, n, metadata))
     elif suffix == ".cnxml":
         passages = _cnxml_passages(raw)
@@ -510,7 +542,9 @@ def _records_for_file(
         if file_rights
         else source.license
     )
-    byte_offsets = [] if source.kind in {"huggingface_dataset", "wikimedia_dump"} else [0]
+    byte_offsets = (
+        [] if source.kind in {"huggingface_dataset", "wikimedia_dump"} else [0]
+    )
     if source.kind not in {"huggingface_dataset", "wikimedia_dump"}:
         offset = 0
         while (end := raw.find(b"\n", offset)) >= 0:
@@ -585,7 +619,9 @@ def _records_for_file(
             "title": (
                 metadata.get("page_title")
                 if metadata and metadata.get("page_title")
-                else ancestry[-1] if ancestry else Path(name).name
+                else ancestry[-1]
+                if ancestry
+                else Path(name).name
             ),
             "section_path": ancestry,
             "language": "en",
@@ -742,11 +778,16 @@ def _scenario_v2(
             ("generated package artifacts", True, True),
         )
         evidence_states = (
-            "exact path and owner confirmed", "target path unset",
-            "two candidate paths", "listing contradicts request",
-            "symlink destination unverified", "owner confirmed by manifest",
-            "target confirmed by dry-run", "stale listing",
-            "build manifest confirms target", "request conflicts with manifest",
+            "exact path and owner confirmed",
+            "target path unset",
+            "two candidate paths",
+            "listing contradicts request",
+            "symlink destination unverified",
+            "owner confirmed by manifest",
+            "target confirmed by dry-run",
+            "stale listing",
+            "build manifest confirms target",
+            "request conflicts with manifest",
         )
         operations = (
             ("remove disposable output", True, True),
@@ -765,21 +806,36 @@ def _scenario_v2(
         operation, reversible, allowed_kind = operations[c]
         authorized = (a + b + c) % 4 != 0
         world = {
-            "target": target, "in_workspace": in_scope, "generated": generated,
-            "evidence": evidence, "operation": operation,
-            "reversible": reversible, "authorized": authorized,
+            "target": target,
+            "in_workspace": in_scope,
+            "generated": generated,
+            "evidence": evidence,
+            "operation": operation,
+            "reversible": reversible,
+            "authorized": authorized,
         }
         judgment = (
-            "stop" if not in_scope or not reversible or not allowed_kind
+            "stop"
+            if not in_scope
+            or not reversible
+            or not allowed_kind
             or target.startswith("tracked")
-            else "ask" if not authorized
-            else "inspect" if target == "empty target" or b not in (0, 5, 6, 8)
+            else "ask"
+            if not authorized
+            else "inspect"
+            if target == "empty target" or b not in (0, 5, 6, 8)
             else "proceed"
         )
-        diagnostic = f"Check the declared {target} against {evidence} before {operation}."
+        diagnostic = (
+            f"Check the declared {target} against {evidence} before {operation}."
+        )
         risk = "An out-of-scope or irreversible filesystem change is unsafe."
-        verification = f"Confirm {target} remains within the requested workspace boundary."
-        rollback = "Restore the saved prior state." if reversible else "No verified rollback."
+        verification = (
+            f"Confirm {target} remains within the requested workspace boundary."
+        )
+        rollback = (
+            "Restore the saved prior state." if reversible else "No verified rollback."
+        )
     elif generator == "platform_fault_v2":
         causes = (
             ("Pending workload", "scheduling events"),
@@ -792,82 +848,139 @@ def _scenario_v2(
             ("config mismatch", "declared and effective configuration"),
         )
         observations = (
-            "first failure after rollout", "repeated failure under load",
-            "failure on one replica", "failure on every replica",
+            "first failure after rollout",
+            "repeated failure under load",
+            "failure on one replica",
+            "failure on every replica",
             "intermittent failure",
         )
         workloads = ("api service", "worker", "controller", "scheduled job", "gateway")
-        scopes = ("single namespace", "one node", "all nodes", "new revision", "one zone")
+        scopes = (
+            "single namespace",
+            "one node",
+            "all nodes",
+            "new revision",
+            "one zone",
+        )
         cause, check = causes[seed % 8]
         observation = observations[(seed // 8) % 5]
         context = workloads[(seed // 40) % 5]
         scope = scopes[seed // 200]
         world = {
-            "cause": cause, "evidence": f"{cause} observed: {observation}",
-            "resource": context, "scope": scope,
+            "cause": cause,
+            "evidence": f"{cause} observed: {observation}",
+            "resource": context,
+            "scope": scope,
             "intervention": "restart all workloads",
         }
         judgment = "inspect"
         diagnostic = f"Inspect {check} for {context} in {scope}."
         risk = "A broad restart is unsupported by these observations."
-        verification = f"After a targeted correction, recheck {cause} for {context} in {scope}."
+        verification = (
+            f"After a targeted correction, recheck {cause} for {context} in {scope}."
+        )
         rollback = "Revert the targeted correction if the observation persists."
     elif generator == "deployment_change_v2":
         preflights = (
-            "preflight passed", "preflight absent", "config check failed",
-            "dependency unhealthy", "migration untested", "capacity confirmed",
-            "capacity unknown", "health baseline passed", "health baseline failed",
+            "preflight passed",
+            "preflight absent",
+            "config check failed",
+            "dependency unhealthy",
+            "migration untested",
+            "capacity confirmed",
+            "capacity unknown",
+            "health baseline passed",
+            "health baseline failed",
             "goal already verified",
         )
         radii = (
-            "one canary", "one replica", "one namespace", "one shard",
-            "one zone", "all regions", "all tenants", "one background worker",
-            "one staging environment", "entire production cluster",
+            "one canary",
+            "one replica",
+            "one namespace",
+            "one shard",
+            "one zone",
+            "all regions",
+            "all tenants",
+            "one background worker",
+            "one staging environment",
+            "entire production cluster",
         )
         recovery = (
-            "rollback rehearsed", "rollback unavailable", "rollback untested",
-            "prior version retained", "data migration irreversible",
-            "rollback timed out", "snapshot verified", "snapshot absent",
-            "canary abort verified", "rollback approval missing",
+            "rollback rehearsed",
+            "rollback unavailable",
+            "rollback untested",
+            "prior version retained",
+            "data migration irreversible",
+            "rollback timed out",
+            "snapshot verified",
+            "snapshot absent",
+            "canary abort verified",
+            "rollback approval missing",
         )
         world = {
-            "condition": preflights[a], "blast_radius": radii[b],
+            "condition": preflights[a],
+            "blast_radius": radii[b],
             "rollback_state": recovery[c],
         }
         judgment = (
-            "stop" if a == 9 or a not in (0, 5, 7) or b in (5, 6, 9)
-            or c not in (0, 3, 6, 8) else "proceed"
+            "stop"
+            if a == 9 or a not in (0, 5, 7) or b in (5, 6, 9) or c not in (0, 3, 6, 8)
+            else "proceed"
         )
         diagnostic = f"Review {preflights[a]}, {radii[b]} and {recovery[c]}."
         risk = f"The proposed rollout affects {radii[b]}."
-        verification = f"Check deployment health and user-visible success for {radii[b]}."
+        verification = (
+            f"Check deployment health and user-visible success for {radii[b]}."
+        )
         rollback = f"Recovery condition: {recovery[c]}."
     elif generator == "code_test_workflow_v2":
         failures = (
-            "focused assertion fails", "type check fails", "configuration parse fails",
-            "integration assertion fails", "build fails", "focused test passes",
-            "broad regression fails", "broad suite passes", "goal verified",
+            "focused assertion fails",
+            "type check fails",
+            "configuration parse fails",
+            "integration assertion fails",
+            "build fails",
+            "focused test passes",
+            "broad regression fails",
+            "broad suite passes",
+            "goal verified",
             "contradictory test results",
         )
         edits = (
-            "guard empty input", "correct parser branch", "update configuration key",
-            "repair timeout handling", "fix return value", "restore error propagation",
-            "correct bounds check", "repair fixture setup", "fix state transition",
+            "guard empty input",
+            "correct parser branch",
+            "update configuration key",
+            "repair timeout handling",
+            "fix return value",
+            "restore error propagation",
+            "correct bounds check",
+            "repair fixture setup",
+            "fix state transition",
             "remove invalid retry",
         )
         checks = (
-            "focused test not run", "focused test failed", "focused test passed",
-            "broad suite not run", "broad suite failed", "broad suite passed",
-            "regression test not run", "regression test passed",
-            "verification conflicts", "both focused and broad tests passed",
+            "focused test not run",
+            "focused test failed",
+            "focused test passed",
+            "broad suite not run",
+            "broad suite failed",
+            "broad suite passed",
+            "regression test not run",
+            "regression test passed",
+            "verification conflicts",
+            "both focused and broad tests passed",
         )
         world = {
-            "fixture": "inert disposable fixture", "condition": failures[a],
-            "candidate_edit": edits[b], "verification_state": checks[c],
+            "fixture": "inert disposable fixture",
+            "condition": failures[a],
+            "candidate_edit": edits[b],
+            "verification_state": checks[c],
         }
         judgment = (
-            "stop" if a == 8 and c == 9
-            else "inspect" if a == 8 or c in (1, 4, 8) or a in (0, 1, 2, 3, 4, 6, 9)
+            "stop"
+            if a == 8 and c == 9
+            else "inspect"
+            if a == 8 or c in (1, 4, 8) or a in (0, 1, 2, 3, 4, 6, 9)
             else "proceed"
         )
         diagnostic = f"Inspect {failures[a]} and verify {edits[b]} using {checks[c]}."
@@ -878,27 +991,42 @@ def _scenario_v2(
         raise ValueError(f"unregistered v2 scenario generator: {generator}")
     answer = f"{judgment}: {diagnostic}"
     receipt = {
-        "schema_version": 1, "generator_id": generator,
-        "generator_version": "2", "world_id": f"{generator}:{seed}",
-        "scenario_family_id": family, "template_family_id": template,
-        "world_facts": world, "judgment": judgment,
+        "schema_version": 1,
+        "generator_id": generator,
+        "generator_version": "2",
+        "world_id": f"{generator}:{seed}",
+        "scenario_family_id": family,
+        "template_family_id": template,
+        "world_facts": world,
+        "judgment": judgment,
         "evidence": world.get("evidence", world.get("condition", world.get("target"))),
-        "next_diagnostic": diagnostic, "risk": risk,
-        "verification": verification, "rollback": rollback,
+        "next_diagnostic": diagnostic,
+        "risk": risk,
+        "verification": verification,
+        "rollback": rollback,
     }
     result = {
-        "schema_version": 1, "generator_id": generator, "generator_version": "2",
-        "world_seed": seed, "scenario_family_id": family,
-        "generator_world_id": receipt["world_id"], "template_family_id": template,
-        "world_state": world, "oracle_answer": answer, "oracle_receipt": receipt,
+        "schema_version": 1,
+        "generator_id": generator,
+        "generator_version": "2",
+        "world_seed": seed,
+        "scenario_family_id": family,
+        "generator_world_id": receipt["world_id"],
+        "template_family_id": template,
+        "world_state": world,
+        "oracle_answer": answer,
+        "oracle_receipt": receipt,
         "rendered_example": {
             "question": f"Inert {generator} world: {world}. Select the next bounded response.",
             "answer": answer,
         },
-        "interpreter": generator, "transform_id": stage,
+        "interpreter": generator,
+        "transform_id": stage,
     }
     result["scenario_id"] = digest(result)
-    return ScenarioRecord.model_validate(result).model_dump(mode="json", exclude_none=True)
+    return ScenarioRecord.model_validate(result).model_dump(
+        mode="json", exclude_none=True
+    )
 
 
 GENERATORS = frozenset(
@@ -1145,7 +1273,10 @@ def _scenario_messages(scenario: dict[str, Any], tool: bool) -> list[dict[str, A
         ):
             raise ValueError("scenario has no complete inert oracle tool receipt")
         name = "declared_world_inspection_v1"
-        arguments = {"world_id": receipt["world_id"], "generator_version": receipt["generator_version"]}
+        arguments = {
+            "world_id": receipt["world_id"],
+            "generator_version": receipt["generator_version"],
+        }
         instruction = "Inspect only the inert declared world receipt."
         final = f"Evidence: {receipt['evidence']}. {answer} Verification: {receipt['verification']} Rollback: {receipt['rollback']}"
     return [
@@ -1310,10 +1441,10 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         from sparselab.corpus.progress import BuildProgress
 
         workspace = Path(work_root) / "corpora" / project.config.id
-        progress = BuildProgress(
-            workspace / "progress" / f"{build_id}.jsonl", build_id
+        progress = BuildProgress(workspace / "progress" / f"{build_id}.jsonl", build_id)
+        return build_large(
+            project, workspace, lock, identity, build_id, target, progress
         )
-        return build_large(project, workspace, lock, identity, build_id, target, progress)
     with _staged_build(root, build_id) as staging:
         documents: list[dict[str, Any]] = []
         evidence: list[dict[str, Any]] = []
@@ -1454,7 +1585,9 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
             source.id: (
                 0
                 if source.kind in {"git", "wikimedia_dump", "http_document"}
-                else 1 if source.id.startswith("pes2o") else 2
+                else 1
+                if source.id.startswith("pes2o")
+                else 2
             )
             for source in project.sources
         }
@@ -2906,7 +3039,12 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 split = doc["split"]
                 counts = source_scale[doc["source_id"]].setdefault(
                     split,
-                    {"documents": 0, "utf8_bytes": 0, "characters": 0, "whitespace_words": 0},
+                    {
+                        "documents": 0,
+                        "utf8_bytes": 0,
+                        "characters": 0,
+                        "whitespace_words": 0,
+                    },
                 )
                 text = doc["text"]
                 counts["documents"] += 1

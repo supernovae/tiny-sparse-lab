@@ -147,11 +147,12 @@ def _selection(release: Path, spec: Declaration):
         )
     if spec.schema_version == 2:
         unreported = [
-            g for g in GROUPS
-            if g not in spec.groups and train[g] and validation[g]
+            g for g in GROUPS if g not in spec.groups and train[g] and validation[g]
         ]
         if unreported:
-            raise ValueError(f"measurable source groups omitted from pilot bakeoff: {unreported}")
+            raise ValueError(
+                f"measurable source groups omitted from pilot bakeoff: {unreported}"
+            )
     train_families = {doc["source_family"] for rows in train.values() for doc in rows}
     val_families = {
         doc["source_family"] for rows in validation.values() for doc in rows
@@ -262,7 +263,10 @@ def _receipt(
     return {
         "fit": {
             g: listing(selected[g])
-            | {"underfilled": listing(selected[g])["bytes"] < spec.max_fit_bytes // len(spec.groups)}
+            | {
+                "underfilled": listing(selected[g])["bytes"]
+                < spec.max_fit_bytes // len(spec.groups)
+            }
             for g in spec.groups
         },
         "heldout": {g: listing(heldout[g]) for g in spec.groups},
@@ -440,7 +444,10 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         if not release.is_absolute():
             release = (declaration.parent / release).resolve()
     manifest = verify_release(release)
-    if spec.schema_version == 2 and manifest["build_identity"]["release"]["schema_version"] != 2:
+    if (
+        spec.schema_version == 2
+        and manifest["build_identity"]["release"]["schema_version"] != 2
+    ):
         raise ValueError("pilot bakeoff requires a prospective rights-tracked release")
     selected, heldout, train = _selection(release, spec)
     receipt = _receipt(selected, heldout, train, spec)
@@ -458,7 +465,8 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
     sample = output / "fit.jsonl"
     _write_sample(sample, fit_docs)
     _write_sample(
-        output / "validation.jsonl", [doc for group in spec.groups for doc in heldout[group]]
+        output / "validation.jsonl",
+        [doc for group in spec.groups for doc in heldout[group]],
     )
     dataset = _dataset(
         sample,
@@ -490,7 +498,8 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         model = load_tokenizer(path)
         measured = {g: _summary(model, heldout[g])[0] for g in spec.groups}
         tokens = sum(
-            weights[g] * measured[g]["tokens"] / measured[g]["bytes"] for g in spec.groups
+            weights[g] * measured[g]["tokens"] / measured[g]["bytes"]
+            for g in spec.groups
         )
         weighted_bytes_per_token = sum(weights.values()) / tokens
         candidates.append(
@@ -543,7 +552,9 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
                 "unmeasured_source_groups": {
                     g: {
                         "train_documents": len(train[g]),
-                        "train_bytes": sum(len(d["text"].encode("utf-8")) for d in train[g]),
+                        "train_bytes": sum(
+                            len(d["text"].encode("utf-8")) for d in train[g]
+                        ),
                         "reason": "no paired independent train/validation family",
                     }
                     for g in GROUPS
@@ -551,8 +562,14 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
                 },
                 "unclassified_source_kinds": {
                     kind: {
-                        "train_documents": sum(d["document_kind"] == kind for d in unclassified),
-                        "train_bytes": sum(len(d["text"].encode("utf-8")) for d in unclassified if d["document_kind"] == kind),
+                        "train_documents": sum(
+                            d["document_kind"] == kind for d in unclassified
+                        ),
+                        "train_bytes": sum(
+                            len(d["text"].encode("utf-8"))
+                            for d in unclassified
+                            if d["document_kind"] == kind
+                        ),
                         "reason": "not in the frozen nine tokenizer groups",
                     }
                     for kind in sorted({d["document_kind"] for d in unclassified})
