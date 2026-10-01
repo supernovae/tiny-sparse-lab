@@ -70,8 +70,8 @@ WORK="$SPARSELAB_WORK_DIR/experiments/offline-training-chain-v1"
 mkdir -p "$WORK/inputs"
 df -h "$WORK"
 df -i "$WORK"
-uv run --locked sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
-uv run --locked sparselab data prepare "$SAMPLE/run.yaml"
+uv run --locked --extra cpu sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
+uv run --locked --extra cpu sparselab data prepare "$SAMPLE/run.yaml"
 ```
 
 Turn the phase template into a complete authored plan with typed external
@@ -79,7 +79,7 @@ artifacts. This script re-verifies the prepared cache and uses actual domain
 identities rather than placeholder hashes:
 
 ```sh
-uv run --locked python - <<'PY'
+uv run --locked --extra cpu python - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -114,11 +114,11 @@ plan["inputs"] = {"tokenizer": "tokenizer", "prepared_data": "packed"}
 (work / "inputs/plan.yaml").write_text(yaml.safe_dump(plan, sort_keys=False))
 PY
 PLAN="$WORK/inputs/plan.yaml"
-uv run --locked sparselab experiment validate "$PLAN" --json
-uv run --locked sparselab experiment inspect "$PLAN" --json
-uv run --locked sparselab experiment lock "$PLAN" --json > "$WORK/lock-result.json"
-LOCK=$(uv run --locked python -c 'import json,sys; print(json.load(open(sys.argv[1]))["lock"])' "$WORK/lock-result.json")
-uv run --locked sparselab experiment explain "$LOCK" --json
+uv run --locked --extra cpu sparselab experiment validate "$PLAN" --json
+uv run --locked --extra cpu sparselab experiment inspect "$PLAN" --json
+uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json > "$WORK/lock-result.json"
+LOCK=$(uv run --locked --extra cpu python -c 'import json,sys; print(json.load(open(sys.argv[1]))["lock"])' "$WORK/lock-result.json")
+uv run --locked --extra cpu sparselab experiment explain "$LOCK" --json
 ```
 
 Validation and inspection check declaration/config shape; they do not verify
@@ -141,7 +141,7 @@ The locked cells contain the effective run configs after input binding and
 phase overrides. Extract them for explicit local inspection and pilots:
 
 ```sh
-uv run --locked python - "$LOCK" "$WORK" <<'PY'
+uv run --locked --extra cpu python - "$LOCK" "$WORK" <<'PY'
 import sys
 from pathlib import Path
 import yaml
@@ -154,11 +154,11 @@ for cell in locked.cells:
     path.write_text(yaml.safe_dump(cell.config.model_dump(mode="json"), sort_keys=False))
     print(cell.id, path)
 PY
-uv run --locked sparselab inspect "$WORK/pretrain-effective.yaml" --json
-uv run --locked sparselab stage "$WORK/pretrain-effective.yaml" \
+uv run --locked --extra cpu sparselab inspect "$WORK/pretrain-effective.yaml" --json
+uv run --locked --extra cpu sparselab stage "$WORK/pretrain-effective.yaml" \
   --through warmup --output "$WORK/stages/pretrain"
-uv run --locked sparselab inspect "$WORK/continue-effective.yaml" --json
-uv run --locked sparselab stage "$WORK/continue-effective.yaml" \
+uv run --locked --extra cpu sparselab inspect "$WORK/continue-effective.yaml" --json
+uv run --locked --extra cpu sparselab stage "$WORK/continue-effective.yaml" \
   --through warmup --output "$WORK/stages/continue"
 ```
 
@@ -170,8 +170,8 @@ the checkpoint transition or establish model quality.
 Submit the root phase and start the controller:
 
 ```sh
-uv run --locked sparselab experiment run "$LOCK" --phase pretrain --json
-uv run --locked sparselab controller run --store "$WORK/controller"
+uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain --json
+uv run --locked --extra cpu sparselab controller run --store "$WORK/controller"
 ```
 
 The first command registers a local worker when none is specified and enqueues
@@ -179,7 +179,7 @@ the selected cell. The controller stays in the foreground. In a second terminal
 with the same `WORK` and `LOCK`, monitor the parent:
 
 ```sh
-uv run --locked sparselab experiment list --store "$WORK/controller"
+uv run --locked --extra cpu sparselab experiment list --store "$WORK/controller"
 ```
 
 Wait for the parent's `status: COMPLETE` and `ingestion_status: COMPLETE`.
@@ -187,8 +187,8 @@ Then explicitly submit the dependent phase; the same running controller will
 dispatch it:
 
 ```sh
-uv run --locked sparselab experiment run "$LOCK" --phase continue --json
-uv run --locked sparselab experiment list --store "$WORK/controller"
+uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue --json
+uv run --locked --extra cpu sparselab experiment list --store "$WORK/controller"
 ```
 
 `experiment run` enqueues work; it does not wait or automatically schedule
@@ -204,10 +204,10 @@ include their axis labels in the returned cell IDs.
 After both phases complete and ingest:
 
 ```sh
-uv run --locked sparselab experiment collect "$LOCK" --json > "$WORK/collection-result.json"
-INDEX=$(uv run --locked python -c 'import json,sys; print(json.load(open(sys.argv[1]))["index_path"])' "$WORK/collection-result.json")
-uv run --locked sparselab experiment reconstruct "$LOCK" --index "$INDEX" --json
-uv run --locked sparselab dashboard --runs-dir "$WORK/controller"
+uv run --locked --extra cpu sparselab experiment collect "$LOCK" --json > "$WORK/collection-result.json"
+INDEX=$(uv run --locked --extra cpu python -c 'import json,sys; print(json.load(open(sys.argv[1]))["index_path"])' "$WORK/collection-result.json")
+uv run --locked --extra cpu sparselab experiment reconstruct "$LOCK" --index "$INDEX" --json
+uv run --locked --extra cpu sparselab dashboard --runs-dir "$WORK/controller"
 ```
 
 The index retains pending, failed, interrupted and invalid cells as distinct
@@ -221,9 +221,9 @@ Use the run IDs returned by submission/list for checkpoint verification,
 held-out evaluation and generation, with `--runs-dir "$WORK/controller"`:
 
 ```sh
-uv run --locked sparselab eval RETURNED_RUN_ID --runs-dir "$WORK/controller"
-uv run --locked sparselab evidence RETURNED_RUN_ID --runs-dir "$WORK/controller" --json
-uv run --locked sparselab generate RETURNED_RUN_ID --runs-dir "$WORK/controller" \
+uv run --locked --extra cpu sparselab eval RETURNED_RUN_ID --runs-dir "$WORK/controller"
+uv run --locked --extra cpu sparselab evidence RETURNED_RUN_ID --runs-dir "$WORK/controller" --json
+uv run --locked --extra cpu sparselab generate RETURNED_RUN_ID --runs-dir "$WORK/controller" \
   --prompt "A path" --max-new-tokens 8
 ```
 

@@ -288,6 +288,20 @@ def _read_recipe(
     return recipe, entry_path, recipe_path
 
 
+def _command_environment(backend: str) -> tuple[str, str]:
+    if backend in {"cpu", "mps"}:
+        return "uv run --locked --extra cpu", ""
+    return (
+        "uv run --locked --no-sync",
+        (
+            "Before running commands, set `UV_PROJECT_ENVIRONMENT` to the absolute path "
+            "of your **existing vendor environment prefix** (not its `bin/python`). "
+            "For example, `export UV_PROJECT_ENVIRONMENT=/absolute/path/to/vendor-prefix`. "
+            "Do not run `uv sync` into that environment: it would replace vendor wheels."
+        ),
+    )
+
+
 def _study_readme(
     entry: ResearchEntry,
     scale: str,
@@ -301,6 +315,7 @@ def _study_readme(
     workspace: str,
 ) -> str:
     profile = load_datasets().datasets[data]
+    command, environment_note = _command_environment(backend)
     choices = "\n".join(
         f"- `{size}` — {scale.hidden_dim}D, {scale.num_layers} layers, {scale.num_heads} heads, FFN {scale.ffn_dim}, {scale.max_steps} steps / {scale.max_tokens} target tokens"
         for size, scale in sorted(load_profiles().scales.items())
@@ -310,7 +325,7 @@ def _study_readme(
         for item in coordinates
     )
     prep = "\n".join(
-        f"uv run --locked sparselab data prepare configs/{item['config_sha256']}.yaml"
+        f"{command} sparselab data prepare configs/{item['config_sha256']}.yaml"
         for item in coordinates
     )
     first = coordinates[0]
@@ -321,6 +336,8 @@ def _study_readme(
 {entry.hypothesis}
 
 Run these commands from this scaffold directory. Set `WORK` to another disk if needed; all seeds and resumed children share its single store. Reusable tokenizer/data inputs retain their existing cache paths.
+
+{environment_note}
 
 ```sh
 WORK="{workspace}"
@@ -341,17 +358,17 @@ export SPARSELAB_WORK_DIR="$WORK"
 ## First: exercise one mechanism without a campaign
 
 ```sh
-uv run --locked sparselab tokenizer train tokenizer.yaml
-uv run --locked sparselab data prepare configs/{first["config_sha256"]}.yaml
-uv run --locked sparselab inspect configs/{first["config_sha256"]}.yaml --json
-uv run --locked sparselab workspace preflight configs/{first["config_sha256"]}.yaml
-uv run --locked sparselab stage configs/{first["config_sha256"]}.yaml --through smoke --output "$WORK/staging/one-arm"
-uv run --locked sparselab learn probe configs/{first["config_sha256"]}.yaml --prompt \"A learner asks a short question.\"
-uv run --locked sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
-uv run --locked sparselab checkpoint verify "$WORK/runs/one-arm/checkpoints/latest.json" --json
-uv run --locked sparselab eval one-arm --runs-dir "$WORK/runs"
-uv run --locked sparselab generate one-arm --runs-dir "$WORK/runs" --prompt \"A learner asks\" --max-new-tokens 8
-uv run --locked sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm-resumed --runs-dir "$WORK/runs" --resume "$WORK/runs/one-arm/checkpoints/latest.json" --stop-after-step 3
+{command} sparselab tokenizer train tokenizer.yaml
+{command} sparselab data prepare configs/{first["config_sha256"]}.yaml
+{command} sparselab inspect configs/{first["config_sha256"]}.yaml --json
+{command} sparselab workspace preflight configs/{first["config_sha256"]}.yaml
+{command} sparselab stage configs/{first["config_sha256"]}.yaml --through smoke --output "$WORK/staging/one-arm"
+{command} sparselab learn probe configs/{first["config_sha256"]}.yaml --prompt \"A learner asks a short question.\"
+{command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm --runs-dir "$WORK/runs" --stop-after-step 2
+{command} sparselab checkpoint verify "$WORK/runs/one-arm/checkpoints/latest.json" --json
+{command} sparselab eval one-arm --runs-dir "$WORK/runs"
+{command} sparselab generate one-arm --runs-dir "$WORK/runs" --prompt \"A learner asks\" --max-new-tokens 8
+{command} sparselab train configs/{first["config_sha256"]}.yaml --run-id one-arm-resumed --runs-dir "$WORK/runs" --resume "$WORK/runs/one-arm/checkpoints/latest.json" --stop-after-step 3
 ```
 
 ## Fixed data, scale, and runtime
@@ -369,9 +386,9 @@ uv run --locked sparselab train configs/{first["config_sha256"]}.yaml --run-id o
 ## Prepare explicitly, then plan or train
 
 ```sh
-uv run --locked sparselab tokenizer train tokenizer.yaml
+{command} sparselab tokenizer train tokenizer.yaml
 {prep}
-uv run --locked sparselab study plan study.yaml
+{command} sparselab study plan study.yaml
 ```
 
 Exported standalone configurations:
@@ -383,11 +400,11 @@ Exported standalone configurations:
 The config files use full scientific SHA-256 names; labels never become paths. To run an arm directly, train any listed config with `--run-id YOUR_ID --runs-dir "$WORK/runs"`. To dispatch the complete study, use an explicit store and worker:
 
 ```sh
-uv run --locked sparselab worker register research-{backend} --backend {backend} --store "$WORK/runs"
-uv run --locked sparselab study submit study.yaml --receipt "$WORK/receipt.json" --worker research-{backend} --store "$WORK/runs"
-uv run --locked sparselab controller run --store "$WORK/runs"
-uv run --locked sparselab study collect study.yaml "$WORK/receipt.json" --runs-dir "$WORK/runs"
-uv run --locked sparselab study report study.yaml "$WORK/receipt.json" --evidence PATH_FROM_COLLECT --research research.json --runs-dir "$WORK/runs" --output "$WORK/local-reports"
+{command} sparselab worker register research-{backend} --backend {backend} --store "$WORK/runs"
+{command} sparselab study submit study.yaml --receipt "$WORK/receipt.json" --worker research-{backend} --store "$WORK/runs"
+{command} sparselab controller run --store "$WORK/runs"
+{command} sparselab study collect study.yaml "$WORK/receipt.json" --runs-dir "$WORK/runs"
+{command} sparselab study report study.yaml "$WORK/receipt.json" --evidence PATH_FROM_COLLECT --research research.json --runs-dir "$WORK/runs" --output "$WORK/local-reports"
 ```
 
 Use `$WORK/staging/`, `$WORK/exercises/`, and `$WORK/captures/` for experiment-local staging and observations. Publish verified compact evidence separately to `artifacts/acceptance/` or `artifacts/research-reports/`; retain mutable runs here. A resume uses the same `--runs-dir "$WORK/runs"` and a new run ID.
@@ -974,6 +991,7 @@ def _lesson_readme(
     artifact: bool,
     workspace: str | None = None,
 ) -> str:
+    command, environment_note = _command_environment("cpu" if artifact else backend)
     if artifact and lesson.id == "semantic-retrieval":
         walkthrough = "\n".join(
             f"- **{step.source_path}:{step.source_symbol}** — {step.explanation} "
@@ -990,9 +1008,9 @@ This standalone workspace contains a verified semantic EngramPack and a runnable
 ## Run and inspect
 
 ```sh
-python demo.py
-uv run --locked sparselab engram pack inspect semantic-pack
-uv run --locked sparselab engram pack verify semantic-pack
+{command} python demo.py
+{command} sparselab engram pack inspect semantic-pack
+{command} sparselab engram pack verify semantic-pack
 ```
 
 The demo reports verified pack identity, retrieval status, ordered record IDs and scores, candidate/comparison counts, temporal exclusions, deterministic tie IDs, adapter site, trainable adapter parameter count before freezing, frozen attachment state, observed model metrics, and full-prefix/cached parity. It also runs a two-edge structured lookup. No tokenizer, model training run, external dataset, text encoder, or network access is required.
@@ -1019,9 +1037,9 @@ This fixture uses keys `[7,6]`, values `[7,7]`, queries `[1,6]`, and backbone hi
 These records are original tutorial-only CC0 triples. They are not a sealed evaluation card, a dynamic-world dataset, or executable model retrieval.
 
 ```sh
-uv run --locked sparselab engram pack compile records.jsonl --output artifacts/tutorial-pack --name tutorial-map --namespace tutorial --license CC0-1.0 --source-name original-tutorial-records --created-at 2026-09-23T00:00:00Z
-uv run --locked sparselab engram pack inspect artifacts/tutorial-pack
-uv run --locked sparselab engram pack verify artifacts/tutorial-pack
+{command} sparselab engram pack compile records.jsonl --output artifacts/tutorial-pack --name tutorial-map --namespace tutorial --license CC0-1.0 --source-name original-tutorial-records --created-at 2026-09-23T00:00:00Z
+{command} sparselab engram pack inspect artifacts/tutorial-pack
+{command} sparselab engram pack verify artifacts/tutorial-pack
 ```
 
 `compile`, `inspect`, and `verify` exercise the artifact format only. There is no `model.yaml`, `tokenizer.yaml`, or probe path in this artifact lesson.
@@ -1034,6 +1052,8 @@ uv run --locked sparselab engram pack verify artifacts/tutorial-pack
 
 `model.yaml`, `tokenizer.yaml`, and `lesson.json` are the versioned source. `$WORK/staging/` holds disposable pilots and `$WORK/runs/` holds mutable runs and checkpoints.
 
+{environment_note}
+
 ## Predict, inspect, probe, change one knob
 
 Before running the probe, predict the output shape and diagnostic values from the shape walkthrough in `lesson.json`. Then inspect the concrete recipe and compare the observed forward. Change exactly one config knob and explain any mismatch.
@@ -1042,15 +1062,15 @@ Before running the probe, predict the output shape and diagnostic values from th
 WORK="{workspace}"
 mkdir -p "$WORK"
 export SPARSELAB_WORK_DIR="$WORK"
-uv run --locked sparselab tokenizer train tokenizer.yaml
-uv run --locked sparselab data prepare model.yaml
-uv run --locked sparselab inspect model.yaml --json
-uv run --locked sparselab workspace preflight model.yaml
-uv run --locked sparselab stage model.yaml --through smoke --output "$WORK/staging/lesson-{lesson.id}"
-uv run --locked sparselab learn probe model.yaml --prompt \"A short input asks about an object.\" --json
-uv run --locked sparselab train model.yaml --run-id lesson-{lesson.id} --runs-dir "$WORK/runs" --stop-after-step 2
-uv run --locked sparselab checkpoint verify "$WORK/runs/lesson-{lesson.id}/checkpoints/latest.json" --json
-uv run --locked sparselab eval lesson-{lesson.id} --runs-dir "$WORK/runs"
+{command} sparselab tokenizer train tokenizer.yaml
+{command} sparselab data prepare model.yaml
+{command} sparselab inspect model.yaml --json
+{command} sparselab workspace preflight model.yaml
+{command} sparselab stage model.yaml --through smoke --output "$WORK/staging/lesson-{lesson.id}"
+{command} sparselab learn probe model.yaml --prompt \"A short input asks about an object.\" --json
+{command} sparselab train model.yaml --run-id lesson-{lesson.id} --runs-dir "$WORK/runs" --stop-after-step 2
+{command} sparselab checkpoint verify "$WORK/runs/lesson-{lesson.id}/checkpoints/latest.json" --json
+{command} sparselab eval lesson-{lesson.id} --runs-dir "$WORK/runs"
 ```
 
 Tokenizer fitting and dataset preparation are explicit; remote datasets may use the network or Hugging Face cache only at those commands. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.

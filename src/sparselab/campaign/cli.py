@@ -181,7 +181,9 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         if name in {"apply", "resume"}:
             command.add_argument("--max-wait-seconds", type=_wait_seconds, default=120)
             command.add_argument("--execute-runs", action="store_true")
-            command.add_argument("--runtime-profile", type=Path)
+            runtime_source = command.add_mutually_exclusive_group()
+            runtime_source.add_argument("--runtime-profile", type=Path)
+            runtime_source.add_argument("--runtime", metavar="ID")
         if name in {"apply", "resume", "reconstruct"}:
             command.add_argument("--allow-uncommitted-declaration", action="store_true")
         if name == "reconstruct":

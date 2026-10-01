@@ -231,7 +231,7 @@ def _runtime(
         {**config.model_dump(mode="python"), "runtime": runtime}
     )
     if engine == "mlx":
-        from sparselab.engines.mlx import validate_config
+        from sparselab.engines.mlx_policy import validate_config
 
         validate_config(resolved)
     return resolved, requested

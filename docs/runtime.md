@@ -45,6 +45,13 @@ lists supported XPU host/device combinations; AMD's
 covers its framework packages. SparseLab does not install or infer drivers from
 the presence of WSL. Native Windows execution is not established by WSL2 tests.
 
+The base installation has no Torch dependency. The lightweight
+`sparselab runtime env` command family is available without Torch; the rest of the CLI
+currently imports a backend framework and needs an appropriate provisioned
+environment. For CPU development, use `uv sync --locked --extra cpu --dev`
+and keep `--extra cpu` on `uv run --locked` commands. Do not sync the CPU extra
+into an accelerator environment.
+
 ## Choose an execution target
 
 A schema-v2 run config has a `runtime` section:
@@ -70,21 +77,132 @@ MLX decoding currently uses full-prefix evaluation, not a KV cache. MoE,
 Engram memory, MLA, sliding-window attention, mixed precision, activation
 offload, and Adafactor remain explicitly unsupported on this engine.
 
-Install the Apple-arm64 extra with `uv sync --locked --extra mlx`; retain it when using
-`uv run --locked --extra mlx ...`, or invoke the installed `.venv/bin/sparselab` directly.
-A core-only installation can inspect and verify native checkpoint files without
-the MLX SDK, but cannot execute native training or inference.
+On Apple arm64, MLX is opt-in: use `uv sync --locked --dev --extra cpu --extra mlx`
+and retain both extras with `uv run --locked --extra cpu --extra mlx ...` for the
+full CLI and native MLX tests. Its eager imports currently need PyTorch even
+when the selected execution engine is MLX. MLX itself remains a separate engine;
+the CPU extra is not a fallback for a requested Metal backend.
 
-The project defaults to CPython 3.14 on CPU and macOS as well as ROCm. The
-locked environment includes Apple Silicon wheel resolution; use
-`uv sync --locked --dev --extra mlx` on Apple Silicon to install the optional
-MLX runtime and run the native MLX tests.
+## Machine-local runtime environments
+
+`sparselab runtime env` is a lightweight, Torch-free management entry point.
+It distinguishes four things: passive **hardware observations**, installed
+**Python environments**, strict **profiles**, and fresh **execution authorization**.
+An RX 7900 XTX observed by `rocminfo` does not make a CPU Torch interpreter ROCm-ready.
+
+```sh
+uv run --locked --extra cpu sparselab runtime env discover --json
+uv run --locked --extra cpu sparselab runtime env register cpu-py314 \
+  --python "$PWD/.venv/bin/python" --backend cpu --json
+uv run --locked --extra cpu sparselab runtime env list --json
+uv run --locked --extra cpu sparselab runtime env show cpu-py314 --json
+uv run --locked --extra cpu sparselab runtime env doctor cpu-py314 --json
+uv run --locked --extra cpu sparselab runtime env profile cpu-py314
+uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml \
+  --through inspect --runtime cpu-py314 --output /absolute/disposable/stage
+```
+
+The runtime root is `SPARSELAB_RUNTIME_DIR` when explicitly absolute; otherwise
+an absolute, nonblank `XDG_DATA_HOME` gives `$XDG_DATA_HOME/sparselab/runtimes`,
+falling back to `~/.local/share/sparselab/runtimes`. Relative explicit roots,
+checkout-contained roots and a root equal to `SPARSELAB_WORK_DIR` are rejected.
+Root resolution is passive. Provisioning additionally requires writable local
+storage and capacity. Existing registered interpreters may live outside that
+root, including the checkout CPU `.venv`.
+
+The operational registry lives at `$XDG_CONFIG_HOME/sparselab/runtimes.yaml`
+when XDG is absolute/nonblank, else `~/.config/sparselab/runtimes.yaml`:
+
+```yaml
+runtime_registry_version: 1
+runtimes:
+  cpu-py314:
+    python: /absolute/checkout/.venv/bin/python
+    engine: pytorch
+    backend: cpu
+    device_index: 0
+    requirements: {}
+```
+
+Unknown fields, duplicate YAML keys/IDs, invalid regexes and relative interpreter
+paths fail closed. Missing interpreters remain visible as `NOT_PROVISIONED`;
+strict `profile` resolution needs a live executable. Missing registry means
+empty v1, not a write. Register/unregister use a file lock and fsynced atomic
+replacement with private permissions. `unregister ID` removes only the mapping;
+there is no environment removal or automatic garbage collection.
+
+Discovery probes only the active Python, project `.venv`, 32 immediate runtime
+children and 32 distinct registered interpreter paths. Directory aliases dedup;
+different venv prefixes remain distinct even when `bin/python` symlinks share a
+base executable. Each candidate has a 20-second/32-KiB output bound; passive host
+tools have 5-second/32-KiB bounds. Truncation is explicit. JSON v1 reports hardware
+separately from environment `READY`, `UNAVAILABLE`, `SOURCE_MISMATCH`, `ERROR` or
+`NOT_PROVISIONED` states. Inventory READY is not authorization for a run.
+
+`register` checks current source, backend/device and requirements, then runs
+the same doctor as `doctor ID` before publishing. Backend inference chooses one
+unambiguous accelerator/MLX backend, or CPU only when CPU is the sole executable
+backend; otherwise specify `--backend`. Doctor runs in the selected interpreter
+and reuses profile authorization plus the existing disposable forward/backward/
+AdamW optimizer pilot, FP32 unless BF16 is required. It does not acquire data,
+train a dataset, create checkpoints or initialize a scientific workspace.
+Only `provision` installs packages. Read-only commands never sync or repair source.
+
+Source mismatch prints a shell-quoted source-only repair:
+`uv pip install --python <registered-python> --no-deps --editable <checkout>`.
+Run it explicitly outside the CLI family. An editable installation normally
+tracks checkout changes without reinstalling; this command preserves vendor Torch.
+Registry IDs and locations never enter plan/science/config digests, CAS or
+checkpoints. Do not copy this host's registry to an SSH worker.
+
+### Versioned gfx1100 provisioning
+
+The sole built-in recipe, `rocm-gfx1100-v1`, binds the AMD ROCm 10.0.0/Python 3.14
+pins and indexes in `requirements/rocm-gfx1100.txt`; it is not a portable ROCm
+extra or a global ROCm version. First establish the actual Windows/WSL/Linux
+driver and GPU combination against AMD's
+[compatibility matrix](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html),
+[WSL installation prerequisites](https://rocm.docs.amd.com/en/latest/install/rocm.html?fam=radeon&gpu=amd-radeon-rx-7900-xtx&gfx=gfx1100&os=wsl),
+and [PyTorch installer](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html).
+SparseLab does not install drivers or certify vendor support.
+
+```sh
+# Only on a supported host with the existing driver stack:
+export SPARSELAB_RUNTIME_DIR="$HOME/.local/share/sparselab/runtimes"
+uv run --locked --extra cpu sparselab runtime env provision rocm-7900xtx \
+  --recipe rocm-gfx1100-v1 --json
+uv run --locked --extra cpu sparselab runtime env doctor rocm-7900xtx --json
+# The accelerator command re-execs into the registered interpreter:
+uv run --locked --extra cpu sparselab stage /absolute/rocm-run.yaml \
+  --through warmup --runtime rocm-7900xtx --output /absolute/disposable/rocm-stage
+```
+
+Provision requires Linux x86_64, an existing Python 3.14 executable (optional
+`--python /absolute/python`), a unique ID and absent target, writable local
+runtime storage, at least 20 GiB free and 100,000 free inodes including cache
+headroom. It exclusively reserves `<runtime-root>/<ID>`, disables interpreter
+downloads, and keeps its cache/scratch/logs on that filesystem. It exports only
+locked common dependencies, rejects Torch/CPU-index contamination, installs
+the explicit vendor pins, then installs editable SparseLab with `--no-deps`.
+Torch version/path/HIP must be unchanged by that last source-only install.
+
+The receipt records recipe/file SHA, source commit/SHA, Python/Torch/device,
+package inventory, indexes, commands, profile/probe and tested BF16 optimizer
+identity. Registration occurs only after the full import, matching real ROCm
+device and BF16 doctor succeed and `provision-receipt.json` is fsynced.
+A failed provision retains its environment, logs and `provision-failure.json`,
+unregistered. Choose a fresh ID rather than repurposing it; unregister never
+deletes an environment. NVIDIA, Intel and Apple environments remain explicitly
+user-provisioned; this recipe neither establishes their support nor changes
+the checkout CPU `.venv`.
+
 
 ## Executable runtime profiles
 
 Hardware inventory does not select a Python environment. Accelerator execution
-requires either an explicit runtime profile or a registered worker with an
-explicit absolute Python interpreter. Ambient CPU execution remains supported.
+requires a registered machine-local runtime ID, an explicit runtime profile, or
+a registered worker with an absolute Python interpreter. Ambient CPU execution
+remains supported.
 `auto` resolving to an accelerator does not authorize it.
 
 ```yaml
@@ -117,10 +235,13 @@ Profiles never install or synchronize environments. A mismatched installed
 source fails before execution; provision the vendor environment and install
 this source before retrying.
 
-Direct `train`, `stage`, `eval`, `generate`, and `chat` accept
-`--runtime-profile PROFILE`; `run` accepts it only when auto-registering a local
-worker. A different interpreter replaces the CLI once with that Python, preserving
-arguments and environment. Authorization happens before workspace initialization.
+Direct `train`, `stage`, `eval`, `generate`, and `chat` accept mutually exclusive
+`--runtime ID` or `--runtime-profile PROFILE`; composed `run` also accepts these
+when auto-registering a local worker (exclusive with `--worker`). Experiment
+bind/run, Campaign apply/resume, evaluation suite run and research snapshot
+support logical IDs wherever they support profile files. A different interpreter
+replaces the CLI once with that Python, preserving arguments and environment.
+Authorization happens before workspace initialization.
 `inspect` and `stage --through inspect` remain passive. Worker dispatch performs
 fresh interpreter/runtime/source validation, and pilot children rederive
 authorization from sealed operational evidence. Persisted evidence or an arbitrary
@@ -139,6 +260,8 @@ Bind each selected cell separately:
 ```sh
 sparselab experiment bind LOCK --runtime-profile PROFILE --cell main:single --json
 sparselab experiment run LOCK --runtime-profile PROFILE --cell main:single --json
+# Logical ID, resolved on this host before the same fresh authorization:
+sparselab experiment bind LOCK --runtime cpu-py314 --cell main:single --json
 # Alternatively: --worker NAME, or run --binding RECEIPT (mutually exclusive).
 ```
 
@@ -379,9 +502,9 @@ MPS and MLX use unified memory. Their device recommendation/driver allocation an
 `inspect` builds a shape-only parameter inventory and a conservative memory estimate; it does not construct the model or load tokenizer/data/package assets. The estimate uses disjoint categories—resident weights, registered runtime buffers, gradients, optimizer state, retained activations, attention working tensors, workspace, and headroom. It is a planning model, not a measured peak. Missing capacity information produces `UNKNOWN`; an artificial `budget_bytes` can demonstrate an exceedance but cannot prove physical fit.
 
 ```sh
-uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
-uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
+uv run --locked --extra cpu sparselab inspect configs/runtime_smoke_cpu.yaml --json
+uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml --through smoke --output sparselab-work/stages/runtime-smoke
+uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output sparselab-work/stages/runtime-warmup
 ```
 
 A stage bundle is an immutable, verified copy of the effective inputs. `inspect` records only preflight inspection; `validate` additionally validates backend and artifacts; `smoke` and `warmup` run short, disposable subprocess pilots. Pilots do not advance the eventual training run's optimizer, schedule, cursor, counters, or RNG. A stage output must be new, or an identical complete bundle is re-verified and reused. If estimation or a pilot exceeds its safe ceiling, staging writes a proposal and stops; it does not rewrite the requested config.
@@ -398,10 +521,10 @@ observation of actual phase costs. Missing evidence is `null`/unavailable, not
 zero.
 
 ```sh
-uv run --locked sparselab inspect CONFIG --estimate-runtime --json
-uv run --locked sparselab stage CONFIG --through warmup --output sparselab-work/stages/forecast
-uv run --locked sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/forecast
-uv run --locked sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
+uv run --locked --extra cpu sparselab inspect CONFIG --estimate-runtime --json
+uv run --locked --extra cpu sparselab stage CONFIG --through warmup --output sparselab-work/stages/forecast
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/forecast
+uv run --locked --extra cpu sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
 ```
 
 `inspect --estimate-runtime` is read-only. Planning uses up to the 25 most
@@ -588,7 +711,7 @@ source/tokenizer/owner identity, unexpected entries, and replacement publication
 Run the standalone utility offline:
 
 ```sh
-uv run --locked --offline python benchmarks/preparation_benchmark.py \
+uv run --locked --extra cpu --offline python benchmarks/preparation_benchmark.py \
   --workspace sparselab-work/runtime-prep-v1/benchmarks
 ```
 
@@ -687,6 +810,15 @@ training equivalence, model-quality results, or foreign-hardware acceptance.
 The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
 
 Native CUDA sparse kernels, actual XPU acceptance, and overlapping real Mac/AMD/Intel execution remain open in [the implementation backlog](../TODO.md). Native HIP sparse attention has been exercised and benchmarked on the RX 7900 XTX; ROCm runtime acceptance remains limited to one WSL2 host and does not establish cross-host support.
+
+The [registered-runtime ROCm gate](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
+records isolated `rocm-gfx1100-v1` provisioning and a fresh RX 7900 XTX BF16
+Campaign: one ingested attempt, two optimizer steps, 64 supervised targets,
+and a verified full-state checkpoint. Explicit ROCm and CPU FP32 evaluation
+share that checkpoint and retain ROCm training identity; threshold-free
+readiness is `READY_FOR_NEXT_STAGE`. The checkout's CPU Torch version, paths,
+and hashes remained unchanged. This is local execution/runtime-contract
+acceptance, not a model-quality, performance, or cross-host portability result.
 
 See [memory accounting](memory.md), [activation recomputation](activation-checkpointing.md),
 and [activation offload](offload.md) for the estimate/measurement boundaries.

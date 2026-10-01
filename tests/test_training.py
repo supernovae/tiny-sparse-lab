@@ -13,8 +13,8 @@ from sparselab.config.loading import load_config
 from sparselab.config.migrate import migrate_v1
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.data.tokenizer import train_tokenizer
-from sparselab.engines.mlx import EngineCapabilityError
-from sparselab.engines.mlx import validate as validate_mlx
+from sparselab.engines.base import EngineCapabilityError
+from sparselab.engines.mlx_policy import validate as validate_mlx
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.evaluation.post_train_triage import read_triage
 from sparselab.evaluation.reference_exercise import PROMPTS

@@ -402,7 +402,8 @@ def add_commands(
         "run", help="Submit one independent run and wait for its outcome"
     )
     run.add_argument("config")
-    run.add_argument("--worker")
+    runtime_source = run.add_mutually_exclusive_group()
+    runtime_source.add_argument("--worker")
     run.add_argument("--stage-bundle")
     run.add_argument("--promote")
     run.add_argument(
@@ -411,7 +412,8 @@ def add_commands(
         default=1800,
         help="Finite deadline in seconds for each bundle or artifact transfer RPC",
     )
-    run.add_argument("--runtime-profile", type=Path)
+    runtime_source.add_argument("--runtime-profile", type=Path)
+    runtime_source.add_argument("--runtime", metavar="ID")
     run.add_argument("--resource-envelope", type=Path)
     from sparselab.cli.main import _tokenizer_batch_arguments
 

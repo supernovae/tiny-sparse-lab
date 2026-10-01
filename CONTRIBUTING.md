@@ -1,6 +1,30 @@
 # Contributing
 
-Use Python 3.14 (selected by `.python-version`) and `uv sync --locked --group dev`. Run CPU checks with `uv run pytest -m "not mps and not network"` when tests exist. Do not commit downloaded corpora, prepared arrays, run directories, or checkpoints. Reports should include the resolved configuration and relevant run evidence.
+Use Python 3.14 (selected by `.python-version`) and
+`uv sync --locked --extra cpu --dev`. For the Linux CPU checks:
+
+```sh
+uv run --locked --extra cpu ruff check .
+uv run --locked --extra cpu ruff format --check .
+uv run --locked --extra cpu pytest -q -n 2 --dist loadfile \
+  -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
+```
+
+Base installation is Torch-free: the lightweight `sparselab runtime env` CLI
+works without Torch, but the full CLI currently imports a backend framework.
+For a provisioned vendor interpreter use it directly or set
+`UV_PROJECT_ENVIRONMENT` to its environment prefix and run with
+`uv run --locked --no-sync`; never sync the CPU extra into it. Do not commit
+downloaded corpora, prepared arrays, run directories, or checkpoints. Reports
+should include the resolved configuration and relevant run evidence.
+
+For a local CPU example, run `sparselab runtime env discover --json`, then
+`sparselab runtime env register cpu-py314 --python "$PWD/.venv/bin/python" --backend cpu --json`
+and `sparselab runtime env doctor cpu-py314 --json`. Select it with
+`sparselab stage configs/runtime_smoke_cpu.yaml --through inspect --runtime cpu-py314 --output /absolute/disposable/stage`.
+The XDG runtime root and host-local registry are separate from
+`SPARSELAB_WORK_DIR` and scientific locks; never copy runtime IDs as capability
+claims to another host. See [machine-local runtime environments](docs/runtime.md#machine-local-runtime-environments).
 
 Work on an ordinary branch in the existing checkout, not an automatically created
 worktree:

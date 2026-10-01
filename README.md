@@ -46,18 +46,22 @@ then check the training lifecycle with this offline fixture before downloading d
 ```sh
 git clone https://github.com/supernovae/tiny-sparse-lab.git
 cd tiny-sparse-lab
-uv sync --locked --dev
+uv sync --locked --extra cpu --dev
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
-uv run --locked sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run --locked sparselab stage configs/runtime_smoke_cpu.yaml \
+uv run --locked --extra cpu sparselab tokenizer train configs/tokenizer_smoke.yaml
+uv run --locked --extra cpu sparselab inspect configs/runtime_smoke_cpu.yaml --json
+uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml \
   --through warmup --output "$SPARSELAB_WORK_DIR/first-run/stage"
-uv run --locked sparselab train configs/runtime_smoke_cpu.yaml \
+uv run --locked --extra cpu sparselab train configs/runtime_smoke_cpu.yaml \
   --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs" --run-id first-run \
   --stage-bundle "$SPARSELAB_WORK_DIR/first-run/stage"
-uv run --locked sparselab eval first-run --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
-uv run --locked sparselab dashboard --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
+uv run --locked --extra cpu sparselab eval first-run --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
+uv run --locked --extra cpu sparselab dashboard --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
 ```
+
+The base installation is Torch-free. Add `--extra cpu` for this CPU workflow and
+the full CLI (which still imports a backend framework); `sparselab runtime env`
+commands use a lightweight Torch-free entry route.
 
 This tiny synthetic run checks that the lab works. For real story data, follow
 the **[TinyStories microlab](docs/tinystories-microlab.md)**: a ~590K-parameter
@@ -69,9 +73,31 @@ retain those destinations even when the global root changes. Use fresh run IDs a
 stage directories when repeating an experiment; check free storage and runtime
 warmup measurements before scaling.
 
-**Already have a provisioned ROCm/CUDA/XPU environment?** Use
-`uv run --locked --no-sync …` throughout. The Linux source lock uses CPU PyTorch;
-syncing it can replace your vendor build. Follow the [worker setup guide](docs/workers.md#user-provisioned-ssh-workers).
+**Machine-local runtimes** are independent of the scientific work root and lock.
+Discover installed interpreters and host hardware separately, then register and
+doctor a CPU interpreter before selecting its logical ID for execution:
+
+```sh
+uv run --locked --extra cpu sparselab runtime env discover --json
+uv run --locked --extra cpu sparselab runtime env register cpu-py314 \
+  --python "$PWD/.venv/bin/python" --backend cpu --json
+uv run --locked --extra cpu sparselab runtime env doctor cpu-py314 --json
+uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml \
+  --through inspect --runtime cpu-py314 --output "$SPARSELAB_WORK_DIR/first-run/inspect"
+```
+
+The registry is host-local; a detected GPU alone does not authorize execution.
+The runtime root defaults to `~/.local/share/sparselab/runtimes` (or
+`$XDG_DATA_HOME/sparselab/runtimes`, overridden by `SPARSELAB_RUNTIME_DIR`);
+the registry defaults to `~/.config/sparselab/runtimes.yaml` (or
+`$XDG_CONFIG_HOME/sparselab/runtimes.yaml`). Neither is
+`SPARSELAB_WORK_DIR`. See [machine-local runtime environments](docs/runtime.md#machine-local-runtime-environments)
+for provisioning, other backends, and authorization.
+
+**Already have a provisioned ROCm/CUDA/XPU environment?** Select its interpreter
+directly or set `UV_PROJECT_ENVIRONMENT` to its environment prefix and use
+`uv run --locked --no-sync …` throughout. The Linux `cpu` extra uses CPU PyTorch;
+never sync it into a vendor environment. Follow the [worker setup guide](docs/workers.md#user-provisioned-ssh-workers).
 
 ## Experiments as programs
 

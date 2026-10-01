@@ -11,10 +11,10 @@ CPU reproducibility uses `runtime.backend: cpu` and `training.deterministic: tru
 ## Smoke runs
 
 ```sh
-uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_cpu.yaml --run-id dense-smoke
-uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-smoke
-uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
-uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_combined_cpu.yaml --run-id combined-smoke
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_cpu.yaml --run-id dense-smoke
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-smoke
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_combined_cpu.yaml --run-id combined-smoke
 ```
 
 A smoke run validates a path through training, checkpointing, evaluation, and metrics. It is not a quality benchmark. Compare runs only when data, tokenizer, device, sequence length, token budget, optimizer, and seed are recorded and intentionally matched.
@@ -27,10 +27,10 @@ inferred from model size. An optional disposable warmup adds a separate
 measurement without advancing training state:
 
 ```sh
-uv run --locked sparselab inspect CONFIG --estimate-runtime --json
-uv run --locked sparselab stage CONFIG --through warmup --output sparselab-work/stages/warmup
-uv run --locked sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/warmup
-uv run --locked sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
+uv run --locked --extra cpu sparselab inspect CONFIG --estimate-runtime --json
+uv run --locked --extra cpu sparselab stage CONFIG --through warmup --output sparselab-work/stages/warmup
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs CONFIG --stage-bundle sparselab-work/stages/warmup
+uv run --locked --extra cpu sparselab runtime status RUN_ID --runs-dir sparselab-work/runs --json
 ```
 
 Live progress uses completed supervised targets as its primary denominator.
@@ -51,10 +51,10 @@ for exact-history matching and interpretation limits.
 PyTorch checkpoints are immutable local generations under `sparselab-work/runs/<run-id>/checkpoints/`; `latest.json` points to the newest validated generation. Verify a checkpoint before continuing it:
 
 ```sh
-uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-part --stop-after-step 20
-uv run sparselab checkpoint inspect sparselab-work/runs/moe-part/checkpoints/latest.json --json
-uv run sparselab checkpoint verify sparselab-work/runs/moe-part/checkpoints/latest.json --json
-uv run sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-resumed \
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-part --stop-after-step 20
+uv run --locked --extra cpu sparselab checkpoint inspect sparselab-work/runs/moe-part/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/moe-part/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-resumed \
   --resume sparselab-work/runs/moe-part/checkpoints/latest.json
 ```
 

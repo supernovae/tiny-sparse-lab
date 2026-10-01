@@ -61,10 +61,10 @@ experiment: explicit cache locations remain separate.
 
 ```sh
 WORK="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}/experiments/dense-lm-v1"
-uv run --locked sparselab workspace cleanup plan "$WORK" \
+uv run --locked --extra cpu sparselab workspace cleanup plan "$WORK" \
   --output "$WORK/local-reports/cleanup-plan.json"
 # Review the JSON paths, identities, and reclaimable bytes before applying.
-uv run --locked sparselab workspace cleanup apply \
+uv run --locked --extra cpu sparselab workspace cleanup apply \
   "$WORK/local-reports/cleanup-plan.json"
 ```
 
@@ -88,11 +88,11 @@ controller operation, collection, and resume:
 ```sh
 WORK="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}/experiments/dense-lm-v1"
 mkdir -p "$WORK"
-uv run --locked sparselab study submit configs/references/dense-lm-v1/study.yaml \
+uv run --locked --extra cpu sparselab study submit configs/references/dense-lm-v1/study.yaml \
   --store "$WORK/runs" --receipt "$WORK/receipt.json"
-uv run --locked sparselab controller run --store "$WORK/runs"
+uv run --locked --extra cpu sparselab controller run --store "$WORK/runs"
 # After completion and verified ingestion:
-uv run --locked sparselab study collect configs/references/dense-lm-v1/study.yaml \
+uv run --locked --extra cpu sparselab study collect configs/references/dense-lm-v1/study.yaml \
   "$WORK/receipt.json" --runs-dir "$WORK/runs"
 ```
 

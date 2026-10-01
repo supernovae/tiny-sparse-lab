@@ -34,13 +34,12 @@ study's original outputs into a new, ignored, task-owned bundle, then open the
 dedicated review page (not the read-only telemetry dashboard):
 
 ```sh
-uv run --locked sparselab surface import data-rich-v1 \
+uv run --locked --extra cpu sparselab surface import data-rich-v1 \
   --campaign-root /home/byron/src/tiny-sparse-lab-data-rich \
   --sample quick --selection-seed 2026 --presentation-seed 2027 \
   --output sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026
-uv run --locked sparselab surface review \
+uv run --locked --extra cpu sparselab surface review \
   sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026 --port 8502
-```
 
 The import reads existing, hash-verified campaign JSONLs; it does not run models,
 replace missing files or change old study evidence. Submit all A/B judgments,

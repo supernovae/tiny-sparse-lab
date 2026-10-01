@@ -48,6 +48,56 @@ For a single composed local experiment, `sparselab run CONFIG --store ROOT` regi
 
 `controller run` and composed `run` accept `--transfer-timeout SECONDS` (default 1800). It is a finite per-RPC deadline for bundle and artifact transfers, including hashing and transmission; increase it explicitly for a slow link or large input. Metadata requests have shorter bounded deadlines. Killing the controller never authorizes re-execution of an assigned optimizer attempt.
 
+## Machine-local runtime selection
+
+`sparselab runtime env` manages a host-local interpreter registry, not worker
+registrations or scientific locks. Inspect hardware and installed Python environments
+separately; inventory alone does not authorize a backend. A CPU checkout example:
+
+```sh
+sparselab runtime env discover --json
+sparselab runtime env register cpu-py314 --python "$PWD/.venv/bin/python" --backend cpu --json
+sparselab runtime env list --json
+sparselab runtime env doctor cpu-py314 --json
+sparselab stage configs/runtime_smoke_cpu.yaml --through inspect \
+  --runtime cpu-py314 --output /absolute/disposable/stage
+```
+
+The provision-created runtime root is `SPARSELAB_RUNTIME_DIR` if explicitly
+absolute, else `$XDG_DATA_HOME/sparselab/runtimes` if XDG is absolute/nonblank,
+else `~/.local/share/sparselab/runtimes`. The registry uses the corresponding
+`$XDG_CONFIG_HOME/sparselab/runtimes.yaml` or
+`~/.config/sparselab/runtimes.yaml`. Both are independent of
+`SPARSELAB_WORK_DIR` and the scientific lock. Existing interpreters can be
+registered outside the runtime root. Never copy registry entries to another
+host: register and doctor the actual interpreter there; remote worker capabilities
+remain authoritative on that host. `--runtime ID` resolves a local profile,
+while `--worker NAME` selects a worker endpoint; they are not interchangeable.
+
+The following **user-provisioned** registrations illustrate backend selection;
+CUDA, XPU, MPS and MLX/Metal executions are **untested here**. Each interpreter
+must already contain a compatible SparseLab source and actual working device;
+registration runs a real optimizer doctor and refuses unavailable backends.
+MLX uses `--backend metal` (its profile engine is MLX).
+
+```sh
+sparselab runtime env register cuda-local --python /absolute/cuda/bin/python --backend cuda --json
+sparselab runtime env register xpu-local --python /absolute/xpu/bin/python --backend xpu --json
+sparselab runtime env register mps-local --python /absolute/mps/bin/python --backend mps --json
+sparselab runtime env register mlx-local --python /absolute/mlx/bin/python --backend metal --json
+sparselab runtime env doctor cuda-local --json
+```
+
+The sole automatic vendor recipe is the **candidate** `rocm-gfx1100-v1`:
+`sparselab runtime env provision rocm-7900xtx --recipe rocm-gfx1100-v1 --json`.
+It requires verified host/driver support, Linux x86_64, an existing Python 3.14
+executable, writable local runtime storage with at least 20 GiB free and 100,000
+free inodes. This command installs into a new runtime-root path, not the checkout
+`.venv`; failure retains the partial environment unregistered. There is no automatic
+garbage collection. Do not sync a CPU extra into a vendor environment or treat
+the recipe as ROCm readiness/scientific acceptance. Details:
+[machine-local runtime environments](runtime.md#machine-local-runtime-environments).
+
 ## User-provisioned SSH workers
 
 The following is an example for an already provisioned host, not evidence that such a host is available:
@@ -60,7 +110,22 @@ sparselab worker register amd --backend rocm --ssh amd-host \
 
 The SSH alias must already be configured in the user's SSH environment. Transport uses strict host-key checking and `BatchMode=yes`; it does not store passwords, accept unknown host keys, install software remotely, or execute commands from experiment configurations. Interpreter and worker-root paths are absolute. The endpoint runs a fixed, shell-quoted agent command. Worker roots are private and bound to an immutable registration.
 
-Provision each target with its vendor-compatible PyTorch/runtime and the project wheel. The source checkout's Linux CPU package index is for CPU development and CI; do not blindly apply that CPU-locked environment to accelerator workers. **`uv run --locked` performs synchronization and can replace a previously provisioned vendor wheel with CPU PyTorch; use `uv run --locked --no-sync` for every command in a provisioned accelerator checkout.** Check the installed framework API and actual device before staging (for ROCm: `torch.version.hip`, `torch.cuda.is_available()`, and `torch.cuda.get_device_name(0)`), and require explicit backend validation at warmup. An unknown device or missing vendor runtime is a provisioning decision to escalate, not a signal to select another backend from the host OS or an old run manifest. Record actual driver/framework/runtime versions and perform the worker's concrete validation. PyTorch MPS and optional MLX Metal are different engines sharing the same physical Apple GPU lease.
+Provision each target with its vendor-compatible PyTorch/runtime and the
+project wheel. Base SparseLab is Torch-free; `--extra cpu` explicitly opts into
+CPU PyTorch for development and CI. The lightweight `sparselab runtime env`
+entry works without Torch, but the full CLI still imports a backend framework.
+Do not apply the CPU extra to accelerator workers. **Select the provisioned
+interpreter directly, or set `UV_PROJECT_ENVIRONMENT` to its environment prefix
+and use `uv run --locked --no-sync` for every command in a provisioned accelerator
+checkout.** A syncing `uv run --locked --extra cpu` can replace a vendor wheel
+with CPU PyTorch. Check the installed framework API and actual device before
+staging (for ROCm: `torch.version.hip`, `torch.cuda.is_available()`, and
+`torch.cuda.get_device_name(0)`), and require explicit backend validation at
+warmup. An unknown device or missing vendor runtime is a provisioning decision
+to escalate, not a signal to select another backend from the host OS or an old
+run manifest. Record actual driver/framework/runtime versions and perform the
+worker's concrete validation. PyTorch MPS and optional MLX Metal are different
+engines sharing the same physical Apple GPU lease.
 
 Choose the host environment and backend independently: a WSL2 worker is a Linux
 worker that can request CPU, CUDA, ROCm, or XPU when its installed stack and
@@ -74,10 +139,13 @@ The optional [gfx1100 provisioning requirements](../requirements/rocm-gfx1100.tx
 retain the existing AMD worker's Python 3.14/ROCm package pins. They are an
 explicit device-specific provisioning input, not a Linux or WSL2 default and
 not a prescription for every AMD GPU. Other AMD devices, NVIDIA CUDA, and Intel
-XPU workers use their own compatible vendor stack. The project wheel declares a
-generic PyTorch dependency so installing SparseLab does not request AMD device
-packages solely because the host runs Linux. Keep the vendor package constraints
-when resolving the wheel's dependencies.
+XPU workers use their own compatible vendor stack. The base project wheel has
+no PyTorch dependency; provision the vendor framework separately and install
+SparseLab without resolving or replacing that framework (for example, with
+`uv pip install --python /absolute/vendor/bin/python --no-deps --editable .`
+from the checkout). Keep the vendor package constraints when resolving other
+dependencies. On Apple arm64, MLX remains opt-in; the full CLI currently needs
+both `--extra mlx` and `--extra cpu` in a managed project environment.
 
 ## Preparation and durable identity
 

@@ -14,10 +14,10 @@ Start with a packaged scaffold:
 
 ```sh
 WORK="$PWD/sparselab-work/experiments/engram-ffn-substitution-v1"
-uv run --locked sparselab --work-dir "$PWD/sparselab-work" research scaffold engram-ffn-substitution-v1 \
+uv run --locked --extra cpu sparselab --work-dir "$PWD/sparselab-work" research scaffold engram-ffn-substitution-v1 \
   --scale smoke --data offline --backend cpu \
   --output "$WORK/scaffold"
-uv run --locked sparselab study plan "$WORK/scaffold/study.yaml"
+uv run --locked --extra cpu sparselab study plan "$WORK/scaffold/study.yaml"
 ```
 
 The generated README identifies the explicit preparation and execution steps, sets one `WORK`, and keeps all seed coordinates in `$WORK/runs` with one `$WORK/receipt.json`. Its scratch setting is exported after scaffolding; setting the workspace itself as the global base before scaffolding would append another `experiments/<study-name>` level. Explicit generated store and receipt paths keep later commands inside the selected workspace.
@@ -45,10 +45,10 @@ If an exact subset becomes infeasible, preparation fails instead of rounding.
 From the repository root, in the locked environment:
 
 ```sh
-uv run --locked sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked sparselab experiment diff experiments/samples/corpus-shape-fraction.yaml --json
-uv run --locked sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked --extra cpu sparselab experiment validate experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked --extra cpu sparselab experiment prepare experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked --extra cpu sparselab experiment diff experiments/samples/corpus-shape-fraction.yaml --json
+uv run --locked --extra cpu sparselab experiment lock experiments/samples/corpus-shape-fraction.yaml --json
 ```
 
 Preparation materializes sources, releases, exports, tokenizers and packed

@@ -17,15 +17,17 @@ dependencies = [
     "pyyaml>=6,<7",
     "streamlit>=1.64,<2",
     "tokenizers==0.22.2",
-    "torch>=2.8,<3",
     "pyarrow>=25,<26",
     "safetensors>=0.5,<1",
 ]
 
 [project.scripts]
-sparselab = "sparselab.cli.main:main"
+sparselab = "sparselab.cli.entry:main"
 
 [project.optional-dependencies]
+cpu = [
+    "torch>=2.8,<3",
+]
 mlx = [
     "mlx==0.32.2",
 ]
@@ -46,7 +48,7 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torch = [{ index = "pytorch-cpu", extra = "cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.uv]
 required-environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]

@@ -1309,11 +1309,13 @@ dependencies = [
     { name = "safetensors" },
     { name = "streamlit" },
     { name = "tokenizers" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
-    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
 ]
 
 [package.optional-dependencies]
+cpu = [
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
+    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
+]
 mlx = [
     { name = "mlx" },
 ]
@@ -1342,11 +1344,11 @@ requires-dist = [
     { name = "safetensors", specifier = ">=0.5,<1" },
     { name = "streamlit", specifier = ">=1.64,<2" },
     { name = "tokenizers", specifier = "==0.22.2" },
-    { name = "torch", marker = "sys_platform != 'linux'", specifier = ">=2.8,<3" },
-    { name = "torch", marker = "sys_platform == 'linux'", specifier = ">=2.8,<3", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torch", marker = "sys_platform == 'linux' and extra == 'cpu'", specifier = ">=2.8,<3", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "tiny-sparse-lab", extra = "cpu" } },
+    { name = "torch", marker = "sys_platform != 'linux' and extra == 'cpu'", specifier = ">=2.8,<3" },
     { name = "transformers", marker = "extra == 'reference'", specifier = ">=4.45,<5" },
 ]
-provides-extras = ["mlx", "reference"]
+provides-extras = ["cpu", "mlx", "reference"]
 
 [package.metadata.requires-dev]
 dev = [

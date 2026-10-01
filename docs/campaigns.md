@@ -69,14 +69,14 @@ statuses and hashes but does not bypass artifact, approval, or runtime checks.
 
 ```sh
 export SPARSELAB_WORK_DIR=/data/sparselab
-uv run --locked sparselab campaign validate examples/tiny-campaign.yaml --json
-uv run --locked sparselab campaign plan examples/tiny-campaign.yaml --json
-uv run --locked sparselab campaign status examples/tiny-campaign.yaml --json
-uv run --locked sparselab campaign next examples/tiny-campaign.yaml --json
-uv run --locked sparselab campaign apply examples/tiny-campaign.yaml --json
-uv run --locked sparselab campaign explain examples/tiny-campaign.yaml --json
-uv run --locked sparselab campaign approve examples/tiny-campaign.yaml corpus-approval --note 'Reviewed these bound inputs' --json
-uv run --locked sparselab campaign resume examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign validate examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign plan examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign status examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign next examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign apply examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign explain examples/tiny-campaign.yaml --json
+uv run --locked --extra cpu sparselab campaign approve examples/tiny-campaign.yaml corpus-approval --note 'Reviewed these bound inputs' --json
+uv run --locked --extra cpu sparselab campaign resume examples/tiny-campaign.yaml --json
 ```
 
 `validate` performs static checks only. `plan`, `next` and `explain` verify requisite
