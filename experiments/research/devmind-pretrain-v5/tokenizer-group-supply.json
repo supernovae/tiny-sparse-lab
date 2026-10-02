@@ -1,0 +1,512 @@
+{
+  "absent_pairings": [
+    "python",
+    "rust",
+    "toml",
+    "logs"
+  ],
+  "actual_tokenizer_group_inspection_version": 1,
+  "build_id": "7789f970526f3c07c005ce8e300e70fdc020e8bcbd088bd5bdf9f55706c1b75a",
+  "cross_split_normalized_content_overlap_count": 0,
+  "cross_split_source_family_overlap": [],
+  "expectations_sha256": "c67cd5c5082cd9948e5673b795b959a92b47b2bb6483a70acda52842a428e743",
+  "grouping_implementation_sha256": "e836213f5431d9dbdb8a37781028eb224671f7fce59e389eb835c60755499d73",
+  "groups_with_independent_pairings": [
+    "prose",
+    "go",
+    "shell",
+    "yaml",
+    "json"
+  ],
+  "inspection_implementation_sha256": "1249fc1ce67684f01e7449a7084b645b7e30ffb6b2f958a0bb65516833748bbe",
+  "interpretation": "Actual selected LM-source documents grouped by the canonical bakeoff implementation. Counts/UTF8 bytes describe supply, not tokenizer scores, token estimates, quality or model budget. No tokenizer fitting performed.",
+  "release_envelope_version": 1,
+  "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "release_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "release_policy_schema_version": 3,
+  "splits": {
+    "train": {
+      "groups": {
+        "go": {
+          "documents": 13049,
+          "rendered_utf8_bytes": 111972893,
+          "source_families": [
+            "v2_go_standard_train",
+            "v2_otel_collector_train",
+            "v3_system_cilium_train",
+            "v3_system_containerd_train",
+            "v3_system_etcd_train",
+            "v3_system_jaeger_train",
+            "v3_system_vitess_train",
+            "v3_tool_go_build_train",
+            "v3_tool_opentofu_train",
+            "v4_iac_go_build_bootstrap_train"
+          ],
+          "source_ids": [
+            "v2_go_standard",
+            "v2_otel_collector",
+            "v3_system_cilium",
+            "v3_system_containerd",
+            "v3_system_etcd",
+            "v3_system_jaeger",
+            "v3_system_vitess",
+            "v3_tool_go_build",
+            "v3_tool_opentofu",
+            "v4_iac_go_build_bootstrap"
+          ]
+        },
+        "json": {
+          "documents": 20,
+          "rendered_utf8_bytes": 82437,
+          "source_families": [
+            "v4_iac_cmake_build_train",
+            "v4_runtime_react_js_train",
+            "v4_runtime_vite_ts_train"
+          ],
+          "source_ids": [
+            "v4_iac_cmake_build",
+            "v4_runtime_react_js",
+            "v4_runtime_vite_ts"
+          ]
+        },
+        "logs": {
+          "documents": 0,
+          "rendered_utf8_bytes": 0,
+          "source_families": [],
+          "source_ids": []
+        },
+        "prose": {
+          "documents": 436565,
+          "rendered_utf8_bytes": 2262862645,
+          "source_families": [
+            "fineweb_edu_sample_10bt_train",
+            "openwebmath_train",
+            "v2_go_faq_train",
+            "v2_go_standard_train",
+            "v2_k8s_concepts_train",
+            "v2_linux_fs_train",
+            "v2_omp_harness_train",
+            "v2_otel_collector_train",
+            "v2_otel_specification_train",
+            "v2_python_library_train",
+            "v3_cloudevents_train",
+            "v3_oci_distribution_train",
+            "v3_oci_image_train",
+            "v3_rfc8949_train",
+            "v3_system_cilium_train",
+            "v3_system_containerd_train",
+            "v3_system_envoy_train",
+            "v3_system_etcd_train",
+            "v3_system_jaeger_train",
+            "v3_system_kafka_train",
+            "v3_system_openssl_train",
+            "v3_system_systemd_train",
+            "v3_system_tikv_train",
+            "v3_system_util_linux_train",
+            "v3_system_valkey_train",
+            "v3_system_vitess_train",
+            "v3_system_zookeeper_train",
+            "v3_tool_cargo_train",
+            "v3_tool_cmake_train",
+            "v3_tool_cpython_compiler_train",
+            "v3_tool_go_build_train",
+            "v3_tool_meson_train",
+            "v3_tool_omp_lab_train",
+            "v3_tool_opentofu_train",
+            "v3_tool_rust_book_train",
+            "v3_tool_rust_compiler_train",
+            "v4_db_duckdb_docs_train",
+            "v4_iac_ansible_docs_train",
+            "v4_iac_cargo_build_train",
+            "v4_iac_cmake_build_train",
+            "v4_iac_helm_guides_train",
+            "v4_iac_kubernetes_operator_train",
+            "v4_iac_ninja_build_train",
+            "v4_iac_opentofu_config_train",
+            "v4_iac_systemd_units_train",
+            "v4_ops_alloy_train",
+            "v4_ops_cloudnativepg_train",
+            "v4_ops_containerd_train",
+            "v4_ops_curl_train",
+            "v4_ops_etcd_train",
+            "v4_ops_grafana_train",
+            "v4_ops_iputils_train",
+            "v4_ops_loki_train",
+            "v4_ops_omp_tools_train",
+            "v4_ops_otel_helm_train",
+            "v4_ops_pgbackrest_train",
+            "v4_ops_strace_train",
+            "v4_ops_tempo_train",
+            "v4_ops_thanos_train",
+            "v4_ops_victoriametrics_train",
+            "v4_ops_zalando_postgres_train",
+            "v4_runtime_bash_manual_shell_train",
+            "v4_runtime_node_js_train",
+            "v4_runtime_shellspec_shell_train",
+            "v4_runtime_vite_ts_train",
+            "wikipedia_20260901_train"
+          ],
+          "source_ids": [
+            "fineweb_edu_sample_10bt",
+            "openwebmath_train",
+            "v2_go_faq",
+            "v2_go_standard",
+            "v2_k8s_concepts",
+            "v2_linux_fs",
+            "v2_omp_harness",
+            "v2_otel_collector",
+            "v2_otel_specification",
+            "v2_python_library",
+            "v3_cloudevents",
+            "v3_oci_distribution",
+            "v3_oci_image",
+            "v3_rfc8949",
+            "v3_system_cilium",
+            "v3_system_containerd",
+            "v3_system_envoy",
+            "v3_system_etcd",
+            "v3_system_jaeger",
+            "v3_system_kafka",
+            "v3_system_openssl",
+            "v3_system_systemd",
+            "v3_system_tikv",
+            "v3_system_util_linux",
+            "v3_system_valkey",
+            "v3_system_vitess",
+            "v3_system_zookeeper",
+            "v3_tool_cargo",
+            "v3_tool_cmake",
+            "v3_tool_cpython_compiler",
+            "v3_tool_go_build",
+            "v3_tool_meson",
+            "v3_tool_omp_lab",
+            "v3_tool_opentofu",
+            "v3_tool_rust_book",
+            "v3_tool_rust_compiler",
+            "v4_db_duckdb_docs",
+            "v4_iac_ansible_docs",
+            "v4_iac_cargo_build",
+            "v4_iac_cmake_build",
+            "v4_iac_helm_guides",
+            "v4_iac_kubernetes_operator",
+            "v4_iac_ninja_build",
+            "v4_iac_opentofu_config",
+            "v4_iac_systemd_units",
+            "v4_ops_alloy",
+            "v4_ops_cloudnativepg",
+            "v4_ops_containerd",
+            "v4_ops_curl",
+            "v4_ops_etcd",
+            "v4_ops_grafana",
+            "v4_ops_iputils",
+            "v4_ops_loki",
+            "v4_ops_omp_tools",
+            "v4_ops_otel_helm",
+            "v4_ops_pgbackrest",
+            "v4_ops_strace",
+            "v4_ops_tempo",
+            "v4_ops_thanos",
+            "v4_ops_victoriametrics",
+            "v4_ops_zalando_postgres",
+            "v4_runtime_bash_manual_shell",
+            "v4_runtime_node_js",
+            "v4_runtime_shellspec_shell",
+            "v4_runtime_vite_ts",
+            "wikipedia_20260901"
+          ]
+        },
+        "python": {
+          "documents": 1605,
+          "rendered_utf8_bytes": 34852214,
+          "source_families": [
+            "v3_tool_ansible_train",
+            "v3_tool_cpython_compiler_train",
+            "v3_tool_meson_train",
+            "v3_tool_pytest_train",
+            "v4_iac_ninja_build_train"
+          ],
+          "source_ids": [
+            "v3_tool_ansible",
+            "v3_tool_cpython_compiler",
+            "v3_tool_meson",
+            "v3_tool_pytest",
+            "v4_iac_ninja_build"
+          ]
+        },
+        "rust": {
+          "documents": 3978,
+          "rendered_utf8_bytes": 62551224,
+          "source_families": [
+            "v2_rust_core_train",
+            "v3_system_tikv_train",
+            "v3_tool_cargo_train",
+            "v3_tool_rust_compiler_train",
+            "v3_tool_tokio_train"
+          ],
+          "source_ids": [
+            "v2_rust_core",
+            "v3_system_tikv",
+            "v3_tool_cargo",
+            "v3_tool_rust_compiler",
+            "v3_tool_tokio"
+          ]
+        },
+        "shell": {
+          "documents": 944,
+          "rendered_utf8_bytes": 5469777,
+          "source_families": [
+            "v4_runtime_bash_tests_shell_train",
+            "v4_runtime_linux_selftests_shell_train",
+            "v4_runtime_shellspec_shell_train",
+            "v4_runtime_util_linux_shell_train"
+          ],
+          "source_ids": [
+            "v4_runtime_bash_tests_shell",
+            "v4_runtime_linux_selftests_shell",
+            "v4_runtime_shellspec_shell",
+            "v4_runtime_util_linux_shell"
+          ]
+        },
+        "toml": {
+          "documents": 4,
+          "rendered_utf8_bytes": 11595,
+          "source_families": [
+            "v4_iac_cargo_build_train"
+          ],
+          "source_ids": [
+            "v4_iac_cargo_build"
+          ]
+        },
+        "unrecognized": {
+          "documents": 340086,
+          "rendered_utf8_bytes": 1520546176,
+          "source_families": [
+            "pes2o_v2_fulltext_train",
+            "pes2o_v2_train",
+            "v2_linux_fs_train",
+            "v3_system_envoy_train",
+            "v3_system_kafka_train",
+            "v3_system_musl_train",
+            "v3_system_nginx_train",
+            "v3_system_openssl_train",
+            "v3_system_systemd_train",
+            "v3_system_util_linux_train",
+            "v3_system_valkey_train",
+            "v3_system_zookeeper_train",
+            "v3_tool_cmake_train",
+            "v3_tool_cpython_compiler_train",
+            "v3_tool_ninja_train",
+            "v3_tool_spring_train",
+            "v3_tool_typescript_train",
+            "v4_db_clickhouse_sql_train",
+            "v4_db_doris_sql_train",
+            "v4_db_duckdb_sql_train",
+            "v4_db_mariadb_sql_train",
+            "v4_db_spark_sql_train",
+            "v4_iac_meson_build_train",
+            "v4_iac_ninja_build_train",
+            "v4_iac_opentofu_config_train",
+            "v4_iac_systemd_units_train",
+            "v4_ops_cilium_train",
+            "v4_runtime_angular_ts_train",
+            "v4_runtime_angularjs_js_train",
+            "v4_runtime_babel_ts_train",
+            "v4_runtime_gatsby_js_train",
+            "v4_runtime_metro_js_train",
+            "v4_runtime_node_js_train",
+            "v4_runtime_npm_cli_js_train",
+            "v4_runtime_playwright_ts_train",
+            "v4_runtime_prettier_js_train",
+            "v4_runtime_react_js_train",
+            "v4_runtime_react_native_js_train",
+            "v4_runtime_relay_js_train",
+            "v4_runtime_undici_js_train",
+            "v4_runtime_vite_ts_train",
+            "v4_runtime_vscode_ts_train",
+            "v4_runtime_webpack_js_train"
+          ],
+          "source_ids": [
+            "pes2o_v2_fulltext",
+            "pes2o_v2_train",
+            "v2_linux_fs",
+            "v3_system_envoy",
+            "v3_system_kafka",
+            "v3_system_musl",
+            "v3_system_nginx",
+            "v3_system_openssl",
+            "v3_system_systemd",
+            "v3_system_util_linux",
+            "v3_system_valkey",
+            "v3_system_zookeeper",
+            "v3_tool_cmake",
+            "v3_tool_cpython_compiler",
+            "v3_tool_ninja",
+            "v3_tool_spring",
+            "v3_tool_typescript",
+            "v4_db_clickhouse_sql",
+            "v4_db_doris_sql",
+            "v4_db_duckdb_sql",
+            "v4_db_mariadb_sql",
+            "v4_db_spark_sql",
+            "v4_iac_meson_build",
+            "v4_iac_ninja_build",
+            "v4_iac_opentofu_config",
+            "v4_iac_systemd_units",
+            "v4_ops_cilium",
+            "v4_runtime_angular_ts",
+            "v4_runtime_angularjs_js",
+            "v4_runtime_babel_ts",
+            "v4_runtime_gatsby_js",
+            "v4_runtime_metro_js",
+            "v4_runtime_node_js",
+            "v4_runtime_npm_cli_js",
+            "v4_runtime_playwright_ts",
+            "v4_runtime_prettier_js",
+            "v4_runtime_react_js",
+            "v4_runtime_react_native_js",
+            "v4_runtime_relay_js",
+            "v4_runtime_undici_js",
+            "v4_runtime_vite_ts",
+            "v4_runtime_vscode_ts",
+            "v4_runtime_webpack_js"
+          ]
+        },
+        "yaml": {
+          "documents": 312,
+          "rendered_utf8_bytes": 1038297,
+          "source_families": [
+            "v4_iac_ansible_playbooks_train",
+            "v4_iac_grafana_charts_train",
+            "v4_iac_kubernetes_operator_train",
+            "v4_ops_cilium_train",
+            "v4_ops_envoy_train"
+          ],
+          "source_ids": [
+            "v4_iac_ansible_playbooks",
+            "v4_iac_grafana_charts",
+            "v4_iac_kubernetes_operator",
+            "v4_ops_cilium",
+            "v4_ops_envoy"
+          ]
+        }
+      },
+      "selected_documents": 796563
+    },
+    "validation": {
+      "groups": {
+        "go": {
+          "documents": 478,
+          "rendered_utf8_bytes": 2517636,
+          "source_families": [
+            "v3_system_cosign_heldout",
+            "v3_system_runc_heldout"
+          ],
+          "source_ids": [
+            "v3_system_cosign",
+            "v3_system_runc"
+          ]
+        },
+        "json": {
+          "documents": 1,
+          "rendered_utf8_bytes": 7138,
+          "source_families": [
+            "v4_runtime_eslint_js_heldout"
+          ],
+          "source_ids": [
+            "v4_runtime_eslint_js_heldout"
+          ]
+        },
+        "logs": {
+          "documents": 0,
+          "rendered_utf8_bytes": 0,
+          "source_families": [],
+          "source_ids": []
+        },
+        "prose": {
+          "documents": 14456,
+          "rendered_utf8_bytes": 57272676,
+          "source_families": [
+            "v2_git_technical_validation",
+            "v2_oci_runtime_specification_validation",
+            "v3_system_cosign_heldout",
+            "v3_system_runc_heldout",
+            "v3_tool_git_validation",
+            "v4_iac_argocd_validation_heldout",
+            "v4_ops_mimir_heldout",
+            "v4_runtime_bats_shell_heldout",
+            "v4_runtime_eslint_js_heldout",
+            "wikibooks_20260901"
+          ],
+          "source_ids": [
+            "v2_git_technical",
+            "v2_oci_runtime_specification",
+            "v3_system_cosign",
+            "v3_system_runc",
+            "v3_tool_git_validation",
+            "v4_iac_argocd_validation",
+            "v4_ops_mimir_heldout",
+            "v4_runtime_bats_shell_heldout",
+            "v4_runtime_eslint_js_heldout",
+            "wikibooks_20260901"
+          ]
+        },
+        "python": {
+          "documents": 0,
+          "rendered_utf8_bytes": 0,
+          "source_families": [],
+          "source_ids": []
+        },
+        "rust": {
+          "documents": 0,
+          "rendered_utf8_bytes": 0,
+          "source_families": [],
+          "source_ids": []
+        },
+        "shell": {
+          "documents": 42,
+          "rendered_utf8_bytes": 342663,
+          "source_families": [
+            "v4_runtime_bats_shell_heldout"
+          ],
+          "source_ids": [
+            "v4_runtime_bats_shell_heldout"
+          ]
+        },
+        "toml": {
+          "documents": 0,
+          "rendered_utf8_bytes": 0,
+          "source_families": [],
+          "source_ids": []
+        },
+        "unrecognized": {
+          "documents": 1298,
+          "rendered_utf8_bytes": 22236372,
+          "source_families": [
+            "v2_postgres_backend_validation",
+            "v3_tool_postgres_sql_validation",
+            "v4_db_h2_sql_heldout",
+            "v4_runtime_eslint_js_heldout"
+          ],
+          "source_ids": [
+            "v2_postgres_backend",
+            "v3_tool_postgres_sql_validation",
+            "v4_db_h2_sql_validation",
+            "v4_runtime_eslint_js_heldout"
+          ]
+        },
+        "yaml": {
+          "documents": 136,
+          "rendered_utf8_bytes": 201702,
+          "source_families": [
+            "v4_iac_argocd_validation_heldout"
+          ],
+          "source_ids": [
+            "v4_iac_argocd_validation"
+          ]
+        }
+      },
+      "selected_documents": 16411
+    }
+  },
+  "status": "PASS"
+}

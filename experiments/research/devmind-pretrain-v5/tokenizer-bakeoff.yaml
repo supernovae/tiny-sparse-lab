@@ -1,0 +1,8 @@
+schema_version: 2
+release_path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+vocab_sizes: [16384, 24576, 32768]
+max_fit_bytes: 268435456
+eval_split: validation
+eval_max_docs_per_group: 200
+groups: [prose, go, shell, yaml, json]
+near_best_ratio: 0.98

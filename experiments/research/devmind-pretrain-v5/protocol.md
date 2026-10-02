@@ -1,11 +1,14 @@
 # DevMind v5: reproducible successor and dense MODEL-0
 
-**Protocol ID:** `devmind-v5-reproducible-model0-1`.
+**Protocol ID:** `devmind-v5-reproducible-model0-2`.
 **Authorization:** the reviewed request preserves v2/v3/v4 as nonreconstructable
 historical releases and advances a separately identified v5 through recovery,
 tokenizer selection, MODEL-0, ROCm training and evaluation. This is a new corpus
 and protocol, not a repaired historical identity or a new historical replay.
 No Developer SFT or model-weight publication is authorized here.
+Revision 2 records the measured operational preparation bound in
+`preparation-amendment.json` before tokenizer fitting or model outcomes; it
+does not change source intent, scientific settings or acceptance criteria.
 
 ## Historical disposition and reviewed source intent
 
@@ -114,6 +117,11 @@ prepare/train the unbound base config. Use the generated export dataset fields
 unchanged and replace only the generated tokenizer path with the verified
 bakeoff winner. Prepare sealed contiguous-eos-v6 train/validation arrays with
 `all_tokens` loss and no redundant mask. Record counts and manifest digest.
+Operational encoding batches contain at most 256 documents and 8 MiB of
+decoded source text; the largest observed record is 4,943,884 bytes. No
+truncation or segmentation is permitted. Use the version-1 resource envelope
+with host-memory fraction 0.75, minimum available RAM 2 GiB, at most 4 workers,
+queue depth 1 and disk spill; measure disk/inode thresholds before preparation.
 
 ## ROCm, campaign and evaluation gates
 
@@ -179,3 +187,10 @@ primary reused only its own authenticated partial v5 snapshots under the same
 producer with process-scoped resolver options. No historical snapshot import
 occurred. Fresh recovery, tokenizer selection and MODEL-0 outcomes remain
 unproven at this record boundary.
+
+`tokenizer-group-supply.json` records 796,563 selected train documents and
+16,411 independent validation documents, with zero cross-split normalized
+content or family overlap. Actual paired groups are prose, Go, shell, YAML and
+JSON; Python, Rust, TOML and logs lack independent pairings and are explicitly
+unmeasured rather than supplied by new sources. `lm-view-measurement.json`
+records full LM document/byte ceilings; these are not a token budget.
