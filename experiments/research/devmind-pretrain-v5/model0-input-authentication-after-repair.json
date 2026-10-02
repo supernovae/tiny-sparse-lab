@@ -1,0 +1,55 @@
+{
+  "verification_version": 1,
+  "kind": "model0-existing-input-authentication-after-export-repair",
+  "status": "VERIFIED_EXISTING_INPUTS",
+  "implementation_commit": "18fa32f9a7fc3459fc8dce73ec18006eab5cf0a8",
+  "implementation_sha256": "3a7ee274123a78694fb140c2b5aa2efa0e2eea186a719cac814700326a7ad02a",
+  "classification": "IMPLEMENTATION_LOCATION_CONTRACT_MISMATCH_REPAIRED",
+  "accepted_result": {
+    "status": "VERIFIED_EXISTING_INPUTS",
+    "binding": {
+      "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "view": "lm",
+      "vocab_size": 32768,
+      "train_sha256": "24a6e529def703c2b6e0c280d44569ecedf891d92f5dd1a0ee6c995eb2d5ccc4",
+      "validation_sha256": "79d90dddc7989bcd27c62feecb19cdd68d3b432519629b485a6f80172a556d2a",
+      "report_sha256": "ea691e07d1721e7120a23ee9621a38f5db8849285571a329c44c71d1d5fb15c1",
+      "license_report_sha256": "4ad1a8c58d52e41bed5792b118eadc823c7bc87e00c5dbf909c64ce3254c6c50",
+      "export_sha256": "a81bf62ae67719c44c24cdec2dc4b4494da64f1894e0d8a68dd2592756193c05"
+    },
+    "resolved_run_sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5",
+    "denominator_receipt_sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e",
+    "denominator_values_recomputed": false,
+    "tokenizer_sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+    "prior_negative_evidence_sha256": "2c49fa31cc587c107d57fcb83f818b50916f186f6f4a53907d919d741551c74b"
+  },
+  "monitor": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-existing-input-auth-1790979103803368944.completion.json",
+    "sha256": "8da94437af5cb96231aec03755215118dff884caf7d27e9f9100c3b81009ff7b",
+    "source_commit": "18fa32f9a7fc3459fc8dce73ec18006eab5cf0a8",
+    "monitor_source_sha256": "37ef0db8bada0c8d28d4458b97e814250d346806f509fafe4a51dba08bf9d0c7",
+    "tree_peak_rss_bytes": 8826859520,
+    "wall_seconds": 634.1190071050005,
+    "returncode": 0,
+    "violation": null,
+    "child_pid": 234665,
+    "child_create_time": 1790979103.48,
+    "samples": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-existing-input-auth-1790979103803368944.samples.jsonl",
+      "sha256": "473916e6f3cceb49c11a450f8f7f62dd338015322b603ede94380e6cd969b432"
+    },
+    "stdout": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-existing-input-auth-1790979103803368944.stdout",
+      "sha256": "9a2a30c485300f152c719724378f7a3aa4688dcf27439917c43fd4f7166b6487"
+    },
+    "stderr": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-existing-input-auth-1790979103803368944.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "authentication_harness_sha256": "a3af56996583569d3e4f037b269d4828e895678d41d8cd7414ed9ba7d0626960",
+  "authentication_harness_scope": "Existing public verifiers and COMPLETE receipt reader under one full-verifier-minted operation scope; no encode, measurement, fitting, export regeneration or scientific formula calculation. Throwaway harness removed after proof.",
+  "immutable_export_identifier": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+  "immutable_export_sha256": "a81bf62ae67719c44c24cdec2dc4b4494da64f1894e0d8a68dd2592756193c05",
+  "authorized_next_execution": "One new guarded preparation attempt with existing model0-run.yaml, selected tokenizer and unchanged envelope/256-document/8388608-source-byte limits. Prior failed preparation and all crash/recovery records immutable."
+}
