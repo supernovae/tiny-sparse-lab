@@ -1,0 +1,176 @@
+{
+  "verification_version": 1,
+  "kind": "source-token-measurement-verification",
+  "status": "VERIFIED_REAL_DENOMINATOR",
+  "scope": "Authenticated distinct developer train source tokens; not LM-view tokens, packed target attribution, device fit, or model quality.",
+  "source_commit": "e45fe9428ca7b68240d6051ba613eb8a14aa1913",
+  "receipt": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json",
+    "sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e",
+    "scientific_sha256": "b8c0ec4ed2a49b881a09170024986281a50b0425524699d43b08e6c665413ace"
+  },
+  "identity": {
+    "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "release_manifest_sha256": "003da8f335899d68391497847aa32f03043110acf68b04e2a55e132e5843ffcb",
+    "documents_sha256": "ab80e11d4fce9e814d3e8978068242fe28883c7022d366ba463d2a8d39f450b9",
+    "documents_size": 6123770983,
+    "tokenizer_sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+    "tokenizer_manifest_sha256": "da5b295c42133ef2c31114a4fd81602e144b0113d2ad81cbddd2c0c722665aa5",
+    "policy_sha256": "8078be9e968583eb26eadfd19c3d4eb1d6cfb723c958038eba4fb4c6e26eab3b",
+    "implementation_sha256": "d5b5a1374da7617d8b42d27dd47b979425bd57ad13460863ca61b951d31b02d5",
+    "identity_sha256": "57f529a8fa85bc041b9898f46f2611bb17ad80f6838674ddf8d9c1fd5a4363f6",
+    "selection_definition": {
+      "add_special_tokens": false,
+      "deduplicate_by": [
+        "domain",
+        "content_sha256"
+      ],
+      "drop_reason": null,
+      "padding": false,
+      "split": "train",
+      "truncation": false
+    },
+    "evidence": {
+      "cold_record_blob_sha": "ff9348ca2aebeaa031f54707664e1ed6c4e66249",
+      "cold_record_sha256": "e4d19b665e212bc1c64f7a2e5523c1ceb2e6bc576519fe147e4452d48e7e7e4c",
+      "commit": "8d74147b6f932045c3f5dcffb451b9cb4360b0aa",
+      "release_evidence": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/primary-verification.json",
+      "release_evidence_blob_sha": "70e592dcc3222b8c7b374519d9ab84cbd28ede01",
+      "release_evidence_sha256": "42803d5e6b336521b9551367a38a3ce44dca074d769ad9c85e43d050569bcbd2",
+      "report_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/report.json",
+      "report_sha256": "6927c81a734a266ada296ea7fdd9e138f1887678482ef73815068f6ab8bcb092",
+      "selection_evidence": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/tokenizer-bakeoff-verification.json",
+      "selection_evidence_blob_sha": "f213e6f25bfaae1361ef20d6fbf9eff1a4d19cab",
+      "selection_evidence_sha256": "b0cbde9750310e709b24bf426451f6aa2a9216af6067e7bf41b2603e18727203"
+    }
+  },
+  "counts": {
+    "rows_scanned": 818630,
+    "domains": {
+      "developer_systems": {
+        "distinct_documents": 9035,
+        "eligible_documents": 9035,
+        "source_bytes": 101034268,
+        "source_tokens": 30175366
+      }
+    }
+  },
+  "operational": {
+    "batch_count": 99,
+    "batch_documents": 256,
+    "batch_source_bytes": 1048576,
+    "launch": "7dcd418c31fc4ea5a4b97da3440f9e0a",
+    "peak_rss_kib": 1396764,
+    "progress_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/.measured-model0-budget.json.7dcd418c31fc4ea5a4b97da3440f9e0a.progress.jsonl",
+    "wall_seconds": 29.32581881999795
+  },
+  "monitor": {
+    "launch": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-source-denominator-1790975334067250378.launch.json",
+      "sha256": "eab272fe6aa0197171d9a56f991cc533a2d72d5fc2572f59149f54622531eec5"
+    },
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-source-denominator-1790975334067250378.completion.json",
+      "sha256": "a97d96644b0c08c184f11ad59f82c34ec65cd3b211a7ae995f8ec4bde86a3b3d"
+    },
+    "monitor_source_archive": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/monitor-source-37ef0db8bada0c8d28d4458b97e814250d346806f509fafe4a51dba08bf9d0c7.py",
+    "monitor_source_sha256": "37ef0db8bada0c8d28d4458b97e814250d346806f509fafe4a51dba08bf9d0c7",
+    "base_monitor_path": "/srv/sparselab/state/scratch/devmind-v5/tmp/monitor_command.py",
+    "base_monitor_sha256": "fc9dff13e399f5d8bfffc7db2f091ae2fcd971613a33a1d2ff61ed051084e1f4",
+    "child_pid": 183758,
+    "child_create_time": 1790975333.75,
+    "tracked_processes": [
+      {
+        "create_time": 1790975333.75,
+        "pid": 183758
+      },
+      {
+        "create_time": 1790975333.76,
+        "pid": 183761
+      }
+    ],
+    "guards": {
+      "filesystem_free_fraction": "1/4",
+      "inode_free_fraction": "1/4",
+      "interval_seconds": 1.0,
+      "max_swap_used_bytes": 1073741824,
+      "max_tree_rss_bytes": 12884901888,
+      "min_available_ram_bytes": 8589934592
+    },
+    "reservation_bytes": 134217728,
+    "reservation_inodes": 4096,
+    "returncode": 0,
+    "violation": null,
+    "tree_peak_rss_bytes": 1469599744,
+    "samples": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-source-denominator-1790975334067250378.samples.jsonl",
+    "samples_sha256": "9fea7465ac1b48de4089c337a31d40306e1604e8fc34e6e61dff26360ddee319",
+    "stdout": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-source-denominator-1790975334067250378.stdout",
+    "stdout_sha256": "6b52e184ac484433036ae5ae4fe6eb0c45a3cbb5747cc687cec7cbde6c41ce99",
+    "stderr": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-source-denominator-1790975334067250378.stderr",
+    "stderr_sha256": "66ec62e64cd49f00007646e11f3bde449612272a85023a97179bcf80b489b733",
+    "mount": {
+      "filesystems": [
+        {
+          "fstype": "ext4",
+          "label": "sparselab",
+          "source": "/dev/sdd",
+          "target": "/srv/sparselab",
+          "uuid": "ecf1fe73-0a20-4ac6-87e3-0fef2ab51148"
+        }
+      ]
+    },
+    "initial": {
+      "available_ram_bytes": 29682696192,
+      "elapsed_seconds": 0.0002034879980783444,
+      "free_bytes": 847455469568,
+      "free_inodes": 64983701,
+      "processes": [],
+      "progress": null,
+      "swap_used_bytes": 20480,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "tree_peak_rss_bytes": 0,
+      "tree_rss_bytes": 0,
+      "utc": "2026-10-02T21:08:54.067441+00:00"
+    },
+    "final": {
+      "available_ram_bytes": 29674360832,
+      "elapsed_seconds": 33.020902954998746,
+      "free_bytes": 847455412224,
+      "free_inodes": 64983694,
+      "processes": [],
+      "progress": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/.measured-model0-budget.json.7dcd418c31fc4ea5a4b97da3440f9e0a.progress.jsonl",
+        "record": {
+          "distinct_documents": 9035,
+          "elapsed_seconds": 29.332419594000385,
+          "eligible_documents": 9035,
+          "launch": "7dcd418c31fc4ea5a4b97da3440f9e0a",
+          "peak_rss_kib": 1396764,
+          "rows_per_second": 27908.710271124088,
+          "rows_scanned": 818630,
+          "source_bytes": 101034268,
+          "source_tokens": 30175366,
+          "status": "COMPLETE"
+        }
+      },
+      "swap_used_bytes": 20480,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "tree_peak_rss_bytes": 1469599744,
+      "tree_rss_bytes": 0,
+      "utc": "2026-10-02T21:09:27.088150+00:00"
+    }
+  },
+  "acceptance": {
+    "authenticated_receipt_reader": "passed",
+    "eof_counters_reconciled": true,
+    "operational_artifact_hashes_checked": true,
+    "guard_violation": false,
+    "historical_oom_pid_identified": false
+  },
+  "implementation_verification": {
+    "path": "experiments/research/devmind-pretrain-v5/source-token-implementation-verification.json",
+    "sha256": "654f50baba1b8c64c47aa4116f4cec2112e0cc42c6ce79b9b98aac188d1aa600"
+  }
+}

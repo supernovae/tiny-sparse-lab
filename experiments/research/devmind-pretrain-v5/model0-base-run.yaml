@@ -1,0 +1,59 @@
+# Export input only. Train model0-run.yaml after verified export and preparation.
+schema_version: 2
+name: devmind-v5-model0
+seed: 42
+runtime:
+  engine: pytorch
+  backend: rocm
+  device_index: 0
+  precision: bf16
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.90
+    activation_checkpointing: {enabled: true, strategy: transformer_block}
+    activation_offload: {enabled: false}
+model:
+  vocab_size: 32768
+  hidden_dim: 640
+  num_layers: 10
+  num_heads: 10
+  ffn_dim: 1664
+  max_seq_len: 1024
+  tie_embeddings: true
+  ffn: dense
+  memory: none
+tokenizer:
+  path: /srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json
+dataset:
+  source: local_text
+  revision: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+  cache_dir: /srv/sparselab/state/experiments/devmind-pretrain-v5/preparation-template-unused
+  train_path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/train.jsonl
+  validation_path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/validation.jsonl
+  license: 'AGPL-3.0-only; Apache-2.; Apache-2.0; Apache-2.0 OR MIT; Artistic-2.0 AND ISC; BSD-2-Clause; BSD-2-Clause AND (Apache-2.0 OR MIT); BSD-3-Clause; BSD-3-Clause AND GPL-2.0-or-later; CC-BY-4.0; CC-BY-SA-4.0; GFDL-1.3-or-later; GPL-1.0-or-later; GPL-2.0; GPL-2.0+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; IETF-Trust-TLP-5; ISC; LGPL-2.1; LGPL-2.1-or-later; LicenseRef-SQLite-Public-Domain; MIT; MIT-0; MPL-2.0; MPL-2.0 OR EPL-1.0; ODC-By-1.0; PSF-2.0; PSF-2.0 AND (MIT OR Apache-2.0); PostgreSQL; curl'
+  train_max_documents: 796563
+  validation_max_documents: 16411
+  train_max_tokens: 4000183822
+  validation_max_tokens: 82594599
+training:
+  micro_batch_size: 2
+  gradient_accumulation: 4
+  seq_len: 1024
+  max_steps: 5525
+  max_tokens: 45260800
+optimizer:
+  name: adamw
+  peak: 0.0003
+  floor: 0.00003
+  warmup_steps: 2000
+  decay_steps: 5525
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 0.00000001
+  state_offload: false
+evaluation: {every_steps: 2048, max_batches: 64}
+checkpoint: {every_steps: 2048, keep_periodic: true}
+staging: {smoke_steps: 2, warmup_steps: 5}
+logging:
+  root_dir: /srv/sparselab/state/experiments/devmind-pretrain-v5/runs
+  every_steps: 100

@@ -1,0 +1,101 @@
+{
+  "science_version": 1,
+  "kind": "model0-scientific-declaration",
+  "status": "FROZEN_BEFORE_EXPORT",
+  "source_commit": "e45fe9428ca7b68240d6051ba613eb8a14aa1913",
+  "base_run": {
+    "path": "experiments/research/devmind-pretrain-v5/model0-base-run.yaml",
+    "sha256": "2dfb5472fe8808f08d42011e03fa613b559e05ab1cc7c4276d71624c99ce4b1b"
+  },
+  "bindings": {
+    "protocol.md": {
+      "path": "experiments/research/devmind-pretrain-v5/protocol.md",
+      "sha256": "b2c364ba41af2dbc5720c6a5f7cfc67b040e37afa098928ee60cbf9083af9558"
+    },
+    "suite.yaml": {
+      "path": "experiments/research/devmind-pretrain-v5/suite.yaml",
+      "sha256": "6ec9b344351b8a8b3f9efd10cd754ca54646eb2079fad727d7531a486dbf90aa"
+    },
+    "readiness.yaml": {
+      "path": "experiments/research/devmind-pretrain-v5/readiness.yaml",
+      "sha256": "a7e9791a53791dd98a04f32b67e865165697649e0294223728a85d69c7bb6e86"
+    },
+    "generation-panel.json": {
+      "path": "experiments/research/devmind-pretrain-v5/generation-panel.json",
+      "sha256": "e09fc7a48ff3c369daee5def62057d3d827769e80aff9bb5ea5b5851d947fd5b"
+    },
+    "lm-view-measurement.json": {
+      "path": "experiments/research/devmind-pretrain-v5/lm-view-measurement.json",
+      "sha256": "e47883fe1d508bf0b15626847d273d536d8a6071fb29926365d6f746adbafb8b"
+    },
+    "model0-base-run.yaml": {
+      "path": "experiments/research/devmind-pretrain-v5/model0-base-run.yaml",
+      "sha256": "2dfb5472fe8808f08d42011e03fa613b559e05ab1cc7c4276d71624c99ce4b1b"
+    },
+    "budget-measurement-policy.yaml": {
+      "path": "experiments/research/devmind-pretrain-v5/budget-measurement-policy.yaml",
+      "sha256": "8078be9e968583eb26eadfd19c3d4eb1d6cfb723c958038eba4fb4c6e26eab3b"
+    },
+    "source-token-implementation-verification.json": {
+      "path": "experiments/research/devmind-pretrain-v5/source-token-implementation-verification.json",
+      "sha256": "654f50baba1b8c64c47aa4116f4cec2112e0cc42c6ce79b9b98aac188d1aa600"
+    }
+  },
+  "denominator": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json",
+    "sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e",
+    "scientific_sha256": "b8c0ec4ed2a49b881a09170024986281a50b0425524699d43b08e6c665413ace"
+  },
+  "budget": {
+    "developer_distinct_source_tokens": 30175366,
+    "sequence_length": 1024,
+    "micro_batch_size": 2,
+    "gradient_accumulation": 4,
+    "supervised_targets_per_update": 8192,
+    "formula": "target=(3*D)//2; max_steps=target//8192; max_tokens=8192*max_steps; remainder=target-max_tokens",
+    "requested_distinct_developer_passes": 1.5,
+    "requested_target": 45263049,
+    "max_steps": 5525,
+    "max_tokens": 45260800,
+    "remainder": 2249,
+    "rounded_budget_over_source_D": {
+      "numerator": 45260800,
+      "denominator": 30175366
+    },
+    "gate": "D>0 and max_steps>2000: PASS",
+    "actual_developer_packed_target_count": null
+  },
+  "requested_mixture": {
+    "general_education": 0.4,
+    "academic_research": 0.2,
+    "mathematics": 0.1,
+    "developer_systems": 0.3
+  },
+  "mixture_semantics": "Descriptive release request only. Entire verified LM export in declared order, no oversampling or enacted developer-share sampler.",
+  "objective": "all_tokens next-token prediction",
+  "parameter_inventory": {
+    "total": 69317760,
+    "trainable": 69317760,
+    "active_per_token": 69317760,
+    "embedding": 20971520,
+    "output_head": 0,
+    "attention": 16384000,
+    "dense_ffn": 31948800,
+    "routed_expert": 0,
+    "shared_expert": 0,
+    "router": 0,
+    "norm": 13440,
+    "memory_table": 0,
+    "memory_adapter": 0,
+    "frozen": 0
+  },
+  "parameter_inventory_reference": 69317760,
+  "retention": {
+    "periodic": true,
+    "best": true,
+    "latest": true,
+    "immediately_previous_verified": true
+  },
+  "other_run_fields": "Existing RunConfig defaults, no v4 outcome-derived tuning.",
+  "training_config_status": "Export template only; resolved export-bound model0-run.yaml is required before preparation."
+}
