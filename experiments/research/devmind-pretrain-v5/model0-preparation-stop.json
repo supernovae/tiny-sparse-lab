@@ -1,0 +1,159 @@
+{
+  "verification_version": 1,
+  "kind": "model0-preparation-negative-evidence",
+  "status": "BLOCKED_EXPORT_LOCATION_CONTRACT",
+  "source_commit": "1c898effe4774dba7a6478687330255aa1776b66",
+  "first_blocker": {
+    "gate": "9. Export and seal actual training inputs: data prepare input authentication",
+    "exception": "ValueError: corpus export request or license mismatch",
+    "producer": "corpus export under --work-dir /srv/sparselab/state",
+    "consumer": "verify_tokenizer_artifact \u2192 verify_release_export",
+    "consumer_constraint": "src/sparselab/corpus/export.py:269-270 requires export_dir.parent == release_dir.parent.parent / exports / release_id / view",
+    "observed_location_binding": {
+      "dataset_equal": true,
+      "only_tokenizer_path_changed": true,
+      "request_digest_matches": true,
+      "export_parent": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm",
+      "required_export_parent": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm",
+      "location_predicate_passes": false
+    },
+    "classification": "Implementation limitation: producer/consumer operational location contract disagreement, not evidence of changed source bytes or a model-quality outcome."
+  },
+  "attempt": {
+    "command": [
+      "uv",
+      "run",
+      "--locked",
+      "--extra",
+      "cpu",
+      "sparselab",
+      "--work-dir",
+      "/srv/sparselab/state",
+      "data",
+      "prepare",
+      "experiments/research/devmind-pretrain-v5/model0-run.yaml",
+      "--resource-envelope",
+      "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+      "--tokenizer-batch-documents",
+      "256",
+      "--tokenizer-batch-source-bytes",
+      "8388608"
+    ],
+    "launch": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-1790976442908496574.launch.json",
+      "sha256": "95874b5fe5c24c812b143b0874d50b19de44b2644f67065b0769623ad2ce1478"
+    },
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-1790976442908496574.completion.json",
+      "sha256": "c7d1140746623c7b12f514f8cf8bf2349b62d53d8aa504b7a3cdac7c9b5a9677"
+    },
+    "source_commit": "1c898effe4774dba7a6478687330255aa1776b66",
+    "dirty_status": [],
+    "monitor_source_archive": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/monitor-source-37ef0db8bada0c8d28d4458b97e814250d346806f509fafe4a51dba08bf9d0c7.py",
+    "monitor_source_sha256": "37ef0db8bada0c8d28d4458b97e814250d346806f509fafe4a51dba08bf9d0c7",
+    "child_pid": 192101,
+    "child_create_time": 1790976442.59,
+    "tracked_processes": [
+      {
+        "create_time": 1790976442.59,
+        "pid": 192101
+      },
+      {
+        "create_time": 1790976442.61,
+        "pid": 192104
+      }
+    ],
+    "guards": {
+      "filesystem_free_fraction": "1/4",
+      "inode_free_fraction": "1/4",
+      "interval_seconds": 1.0,
+      "max_swap_used_bytes": 1073741824,
+      "max_tree_rss_bytes": 12884901888,
+      "min_available_ram_bytes": 8589934592
+    },
+    "reservation_bytes": 34359738368,
+    "reservation_inodes": 4096,
+    "state": "FAILED",
+    "returncode": 1,
+    "violation": null,
+    "tree_peak_rss_bytes": 1152475136,
+    "samples": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-1790976442908496574.samples.jsonl",
+    "samples_sha256": "fb34154b90bc9c3a0049e9babe2cd895edf8e0f937923bd3079559c0efb0ef54",
+    "stdout": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-1790976442908496574.stdout",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-1790976442908496574.stderr",
+    "stderr_sha256": "04ea98d16aa3a72073dd34ac69f453f404616bd1d961823201f1884435ce7a9d",
+    "initial": {
+      "available_ram_bytes": 29648150528,
+      "elapsed_seconds": 0.0021319709994713776,
+      "free_bytes": 847455068160,
+      "free_inodes": 64983677,
+      "processes": [],
+      "progress": null,
+      "swap_used_bytes": 6598656,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "tree_peak_rss_bytes": 0,
+      "tree_rss_bytes": 0,
+      "utc": "2026-10-02T21:27:22.910615+00:00"
+    },
+    "final": {
+      "available_ram_bytes": 29699760128,
+      "elapsed_seconds": 470.08959176400094,
+      "free_bytes": 847454806016,
+      "free_inodes": 64983672,
+      "processes": [],
+      "progress": null,
+      "swap_used_bytes": 7524352,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "tree_peak_rss_bytes": 1152475136,
+      "tree_rss_bytes": 0,
+      "utc": "2026-10-02T21:35:12.998085+00:00"
+    }
+  },
+  "inputs": {
+    "resolved_run": {
+      "path": "experiments/research/devmind-pretrain-v5/model0-run.yaml",
+      "sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5",
+      "change_from_generated": "Only tokenizer.path replaced with authenticated selected winner; dataset fields unchanged."
+    },
+    "export": {
+      "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "identifier": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "sha256": "a81bf62ae67719c44c24cdec2dc4b4494da64f1894e0d8a68dd2592756193c05"
+    },
+    "denominator": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json",
+      "sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e",
+      "tokens": 30175366
+    },
+    "resource_envelope": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+      "sha256": "ab26a545737cf41de454b6b59e8cb7456c4d9efc0a0cfc8c4856abfc813e363d"
+    }
+  },
+  "output_boundary": {
+    "prepared_directory_exists": false,
+    "tokenization_started": false,
+    "sealed_prepared_artifact": null,
+    "run_or_attempt_dispatched": false,
+    "checkpoint": null
+  },
+  "stop_decision": "Approved fail-closed integrity-gate contingency. Preserve the single failed preparation; no retry, relocation, generated-dataset change, rebuilt corpus, tokenizer refit, CPU training fallback, or relaxed science.",
+  "unexercised_gates": [
+    "Sealed real v5 preparation and exact retained tokens/supervised targets",
+    "10. Complete four-artifact ExperimentPlan lock and fresh full-shape ROCm doctor/inspect/validate/smoke/warmup",
+    "11. Campaign approval, dispatch, reconciliation, exact optimizer/target budget, ingestion and collection",
+    "12. Immutable-checkpoint heldout evaluation, descriptive generation and model readiness",
+    "13. ModelFamily, model-continuation recovery inspection and thin archive"
+  ],
+  "glue_classification": {
+    "scientific_decision": "Existing protocol formula and architecture frozen unchanged; descriptive requested mixture is not enacted share.",
+    "operator_authorization": "Reviewed cold-evidence acceptance at 8d74147 and one MODEL-0 attempt authorized; no promotion or weight publication.",
+    "implementation_limitation": "Export producer supports independent work root; consumer requires release-local adjacency. New precise TODO; existing worker provenance TODO unchanged.",
+    "ordinary_execution": "Locked CPU source-token measurement, immutable export and one guarded preparation attempt.",
+    "missing_dsl_tooling": "No new finding: checkpoint-bound generation stage was not reached."
+  },
+  "historical_incident_records": "Original crash-recovery and corpus-recovery records unchanged."
+}

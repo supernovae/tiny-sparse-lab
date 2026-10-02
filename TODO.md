@@ -30,6 +30,14 @@ close a code item unless the named software acceptance criteria also pass.
   local warmup but its worker smoke fails because tokenizer verification cannot
   find the sealed export's `run.yaml`. Cover dispatch through parent ingestion
   and child continuation, with all provenance files verified after relocation.
+- [ ] Make Corpus Forge export production and consumer verification agree when
+  `corpus export --work-dir` differs from the verified release's workspace.
+  The v5 MODEL-0 export succeeded under the global persistent root, but
+  `data prepare` rejected that unchanged generated dataset because
+  `verify_release_export` requires an adjacent release-local export directory.
+  Preserve request/config/split/rights digests and fail-closed verification;
+  cover actual CLI export→prepare across independent roots and tampered inputs.
+  This pre-worker location failure is separate from sealed worker provenance.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.
