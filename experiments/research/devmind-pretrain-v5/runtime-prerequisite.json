@@ -1,0 +1,24 @@
+{
+  "runtime_prerequisite_version": 1,
+  "scientific_devmind_outcome": false,
+  "status": "CURRENT_CODE_ROCM_BF16_OPTIMIZER_PILOT_READY",
+  "profile_id": "rocm-7900xtx",
+  "environment_python": "/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx/bin/python",
+  "device_name": "AMD Radeon RX 7900 XTX",
+  "device_index": 0,
+  "device_total_bytes": 25708240896,
+  "framework_version": "2.13.0+rocm10.0.0",
+  "hip_version": "7.15.26333",
+  "runtime_python_source_sha256": "b40517ca323e004e34e7f4699fde3e1685c553b5fea87bb3bb96045780cfeefe",
+  "doctor_status": "READY",
+  "tested_features": ["forward_backward_optimizer", "optimizer:adamw"],
+  "tested_precisions": ["bf16"],
+  "environment_list": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/current-runtime-list.json",
+  "environment_show": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/current-runtime-show.json",
+  "doctor": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/current-runtime-doctor.json",
+  "limitations": [
+    "Tiny runtime pilot is not full MODEL-0 shape fit, throughput, training or evaluation.",
+    "Runtime Python-only source digest differs in scope from training/readiness full package identity.",
+    "Full-shape stage and fresh Campaign runtime binding remain mandatory after corpus recovery, tokenizer selection and preparation."
+  ]
+}
