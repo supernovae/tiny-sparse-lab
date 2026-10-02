@@ -217,3 +217,9 @@ scope. `streamed-accounting-verification.json` records 13 focused tests and
 actual schema-3 synthetic CLI export/preparation/offline warmup/training plus a
 verified 64-target full-state checkpoint. Those are compatibility proofs, not
 DevMind scientific results; a fresh complete full-scale bakeoff is required.
+The broader corpus/tokenizer/worker/preparation consumer suite passed 206 tests.
+`local-readiness-post-streaming.json` binds formal dense CPU checkpoint/resume
+smoke at the tested code revision. `runtime-post-streaming-prerequisite.json`
+records actual BF16 forward/backward AdamW on the accepted RX 7900 XTX vendor
+environment at the new package identity; neither substitutes for the later
+selected-tokenizer full-shape MODEL-0 gates.

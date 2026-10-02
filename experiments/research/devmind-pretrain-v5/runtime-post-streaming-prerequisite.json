@@ -1,0 +1,57 @@
+{
+  "runtime_prerequisite_version": 1,
+  "status": "READY_FOR_CONFIG_SPECIFIC_ROCM_GATES",
+  "source_commit": "bea1ea3cd687823e8e9454c9ecd61433450773dc",
+  "runtime_profile_id": "rocm-7900xtx",
+  "source_package_sha256": "06ad4d4c7d6e426bb968c53a554e23beeded92b186f190ab3a60ec3b8b94f1b2",
+  "source_package_digest_scope": "runtime_identity_probe package-root source files; not the distinct full readiness/scientific-source digest scope",
+  "doctor_report": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/current-runtime-post-streaming-doctor.json",
+    "sha256": "11655cac266a0c9e175444e45c0f643b299242cb38a7794be763b0521e652e13"
+  },
+  "tested_runtime": {
+    "backend": "rocm",
+    "device_driver_allocated_bytes": null,
+    "device_free_bytes": 24392544256,
+    "device_index": 0,
+    "device_name": "AMD Radeon RX 7900 XTX",
+    "device_recommended_bytes": null,
+    "device_total_bytes": 25708240896,
+    "driver_version": null,
+    "engine": "pytorch",
+    "format_version": 1,
+    "framework_version": "2.13.0+rocm10.0.0",
+    "host_architecture": "x86_64",
+    "host_environment": "wsl2",
+    "host_os": "linux",
+    "limitations": [
+      "driver version unavailable through safe PyTorch APIs"
+    ],
+    "measured_at": "2026-10-02T09:30:16.378831+00:00",
+    "measurement_source": "torch.cuda.mem_get_info",
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+    "physical_device_id": "63643535-3163-3964-6534-396632343564",
+    "precision_capabilities": [
+      "fp32",
+      "bf16",
+      "fp16"
+    ],
+    "runtime_version": "7.15.26333",
+    "system_available_bytes": 29406547968,
+    "system_total_bytes": 33608609792,
+    "tested_features": [
+      "forward_backward_optimizer",
+      "optimizer:adamw"
+    ],
+    "tested_precisions": [
+      "bf16"
+    ],
+    "torch_device": "cuda:0",
+    "validated_at": "2026-10-02T09:30:16.379030+00:00"
+  },
+  "limitations": [
+    "Native doctor proves a BF16 forward/backward AdamW capability on the current tested package; it is not full MODEL-0 shape fit or training.",
+    "Actual selected-tokenizer MODEL-0 inspect/validate/smoke/warmup and a fresh cell-specific Campaign binding are still required.",
+    "Vendor interpreter and framework packages preserved; no CPU fallback or physical-device concurrency."
+  ]
+}
