@@ -198,3 +198,11 @@ records full LM document/byte ceilings; these are not a token budget.
 release consumer gate: the typed Artifact verifier accepted the exact frozen
 release and its retained snapshot closure with envelope version 1 and bound
 schema-3 policy. This is not a tokenizer, training or quality result.
+
+`recovery-verification.json` records completed fresh independent replay:
+producer, project declaration digest, all 123 snapshot IDs, full build ID and
+frozen release ID exactly match the committed primary expectations. Snapshot
+imports were zero. The result is exact recovery on the observed host and locked
+environment, not an unmeasured cross-host or indefinite-upstream claim.
+The immutable first expectations are unchanged; the tokenizer-fitting gate
+may now proceed.
