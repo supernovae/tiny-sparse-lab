@@ -5,12 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
 import yaml
 
-from sparselab.config.loading import load_config
+from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import DatasetConfig, RunConfig, TokenizerTrainConfig
 from sparselab.training.manifest import canonical_json, sha256_file
 
@@ -84,6 +85,48 @@ def _write_yaml(path: Path, value: object) -> None:
         yaml.safe_dump(value, handle, sort_keys=True)
         handle.flush()
         os.fsync(handle.fileno())
+
+
+def _export_metadata(
+    release_dir: Path,
+    manifest: dict[str, object],
+    request: dict[str, object],
+    counts: list[tuple[int, int]],
+    *,
+    run_sha256: str,
+    tokenizer_sha256: str,
+) -> dict[str, object]:
+    """Build the authenticated content closure, independent of storage root."""
+    view = request["view"]
+    sidecar = {
+        "schema_version": 1,
+        **request,
+        "release_manifest_sha256": sha256_file(release_dir / "manifest.json"),
+        "report_sha256": sha256_file(release_dir / "report.json"),
+        "license_report_sha256": sha256_file(release_dir / "license-report.json"),
+        "tokenizer_config_sha256": tokenizer_sha256,
+        "run_config_sha256": run_sha256,
+        "splits": {
+            split: {
+                "path": f"{view}/{split}.jsonl",
+                "sha256": sha256_file(release_dir / str(view) / f"{split}.jsonl"),
+                "records": count,
+                "rendered_bytes": size,
+            }
+            for split, (count, size) in zip(
+                ("train", "validation"), counts, strict=True
+            )
+        },
+    }
+    if manifest["build_identity"]["release"]["schema_version"] in (2, 3):
+        rights = json.loads(
+            (release_dir / "license-report.json").read_text(encoding="utf-8")
+        )
+        sidecar["publication_mode"] = rights["publication_mode"]
+        sidecar["weight_license_status"] = rights["weight_license_status"]
+        if rights["schema_version"] == 3:
+            sidecar["training_use_policy"] = rights["training_use_policy"]
+    return sidecar
 
 
 def export_release(
@@ -173,37 +216,19 @@ def export_release(
     TokenizerTrainConfig.model_validate(tokenizer)
     tokenizer_bytes = yaml.safe_dump(tokenizer, sort_keys=True).encode("utf-8")
     run_bytes = yaml.safe_dump(run_payload, sort_keys=True).encode("utf-8")
-    sidecar = {
-        "schema_version": 1,
-        "release_id": release_id,
-        "view": view,
-        "base_config_sha256": base_digest,
-        "vocab_size": vocab_size,
-        "release_manifest_sha256": sha256_file(release_dir / "manifest.json"),
-        "report_sha256": sha256_file(release_dir / "report.json"),
-        "license_report_sha256": sha256_file(release_dir / "license-report.json"),
-        "tokenizer_config_sha256": hashlib.sha256(tokenizer_bytes).hexdigest(),
-        "run_config_sha256": hashlib.sha256(run_bytes).hexdigest(),
-        "splits": {
-            split: {
-                "path": f"{view}/{split}.jsonl",
-                "sha256": sha256_file(path),
-                "records": count,
-                "rendered_bytes": size,
-            }
-            for split, path, (count, size) in zip(
-                ("train", "validation"), (train, validation), counts, strict=True
-            )
+    sidecar = _export_metadata(
+        release_dir,
+        manifest,
+        {
+            "release_id": release_id,
+            "view": view,
+            "base_config_sha256": base_digest,
+            "vocab_size": vocab_size,
         },
-    }
-    if manifest["build_identity"]["release"]["schema_version"] in (2, 3):
-        rights = json.loads(
-            (release_dir / "license-report.json").read_text(encoding="utf-8")
-        )
-        sidecar["publication_mode"] = rights["publication_mode"]
-        sidecar["weight_license_status"] = rights["weight_license_status"]
-        if rights["schema_version"] == 3:
-            sidecar["training_use_policy"] = rights["training_use_policy"]
+        counts,
+        run_sha256=hashlib.sha256(run_bytes).hexdigest(),
+        tokenizer_sha256=hashlib.sha256(tokenizer_bytes).hexdigest(),
+    )
     if destination.exists():
         if any(
             not (destination / filename).is_file()
@@ -241,7 +266,8 @@ def verify_release_export(dataset: DatasetConfig) -> dict[str, object]:
     release_dir = dataset.corpus_release_path
     export_dir = dataset.corpus_export_path
     manifest = _release(release_dir)
-    export = json.loads((export_dir / "export.json").read_text(encoding="utf-8"))
+    export_bytes = (export_dir / "export.json").read_bytes()
+    export = json.loads(export_bytes)
     if (
         not isinstance(export, dict)
         or export.get("schema_version") != 1
@@ -262,12 +288,18 @@ def verify_release_export(dataset: DatasetConfig) -> dict[str, object]:
     }
     if (
         not isinstance(request["base_config_sha256"], str)
-        or len(request["base_config_sha256"]) != 64
-        or not isinstance(request["vocab_size"], int)
+        or re.fullmatch(r"[0-9a-f]{64}", request["base_config_sha256"]) is None
+        or type(request["vocab_size"]) is not int
         or request["vocab_size"] < 260
         or export_dir.name != hashlib.sha256(canonical_json(request)).hexdigest()
-        or export_dir.parent
-        != release_dir.parent.parent / "exports" / str(manifest["release_id"]) / view
+        or export_dir.parts[-6:-1]
+        != (
+            "corpora",
+            str(manifest["corpus_id"]),
+            "exports",
+            str(manifest["release_id"]),
+            view,
+        )
         or dataset.license != _licenses(release_dir)
     ):
         raise ValueError("corpus export request or license mismatch")
@@ -277,31 +309,25 @@ def verify_release_export(dataset: DatasetConfig) -> dict[str, object]:
     ):
         if sha256_file(export_dir / name) != export.get(key):
             raise ValueError(f"corpus export config changed: {name}")
+    exported_run = load_config(export_dir / "run.yaml")
+    exported_tokenizer = load_tokenizer_config(export_dir / "tokenizer.yaml")
     if (
-        export.get("release_manifest_sha256")
-        != sha256_file(release_dir / "manifest.json")
-        or export.get("report_sha256") != sha256_file(release_dir / "report.json")
-        or export.get("license_report_sha256")
-        != sha256_file(release_dir / "license-report.json")
+        exported_run.dataset != dataset
+        or exported_tokenizer.dataset != dataset
+        or exported_run.model.vocab_size != request["vocab_size"]
+        or exported_tokenizer.vocab_size != request["vocab_size"]
     ):
-        raise ValueError("corpus export evidence mismatch")
-    splits = export.get("splits")
-    if not isinstance(splits, dict):
-        raise TypeError("corpus export split inventory missing")
+        raise ValueError("corpus export generated dataset or vocabulary mismatch")
+    counts = []
     for split, path in (
         ("train", dataset.train_path),
         ("validation", dataset.validation_path),
     ):
-        entry = splits.get(split)
-        expected = release_dir / str(view) / f"{split}.jsonl"
-        if (
-            not isinstance(entry, dict)
-            or path is None
-            or path.resolve() != expected.resolve()
-            or entry.get("path") != f"{view}/{split}.jsonl"
-            or entry.get("sha256") != sha256_file(expected)
-        ):
-            raise ValueError(f"corpus export {split} split digest or path mismatch")
+        expected = release_dir / view / f"{split}.jsonl"
+        if path is None or path.resolve() != expected.resolve():
+            raise ValueError(f"corpus export {split} split path mismatch")
+        records, rendered_bytes = _split_stats(expected, view)
+        counts.append((records, rendered_bytes))
         count = (
             dataset.train_max_documents
             if split == "train"
@@ -312,14 +338,21 @@ def verify_release_export(dataset: DatasetConfig) -> dict[str, object]:
             if split == "train"
             else dataset.validation_max_tokens
         )
-        if (
-            entry.get("records") != count
-            or not isinstance(entry.get("rendered_bytes"), int)
-            or budget < entry["rendered_bytes"] + count
-        ):
+        if count != records or budget != rendered_bytes + records + 1:
             raise ValueError(
-                f"corpus export {split} budget cannot include every record"
+                f"corpus export {split} count or rendered-byte budget mismatch"
             )
+    expected_export = _export_metadata(
+        release_dir,
+        manifest,
+        request,
+        counts,
+        run_sha256=sha256_file(export_dir / "run.yaml"),
+        tokenizer_sha256=sha256_file(export_dir / "tokenizer.yaml"),
+    )
+    if export_bytes != canonical_json(expected_export) + b"\n":
+        raise ValueError("corpus export content or policy mismatch")
+    splits = expected_export["splits"]
     return {
         "release_id": manifest["release_id"],
         "view": view,

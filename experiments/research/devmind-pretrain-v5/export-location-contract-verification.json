@@ -1,0 +1,124 @@
+{
+  "verification_version": 1,
+  "kind": "export-location-contract-implementation-verification",
+  "status": "VERIFIED_LOCAL_IMPLEMENTATION",
+  "classification": "IMPLEMENTATION_LOCATION_CONTRACT_MISMATCH",
+  "source_baseline_commit": "484ef24c536e191619cfe1244b3b822a9ce46f90",
+  "source_modules": {
+    "src/sparselab/corpus/export.py": "3a7ee274123a78694fb140c2b5aa2efa0e2eea186a719cac814700326a7ad02a"
+  },
+  "contract": {
+    "operational_prefix": "Independent of release workspace; excluded from request SHA",
+    "canonical_suffix": "corpora/<authenticated corpus_id>/exports/<release_id>/<view>/<request_sha>",
+    "request_fields": [
+      "release_id",
+      "view",
+      "base_config_sha256",
+      "vocab_size"
+    ],
+    "generated_configs": "Hashes authenticated; both parsed by existing model loaders; both complete DatasetConfig declarations equal consumer; generated vocabularies equal request. Consuming tokenizer.path is separate.",
+    "content_closure": "Reconstruct exact canonical export metadata from full verified release, actual split record/UTF8 counts and hashes, generated config hashes and applicable rights/publication/training policy; unknown/altered metadata fails closed.",
+    "ceilings": "documents=actual records; max_tokens=actual rendered UTF8 bytes+records+1",
+    "trust_limit": "Content/request integrity and declared artifact hashes, not a new producer-signature authority."
+  },
+  "verification": [
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_corpus_exports.py",
+      "passed": 64
+    },
+    {
+      "command": "uv run --locked --extra cpu pytest -q -n 2 --dist loadfile -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'",
+      "passed": 1448,
+      "skipped": 3,
+      "elapsed_seconds": 630.84
+    },
+    {
+      "command": "uv run --locked --extra cpu ruff check .",
+      "status": "passed"
+    },
+    {
+      "command": "uv run --locked --extra cpu ruff format --check .",
+      "status": "passed",
+      "files_already_formatted": 510
+    }
+  ],
+  "focused_consumers": [
+    "Corpus Forge export/provenance",
+    "authentic selected external tokenizer and vocabulary/export refusal",
+    "preparation options/recovery/streaming",
+    "worker bundles and execution",
+    "ExperimentPlan artifact/lock consumers"
+  ],
+  "verification_correction": "Initial isolated mutation fixture omitted retained snapshot closure (59 setup errors); corrected by copying owned fixture snapshots, not weakening verification. 64 export tests then passed; entire final CPU suite passed.",
+  "regressions": [
+    "same-root and independent-root verification",
+    "root-independent canonical request identity",
+    "actual CLI export/selected external tokenizer/data prepare with exact ID+EOS and block-target accounting",
+    "request digest/base hash shape/type/vocab/schema rejection",
+    "wrong release/revision/corpus/layout/view rejection",
+    "changed export metadata, split paths/bytes, counts/budgets and release evidence rejection",
+    "changed generated config hashes and rehashed dataset declarations rejected",
+    "changed consumer dataset/license refused",
+    "schema3 publication/weight/training policy metadata authenticated",
+    "selected vocabulary/export swap rejected"
+  ],
+  "actual_surface_smoke": {
+    "scope": "Real local Corpus Forge fixture, not DevMind v5 scientific preparation",
+    "status": "COMPLETE",
+    "evidence": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/export-contract-smoke-1790977992402631698/smoke.json",
+      "sha256": "a33cd27cb8326a025c3413521bb3a8baf55f7c3425a4203a97007af331a9d176"
+    },
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/export-contract-fixture-smoke-1790977990219826573.completion.json",
+      "sha256": "1e8340378086a5e0a9b5bd7f404f5229c016ce89d84d058ccca32d8bdb7fb85c"
+    },
+    "throwaway_script_sha256": "f39a6ae0b5ca4bdecc0df2da1b736694cb2901eda5bbffacbfd4ac130549b573",
+    "throwaway_script_removed": true,
+    "selected_tokenizer_sha256": "bba1fc2d6e3de3292541032e3361b4aa2af6ae728db73de2578c00e651d7f1af",
+    "prepared_settings_sha256": "55db847c3b1ea05243202a0bbd7ca0a4257efcf803d3a804c1b1907204142be7",
+    "prepared_manifest_sha256": "b15ac237e1ae34785956d0dcdfc0f23890c735a398938ba073f258b8490c3be8",
+    "train": {
+      "acquired_documents": 9,
+      "artifact_bytes": 14292120,
+      "artifact_files": 1,
+      "dtype": "int32",
+      "output_tokens": 3572998,
+      "retained_documents": 9,
+      "sha256": "b1c18f5aaeff143c744b3c2c3e65873cb01a2f7fd1557ca0108d11d08a33b808",
+      "shape": [
+        3572998
+      ],
+      "size_bytes": 14292120,
+      "skipped_documents": 0,
+      "tokens": 3572998,
+      "truncated_documents": 0
+    },
+    "validation": {
+      "acquired_documents": 9,
+      "artifact_bytes": 6796,
+      "artifact_files": 1,
+      "dtype": "int32",
+      "output_tokens": 1667,
+      "retained_documents": 9,
+      "sha256": "c833c92db890a9287cd507e9e23f55423b697c4e1710bc512d511a785db915a6",
+      "shape": [
+        1667
+      ],
+      "size_bytes": 6796,
+      "skipped_documents": 0,
+      "tokens": 1667,
+      "truncated_documents": 0
+    },
+    "tree_peak_rss_bytes": 1300467712,
+    "returncode": 0,
+    "guard_violation": null
+  },
+  "todo_changes": "Removed satisfied pre-worker export-location contract item. Separate worker-sealing provenance item unchanged.",
+  "frozen_science": "No change or recomputation of accepted developer denominator, budget, parameter inventory, corpus/release/tokenizer/bakeoff/mixture/export or model0-run dataset declaration.",
+  "previous_negative_evidence": {
+    "path": "experiments/research/devmind-pretrain-v5/model0-preparation-stop.json",
+    "sha256": "2c49fa31cc587c107d57fcb83f818b50916f186f6f4a53907d919d741551c74b"
+  },
+  "scope_limit": "Real existing-export authentication and newly authorized single preparation retry remain gated after publication. No ROCm shape or model-quality claim."
+}

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 from pathlib import Path
+from typing import Any
 
 import pytest
+import yaml
 
 from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.corpus.acquisition import acquire
@@ -17,6 +21,7 @@ from sparselab.data.conversations import iter_rendered_conversations
 from sparselab.data.datasets import iter_documents
 from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import load_tokenizer, train_tokenizer
+from sparselab.training.manifest import canonical_json, sha256_file
 
 
 @pytest.fixture(scope="module")
@@ -29,6 +34,331 @@ def frozen_sample(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]
     release_dir = freeze(build_dir, root)
     assert freeze(build_dir, root) == release_dir
     return release_dir, root
+
+
+@pytest.fixture
+def isolated_export(
+    frozen_sample: tuple[Path, Path], tmp_path: Path
+) -> tuple[Path, Path, Path]:
+    """Never mutate the module-scoped frozen release or its original work root."""
+    original, _ = frozen_sample
+    root = tmp_path / "source-work"
+    release = (
+        root / "corpora" / original.parent.parent.name / "releases" / original.name
+    )
+    release.parent.mkdir(parents=True)
+    shutil.copytree(original, release)
+    shutil.copytree(
+        original.parent.parent / "snapshots", release.parent.parent / "snapshots"
+    )
+    exported = export_release(
+        release, "lm", Path("configs/runtime_smoke_cpu.yaml"), 300, root
+    )
+    return release, exported, root
+
+
+def _sidecar(exported: Path) -> dict[str, Any]:
+    return json.loads((exported / "export.json").read_text(encoding="utf-8"))
+
+
+def _write_sidecar(exported: Path, sidecar: dict[str, Any]) -> None:
+    (exported / "export.json").write_bytes(canonical_json(sidecar) + b"\n")
+
+
+def _dataset(exported: Path):
+    return load_config(exported / "run.yaml").dataset
+
+
+def _reject(exported: Path, **changes: Any) -> None:
+    with pytest.raises((ValueError, TypeError)):
+        verify_release_export(_dataset(exported).model_copy(update=changes))
+
+
+def test_export_verifies_from_same_and_independent_work_roots(
+    isolated_export: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    release, adjacent, adjacent_root = isolated_export
+    independent_root = tmp_path / "independent-work"
+    independent = export_release(
+        release, "lm", Path("configs/runtime_smoke_cpu.yaml"), 300, independent_root
+    )
+    assert adjacent != independent
+    assert adjacent.name == independent.name
+    for exported in (adjacent, independent):
+        dataset = _dataset(exported)
+        assert dataset.corpus_release_path == release
+        assert dataset.corpus_export_path == exported
+        assert verify_release_export(dataset)["release_id"] == release.name
+        request = _sidecar(exported)
+        root = adjacent_root if exported == adjacent else independent_root
+        request_sha = hashlib.sha256(
+            canonical_json(
+                {
+                    "release_id": release.name,
+                    "view": "lm",
+                    "base_config_sha256": request["base_config_sha256"],
+                    "vocab_size": 300,
+                }
+            )
+        ).hexdigest()
+        assert exported.relative_to(root) == (
+            Path("corpora")
+            / release.parent.parent.name
+            / "exports"
+            / release.name
+            / "lm"
+            / request_sha
+        )
+    assert (
+        _sidecar(adjacent)["base_config_sha256"]
+        == _sidecar(independent)["base_config_sha256"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("release_id", "0" * 64),
+        ("view", "chat"),
+        ("base_config_sha256", "0" * 64),
+        ("vocab_size", 301),
+        ("vocab_size", True),
+        ("vocab_size", "300"),
+        ("base_config_sha256", "not-a-sha"),
+        ("base_config_sha256", "A" * 64),
+        ("schema_version", "1"),
+        ("schema_version", True),
+    ],
+)
+def test_export_rejects_changed_request(
+    isolated_export: tuple[Path, Path, Path], field: str, bad: Any
+) -> None:
+    _, exported, _ = isolated_export
+    sidecar = _sidecar(exported)
+    sidecar[field] = bad
+    _write_sidecar(exported, sidecar)
+    _reject(exported)
+
+
+def test_export_rejects_changed_request_sha_suffix(
+    isolated_export: tuple[Path, Path, Path],
+) -> None:
+    _, exported, _ = isolated_export
+    moved = exported.with_name("0" * 64)
+    shutil.copytree(exported, moved)
+    _reject(exported, corpus_export_path=moved)
+
+
+@pytest.mark.parametrize("layout", ["other-corpus", "other-release", "other-view"])
+def test_export_rejects_wrong_corpus_or_layout_suffix(
+    isolated_export: tuple[Path, Path, Path], tmp_path: Path, layout: str
+) -> None:
+    release, exported, _ = isolated_export
+    root = tmp_path / "other-work"
+    corpus = "wrong-corpus" if layout == "other-corpus" else release.parent.parent.name
+    release_id = "0" * 64 if layout == "other-release" else release.name
+    view = "chat" if layout == "other-view" else "lm"
+    moved = root / "corpora" / corpus / "exports" / release_id / view / exported.name
+    moved.parent.mkdir(parents=True)
+    shutil.copytree(exported, moved)
+    _reject(exported, corpus_export_path=moved)
+
+
+def test_export_rejects_wrong_release_path_and_revision(
+    isolated_export: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    release, exported, _ = isolated_export
+    _reject(exported, revision="0" * 64)
+    other = tmp_path / ("0" * 64)
+    shutil.copytree(release, other)
+    _reject(exported, corpus_release_path=other)
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("release_manifest_sha256", "0" * 64),
+        ("report_sha256", "0" * 64),
+        ("license_report_sha256", "0" * 64),
+        ("run_config_sha256", "0" * 64),
+        ("tokenizer_config_sha256", "0" * 64),
+        ("publication_mode", "tampered"),
+        ("weight_license_status", "tampered"),
+        ("training_use_policy", {"unexpected": True}),
+        ("unexpected_metadata", "must not be silently accepted"),
+    ],
+)
+def test_export_rejects_modified_metadata(
+    isolated_export: tuple[Path, Path, Path], field: str, bad: Any
+) -> None:
+    _, exported, _ = isolated_export
+    sidecar = _sidecar(exported)
+    sidecar[field] = bad
+    _write_sidecar(exported, sidecar)
+    _reject(exported)
+
+
+@pytest.mark.parametrize("filename", ["run.yaml", "tokenizer.yaml"])
+def test_export_rejects_changed_generated_config_hash(
+    isolated_export: tuple[Path, Path, Path], filename: str
+) -> None:
+    _, exported, _ = isolated_export
+    config = exported / filename
+    config.write_bytes(config.read_bytes() + b"\n# modified\n")
+    _reject(exported)
+
+
+@pytest.mark.parametrize("filename", ["run.yaml", "tokenizer.yaml"])
+def test_export_rejects_rehashed_generated_dataset_mismatch(
+    isolated_export: tuple[Path, Path, Path], filename: str
+) -> None:
+    _, exported, _ = isolated_export
+    consumer = _dataset(exported)
+    config = exported / filename
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+    payload["dataset"]["license"] = "MIT-tampered"
+    config.write_text(yaml.safe_dump(payload, sort_keys=True), encoding="utf-8")
+    sidecar = _sidecar(exported)
+    sidecar[
+        "run_config_sha256" if filename == "run.yaml" else "tokenizer_config_sha256"
+    ] = sha256_file(config)
+    _write_sidecar(exported, sidecar)
+    with pytest.raises((ValueError, TypeError)):
+        verify_release_export(consumer)
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("source", "local_chat"),
+        ("revision", "0" * 64),
+        ("license", "MIT-tampered"),
+        ("train_max_documents", "increment"),
+        ("validation_max_documents", "increment"),
+        ("train_max_tokens", "increment"),
+        ("validation_max_tokens", "increment"),
+        ("train_max_documents", True),
+        ("validation_max_tokens", True),
+    ],
+)
+def test_export_rejects_changed_consumer_dataset(
+    isolated_export: tuple[Path, Path, Path], field: str, bad: Any
+) -> None:
+    _, exported, _ = isolated_export
+    original = getattr(_dataset(exported), field)
+    _reject(exported, **{field: original + 1 if bad == "increment" else bad})
+
+
+@pytest.mark.parametrize("split", ["train", "validation"])
+def test_export_requires_exact_source_paths_and_split_bytes(
+    isolated_export: tuple[Path, Path, Path], tmp_path: Path, split: str
+) -> None:
+    release, exported, _ = isolated_export
+    path = release / "lm" / f"{split}.jsonl"
+    copied = tmp_path / f"{split}.jsonl"
+    shutil.copyfile(path, copied)
+    _reject(exported, **{f"{split}_path": copied})
+    with path.open("ab") as stream:
+        stream.write(b'{"text":"unexpected"}\n')
+    _reject(exported)
+
+
+@pytest.mark.parametrize(
+    "name", ["report.json", "license-report.json", "manifest.json"]
+)
+def test_export_rejects_changed_release_evidence(
+    isolated_export: tuple[Path, Path, Path], name: str
+) -> None:
+    release, exported, _ = isolated_export
+    evidence = release / name
+    evidence.write_bytes(evidence.read_bytes() + b" ")
+    _reject(exported)
+
+
+@pytest.mark.parametrize("split", ["train", "validation"])
+def test_export_rejects_inventory_counts_bytes_and_budgets(
+    isolated_export: tuple[Path, Path, Path], split: str
+) -> None:
+    _, exported, _ = isolated_export
+    dataset = _dataset(exported)
+    sidecar = _sidecar(exported)
+    item = sidecar["splits"][split]
+    selected = dataset.train_path if split == "train" else dataset.validation_path
+    assert selected is not None
+    records = [json.loads(line)["text"] for line in selected.read_text().splitlines()]
+    assert item["records"] == len(records)
+    assert item["rendered_bytes"] == sum(len(text.encode("utf-8")) for text in records)
+    assert getattr(dataset, f"{split}_max_documents") == item["records"]
+    assert getattr(dataset, f"{split}_max_tokens") == (
+        item["rendered_bytes"] + item["records"] + 1
+    )
+    for key in ("records", "rendered_bytes"):
+        tampered = json.loads(json.dumps(sidecar))
+        tampered["splits"][split][key] += 1
+        _write_sidecar(exported, tampered)
+        _reject(exported)
+    _write_sidecar(exported, sidecar)
+    _reject(
+        exported,
+        **{f"{split}_max_tokens": item["rendered_bytes"] + item["records"]},
+    )
+    _reject(
+        exported,
+        **{f"{split}_max_tokens": getattr(dataset, f"{split}_max_tokens") + 1},
+    )
+
+
+@pytest.mark.parametrize(
+    ("key", "bad"),
+    [
+        ("records", True),
+        ("records", "1"),
+        ("rendered_bytes", True),
+        ("rendered_bytes", "1"),
+        ("sha256", "0" * 64),
+        ("sha256", ["0" * 64]),
+        ("path", ["lm/train.jsonl"]),
+        ("path", "lm/validation.jsonl"),
+        ("unexpected", 1),
+    ],
+)
+def test_export_rejects_malformed_split_inventory(
+    isolated_export: tuple[Path, Path, Path], key: str, bad: Any
+) -> None:
+    _, exported, _ = isolated_export
+    sidecar = _sidecar(exported)
+    sidecar["splits"]["train"][key] = bad
+    _write_sidecar(exported, sidecar)
+    _reject(exported)
+
+
+def test_export_rejects_extra_split_and_invalid_inventory_shape(
+    isolated_export: tuple[Path, Path, Path],
+) -> None:
+    _, exported, _ = isolated_export
+    sidecar = _sidecar(exported)
+    sidecar["splits"]["test"] = dict(sidecar["splits"]["train"])
+    _write_sidecar(exported, sidecar)
+    _reject(exported)
+
+
+@pytest.mark.parametrize(
+    "inventory",
+    [
+        None,
+        [],
+        {},
+        {"train": {}, "validation": {}},
+    ],
+)
+def test_export_rejects_invalid_split_inventory_shape(
+    isolated_export: tuple[Path, Path, Path], inventory: Any
+) -> None:
+    _, exported, _ = isolated_export
+    sidecar = _sidecar(exported)
+    sidecar["splits"] = inventory
+    _write_sidecar(exported, sidecar)
+    _reject(exported)
 
 
 def test_lm_export_fits_every_train_document(frozen_sample: tuple[Path, Path]) -> None:

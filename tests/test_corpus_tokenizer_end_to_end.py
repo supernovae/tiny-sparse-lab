@@ -4,22 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
+import numpy as np
 import pytest
 import yaml
 
 from sparselab.config.loading import load_config
 from sparselab.corpus.acquisition import acquire
-from sparselab.corpus.export import export_release
+from sparselab.corpus.export import verify_release_export
 from sparselab.corpus.pipeline import build
 from sparselab.corpus.project import load_project
 from sparselab.corpus.release import freeze
 from sparselab.corpus.tokenizer_bakeoff import GROUPS, bakeoff
-from sparselab.data.packing import prepare_data
+from sparselab.data.packing import TokenBlockDataset, load_prepared_data
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.experiments.artifacts import verify_artifact
 from sparselab.experiments.plan import Artifact
+from sparselab.training.manifest import canonical_json
 
 
 def _project(
@@ -158,6 +161,7 @@ def test_selected_tokenizer_survives_export_and_artifact_verification(
     report_bytes = report_path.read_bytes()
     report = json.loads(report_bytes)
     selected = Path(report["selected_tokenizer"])
+    selected_bytes = selected.read_bytes()
     manifest_path = selected.with_name("tokenizer_manifest.json")
     manifest_bytes = manifest_path.read_bytes()
     sample_path = report_path.with_name("fit.jsonl")
@@ -166,14 +170,62 @@ def test_selected_tokenizer_survives_export_and_artifact_verification(
     validation_bytes = validation_path.read_bytes()
     chosen = report["selected_vocab_size"]
     release_id = report["identity"]["release_id"]
-    export = export_release(
-        Path(report["identity"]["release_path"]),
-        "lm",
-        Path("configs/runtime_smoke_cpu.yaml"),
-        chosen,
-        workspace,
+    release = Path(report["identity"]["release_path"])
+    operational_root = tmp_path / "independent-operational-root"
+
+    def cli(*arguments: str, success: bool = True) -> str:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--locked",
+                "--extra",
+                "cpu",
+                "sparselab",
+                "--work-dir",
+                str(operational_root),
+                *arguments,
+            ],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if success:
+            assert result.returncode == 0, result.stdout + result.stderr
+        else:
+            assert result.returncode != 0, result.stdout + result.stderr
+        return result.stdout.strip() if success else result.stderr
+
+    export = Path(
+        cli(
+            "corpus",
+            "export",
+            str(release),
+            "--view",
+            "lm",
+            "--base-run-config",
+            "configs/runtime_smoke_cpu.yaml",
+            "--vocab-size",
+            str(chosen),
+        )
     )
-    dataset = load_config(export / "run.yaml").dataset
+    assert export.is_relative_to(operational_root / "corpora")
+    assert not export.is_relative_to(workspace)
+    generated = yaml.safe_load((export / "run.yaml").read_text(encoding="utf-8"))
+    selected_run = tmp_path / "selected-run.yaml"
+    resolved = json.loads(json.dumps(generated))
+    resolved["tokenizer"]["path"] = str(selected)
+    selected_run.write_text(yaml.safe_dump(resolved), encoding="utf-8")
+    assert {
+        **resolved,
+        "tokenizer": {**resolved["tokenizer"], "path": generated["tokenizer"]["path"]},
+    } == generated
+    assert not (export / "tokenizer" / "tokenizer.json").exists()
+    assert (
+        verify_release_export(load_config(selected_run).dataset)["vocab_size"] == chosen
+    )
+    dataset = load_config(selected_run).dataset
     assert (
         verify_tokenizer_artifact(
             selected,
@@ -193,10 +245,127 @@ def test_selected_tokenizer_survives_export_and_artifact_verification(
         path=str(selected),
     )
     assert verify_artifact(artifact, declaration)["identifier"] == artifact.identifier
-    run = load_config(export / "run.yaml")
+    prepared_root = Path(cli("data", "prepare", str(selected_run)))
+    assert prepared_root.is_relative_to(export / "prepared")
+    run = load_config(selected_run)
+    prepared = load_prepared_data(prepared_root, byte_enabled=False)
+    tokenizer = load_tokenizer(selected)
+    assert selected.read_bytes() == selected_bytes
+    assert prepared.manifest["corpus_export"] == verify_release_export(run.dataset)
+    assert prepared.manifest["packing_version"] == "contiguous-eos-v6"
+    assert (
+        prepared.manifest["tokenizer_sha256"]
+        == hashlib.sha256(tokenizer.to_str().encode("utf-8")).hexdigest()
+    )
+    assert (
+        prepared.manifest["manifest_sha256"]
+        == hashlib.sha256(
+            canonical_json(
+                {
+                    key: value
+                    for key, value in prepared.manifest.items()
+                    if key != "manifest_sha256"
+                }
+            )
+        ).hexdigest()
+    )
+    assert prepared.manifest["supervision"] == {"kind": "all_tokens"}
+    assert not any(prepared_root.glob("*supervision.npy"))
+    eos = tokenizer.token_to_id("<eos>")
+    assert eos is not None
+    for split in ("train", "validation"):
+        expected: list[int] = []
+        source_tokens = 0
+        with (release / "lm" / f"{split}.jsonl").open(encoding="utf-8") as source:
+            for line in source:
+                document_ids = tokenizer.encode(
+                    json.loads(line)["text"], add_special_tokens=False
+                ).ids
+                source_tokens += len(document_ids)
+                expected.extend(document_ids)
+                expected.append(eos)
+        actual = np.load(prepared_root / f"{split}.npy", allow_pickle=False)
+        metadata = prepared.manifest[split]
+        records = json.loads((export / "export.json").read_text())["splits"][split][
+            "records"
+        ]
+        assert (
+            metadata["retained_documents"] == metadata["acquired_documents"] == records
+        )
+        assert metadata["skipped_documents"] == metadata["truncated_documents"] == 0
+        assert metadata["tokens"] == metadata["output_tokens"] == len(expected)
+        assert metadata["output_tokens"] == source_tokens + records
+        assert actual.tolist() == expected
+        blocks = TokenBlockDataset(actual, run.training.seq_len)
+        assert len(blocks) == (len(expected) - 1) // run.training.seq_len
+        assert len(blocks) > 0
+        for index in (0, len(blocks) - 1):
+            inputs, targets, _ = blocks.numpy_block(index)
+            offset = index * run.training.seq_len
+            assert inputs.tolist() == expected[offset : offset + run.training.seq_len]
+            assert (
+                targets.tolist()
+                == expected[offset + 1 : offset + run.training.seq_len + 1]
+            )
+            assert np.all(targets != -100)
+    assert selected.read_bytes() == selected_bytes
+    export_metadata_path = export / "export.json"
+    export_metadata_bytes = export_metadata_path.read_bytes()
+    for policy_field in (
+        "publication_mode",
+        "weight_license_status",
+        "training_use_policy",
+    ):
+        altered = json.loads(export_metadata_bytes)
+        altered[policy_field] = "unauthenticated-policy"
+        export_metadata_path.write_bytes(canonical_json(altered) + b"\n")
+        try:
+            with pytest.raises(ValueError):
+                verify_release_export(dataset)
+        finally:
+            export_metadata_path.write_bytes(export_metadata_bytes)
+    other_vocab = next(
+        candidate["vocab_size"]
+        for candidate in report["candidates"]
+        if candidate["vocab_size"] != chosen
+    )
+    wrong_export = Path(
+        cli(
+            "corpus",
+            "export",
+            str(release),
+            "--view",
+            "lm",
+            "--base-run-config",
+            "configs/runtime_smoke_cpu.yaml",
+            "--vocab-size",
+            str(other_vocab),
+        )
+    )
+    incompatible = yaml.safe_load((wrong_export / "run.yaml").read_text())
+    incompatible["tokenizer"]["path"] = str(selected)
+    bad_run = tmp_path / "wrong-export-run.yaml"
+    bad_run.write_text(yaml.safe_dump(incompatible))
+    with pytest.raises(ValueError):
+        verify_tokenizer_artifact(
+            selected,
+            source="local_text",
+            revision=release_id,
+            vocab_size=other_vocab,
+            dataset=load_config(bad_run).dataset,
+        )
+    with pytest.raises(ValueError):
+        verify_tokenizer_artifact(
+            selected,
+            source="local_text",
+            revision=release_id,
+            vocab_size=chosen,
+            dataset=load_config(bad_run).dataset,
+        )
+    cli("data", "prepare", str(bad_run), success=False)
+    assert not (wrong_export / "prepared").exists()
     run = run.model_copy(
         update={
-            "tokenizer": run.tokenizer.model_copy(update={"path": selected}),
             "training": run.training.model_copy(
                 update={"max_steps": 2, "max_tokens": 64}
             ),
@@ -204,7 +373,6 @@ def test_selected_tokenizer_survives_export_and_artifact_verification(
             "logging": run.logging.model_copy(update={"root_dir": tmp_path / "runs"}),
         }
     )
-    prepared = prepare_data(run, load_tokenizer(selected))
     assert prepared.manifest["corpus_export"]["release_id"] == release_id
     for other in report["candidates"]:
         if other["vocab_size"] != chosen:

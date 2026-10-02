@@ -17,6 +17,31 @@ Rights, verification, origin and training shape remain distinct dimensions;
 metadata-only publication does not republish the training export. Historical
 DevMind fail-gates and v1 release identities are not reinterpreted.
 
+## Export storage and consumer authentication
+
+`corpus export RELEASE --work-dir ROOT` stores immutable configs under
+`ROOT/corpora/<corpus-id>/exports/<release-id>/<view>/<request-sha>`.
+`ROOT` may differ from the verified release's workspace. The canonical suffix
+must match the authenticated corpus, release and view; the request SHA binds
+`release_id`, `view`, `base_config_sha256` and `vocab_size`, not the absolute
+operational prefix. Do not relocate an accepted export to satisfy a consumer.
+
+Consumers verify the full release, exact canonical export metadata, generated
+config hashes, release/report/license-report hashes, split paths and hashes,
+actual record/rendered-byte counts, license and applicable publication/training
+policy. Both generated configs are model-validated and their complete dataset
+declarations must equal the consuming dataset. Ceilings retain every record:
+`max_documents = records`, `max_tokens = rendered_utf8_bytes + records + 1`.
+Changing a consumer dataset field or rehashing an inconsistent generated config
+does not bypass this contract. A selected external tokenizer path may differ;
+tokenizer selection, vocabulary and provenance remain separately authenticated.
+
+Operational paths inside configs and location-bound metadata can change file
+digests between separately produced exports. That does not make the storage root
+part of the canonical scientific request identity, nor permit editing an
+existing immutable export. Typed artifact/evidence references still bind their
+exact recorded file digests.
+
 ## Compare releases without reacquiring sources
 
 One project may point to multiple checked-in release declarations while retaining the same `id`, source declarations, snapshots and acquisition lock. For example, keep `sources/*.yaml`, `splits.yaml`, and `transforms/*.yaml` fixed, then make project variants that differ only in the `release:` YAML reference. Declare `include_shapes` and/or `include_origins` in each release YAML. `corpus build ... --offline` verifies the shared acquisition lock, builds the selected view without mutating a frozen release, and `corpus freeze BUILD` publishes a new release ID. Inspect its `manifest.json` snapshots, `lineage.jsonl`, `audit.json`, and `report.json`; only then export the selected training view. A variant whose selected training split is empty fails freeze rather than silently changing a run.
