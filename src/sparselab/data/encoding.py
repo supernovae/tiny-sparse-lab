@@ -25,9 +25,9 @@ def validate_tokenizer_batch_limits(
 ) -> tuple[int, int]:
     if type(documents) is not int or not 1 <= documents <= 256:
         raise ValueError("tokenizer_batch_documents must be an integer from 1 to 256")
-    if type(source_bytes) is not int or not 1 <= source_bytes <= 4_194_304:
+    if type(source_bytes) is not int or not 1 <= source_bytes <= 8_388_608:
         raise ValueError(
-            "tokenizer_batch_source_bytes must be an integer from 1 to 4194304"
+            "tokenizer_batch_source_bytes must be an integer from 1 to 8388608"
         )
     return documents, source_bytes
 

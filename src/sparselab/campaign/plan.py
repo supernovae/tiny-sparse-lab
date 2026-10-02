@@ -131,6 +131,37 @@ class CorpusReadiness(Stage):
     corpus: str
     policy: CorpusReadinessPolicy
     tokenizer: str | None = None
+    measurement_receipt: str | None = None
+    measurement_sha256: str | None = None
+
+    @model_validator(mode="after")
+    def valid_measurement(self) -> CorpusReadiness:
+        if (self.measurement_receipt is None) != (self.measurement_sha256 is None):
+            raise ValueError(
+                "measurement receipt and SHA-256 must be supplied together"
+            )
+        if self.measurement_receipt is not None:
+            if not re.fullmatch(r"[0-9a-f]{64}", self.measurement_sha256 or ""):
+                raise ValueError("measurement SHA-256 must be 64 lowercase hex digits")
+            if (
+                self.policy.min_unique_train_bytes_by_domain
+                or self.policy.required_nonzero_languages
+                or self.policy.required_nonzero_shapes
+                or self.policy.min_heldout_families
+                or (
+                    self.policy.passes is not None
+                    and self.policy.passes.basis == "bytes"
+                )
+                or not (
+                    self.policy.min_unique_train_tokens_by_domain
+                    or (
+                        self.policy.passes is not None
+                        and self.policy.passes.basis == "tokens"
+                    )
+                )
+            ):
+                raise ValueError("measurement receipt requires a token-only policy")
+        return self
 
 
 class TokenizerReference(Stage):
@@ -441,6 +472,9 @@ def load_campaign(path: Path) -> CampaignPlan:
             if isinstance(stage, (ArtifactReference, TokenizerReference)):
                 assert stage.artifact.path is not None
                 operational_path(path.parent, stage.artifact.path)
+            elif isinstance(stage, CorpusReadiness):
+                if stage.measurement_receipt is not None:
+                    operational_path(path.parent, stage.measurement_receipt)
             elif isinstance(stage, CorpusRelease):
                 safe_path(path.parent, stage.project)
             elif isinstance(stage, ExperimentPlanStage):

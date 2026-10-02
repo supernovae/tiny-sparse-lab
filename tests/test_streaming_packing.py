@@ -169,7 +169,7 @@ print(json.dumps({
 
 @pytest.mark.parametrize(
     ("documents", "source_bytes"),
-    [(0, 100), (257, 100), (True, 100), (1.0, 100), (1, 0), (1, 4_194_305), (1, False)],
+    [(0, 100), (257, 100), (True, 100), (1.0, 100), (1, 0), (1, 8_388_609), (1, False)],
 )
 def test_invalid_batch_limits_rejected(documents: object, source_bytes: object) -> None:
     with pytest.raises(ValueError, match="tokenizer_batch_"):
@@ -215,6 +215,53 @@ def test_batch_byte_boundary_and_oversized_document(
             tokenizer_batch_source_bytes=4,
         )
     assert not (oversize / "train.npy").exists()
+
+
+def test_preregistered_large_record_fits_explicit_eight_mib_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tokenizers import Tokenizer
+    from tokenizers.models import WordLevel
+
+    run = config(tmp_path)
+    text = "x" * 4_943_884
+    # Only the complete record is a known token; truncation or segmentation
+    # changes the packed IDs rather than merely changing incidental metadata.
+    tokenizer = Tokenizer(
+        WordLevel({"<unk>": 0, "<eos>": 1, text: 2}, unk_token="<unk>")
+    )
+    _stories(monkeypatch, [text])
+    dataset = run.dataset.model_copy(
+        update={"train_max_documents": 1, "train_max_tokens": len(text) + 1}
+    )
+    root = tmp_path / "eight-mib"
+    root.mkdir()
+    stats = _collect_streaming(
+        dataset,
+        tokenizer,
+        "train",
+        root,
+        selected_documents=1,
+        tokenizer_batch_documents=256,
+        tokenizer_batch_source_bytes=8_388_608,
+    )
+    assert np.array_equal(np.load(root / "train.npy"), np.array([2, 1], dtype=np.int32))
+    assert stats["retained_documents"] == 1
+    assert stats["truncated_documents"] == 0
+    assert not (root / "train_supervision.npy").exists()
+    _stories(monkeypatch, ["x" * 8_388_609])
+    oversized = tmp_path / "over-eight-mib"
+    oversized.mkdir()
+    with pytest.raises(ValueError, match="exceeds tokenizer_batch_source_bytes"):
+        _collect_streaming(
+            dataset,
+            tokenizer,
+            "train",
+            oversized,
+            selected_documents=1,
+            tokenizer_batch_source_bytes=8_388_608,
+        )
+    assert not (oversized / "train.npy").exists()
 
 
 def test_batch_boundaries_preserve_output_using_real_child(

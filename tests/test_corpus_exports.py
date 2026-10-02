@@ -125,3 +125,45 @@ def test_local_text_rejects_malformed_rows(tmp_path: Path) -> None:
         config.train_path.write_text(bad)
         with pytest.raises(ValueError, match="local_text"):
             list(iter_documents(config, "train"))
+
+
+def test_cli_export_authenticates_release_once(
+    frozen_sample: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    import argparse
+
+    from sparselab.corpus import release as publication
+    from sparselab.corpus.cli import _handle
+
+    release, _ = frozen_sample
+    real_files = publication._files
+    scans = 0
+
+    def observe_files(root: Path, inventory: dict) -> None:
+        nonlocal scans
+        if root == release:
+            scans += 1
+        real_files(root, inventory)
+
+    monkeypatch.setattr(publication, "_files", observe_files)
+    _handle(
+        argparse.Namespace(
+            work_dir=tmp_path / "work",
+            corpus_command="export",
+            release=str(release),
+            view="lm",
+            base_run_config="configs/runtime_smoke_cpu.yaml",
+            vocab_size=300,
+        )
+    )
+    exported = Path(capsys.readouterr().out.strip())
+    run = load_config(exported / "run.yaml")
+    assert run.dataset.corpus_release_path == release
+    assert (
+        json.loads((exported / "export.json").read_bytes())["release_id"]
+        == release.name
+    )
+    assert scans == 1

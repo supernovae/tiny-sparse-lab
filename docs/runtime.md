@@ -627,7 +627,7 @@ scientific manifest and cache identity; they are not model-quality metrics.
 
 For `local_text` and `local_stories`, `data prepare`, `stage`, `train`, `run`,
 and `experiment prepare` accept `--tokenizer-batch-documents` (1–256, default 256) and
-`--tokenizer-batch-source-bytes` (1–4194304, default 1048576). Both bounds apply.
+`--tokenizer-batch-source-bytes` (1–8388608, default 1048576). Both bounds apply.
 Oversized documents fail before encoding; token limits never truncate a selected
 story. Batch 1 uses scalar `Tokenizer.encode`; larger batches use Rust
 `encode_batch` in source order, preserving EOS and byte-address semantics.

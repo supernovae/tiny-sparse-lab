@@ -2131,10 +2131,10 @@ def _tokenizer_batch_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--tokenizer-batch-source-bytes",
-        type=lambda value: _tokenizer_batch_integer(value, maximum=4194304),
+        type=lambda value: _tokenizer_batch_integer(value, maximum=8388608),
         default=TOKENIZER_BATCH_SOURCE_BYTES,
         metavar="N",
-        help="UTF-8 source bytes per tokenizer batch (1..4194304; default: 1048576)",
+        help="UTF-8 source bytes per tokenizer batch (1..8388608; default: 1048576)",
     )
 
 

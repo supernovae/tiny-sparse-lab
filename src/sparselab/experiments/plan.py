@@ -60,9 +60,10 @@ def _unique_mapping(
     return result
 
 
-_UniqueLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping
-)
+for _loader in (_UniqueLoader, _ExactUniqueLoader):
+    _loader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping
+    )
 
 
 def _unique_json_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:

@@ -9,6 +9,7 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import asdict
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,19 @@ from sparselab.campaign.plan import load_campaign, operational_path, safe_path
 from sparselab.campaign.state import CampaignStore, digest
 from sparselab.runtime_profile import RuntimeProfile
 from sparselab.workdir import storage_checks, warn_storage_checks
+
+
+def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
+    """Retain only full-verifier proofs within this one Campaign command."""
+
+    @wraps(function)
+    def guarded(*args: Any, **kwargs: Any) -> Any:
+        from sparselab.corpus.release import _verification_operation
+
+        with _verification_operation():
+            return function(*args, **kwargs)
+
+    return guarded
 
 
 class CampaignEngine:
@@ -432,6 +446,28 @@ class CampaignEngine:
                 or result["review"] != expected_review
             ):
                 raise ValueError("model readiness result binding changed")
+        elif kind == "corpus_readiness" and stage.measurement_receipt is not None:
+            from sparselab.campaign.policy import measure_readiness
+
+            release, _ = self._release(rows, stage.corpus)
+            tokenizer = Path(
+                self._upstream(rows, stage.tokenizer)["availability"]["path"]
+            )
+            measured = measure_readiness(
+                release,
+                stage.policy,
+                tokenizer=tokenizer,
+                measurement_receipt=self._operational_path(stage.measurement_receipt),
+                measurement_sha256=stage.measurement_sha256,
+                _scratch=self.store.root / "scratch" / "corpus-readiness",
+            )
+            if measured["state"] != "COMPLETE" or measured["measurements"] != row.get(
+                "measurements"
+            ):
+                raise ValueError("completed corpus readiness measurement changed")
+            expected = digest(f"campaign-{kind}-v1", self._science(row))
+            if output is None or output["sha256"] != expected:
+                raise ValueError("corpus readiness result identity changed")
         elif kind in {
             "corpus_readiness",
             "token_measurement",
@@ -961,11 +997,21 @@ class CampaignEngine:
             )
         return bool(matches)
 
+    @_verified_operation
     def inspect(self, command: str = "plan") -> dict:
         if command not in {"plan", "next", "status", "explain"}:
             raise ValueError(f"unknown inspection command {command}")
         persisted = self.store.read()
         if command == "status" and persisted is not None:
+            rows = self._rows(persisted)
+            for stage in self.plan.stages:
+                if (
+                    stage.kind == "corpus_readiness"
+                    and stage.measurement_receipt is not None
+                ):
+                    row = rows[stage.id]
+                    if row["state"] == "COMPLETE":
+                        self._verify(stage, row, rows)
             return {
                 **{
                     key: persisted[key]
@@ -991,6 +1037,7 @@ class CampaignEngine:
         state["next_action"] = projection["next_action"]
         self.store.save(state)
 
+    @_verified_operation
     def apply(
         self,
         resume: bool = False,
@@ -1130,6 +1177,7 @@ class CampaignEngine:
                         "storage_checks": checks,
                     }
 
+    @_verified_operation
     def approve(
         self, gate: str, decision: str = "approve", note: str | None = None
     ) -> dict:
@@ -1271,6 +1319,7 @@ class CampaignEngine:
     def _run_identity(row: dict) -> dict:
         return {key: row[key] for key in ("experiment_id", "attempt_id", "run_id")}
 
+    @_verified_operation
     def dispatch(
         self,
         stage: Any,
@@ -1338,7 +1387,18 @@ class CampaignEngine:
                 if stage.tokenizer
                 else None
             )
-            measured = measure_readiness(release, stage.policy, tokenizer=tokenizer)
+            measured = measure_readiness(
+                release,
+                stage.policy,
+                tokenizer=tokenizer,
+                measurement_receipt=(
+                    self._operational_path(stage.measurement_receipt)
+                    if stage.measurement_receipt is not None
+                    else None
+                ),
+                measurement_sha256=stage.measurement_sha256,
+                _scratch=self.store.root / "scratch" / "corpus-readiness",
+            )
             result = self._result(
                 measured["state"],
                 measured["outcome"],

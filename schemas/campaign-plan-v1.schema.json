@@ -246,6 +246,30 @@
           ],
           "default": null,
           "title": "Tokenizer"
+        },
+        "measurement_receipt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Measurement Receipt"
+        },
+        "measurement_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Measurement Sha256"
         }
       },
       "required": [
