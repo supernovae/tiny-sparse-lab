@@ -192,9 +192,13 @@ def _selection(release: Path, spec: Declaration):
     return selected, heldout, train
 
 
-def _distinct_sources(
-    release: Path, train: dict[str, list[dict[str, Any]]], schema_version: int
-) -> dict[str, dict[str, Any]]:
+def _train_token_counts(
+    release: Path,
+    train: dict[str, list[dict[str, Any]]],
+    schema_version: int,
+    model: Any,
+) -> dict[str, int]:
+    """Count source and ordered-view tokens without retaining duplicate text maps."""
     # Historical v1 counted only its nine approved fit kinds. Pilot v2 must
     # count every selected normalized source, including an unpaired C/code kind.
     documents = (
@@ -202,10 +206,37 @@ def _distinct_sources(
         if schema_version == 2
         else (doc for rows in train.values() for doc in rows)
     )
-    distinct: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
+    distinct_tokens = general_tokens = 0
     for doc in documents:
-        distinct.setdefault(doc["content_sha256"], doc)
-    return distinct
+        digest = doc["content_sha256"]
+        if digest in seen:
+            continue
+        seen.add(digest)
+        tokens = len(model.encode(doc["text"]).ids)
+        distinct_tokens += tokens
+        if "general_education" in doc.get("domains", []):
+            general_tokens += tokens
+    general_by_document = {
+        doc["document_id"]: "general_education" in doc.get("domains", [])
+        for doc in _rows(release / "documents.jsonl")
+    }
+    train_view_tokens = general_view_tokens = 0
+    for row, link in zip(
+        _rows(release / "lm" / "train.jsonl"),
+        _rows(release / "lm" / "train.lineage.jsonl"),
+        strict=True,
+    ):
+        tokens = len(model.encode(row["text"]).ids)
+        train_view_tokens += tokens
+        if general_by_document[link["record_id"]]:
+            general_view_tokens += tokens
+    return {
+        "distinct_normalized_train_tokens": distinct_tokens,
+        "total_selected_train_view_tokens": train_view_tokens,
+        "general_education_distinct_train_tokens": general_tokens,
+        "general_education_train_view_tokens": general_view_tokens,
+    }
 
 
 def choose_candidate(candidates: list[dict[str, Any]], ratio: float = 0.98) -> int:
@@ -524,32 +555,15 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
     chosen = choose_candidate(candidates, spec.near_best_ratio)
     selected_path = output / "candidates" / str(chosen) / "tokenizer.json"
     model = load_tokenizer(selected_path)
-    distinct = _distinct_sources(release, train, spec.schema_version)
-    distinct_tokens = sum(
-        len(model.encode(doc["text"]).ids) for doc in distinct.values()
-    )
-    general_tokens = sum(
-        len(model.encode(doc["text"]).ids)
-        for doc in distinct.values()
-        if "general_education" in doc.get("domains", [])
-    )
-    train_view_tokens = 0
-    general_view_tokens = 0
-    doc_map = {doc["document_id"]: doc for doc in _rows(release / "documents.jsonl")}
-    for row, link in zip(
-        _rows(release / "lm" / "train.jsonl"),
-        _rows(release / "lm" / "train.lineage.jsonl"),
-        strict=True,
-    ):
-        tokens = len(model.encode(row["text"]).ids)
-        train_view_tokens += tokens
-        if "general_education" in doc_map[link["record_id"]].get("domains", []):
-            general_view_tokens += tokens
-    unclassified = (
-        [doc for doc in _source_documents(release, "train") if _group(doc) is None]
-        if spec.schema_version == 2
-        else []
-    )
+    token_counts = _train_token_counts(release, train, spec.schema_version, model)
+    unclassified_documents: Counter[str] = Counter()
+    unclassified_bytes: Counter[str] = Counter()
+    if spec.schema_version == 2:
+        for doc in _source_documents(release, "train"):
+            if _group(doc) is None:
+                kind = doc["document_kind"]
+                unclassified_documents[kind] += 1
+                unclassified_bytes[kind] += len(doc["text"].encode("utf-8"))
     report = {
         **(
             {
@@ -566,17 +580,11 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
                 },
                 "unclassified_source_kinds": {
                     kind: {
-                        "train_documents": sum(
-                            d["document_kind"] == kind for d in unclassified
-                        ),
-                        "train_bytes": sum(
-                            len(d["text"].encode("utf-8"))
-                            for d in unclassified
-                            if d["document_kind"] == kind
-                        ),
+                        "train_documents": unclassified_documents[kind],
+                        "train_bytes": unclassified_bytes[kind],
                         "reason": "not in the frozen nine tokenizer groups",
                     }
-                    for kind in sorted({d["document_kind"] for d in unclassified})
+                    for kind in sorted(unclassified_documents)
                 },
             }
             if spec.schema_version == 2
@@ -589,14 +597,15 @@ def bakeoff(declaration: Path, output: Path, *, work_root: Path | None = None) -
         "candidates": candidates,
         "selected_tokenizer": str(selected_path),
         "selected_vocab_size": chosen,
-        "distinct_normalized_train_tokens": distinct_tokens,
-        "total_selected_train_view_tokens": train_view_tokens,
-        "general_education_distinct_train_tokens": general_tokens,
-        "general_education_distinct_train_token_share": general_tokens
-        / distinct_tokens,
-        "general_education_train_view_tokens": general_view_tokens,
-        "general_education_train_view_token_share": general_view_tokens
-        / train_view_tokens,
+        **token_counts,
+        "general_education_distinct_train_token_share": token_counts[
+            "general_education_distinct_train_tokens"
+        ]
+        / token_counts["distinct_normalized_train_tokens"],
+        "general_education_train_view_token_share": token_counts[
+            "general_education_train_view_tokens"
+        ]
+        / token_counts["total_selected_train_view_tokens"],
     }
     (output / "report.json").write_bytes(canonical_json(report) + b"\n")
     return output / "report.json"

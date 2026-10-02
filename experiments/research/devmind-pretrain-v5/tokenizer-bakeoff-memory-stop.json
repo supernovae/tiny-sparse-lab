@@ -1,0 +1,129 @@
+{
+  "bakeoff_interruption_version": 1,
+  "status": "STOPPED_AVAILABLE_RAM_MARGIN_NO_ACCEPTED_SELECTION",
+  "source_commit": "3c7e18be32ddb9735185da3edfe3ee40ffe71320",
+  "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "completion": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/v5-tokenizer-bakeoff-1790925674271119793.completion.json",
+    "sha256": "048ee50cefe9b942ab9de13e6e7b70a571571fa6d0d426a5623bd0fe49efe1c3"
+  },
+  "monitor": {
+    "argv": [
+      "uv",
+      "run",
+      "--locked",
+      "--extra",
+      "cpu",
+      "python",
+      "/srv/sparselab/state/scratch/devmind-v5/tmp/run_bakeoff_v5.py",
+      "--declaration",
+      "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/tokenizer-bakeoff.yaml",
+      "--expectations",
+      "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/corpus-expectations.json",
+      "--primary-result",
+      "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary-result.json",
+      "--recovery-result",
+      "/srv/sparselab/state/experiments/devmind-pretrain-v5/recovery-result.json",
+      "--output",
+      "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff",
+      "--verification-output",
+      "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-verification.json"
+    ],
+    "byte_floor": 270275294208,
+    "cwd": "/home/byron/src/tiny-sparse-lab",
+    "dirty_status": [],
+    "final": {
+      "available_ram_bytes": 32071413760,
+      "free_bytes": 849128189952,
+      "free_inodes": 64995419,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "utc": "2026-10-02T08:55:16.980344+00:00"
+    },
+    "initial": {
+      "available_ram_bytes": 31989407744,
+      "free_bytes": 849255510016,
+      "free_inodes": 64995437,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "utc": "2026-10-02T07:21:14.271149+00:00"
+    },
+    "inode_floor": 16777216,
+    "label": "v5-tokenizer-bakeoff",
+    "launch_version": 1,
+    "reservation_bytes": 10737418240,
+    "reservation_inodes": 1000,
+    "returncode": 143,
+    "samples": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/v5-tokenizer-bakeoff-1790925674271119793.samples.jsonl",
+    "source_commit": "3c7e18be32ddb9735185da3edfe3ee40ffe71320",
+    "stderr": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/v5-tokenizer-bakeoff-1790925674271119793.stderr",
+    "stderr_sha256": "41af0fa746d03edb339baae2a70f27287069ad63b97bf7f2f87117518564068c",
+    "stdout": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/v5-tokenizer-bakeoff-1790925674271119793.stdout",
+    "stdout_sha256": "1e135afb54bf948ed616b7e518ea9f59c8edad95a2d1dfbae8adc60b167c5f6c",
+    "violation": {
+      "available_ram_bytes": 2135900160,
+      "free_bytes": 849128189952,
+      "free_inodes": 64995419,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864,
+      "utc": "2026-10-02T08:55:14.398566+00:00"
+    }
+  },
+  "partial_inventory": {
+    "raw_unaccepted_candidates": {
+      "16384": {
+        "tokenizer.json": {
+          "bytes": 1118484,
+          "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/candidates/16384/tokenizer.json",
+          "sha256": "8662e6015ca40e0ebfc9f4df0e4842372d9c93b8de08ee434b482a7f6e48b668"
+        },
+        "tokenizer_manifest.json": {
+          "bytes": 1893,
+          "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/candidates/16384/tokenizer_manifest.json",
+          "sha256": "b0b49bac3a6ba174d9351fe81808c96dc48c10e0254e440877ac99177d535bd8"
+        }
+      },
+      "24576": {
+        "tokenizer.json": {
+          "bytes": 1705216,
+          "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/candidates/24576/tokenizer.json",
+          "sha256": "857e9991d84790578d11ec005337563387d4c06296b22fda5fc04524c00c8da9"
+        },
+        "tokenizer_manifest.json": {
+          "bytes": 1893,
+          "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/candidates/24576/tokenizer_manifest.json",
+          "sha256": "03d324f73c7b645755383f49642a41351994da058cdb68af7db2131dec461017"
+        }
+      },
+      "32768": {
+        "tokenizer.json": {
+          "bytes": 2300504,
+          "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/candidates/32768/tokenizer.json",
+          "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56"
+        },
+        "tokenizer_manifest.json": {
+          "bytes": 1893,
+          "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/candidates/32768/tokenizer_manifest.json",
+          "sha256": "da5b295c42133ef2c31114a4fd81602e144b0113d2ad81cbddd2c0c722665aa5"
+        }
+      }
+    },
+    "report_exists": false,
+    "samples": {
+      "fit.jsonl": {
+        "bytes": 119775682,
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/fit.jsonl",
+        "sha256": "a9678289862316f93846b3ddace4dce9e4f7e3b621eb13f21ce730db63fc1006"
+      },
+      "validation.jsonl": {
+        "bytes": 2287425,
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff/validation.jsonl",
+        "sha256": "375d745529ad5a26c26fdfe32be0bb26a1a2a521b4560643ce532f4f0275e50d"
+      }
+    }
+  },
+  "accepted_selected_tokenizer": null,
+  "accepted_budget": null,
+  "diagnosis": "[INFERENCE] The old accounting implementation simultaneously retains grouped train text, a full distinct-source text dictionary and a complete document text dictionary; the observed guard stopped this post-fit accounting path as available RAM fell below 2 GiB. All three candidate serialization completions are retained, but no report or deterministic winner is accepted.",
+  "correction_scope": "Stream unique source-token counting; retain only document-domain flags and unclassified counters, not duplicate full texts. Preserve first-content-hash semantics, full-view counts, scientific settings, immutable corpus gates and the complete stopped output."
+}

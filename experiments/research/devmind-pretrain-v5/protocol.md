@@ -206,3 +206,14 @@ imports were zero. The result is exact recovery on the observed host and locked
 environment, not an unmeasured cross-host or indefinite-upstream claim.
 The immutable first expectations are unchanged; the tokenizer-fitting gate
 may now proceed.
+
+`tokenizer-bakeoff-memory-stop.json` preserves the first actual bakeoff's
+RAM-censored post-fit accounting attempt. All three candidate fits serialized,
+but no complete report, winner or budget was accepted. The availability guard
+stopped it below 2 GiB rather than allowing an OOM; its output remains intact.
+The source fix streams unique token counts, document-domain flags and
+unclassified supply counters without changing fitting, selection or source
+scope. `streamed-accounting-verification.json` records 13 focused tests and
+actual schema-3 synthetic CLI export/preparation/offline warmup/training plus a
+verified 64-target full-state checkpoint. Those are compatibility proofs, not
+DevMind scientific results; a fresh complete full-scale bakeoff is required.

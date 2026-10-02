@@ -62,6 +62,14 @@ inventing a `corpus_export` sidecar or fitting again on the full export.
 The artifact identifier is the candidate-directory name (for example `16384`);
 the evidence-export identifier separately binds release ID and vocabulary.
 
+Supply accounting streams distinct selected source documents and deduplicates
+by normalized-content SHA; schema-2 pilots include unpaired/unclassified source
+kinds, while legacy schema 1 retains its original nine-kind scope. Ordered LM
+view totals count each emitted view record separately. General-education
+membership uses lightweight document flags rather than a second full text map;
+unclassified kind counts/bytes are streamed as counters. A RAM-censored bakeoff
+without a complete authenticated report is not a selected tokenizer.
+
 Worker preparation authenticates the original selection before sealing its
 tokenizer/prepared arrays. Portable corpus-binding v2 carries the unchanged
 selection-report bytes and fit/release binding, rather than labeling a bounded

@@ -8,12 +8,13 @@ from pathlib import Path
 
 import pytest
 import yaml
+from tokenizers import Tokenizer, models, pre_tokenizers
 
 from sparselab.corpus.tokenizer_bakeoff import (
     GROUPS,
     Declaration,
-    _distinct_sources,
     _selection,
+    _train_token_counts,
     choose_candidate,
     load_declaration,
 )
@@ -122,26 +123,53 @@ def test_pilot_bakeoff_keeps_observed_groups_without_fitting_probes(
         _selection(release, _spec())
 
 
-def test_pilot_distinct_supply_includes_unmeasured_source_kind(tmp_path: Path) -> None:
-    release = _fixture(tmp_path)
-    content = "int checked(void) { return 42; }\n"
-    source = {
-        "document_id": "train-code",
-        "split": "train",
-        "text": content,
-        "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
-        "document_kind": "code",
-        "source_location": "module.c",
-        "source_family": "train_family",
+@pytest.mark.parametrize(
+    ("schema_version", "distinct_tokens"),
+    [(1, 2), (2, 5)],
+)
+def test_train_token_accounting_keeps_distinct_source_and_view_scopes(
+    tmp_path: Path, schema_version: int, distinct_tokens: int
+) -> None:
+    release = tmp_path / "release"
+    (release / "lm").mkdir(parents=True)
+    rows = []
+    for identifier, text, split, domains in (
+        ("prose", "one two", "train", ["developer_systems"]),
+        ("code", "three four five", "train", ["developer_systems"]),
+        ("duplicate", "one two", "train", ["general_education"]),
+        ("unselected", "six seven eight nine", "train", ["general_education"]),
+        ("heldout", "held out", "validation", ["general_education"]),
+    ):
+        rows.append(
+            {
+                "document_id": identifier,
+                "split": split,
+                "text": text,
+                "content_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                "domains": domains,
+            }
+        )
+    (release / "documents.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows)
+    )
+    (release / "lm/train.lineage.jsonl").write_text(
+        "".join(
+            json.dumps({"record_id": row["document_id"]}) + "\n" for row in rows[:3]
+        )
+    )
+    (release / "lm/train.jsonl").write_text(
+        "".join(json.dumps({"text": row["text"]}) + "\n" for row in rows[:3])
+    )
+    tokenizer = Tokenizer(models.WordLevel({"[UNK]": 0}, unk_token="[UNK]"))
+    tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
+    assert _train_token_counts(
+        release, {"prose": [rows[0]]}, schema_version, tokenizer
+    ) == {
+        "distinct_normalized_train_tokens": distinct_tokens,
+        "total_selected_train_view_tokens": 7,
+        "general_education_distinct_train_tokens": 0,
+        "general_education_train_view_tokens": 2,
     }
-    with (release / "documents.jsonl").open("a") as stream:
-        stream.write(json.dumps(source) + "\n")
-    with (release / "lm" / "train.lineage.jsonl").open("a") as stream:
-        stream.write(json.dumps({"record_id": "train-code", "split": "train"}) + "\n")
-    _, _, train = _selection(release, _spec().model_copy(update={"schema_version": 2}))
-    assert "code" not in train
-    assert source["content_sha256"] in _distinct_sources(release, train, 2)
-    assert source["content_sha256"] not in _distinct_sources(release, train, 1)
 
 
 def test_selection_rejects_shared_family(tmp_path: Path) -> None:

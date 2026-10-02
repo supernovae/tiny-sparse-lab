@@ -1,0 +1,46 @@
+{
+  "streamed_accounting_verification_version": 1,
+  "status": "SYNTHETIC_SCHEMA3_STREAMED_ACCOUNTING_OFFLINE_TRAINING_VERIFIED",
+  "scientific_devmind_result": false,
+  "focused_tests": {
+    "command": "uv run --locked --extra cpu pytest tests/test_corpus_tokenizer_bakeoff.py tests/test_corpus_tokenizer_end_to_end.py -q --basetemp /srv/sparselab/state/scratch/devmind-v5/streamed-focused",
+    "passed": 13,
+    "elapsed_seconds": 104.27
+  },
+  "broader_consumer_tests": {
+    "command": "uv run --locked --extra cpu pytest tests/test_corpus*.py tests/test_tokenizer.py tests/test_worker_bundles.py tests/test_preparation*.py -q -m 'not cuda and not rocm and not xpu and not network' --basetemp /srv/sparselab/state/scratch/devmind-v5/streamed-broader",
+    "passed": 206,
+    "elapsed_seconds": 147.09
+  },
+  "ruff": "Source/test format and Ruff check passed.",
+  "smoke": {
+    "path": "/srv/sparselab/state/scratch/devmind-v5/compatibility-smoke-streamed/result.json",
+    "sha256": "267f3fd71f570626981851109832838e7790ba46e45aca7ad539cb27cd967c0c",
+    "status": "SCHEMA3_SELECTED_TOKENIZER_OFFLINE_TRAINING_VERIFIED",
+    "selected_vocab": 16384,
+    "tokens_seen": 64,
+    "checkpoint_valid": true,
+    "dispatch_sha256": "3a351a406c017fb738a99087138a7a725098177c770a7f9cd6b31753f6807ac3"
+  },
+  "smoke_stages": [
+    "real schema3 release",
+    "canonical three-candidate CLI bakeoff",
+    "full release export plus authentic selected tokenizer",
+    "data prepare",
+    "sealed portable worker installation",
+    "original corpus/bakeoff paths removed from reach",
+    "native CPU warmup",
+    "CLI training64 targets",
+    "full-state checkpoint verification"
+  ],
+  "regression_invariants": [
+    "legacy9-kind versus pilot all-selected source scope",
+    "first normalized-content SHA deduplication and source-domain attribution",
+    "separate ordered-view counts including duplicate source content",
+    "eligible but unselected and heldout content excluded from distinct train counts"
+  ],
+  "limitations": [
+    "Synthetic CPU behavior proof, not full-scale DevMind completion, a winning DevMind tokenizer, ROCm training or model quality.",
+    "The stopped actual corpus attempt remains preserved and unselected; fresh full-size accounting is still required."
+  ]
+}
