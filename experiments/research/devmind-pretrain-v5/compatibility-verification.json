@@ -23,7 +23,7 @@
       "Worker sealing and tiny full-shape CPU warmup/training after original source locations unavailable",
       "Immutable full-state checkpoint at 64 supervised targets"
     ],
-    "broader_suite": "running; no result claimed"
+    "broader_suite": "1342 passed, 10 skipped, 2 deselected in 1235.92s; locked CPU suite excluding cuda/rocm/xpu/network markers, against unchanged package code"
   },
   "pre_verification_corrections": [
     "Removed an obsolete hand-stamped-marker test; genuine selected-report regression supersedes it",
