@@ -1,8 +1,9 @@
 # DevMind v5 MODEL-0 execution boundary
 
-Status: **INCOMPLETE — preparation input-integrity gate blocked**. No real v5
-prepared arrays, ROCm full-shape proof, training run, checkpoint, evaluation,
-model readiness, ModelFamily or model-continuation archive is claimed.
+Status: **INCOMPLETE — real preparation verified; execution gates pending**.
+The authorized post-repair attempt sealed the original v5 inputs and passed a
+separate cold, deep load. No ROCm full-shape proof, training run, checkpoint,
+evaluation, model readiness, ModelFamily or model-continuation archive is claimed.
 
 ## Accepted results
 
@@ -26,7 +27,7 @@ model readiness, ModelFamily or model-continuation archive is claimed.
   match; only the selected tokenizer path changed in [model0-run.yaml](model0-run.yaml).
   [Export verification](model0-export-verification.json) binds the input closure.
 
-## First blocker and stop decision
+## Historical first blocker and original stop decision
 
 The single guarded `data prepare` attempt exited 1 before tokenization, in
 `verify_tokenizer_artifact → verify_release_export`, with
@@ -45,15 +46,43 @@ There was no sealed prepared directory. The approved fail-closed contingency
 stops this execution here: no retry, relocation, changed generated dataset,
 corpus rebuild, tokenizer refit, CPU training fallback or scientific relaxation.
 
-The distinct pre-worker export-location contract gap is recorded in
-[TODO.md](../../../TODO.md#experiment-ergonomics); the existing worker-sealing
-provenance item remains unchanged. Original crash/corpus-recovery records and
-negative attempts remain intact. Generation-stage DSL limitations were not
-exercised or newly asserted.
+The pre-worker export-location contract gap was subsequently repaired and its
+satisfied TODO closed; the separate worker-sealing provenance item remains
+unchanged. Original crash/corpus-recovery records and negative attempts remain
+intact. Generation-stage DSL limitations have not been exercised or newly asserted.
 
-Unexercised gates: sealed real preparation; four-artifact ExperimentPlan lock;
+At the original stop, unexercised gates were: sealed real preparation; four-artifact ExperimentPlan lock;
 fresh ROCm doctor and full-shape inspect/validate/smoke/warmup; Campaign approval,
 dispatch/reconciliation/ingestion/collection; exact final optimizer/target totals;
 checkpoint-bound heldout evaluation and greedy panel; model readiness; family,
 model-continuation recovery inspection and thin archive. No weights were
 published and no model was promoted.
+
+## Authorized post-repair preparation
+
+[Implementation verification](export-location-contract-verification.json) binds
+repair commit `18fa32f9a7fc3459fc8dce73ec18006eab5cf0a8`, the cross-root CLI
+smoke, **1,448 passed / 3 skipped** full CPU suite, and Ruff checks.
+[Input authentication](model0-input-authentication-after-repair.json) verifies the
+existing export in place without relocation, regeneration, tokenizer refitting or
+recomputation of the accepted denominator/budget.
+
+The single newly authorized preparation completed with all **796,563 train** and
+**16,411 validation** documents retained and zero skipped/truncated documents.
+The separate cold, deep load verified both array hashes, source/config/tokenizer
+bindings, `contiguous-eos-v6`, all-token supervision, and absence of masks or
+memory sidecars. [Preparation verification](model0-preparation-verification.json)
+binds the manifest, logs, source revision, timings and unchanged resource guards:
+
+- Prepared settings: `15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84`.
+- Logical manifest: `6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3`.
+- Train: **984,316,775 packed IDs including EOS**, **984,316,774 adjacent
+  next-token targets**, **984,315,904 full 1,024-target block slots**.
+- Validation: **23,434,926 packed IDs including EOS**, **23,434,925 adjacent
+  next-token targets**, **23,434,240 full 1,024-target block slots**.
+- Monitor end-to-end elapsed: **2,274.681 seconds**; sampled process-tree peak:
+  **8,834,408,448 bytes**; no guard violation.
+
+These materialization counts are not the distinct raw developer denominator,
+actual developer packed-target attribution, or evidence of model quality.
+ExperimentPlan lock and all later execution gates remain pending.

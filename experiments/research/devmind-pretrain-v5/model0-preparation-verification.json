@@ -1,0 +1,319 @@
+{
+  "accounting_note": "Packed IDs include EOS; adjacent targets and full-block slots are separate new materialization accounting. None is the frozen distinct raw developer denominator or realized developer target attribution.",
+  "branch": "research/devmind-v5-model0",
+  "cold_verification": {
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepared-cold-verify-1790982293058691025.completion.json",
+      "sha256": "0567d95756f588bd1eee094c75a66b782a0e2c3d0a199065bf75ca17b591f4c4"
+    },
+    "observed_result": {
+      "accounting": {
+        "train": {
+          "adjacent_next_token_targets": 984316774,
+          "documents": 796563,
+          "full_block_target_slots": 984315904,
+          "full_sequence_blocks": 961246,
+          "packed_ids_including_eos": 984316775,
+          "sha256": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+          "size_bytes": 3937267228,
+          "unusable_tail_targets_for_full_blocks": 870
+        },
+        "validation": {
+          "adjacent_next_token_targets": 23434925,
+          "documents": 16411,
+          "full_block_target_slots": 23434240,
+          "full_sequence_blocks": 22885,
+          "packed_ids_including_eos": 23434926,
+          "sha256": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d",
+          "size_bytes": 93739832,
+          "unusable_tail_targets_for_full_blocks": 685
+        }
+      },
+      "denominator_values_recomputed": false,
+      "manifest_file_sha256": "3f63214176fe95541bcb65b504f0f98408f38fd30268ecf38a42a67b3fa67095",
+      "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+      "packing_version": "contiguous-eos-v6",
+      "prepared_path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0",
+      "receipt_verified_files": [
+        "train.npy",
+        "validation.npy"
+      ],
+      "settings_sha256": "15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84",
+      "source_identity_sha256": "b58975066ea9625d6d6a71f1b1835fd2d8e3320dc840bdceb83a3951c4df38af",
+      "status": "VERIFIED_COLD_DEEP_PREPARED_DATA",
+      "supervision": {
+        "kind": "all_tokens"
+      },
+      "timing_seconds": 15.172383527999045,
+      "tokenizer_canonical_sha256": "212527627c89900f1f7b485c41657043fb95410571d14c51ca87e6ef6d9da76f",
+      "tokenizer_file_sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+      "tokenizer_padding": null,
+      "tokenizer_truncation": null
+    },
+    "returncode": 0,
+    "sampled_tree_peak_rss_bytes": 458932224,
+    "samples": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepared-cold-verify-1790982293058691025.samples.jsonl",
+      "sha256": "bbddcac6a4889da668072457b1dc640b1cd26b3cbf7a98b0e3d2fae7fb7bc943"
+    },
+    "state": "COMPLETE",
+    "stderr": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepared-cold-verify-1790982293058691025.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stdout": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepared-cold-verify-1790982293058691025.stdout",
+      "sha256": "ea93255f24fac2f9654bc1a0eaaa305cdd42cb578170020bbdaea3a98671c7ea"
+    },
+    "throwaway_harness_removed_after_proof": true,
+    "throwaway_harness_sha256": "0b70f2b5391a582c0275208cc2f51b87d8c89eb89a20ad86f0df42689dcad18c",
+    "violation": null
+  },
+  "denominator_values_recomputed": false,
+  "evidence_version": 1,
+  "execution_dirty_status": [],
+  "execution_source_commit": "a75492449f68b6c47ed879c8d2a288ffc9faae73",
+  "export_module": {
+    "path": "/home/byron/src/tiny-sparse-lab/src/sparselab/corpus/export.py",
+    "sha256": "3a7ee274123a78694fb140c2b5aa2efa0e2eea186a719cac814700326a7ad02a"
+  },
+  "implementation_commit": "18fa32f9a7fc3459fc8dce73ec18006eab5cf0a8",
+  "limitations": [
+    "No real full-shape ROCm stage, training, checkpoint, heldout evaluation, generation, readiness, family, or model-continuation archive has yet been exercised.",
+    "The requested 1.5 developer passes and declared mixture are not measured realized packed developer shares."
+  ],
+  "preparation": {
+    "authorized_new_attempts": 1,
+    "child_create_time": 1790979868.68,
+    "child_pid": 239797,
+    "command": [
+      "uv",
+      "run",
+      "--locked",
+      "--extra",
+      "cpu",
+      "sparselab",
+      "--work-dir",
+      "/srv/sparselab/state",
+      "data",
+      "prepare",
+      "experiments/research/devmind-pretrain-v5/model0-run.yaml",
+      "--resource-envelope",
+      "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+      "--tokenizer-batch-documents",
+      "256",
+      "--tokenizer-batch-source-bytes",
+      "8388608"
+    ],
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-repaired-1790979868995665007.completion.json",
+      "sha256": "80aadd95480cc0a1582bf46d753b720f2259280b320aa7fcfeec4de04789a81c"
+    },
+    "elapsed_seconds": 2274.6807552639984,
+    "final_storage": {
+      "free_bytes": 843317743616,
+      "free_inodes": 64983266,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864
+    },
+    "guards": {
+      "filesystem_free_fraction": "1/4",
+      "inode_free_fraction": "1/4",
+      "interval_seconds": 1.0,
+      "max_swap_used_bytes": 1073741824,
+      "max_tree_rss_bytes": 12884901888,
+      "min_available_ram_bytes": 8589934592
+    },
+    "initial_storage": {
+      "free_bytes": 847359369216,
+      "free_inodes": 64983278,
+      "total_bytes": 1081101176832,
+      "total_inodes": 67108864
+    },
+    "launch": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-repaired-1790979868995665007.launch.json",
+      "sha256": "043c456231eb2d08e3caa880bed9e01a174c6be624fd6ea7fd4f5d7d88fc9ac4"
+    },
+    "monitor_source_sha256": "37ef0db8bada0c8d28d4458b97e814250d346806f509fafe4a51dba08bf9d0c7",
+    "mount": {
+      "filesystems": [
+        {
+          "fstype": "ext4",
+          "label": "sparselab",
+          "source": "/dev/sdd",
+          "target": "/srv/sparselab",
+          "uuid": "ecf1fe73-0a20-4ac6-87e3-0fef2ab51148"
+        }
+      ]
+    },
+    "preparation_telemetry_final": {
+      "completed_work": 1,
+      "derived": {},
+      "elapsed_seconds": 0.005584462000115309,
+      "event": "finished",
+      "last_meaningful_progress_age_seconds": 0.00012603899813257158,
+      "last_meaningful_progress_at_monotonic": 24871.386180948,
+      "monotonic_timestamp_seconds": 24871.386306987,
+      "observed_at_utc": "2026-10-02T23:02:21.710+00:00",
+      "operation_id": null,
+      "phase": "data_cache_validation",
+      "raw_counters": {
+        "current_rss_bytes": 5551968256,
+        "deep_verification_hash_seconds": 0.0,
+        "disk_free_bytes": 843317760000,
+        "disk_free_inodes": 64983267,
+        "elapsed_seconds": 1237.9997502940023,
+        "finalize_fsync_seconds": 17.091629226972145,
+        "host_available_ram_bytes": 24487579648,
+        "logical_input_bytes": 4081965445,
+        "logical_output_bytes": 4031007060,
+        "output_tokens": 1007751701,
+        "output_tokens_per_second": 814016.0777582366,
+        "peak_rss_bytes": 5552574464,
+        "python_bookkeeping_seconds": 43.85602508162992,
+        "records": 812974,
+        "source_bytes": 4081965445,
+        "source_iteration_seconds": 9.484000514115905,
+        "source_mb_per_second": 3.297226387994511,
+        "spool_write_seconds": 9.41148707215325,
+        "tokenizer_encoding_seconds": 598.1250705740604,
+        "tokenizer_rayon_threads": 4
+      },
+      "run_id": null,
+      "schema_version": 1,
+      "state": "COMPLETING",
+      "total_work": 1,
+      "unit": "cache_verifications"
+    },
+    "reservation_bytes": 34359738368,
+    "returncode": 0,
+    "sampled_max_swap_used_bytes": 631164928,
+    "sampled_min_available_ram_bytes": 20771627008,
+    "sampled_tree_peak_rss_bytes": 8834408448,
+    "samples": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-repaired-1790979868995665007.samples.jsonl",
+      "sha256": "ad041e932361462aea9602e8cd6a7b97649b86ccf0328b1e666ba1a344748251"
+    },
+    "state": "COMPLETE",
+    "stderr": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-repaired-1790979868995665007.stderr",
+      "sha256": "11ed90b7eda94023d342ac1ae6838ba5f3357e52584a106175a6cd513bdbf6c7"
+    },
+    "stdout": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-prepare-repaired-1790979868995665007.stdout",
+      "sha256": "dd0d18ea27a85cff722264e2ad645411684d5d3b4bc78e9e0e1c329c9ee16066"
+    },
+    "timing_note": "Monitor elapsed is end-to-end command time. Preparation telemetry starts inside preparation; encoding and fsync counters are components, not end-to-end times.",
+    "violation": null
+  },
+  "prepared_data": {
+    "allocation": null,
+    "byte_addressing": null,
+    "cache_identity": {
+      "allocation_manifest_sha256": null,
+      "corpus_export": {
+        "export_sha256": "a81bf62ae67719c44c24cdec2dc4b4494da64f1894e0d8a68dd2592756193c05",
+        "license_report_sha256": "4ad1a8c58d52e41bed5792b118eadc823c7bc87e00c5dbf909c64ce3254c6c50",
+        "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+        "report_sha256": "ea691e07d1721e7120a23ee9621a38f5db8849285571a329c44c71d1d5fb15c1",
+        "train_sha256": "24a6e529def703c2b6e0c280d44569ecedf891d92f5dd1a0ee6c995eb2d5ccc4",
+        "validation_sha256": "79d90dddc7989bcd27c62feecb19cdd68d3b432519629b485a6f80172a556d2a",
+        "view": "lm",
+        "vocab_size": 32768
+      },
+      "dataset": {
+        "allocation_manifest_path": null,
+        "dataset_config": null,
+        "license": "AGPL-3.0-only; Apache-2.; Apache-2.0; Apache-2.0 OR MIT; Artistic-2.0 AND ISC; BSD-2-Clause; BSD-2-Clause AND (Apache-2.0 OR MIT); BSD-3-Clause; BSD-3-Clause AND GPL-2.0-or-later; CC-BY-4.0; CC-BY-SA-4.0; GFDL-1.3-or-later; GPL-1.0-or-later; GPL-2.0; GPL-2.0+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; IETF-Trust-TLP-5; ISC; LGPL-2.1; LGPL-2.1-or-later; LicenseRef-SQLite-Public-Domain; MIT; MIT-0; MPL-2.0; MPL-2.0 OR EPL-1.0; ODC-By-1.0; PSF-2.0; PSF-2.0 AND (MIT OR Apache-2.0); PostgreSQL; curl",
+        "revision": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+        "source": "local_text",
+        "synthetic_seed": 42,
+        "train_max_documents": 796563,
+        "train_max_tokens": 4000183822,
+        "validation_max_documents": 16411,
+        "validation_max_tokens": 82594599
+      },
+      "local_chat_source": {
+        "train_sha256": "24a6e529def703c2b6e0c280d44569ecedf891d92f5dd1a0ee6c995eb2d5ccc4",
+        "validation_sha256": "79d90dddc7989bcd27c62feecb19cdd68d3b432519629b485a6f80172a556d2a"
+      },
+      "packing": {
+        "memory": "none",
+        "memory_ngram_size": 0,
+        "memory_table_size": 0
+      },
+      "packing_version": "contiguous-eos-v6",
+      "source_identity_sha256": "b58975066ea9625d6d6a71f1b1835fd2d8e3320dc840bdceb83a3951c4df38af",
+      "tokenizer_sha256": "212527627c89900f1f7b485c41657043fb95410571d14c51ca87e6ef6d9da76f"
+    },
+    "manifest_file": {
+      "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0/manifest.json",
+      "sha256": "3f63214176fe95541bcb65b504f0f98408f38fd30268ecf38a42a67b3fa67095"
+    },
+    "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+    "packing_version": "contiguous-eos-v6",
+    "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0",
+    "settings_sha256": "15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84",
+    "supervision": {
+      "kind": "all_tokens"
+    },
+    "train": {
+      "acquired_documents": 796563,
+      "artifact_bytes": 3937267228,
+      "artifact_files": 1,
+      "dtype": "int32",
+      "output_tokens": 984316775,
+      "retained_documents": 796563,
+      "sha256": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+      "shape": [
+        984316775
+      ],
+      "size_bytes": 3937267228,
+      "skipped_documents": 0,
+      "tokens": 984316775,
+      "truncated_documents": 0
+    },
+    "validation": {
+      "acquired_documents": 16411,
+      "artifact_bytes": 93739832,
+      "artifact_files": 1,
+      "dtype": "int32",
+      "output_tokens": 23434926,
+      "retained_documents": 16411,
+      "sha256": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d",
+      "shape": [
+        23434926
+      ],
+      "size_bytes": 93739832,
+      "skipped_documents": 0,
+      "tokens": 23434926,
+      "truncated_documents": 0
+    }
+  },
+  "prior_negative_preparation": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-preparation-stop.json",
+    "sha256": "2c49fa31cc587c107d57fcb83f818b50916f186f6f4a53907d919d741551c74b"
+  },
+  "repaired_input_authentication": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-input-authentication-after-repair.json",
+    "sha256": "59953fa12cde458c19fb0673e4b666a1758aeba24f8ba486e57cb0fd3148b6f2"
+  },
+  "resolved_run": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-run.yaml",
+    "sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5"
+  },
+  "resource_envelope": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+    "sha256": "ab26a545737cf41de454b6b59e8cb7456c4d9efc0a0cfc8c4856abfc813e363d"
+  },
+  "science_declaration": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-science.json",
+    "sha256": "5ffe6b44f76fdd303200963a9e1470240e9213874946a3dccfba07b90a71f839"
+  },
+  "scientific_changes": [],
+  "selected_tokenizer": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json",
+    "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56"
+  },
+  "status": "VERIFIED_REAL_V5_PREPARATION_AND_COLD_DEEP_LOAD"
+}
