@@ -1,0 +1,32 @@
+{
+  "corpus_recipe_inspection_version": 1,
+  "status": "VERIFIED_CORPUS_PRESENT_WITH_EXPLICIT_EXTERNAL_BOUNDARIES",
+  "command": "uv run --locked --extra cpu sparselab --work-dir /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273 recovery inspect experiments/research/devmind-pretrain-v5/corpus-recovery.yaml --json",
+  "source_commit": "51be77ba7fb186b3a4af47e9bfe487c7afa84273",
+  "corpus": {
+    "classification": "PRESENT",
+    "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "expected_release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "implementation_status": "MATCH",
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b"
+  },
+  "recipe_closure_status": "BLOCKED",
+  "explicit_external_steps": [
+    {
+      "id": "tokenizer-choice",
+      "classification": "MISSING_EXTERNAL",
+      "reason": "Authentic selected-tokenizer bytes and later bakeoff evidence are outside the pinned corpus producer declaration closure; no deterministic tokenizer recovery is claimed."
+    },
+    {
+      "id": "model-continuation",
+      "classification": "MISSING_EXTERNAL",
+      "reason": "Later-source MODEL-0 declarations, checkpoint and evaluation evidence require a separately bound continuation closure; no model recovery is claimed by the corpus producer."
+    }
+  ],
+  "full_report": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/cold-corpus-recovery-inspection.json",
+    "sha256": "94b6d228d04e450b047224e020b65e57d889d8cdb6a0d03f9c8f7cf86128aaba"
+  },
+  "observed_gate": "Cold CLI inspection authenticated pinned producer implementation, complete source declaration closure and immutable corpus bytes. Downstream tokenizer/model recovery is deliberately not claimed by the corpus-only recipe.",
+  "operational_note": "Initial 120-second inspection deadline was insufficient; the successful complete cold scan took 515.58 seconds with a 1800-second deadline. Neither attempt mutated the corpus."
+}

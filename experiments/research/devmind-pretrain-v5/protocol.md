@@ -223,3 +223,20 @@ smoke at the tested code revision. `runtime-post-streaming-prerequisite.json`
 records actual BF16 forward/backward AdamW on the accepted RX 7900 XTX vendor
 environment at the new package identity; neither substitutes for the later
 selected-tokenizer full-shape MODEL-0 gates.
+
+The fresh streamed full-scale bakeoff completed successfully with no RAM or
+storage guard violation. `tokenizer-bakeoff-verification.json` authenticates the
+release-bound report and all three candidate tokenizers. The preregistered
+weighted bytes/token scores are 3.538705384367656 (16,384),
+3.6951324084726047 (24,576), and 3.7870930862814522 (32,768).
+The 0.98 near-best rule selected the authentic 32,768-token tokenizer
+`ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56`.
+Paired heldout samples contain prose 200, Go 200, shell 42, YAML 136 and JSON
+one document. Python, Rust, TOML and logs remain explicitly unmeasured;
+this is tokenizer efficiency evidence, not model quality.
+
+`corpus-recovery-inspection.json` binds actual cold recovery CLI inspection:
+the corpus is `PRESENT`, pinned producer implementation is `MATCH`, and the
+recipe remains `BLOCKED` solely on its two explicit downstream external
+boundaries. Independent fresh reacquisition/build/freeze already established
+exact corpus reconstruction; the corpus recipe does not claim model recovery.
