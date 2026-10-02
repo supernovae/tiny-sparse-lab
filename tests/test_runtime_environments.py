@@ -186,7 +186,8 @@ def test_inventory_missing_candidate_and_real_cpu():
     assert observed["status"] == "READY"
     assert observed["torch"]["installed"]
     assert observed["torch"]["hip"] is None
-    assert observed["backends"] == ["cpu"]
+    # A CPU-capable environment can also expose host accelerators such as MPS.
+    assert "cpu" in observed["backends"]
     assert observed["sparse_lab_import"]["success"]
 
 

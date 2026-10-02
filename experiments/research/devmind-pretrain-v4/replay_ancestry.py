@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import errno
 import json
 import os
 import shutil
@@ -79,9 +80,30 @@ def _no_links(path: Path) -> None:
 
 
 def _publish_directory(source: Path, target: Path) -> None:
-    """Linux exclusive atomic directory publish (never replace even an empty target)."""
+    """Exclusive atomic directory publish (never replace even an empty target)."""
     libc = ctypes.CDLL(None, use_errno=True)
-    result = libc.renameat2(-100, os.fsencode(source), -100, os.fsencode(target), 1)
+    if sys.platform == "darwin":
+        rename = getattr(libc, "renamex_np", None)
+        if rename is None:
+            raise OSError(errno.ENOTSUP, "renamex_np is unavailable")
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(os.fsencode(source), os.fsencode(target), 4)  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename = getattr(libc, "renameat2", None)
+        if rename is None:
+            raise OSError(errno.ENOTSUP, "renameat2 is unavailable")
+        rename.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        rename.restype = ctypes.c_int
+        result = rename(-100, os.fsencode(source), -100, os.fsencode(target), 1)
+    else:
+        raise OSError(errno.ENOTSUP, "atomic no-replace directory publish unavailable")
     if result:
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error), str(target))
