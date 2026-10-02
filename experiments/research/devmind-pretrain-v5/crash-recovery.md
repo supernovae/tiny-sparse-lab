@@ -185,3 +185,151 @@ visibility is restored, inspect launch/completion/monitor receipts and small
 artifact hashes before accepting a stage boundary. No full corpus verifier,
 exporter, tokenizer refit, data preparation, MODEL-0 plan, training or code fix
 was run during this checkpoint. MODEL-0 and scientific inputs remain unchanged.
+
+## Post-mount recovery — 2026-10-02
+
+This later observation preserves the preceding inaccessible-state record.
+External-state result: `V5_EXTERNAL_STATE_VERIFIED`; measurement:
+`PARTIAL_INTERRUPTED`; command memory behavior: `UNKNOWN`.
+
+### Protected source and restored volume
+
+- Initial branch `research/devmind-v5-model0`, clean working tree, local HEAD
+  and freshly queried GitHub branch both
+  `e199ee8e4b68085a971d9416ec5d941fdb18e123`. This evidence-only commit descends
+  from that protected tip; no branch switch, merge or mount mutation.
+- `findmnt /srv/sparselab`, `df -hT`, `df -B1`, `df -i`, and
+  `lsblk -o NAME,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINTS` identify `/dev/sdd`, ext4,
+  label `sparselab`, UUID `ecf1fe73-0a20-4ac6-87e3-0fef2ab51148`.
+  The block device is 1 TiB; filesystem capacity is 1,081,101,176,832 bytes,
+  used 178,507,436,032, available 847,601,385,472 (human display 1007G/167G/790G).
+  Free inodes: 64,986,509 of 67,108,864.
+  WSL root is separately `/dev/sde`, ext4,
+  UUID `5e06339b-ab11-486d-a9eb-694f762fa21a`.
+
+### Survival and cold authentication
+
+Task root remains `/srv/sparselab/state/experiments/devmind-pretrain-v5`.
+Both `primary/` and `recovery/`, their exact recorded release directories,
+metadata and replay receipts exist. Before any cold scan, 22 bounded hash
+comparisons passed against committed primary/recovery/tokenizer/inspection
+evidence (including repeated references). In particular:
+
+| Artifact | Fresh matching SHA-256 |
+| --- | --- |
+| Both release `manifest.json` files and metadata copies | `003da8f335899d68391497847aa32f03043110acf68b04e2a55e132e5843ffcb` |
+| `tokenizer-bakeoff-streamed/report.json` | `6927c81a734a266ada296ea7fdd9e138f1887678482ef73815068f6ab8bcb092` |
+| `tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json` | `ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56` |
+| Selected `tokenizer_manifest.json` | `da5b295c42133ef2c31114a4fd81602e144b0113d2ad81cbddd2c0c722665aa5` |
+| `cold-corpus-recovery-inspection.json` | `94b6d228d04e450b047224e020b65e57d889d8cdb6a0d03f9c8f7cf86128aaba` |
+
+The 141,116,322/141,116,445-byte acquisition metadata copies were deliberately
+deferred by the initial 16 MiB bound, then stream-hashed after that gate; both
+match their committed SHA values. Restored primary/recovery results agree with
+committed producer, project, build, release and all 123 snapshot identities.
+
+One locked-environment Python process called `verify_release(primary_release,
+expected_id=release_id)` exactly once. Complete release/stage/snapshot/row
+authentication passed in 493.71 seconds for release
+`72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b`
+and 123 snapshots. It exercised the schema-3 disk-backed verifier, including
+temporary SQLite evidence under the release parent; no durable payload changed.
+The recovery copy's manifests/metadata/receipts were authenticated, but a second
+full scan of its payload was intentionally not performed.
+
+In the same process, `_verify_tokenizer_manifest` and `load_tokenizer` accepted
+the selected tokenizer and actual vocabulary 32,768. The unchanged committed
+report hash authenticates the prior accepted bakeoff evidence; `choose_candidate`
+reapplied the existing near-best rule without encoding any corpus text.
+Candidate manifest, report release binding, primary release path/ID/manifest
+hash, selected path and tokenizer SHA agree. Streamed sample hashes also match:
+fit `a9678289862316f93846b3ddace4dce9e4f7e3b621eb13f21ce730db63fc1006`,
+heldout `375d745529ad5a26c26fdfe32be0bb26a1a2a521b4560643ce532f4f0275e50d`.
+No fitting, heldout remeasurement or full token measurement ran. Public tokenizer
+verification would repeat the release scan and sample/score reconstruction via
+`recovery.evidence._selection`; exact committed evidence reuse avoided that work.
+
+### Interrupted measurement identity and result boundary
+
+Known log prefix, relative to the task root:
+`logs/monitored/v5-measured-model0-budget-1790939923303015023`.
+Surviving launch SHA:
+`227bfc28e6fe4c904ffbc037734061483d8b25316e8bb5e9cff2557d2f7ed3b3`.
+Surviving samples SHA:
+`9e03b66287dacf51ce44eb18a177b4d8860a35bae84d87c4200ed3b4e8ca62c1`.
+`.stdout` and `.stderr` are each zero bytes; their SHA is
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+`.completion.json` and task-root `measured-model0-budget.json` do not exist.
+Bounded task-root result names, known monitored logs and both replay receipt
+directories revealed no alternative budget completion/result. No orphan accepted.
+
+Launch time: `2026-10-02T11:18:43.303042+00:00` (06:18:43 CDT);
+source commit `90a2e7a39e59113f3d83abaead5e6eaa340c6ace`, cwd the checkout.
+Exact recorded argv, rendered as a shell command:
+
+```sh
+uv run --locked --extra cpu python \
+  /srv/sparselab/state/scratch/devmind-v5/tmp/measure_tokens_v5.py \
+  --primary-result /srv/sparselab/state/experiments/devmind-pretrain-v5/primary-result.json \
+  --recovery-result /srv/sparselab/state/experiments/devmind-pretrain-v5/recovery-result.json \
+  --selection-report /srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/report.json \
+  --measurement-policy /home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/budget-measurement-policy.yaml \
+  --output /srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json
+```
+
+The surviving script SHA is
+`1c6f2e4b3468c8c310b012f45c6975c16d2068a8adbcabbfbf109dea1bcb7240`;
+mtime is 2026-10-01 19:01:45 CDT, before launch. It was not hash-bound in the
+launch receipt, so its historical byte identity is not independently established.
+Its route is direct `verify_release` → tokenizer `verify_artifact` →
+`campaign.policy.measure_readiness`, **not** Campaign `token_measurement` →
+`release.describe`. Relevant policy/release/tokenizer/selection source files are
+unchanged between the recorded launch commit and protected HEAD. This route can
+verify the release three times: explicit script gate, tokenizer selection gate,
+and readiness gate. No durable evidence identifies the last reached phase.
+Launch/samples record no PID, process start identity or return code; all remain
+unknown. Current process inventory contains no surviving measurement command.
+Status is `PARTIAL_INTERRUPTED`, not complete or not-started. Canonical `D`,
+`max_steps` and `max_tokens` remain unavailable; `983520212` is still not `D`.
+
+### Memory evidence and safe next step
+
+49 samples at approximately 30-second intervals survive, spanning
+11:18:43.310545–11:42:43.328173 UTC. Available system RAM starts at
+32,083,738,624 bytes, reaches its recorded minimum 23,551,811,584 at
+11:34:13.321125, and ends at 26,208,464,896. The samples contain no
+process-tree RSS, PID, swap, token progress or phase counters; system-available
+memory cannot be converted into this process's RSS.
+
+Newly available launch timestamps place this attempt in boot
+`7da50c42c7644c8287c2fb1ae90a4738`, not the later 10:43–10:54 CDT restart window.
+Targeted kernel journal inspection shows the previously recorded OOM at
+06:43:13 CDT, 30 seconds after the last sample: Python PID 12660, anonymous RSS
+31,393,076 KiB, file RSS 916 KiB, total VM 61,742,552 KiB; host swap was entirely
+used (0 KiB free of 8,388,608 KiB). No launch PID binding or journal entries for
+`_PID=12660` establish that it was this script. This is temporal correlation,
+not a proven command-specific OOM cause or leak. Command classification:
+`UNKNOWN`. Current `free -b`/`swapon --show --bytes` observed 33,610,706,944-byte
+RAM, 32,333,824,000 available, 8,589,934,592-byte swap, zero used; these current
+values do not reconstruct historical process pressure.
+
+The next unfinished MODEL-0 gate is its developer-token denominator.
+Generic `describe()` is unnecessarily broad for it, but was not this launch's
+recorded route. The actual readiness route is also unnecessarily broad:
+`policy.py:130` calls `_rows` on the 6,123,770,983-byte `documents.jsonl`;
+`release.py:27-32` uses `read_text().splitlines()` and materializes every parsed
+row. `policy.py:154-172` additionally materializes the 1,079,569,336-byte lineage
+ledger, selected train IDs, shapes and heldout families. It tokenizes all domains,
+although this policy only requires `developer_systems`. Those corpus-sized
+allocations establish an unbounded-memory design risk, not a demonstrated leak.
+
+Safe next task: implement and verify a bounded denominator-only measurement
+before authorizing another full measurement. Preserve normalized, non-dropped,
+train-only `developer_systems` documents, content-SHA deduplication and raw
+selected-tokenizer encoding (no packing EOS/padding); stream rows and use
+disk-backed deduplication rather than a whole-corpus text/lineage map. Bind any
+future result to the authenticated release/tokenizer and preserve the existing
+8192-target update and budget formula. This recovery did not implement or rerun
+that measurement. No acquisition/build/freeze, refit, export, preparation, new
+MODEL-0 plan, ROCm or training was performed. Only this compact source evidence
+is authorized for commit/push; main remains unmerged.
