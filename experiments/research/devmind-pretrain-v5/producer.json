@@ -19,5 +19,5 @@
       "CUDA, ROCm, XPU, MLX, large-model fit, throughput, and model quality are not tested"
     ]
   },
-  "broader_cpu_regressions": "Running independently against held-fixed package files; complete outcome to be bound after completion"
+  "broader_cpu_regressions": "1342 passed, 10 skipped, 2 deselected in 1235.92s against held-fixed producer package code"
 }
