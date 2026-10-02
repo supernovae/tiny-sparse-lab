@@ -159,3 +159,23 @@ readiness/family/recovery/archive verification and every unexercised gate.
 An executed command is not useful model behavior. Fail closed at a scientific
 identity/integrity gate, finish reachable evidence work, and name the exact
 missing prerequisite; never relabel a partial run as MODEL-0 complete.
+
+## Observed execution evidence
+
+`primary-verification.json` records the independently authenticated first
+primary freeze: all 123 v5-produced source snapshots, build
+`7789f970526f3c07c005ce8e300e70fdc020e8bcbd088bd5bdf9f55706c1b75a`
+and release
+`72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b`.
+The release envelope version is 1; its bound rights/publication policy is
+schema 3. Typed corpus Artifact versions name the envelope, not that policy.
+`build-identity.json` preserves the complete producing identity bytes.
+`corpus-expectations.json` freezes the exact 123 snapshot/build/release gates
+before fresh independent recovery. `corpus-recovery.yaml` pins the tested
+producer and explicitly excludes later tokenizer/model closure from the
+corpus-only deterministic recovery claim.
+The two DNS-interrupted acquisition receipts remain evidence; the successful
+primary reused only its own authenticated partial v5 snapshots under the same
+producer with process-scoped resolver options. No historical snapshot import
+occurred. Fresh recovery, tokenizer selection and MODEL-0 outcomes remain
+unproven at this record boundary.
