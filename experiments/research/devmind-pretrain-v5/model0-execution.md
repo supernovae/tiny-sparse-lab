@@ -1,8 +1,9 @@
 # DevMind v5 MODEL-0 execution boundary
 
-Status: **INCOMPLETE — real preparation verified; execution gates pending**.
-The authorized post-repair attempt sealed the original v5 inputs and passed a
-separate cold, deep load. No ROCm full-shape proof, training run, checkpoint,
+Status: **INCOMPLETE — ExperimentPlan lock readback resource-censored**.
+Real preparation and its separate cold, deep load passed. The subsequent guarded
+lock command crossed the unchanged host-wide 1 GiB swap limit and was terminated.
+No completed lock/readback gate, ROCm full-shape proof, training, checkpoint,
 evaluation, model readiness, ModelFamily or model-continuation archive is claimed.
 
 ## Accepted results
@@ -85,4 +86,43 @@ binds the manifest, logs, source revision, timings and unchanged resource guards
 
 These materialization counts are not the distinct raw developer denominator,
 actual developer packed-target attribution, or evidence of model quality.
-ExperimentPlan lock and all later execution gates remain pending.
+ExperimentPlan declaration validation and inspection subsequently passed; lock
+readback and all later execution gates did not complete.
+
+## Current first blocker: guarded lock readback
+
+The complete [ExperimentPlan declaration](model0-plan.yaml) is committed and
+binds all four required input kinds: release, export, tokenizer and prepared data.
+Its typed artifact digests use their actual schema domains; file hashes are
+recorded separately. The heldout suite and all retention flags are bound.
+`experiment validate` and `experiment inspect` passed with the unchanged
+5,525-update / 45,260,800-target controls.
+
+The guarded `experiment lock` command was terminated on **SWAP_LIMIT** after
+**2,021.690 seconds**: host-wide swap reached **1,076,547,584 bytes**, exceeding
+the unchanged **1,073,741,824-byte** ceiling. Sampled process-tree peak was
+**8,724,733,952 bytes**; available RAM at the violating sample was
+**24,465,362,944 bytes**. The process tree exited and final inventory is empty.
+These counters do not identify the cause of all host swap usage.
+
+Lock and availability files were published before interruption:
+`275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45`.
+Their recorded scientific digest is
+`975295d546eadd6d23b44a0fcb8f84cc08aeffb8f2982985f1ecc2675b03b8af`.
+They are preserved, hash-referenced, **not accepted as a completed gate**:
+the command emitted no success receipt and publication calls `open_lock` before
+returning. No independent readback, explain, retry, swap reset or guard relaxation
+was performed. [Negative lock evidence](model0-plan-lock-stop.json) binds the
+exact command, source, PID/create times, samples and partial files.
+
+Unexercised dependent gates: completed lock readback/explain; fresh ROCm doctor;
+full-shape inspect/validate/smoke/warmup; Campaign authorization, dispatch,
+reconciliation, ingestion and collection; exact training budget and verified
+checkpoint; heldout FP32 evaluation and exact greedy panel; readiness; family;
+model-continuation recovery inspection and thin archive. No fallback training,
+scientific change, SFT, weight publication or promotion occurred.
+
+[Procedural audit](model0-procedural-audit.json) distinguishes scientific choices,
+operator policy, implementation limits, unexercised DSL questions and the ordinary
+resource-censored execution. Only the demonstrated overbroad checkpoint storage
+preview received a new code TODO; worker provenance remains independently open.

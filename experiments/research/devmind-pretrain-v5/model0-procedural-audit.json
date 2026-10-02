@@ -1,0 +1,99 @@
+{
+  "audit_version": 1,
+  "evidence": {
+    "implementation": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/export-location-contract-verification.json",
+      "sha256": "7e9a2e109e76186335a457eb12a1a55117f376f84b48debb43030b1811365340"
+    },
+    "input_authentication": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-input-authentication-after-repair.json",
+      "sha256": "59953fa12cde458c19fb0673e4b666a1758aeba24f8ba486e57cb0fd3148b6f2"
+    },
+    "lock_stop": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-plan-lock-stop.json",
+      "sha256": "4ace86ce2fc7ce4db13318b50386b54df8b26c76567b645c434bb11337144179"
+    },
+    "preparation": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "sha256": "85354150278ea81f4924713d1735368a46f62efcc8268c6b9f1ee1580e27c570"
+    }
+  },
+  "final_verdict": "DEVMIND_MODEL0_INCOMPLETE",
+  "implementation_limits": [
+    {
+      "disposition": "Fixed and verified with real fixtures, actual independent-root CLI preparation, full CPU suite and unchanged real v5 input authentication. Removed only the satisfied location-contract TODO.",
+      "observation": "The independent-root verifier contract was defective; generic fix now authenticates both generated datasets, exact split bytes/counts/ceilings and canonical sidecar/policy content without imposing a release-adjacent root."
+    },
+    {
+      "code_evidence": [
+        {
+          "path": "/home/byron/src/tiny-sparse-lab/src/sparselab/experiments/lock.py",
+          "sha256": "f6ee86b4d57010e9d5e056d94319390484f730453701b4fa0c2c8af07c634bad"
+        },
+        {
+          "path": "/home/byron/src/tiny-sparse-lab/src/sparselab/training/trainer.py",
+          "sha256": "c0043f10e1256764daaab7fa04cd815a5c6cc0eba3c6a4815cbde46a0ff06eb8"
+        }
+      ],
+      "decision": "Do not treat the enormous loose preview as measured writes, nor silently conceal it. Normal uninterrupted configured write boundaries are 0,2048,4096,5525; no token/time/explicit-step triggers are enabled.",
+      "disposition": "Added a precise deterministic checkpoint-bound TODO; no implementation redesign during this run.",
+      "observation": "Experiment inspect uses the all-update checkpoint upper bound even with minute triggers disabled. The observed preview gives 5526 retained generations and 5745751668360 bytes for this fixed configuration.",
+      "observed_estimate": {
+        "estimated_free_bytes_after_retention": -5066047121104,
+        "estimated_retained_bytes_upper": 5745751668360,
+        "periodic_step_trigger_upper": 2,
+        "retained_generations_upper": 5526,
+        "validation_triggered_best_upper": 3,
+        "write_count_upper": 5526
+      }
+    },
+    {
+      "disposition": "Preserved both files with exact file hashes and explicitly unaccepted status; no retry or invented success.",
+      "observation": "Lock publication writes immutable files then performs open_lock readback. The command was censored before emitting success; raw persisted files alone cannot certify the completed gate."
+    }
+  ],
+  "missing_dsl_or_expression_support": {
+    "limit": "The fixed generation panel harness was not executed, so no generation-stage DSL TODO is newly asserted. Existing worker-sealing provenance TODO is untouched and not claimed satisfied.",
+    "newly_demonstrated_gaps": []
+  },
+  "operator_policy": [
+    "Task workspace, root-independent export prefix and CPU preparation controls are operational, not scientific identities.",
+    "Retained the unchanged 12 GiB process-tree RSS / 8 GiB available RAM / 1 GiB host-wide swap / projected 25% storage and inode guards.",
+    "One authorized repaired preparation; guarded cold load; sequential declaration gates and one lock attempt. No overlapping accelerator jobs or direct training launch.",
+    "Resource-censored lock ended execution; no swap reset, guard relaxation, speculative runtime reprovision, source edit or retry."
+  ],
+  "ordinary_execution": [
+    "Guarded input authentication and real preparation succeeded; cold deep loader verified all array hashes and retained-document accounting.",
+    "Declaration validate/inspect passed; their outputs explicitly leave external identities and runtime unresolved until lock/runtime gates.",
+    "First current blocker is SWAP_LIMIT during lock: 1076547584 host-wide swap bytes exceeded 1073741824. Final owned process inventory is empty.",
+    "Host-wide swap attribution and the reason for swap growth remain unknown; neither a leak nor accelerator inadequacy is established."
+  ],
+  "owned_throwaway_harnesses_removed": [
+    "export-contract-smoke.py",
+    "model0-authenticate-existing.py",
+    "model0-verify-prepared.py"
+  ],
+  "preservation": "Original crashes and failed preparation, selected inputs, sealed arrays, monitor logs and interrupted lock remain external and unchanged. Only compact evidence/declarations/docs/TODO are published.",
+  "scientific_decisions": [
+    "Reused the exact v5 release, selected 32768 tokenizer, COMPLETE raw source-token receipt, frozen 5525-update/45260800-target run, heldout suite, readiness policy and panel.",
+    "No accepted denominator/budget value was recomputed or changed. New packed-ID/adjacent-target/full-block accounting is not developer attribution.",
+    "The requested developer 1.5 passes and descriptive mixture are not measured realized packed developer shares.",
+    "No post-outcome quality threshold, winner selection, scientific acceptance change, SFT or promotion."
+  ],
+  "scope": "Only demonstrated operations; no new runtime/model/quality result is inferred.",
+  "status": "AUDITED_TO_RESOURCE_CENSORED_LOCK_BOUNDARY",
+  "unexercised_gates": [
+    "Completed lock readback and experiment explain",
+    "Fresh ROCm runtime doctor",
+    "Full MODEL-0 inspect/validate/smoke/warmup",
+    "Campaign validate/plan/status/next/explain/apply/approval/resume",
+    "Worker submission/reconciliation/ingestion/collection",
+    "5525-update and 45260800-target real training budget",
+    "Verified final checkpoint and retained immediately previous checkpoint",
+    "Checkpoint-bound heldout FP32 evaluation and exact greedy panel",
+    "Preregistered model readiness",
+    "ModelFamily show/graph/verify",
+    "Model-continuation recovery inspection",
+    "Thin model archive create/verify"
+  ]
+}
