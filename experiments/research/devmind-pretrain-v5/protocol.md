@@ -194,3 +194,7 @@ content or family overlap. Actual paired groups are prose, Go, shell, YAML and
 JSON; Python, Rust, TOML and logs lack independent pairings and are explicitly
 unmeasured rather than supplied by new sources. `lm-view-measurement.json`
 records full LM document/byte ceilings; these are not a token budget.
+`typed-corpus-artifact-verification.json` records the exercised real large
+release consumer gate: the typed Artifact verifier accepted the exact frozen
+release and its retained snapshot closure with envelope version 1 and bound
+schema-3 policy. This is not a tokenizer, training or quality result.
