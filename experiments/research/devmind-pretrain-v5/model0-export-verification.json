@@ -1,0 +1,68 @@
+{
+  "verification_version": 1,
+  "kind": "model0-export-verification",
+  "status": "EXPORTED_INPUTS_BOUND_PREPARATION_UNPROVEN",
+  "source_commit": "c9304588b4f956ada9b71c37e822258e3bdd7adc",
+  "export": {
+    "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+    "identifier": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+    "sha256": "a81bf62ae67719c44c24cdec2dc4b4494da64f1894e0d8a68dd2592756193c05",
+    "manifest": {
+      "base_config_sha256": "2dfb5472fe8808f08d42011e03fa613b559e05ab1cc7c4276d71624c99ce4b1b",
+      "license_report_sha256": "4ad1a8c58d52e41bed5792b118eadc823c7bc87e00c5dbf909c64ce3254c6c50",
+      "publication_mode": "metadata_reconstruction_only",
+      "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "release_manifest_sha256": "003da8f335899d68391497847aa32f03043110acf68b04e2a55e132e5843ffcb",
+      "report_sha256": "ea691e07d1721e7120a23ee9621a38f5db8849285571a329c44c71d1d5fb15c1",
+      "run_config_sha256": "970f8c7af1511c61428b96922f7cde248109d81d2e8ba6881f83b0d5981fa8ca",
+      "schema_version": 1,
+      "splits": {
+        "train": {
+          "path": "lm/train.jsonl",
+          "records": 796563,
+          "rendered_bytes": 3999387258,
+          "sha256": "24a6e529def703c2b6e0c280d44569ecedf891d92f5dd1a0ee6c995eb2d5ccc4"
+        },
+        "validation": {
+          "path": "lm/validation.jsonl",
+          "records": 16411,
+          "rendered_bytes": 82578187,
+          "sha256": "79d90dddc7989bcd27c62feecb19cdd68d3b432519629b485a6f80172a556d2a"
+        }
+      },
+      "tokenizer_config_sha256": "2d3b24604649d9eec5cf7a0cd77de6742216df839be63bb4bf3a6b56af16e86c",
+      "training_use_policy": "allowed_unless_explicitly_prohibited",
+      "view": "lm",
+      "vocab_size": 32768,
+      "weight_license_status": "separate_analysis_required"
+    }
+  },
+  "monitor": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/monitored/devmind-v5-model0-lm-export-1790975808297853847.completion.json",
+    "sha256": "02b858252e9385e9abcaa7bf81db061b2548ba1d5f7d19290229ae41bde5fc4c",
+    "tree_peak_rss_bytes": 1154785280,
+    "elapsed_seconds": 529.1146951560004,
+    "returncode": 0,
+    "violation": null
+  },
+  "resolved_run": {
+    "path": "experiments/research/devmind-pretrain-v5/model0-run.yaml",
+    "sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5",
+    "change_from_generated": "Only tokenizer.path replaced with authenticated selected winner; dataset fields unchanged."
+  },
+  "resource_envelope": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+    "sha256": "ab26a545737cf41de454b6b59e8cb7456c4d9efc0a0cfc8c4856abfc813e363d"
+  },
+  "preparation_storage_projection": {
+    "int32_array_upper_bound_bytes": 16331113684,
+    "spool_plus_arrays_upper_bound_bytes": 32662227368,
+    "guard_reservation_bytes": 34359738368,
+    "guard_reservation_inodes": 4096
+  },
+  "source_denominator": {
+    "tokens": 30175366,
+    "sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e",
+    "semantics": "Distinct developer source tokens, not rendered LM or packed supervised targets."
+  }
+}
