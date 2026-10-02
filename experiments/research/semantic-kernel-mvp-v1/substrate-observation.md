@@ -3,6 +3,11 @@
 **Software-only pass; no model/controller result.** The compiler and four
 human-authored replay probes executed against clean source commit
 `ec78fab554cd2bcf23e07b1dab601a71431fb26c`.
+This was a local declaration commit. The Python source snapshot is unchanged
+from upstream commit `365e2d804bcb69c69de27aa78a2651a817a5eb0a`; the compiler
+bytes are pinned below. Publishing through the GitHub integration gives the
+same authored file tree a new commit identity, rather than uploading the local
+commit object.
 
 | Observation | Value |
 |---|---|
@@ -26,8 +31,9 @@ validation or function-call resolution.
 The full local bank and trace were retained outside Git under the task-owned
 external work-root subdirectory `experiments/semantic-kernel-mvp-v1/ec78fab/`.
 Those bytes are not bundled in this PR and their availability on another host
-is not asserted. Regenerate with the README commands from the pinned commit;
-wall times and replay digests containing timing will differ.
+is not asserted. Regenerate with the README commands from the published branch;
+the bank digest will differ because it binds the actual checkout's commit and
+dirty status. Wall times and replay digests containing timing also differ.
 
 Verification: 12 focused substrate tests pass; Ruff check/format and
 `git diff --check` pass. Adjacent `test_conversations.py` and `test_local_chat.py`
