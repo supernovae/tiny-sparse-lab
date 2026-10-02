@@ -20,6 +20,12 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Experiment ergonomics
 
+- [ ] Implement the [semantic-kernel Stage 1 task bundle, bounded local-model
+  adapter and independent evaluator](experiments/research/semantic-kernel-mvp-v1/implementation-plan.md)
+  with sealed source-family/composition ownership, scorer isolation, explicit
+  model/tokenizer identities, retained failed actions and per-case cost reports.
+  The AST compiler/replay pilot does not implement an autonomous model loop.
+
 - [ ] Support direct TinyStories and manifest-backed `local_stories` inputs in
   authored experiment locks. Bind their pinned source, tokenizer provenance,
   and verified prepared-data identities without requiring Corpus Forge
