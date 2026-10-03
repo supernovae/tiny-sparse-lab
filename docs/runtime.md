@@ -746,6 +746,37 @@ after integrating Campaign v1. Original benchmark measurements retain their
 original source identities; they were not rerun or relabeled as rebase measurements.
 
 
+## Storage and checkpoint headroom
+
+`experiment inspect` reports checkpoint *write volume* separately from peak
+durable growth. The trainer writes an initial generation and one at the terminal
+update. Explicit steps, step/token cadence and a new best at validation can
+cause additional writes, but coincident triggers write only one generation.
+All cadence watermarks reset on a save. A configured minute cadence may write
+at every update because optimizer-update duration has no guaranteed bound;
+without that cadence it does not add an unconditional per-update allowance.
+For 5,525 updates with checkpoint and validation intervals of 2,048 and no
+other trigger, the upper bound is four writes (initial, 2,048, 4,096, terminal).
+
+`checkpoint.keep_periodic: false` in the run config leaves the checkpoint
+manager's latest two and best generations, potentially three distinct durable
+generations; an in-flight fourth must fit before pruning. Experiment-plan
+`retention.keep_periodic: false` does not change that manager setting and cannot
+lower training headroom. Retaining periodic checkpoints instead budgets every
+possible generation. Write volume does **not** represent occupied space
+when old generations are pruned. Preflight checks future checkpoint growth,
+run-owned prepared-array copies, cache growth when a cache has not been
+authenticated, and task overhead against actual available bytes and inodes on
+each destination filesystem. It never subtracts an already allocated cache
+from free space again. A same-operation sealed prepared receipt can provide
+the verified arrays plus the measured complete regular-file inventory that the
+trainer copies. It establishes zero new cache allocation; unsigned manifest size
+fields do not suffice. The run copy still consumes space. Without that receipt,
+conservative cache and copy allowances remain, and genuinely insufficient future
+headroom fails preflight.
+Worker materialization and other remote copies require their own destination
+headroom; a source host's existing prepared cache is not free storage there.
+
 ## Resource proposals
 
 Memory policy can propose an explicit complete config; it never changes the config supplied to training. `fast`, `balanced`, `low_memory`, and `max_fit` order candidate choices differently, but unsupported actions receive no imagined savings. In particular, changing micro-batch/accumulation can preserve an effective example batch, while changing precision or sequence length is scientifically significant and must remain visible.

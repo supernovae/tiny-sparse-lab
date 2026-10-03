@@ -2156,6 +2156,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     commands = parser.add_subparsers(dest="command", required=True)
+    from sparselab.operational_monitor_cli import register_monitor_parser
+
+    register_monitor_parser(commands)
     weights = commands.add_parser("weights")
     weight_commands = weights.add_subparsers(dest="weights_command", required=True)
     weight_import = weight_commands.add_parser("import")

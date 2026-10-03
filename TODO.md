@@ -30,13 +30,6 @@ close a code item unless the named software acceptance criteria also pass.
   local warmup but its worker smoke fails because tokenizer verification cannot
   find the sealed export's `run.yaml`. Cover dispatch through parent ingestion
   and child continuation, with all provenance files verified after relocation.
-- [ ] Tighten experiment inspection's checkpoint retention/write upper bound
-  when minute-based triggers are disabled. The frozen DevMind v5 MODEL-0
-  declaration reports 5,526 possible generations and 5.745 TB, although its
-  uninterrupted normal-run write boundaries are 0, 2,048, 4,096 and 5,525.
-  Derive a conservative bound from explicit steps, step/token cadence,
-  validation and terminal writes; cover coincident triggers and watermark
-  resets. Preserve an all-update fallback where timing is genuinely unknown.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.

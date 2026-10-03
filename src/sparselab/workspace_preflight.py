@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sparselab.config.models import RunConfig, TokenizerTrainConfig
 from sparselab.model.inspection import inspection_report
 from sparselab.workdir import resolve_work_dir
+
+if TYPE_CHECKING:
+    from sparselab.data.verification import VerifiedPreparedData
+
 
 _RESERVE_BYTES = 256 * 1024 * 1024
 _RESERVE_INODES = 128
@@ -94,21 +100,116 @@ def projected_data_bytes(config: RunConfig) -> int:
     return math.ceil(1.25 * targets * per_token) + 32 * 1024 * 1024
 
 
+def verified_prepared_footprint(receipt: VerifiedPreparedData) -> tuple[int, int]:
+    """Measure the complete copied inventory after authenticating sealed data proof."""
+    from sparselab.data.verification import (
+        _SEAL,
+        VerifiedPreparedData,
+        _receipt_from_proofs,
+    )
+
+    if (
+        not isinstance(receipt, VerifiedPreparedData)
+        or getattr(receipt, "_seal", None) is not _SEAL
+    ):
+        raise TypeError("prepared inventory requires a sealed verification receipt")
+    manifest = json.loads((receipt.root / "manifest.json").read_text())
+    verified = _receipt_from_proofs(receipt.root, manifest, dict(receipt.proofs))
+    if verified.manifest_sha256 != receipt.manifest_sha256:
+        raise ValueError("prepared receipt manifest changed")
+    total_bytes = 0
+    files = 0
+    for member in receipt.root.rglob("*"):
+        if member.is_symlink():
+            raise ValueError("symlink in prepared storage inventory")
+        if member.is_file():
+            total_bytes += member.stat().st_size
+            files += 1
+        elif not member.is_dir():
+            raise ValueError("nonregular prepared storage inventory member")
+    return total_bytes, files
+
+
 def training_storage_checks(
-    config: RunConfig, *, work_dir: Path | None = None, run_dir: Path | None = None
+    config: RunConfig,
+    *,
+    work_dir: Path | None = None,
+    run_dir: Path | None = None,
+    checkpoint_generations_upper: int | None = None,
+    verified_prepared: VerifiedPreparedData | None = None,
 ) -> list[StorageCheck]:
+    """Reserve incremental growth on each device, not already allocated cache bytes.
+
+    Training copies the prepared arrays into its run even when the cache exists.
+    Without in-process proof, budget both a new cache and the eventual run copy.
+    """
+    if checkpoint_generations_upper is None:
+        from sparselab.experiments.storage import checkpoint_generation_bounds
+
+        checkpoint_generations_upper = checkpoint_generation_bounds(config)[
+            "peak_generations"
+        ]
+    if checkpoint_generations_upper < 1:
+        raise ValueError("checkpoint generation count must be positive")
     checkpoint = int(inspection_report(config)["estimated_checkpoint_bytes"])
-    # Two retained generations and one in-flight generation. The estimate omits
-    # serialization metadata and temporary buffers, hence the 25% allowance.
-    checkpoint_growth = math.ceil(3.75 * checkpoint)
-    cache_growth = projected_data_bytes(config)
+    checkpoint_growth = checkpoint_generations_upper * math.ceil(1.25 * checkpoint)
+    if verified_prepared is None:
+        run_copy = projected_data_bytes(config)
+        cache_growth = run_copy
+    else:
+        from sparselab.data.packing import _tokenizer_sha256
+        from sparselab.data.tokenizer import load_tokenizer
+        from sparselab.data.verification import (
+            VerifiedPreparedData,
+            _receipt_from_proofs,
+        )
+
+        if not isinstance(verified_prepared, VerifiedPreparedData):
+            raise TypeError("prepared inventory requires a sealed verification receipt")
+        root = verified_prepared.root
+        cache_root = config.dataset.cache_dir.resolve()
+        if not root.is_relative_to(cache_root):
+            raise ValueError("prepared receipt is outside configured cache")
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        proof = _receipt_from_proofs(root, manifest, dict(verified_prepared.proofs))
+        if proof.manifest_sha256 != verified_prepared.manifest_sha256:
+            raise ValueError("prepared receipt manifest changed")
+        identity = manifest.get("cache_identity")
+        expected_dataset = {
+            key: value
+            for key, value in config.dataset.model_dump(mode="json").items()
+            if key
+            not in {
+                "cache_dir",
+                "train_path",
+                "validation_path",
+                "source_manifest_path",
+                "corpus_release_path",
+                "corpus_export_path",
+            }
+        }
+        expected_packing = {
+            "memory": config.model.memory,
+            "memory_table_size": config.model.memory_table_size,
+            "memory_ngram_size": config.model.memory_ngram_size,
+        }
+        if (
+            not isinstance(identity, dict)
+            or identity.get("dataset") != expected_dataset
+            or identity.get("packing") != expected_packing
+            or identity.get("tokenizer_sha256")
+            != _tokenizer_sha256(load_tokenizer(config.tokenizer.path))
+        ):
+            raise ValueError("prepared receipt does not match run configuration")
+        run_copy, _ = verified_prepared_footprint(verified_prepared)
+        cache_growth = 0
     destinations = (
         (
             run_dir if run_dir is not None else config.logging.root_dir,
-            checkpoint_growth,
-            256,
+            checkpoint_growth + run_copy,
+            checkpoint_generations_upper * 16 + 128,
         ),
-        (config.dataset.cache_dir, cache_growth, 128),
+        (config.dataset.cache_dir, cache_growth, 128 if cache_growth else 0),
         (
             work_dir if work_dir is not None else resolve_work_dir(),
             max(64 * 1024 * 1024, checkpoint // 4),

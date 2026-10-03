@@ -1155,6 +1155,39 @@ def _prepare_data(
         "source_identity_sha256": source_digest,
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),
     }
+    from sparselab.experiments.source_compatibility import active_source_compatibility
+
+    compatibility = active_source_compatibility()
+    if compatibility is not None:
+        historical_source = compatibility["baseline_source_identity"]["sha256"]
+        if historical_source != source_digest:
+            historical_identity = {
+                **cache_identity,
+                "source_identity_sha256": historical_source,
+            }
+            historical_root = (
+                config.dataset.cache_dir
+                / hashlib.sha256(canonical_json(historical_identity)).hexdigest()[:16]
+            )
+            if not (historical_root / "manifest.json").is_file():
+                raise ValueError(
+                    "authenticated source compatibility requires an existing "
+                    "historical prepared cache; new preparation is not authorized"
+                )
+            cached = load_prepared_data(
+                historical_root,
+                byte_enabled=config.model.memory in {"byte", "portable"},
+                expected_identity=historical_identity,
+                telemetry=telemetry,
+                verification="deep",
+            )
+            if resource_envelope is not None:
+                check_envelope(
+                    resource_envelope,
+                    workspace=historical_root,
+                    rss_bytes=telemetry.snapshot()["current_rss_bytes"],
+                )
+            return cached
     binding = (
         {
             "dataset": {

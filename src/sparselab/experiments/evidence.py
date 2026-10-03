@@ -43,6 +43,12 @@ def _plan_metadata(lock: ResolvedExperimentPlan, cell: ResolvedCell) -> dict[str
     }
 
 
+def _compatible_execution_source(lock: ResolvedExperimentPlan, digest: str) -> bool:
+    from sparselab.experiments.source_compatibility import source_identities_compatible
+
+    return source_identities_compatible(str(lock.source_identity.get("sha256")), digest)
+
+
 def _verify_attempt(
     lock: ResolvedExperimentPlan, cell: ResolvedCell, row: dict[str, Any], root: Path
 ) -> dict[str, Any]:
@@ -58,7 +64,7 @@ def _verify_attempt(
         spec.config.model_dump(mode="json") != cell.config.model_dump(mode="json")
         or spec.config_sha256 != cell.config_sha256
         or config_sha256(spec.config.model_dump(mode="json")) != cell.config_sha256
-        or spec.source_identity_sha256 != lock.source_identity.get("sha256")
+        or not _compatible_execution_source(lock, spec.source_identity_sha256)
         or spec.continuation.checkpoint_sha256 != plan.parent_checkpoint_sha256
     ):
         raise ValueError(
@@ -142,7 +148,7 @@ def _verify_attempt(
         or manifest.get("requested_config_sha256") != cell.config_sha256
         or manifest.get("effective_config_sha256") != cell.config_sha256
         or manifest.get("source_identity", {}).get("sha256")
-        != lock.source_identity.get("sha256")
+        != spec.source_identity_sha256
         or len(dispatch) != 1
         or dispatch[0].get("spec_digest") != spec.digest()
         or dispatch[0].get("bundle_digest") != spec.dispatch_bundle_digest
