@@ -1,10 +1,10 @@
 # DevMind v5 MODEL-0 execution boundary
 
-Status: **INCOMPLETE — authenticated lock accepted; downstream MODEL-0 gates pending**.
-The authorized operational repair completed the real guarded lock and a separate
-cold, deep `experiment explain`, preserving the scientific digest, plan digest and
-canonical published lock bytes. ROCm full-shape proof, training, checkpoint,
-evaluation, readiness, family and model-continuation archive remain unexercised.
+Status: **INCOMPLETE — full-shape smoke censored by the 900-second pilot deadline**.
+The authenticated lock and independent cold readback passed. Fresh registered
+ROCm doctor is READY; exact locked 69M inspection and staging validation passed.
+Smoke timed out before a successful pilot report, and warmup was not reached.
+Campaign training, collected checkpoint, evaluation and model closure remain unexercised.
 
 ## Accepted results
 
@@ -164,3 +164,45 @@ The [Campaign declaration](model0-campaign.yaml) binds the retained release,
 export, tokenizer, prepared data, original token-only readiness receipt, accepted
 plan, registered ROCm runtime and all-upstream model approval. Static validation
 passed; this does not claim Campaign execution or acceptance of a model.
+
+## Current blocker: full-shape smoke deadline
+
+[Full-shape stop evidence](model0-full-shape-stop.json) binds the fresh native
+`rocm-7900xtx` doctor, exact config agreement, passive inspection, preserved failed
+stage bundle and guarded command. Execution used published commit
+`7e380777b79d359b96572c7fe542ecf4041157a1`; actual package SHA remains
+`8d8268b961aa73c91651e7e3a18ae80d0764d5a35e7624c3e0988fd5b711d3c6`.
+The native runtime probe uses a distinct digest scope, recorded separately.
+Vendor interpreter/framework packages were preserved with locked `--no-sync`.
+
+The effective stage config equals the requested locked config: **69,317,760**
+parameters, sequence **1,024**, micro-batch **2**, accumulation **4**, BF16,
+transformer-block recomputation, no optimizer/activation offload. The passive
+unknown-capacity 1×8 execution proposal was not adopted.
+
+Configured, inspected and validated stages completed. The smoke subprocess raised
+`subprocess.TimeoutExpired` at `_run_pilot`'s hard-coded **900 seconds**.
+Its execution log is empty, no pilot report was produced, and no finalized
+checkpoint exists. The preserved bundle records `SMOKE_TEST` failed; warmup
+was not reached. No successful optimizer-update evidence is claimed.
+
+The outer command exited **1** after **1,484.600 seconds**, with no guard
+violations: peak owned RSS **9,975,336,960 bytes**, owned swap **0**, minimum
+available RAM **21,533,728,768 bytes**, minimum free host swap
+**6,152,577,024 bytes**. Recorded owned process identities were confirmed gone.
+This is a pilot wall-time censoring event, not proof of OOM, bad scientific inputs,
+full-shape fit, throughput or model quality. The time-consuming phase remains
+unknown; elapsed time alone is not a diagnosis.
+
+No retry, larger deadline, smaller shape, CPU training fallback, source/data
+regeneration or scientific relaxation was applied. The authored Campaign remains
+statically validated but unapplied: **zero Campaign attempts**. Approval,
+dispatch/reconciliation, the 5,525-update / 45,260,800-target training budget,
+checkpoint ingestion/collection, heldout FP32 evaluation, greedy panel, model
+readiness, family, continuation recovery and thin archive remain unexercised.
+No SFT, promotion or weight publication occurred.
+
+`TODO.md` now records the demonstrated code gap: explicit typed operational pilot
+limits, phase progress and sealed timeout evidence, retaining cold authentication
+and failed bundles. The checkpoint-preview item remains closed, worker provenance
+remains open, and no unexercised generation-stage gap was added.
