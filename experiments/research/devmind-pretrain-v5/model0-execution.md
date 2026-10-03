@@ -165,7 +165,7 @@ export, tokenizer, prepared data, original token-only readiness receipt, accepte
 plan, registered ROCm runtime and all-upstream model approval. Static validation
 passed; this does not claim Campaign execution or acceptance of a model.
 
-## Current blocker: full-shape smoke deadline
+## Historical blocker: full-shape smoke deadline
 
 [Full-shape stop evidence](model0-full-shape-stop.json) binds the fresh native
 `rocm-7900xtx` doctor, exact config agreement, passive inspection, preserved failed
@@ -206,3 +206,52 @@ No SFT, promotion or weight publication occurred.
 limits, phase progress and sealed timeout evidence, retaining cold authentication
 and failed bundles. The checkpoint-preview item remains closed, worker provenance
 remains open, and no unexercised generation-stage gap was added.
+
+## Actual full-shape deadline repair acceptance
+
+[Deadline audit](model0-pilot-deadline-audit.json) preserves the opaque failed
+bundle. [Operational CPU readiness](model0-pilot-deadline-readiness.json) records
+actual CLI smoke/warmup, checkpoint reload and a sealed controlled timeout.
+Implementation `f2a856e81d47d2f5c347533abf454df0796dacdf` and its
+[renewed source authority](model0-pilot-deadline-source-compatibility.json) were
+pushed before the actual native retry.
+
+[Full-shape readiness](model0-full-shape-deadline-readiness.json) binds the
+immutable new bundle and a separate cold byte/checkpoint verification. The
+requested scientific config, prepared identity, D, budget and original plan
+remain unchanged; execution package SHA is
+`5a011e4ccad4c123bba10239c8bf89a4e8c28b226ed84f46c00d53f8bccd392f`.
+The explicit operational allowances are 1,800 seconds initialization, 1,200
+seconds no progress, 7,200 seconds absolute and 5 seconds termination grace.
+
+- Actual smoke: **2** updates, **16,384** committed supervised targets,
+  full-state checkpoint verification and finite reloaded forward.
+- Actual warmup: **5** updates, **40,960** committed supervised targets,
+  full-state checkpoint verification and finite reloaded forward.
+- Both use the frozen 69,317,760-parameter, 1,024-sequence, 2×4 BF16
+  transformer-block ROCm device-0 shape. All recorded gradient norms are finite.
+- Warmup updates 2–5: **0.348336–0.354823 seconds**, median **0.352458 seconds**,
+  **23,271.487 targets/second**. This excludes initialization and other phases;
+  the optimizer-only full-budget forecast is not end-to-end runtime.
+- Native peak device reservation: **2,797,600,768 bytes**. Outer guard:
+  **COMPLETE**, no violations, **3,175.315 seconds**, peak owned RSS
+  **9,902,919,680 bytes**, owned swap **0**. Pilot wall times were
+  **1,258.175** and **1,303.425 seconds**—both exceed the old opaque 900-second cap.
+- Independent cold bundle/deep-checkpoint verification: **COMPLETE**, no
+  violations, **40.416 seconds**.
+
+The trusted ledger measures input materialization at **609.170/628.318 seconds**.
+It also exposes **599.622/624.354 seconds** between initial input validation and
+stage-bundle verification. Code inspection localizes that boundary to the
+pre-stage Corpus Forge/export/tokenizer authentication gate; no finer timing or
+retroactive diagnosis of the original failed attempt is claimed.
+[Corpus input-phase readiness](model0-corpus-input-phase-readiness.json) records
+the subsequent operational-only enclosure of this gate in `input_validation`,
+including portable worker bindings. Actual sample Forge CLI smoke/warmup
+verified its phase attribution, 2/5 updates and finite checkpoint reload;
+**150 tests passed, 1 skipped**. Cold semantic checks are retained, not bypassed.
+Full-shape evidence above stays bound to its actual earlier execution source.
+
+These pilots establish execution of the measured shape and updates, not
+full-budget stability, model quality or promotion. Campaign dispatch, exact
+training-budget completion, evaluation and lineage still require their gates.

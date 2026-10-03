@@ -558,11 +558,13 @@ are recorded separately from the unchanged requested scientific configuration.
 No deadline automatically retries or rewrites a run.
 
 Pilots emit durable metadata-only phase/progress JSON Lines independently of
-their final report. Known boundaries cover bundle verification, owned input
-materialization, runtime/engine/model/optimizer initialization, data opening,
-validation, optimizer updates, checkpoint write/verification, reload and finite
-forward. PyTorch model construction and optimizer construction have separate
-observed boundaries. Events carry sequence,
+their final report. Input validation encloses Corpus Forge/export/tokenizer
+authentication before stage-bundle verification, including the portable worker
+binding gate. Other known boundaries cover owned input materialization,
+runtime/engine/model/optimizer initialization, data opening, validation, optimizer
+updates, checkpoint write/verification, reload and finite forward. PyTorch model
+construction and optimizer construction have separate observed boundaries.
+Events carry sequence,
 purpose, PID/create-time identity, current/completed steps, completed targets and
 phase elapsed time. Long hashing and copying report meaningful bounded byte
 counters. Corpus text, tensors and weights never enter progress records.

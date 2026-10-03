@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "classification": "ACTUAL_CPU_CORPUS_FORGE_INPUT_PHASE_SMOKE",
+  "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+  "root": "/srv/sparselab/state/scratch/devmind-deadline-cli-429f855e-c05b-45e6-9d32-9bc8fc3c0567/forge-phase/stage",
+  "stage_file_sha256": "418f4ad6837dfe6f113c6b0f03afbbd941e335939a25ca4a5056f3ba7305046b",
+  "pilots": [
+    {"purpose": "smoke", "updates": 2, "targets": 64, "input_validation_seconds": [0.004249224002705887, 0.05306516299606301], "checkpoint_reload": "verified_full_state_and_finite_forward"},
+    {"purpose": "warmup", "updates": 5, "targets": 160, "input_validation_seconds": [0.0037328860053094104, 0.05190706301073078], "checkpoint_reload": "verified_full_state_and_finite_forward"}
+  ],
+  "verification": {"affected_pilot_training_export_compatibility_suites": "150 passed, 1 skipped", "ruff_changed_source": "passed"},
+  "limitations": [
+    "Tiny copyable sample Corpus Forge fixture; not MODEL-0 scientific inputs or ROCm proof.",
+    "The repair labels the existing cold authentication gate and does not suppress or memoize its semantic checks.",
+    "The preceding actual full-shape ROCm evidence remains bound to its original implementation/source identity."
+  ]
+}
