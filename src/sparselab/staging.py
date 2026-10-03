@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from dataclasses import asdict, replace
@@ -33,7 +32,11 @@ from sparselab.data.packing import (
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.data.verification import (
     VerifiedFile,
+    _fingerprint,
+    _owned_file,
     _receipt_from_proofs,
+    _verify_file_with_hasher,
+    _written_file,
     verify_file,
 )
 from sparselab.memory import (
@@ -70,6 +73,13 @@ from sparselab.training.manifest import (
     source_identity,
 )
 from sparselab.training.metrics import SCHEMA_VERSION, ExperimentStore
+from sparselab.training.pilot_deadline import (
+    PilotCancelled,
+    PilotDeadlinePolicy,
+    PilotProcessFailure,
+    PilotSupervisorError,
+    supervise_pilot,
+)
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.workdir import ensure_work_dir
 
@@ -145,17 +155,29 @@ def _read_sealed(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _inventory(root: Path) -> list[dict[str, object]]:
+def _inventory(
+    root: Path, *, copied: dict[str, VerifiedFile] | None = None
+) -> list[dict[str, object]]:
     result = []
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
             raise ValueError(f"symlink in immutable stage assets: {path}")
         if path.is_file():
+            name = path.relative_to(root).as_posix()
+            proof = copied.get(name) if copied is not None else None
+            if proof is not None and (
+                not _owned_file(proof)
+                or proof.path != path.resolve(strict=True)
+                or proof.fingerprint != _fingerprint(path)
+            ):
+                raise ValueError(f"copied stage asset changed: {path}")
             result.append(
                 {
-                    "relative_path": path.relative_to(root).as_posix(),
-                    "sha256": sha256_file(path),
-                    "size_bytes": path.stat().st_size,
+                    "relative_path": name,
+                    "sha256": proof.sha256 if proof is not None else sha256_file(path),
+                    "size_bytes": (
+                        proof.size_bytes if proof is not None else path.stat().st_size
+                    ),
                 }
             )
     return result
@@ -172,6 +194,14 @@ def _verify_inventory(
         raise TypeError("stage inventory must be a list")
     seen: set[str] = set()
     proofs: dict[str, VerifiedFile] = {}
+    from sparselab.training.pilot_progress import current_pilot_progress
+
+    active = current_pilot_progress() is not None
+    if active:
+
+        def hash_staged_file(member: Path) -> str:
+            return sha256_file(member, progress_phase="stage_bundle_verification")
+
     for item in inventory:
         if not isinstance(item, dict):
             raise TypeError("invalid stage inventory row")
@@ -192,7 +222,15 @@ def _verify_inventory(
             raise ValueError(f"stage member length mismatch: {name}")
         if not isinstance(item.get("sha256"), str):
             raise ValueError(f"invalid stage member digest: {name}")  # noqa: TRY004 - invalid serialized schema
-        proofs[name] = verify_file(path, expected_sha256=item["sha256"], memo=memo)
+        if not active:
+            proofs[name] = verify_file(path, expected_sha256=item["sha256"], memo=memo)
+        else:
+            proofs[name] = _verify_file_with_hasher(
+                path,
+                expected_sha256=item["sha256"],
+                memo=memo,
+                hash_file=hash_staged_file,
+            )
     actual = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
@@ -209,6 +247,12 @@ def _load_inventory_prepared(
     assets: Path, proofs: dict[str, VerifiedFile], *, byte_enabled: bool
 ) -> Any:
     root = assets / "data"
+    manifest_proof = proofs["data/manifest.json"]
+    verify_file(
+        root / "manifest.json",
+        expected_sha256=manifest_proof.sha256,
+        memo={(manifest_proof.path, manifest_proof.fingerprint): manifest_proof},
+    )
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     arrays = {
         name.removeprefix("data/"): proof
@@ -255,6 +299,7 @@ def verify_stage_bundle(
     *,
     purpose: str = "training",
     allow_runtime_drift: bool = False,
+    _proofs: dict[str, VerifiedFile] | None = None,
 ) -> dict[str, Any]:
     """Verify frozen inputs; a pilot may read only the sealed pre-pilot input manifest."""
     root = root.resolve(strict=True)
@@ -308,17 +353,96 @@ def verify_stage_bundle(
             raise ValueError("stage bundle input identity mismatch")
     else:
         bundle = {"sha256": inputs["sha256"], "pilot_reports": [], "stages": []}
+    if _proofs is not None:
+        _proofs.update(proofs)
     return {**bundle, "assets_root": str(root / "assets")}
 
 
-def _copy_tree(source: Path, destination: Path) -> None:
+def _copy_tree(
+    source: Path,
+    destination: Path,
+    *,
+    verified: dict[str, VerifiedFile] | None = None,
+) -> dict[str, VerifiedFile]:
+    """Copy into new owned storage, hashing output bytes as they are written."""
+    from sparselab.training.pilot_progress import (
+        current_pilot_progress,
+        emit_pilot_progress,
+    )
+
     if source.is_symlink():
         raise ValueError(f"symlink asset root: {source}")
     if source.is_dir():
-        _inventory(source)  # Reject symlinks before following any source members.
-        shutil.copytree(source, destination)
+        paths = sorted(source.rglob("*"))
+        if any(path.is_symlink() for path in paths):
+            raise ValueError(f"symlink in immutable stage assets: {source}")
+        files = [path for path in paths if path.is_file()]
+        if any(not path.is_file() and not path.is_dir() for path in paths):
+            raise ValueError(f"unsupported stage asset member: {source}")
+        destination.mkdir()
+        for path in paths:
+            if path.is_dir():
+                (destination / path.relative_to(source)).mkdir(exist_ok=True)
     else:
-        shutil.copy2(source, destination)
+        files = [source]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+    if verified is not None and not set(verified).issubset(
+        {path.relative_to(source).as_posix() for path in files}
+    ):
+        raise ValueError("verified source inventory differs from copied files")
+    active = current_pilot_progress() is not None
+    total = sum(path.stat().st_size for path in files) if active else 0
+    subject = None
+    if active:
+        import secrets
+
+        subject = secrets.token_hex(8)
+    copied_bytes = 0
+    reported = 0
+    proofs: dict[str, VerifiedFile] = {}
+    for path in files:
+        name = (
+            path.relative_to(source).as_posix() if source.is_dir() else destination.name
+        )
+        target = destination / name if source.is_dir() else destination
+        fingerprint = _fingerprint(path)
+        old = verified.get(name) if verified is not None else None
+        if old is not None and (
+            not _owned_file(old)
+            or old.path != path.resolve(strict=True)
+            or old.fingerprint != fingerprint
+        ):
+            raise ValueError(f"verified source changed before copying: {path}")
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as reader, target.open("xb") as writer:
+            while chunk := reader.read(1024 * 1024):
+                writer.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+                if active:
+                    copied_bytes += len(chunk)
+                    if (
+                        copied_bytes - reported >= 64 * 1024 * 1024
+                        or copied_bytes == total
+                    ):
+                        emit_pilot_progress(
+                            "progress",
+                            "run_input_materialization",
+                            counter="bytes",
+                            value=copied_bytes,
+                            total=total,
+                            subject=subject,
+                        )
+                        reported = copied_bytes
+        if fingerprint != _fingerprint(path):
+            raise ValueError(f"source changed while copying: {path}")
+        copied_sha256 = digest.hexdigest()
+        if old is not None and (size != old.size_bytes or copied_sha256 != old.sha256):
+            raise ValueError(f"copied asset differs from verified source: {path}")
+        shutil.copystat(path, target)
+        proofs[name] = _written_file(target, copied_sha256, size)
+    return proofs
 
 
 def _verify_allocation_assets(
@@ -390,6 +514,7 @@ def materialize_prepared_inputs(
     ) as temporary:
         work = Path(temporary)
         assets = work / "assets"
+        copied: dict[str, VerifiedFile] = {}
         source_digest = source_identity()["sha256"]
         if prepared_inputs is None:
             tokenizer = load_tokenizer(config.tokenizer.path)
@@ -409,7 +534,14 @@ def materialize_prepared_inputs(
             )
             if tokenizer_manifest.is_file():
                 shutil.copy2(tokenizer_manifest, assets / tokenizer_manifest.name)
-            _copy_tree(data.root, assets / "data")
+            copied.update(
+                {
+                    f"data/{name}": proof
+                    for name, proof in _copy_tree(
+                        data.root, assets / "data", verified=dict(data.receipt.proofs)
+                    ).items()
+                }
+            )
             allocation_source = config.dataset.allocation_manifest_path
             if allocation_source is not None:
                 allocation = load_allocation_manifest(
@@ -425,8 +557,14 @@ def materialize_prepared_inputs(
                     raise ValueError("prepared data differs from allocation manifest")
                 copy_allocation_bundle(allocation, assets / "allocation")
             if config.model.memory_package_path is not None:
-                _copy_tree(
-                    config.model.memory_package_path, assets / "portable_package"
+                copied.update(
+                    {
+                        f"portable_package/{name}": proof
+                        for name, proof in _copy_tree(
+                            config.model.memory_package_path,
+                            assets / "portable_package",
+                        ).items()
+                    }
                 )
                 load_portable_engram(
                     assets / "portable_package",
@@ -440,15 +578,16 @@ def materialize_prepared_inputs(
             source = prepared_inputs.resolve(strict=True)
             if source.name == "assets":
                 source = source.parent
-            verify_prepared_inputs(source, config)
-            _copy_tree(source / "assets", assets)
+            verified: dict[str, VerifiedFile] = {}
+            verify_prepared_inputs(source, config, _proofs=verified)
+            copied.update(_copy_tree(source / "assets", assets, verified=verified))
         _seal(
             work / "inputs.json",
             {
                 "format_version": 1,
                 "requested_config": config.model_dump(mode="json"),
                 "source_identity_sha256": source_digest,
-                "artifacts": _inventory(assets),
+                "artifacts": _inventory(assets, copied=copied),
             },
         )
         if resource_envelope is not None:
@@ -484,7 +623,11 @@ def _prepared_config_matches(saved: RunConfig, requested: RunConfig) -> bool:
 
 
 def verify_prepared_inputs(
-    root: Path, config: RunConfig, *, allow_runtime_drift: bool = False
+    root: Path,
+    config: RunConfig,
+    *,
+    allow_runtime_drift: bool = False,
+    _proofs: dict[str, VerifiedFile] | None = None,
 ) -> dict[str, Any]:
     """Verify a materialized input root without acquiring a target accelerator."""
     root = root.resolve(strict=True)
@@ -522,6 +665,8 @@ def verify_prepared_inputs(
             expected_shape=(config.model.memory_table_size, config.model.memory_dim),
             expected_ngram_size=config.model.memory_ngram_size,
         )
+    if _proofs is not None:
+        _proofs.update(proofs)
     return {**inputs, "assets_root": str(root / "assets")}
 
 
@@ -531,6 +676,7 @@ def _run_pilot(
     *,
     inherited_fds: tuple[int, ...] = (),
     cancel_path: Path | None = None,
+    pilot_deadline_policy: PilotDeadlinePolicy | None = None,
 ) -> dict[str, Any]:
     if cancel_path is not None and cancel_path.exists():
         raise InterruptedError("staging cancelled before pilot initialization")
@@ -538,8 +684,12 @@ def _run_pilot(
     directory.mkdir(parents=True)
     log_path = directory / "execution.log"
     ensure_work_dir()
-    with log_path.open("xb") as log:
-        completed = subprocess.run(
+    requested = RunConfig.model_validate(
+        _read_sealed(root / "inputs.json")["requested_config"]
+    )
+    expected_steps = getattr(requested.staging, f"{purpose}_steps")
+    try:
+        supervise_pilot(
             [
                 sys.executable,
                 "-m",
@@ -548,34 +698,46 @@ def _run_pilot(
                 purpose,
                 *([] if cancel_path is None else ["--cancel-path", str(cancel_path)]),
             ],
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            timeout=900,
-            check=False,
-            pass_fds=inherited_fds,
+            purpose=purpose,
+            directory=directory,
+            policy=pilot_deadline_policy,
+            cancel_path=cancel_path,
+            inherited_fds=inherited_fds,
+            expected_steps=expected_steps,
         )
-    if cancel_path is not None and cancel_path.exists():
-        raise InterruptedError("staging cancelled at pilot boundary")
-    if completed.returncode:
-        with log_path.open("rb") as log:
-            detail = log.read(65536).decode("utf-8", errors="replace")
+    except PilotCancelled as error:
+        raise InterruptedError("staging pilot cancelled") from error
+    except PilotProcessFailure as error:
         failure_path = directory / "failure.json"
         if failure_path.is_file():
             failure = _read_sealed(failure_path)
             if failure.get("kind") == "out_of_memory":
                 raise MemoryError(
                     f"{purpose} pilot exhausted memory: {failure['message']}"
-                )
-        raise RuntimeError(f"{purpose} pilot failed ({completed.returncode}): {detail}")
+                ) from error
+            if failure.get("kind") == "cancelled":
+                raise InterruptedError("staging pilot cancelled") from error
+        with log_path.open("rb") as log:
+            log.seek(max(0, log_path.stat().st_size - 65536))
+            detail = log.read(65536).decode("utf-8", errors="replace")
+        raise RuntimeError(f"{purpose} pilot failed: {detail}") from error
+    if cancel_path is not None and cancel_path.exists():
+        raise InterruptedError("staging cancelled at pilot boundary")
     report = _read_sealed(directory / "report.json")
     if report.get("purpose") != purpose or report.get("status") != "complete":
         raise ValueError("pilot returned incomplete or mismatched evidence")
+    if (
+        report.get("step") != expected_steps
+        or report.get("timed_updates") != expected_steps
+    ):
+        raise ValueError("pilot report does not account for configured updates")
     return {
         "run_id": report["run_id"],
         "purpose": purpose,
         "relative_path": (directory / "report.json").relative_to(root).as_posix(),
         "sha256": report["sha256"],
         "report": report,
+        "supervision": _read_sealed(directory / "supervisor-completion.json"),
     }
 
 
@@ -592,6 +754,7 @@ def stage(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    pilot_deadline_policy: PilotDeadlinePolicy | None = None,
 ) -> Path:
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
@@ -653,6 +816,7 @@ def stage(
             work = Path(temporary)
             history = StageHistory()
             reports: list[dict[str, Any]] = []
+            copied_assets: dict[str, VerifiedFile] = {}
             runtime = estimate = None
             report: dict[str, Any] = {
                 "format_version": 1,
@@ -688,6 +852,11 @@ def stage(
                     ),
                     tokenizer_batch_documents=tokenizer_batch_documents,
                     tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                    pilot_deadline_policy=(
+                        (pilot_deadline_policy or PilotDeadlinePolicy()).model_dump(
+                            mode="json"
+                        )
+                    ),
                     estimate=asdict(estimate),
                     source_identity_sha256=source_digest,
                     tensor_inventory={
@@ -747,6 +916,7 @@ def stage(
                         raise MemoryError(
                             "estimated training memory exceeds the explicit safe ceiling"
                         )
+                    prepared_proofs: dict[str, VerifiedFile] = {}
                     if prepared_inputs is None:
                         prepared_root = materialize_prepared_inputs(
                             config,
@@ -763,8 +933,13 @@ def stage(
                             prepared_root,
                             config,
                             allow_runtime_drift=allow_runtime_drift,
+                            _proofs=prepared_proofs,
                         )
-                    _copy_tree(prepared_root / "assets", work / "assets")
+                    copied_assets = _copy_tree(
+                        prepared_root / "assets",
+                        work / "assets",
+                        verified=prepared_proofs or None,
+                    )
                     prepared_identity = _read_sealed(prepared_root / "inputs.json")
                     inputs = _seal(
                         work / "inputs.json",
@@ -785,7 +960,9 @@ def stage(
                             ),
                             "tokenizer_batch_documents": tokenizer_batch_documents,
                             "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes,
-                            "artifacts": _inventory(work / "assets"),
+                            "artifacts": _inventory(
+                                work / "assets", copied=copied_assets
+                            ),
                         },
                     )
                     inputs_digest = inputs["sha256"]
@@ -806,6 +983,7 @@ def stage(
                         purpose,
                         inherited_fds=inherited_fds,
                         cancel_path=cancel_path,
+                        pilot_deadline_policy=pilot_deadline_policy,
                     )
                     reports.append(pilot)
                     observations.extend(
@@ -881,7 +1059,13 @@ def stage(
                         "stages": report["stages"],
                         "pilot_reports": reports,
                         "runtime_forecast": report["runtime_forecast"],
-                        "artifacts": _inventory(work),
+                        "artifacts": _inventory(
+                            work,
+                            copied={
+                                f"assets/{name}": proof
+                                for name, proof in copied_assets.items()
+                            },
+                        ),
                     },
                 )
             except BaseException as error:
@@ -896,6 +1080,24 @@ def stage(
                     stages=[asdict(item) for item in history.records],
                     pilot_reports=reports,
                 )
+                pilot_error = (
+                    error
+                    if isinstance(error, PilotSupervisorError)
+                    else error.__cause__
+                )
+                if isinstance(pilot_error, PilotSupervisorError):
+                    failure = pilot_error.evidence
+                    report["pilot_failure"] = {
+                        "error_type": type(error).__name__,
+                        "timeout_kind": failure.get("timeout_kind"),
+                        "reason": failure["reason"],
+                    }
+                    purpose = failure.get("purpose")
+                    if purpose in {"smoke", "warmup"} and "sha256" in failure:
+                        report["pilot_failure"].update(
+                            ref=f"pilots/{purpose}/supervisor-failure.json",
+                            sha256=failure["sha256"],
+                        )
                 _seal(work / "stage.json", report)
                 if (
                     isinstance(error, MemoryError)

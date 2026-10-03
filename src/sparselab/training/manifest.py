@@ -108,11 +108,47 @@ def config_sha256(config: Mapping[str, Any]) -> str:
     )
 
 
-def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+def sha256_file(
+    path: Path,
+    chunk_size: int = 1024 * 1024,
+    *,
+    progress_phase: str | None = None,
+) -> str:
+    from sparselab.training.pilot_progress import current_pilot_progress
+
+    emitter = current_pilot_progress()
+    if progress_phase is None and emitter is not None:
+        progress_phase = emitter.current_phase
+    subject = None
+    if (
+        emitter is not None
+        and progress_phase is not None
+        and path.stat().st_size >= 64 * 1024 * 1024
+    ):
+        import secrets
+
+        subject = secrets.token_hex(8)
+    total = path.stat().st_size if subject is not None else 0
     digest = hashlib.sha256()
+    counted = 0
+    reported = 0
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(chunk_size), b""):
+        while chunk := handle.read(chunk_size):
             digest.update(chunk)
+            if subject is not None:
+                counted += len(chunk)
+                if counted - reported >= 64 * 1024 * 1024 or counted == total:
+                    from sparselab.training.pilot_progress import emit_pilot_progress
+
+                    emit_pilot_progress(
+                        "progress",
+                        progress_phase,
+                        counter="bytes",
+                        value=counted,
+                        total=total,
+                        subject=subject,
+                    )
+                    reported = counted
     return digest.hexdigest()
 
 

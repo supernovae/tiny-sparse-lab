@@ -1,0 +1,41 @@
+{
+  "audit_version": 1,
+  "kind": "operational_pilot_deadline_audit",
+  "classification": "OPAQUE_FIXED_PILOT_DEADLINE",
+  "audited_start_commit": "f6ea359fdf22bd09045dd7d9e94c4d80e1c5b83a",
+  "historical_stop": {
+    "path": "experiments/research/devmind-pretrain-v5/model0-full-shape-stop.json",
+    "sha256": "413f0afd95ec75a66ee8cab5efebdf11feed65a7ab235cccdb1700a11631fea5"
+  },
+  "preserved_failed_stage": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-7e38077-v1/stage.json",
+    "sha256": "e8d8aa3a597020b390d608116aca836410a2990dbffb10ff342c38ba48c651c2"
+  },
+  "execution_log": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-7e38077-v1/pilots/smoke/execution.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size_bytes": 0
+  },
+  "configured_subprocess_deadline_seconds": 900,
+  "observed_exception_type": "subprocess.TimeoutExpired",
+  "pilot_purpose": "smoke",
+  "overall_resource_guard_violation_observed": false,
+  "preserved_pilot_run": "smoke-71e1b850126346309fabdbef790875a4",
+  "published_artifacts": {
+    "runtime_authorization": true,
+    "tokenizer": true,
+    "tokenizer_manifest": true,
+    "checkpoint_writer_lock": true,
+    "corpus_directory_empty": true,
+    "run_manifest": false,
+    "pilot_report": false,
+    "finalized_checkpoint_record": false
+  },
+  "attributable_slow_phase": null,
+  "localization_limit": "The run directory and writer lease exist, but no run manifest or copied corpus was published. The old attempt has no structured phase journal; these artifacts do not identify which pre-manifest operation consumed the time.",
+  "interpretation": "The opaque fixed pilot deadline censored execution. This evidence does not establish a hang, OOM, non-fit, throughput or model quality. Preserve it and retry only after instrumented operational supervision is tested and published.",
+  "historical_full_shape_fit_proven": false,
+  "historical_successful_update_count": null,
+  "scientific_inputs_changed_by_this_audit": false,
+  "failed_bundle_modified": false
+}

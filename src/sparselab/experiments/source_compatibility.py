@@ -41,6 +41,14 @@ _OPERATIONAL_PATHS = frozenset(
         "experiments/source_compatibility.py",
         "experiments/binding.py",
         "data/packing.py",
+        "data/verification.py",
+        "engines/pytorch.py",
+        "staging.py",
+        "training/pilot_deadline.py",
+        "training/pilot_progress.py",
+        "training/pilot.py",
+        "training/trainer.py",
+        "training/manifest.py",
     }
 )
 

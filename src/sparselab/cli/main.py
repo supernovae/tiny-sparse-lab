@@ -699,6 +699,13 @@ def _tokenizer_train(args: argparse.Namespace) -> None:
 
 
 def _stage(args: argparse.Namespace) -> None:
+    from sparselab.training.pilot_deadline import load_pilot_deadline_policy
+
+    policy = (
+        load_pilot_deadline_policy(args.pilot_deadline_policy)
+        if args.pilot_deadline_policy is not None
+        else None
+    )
     print(
         stage(
             load_config(Path(args.config)),
@@ -708,6 +715,7 @@ def _stage(args: argparse.Namespace) -> None:
             resource_envelope=args.resource_envelope_value,
             tokenizer_batch_documents=args.tokenizer_batch_documents,
             tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+            pilot_deadline_policy=policy,
         )
     )
 
@@ -2355,6 +2363,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     stage_runtime.add_argument("--runtime-profile", type=Path)
     stage_runtime.add_argument("--runtime", metavar="ID")
     staging.add_argument("--resource-envelope", type=Path)
+    staging.add_argument(
+        "--pilot-deadline-policy",
+        type=Path,
+        help="Versioned operational initialization, no-progress and absolute pilot limits",
+    )
     _tokenizer_batch_arguments(staging)
     staging.set_defaults(handler=_stage)
     batch = commands.add_parser("batch")

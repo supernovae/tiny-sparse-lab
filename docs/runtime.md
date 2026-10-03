@@ -511,6 +511,87 @@ A stage bundle is an immutable, verified copy of the effective inputs. `inspect`
 
 A direct `train` performs configured, inspected, and validated stages, but never silently runs pilots. Supplying `--stage-bundle DIR` adds verified pilot linkage to the resulting manifest; it does not use pilot weights as initialization.
 
+### Operational pilot deadlines
+
+`stage --pilot-deadline-policy POLICY.yaml` controls disposable pilot supervision,
+not `RunConfig`, optimizer horizons or ExperimentPlan scientific identity.
+Without a file, the documented staging defaults are:
+
+```yaml
+pilot_deadline_version: 1
+initialization_timeout_seconds: 1800
+no_progress_timeout_seconds: 1200
+absolute_timeout_seconds: 7200
+termination_grace_seconds: 5
+```
+
+The 30-minute initialization allowance includes input verification/materialization
+and runtime/model/data initialization, ending when training starts. The 20-minute
+no-progress allowance detects absence of trusted phase/counter progress, not
+absence of a completed optimizer update. The two-hour absolute cap applies even
+when progress continues. These defaults are operational protection for staging,
+not a performance promise; operators can supply a versioned policy for larger
+inputs with individual smoke/warmup overrides.
+
+Initialization and idle limits apply concurrently; genuine counters refresh idle
+time but never extend the initialization or absolute cap. A phase with no
+observable counters can exhaust idle time. That stop censors the operation; it
+does not establish a hung kernel or an inability to fit.
+
+```yaml
+pilot_deadline_version: 1
+initialization_timeout_seconds: 1800
+no_progress_timeout_seconds: 1200
+absolute_timeout_seconds: 7200
+termination_grace_seconds: 5
+smoke:
+  initialization_timeout_seconds: 3600
+  absolute_timeout_seconds: 10800
+warmup:
+  absolute_timeout_seconds: 14400
+```
+
+The three deadline durations remain finite and positive; termination grace is
+finite and nonnegative. Policy files reject unknown/scientific
+fields and symlinked locations. Policy identity and effective purpose overrides
+are recorded separately from the unchanged requested scientific configuration.
+No deadline automatically retries or rewrites a run.
+
+Pilots emit durable metadata-only phase/progress JSON Lines independently of
+their final report. Known boundaries cover bundle verification, owned input
+materialization, runtime/engine/model/optimizer initialization, data opening,
+validation, optimizer updates, checkpoint write/verification, reload and finite
+forward. PyTorch model construction and optimizer construction have separate
+observed boundaries. Events carry sequence,
+purpose, PID/create-time identity, current/completed steps, completed targets and
+phase elapsed time. Long hashing and copying report meaningful bounded byte
+counters. Corpus text, tensors and weights never enter progress records.
+Validation reports consumed batches; optimizer work reports backward dispatches.
+Neither is GPU-completion evidence or an additional committed optimizer update;
+the observer introduces no device synchronization.
+
+Owned copies hash the bytes while writing them. Later inventory checks within
+that operation reuse only registered, process-local proofs whose file identity,
+size, modification time and change time still match. Reconstructed/transferred
+proofs and files rewritten with restored modification time are not authority.
+Independent staging, pilot and worker processes still authenticate actual bytes;
+stored SHA metadata alone never enables a fast path.
+
+The supervisor accepts the private child progress channel, not arbitrary stdout,
+heartbeat text or a timer thread. Repeated/nonadvancing counters do not extend a
+deadline. Unobservable work is enclosed by an honest phase; it is not assigned
+invented subphase timing. Successful reports retain actual update/target
+accounting and checkpoint/reload evidence. Phase observation does not advance
+training state or certify model quality.
+
+Timeout evidence records initialization/no-progress/absolute classification,
+policy identity, last completed/current phase, progress time, elapsed total and
+idle time, completed update/target counters, owned child identity and observed
+resource peaks/minima. Cancellation, OOM and resource-monitor violations remain
+distinct. The supervisor terminates only owned PID/create-time identities and
+preserves failed bundles. A timeout is a censored execution gate, not proof of
+OOM, non-fit, throughput or scientific failure.
+
 ## Runtime forecasting and progress
 
 Runtime forecasts are operational aids, not scientific results or performance

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import stat
+import weakref
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,29 +17,31 @@ import numpy as np
 from sparselab.training import manifest as manifest_module
 
 _SEAL = object()
+_FILES: weakref.WeakSet[VerifiedFile] = weakref.WeakSet()
 
 
-def _fingerprint(path: Path) -> tuple[int, int, int, int]:
+def _fingerprint(path: Path) -> tuple[int, int, int, int, int]:
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode):
         raise ValueError(f"prepared file is not a regular file: {path}")
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
 
-@dataclass(frozen=True, init=False)
+@dataclass(frozen=True, init=False, eq=False)
 class VerifiedFile:
     """A SHA proof bound to a regular file and its identity in this process."""
 
     path: Path
     sha256: str
-    fingerprint: tuple[int, int, int, int]
+    fingerprint: tuple[int, int, int, int, int]
     _seal: object
+    _issuer_pid: int
 
     def __init__(
         self,
         path: Path,
         sha256: str,
-        fingerprint: tuple[int, int, int, int],
+        fingerprint: tuple[int, int, int, int, int],
         *,
         _seal: object = None,
     ) -> None:
@@ -47,10 +51,22 @@ class VerifiedFile:
         object.__setattr__(self, "sha256", sha256)
         object.__setattr__(self, "fingerprint", fingerprint)
         object.__setattr__(self, "_seal", _SEAL)
+        object.__setattr__(self, "_issuer_pid", os.getpid())
+        _FILES.add(self)
 
     @property
     def size_bytes(self) -> int:
         return self.fingerprint[2]
+
+
+def _owned_file(proof: object) -> bool:
+    """Reject metadata, reconstructed objects, and inherited cross-process proofs."""
+    return (
+        isinstance(proof, VerifiedFile)
+        and proof in _FILES
+        and proof._issuer_pid == os.getpid()
+        and proof._seal is _SEAL
+    )
 
 
 class HashingWriter:
@@ -123,8 +139,7 @@ def _verify_file_with_hasher(
     key = (canonical, fingerprint)
     proof = memo.get(key) if memo is not None else None
     if (
-        proof is None
-        or proof._seal is not _SEAL
+        not _owned_file(proof)
         or proof.fingerprint != fingerprint
         or proof.path != canonical
     ):
@@ -154,7 +169,7 @@ def _relocate_proofs(
     relocated = {}
     for name, proof in proofs.items():
         path = root / name
-        if proof._seal is not _SEAL or _fingerprint(path) != proof.fingerprint:
+        if not _owned_file(proof) or _fingerprint(path) != proof.fingerprint:
             raise ValueError(f"prepared array changed during publication: {path}")
         relocated[name] = VerifiedFile(
             path, proof.sha256, proof.fingerprint, _seal=_SEAL
@@ -276,8 +291,7 @@ def _receipt_from_proofs(
         path = root / name
         proof = proofs[name]
         if (
-            not isinstance(proof, VerifiedFile)
-            or proof._seal is not _SEAL
+            not _owned_file(proof)
             or proof.path != path
             or proof.fingerprint != _fingerprint(path)
         ):

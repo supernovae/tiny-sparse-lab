@@ -67,6 +67,7 @@ from sparselab.training.optimizer import (
     make_adafactor,
     make_optimizer,
 )
+from sparselab.training.pilot_progress import current_pilot_progress, pilot_phase
 
 
 def _rng_state(device: torch.device, backend: str) -> dict[str, object]:
@@ -465,7 +466,8 @@ class PyTorchEngine:
             if learned_v2 and not resume_portability
             else None
         )
-        model = DenseLM(config.model, config.attention).to(device)
+        with pilot_phase("model_initialization"):
+            model = DenseLM(config.model, config.attention).to(device)
         self.semantic_encoder = None
         if config.dataset.allocation_manifest_path is not None:
             allocation = load_allocation_manifest(
@@ -521,24 +523,25 @@ class PyTorchEngine:
         trainable_parameters = apply_trainable_parameter_filter(
             model, config, portability_run
         )
-        optimizer = (
-            make_optimizer(
-                model,
-                config.optimizer.peak,
-                config.optimizer.weight_decay,
-                config.optimizer.betas,
-                config.optimizer.eps,
+        with pilot_phase("optimizer_initialization"):
+            optimizer = (
+                make_optimizer(
+                    model,
+                    config.optimizer.peak,
+                    config.optimizer.weight_decay,
+                    config.optimizer.betas,
+                    config.optimizer.eps,
+                )
+                if config.optimizer.name == "adamw"
+                else make_adafactor(
+                    model,
+                    config.optimizer.peak,
+                    config.optimizer.weight_decay,
+                    config.optimizer.beta2_decay,
+                    config.optimizer.eps,
+                    config.optimizer.d,
+                )
             )
-            if config.optimizer.name == "adamw"
-            else make_adafactor(
-                model,
-                config.optimizer.peak,
-                config.optimizer.weight_decay,
-                config.optimizer.beta2_decay,
-                config.optimizer.eps,
-                config.optimizer.d,
-            )
-        )
         selected_ids = {id(parameter) for _, parameter in trainable_parameters}
         optimizer_ids = {
             id(parameter)
@@ -1077,6 +1080,7 @@ class PyTorchEngine:
         losses_finite = torch.ones((), device=device, dtype=torch.bool)
         recomputed = 0.0
         executed_microbatches = 0
+        pilot_progress = current_pilot_progress()
         allocation_enabled = config.dataset.allocation_manifest_path is not None
         portability_enabled = self.portability_run is not None
         allocation_raw_counts = {
@@ -1311,6 +1315,17 @@ class PyTorchEngine:
                     ],
                 )
             monitor.sample("backward")
+            if pilot_progress is not None:
+                # Dispatch completion is not GPU synchronization or a committed update.
+                pilot_progress.emit(
+                    "progress",
+                    "optimizer_update",
+                    current_step=update_index,
+                    counter="items",
+                    value=executed_microbatches,
+                    total=len(microbatches),
+                    subject=f"update_{update_index}_backward_dispatches",
+                )
             recomputed += model.recomputed_block_call_ratio
             language_sum = language_sum + ce_sum.detach()
             if allocation_enabled and not portability_enabled:

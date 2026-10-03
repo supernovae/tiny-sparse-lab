@@ -30,14 +30,6 @@ close a code item unless the named software acceptance criteria also pass.
   local warmup but its worker smoke fails because tokenizer verification cannot
   find the sealed export's `run.yaml`. Cover dispatch through parent ingestion
   and child continuation, with all provenance files verified after relocation.
-- [ ] Make staging pilot wall-time limits explicit typed operational settings
-  instead of `_run_pilot`'s fixed 900 seconds, with phase progress and a sealed
-  timeout result distinguishing input authentication, initialization and optimizer
-  work. The frozen DevMind v5 69M smoke timed out with a zero-byte execution log
-  and no pilot report; full-shape fit and the time-consuming phase remain unknown.
-  Preserve failed bundles, terminate only owned child identities, and cover
-  deterministic timeout/state handling without changing scientific settings or
-  weakening cold input verification.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.

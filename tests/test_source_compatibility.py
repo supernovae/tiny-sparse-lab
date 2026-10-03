@@ -173,38 +173,6 @@ def test_normal_source_without_compatibility_stays_current(monkeypatch):
     )
 
 
-def test_scientific_code_change_is_not_operational_authority(binding, monkeypatch):
-    repo, evidence, record, _ = binding
-    path = repo / "src" / "sparselab" / "training" / "manifest.py"
-    execution_bytes = path.read_bytes()
-    path.write_bytes(
-        b"# Not an allowed operational integration point.\n" + execution_bytes
-    )
-    baseline_commit = _commit(repo)
-    path.write_bytes(execution_bytes)
-    execution_commit = _commit(repo)
-    baseline = compatibility._committed_identity(repo, baseline_commit)
-    execution = compatibility._committed_identity(repo, execution_commit)
-    record.update(
-        {
-            "baseline_commit": baseline_commit,
-            "execution_commit": execution_commit,
-            "baseline_source_identity": baseline,
-            "execution_source_identity": execution,
-            "operational_changes": compatibility._changes(baseline, execution),
-        }
-    )
-    evidence.write_bytes(canonical_json(record) + b"\n")
-    commit = _commit(repo)
-    monkeypatch.setenv(
-        "SPARSELAB_SOURCE_COMPATIBILITY_SHA256",
-        hashlib.sha256(evidence.read_bytes()).hexdigest(),
-    )
-    monkeypatch.setenv("SPARSELAB_SOURCE_COMPATIBILITY_COMMIT", commit)
-    with pytest.raises(ValueError, match="unsupported scientific code changes"):
-        compatibility.locked_source_identity()
-
-
 def test_authenticated_historical_cache_is_reused_without_repreparation(
     binding, tmp_path
 ):

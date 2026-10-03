@@ -1,0 +1,25 @@
+{
+  "format_version": 1,
+  "classification": "LOCAL_CPU_OPERATIONAL_READY",
+  "source_identity_sha256": "5a011e4ccad4c123bba10239c8bf89a4e8c28b226ed84f46c00d53f8bccd392f",
+  "scratch_root": "/srv/sparselab/state/scratch/devmind-deadline-cli-429f855e-c05b-45e6-9d32-9bc8fc3c0567",
+  "actual_cli": {
+    "stage_through": "warmup",
+    "smoke": {"updates": 2, "targets": 32, "checkpoint_reload_finite": true, "supervisor_sha256": "ba4095160ef646abbdd06daf53c85d100e1a1b1f53bb50547da92f3cef857115"},
+    "warmup": {"updates": 5, "targets": 80, "checkpoint_reload_finite": true, "supervisor_sha256": "2256d7f00261349022744082ea9544da39dcfb2424c247f21a14621056e685b3"},
+    "controlled_timeout": {"kind": "absolute", "updates": 0, "targets": 0, "owned_child_returncode": -15, "sealed_failure_sha256": "4bfa207383f643e6cff29b3269f5d71a7da999c3bdbab019b5a37a0e322d6cf1", "resource_proposal_created": false},
+    "readiness_dense": "passed"
+  },
+  "verification": {
+    "focused_pilot_suites": "53 passed; subsequent affected-suite execution also exercised these paths",
+    "affected_broader_suites": "191 passed, 1 skipped, 1 obsolete comment-only manifest allowlist assertion failed; assertion removed rather than re-pinned after explicitly authorized operational manifest instrumentation",
+    "source_compatibility_after_removal": "9 passed",
+    "ruff_affected_files": "passed",
+    "full_unfiltered_suite": "censored by outer 900-second command deadline at 51 percent; no full-suite pass claimed"
+  },
+  "limitations": [
+    "Tiny CPU fixtures establish operational CLI, checkpoint reload, deadline attribution and local recovery only.",
+    "This is not MODEL-0 full-shape ROCm fit, throughput, scientific execution or model-quality evidence.",
+    "The original failed full-shape attempt remains preserved and opaque; its exact slow operation is not known."
+  ]
+}

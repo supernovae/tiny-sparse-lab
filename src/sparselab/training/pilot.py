@@ -20,38 +20,46 @@ from sparselab.data.encoding import (
     validate_tokenizer_batch_limits,
 )
 from sparselab.data.packing import TokenBlockDataset, load_prepared_data
+from sparselab.engines.base import EngineOutOfMemory
 from sparselab.model.transformer import DenseLM
 from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime_profile import rederive_authorization, require_authorization
 from sparselab.staging import _read_sealed, _seal, pilot_config
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, source_identity
+from sparselab.training.pilot_progress import (
+    activate_pilot_progress,
+    pilot_phase,
+)
 from sparselab.training.trainer import _train_impl
 from sparselab.workdir import ensure_work_dir
 
 
 def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> Path:
-    inputs = _read_sealed(root / "inputs.json")
-    config = pilot_config(
-        RunConfig.model_validate(inputs["requested_config"]), purpose, root
-    )
-    tokenizer_batch_documents, tokenizer_batch_source_bytes = (
-        validate_tokenizer_batch_limits(
-            inputs.get("tokenizer_batch_documents", TOKENIZER_BATCH_DOCUMENTS),
-            inputs.get("tokenizer_batch_source_bytes", TOKENIZER_BATCH_SOURCE_BYTES),
+    with pilot_phase("input_validation"):
+        inputs = _read_sealed(root / "inputs.json")
+        config = pilot_config(
+            RunConfig.model_validate(inputs["requested_config"]), purpose, root
         )
-    )
-    envelope_data = inputs.get("resource_envelope")
-    resource_envelope = (
-        ResourceEnvelope.model_validate(envelope_data)
-        if envelope_data is not None
-        else None
-    )
-    evidence = inputs.get("runtime_authorization")
-    authorization = (
-        rederive_authorization(evidence, config) if evidence is not None else None
-    )
-    require_authorization(config, authorization)
+        tokenizer_batch_documents, tokenizer_batch_source_bytes = (
+            validate_tokenizer_batch_limits(
+                inputs.get("tokenizer_batch_documents", TOKENIZER_BATCH_DOCUMENTS),
+                inputs.get(
+                    "tokenizer_batch_source_bytes", TOKENIZER_BATCH_SOURCE_BYTES
+                ),
+            )
+        )
+        envelope_data = inputs.get("resource_envelope")
+        resource_envelope = (
+            ResourceEnvelope.model_validate(envelope_data)
+            if envelope_data is not None
+            else None
+        )
+        evidence = inputs.get("runtime_authorization")
+        authorization = (
+            rederive_authorization(evidence, config) if evidence is not None else None
+        )
+        require_authorization(config, authorization)
     run_id = f"{purpose}-{uuid.uuid4().hex}"
     _train_impl(
         config,
@@ -72,29 +80,32 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
     manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     checkpoint = manager.root / "latest.json"
-    verification = manager.verify(checkpoint)
+    with pilot_phase("checkpoint_verification"):
+        verification = manager.verify(checkpoint)
     if not verification.valid or verification.resume_level != "full":
         raise ValueError(f"pilot checkpoint failed verification: {verification.errors}")
-    snapshot = manager.load(checkpoint)
-    if (
-        snapshot.step != config.training.max_steps
-        or not 0 < snapshot.tokens_seen <= config.training.max_tokens
-    ):
-        raise ValueError("pilot did not complete its declared horizon")
-    model_config = config.model
-    if model_config.memory_package_path is not None:
-        model_config = model_config.model_copy(
-            update={"memory_package_path": run / "portable_package"}
+    with pilot_phase("model_reload"):
+        snapshot = manager.load(checkpoint)
+        if (
+            snapshot.step != config.training.max_steps
+            or not 0 < snapshot.tokens_seen <= config.training.max_tokens
+        ):
+            raise ValueError("pilot did not complete its declared horizon")
+        model_config = config.model
+        if model_config.memory_package_path is not None:
+            model_config = model_config.model_copy(
+                update={"memory_package_path": run / "portable_package"}
+            )
+        reloaded = DenseLM(model_config, config.attention).eval()
+        reloaded.load_state_dict(snapshot.model, strict=True)
+    with pilot_phase("data_open"):
+        data = load_prepared_data(
+            run / "data", byte_enabled=config.model.memory in {"byte", "portable"}
         )
-    reloaded = DenseLM(model_config, config.attention).eval()
-    reloaded.load_state_dict(snapshot.model, strict=True)
-    data = load_prepared_data(
-        run / "data", byte_enabled=config.model.memory in {"byte", "portable"}
-    )
-    example = TokenBlockDataset(
-        data.validation, config.training.seq_len, data.validation_byte_addresses
-    )[0]
-    with torch.inference_mode():
+        example = TokenBlockDataset(
+            data.validation, config.training.seq_len, data.validation_byte_addresses
+        )[0]
+    with pilot_phase("finite_forward"), torch.inference_mode():
         logits = reloaded(
             example[0].unsqueeze(0),
             byte_addresses=example[2].unsqueeze(0) if len(example) == 3 else None,
@@ -217,7 +228,12 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
         if con.execute("PRAGMA journal_mode=DELETE").fetchone()[0] != "delete":
             raise RuntimeError("pilot database did not finalize its WAL")
     path = config.logging.root_dir / "report.json"
-    _seal(path, report)
+    with pilot_phase(
+        "pilot_complete",
+        completed_steps=snapshot.step,
+        completed_targets=snapshot.tokens_seen,
+    ):
+        _seal(path, report)
     return path
 
 
@@ -227,31 +243,44 @@ def main() -> None:
     parser.add_argument("purpose", choices=("smoke", "warmup"))
     parser.add_argument("--cancel-path", type=Path)
     args = parser.parse_args()
-    ensure_work_dir()
-    root = args.root.resolve(strict=True)
-    try:
-        print(run_pilot(root, args.purpose, cancel_path=args.cancel_path))
-    except Exception as error:
-        out_of_memory = isinstance(error, (MemoryError, torch.OutOfMemoryError)) or (
-            isinstance(error, RuntimeError)
-            and any(
-                message in str(error)
-                for message in (
-                    "MPS backend out of memory",
-                    "DefaultCPUAllocator: can't allocate memory",
+    with activate_pilot_progress(
+        purpose=args.purpose, directory=args.root / "pilots" / args.purpose
+    ):
+        try:
+            with pilot_phase("pilot_start"):
+                ensure_work_dir()
+                root = args.root.resolve(strict=True)
+            print(run_pilot(root, args.purpose, cancel_path=args.cancel_path))
+        except Exception as error:
+            out_of_memory = isinstance(
+                error, (MemoryError, torch.OutOfMemoryError, EngineOutOfMemory)
+            ) or (
+                isinstance(error, RuntimeError)
+                and any(
+                    message in str(error)
+                    for message in (
+                        "MPS backend out of memory",
+                        "DefaultCPUAllocator: can't allocate memory",
+                    )
                 )
             )
-        )
-        _seal(
-            root / "pilots" / args.purpose / "failure.json",
-            {
-                "format_version": 1,
-                "kind": "out_of_memory" if out_of_memory else "pilot_failed",
-                "exception_type": type(error).__name__,
-                "message": str(error)[:16384],
-            },
-        )
-        raise
+            kind = (
+                "out_of_memory"
+                if out_of_memory
+                else "cancelled"
+                if isinstance(error, InterruptedError)
+                else "pilot_failed"
+            )
+            _seal(
+                args.root / "pilots" / args.purpose / "failure.json",
+                {
+                    "format_version": 1,
+                    "kind": kind,
+                    "exception_type": type(error).__name__,
+                    "message": str(error)[:16384],
+                },
+            )
+            raise
 
 
 if __name__ == "__main__":
