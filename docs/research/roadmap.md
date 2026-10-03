@@ -45,6 +45,16 @@ cross-host evidence.
 
 ## Open research questions
 
+- **Semantic kernel / external interfaces:** the separate
+  [staged MVP protocol](../../experiments/research/semantic-kernel-mvp-v1/protocol.md)
+  asks whether a small controller can use real source records and executable
+  capabilities without absorbing domain instances through SGD. A read-only AST
+  compiler and typed replay pilot are implemented; no neural controller is
+  evaluated or trained. Next: seal independently scored real-source tasks and
+  compare frozen closed-book, text-record and ordinary JSON-tool policies before
+  structure tuning. This does not alter DevMind, learned Engram portability or
+  establish semantic/latent adapter portability.
+
 These are evidence gaps and proposed investigations, not implementation TODOs.
 If an experiment exposes missing or defective software, open a separate Code task
 and add that implementation gap to [TODO.md](../../TODO.md). The main open

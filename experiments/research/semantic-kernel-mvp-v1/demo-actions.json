@@ -1,0 +1,6 @@
+[
+  {"op": "find", "args": {"name": "format_chat_prompt"}},
+  {"op": "call_sites", "args": {"name": "format_chat_prompt"}},
+  {"op": "find", "args": {"name": "SemanticRetriever"}},
+  {"op": "find", "args": {"name": "definitely_absent_kernel_probe"}}
+]
