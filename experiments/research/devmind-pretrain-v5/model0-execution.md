@@ -1,10 +1,10 @@
 # DevMind v5 MODEL-0 execution boundary
 
-Status: **INCOMPLETE — ExperimentPlan lock readback resource-censored**.
-Real preparation and its separate cold, deep load passed. The subsequent guarded
-lock command crossed the unchanged host-wide 1 GiB swap limit and was terminated.
-No completed lock/readback gate, ROCm full-shape proof, training, checkpoint,
-evaluation, model readiness, ModelFamily or model-continuation archive is claimed.
+Status: **INCOMPLETE — authenticated lock accepted; downstream MODEL-0 gates pending**.
+The authorized operational repair completed the real guarded lock and a separate
+cold, deep `experiment explain`, preserving the scientific digest, plan digest and
+canonical published lock bytes. ROCm full-shape proof, training, checkpoint,
+evaluation, readiness, family and model-continuation archive remain unexercised.
 
 ## Accepted results
 
@@ -89,7 +89,7 @@ actual developer packed-target attribution, or evidence of model quality.
 ExperimentPlan declaration validation and inspection subsequently passed; lock
 readback and all later execution gates did not complete.
 
-## Current first blocker: guarded lock readback
+## Historical blocker: guarded lock readback
 
 The complete [ExperimentPlan declaration](model0-plan.yaml) is committed and
 binds all four required input kinds: release, export, tokenizer and prepared data.
@@ -126,3 +126,41 @@ scientific change, SFT, weight publication or promotion occurred.
 operator policy, implementation limits, unexercised DSL questions and the ordinary
 resource-censored execution. Only the demonstrated overbroad checkpoint storage
 preview received a new code TODO; worker provenance remains independently open.
+
+## Authorized operational repair and lock acceptance
+
+[Lock acceptance](model0-plan-lock-acceptance.json) binds implementation commit
+`b2160c19018d89c633e75a734dff72cec53e4a44`, the explicitly authorized
+[source compatibility record](model0-operational-source-compatibility.json),
+its published authority commit, the new operational policy and actual receipts.
+The execution package retains its actual new source identity; the compatibility
+record authenticates the historical lock/prepared source, not a regenerated cache
+or a spoofed runtime identity.
+
+The first-class typed monitor now attributes RSS and swap to owned PID/create-time
+identities. Its independent host swap emergency uses **free** swap, not absolute
+host-wide used swap. Guards remain 12 GiB owned RSS, 1 GiB owned swap, 8 GiB
+available RAM and 1 GiB free host swap, with quarter-filesystem projected headroom.
+The historical failed lock and its negative evidence remain unchanged.
+
+- Real lock: **COMPLETE**, child exit 0, no violations, 1,604.322 seconds,
+  peak owned RSS **8,858,251,264 bytes**, owned swap **0**.
+- Separate cold explain: **COMPLETE**, child exit 0, no violations,
+  1,538.799 seconds, peak owned RSS **8,790,904,832 bytes**, owned swap **0**.
+- Scientific digest remains `975295d546eadd6d23b44a0fcb8f84cc08aeffb8f2982985f1ecc2675b03b8af`;
+  plan digest remains `275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45`.
+  The preserved lock file remains byte-identical, SHA
+  `b3b28b5b0ed6b1e8d6a18acbb1f96e17dee78dba394d5623c450d6eb0daf9855`.
+- Actual bound storage inspection: **4** checkpoint writes upper bound,
+  **4,031,011,511** existing prepared bytes, **0** future packed-cache bytes,
+  **4,031,011,511** future run-copy bytes; storage reported adequate.
+- Implementation verification: **44** focused tests passed; full CPU suite
+  **1,491 passed / 3 skipped**; Ruff check and format check passed. Guarded real
+  CLI smoke covered resolve/publication, separate cold open/explain and nonzero
+  child status preservation. Disposable smoke data is not scientific evidence.
+
+The checkpoint-preview TODO is closed; worker-sealing provenance remains open.
+The [Campaign declaration](model0-campaign.yaml) binds the retained release,
+export, tokenizer, prepared data, original token-only readiness receipt, accepted
+plan, registered ROCm runtime and all-upstream model approval. Static validation
+passed; this does not claim Campaign execution or acceptance of a model.

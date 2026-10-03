@@ -1,0 +1,526 @@
+{
+  "actual_execution_source_sha256": "8d8268b961aa73c91651e7e3a18ae80d0764d5a35e7624c3e0988fd5b711d3c6",
+  "availability": {
+    "path": "/srv/sparselab/state/experiments/devmind-v5-model0/locks/275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45.availability.json",
+    "sha256": "a4c0519a7b57a090699ecccf001894c7c7b50707f071e2feb0dd33bf451b1bef"
+  },
+  "availability_domain_sha256": "41eee0bffcf1ea04eaba28719b93237e4fd7c82c0ca46088beb6dee3ea8cd735",
+  "bound_storage_estimate": {
+    "available_storage": [
+      {
+        "available_bytes": 834634825728,
+        "available_inodes": 64983191,
+        "filesystem_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5",
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/runs",
+        "projected_bytes": 8398032323,
+        "projected_inodes": 320,
+        "reserve_bytes": 268435456,
+        "reserve_inodes": 128,
+        "status": "adequate"
+      }
+    ],
+    "checkpoint_every_minutes": null,
+    "checkpoint_every_steps": 2048,
+    "checkpoint_every_tokens": null,
+    "estimated_checkpoint_bytes": 831813488,
+    "estimated_free_bytes_after_retention": 825968357949,
+    "estimated_packed_cache_bytes": 0,
+    "estimated_peak_checkpoint_bytes_upper": 4159067440,
+    "estimated_retained_bytes_upper": 4159067440,
+    "estimated_retained_inodes_upper": 64,
+    "estimated_total_write_bytes_upper": 4159067440,
+    "existing_prepared_bytes": 4031011511,
+    "explicit_checkpoint_steps": [],
+    "future_cache_growth_bytes": 0,
+    "future_run_copy_bytes": 4031011511,
+    "initial_generation": 0,
+    "peak_generations_upper": 4,
+    "periodic_step_trigger_upper": 2,
+    "periodic_token_trigger_upper": 0,
+    "requested_plan_retention": {
+      "keep_best": true,
+      "keep_periodic": true,
+      "keep_previous": true,
+      "keep_terminal": true
+    },
+    "retained_generations_lower": 1,
+    "retained_generations_upper": 4,
+    "terminal_generation": 5525,
+    "validation_every_steps": 2048,
+    "validation_triggered_best_upper": 3,
+    "write_count_lower": 2,
+    "write_count_upper": 4
+  },
+  "bound_storage_inspection": {
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/completion.json",
+      "sha256": "8a4399e6db419985d8b7ec86248bae0812564bc44ad7864e792e8dd2e1e921a5"
+    },
+    "events": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/events.jsonl",
+      "sha256": "1f56c163d434623f82b3231de10c4fbea7836c432b755ea22968ec9fe01ab890"
+    },
+    "observed": {
+      "elapsed_seconds": 9.97846307799773,
+      "kind": "completion",
+      "launch": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "cpu",
+          "sparselab",
+          "--work-dir",
+          "/srv/sparselab/state",
+          "experiment",
+          "inspect",
+          "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-plan.yaml",
+          "--json"
+        ],
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/completion.json",
+        "cwd": "/home/byron/src/tiny-sparse-lab",
+        "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/events.jsonl",
+        "kind": "launch",
+        "monitor_record_version": 1,
+        "policy": {
+          "interval_seconds": 1.0,
+          "max_tree_rss_bytes": 12884901888,
+          "max_tree_swap_bytes": 1073741824,
+          "min_disk_free_bytes": 270275294208,
+          "min_disk_free_inodes": 16777216,
+          "min_host_available_ram_bytes": 8589934592,
+          "min_host_free_swap_bytes": 1073741824,
+          "min_projected_disk_free_bytes": 270275294208,
+          "min_projected_disk_free_inodes": 16777216,
+          "monitor_policy_version": 1,
+          "termination_grace_seconds": 5.0
+        },
+        "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+        "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+        "reserved_bytes": 34359738368,
+        "reserved_inodes": 4096,
+        "root": {
+          "create_time": 1791002215.25,
+          "pid": 327088
+        },
+        "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+        "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/command.stderr.log",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/command.stdout.log",
+        "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5"
+      },
+      "min_disk_free_bytes": 834634817536,
+      "min_disk_free_inodes": 64983191,
+      "min_host_available_ram_bytes": 30388830208,
+      "min_host_free_swap_bytes": 7332302848,
+      "min_projected_disk_free_bytes": 800275079168,
+      "min_projected_disk_free_inodes": 64979095,
+      "monitor_record_version": 1,
+      "peak_tree_rss_bytes": 449122304,
+      "peak_tree_swap_bytes": 0,
+      "returncode": 0,
+      "sample_count": 10,
+      "status": "COMPLETE",
+      "violations": []
+    },
+    "stderr": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/command.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stdout": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-bound-inspect-b605bab-v1/command.stdout.log",
+      "sha256": "aefbbc6160f4f5b5619441539767374fa6c491994c997500da18aa919c9f6824"
+    }
+  },
+  "campaign_declaration": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-campaign.yaml",
+    "sha256": "0ffb42d7188cf5ce4ce7ab9a4437010776c7b4edf99011951e3417329d52b0f5"
+  },
+  "campaign_static_validation": {
+    "campaign_version": 1,
+    "command": "validate",
+    "declaration_sha256": "417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda",
+    "format": "sparselab-campaign-command-v1",
+    "id": "devmind-v5-model0",
+    "stages": [
+      {
+        "id": "release",
+        "kind": "artifact_reference",
+        "requires": [],
+        "scope": "corpus",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "export",
+        "kind": "artifact_reference",
+        "requires": [],
+        "scope": "corpus",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "tokenizer",
+        "kind": "tokenizer_reference",
+        "requires": [],
+        "scope": "tokenizer",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "packed",
+        "kind": "artifact_reference",
+        "requires": [],
+        "scope": "model",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "corpus-ready",
+        "kind": "corpus_readiness",
+        "requires": [
+          "release",
+          "tokenizer"
+        ],
+        "scope": "corpus",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "plan",
+        "kind": "experiment_plan",
+        "requires": [
+          "release",
+          "export",
+          "tokenizer",
+          "packed",
+          "corpus-ready"
+        ],
+        "scope": "model",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "runtime",
+        "kind": "runtime_acceptance",
+        "requires": [
+          "plan"
+        ],
+        "scope": "runtime",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "gate",
+        "kind": "approval",
+        "requires": [
+          "runtime"
+        ],
+        "scope": "model",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "run",
+        "kind": "experiment_run",
+        "requires": [
+          "plan",
+          "runtime",
+          "gate"
+        ],
+        "scope": "model",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "collect",
+        "kind": "experiment_collect",
+        "requires": [
+          "plan",
+          "run"
+        ],
+        "scope": "evaluation",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "evaluation",
+        "kind": "evaluation",
+        "requires": [
+          "collect",
+          "runtime"
+        ],
+        "scope": "evaluation",
+        "state": "NOT_STARTED"
+      },
+      {
+        "id": "readiness",
+        "kind": "model_readiness",
+        "requires": [
+          "evaluation"
+        ],
+        "scope": "model",
+        "state": "NOT_STARTED"
+      }
+    ],
+    "valid": true
+  },
+  "denominator_receipt": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json",
+    "sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e"
+  },
+  "historical_failure_attribution": "The old absolute host USED swap ceiling failed. Owned task swap was not measured; task causation of all host swap is not established. The negative evidence is unchanged.",
+  "historical_negative_evidence": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-plan-lock-stop.json",
+    "sha256": "4ace86ce2fc7ce4db13318b50386b54df8b26c76567b645c434bb11337144179"
+  },
+  "implementation_commit": "b2160c19018d89c633e75a734dff72cec53e4a44",
+  "independent_cold_explain": {
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/completion.json",
+      "sha256": "7d792f4a8fe893f452606767edc3eb45c0ee61c90831e676835e6a052ddefff3"
+    },
+    "events": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/events.jsonl",
+      "sha256": "f3d3f8345ba56ef0e7997f8d59e6d380855d38a48bc1d2f1d31562e5721ad0ad"
+    },
+    "observed": {
+      "elapsed_seconds": 1538.7991635979997,
+      "kind": "completion",
+      "launch": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "cpu",
+          "sparselab",
+          "--work-dir",
+          "/srv/sparselab/state",
+          "experiment",
+          "explain",
+          "/srv/sparselab/state/experiments/devmind-v5-model0/locks/275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45.json",
+          "--json"
+        ],
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/completion.json",
+        "cwd": "/home/byron/src/tiny-sparse-lab",
+        "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/events.jsonl",
+        "kind": "launch",
+        "monitor_record_version": 1,
+        "policy": {
+          "interval_seconds": 1.0,
+          "max_tree_rss_bytes": 12884901888,
+          "max_tree_swap_bytes": 1073741824,
+          "min_disk_free_bytes": 270275294208,
+          "min_disk_free_inodes": 16777216,
+          "min_host_available_ram_bytes": 8589934592,
+          "min_host_free_swap_bytes": 1073741824,
+          "min_projected_disk_free_bytes": 270275294208,
+          "min_projected_disk_free_inodes": 16777216,
+          "monitor_policy_version": 1,
+          "termination_grace_seconds": 5.0
+        },
+        "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+        "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+        "reserved_bytes": 34359738368,
+        "reserved_inodes": 4096,
+        "root": {
+          "create_time": 1791000619.11,
+          "pid": 325332
+        },
+        "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+        "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/command.stderr.log",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/command.stdout.log",
+        "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5"
+      },
+      "min_disk_free_bytes": 825954951168,
+      "min_disk_free_inodes": 64983191,
+      "min_host_available_ram_bytes": 21965135872,
+      "min_host_free_swap_bytes": 7332282368,
+      "min_projected_disk_free_bytes": 791595212800,
+      "min_projected_disk_free_inodes": 64979095,
+      "monitor_record_version": 1,
+      "peak_tree_rss_bytes": 8790904832,
+      "peak_tree_swap_bytes": 0,
+      "returncode": 0,
+      "sample_count": 1484,
+      "status": "COMPLETE",
+      "violations": []
+    },
+    "stderr": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/command.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stdout": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-cold-explain-b605bab-v1/command.stdout.log",
+      "sha256": "fa2219252d4507d1f73a62f24b3584b5aa366bf78dcaa7c0709371185fa19452"
+    }
+  },
+  "input_references": {
+    "budget-measurement-policy.yaml": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/budget-measurement-policy.yaml",
+      "sha256": "8078be9e968583eb26eadfd19c3d4eb1d6cfb723c958038eba4fb4c6e26eab3b"
+    },
+    "generation-panel.json": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/generation-panel.json",
+      "sha256": "e09fc7a48ff3c369daee5def62057d3d827769e80aff9bb5ea5b5851d947fd5b"
+    },
+    "model0-plan.yaml": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-plan.yaml",
+      "sha256": "a5e9ff11f5c71827ea576d42e321c41de31360653457e175bebafe1772d075b3"
+    },
+    "model0-preparation-verification.json": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "sha256": "85354150278ea81f4924713d1735368a46f62efcc8268c6b9f1ee1580e27c570"
+    },
+    "model0-run.yaml": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-run.yaml",
+      "sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5"
+    },
+    "model0-science.json": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-science.json",
+      "sha256": "5ffe6b44f76fdd303200963a9e1470240e9213874946a3dccfba07b90a71f839"
+    },
+    "readiness.yaml": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/readiness.yaml",
+      "sha256": "a7e9791a53791dd98a04f32b67e865165697649e0294223728a85d69c7bb6e86"
+    },
+    "suite.yaml": {
+      "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/suite.yaml",
+      "sha256": "6ec9b344351b8a8b3f9efd10cd754ca54646eb2079fad727d7531a486dbf90aa"
+    }
+  },
+  "limitations": [
+    "Lock completion and independent deep readback prove authenticated execution and unchanged bindings, not model quality.",
+    "Fresh ROCm doctor, full-shape gates, Campaign attempt, training, checkpoint collection, evaluation, generation, readiness, family, recovery and archive have not yet been exercised at this acceptance boundary."
+  ],
+  "lock": {
+    "path": "/srv/sparselab/state/experiments/devmind-v5-model0/locks/275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45.json",
+    "sha256": "b3b28b5b0ed6b1e8d6a18acbb1f96e17dee78dba394d5623c450d6eb0daf9855"
+  },
+  "lock_execution": {
+    "completion": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/completion.json",
+      "sha256": "550462dcec6791deab8b07458cd07e494899753d4a7e63e2230d62e9686af28a"
+    },
+    "events": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/events.jsonl",
+      "sha256": "a19a742c59804f105a4bd22230e4a5a8b834aedef3194e26b80f81f9a729ab96"
+    },
+    "observed": {
+      "elapsed_seconds": 1604.3218688729976,
+      "kind": "completion",
+      "launch": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "cpu",
+          "sparselab",
+          "--work-dir",
+          "/srv/sparselab/state",
+          "experiment",
+          "lock",
+          "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-plan.yaml",
+          "--json"
+        ],
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/completion.json",
+        "cwd": "/home/byron/src/tiny-sparse-lab",
+        "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/events.jsonl",
+        "kind": "launch",
+        "monitor_record_version": 1,
+        "policy": {
+          "interval_seconds": 1.0,
+          "max_tree_rss_bytes": 12884901888,
+          "max_tree_swap_bytes": 1073741824,
+          "min_disk_free_bytes": 270275294208,
+          "min_disk_free_inodes": 16777216,
+          "min_host_available_ram_bytes": 8589934592,
+          "min_host_free_swap_bytes": 1073741824,
+          "min_projected_disk_free_bytes": 270275294208,
+          "min_projected_disk_free_inodes": 16777216,
+          "monitor_policy_version": 1,
+          "termination_grace_seconds": 5.0
+        },
+        "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+        "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+        "reserved_bytes": 34359738368,
+        "reserved_inodes": 4096,
+        "root": {
+          "create_time": 1790998966.0,
+          "pid": 323398
+        },
+        "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+        "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/command.stderr.log",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/command.stdout.log",
+        "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5"
+      },
+      "min_disk_free_bytes": 825955717120,
+      "min_disk_free_inodes": 64983196,
+      "min_host_available_ram_bytes": 21465600000,
+      "min_host_free_swap_bytes": 7740452864,
+      "min_projected_disk_free_bytes": 791595978752,
+      "min_projected_disk_free_inodes": 64979100,
+      "monitor_record_version": 1,
+      "peak_tree_rss_bytes": 8858251264,
+      "peak_tree_swap_bytes": 0,
+      "returncode": 0,
+      "sample_count": 1552,
+      "status": "COMPLETE",
+      "violations": []
+    },
+    "stderr": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/command.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stdout": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lock-b605bab-v1/command.stdout.log",
+      "sha256": "c4d60b68bf914b913e93a3a3c7a0f8f8fc7ffdc95401b2a7ccf77bbf2a7d0e26"
+    }
+  },
+  "model0_lock_acceptance_version": 1,
+  "operator_prelaunch_policy_error": {
+    "field": "version",
+    "outcome": "Rejected before child launch; corrected policy used for the single real lock execution.",
+    "required_field": "monitor_policy_version"
+  },
+  "plan_sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45",
+  "policy": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+    "sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c"
+  },
+  "scientific_controls": {
+    "data_regenerated": false,
+    "denominator_recomputed": false,
+    "effective_batch_targets": 8192,
+    "gradient_accumulation": 4,
+    "micro_batch_size": 2,
+    "optimizer_updates": 5525,
+    "parameter_count": 69317760,
+    "precision": "bf16",
+    "raw_distinct_developer_source_tokens": 30175366,
+    "sequence_length": 1024,
+    "supervised_target_budget": 45260800,
+    "tokenizer_refitted": false,
+    "vocab_size": 32768
+  },
+  "scientific_sha256": "975295d546eadd6d23b44a0fcb8f84cc08aeffb8f2982985f1ecc2675b03b8af",
+  "source_compatibility": {
+    "authority_commit": "b605bab4256e63157d749017032dd19daf04ed5b",
+    "authorization": "Explicit audited compatibility binding selected by the user; runtime source identity remains the actual new source.",
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-operational-source-compatibility.json",
+    "sha256": "688afaa337abf3f9770526451a075ca9ccd5a8b2441128b6be917c716292e3ed"
+  },
+  "status": "ACCEPTED_LOCK_ONLY",
+  "storage_reservation": {
+    "filesystem_total_bytes": 1081101176832,
+    "filesystem_total_inodes": 67108864,
+    "interpretation": "The independent monitor checks actual filesystem free values and free-minus-reservation. Existing prepared bytes are already allocated; future prepared-cache growth is zero. The conservative reservation covers future stages, checkpoint writes, run copies and logs, not a phantom new packed cache.",
+    "operational_future_reserve_bytes": 34359738368,
+    "operational_future_reserve_inodes": 4096,
+    "quarter_free_floor_bytes": 270275294208,
+    "quarter_free_floor_inodes": 16777216
+  },
+  "tested_execution_commit": "b605bab4256e63157d749017032dd19daf04ed5b",
+  "verification": {
+    "cli_smoke": "Typed guarded resolve/publish/cold-open/explain path completed; nonzero child status preserved; disposable fixture is not scientific evidence.",
+    "focused": "44 passed in 7.04s",
+    "full_cpu": "1491 passed, 3 skipped in 623.84s",
+    "ruff_check": "All checks passed",
+    "ruff_format": "517 files already formatted"
+  }
+}
