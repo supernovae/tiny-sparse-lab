@@ -1,0 +1,1301 @@
+{
+  "evidence_version": 1,
+  "id": "devmind-v5-model0-current-source-full-shape-v1",
+  "classification": "CODE_READINESS_NOT_SCIENTIFIC_RESULT",
+  "status": "ACCEPTED",
+  "execution_commit": "47d48f375392705e2ad9d007284613e1c6684fc3",
+  "authority_commit": "9c4bd3440cf25832b42b45296d40f0a70ca85a7d",
+  "authority_path": "model0-corpus-input-phase-source-compatibility.json",
+  "authority_sha256": "a16118a6a9456fe838bd53cf62831d4cb714a874b0b373465e7db417bc305deb",
+  "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+  "stage_root": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-47d48f3-input-phase-v1",
+  "stage_sha256": "b0cf4500ac56f9c957ff7bff080ef2d9fc05ba14e046a8930d409c301dc36373",
+  "stage_file_sha256": "6c5ab4950d7f6b856725c1b1844e7b797d7d660d60e19ce0d45936464a1b22c6",
+  "bundle_sha256": "50172e33d13c99d80e12300447f8c57e1dd17eef4800b87b89c500ddb31b7ed9",
+  "requested_config": {
+    "attention": {
+      "block_size": null,
+      "kind": "dense",
+      "latent_dim": null,
+      "rope_base": 10000,
+      "selected_blocks": null,
+      "window_size": null
+    },
+    "checkpoint": {
+      "every_minutes": null,
+      "every_steps": 2048,
+      "every_tokens": null,
+      "keep_periodic": true
+    },
+    "dataset": {
+      "allocation_manifest_path": null,
+      "cache_dir": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared",
+      "corpus_export_path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "corpus_release_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "dataset_config": null,
+      "license": "AGPL-3.0-only; Apache-2.; Apache-2.0; Apache-2.0 OR MIT; Artistic-2.0 AND ISC; BSD-2-Clause; BSD-2-Clause AND (Apache-2.0 OR MIT); BSD-3-Clause; BSD-3-Clause AND GPL-2.0-or-later; CC-BY-4.0; CC-BY-SA-4.0; GFDL-1.3-or-later; GPL-1.0-or-later; GPL-2.0; GPL-2.0+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; IETF-Trust-TLP-5; ISC; LGPL-2.1; LGPL-2.1-or-later; LicenseRef-SQLite-Public-Domain; MIT; MIT-0; MPL-2.0; MPL-2.0 OR EPL-1.0; ODC-By-1.0; PSF-2.0; PSF-2.0 AND (MIT OR Apache-2.0); PostgreSQL; curl",
+      "revision": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "source": "local_text",
+      "synthetic_seed": 42,
+      "train_max_documents": 796563,
+      "train_max_tokens": 4000183822,
+      "train_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/train.jsonl",
+      "validation_max_documents": 16411,
+      "validation_max_tokens": 82594599,
+      "validation_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/validation.jsonl"
+    },
+    "evaluation": {
+      "every_steps": 2048,
+      "max_batches": 64
+    },
+    "logging": {
+      "architecture_diagnostics": "scalar",
+      "every_steps": 100,
+      "root_dir": "/srv/sparselab/state/experiments/devmind-pretrain-v5/runs"
+    },
+    "model": {
+      "experts_per_token": 1,
+      "ffn": "dense",
+      "ffn_dim": 1664,
+      "hidden_dim": 640,
+      "max_seq_len": 1024,
+      "memory": "none",
+      "memory_dim": 0,
+      "memory_hash_heads": 1,
+      "memory_ngram_orders": [],
+      "memory_ngram_size": 0,
+      "memory_package_path": null,
+      "memory_table_size": 0,
+      "num_experts": 1,
+      "num_heads": 10,
+      "num_layers": 10,
+      "rms_norm_eps": 0.000001,
+      "router_aux_loss_coefficient": 0,
+      "semantic_memory_dim": null,
+      "shared_expert": false,
+      "tie_embeddings": true,
+      "vocab_size": 32768
+    },
+    "name": "devmind-v5-model0",
+    "optimizer": {
+      "betas": [
+        0.9,
+        0.95
+      ],
+      "decay_steps": 5525,
+      "eps": 1e-8,
+      "floor": 0.00003,
+      "name": "adamw",
+      "peak": 0.0003,
+      "state_offload": false,
+      "warmup_steps": 2000,
+      "weight_decay": 0.1
+    },
+    "runtime": {
+      "backend": "rocm",
+      "device_index": 0,
+      "engine": "pytorch",
+      "memory": {
+        "activation_checkpointing": {
+          "enabled": true,
+          "strategy": "transformer_block"
+        },
+        "activation_offload": {
+          "enabled": false
+        },
+        "allowed_optimizers": [],
+        "allowed_sequence_lengths": [],
+        "budget_bytes": null,
+        "max_device_memory_fraction": 0.9,
+        "policy": "balanced"
+      },
+      "precision": "bf16"
+    },
+    "schema_version": 2,
+    "seed": 42,
+    "staging": {
+      "smoke_steps": 2,
+      "warmup_steps": 5
+    },
+    "tokenizer": {
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json"
+    },
+    "training": {
+      "deterministic": true,
+      "grad_clip_norm": 1,
+      "gradient_accumulation": 4,
+      "max_steps": 5525,
+      "max_tokens": 45260800,
+      "micro_batch_size": 2,
+      "neural_loss_weight": 1,
+      "seq_len": 1024
+    }
+  },
+  "runtime": {
+    "backend": "rocm",
+    "device_driver_allocated_bytes": null,
+    "device_free_bytes": 24186904576,
+    "device_index": 0,
+    "device_name": "AMD Radeon RX 7900 XTX",
+    "device_recommended_bytes": null,
+    "device_total_bytes": 25708240896,
+    "driver_version": null,
+    "engine": "pytorch",
+    "format_version": 1,
+    "framework_version": "2.13.0+rocm10.0.0",
+    "host_architecture": "x86_64",
+    "host_environment": "wsl2",
+    "host_os": "linux",
+    "limitations": [
+      "driver version unavailable through safe PyTorch APIs"
+    ],
+    "measured_at": "2026-10-03T19:58:14.779741+00:00",
+    "measurement_source": "torch.cuda.mem_get_info",
+    "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+    "physical_device_id": "63643535-3163-3964-6534-396632343564",
+    "precision_capabilities": [
+      "fp32",
+      "bf16",
+      "fp16"
+    ],
+    "runtime_version": "7.15.26333",
+    "system_available_bytes": 29816463360,
+    "system_total_bytes": 33610706944,
+    "tested_features": [
+      "forward_backward_optimizer",
+      "optimizer:adamw",
+      "activation_checkpointing"
+    ],
+    "tested_precisions": [
+      "bf16"
+    ],
+    "torch_device": "cuda:0",
+    "validated_at": "2026-10-03T19:58:14.779929+00:00"
+  },
+  "deadline_policy": {
+    "absolute_timeout_seconds": 7200,
+    "initialization_timeout_seconds": 1800,
+    "no_progress_timeout_seconds": 1200,
+    "pilot_deadline_version": 1,
+    "smoke": null,
+    "termination_grace_seconds": 5,
+    "warmup": null
+  },
+  "outer_monitor": {
+    "monitor_record_version": 1,
+    "kind": "completion",
+    "launch": {
+      "monitor_record_version": 1,
+      "kind": "launch",
+      "command": [
+        "env",
+        "UV_PROJECT_ENVIRONMENT=/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx",
+        "uv",
+        "run",
+        "--locked",
+        "--no-sync",
+        "sparselab",
+        "--work-dir",
+        "/srv/sparselab/state",
+        "stage",
+        "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-run.yaml",
+        "--through",
+        "warmup",
+        "--runtime",
+        "rocm-7900xtx",
+        "--resource-envelope",
+        "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+        "--tokenizer-batch-source-bytes",
+        "8388608",
+        "--pilot-deadline-policy",
+        "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-pilot-deadline-policy-f2a856e-v1.yaml",
+        "--output",
+        "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-47d48f3-input-phase-v1"
+      ],
+      "root": {
+        "pid": 461657,
+        "create_time": 1791057481.17
+      },
+      "policy": {
+        "monitor_policy_version": 1,
+        "max_tree_rss_bytes": 12884901888,
+        "max_tree_swap_bytes": 1073741824,
+        "min_host_available_ram_bytes": 8589934592,
+        "min_host_free_swap_bytes": 1073741824,
+        "min_disk_free_bytes": 270275294208,
+        "min_disk_free_inodes": 16777216,
+        "min_projected_disk_free_bytes": 270275294208,
+        "min_projected_disk_free_inodes": 16777216,
+        "interval_seconds": 1,
+        "termination_grace_seconds": 5
+      },
+      "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5",
+      "cwd": "/home/byron/src/tiny-sparse-lab",
+      "reserved_bytes": 68719476736,
+      "reserved_inodes": 4096,
+      "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+      "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+      "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+      "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+      "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-47d48f3-input-phase-v1/command.stdout.log",
+      "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-47d48f3-input-phase-v1/command.stderr.log",
+      "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-47d48f3-input-phase-v1/events.jsonl",
+      "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-47d48f3-input-phase-v1/completion.json"
+    },
+    "returncode": 0,
+    "status": "COMPLETE",
+    "violations": [],
+    "peak_tree_rss_bytes": 9985232896,
+    "peak_tree_swap_bytes": 579973120,
+    "min_host_available_ram_bytes": 22319841280,
+    "min_host_free_swap_bytes": 4751892480,
+    "min_disk_free_bytes": 774399344640,
+    "min_disk_free_inodes": 64982364,
+    "min_projected_disk_free_bytes": 705679867904,
+    "min_projected_disk_free_inodes": 64978268,
+    "elapsed_seconds": 3235.979690143009,
+    "sample_count": 3012
+  },
+  "cold_verification": {
+    "monitor": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "launch": {
+        "monitor_record_version": 1,
+        "kind": "launch",
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "cpu",
+          "python",
+          "/srv/sparselab/state/scratch/devmind-v5/tmp/verify_current_fullshape.py"
+        ],
+        "root": {
+          "pid": 476916,
+          "create_time": 1791060912.63
+        },
+        "policy": {
+          "monitor_policy_version": 1,
+          "max_tree_rss_bytes": 12884901888,
+          "max_tree_swap_bytes": 1073741824,
+          "min_host_available_ram_bytes": 8589934592,
+          "min_host_free_swap_bytes": 1073741824,
+          "min_disk_free_bytes": 270275294208,
+          "min_disk_free_inodes": 16777216,
+          "min_projected_disk_free_bytes": 270275294208,
+          "min_projected_disk_free_inodes": 16777216,
+          "interval_seconds": 1,
+          "termination_grace_seconds": 5
+        },
+        "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5",
+        "cwd": "/home/byron/src/tiny-sparse-lab",
+        "reserved_bytes": 0,
+        "reserved_inodes": 10,
+        "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+        "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+        "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-current-source-cold-verify-v2/command.stdout.log",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-current-source-cold-verify-v2/command.stderr.log",
+        "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-current-source-cold-verify-v2/events.jsonl",
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-current-source-cold-verify-v2/completion.json"
+      },
+      "returncode": 0,
+      "status": "COMPLETE",
+      "violations": [],
+      "peak_tree_rss_bytes": 455430144,
+      "peak_tree_swap_bytes": 0,
+      "min_host_available_ram_bytes": 30879350784,
+      "min_host_free_swap_bytes": 5548838912,
+      "min_disk_free_bytes": 777824821248,
+      "min_disk_free_inodes": 64982348,
+      "min_projected_disk_free_bytes": 777824821248,
+      "min_projected_disk_free_inodes": 64982338,
+      "elapsed_seconds": 23.22602904800442,
+      "sample_count": 22
+    },
+    "record_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-current-source-cold-verification.json",
+    "record_sha256": "94d2fd24a0b53c68fbd7d8d0ec9d78a7a68b86df8b367906a8dc04b845db0b0f",
+    "checks": [
+      "independent cold stage inventory bytes",
+      "sealed stage, pilot reports and supervisor records",
+      "full-state checkpoint verification and native state load",
+      "exact pilot counters and checkpoint identity"
+    ],
+    "initial_operator_script_error": {
+      "reason": "uppercase COMPLETE was incorrectly assumed for the lowercase pilot report status; corrected assertion, not runtime code or evidence",
+      "guard_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-current-source-cold-verify-v1/completion.json"
+    }
+  },
+  "pilots": {
+    "smoke": {
+      "report": {
+        "certifies_fit": false,
+        "checkpoint_reload": "verified_full_state_and_finite_forward",
+        "checkpoint_sha256": "03e4178ff741cc34a1c1a444b894a86f3e982c65dcff32aafad58afb9562dbbf",
+        "format_version": 1,
+        "limitation": "pilot measurements cover these updates only; sampled peaks cannot certify an allocator high-water mark",
+        "manifest_sha256": "3347aff7ddaaeefdc73bf4df5d931bebadbe56c27ab85282c79d4be9f845aeda",
+        "memory_metrics": {
+          "memory/device_allocated_bytes": 1461253120,
+          "memory/device_peak_allocated_bytes": 2372702720,
+          "memory/device_peak_reserved_bytes": 2797600768,
+          "memory/device_reserved_bytes": 2797600768,
+          "memory/observer_active_seconds": 0,
+          "memory/process_peak_rss_bytes": 6020149248,
+          "memory/process_rss_bytes": 6020149248,
+          "memory/sampling_seconds": 0.00766226502310019,
+          "memory/system_available_bytes": 25444200448
+        },
+        "observed_device_peak_bytes": 2797600768,
+        "observed_host_peak_bytes": 6020149248,
+        "observed_peak_bytes": 2797600768,
+        "peak_method": "native",
+        "peak_scope": "device",
+        "purpose": "smoke",
+        "run_id": "smoke-8fe62d018048480f9b4137e5525b079b",
+        "runtime": {
+          "backend": "rocm",
+          "device_driver_allocated_bytes": null,
+          "device_free_bytes": 24214917120,
+          "device_index": 0,
+          "device_name": "AMD Radeon RX 7900 XTX",
+          "device_recommended_bytes": null,
+          "device_total_bytes": 25708240896,
+          "driver_version": null,
+          "engine": "pytorch",
+          "format_version": 1,
+          "framework_version": "2.13.0+rocm10.0.0",
+          "host_architecture": "x86_64",
+          "host_environment": "wsl2",
+          "host_os": "linux",
+          "limitations": [
+            "driver version unavailable through safe PyTorch APIs"
+          ],
+          "measured_at": "2026-10-03T20:18:49.479195+00:00",
+          "measurement_source": "torch.cuda.mem_get_info",
+          "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+          "physical_device_id": "63643535-3163-3964-6534-396632343564",
+          "precision_capabilities": [
+            "fp32",
+            "bf16",
+            "fp16"
+          ],
+          "runtime_version": "7.15.26333",
+          "system_available_bytes": 24791670784,
+          "system_total_bytes": 33610706944,
+          "tested_features": [
+            "forward_backward_optimizer",
+            "optimizer:adamw",
+            "activation_checkpointing"
+          ],
+          "tested_precisions": [
+            "bf16"
+          ],
+          "torch_device": "cuda:0",
+          "validated_at": "2026-10-03T20:18:49.479363+00:00"
+        },
+        "sha256": "28179b3c7609f3c4e4f3c94aca07ddb4157953f76af1ff007ec820b0947ae37a",
+        "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+        "status": "complete",
+        "step": 2,
+        "timed_updates": 2,
+        "tokens_per_second": 17434.11690432551,
+        "tokens_seen": 16384,
+        "update_observations": [
+          {
+            "step": 1,
+            "targets": 8192,
+            "update_seconds": 0.5850785869988613
+          },
+          {
+            "step": 2,
+            "targets": 8192,
+            "update_seconds": 0.3546879689965863
+          }
+        ],
+        "update_seconds": 0.9397665559954476
+      },
+      "supervisor": {
+        "completed_steps": 2,
+        "completed_targets": 16384,
+        "current_phase": null,
+        "current_step": 2,
+        "effective_deadlines": {
+          "absolute_timeout_seconds": 7200,
+          "initialization_timeout_seconds": 1800,
+          "no_progress_timeout_seconds": 1200
+        },
+        "elapsed_seconds": 1310.0634393630025,
+        "elapsed_since_progress_seconds": 1.4801316029916052,
+        "events_ref": "supervisor-events.jsonl",
+        "events_sha256": "31c81cac2ccdd59a7a0e691ca8a262ff42738429a2128a8c2ac1454191f94286",
+        "execution_log_bytes": 14834,
+        "execution_log_omitted_bytes": 0,
+        "execution_log_ref": "execution.log",
+        "format_version": 1,
+        "last_complete_phase": "pilot_complete",
+        "last_progress_elapsed_seconds": 1308.583307760011,
+        "last_progress_timestamp": 1791059396.5106134,
+        "min_host_available_ram_bytes": 22320091136,
+        "min_host_free_swap_bytes": 5607849984,
+        "monitor_policy": {
+          "interval_seconds": 1,
+          "max_tree_rss_bytes": null,
+          "max_tree_swap_bytes": null,
+          "min_disk_free_bytes": null,
+          "min_disk_free_inodes": null,
+          "min_host_available_ram_bytes": null,
+          "min_host_free_swap_bytes": null,
+          "min_projected_disk_free_bytes": null,
+          "min_projected_disk_free_inodes": null,
+          "monitor_policy_version": 1,
+          "termination_grace_seconds": 5
+        },
+        "monitor_policy_sha256": "cf54d683b3943bd4ce61eef43ca6b814257f69b9a6e177e36c18e74b95917005",
+        "monitor_source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "peak_tree_rss_bytes": 9321680896,
+        "peak_tree_swap_bytes": 0,
+        "pilot_supervisor_version": 1,
+        "policy": {
+          "absolute_timeout_seconds": 7200,
+          "initialization_timeout_seconds": 1800,
+          "no_progress_timeout_seconds": 1200,
+          "pilot_deadline_version": 1,
+          "smoke": null,
+          "termination_grace_seconds": 5,
+          "warmup": null
+        },
+        "policy_sha256": "4137d3af2f868d13f7a83306dcb8cc5577dfa95aaa6c01cb8c165359fbf9a829",
+        "purpose": "smoke",
+        "reason": null,
+        "returncode": 0,
+        "root": {
+          "create_time": 1791058087.6,
+          "pid": 462841
+        },
+        "sample_count": 1240,
+        "sequence": 1608,
+        "sha256": "98db025e9fd31113ae963010e1d026e5571bf80694d2525f33235c1476ace06e",
+        "source_sha256": "b94585aaaa5e045b8834bd514313c54626e92cb579b3222301ca56173edfd61f",
+        "status": "COMPLETE",
+        "timeout_kind": null
+      },
+      "checkpoint": {
+        "architecture_sha256": "846bc33342437006e41bcf1a584951a4b9897decf110cbdbd5da1a893eb0cf2e",
+        "backend": "rocm",
+        "config_sha256": "47c4e43f5d977548bcca9b7de135f033c457e8d52878b2a97a870a6148eee4e4",
+        "created_at": "2026-10-03T20:29:39.728159+00:00",
+        "engine": "pytorch",
+        "files": [
+          {
+            "bytes": 554644060,
+            "name": "training_state.pt",
+            "sha256": "4e23f77f7d0afec536fecdc28f563779da5296496bc7ae1121d5fcdccba320f9"
+          },
+          {
+            "bytes": 264497688,
+            "name": "weights-00001.safetensors",
+            "sha256": "ba8805708a9ab99ad869e7f65032a855e76ec7761fb4b760f3e518574cba818d",
+            "tensors": [
+              "blocks.0.attention.k_proj.weight",
+              "blocks.0.attention.out_proj.weight",
+              "blocks.0.attention.q_proj.weight",
+              "blocks.0.attention.v_proj.weight",
+              "blocks.0.ffn.down.weight",
+              "blocks.0.ffn.gate.weight",
+              "blocks.0.ffn.up.weight",
+              "blocks.0.norm1.weight",
+              "blocks.0.norm2.weight",
+              "blocks.1.attention.k_proj.weight",
+              "blocks.1.attention.out_proj.weight",
+              "blocks.1.attention.q_proj.weight",
+              "blocks.1.attention.v_proj.weight",
+              "blocks.1.ffn.down.weight",
+              "blocks.1.ffn.gate.weight",
+              "blocks.1.ffn.up.weight",
+              "blocks.1.norm1.weight",
+              "blocks.1.norm2.weight",
+              "blocks.2.attention.k_proj.weight",
+              "blocks.2.attention.out_proj.weight",
+              "blocks.2.attention.q_proj.weight",
+              "blocks.2.attention.v_proj.weight",
+              "blocks.2.ffn.down.weight",
+              "blocks.2.ffn.gate.weight",
+              "blocks.2.ffn.up.weight",
+              "blocks.2.norm1.weight",
+              "blocks.2.norm2.weight",
+              "blocks.3.attention.k_proj.weight",
+              "blocks.3.attention.out_proj.weight",
+              "blocks.3.attention.q_proj.weight",
+              "blocks.3.attention.v_proj.weight",
+              "blocks.3.ffn.down.weight",
+              "blocks.3.ffn.gate.weight",
+              "blocks.3.ffn.up.weight",
+              "blocks.3.norm1.weight",
+              "blocks.3.norm2.weight",
+              "blocks.4.attention.k_proj.weight",
+              "blocks.4.attention.out_proj.weight",
+              "blocks.4.attention.q_proj.weight",
+              "blocks.4.attention.v_proj.weight",
+              "blocks.4.ffn.down.weight",
+              "blocks.4.ffn.gate.weight",
+              "blocks.4.ffn.up.weight",
+              "blocks.4.norm1.weight",
+              "blocks.4.norm2.weight",
+              "blocks.5.attention.k_proj.weight",
+              "blocks.5.attention.out_proj.weight",
+              "blocks.5.attention.q_proj.weight",
+              "blocks.5.attention.v_proj.weight",
+              "blocks.5.ffn.down.weight",
+              "blocks.5.ffn.gate.weight",
+              "blocks.5.ffn.up.weight",
+              "blocks.5.norm1.weight",
+              "blocks.5.norm2.weight",
+              "blocks.6.attention.k_proj.weight",
+              "blocks.6.attention.out_proj.weight",
+              "blocks.6.attention.q_proj.weight",
+              "blocks.6.attention.v_proj.weight",
+              "blocks.6.ffn.down.weight",
+              "blocks.6.ffn.gate.weight",
+              "blocks.6.ffn.up.weight",
+              "blocks.6.norm1.weight",
+              "blocks.6.norm2.weight",
+              "blocks.7.attention.k_proj.weight",
+              "blocks.7.attention.out_proj.weight",
+              "blocks.7.attention.q_proj.weight",
+              "blocks.7.attention.v_proj.weight",
+              "blocks.7.ffn.down.weight",
+              "blocks.7.ffn.gate.weight",
+              "blocks.7.ffn.up.weight",
+              "blocks.7.norm1.weight",
+              "blocks.7.norm2.weight",
+              "blocks.8.attention.k_proj.weight",
+              "blocks.8.attention.out_proj.weight",
+              "blocks.8.attention.q_proj.weight",
+              "blocks.8.attention.v_proj.weight",
+              "blocks.8.ffn.down.weight",
+              "blocks.8.ffn.gate.weight",
+              "blocks.8.ffn.up.weight",
+              "blocks.8.norm1.weight",
+              "blocks.8.norm2.weight",
+              "blocks.9.attention.k_proj.weight",
+              "blocks.9.attention.out_proj.weight",
+              "blocks.9.attention.q_proj.weight",
+              "blocks.9.attention.v_proj.weight",
+              "blocks.9.norm1.weight",
+              "blocks.9.norm2.weight",
+              "embedding.weight"
+            ]
+          },
+          {
+            "bytes": 12782448,
+            "name": "weights-00002.safetensors",
+            "sha256": "e55da1ba1580c18b06178216a17258eee00bd9059f63cb353979d69b8c0fd94a",
+            "tensors": [
+              "blocks.9.ffn.down.weight",
+              "blocks.9.ffn.gate.weight",
+              "blocks.9.ffn.up.weight",
+              "norm.weight"
+            ]
+          }
+        ],
+        "format_version": 2,
+        "generation_id": 2,
+        "lineage_best": {
+          "checkpoint_digest": "21efce83cb2f663682ef68c4e3d6c4f90bb7eabf0af82b84956fb324a63f4b49",
+          "loss": 10.541360974311829,
+          "parent_run_id": "smoke-8fe62d018048480f9b4137e5525b079b",
+          "step": 0
+        },
+        "manifest_sha256": "3347aff7ddaaeefdc73bf4df5d931bebadbe56c27ab85282c79d4be9f845aeda",
+        "parent_checkpoint_sha256": null,
+        "resume_level": "full",
+        "sha256": "03e4178ff741cc34a1c1a444b894a86f3e982c65dcff32aafad58afb9562dbbf",
+        "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+        "state_codec": "pytorch_native",
+        "state_codec_version": 2,
+        "step": 2,
+        "tokens_seen": 16384,
+        "validation_loss": 10.249326676130295
+      },
+      "finite_gradient_norms": [
+        {
+          "step": 1,
+          "targets": 8192,
+          "value": 4.31043004989624
+        },
+        {
+          "step": 2,
+          "targets": 16384,
+          "value": 5.36117696762085
+        }
+      ],
+      "phase_completions": [
+        {
+          "phase": "pilot_start",
+          "seconds": 0.003375350992428139,
+          "sequence": 2
+        },
+        {
+          "phase": "input_validation",
+          "seconds": 5.504191789004835,
+          "sequence": 4
+        },
+        {
+          "phase": "input_validation",
+          "seconds": 621.631335433005,
+          "sequence": 631
+        },
+        {
+          "phase": "stage_bundle_verification",
+          "seconds": 8.13404444999469,
+          "sequence": 694
+        },
+        {
+          "phase": "runtime_initialization",
+          "seconds": 4.086236240997096,
+          "sequence": 696
+        },
+        {
+          "phase": "data_open",
+          "seconds": 0.09335272399766836,
+          "sequence": 698
+        },
+        {
+          "phase": "model_initialization",
+          "seconds": 0.9175338860077318,
+          "sequence": 701
+        },
+        {
+          "phase": "optimizer_initialization",
+          "seconds": 0.0066446040000300854,
+          "sequence": 703
+        },
+        {
+          "phase": "engine_initialization",
+          "seconds": 0.958264393004356,
+          "sequence": 704
+        },
+        {
+          "phase": "run_input_materialization",
+          "seconds": 638.220471927998,
+          "sequence": 1325
+        },
+        {
+          "phase": "validation",
+          "seconds": 2.400897999003064,
+          "sequence": 1391
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 1.187530297000194,
+          "sequence": 1401
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.6275384920008946,
+          "sequence": 1408
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.36006130099121947,
+          "sequence": 1414
+        },
+        {
+          "phase": "validation",
+          "seconds": 1.600227569011622,
+          "sequence": 1480
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 3.4774000070028706,
+          "sequence": 1508
+        },
+        {
+          "phase": "training",
+          "seconds": 6.569849993000389,
+          "sequence": 1511
+        },
+        {
+          "phase": "checkpoint_verification",
+          "seconds": 0.5674487429932924,
+          "sequence": 1526
+        },
+        {
+          "phase": "model_reload",
+          "seconds": 1.188784529993427,
+          "sequence": 1541
+        },
+        {
+          "phase": "data_open",
+          "seconds": 9.844251642003655,
+          "sequence": 1604
+        },
+        {
+          "phase": "finite_forward",
+          "seconds": 4.016853641005582,
+          "sequence": 1606
+        },
+        {
+          "phase": "pilot_complete",
+          "seconds": 0.012652571997023188,
+          "sequence": 1608
+        }
+      ],
+      "byte_counter_summary": {
+        "input_validation": {
+          "subjects": 32,
+          "bytes": 41123893376
+        },
+        "stage_bundle_verification": {
+          "subjects": 2,
+          "bytes": 4031007060
+        },
+        "run_input_materialization": {
+          "subjects": 29,
+          "bytes": 40735729005
+        },
+        "validation": {
+          "subjects": 0,
+          "bytes": 0
+        },
+        "checkpoint": {
+          "subjects": 6,
+          "bytes": 2167278872
+        },
+        "optimizer_update": {
+          "subjects": 0,
+          "bytes": 0
+        },
+        "training": {
+          "subjects": 1,
+          "bytes": 93739832
+        },
+        "checkpoint_verification": {
+          "subjects": 2,
+          "bytes": 819141748
+        },
+        "model_reload": {
+          "subjects": 2,
+          "bytes": 819141748
+        },
+        "data_open": {
+          "subjects": 2,
+          "bytes": 4031007060
+        }
+      }
+    },
+    "warmup": {
+      "report": {
+        "certifies_fit": false,
+        "checkpoint_reload": "verified_full_state_and_finite_forward",
+        "checkpoint_sha256": "ed9e3300aea00e57f716a031a0c6d958c76182d12a277985eba08241e6d34525",
+        "format_version": 1,
+        "limitation": "pilot measurements cover these updates only; sampled peaks cannot certify an allocator high-water mark",
+        "manifest_sha256": "449a04dcecc902ac17b0494b10a3ba4d9ace39680eda846daba56407914e0b0f",
+        "memory_metrics": {
+          "memory/device_allocated_bytes": 1461253120,
+          "memory/device_peak_allocated_bytes": 2372702720,
+          "memory/device_peak_reserved_bytes": 2797600768,
+          "memory/device_reserved_bytes": 2797600768,
+          "memory/observer_active_seconds": 0,
+          "memory/process_peak_rss_bytes": 5994823680,
+          "memory/process_rss_bytes": 5994823680,
+          "memory/sampling_seconds": 0.006616161001147702,
+          "memory/system_available_bytes": 26096451584
+        },
+        "observed_device_peak_bytes": 2797600768,
+        "observed_host_peak_bytes": 5994823680,
+        "observed_peak_bytes": 2797600768,
+        "peak_method": "native",
+        "peak_scope": "device",
+        "purpose": "warmup",
+        "run_id": "warmup-e033785e6a6e438faa158280b0f3b1e4",
+        "runtime": {
+          "backend": "rocm",
+          "device_driver_allocated_bytes": null,
+          "device_free_bytes": 24213094400,
+          "device_index": 0,
+          "device_name": "AMD Radeon RX 7900 XTX",
+          "device_recommended_bytes": null,
+          "device_total_bytes": 25708240896,
+          "driver_version": null,
+          "engine": "pytorch",
+          "format_version": 1,
+          "framework_version": "2.13.0+rocm10.0.0",
+          "host_architecture": "x86_64",
+          "host_environment": "wsl2",
+          "host_os": "linux",
+          "limitations": [
+            "driver version unavailable through safe PyTorch APIs"
+          ],
+          "measured_at": "2026-10-03T20:40:45.710393+00:00",
+          "measurement_source": "torch.cuda.mem_get_info",
+          "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+          "physical_device_id": "63643535-3163-3964-6534-396632343564",
+          "precision_capabilities": [
+            "fp32",
+            "bf16",
+            "fp16"
+          ],
+          "runtime_version": "7.15.26333",
+          "system_available_bytes": 25199267840,
+          "system_total_bytes": 33610706944,
+          "tested_features": [
+            "forward_backward_optimizer",
+            "optimizer:adamw",
+            "activation_checkpointing"
+          ],
+          "tested_precisions": [
+            "bf16"
+          ],
+          "torch_device": "cuda:0",
+          "validated_at": "2026-10-03T20:40:45.710566+00:00"
+        },
+        "sha256": "78b21d5f7c65d6850003afc3384b142bc9768d519e1f39e30538e2f313437ca7",
+        "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+        "status": "complete",
+        "step": 5,
+        "timed_updates": 5,
+        "tokens_per_second": 20351.280643029662,
+        "tokens_seen": 40960,
+        "update_observations": [
+          {
+            "step": 1,
+            "targets": 8192,
+            "update_seconds": 0.5949674159928691
+          },
+          {
+            "step": 2,
+            "targets": 8192,
+            "update_seconds": 0.3552766460052226
+          },
+          {
+            "step": 3,
+            "targets": 8192,
+            "update_seconds": 0.35484574698784854
+          },
+          {
+            "step": 4,
+            "targets": 8192,
+            "update_seconds": 0.3564064550009789
+          },
+          {
+            "step": 5,
+            "targets": 8192,
+            "update_seconds": 0.35115349100669846
+          }
+        ],
+        "update_seconds": 2.0126497549936175
+      },
+      "supervisor": {
+        "completed_steps": 5,
+        "completed_targets": 40960,
+        "current_phase": null,
+        "current_step": 5,
+        "effective_deadlines": {
+          "absolute_timeout_seconds": 7200,
+          "initialization_timeout_seconds": 1800,
+          "no_progress_timeout_seconds": 1200
+        },
+        "elapsed_seconds": 1283.860999800003,
+        "elapsed_since_progress_seconds": 1.7275570630008588,
+        "events_ref": "supervisor-events.jsonl",
+        "events_sha256": "caed0c310580255c853e533c55fec76b10218b60f10b224fe6609f7d0502ff5e",
+        "execution_log_bytes": 14860,
+        "execution_log_omitted_bytes": 0,
+        "execution_log_ref": "execution.log",
+        "format_version": 1,
+        "last_complete_phase": "pilot_complete",
+        "last_progress_elapsed_seconds": 1282.133442737002,
+        "last_progress_timestamp": 1791060680.1367464,
+        "min_host_available_ram_bytes": 22768414720,
+        "min_host_free_swap_bytes": 4751892480,
+        "monitor_policy": {
+          "interval_seconds": 1,
+          "max_tree_rss_bytes": null,
+          "max_tree_swap_bytes": null,
+          "min_disk_free_bytes": null,
+          "min_disk_free_inodes": null,
+          "min_host_available_ram_bytes": null,
+          "min_host_free_swap_bytes": null,
+          "min_projected_disk_free_bytes": null,
+          "min_projected_disk_free_inodes": null,
+          "monitor_policy_version": 1,
+          "termination_grace_seconds": 5
+        },
+        "monitor_policy_sha256": "cf54d683b3943bd4ce61eef43ca6b814257f69b9a6e177e36c18e74b95917005",
+        "monitor_source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "peak_tree_rss_bytes": 9140551680,
+        "peak_tree_swap_bytes": 0,
+        "pilot_supervisor_version": 1,
+        "policy": {
+          "absolute_timeout_seconds": 7200,
+          "initialization_timeout_seconds": 1800,
+          "no_progress_timeout_seconds": 1200,
+          "pilot_deadline_version": 1,
+          "smoke": null,
+          "termination_grace_seconds": 5,
+          "warmup": null
+        },
+        "policy_sha256": "4137d3af2f868d13f7a83306dcb8cc5577dfa95aaa6c01cb8c165359fbf9a829",
+        "purpose": "warmup",
+        "reason": null,
+        "returncode": 0,
+        "root": {
+          "create_time": 1791059397.68,
+          "pid": 473915
+        },
+        "sample_count": 1208,
+        "sequence": 1626,
+        "sha256": "a5ac6e9a6c1cc4794a02897de43eb2a8a1ebbbd0168a08bfc019dc3a7de388fe",
+        "source_sha256": "b94585aaaa5e045b8834bd514313c54626e92cb579b3222301ca56173edfd61f",
+        "status": "COMPLETE",
+        "timeout_kind": null
+      },
+      "checkpoint": {
+        "architecture_sha256": "846bc33342437006e41bcf1a584951a4b9897decf110cbdbd5da1a893eb0cf2e",
+        "backend": "rocm",
+        "config_sha256": "de5203ab32a9ae49d383caa1d4ef1b81bd7dff975b6089da785679446d955d8e",
+        "created_at": "2026-10-03T20:51:09.187491+00:00",
+        "engine": "pytorch",
+        "files": [
+          {
+            "bytes": 554644060,
+            "name": "training_state.pt",
+            "sha256": "ba6c1efb474efd74bbea8550e8fda6a0fde1e5e3b66cf5aaeab07c105ca4ef02"
+          },
+          {
+            "bytes": 264497688,
+            "name": "weights-00001.safetensors",
+            "sha256": "d7998c7813ee46c692725dd8902e72d5d5b198e01c8f655b02ea6dcf5a46a802",
+            "tensors": [
+              "blocks.0.attention.k_proj.weight",
+              "blocks.0.attention.out_proj.weight",
+              "blocks.0.attention.q_proj.weight",
+              "blocks.0.attention.v_proj.weight",
+              "blocks.0.ffn.down.weight",
+              "blocks.0.ffn.gate.weight",
+              "blocks.0.ffn.up.weight",
+              "blocks.0.norm1.weight",
+              "blocks.0.norm2.weight",
+              "blocks.1.attention.k_proj.weight",
+              "blocks.1.attention.out_proj.weight",
+              "blocks.1.attention.q_proj.weight",
+              "blocks.1.attention.v_proj.weight",
+              "blocks.1.ffn.down.weight",
+              "blocks.1.ffn.gate.weight",
+              "blocks.1.ffn.up.weight",
+              "blocks.1.norm1.weight",
+              "blocks.1.norm2.weight",
+              "blocks.2.attention.k_proj.weight",
+              "blocks.2.attention.out_proj.weight",
+              "blocks.2.attention.q_proj.weight",
+              "blocks.2.attention.v_proj.weight",
+              "blocks.2.ffn.down.weight",
+              "blocks.2.ffn.gate.weight",
+              "blocks.2.ffn.up.weight",
+              "blocks.2.norm1.weight",
+              "blocks.2.norm2.weight",
+              "blocks.3.attention.k_proj.weight",
+              "blocks.3.attention.out_proj.weight",
+              "blocks.3.attention.q_proj.weight",
+              "blocks.3.attention.v_proj.weight",
+              "blocks.3.ffn.down.weight",
+              "blocks.3.ffn.gate.weight",
+              "blocks.3.ffn.up.weight",
+              "blocks.3.norm1.weight",
+              "blocks.3.norm2.weight",
+              "blocks.4.attention.k_proj.weight",
+              "blocks.4.attention.out_proj.weight",
+              "blocks.4.attention.q_proj.weight",
+              "blocks.4.attention.v_proj.weight",
+              "blocks.4.ffn.down.weight",
+              "blocks.4.ffn.gate.weight",
+              "blocks.4.ffn.up.weight",
+              "blocks.4.norm1.weight",
+              "blocks.4.norm2.weight",
+              "blocks.5.attention.k_proj.weight",
+              "blocks.5.attention.out_proj.weight",
+              "blocks.5.attention.q_proj.weight",
+              "blocks.5.attention.v_proj.weight",
+              "blocks.5.ffn.down.weight",
+              "blocks.5.ffn.gate.weight",
+              "blocks.5.ffn.up.weight",
+              "blocks.5.norm1.weight",
+              "blocks.5.norm2.weight",
+              "blocks.6.attention.k_proj.weight",
+              "blocks.6.attention.out_proj.weight",
+              "blocks.6.attention.q_proj.weight",
+              "blocks.6.attention.v_proj.weight",
+              "blocks.6.ffn.down.weight",
+              "blocks.6.ffn.gate.weight",
+              "blocks.6.ffn.up.weight",
+              "blocks.6.norm1.weight",
+              "blocks.6.norm2.weight",
+              "blocks.7.attention.k_proj.weight",
+              "blocks.7.attention.out_proj.weight",
+              "blocks.7.attention.q_proj.weight",
+              "blocks.7.attention.v_proj.weight",
+              "blocks.7.ffn.down.weight",
+              "blocks.7.ffn.gate.weight",
+              "blocks.7.ffn.up.weight",
+              "blocks.7.norm1.weight",
+              "blocks.7.norm2.weight",
+              "blocks.8.attention.k_proj.weight",
+              "blocks.8.attention.out_proj.weight",
+              "blocks.8.attention.q_proj.weight",
+              "blocks.8.attention.v_proj.weight",
+              "blocks.8.ffn.down.weight",
+              "blocks.8.ffn.gate.weight",
+              "blocks.8.ffn.up.weight",
+              "blocks.8.norm1.weight",
+              "blocks.8.norm2.weight",
+              "blocks.9.attention.k_proj.weight",
+              "blocks.9.attention.out_proj.weight",
+              "blocks.9.attention.q_proj.weight",
+              "blocks.9.attention.v_proj.weight",
+              "blocks.9.norm1.weight",
+              "blocks.9.norm2.weight",
+              "embedding.weight"
+            ]
+          },
+          {
+            "bytes": 12782448,
+            "name": "weights-00002.safetensors",
+            "sha256": "a3c6031896cc13a2ac049a637a0d88a401efc00bfcbaf2fc0af372fcd1464f76",
+            "tensors": [
+              "blocks.9.ffn.down.weight",
+              "blocks.9.ffn.gate.weight",
+              "blocks.9.ffn.up.weight",
+              "norm.weight"
+            ]
+          }
+        ],
+        "format_version": 2,
+        "generation_id": 2,
+        "lineage_best": {
+          "checkpoint_digest": "30e95064a6758801cb49acd5d6a65be450834e1d1d12ee9d657ec6745680b074",
+          "loss": 10.541360974311829,
+          "parent_run_id": "warmup-e033785e6a6e438faa158280b0f3b1e4",
+          "step": 0
+        },
+        "manifest_sha256": "449a04dcecc902ac17b0494b10a3ba4d9ace39680eda846daba56407914e0b0f",
+        "parent_checkpoint_sha256": null,
+        "resume_level": "full",
+        "sha256": "ed9e3300aea00e57f716a031a0c6d958c76182d12a277985eba08241e6d34525",
+        "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+        "state_codec": "pytorch_native",
+        "state_codec_version": 2,
+        "step": 5,
+        "tokens_seen": 40960,
+        "validation_loss": 9.605788737535477
+      },
+      "finite_gradient_norms": [
+        {
+          "step": 1,
+          "targets": 8192,
+          "value": 4.31043004989624
+        },
+        {
+          "step": 2,
+          "targets": 16384,
+          "value": 4.396824359893799
+        },
+        {
+          "step": 3,
+          "targets": 24576,
+          "value": 6.447779655456543
+        },
+        {
+          "step": 4,
+          "targets": 32768,
+          "value": 3.8205018043518066
+        },
+        {
+          "step": 5,
+          "targets": 40960,
+          "value": 2.8764073848724365
+        }
+      ],
+      "phase_completions": [
+        {
+          "phase": "pilot_start",
+          "seconds": 0.0034789609926519915,
+          "sequence": 2
+        },
+        {
+          "phase": "input_validation",
+          "seconds": 5.359864035999635,
+          "sequence": 4
+        },
+        {
+          "phase": "input_validation",
+          "seconds": 628.2833820590022,
+          "sequence": 631
+        },
+        {
+          "phase": "stage_bundle_verification",
+          "seconds": 8.133572514998377,
+          "sequence": 694
+        },
+        {
+          "phase": "runtime_initialization",
+          "seconds": 4.25019577400235,
+          "sequence": 696
+        },
+        {
+          "phase": "data_open",
+          "seconds": 0.007699403999140486,
+          "sequence": 698
+        },
+        {
+          "phase": "model_initialization",
+          "seconds": 0.9844510710099712,
+          "sequence": 701
+        },
+        {
+          "phase": "optimizer_initialization",
+          "seconds": 0.0038719269941793755,
+          "sequence": 703
+        },
+        {
+          "phase": "engine_initialization",
+          "seconds": 1.0148406889929902,
+          "sequence": 704
+        },
+        {
+          "phase": "run_input_materialization",
+          "seconds": 609.6432930010051,
+          "sequence": 1325
+        },
+        {
+          "phase": "validation",
+          "seconds": 2.475732449995121,
+          "sequence": 1391
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 1.3768881110008806,
+          "sequence": 1401
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.6348395020031603,
+          "sequence": 1408
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.36613620100251865,
+          "sequence": 1414
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.3664069779915735,
+          "sequence": 1420
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.3608627960056765,
+          "sequence": 1426
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.3561739970027702,
+          "sequence": 1432
+        },
+        {
+          "phase": "validation",
+          "seconds": 1.6796799920120975,
+          "sequence": 1498
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 3.666763126006117,
+          "sequence": 1526
+        },
+        {
+          "phase": "training",
+          "seconds": 8.058663905991125,
+          "sequence": 1529
+        },
+        {
+          "phase": "checkpoint_verification",
+          "seconds": 0.5575230419926811,
+          "sequence": 1544
+        },
+        {
+          "phase": "model_reload",
+          "seconds": 1.183876170005533,
+          "sequence": 1559
+        },
+        {
+          "phase": "data_open",
+          "seconds": 3.9378025970072486,
+          "sequence": 1622
+        },
+        {
+          "phase": "finite_forward",
+          "seconds": 4.086233574009384,
+          "sequence": 1624
+        },
+        {
+          "phase": "pilot_complete",
+          "seconds": 0.013017826990108006,
+          "sequence": 1626
+        }
+      ],
+      "byte_counter_summary": {
+        "input_validation": {
+          "subjects": 32,
+          "bytes": 41123893376
+        },
+        "stage_bundle_verification": {
+          "subjects": 2,
+          "bytes": 4031007060
+        },
+        "run_input_materialization": {
+          "subjects": 29,
+          "bytes": 40735729005
+        },
+        "validation": {
+          "subjects": 0,
+          "bytes": 0
+        },
+        "checkpoint": {
+          "subjects": 6,
+          "bytes": 2167278872
+        },
+        "optimizer_update": {
+          "subjects": 0,
+          "bytes": 0
+        },
+        "training": {
+          "subjects": 1,
+          "bytes": 93739832
+        },
+        "checkpoint_verification": {
+          "subjects": 2,
+          "bytes": 819141748
+        },
+        "model_reload": {
+          "subjects": 2,
+          "bytes": 819141748
+        },
+        "data_open": {
+          "subjects": 2,
+          "bytes": 4031007060
+        }
+      }
+    }
+  },
+  "limitations": [
+    "No full-budget stability, quality or promotion claim",
+    "Inclusive phase durations may overlap; byte counters include repeated cold authentication, not unique-byte or copy-only attribution",
+    "Full unfiltered pytest was censored at 900 seconds; affected focused suites passed 150 tests with 1 skip",
+    "Campaign pre-mutation status first attempt was censored at 180 seconds; that read-only output is retained"
+  ]
+}

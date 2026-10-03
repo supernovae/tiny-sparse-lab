@@ -255,3 +255,30 @@ Full-shape evidence above stays bound to its actual earlier execution source.
 These pilots establish execution of the measured shape and updates, not
 full-budget stability, model quality or promotion. Campaign dispatch, exact
 training-budget completion, evaluation and lineage still require their gates.
+
+## Current-source full-shape acceptance
+
+[Current-source readiness](model0-current-source-full-shape-readiness.json)
+binds the subsequently tested and pushed execution source
+`2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f`.
+The original frozen run, plan, corpus, tokenizer and prepared-data identities
+remain unchanged.
+
+- Actual ROCm smoke/warmup: **2/5** updates and **16,384/40,960**
+  committed targets, finite gradient norms, verified full-state checkpoint
+  reload and finite forward.
+- The formerly unlabelled authentication gate is now measured within
+  `input_validation`: **621.631/628.283 seconds**. Input materialization
+  remains **638.220/609.643 seconds**, retaining cold semantic verification.
+  Durations are inclusive; counters do not represent unique bytes.
+- Outer resource guard: **COMPLETE**, no violations, **3,235.980 seconds**;
+  peak owned RSS **9,985,232,896 bytes**, owned swap **579,973,120 bytes**,
+  minimum host available RAM **22,319,841,280 bytes**.
+- Independent cold inventory and full-state checkpoint verification:
+  **COMPLETE**, no violations, **23.226 seconds**. Its initial operator
+  assertion incorrectly assumed uppercase pilot status; that failed
+  verification log is preserved, and only the assertion was corrected.
+
+This accepts current-source execution readiness, not full-budget stability or
+model quality. The earlier read-only Campaign status command was censored by
+its 180-second outer limit; it dispatched nothing.
