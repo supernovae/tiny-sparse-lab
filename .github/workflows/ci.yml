@@ -5,10 +5,12 @@ on:
   pull_request:
 
 jobs:
+  # Pin supported images: Linux x64 and macOS arm64 CPU coverage.
+  # https://github.com/actions/runner-images#available-images
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/ruff-action@v4.1.0
         with:
           version: "0.16.8"
@@ -32,14 +34,14 @@ jobs:
           version: "0.16.8"
           args: format --check .
   fast:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - name: Focused configuration, corpus, and ingestion checks
@@ -51,14 +53,14 @@ jobs:
           tests/test_corpus_pipeline.py
           tests/test_hf_auth.py
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
@@ -69,14 +71,14 @@ jobs:
       - run: uv run --locked --extra cpu sparselab --help
       - run: uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json
   test-macos-arm64:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
           enable-cache: true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev

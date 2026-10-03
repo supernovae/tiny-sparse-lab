@@ -21,6 +21,39 @@ ancestry = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ancestry)
 
 
+def test_publish_directory_is_atomic(tmp_path: Path) -> None:
+    source = tmp_path / "staging"
+    source.mkdir()
+    (source / "evidence").write_bytes(b"verified bytes")
+    target = tmp_path / "published"
+    ancestry._publish_directory(source, target)
+    assert not source.exists()
+    assert (target / "evidence").read_bytes() == b"verified bytes"
+
+
+@pytest.mark.parametrize("existing", ["empty", "populated", "file", "symlink"])
+def test_publish_directory_never_replaces_existing_target(
+    tmp_path: Path, existing: str
+) -> None:
+    source = tmp_path / "staging"
+    source.mkdir()
+    (source / "evidence").write_bytes(b"verified bytes")
+    target = tmp_path / "published"
+    if existing in {"empty", "populated"}:
+        target.mkdir()
+        if existing == "populated":
+            (target / "original").write_bytes(b"existing evidence")
+    elif existing == "file":
+        target.write_bytes(b"existing evidence")
+    else:
+        target.symlink_to(tmp_path / "missing", target_is_directory=True)
+    before = target.lstat()
+    with pytest.raises(FileExistsError):
+        ancestry._publish_directory(source, target)
+    assert target.lstat() == before
+    assert (source / "evidence").read_bytes() == b"verified bytes"
+
+
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(repo), *args], check=True, text=True, capture_output=True

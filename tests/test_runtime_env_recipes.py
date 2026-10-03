@@ -9,6 +9,13 @@ import pytest
 from sparselab import runtime_env_recipes as recipes
 
 
+@pytest.fixture(autouse=True)
+def linux_x86_64_host(monkeypatch):
+    """Exercise the Linux recipe independently of the test runner's host."""
+    monkeypatch.setattr(recipes.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(recipes.platform, "machine", lambda: "x86_64")
+
+
 def _capacity(
     *, bytes_available=recipes._MIN_BYTES, inodes_available=recipes._MIN_INODES
 ):
@@ -173,6 +180,14 @@ def test_preflight_requires_existing_writable_directory_linux(tmp_path, monkeypa
     monkeypatch.setattr(recipes.os, "access", lambda *args, **kwargs: False)
     with pytest.raises(ValueError, match="not writable"):
         recipes.preflight_runtime_root(tmp_path / "private")
-    monkeypatch.setattr(recipes.platform, "system", lambda: "Darwin")
+
+
+@pytest.mark.parametrize(
+    "system,machine", [("Darwin", "arm64"), ("Darwin", "x86_64"), ("Linux", "aarch64")]
+)
+def test_preflight_rejects_unsupported_hosts(tmp_path, monkeypatch, system, machine):
+    monkeypatch.setattr(recipes.platform, "system", lambda: system)
+    monkeypatch.setattr(recipes.platform, "machine", lambda: machine)
     with pytest.raises(ValueError, match="Linux x86_64"):
         recipes.preflight_runtime_root(tmp_path / "private")
+    assert not (tmp_path / "private").exists()

@@ -78,7 +78,9 @@ def test_real_cpu_register_observe_doctor_and_unregister_preserves_interpreter(
     registry_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     python = Path(sys.executable).absolute()
-    result = invoke(capsys, "register", "cpu-local", "--python", str(python))
+    result = invoke(
+        capsys, "register", "cpu-local", "--python", str(python), "--backend", "cpu"
+    )
     assert result["status"] == "READY"
     assert result["id"] == "cpu-local"
     assert result["profile"]["backend"] == "cpu"
