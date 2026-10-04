@@ -98,6 +98,7 @@ from sparselab.training.checkpoints import CheckpointManager, _safe_member
 from sparselab.training.manifest import source_identity
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.trainer import train
+from sparselab.verification_proofs import verification_options
 from sparselab.workdir import (
     ensure_scratch_dir,
     ensure_work_dir,
@@ -701,6 +702,10 @@ def _tokenizer_train(args: argparse.Namespace) -> None:
 def _stage(args: argparse.Namespace) -> None:
     from sparselab.training.pilot_deadline import load_pilot_deadline_policy
 
+    options = verification_options(
+        resolve_work_dir(args.work_dir), cold=args.cold_verify
+    )
+
     policy = (
         load_pilot_deadline_policy(args.pilot_deadline_policy)
         if args.pilot_deadline_policy is not None
@@ -716,6 +721,7 @@ def _stage(args: argparse.Namespace) -> None:
             tokenizer_batch_documents=args.tokenizer_batch_documents,
             tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
             pilot_deadline_policy=policy,
+            **options,
         )
     )
 
@@ -2359,6 +2365,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--through", default="smoke", choices=("inspect", "validate", "smoke", "warmup")
     )
     staging.add_argument("--output", required=True)
+    staging.add_argument(
+        "--cold-verify",
+        action="store_true",
+        help="Independently rehash and verify every staged input without proof reuse",
+    )
     stage_runtime = staging.add_mutually_exclusive_group()
     stage_runtime.add_argument("--runtime-profile", type=Path)
     stage_runtime.add_argument("--runtime", metavar="ID")

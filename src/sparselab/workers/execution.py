@@ -28,6 +28,7 @@ from sparselab.resource_envelope import check_envelope, current_process_rss_byte
 from sparselab.runtime import discover_runtimes, validate_runtime
 from sparselab.runtime_profile import authorize_worker, require_authorization
 from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.verification_proofs import verification_options
 
 from .leases import acquire_lease, boot_identity, process_matches, process_start
 
@@ -827,6 +828,9 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                         cancellation_requested=True,
                         cancellation_acknowledged=True,
                     )
+                verification = verification_options(
+                    Path(_definition_value(definition, "root"))
+                )
                 from sparselab.staging import stage
 
                 stage_dir = directory / "stage"
@@ -842,6 +846,7 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     resource_envelope=envelope,
                     tokenizer_batch_documents=typed_spec.tokenizer_batch_documents,
                     tokenizer_batch_source_bytes=typed_spec.tokenizer_batch_source_bytes,
+                    **verification,
                 )
                 if _cancelled(directory):
                     return _terminal_receipt(
@@ -883,6 +888,7 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     "resource_envelope": envelope,
                     "tokenizer_batch_documents": typed_spec.tokenizer_batch_documents,
                     "tokenizer_batch_source_bytes": typed_spec.tokenizer_batch_source_bytes,
+                    **verification,
                     "cancel_path": directory / "cancel.json",
                     "stage_bundle": stage_dir,
                     "experiment_id": receipt["experiment_id"],

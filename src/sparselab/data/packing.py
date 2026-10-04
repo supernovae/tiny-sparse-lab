@@ -55,6 +55,7 @@ from sparselab.resource_envelope import (
 )
 from sparselab.training import manifest as manifest_module
 from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.verification_proofs import ProofStore, VerificationMode, file_binding
 from sparselab.workdir import ensure_work_dir
 from sparselab.workspace_cleanup import campaign_lock, mark_prepared_cache
 
@@ -112,6 +113,8 @@ def _verified_receipt(
     verification: str,
     receipt: VerifiedPreparedData | None,
     telemetry: PreparationTelemetry | None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> VerifiedPreparedData:
     if (
         manifest.get("cache_identity") != identity
@@ -145,7 +148,17 @@ def _verified_receipt(
     for name, (metadata, _, _) in required.items():
         started = time.monotonic()
         proofs[name] = _verify_file_with_hasher(
-            root / name, expected_sha256=metadata.get("sha256"), hash_file=_sha256
+            root / name,
+            expected_sha256=metadata.get("sha256"),
+            hash_file=_sha256,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            binding=file_binding(
+                root / name,
+                metadata.get("sha256"),
+                kind="prepared_array",
+                closure={"metadata": metadata, "cache_identity": identity},
+            ),
         )
         if telemetry is not None:
             telemetry.add("deep_verification_hash_seconds", time.monotonic() - started)
@@ -167,6 +180,8 @@ def load_prepared_data(
     telemetry: PreparationTelemetry | None = None,
     verification: str = "deep",
     receipt: VerifiedPreparedData | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> PreparedData:
     """Open a verified immutable cache or run-owned copy without reacquiring data."""
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -196,6 +211,8 @@ def load_prepared_data(
         verification=verification,
         receipt=receipt,
         telemetry=telemetry,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     has_supervision = supervision_requires_mask(manifest)
     allocation_enabled = isinstance(manifest.get("allocation"), dict)
@@ -1062,6 +1079,8 @@ def _prepare_data(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> PreparedData:
     """Prepare immutable IDs and causal sidecars with an optional allocation."""
     tokenizer_batch_documents, tokenizer_batch_source_bytes = (
@@ -1091,7 +1110,9 @@ def _prepare_data(
         else None
     )
     corpus_export = (
-        verify_release_export(config.dataset)
+        verify_release_export(
+            config.dataset, proof_store=proof_store, verification_mode=verification_mode
+        )
         if config.dataset.corpus_release_path is not None
         else None
     )
@@ -1180,6 +1201,8 @@ def _prepare_data(
                 expected_identity=historical_identity,
                 telemetry=telemetry,
                 verification="deep",
+                proof_store=proof_store,
+                verification_mode=verification_mode,
             )
             if resource_envelope is not None:
                 check_envelope(
@@ -1267,6 +1290,8 @@ def _prepare_data(
                 telemetry=telemetry,
                 verification="deep" if recovered_receipt is None else "structural",
                 receipt=recovered_receipt,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
             )
             _write_preparation_receipt(
                 root, cached.manifest["manifest_sha256"], telemetry, reused=True
@@ -1686,6 +1711,8 @@ def prepare_data(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> PreparedData:
     """Prepare data and mark only new caches owned by the selected workspace."""
     tokenizer_batch_documents, tokenizer_batch_source_bytes = (
@@ -1720,6 +1747,8 @@ def prepare_data(
                 resource_envelope=resource_envelope,
                 tokenizer_batch_documents=tokenizer_batch_documents,
                 tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
             )
     with campaign_lock(base), campaign_lock(workspace):
         existing = {child.name for child in base.iterdir()} if base.is_dir() else set()
@@ -1729,6 +1758,8 @@ def prepare_data(
             resource_envelope=resource_envelope,
             tokenizer_batch_documents=tokenizer_batch_documents,
             tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         if prepared.root.name not in existing:
             mark_prepared_cache(workspace, prepared.root)

@@ -18,7 +18,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -37,6 +37,9 @@ from sparselab.corpus.project import (
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 from sparselab.training.manifest import canonical_json, sha256_file
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
 
 ADAPTER_VERSION = "corpus-acquisition-v1"
 
@@ -869,7 +872,44 @@ def _verify_wikimedia_receipt(path: Path, manifest: dict[str, Any]) -> None:
         raise ValueError("Wikimedia page receipt mismatch")
 
 
-def verify_snapshot(path: Path | str, *, _staged: bool = False) -> dict[str, Any]:
+def verify_snapshot(
+    path: Path | str,
+    *,
+    _staged: bool = False,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    _domain_cold: bool = False,
+) -> dict[str, Any]:
+    """Authenticate a snapshot; trusted receipts are optional for published roots."""
+    path = Path(path)
+    if (
+        not _staged
+        and not _domain_cold
+        and proof_store is not None
+        and verification_mode == "verified_reuse"
+    ):
+        from sparselab.experiments.artifacts import verify_artifact
+        from sparselab.experiments.plan import Artifact
+
+        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+        verify_artifact(
+            Artifact(
+                kind="source_snapshot",
+                version=manifest["schema_version"],
+                producer="sparselab",
+                identifier=manifest["source_id"],
+                sha256=manifest["snapshot_sha256"],
+                path=str(path),
+            ),
+            path / "manifest.json",
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+        return manifest
+    return _verify_snapshot_cold(path, _staged=_staged)
+
+
+def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any]:
     path = Path(path)
     try:
         manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))

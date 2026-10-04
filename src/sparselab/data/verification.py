@@ -15,16 +15,29 @@ from types import MappingProxyType
 import numpy as np
 
 from sparselab.training import manifest as manifest_module
+from sparselab.verification_proofs import (
+    ProofStore,
+    VerificationMode,
+    file_binding,
+    validate_mode,
+)
 
 _SEAL = object()
 _FILES: weakref.WeakSet[VerifiedFile] = weakref.WeakSet()
 
 
-def _fingerprint(path: Path) -> tuple[int, int, int, int, int]:
+def _fingerprint(path: Path) -> tuple[int, int, int, int, int, int]:
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode):
         raise ValueError(f"prepared file is not a regular file: {path}")
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
 
 
 @dataclass(frozen=True, init=False, eq=False)
@@ -33,7 +46,8 @@ class VerifiedFile:
 
     path: Path
     sha256: str
-    fingerprint: tuple[int, int, int, int, int]
+    fingerprint: tuple[int, int, int, int, int, int]
+    cold_verified: bool
     _seal: object
     _issuer_pid: int
 
@@ -41,9 +55,10 @@ class VerifiedFile:
         self,
         path: Path,
         sha256: str,
-        fingerprint: tuple[int, int, int, int, int],
+        fingerprint: tuple[int, int, int, int, int, int],
         *,
         _seal: object = None,
+        cold_verified: bool = False,
     ) -> None:
         if _seal is not _SEAL:
             raise TypeError("VerifiedFile cannot be constructed from unsigned metadata")
@@ -51,12 +66,13 @@ class VerifiedFile:
         object.__setattr__(self, "sha256", sha256)
         object.__setattr__(self, "fingerprint", fingerprint)
         object.__setattr__(self, "_seal", _SEAL)
+        object.__setattr__(self, "cold_verified", cold_verified)
         object.__setattr__(self, "_issuer_pid", os.getpid())
         _FILES.add(self)
 
     @property
     def size_bytes(self) -> int:
-        return self.fingerprint[2]
+        return self.fingerprint[3]
 
 
 def _owned_file(proof: object) -> bool:
@@ -116,6 +132,9 @@ def verify_file(
     *,
     expected_sha256: str | None = None,
     memo: dict[object, VerifiedFile] | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    binding: dict[str, object] | None = None,
 ) -> VerifiedFile:
     """Hash actual bytes, or reuse a fingerprint-matched same-operation proof."""
     return _verify_file_with_hasher(
@@ -123,6 +142,9 @@ def verify_file(
         expected_sha256=expected_sha256,
         memo=memo,
         hash_file=manifest_module.sha256_file,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+        binding=binding,
     )
 
 
@@ -132,21 +154,52 @@ def _verify_file_with_hasher(
     expected_sha256: str | None = None,
     memo: dict[object, VerifiedFile] | None = None,
     hash_file: Callable[[Path], str],
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    binding: dict[str, object] | None = None,
 ) -> VerifiedFile:
     """Internal wrapper for instrumenting the actual file hashing path."""
+    validate_mode(verification_mode)
+    signed_binding = binding
+    if signed_binding is None and expected_sha256 is not None:
+        signed_binding = file_binding(path, expected_sha256)
     fingerprint = _fingerprint(path)
     canonical = path.resolve(strict=True)
+    if signed_binding is not None and (
+        signed_binding.get("path") != str(canonical)
+        or signed_binding.get("sha256") != expected_sha256
+    ):
+        raise ValueError("file proof binding differs from requested path or SHA")
     key = (canonical, fingerprint)
     proof = memo.get(key) if memo is not None else None
     if (
         not _owned_file(proof)
         or proof.fingerprint != fingerprint
         or proof.path != canonical
+        or (verification_mode == "cold" and not proof.cold_verified)
     ):
-        digest = hash_file(path)
+        hit = (
+            verification_mode == "verified_reuse"
+            and proof_store is not None
+            and signed_binding is not None
+            and proof_store.lookup(signed_binding)
+        )
+        digest = expected_sha256 if hit else hash_file(path)
         if _fingerprint(path) != fingerprint:
             raise ValueError(f"prepared file changed during hashing: {path}")
-        proof = VerifiedFile(path, digest, fingerprint, _seal=_SEAL)
+        proof = VerifiedFile(
+            path, digest, fingerprint, _seal=_SEAL, cold_verified=not hit
+        )
+        if (
+            not hit
+            and verification_mode == "verified_reuse"
+            and proof_store is not None
+            and signed_binding is not None
+        ):
+            # Reject mismatches before a cold proof can be published.
+            if expected_sha256 is not None and digest != expected_sha256:
+                raise ValueError(f"prepared file digest mismatch: {path}")
+            proof_store.record(signed_binding, proof)
         if memo is not None:
             memo[key] = proof
     if expected_sha256 is not None and proof.sha256 != expected_sha256:
@@ -157,9 +210,9 @@ def _verify_file_with_hasher(
 def _written_file(path: Path, digest: str, size: int) -> VerifiedFile:
     """Private mint, called only with a digest accumulated by the final writer."""
     fingerprint = _fingerprint(path)
-    if fingerprint[2] != size:
+    if fingerprint[3] != size:
         raise ValueError(f"prepared write size changed: {path}")
-    return VerifiedFile(path, digest, fingerprint, _seal=_SEAL)
+    return VerifiedFile(path, digest, fingerprint, _seal=_SEAL, cold_verified=True)
 
 
 def _relocate_proofs(
@@ -172,7 +225,11 @@ def _relocate_proofs(
         if not _owned_file(proof) or _fingerprint(path) != proof.fingerprint:
             raise ValueError(f"prepared array changed during publication: {path}")
         relocated[name] = VerifiedFile(
-            path, proof.sha256, proof.fingerprint, _seal=_SEAL
+            path,
+            proof.sha256,
+            proof.fingerprint,
+            _seal=_SEAL,
+            cold_verified=proof.cold_verified,
         )
     return relocated
 

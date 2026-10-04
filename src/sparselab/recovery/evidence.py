@@ -106,14 +106,16 @@ def export_evidence(
         root = target if target.is_dir() else target.parent
         manifest = json.loads((root / "manifest.json").read_text())
         load_prepared_data(
-            root, byte_enabled=manifest.get("byte_addressing") is not None
+            root,
+            byte_enabled=manifest.get("byte_addressing") is not None,
+            verification_mode="cold",
         )
         sha = json.loads((root / "manifest.json").read_text())["manifest_sha256"]
         identifier = root.name
     elif kind == "experiment_lock":
         from sparselab.experiments.lock import open_lock
 
-        sha = open_lock(target).plan_sha256
+        sha = open_lock(target, verification_mode="cold").plan_sha256
         identifier = target.stem
     elif kind == "evaluation_index":
         from sparselab.evaluation.suite import verify_evaluation_index

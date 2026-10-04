@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sparselab.config.models import RunConfig
 from sparselab.data.packing import load_prepared_data
@@ -34,6 +34,9 @@ from sparselab.training.manifest import (
     sha256_file,
     source_identity,
 )
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore
 
 _CHUNK = 1024 * 1024
 _CACHE = ".dispatch-cache"
@@ -490,6 +493,8 @@ def prepare_dispatch_bundle(
     resume: Path | None = None,
     extend_budget: Path | None = None,
     allow_runtime_drift: bool = False,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> Any:
     """Freeze offline inputs and verified parent state without probing a device."""
     if sum(path is not None for path in (promote, resume, extend_budget)) > 1:
@@ -512,7 +517,11 @@ def prepare_dispatch_bundle(
     evidence = None
     if stage_bundle is not None:
         verified_stage = verify_stage_bundle(
-            stage_bundle, config, allow_runtime_drift=allow_runtime_drift
+            stage_bundle,
+            config,
+            allow_runtime_drift=allow_runtime_drift,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         evidence = {"stage_bundle_sha256": verified_stage["sha256"]}
     output = output.resolve()

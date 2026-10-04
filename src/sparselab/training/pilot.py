@@ -10,6 +10,7 @@ import sqlite3
 import uuid
 from contextlib import closing
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
 import torch
 
@@ -32,10 +33,21 @@ from sparselab.training.pilot_progress import (
     pilot_phase,
 )
 from sparselab.training.trainer import _train_impl
+from sparselab.verification_proofs import verification_options
 from sparselab.workdir import ensure_work_dir
 
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore
 
-def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> Path:
+
+def run_pilot(
+    root: Path,
+    purpose: str,
+    *,
+    cancel_path: Path | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
+) -> Path:
     with pilot_phase("input_validation"):
         inputs = _read_sealed(root / "inputs.json")
         config = pilot_config(
@@ -71,6 +83,8 @@ def run_pilot(root: Path, purpose: str, *, cancel_path: Path | None = None) -> P
         resource_envelope=resource_envelope,
         tokenizer_batch_documents=tokenizer_batch_documents,
         tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     if cancel_path is not None and cancel_path.exists():
         raise InterruptedError("pilot cancelled at committed update boundary")
@@ -242,6 +256,8 @@ def main() -> None:
     parser.add_argument("root", type=Path)
     parser.add_argument("purpose", choices=("smoke", "warmup"))
     parser.add_argument("--cancel-path", type=Path)
+    parser.add_argument("--verification-root", type=Path)
+    parser.add_argument("--cold-verify", action="store_true")
     args = parser.parse_args()
     with activate_pilot_progress(
         purpose=args.purpose, directory=args.root / "pilots" / args.purpose
@@ -250,7 +266,14 @@ def main() -> None:
             with pilot_phase("pilot_start"):
                 ensure_work_dir()
                 root = args.root.resolve(strict=True)
-            print(run_pilot(root, args.purpose, cancel_path=args.cancel_path))
+            options = (
+                verification_options(args.verification_root)
+                if args.verification_root is not None and not args.cold_verify
+                else {"proof_store": None, "verification_mode": "cold"}
+            )
+            print(
+                run_pilot(root, args.purpose, cancel_path=args.cancel_path, **options)
+            )
         except Exception as error:
             out_of_memory = isinstance(
                 error, (MemoryError, torch.OutOfMemoryError, EngineOutOfMemory)

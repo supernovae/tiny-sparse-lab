@@ -11,7 +11,7 @@ import sys
 import tempfile
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sparselab.config.models import RunConfig
 from sparselab.data.allocation import (
@@ -81,7 +81,12 @@ from sparselab.training.pilot_deadline import (
     supervise_pilot,
 )
 from sparselab.training.stages import ExperimentStage, StageHistory
+from sparselab.verification_proofs import file_binding
 from sparselab.workdir import ensure_work_dir
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore
+
 
 _LEVELS = {"inspect": 1, "validate": 2, "smoke": 3, "warmup": 4}
 _MAX_REPORT_BYTES = 16 * 1024 * 1024
@@ -189,10 +194,18 @@ def _verify_inventory(
     *,
     memo: dict[object, VerifiedFile] | None = None,
     published_manifest: str | None = None,
+    manifest_sha256: str,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> dict[str, VerifiedFile]:
     if not isinstance(inventory, list):
         raise TypeError("stage inventory must be a list")
     seen: set[str] = set()
+    closure = {
+        "manifest_sha256": manifest_sha256,
+        "inventory_sha256": hashlib.sha256(canonical_json(inventory)).hexdigest(),
+        "published_manifest": published_manifest,
+    }
     proofs: dict[str, VerifiedFile] = {}
     from sparselab.training.pilot_progress import current_pilot_progress
 
@@ -222,14 +235,35 @@ def _verify_inventory(
             raise ValueError(f"stage member length mismatch: {name}")
         if not isinstance(item.get("sha256"), str):
             raise ValueError(f"invalid stage member digest: {name}")  # noqa: TRY004 - invalid serialized schema
-        if not active:
-            proofs[name] = verify_file(path, expected_sha256=item["sha256"], memo=memo)
-        else:
+        binding = (
+            file_binding(
+                path,
+                item["sha256"],
+                kind="stage_inventory_file",
+                identifier=name,
+                closure=closure,
+            )
+            if verification_mode == "verified_reuse" and proof_store is not None
+            else None
+        )
+        if active:
             proofs[name] = _verify_file_with_hasher(
                 path,
                 expected_sha256=item["sha256"],
                 memo=memo,
                 hash_file=hash_staged_file,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+                binding=binding,
+            )
+        else:
+            proofs[name] = verify_file(
+                path,
+                expected_sha256=item["sha256"],
+                memo=memo,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+                binding=binding,
             )
     actual = {
         path.relative_to(root).as_posix()
@@ -299,6 +333,8 @@ def verify_stage_bundle(
     *,
     purpose: str = "training",
     allow_runtime_drift: bool = False,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
     _proofs: dict[str, VerifiedFile] | None = None,
 ) -> dict[str, Any]:
     """Verify frozen inputs; a pilot may read only the sealed pre-pilot input manifest."""
@@ -319,7 +355,14 @@ def verify_stage_bundle(
         )
     proof_memo: dict[object, VerifiedFile] = {}
     assets = root / "assets"
-    proofs = _verify_inventory(assets, inputs.get("artifacts"), memo=proof_memo)
+    proofs = _verify_inventory(
+        assets,
+        inputs.get("artifacts"),
+        memo=proof_memo,
+        manifest_sha256=inputs["sha256"],
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     data = _load_inventory_prepared(
         assets, proofs, byte_enabled=base.model.memory in {"byte", "portable"}
     )
@@ -348,6 +391,9 @@ def verify_stage_bundle(
             bundle.get("artifacts"),
             memo=proof_memo,
             published_manifest="bundle.json",
+            manifest_sha256=bundle["sha256"],
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         if bundle.get("inputs_sha256") != inputs["sha256"]:
             raise ValueError("stage bundle input identity mismatch")
@@ -489,6 +535,8 @@ def materialize_prepared_inputs(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> Path:
     """Publish immutable, engine-neutral training inputs without probing a runtime.
 
@@ -526,6 +574,8 @@ def materialize_prepared_inputs(
                 resource_envelope=resource_envelope,
                 tokenizer_batch_documents=tokenizer_batch_documents,
                 tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
             )
             assets.mkdir()
             shutil.copy2(config.tokenizer.path, assets / "tokenizer.json")
@@ -579,7 +629,13 @@ def materialize_prepared_inputs(
             if source.name == "assets":
                 source = source.parent
             verified: dict[str, VerifiedFile] = {}
-            verify_prepared_inputs(source, config, _proofs=verified)
+            verify_prepared_inputs(
+                source,
+                config,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+                _proofs=verified,
+            )
             copied.update(_copy_tree(source / "assets", assets, verified=verified))
         _seal(
             work / "inputs.json",
@@ -627,6 +683,8 @@ def verify_prepared_inputs(
     config: RunConfig,
     *,
     allow_runtime_drift: bool = False,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
     _proofs: dict[str, VerifiedFile] | None = None,
 ) -> dict[str, Any]:
     """Verify a materialized input root without acquiring a target accelerator."""
@@ -643,7 +701,13 @@ def verify_prepared_inputs(
     ):
         raise ValueError("prepared inputs executable source identity differs")
     assets = root / "assets"
-    proofs = _verify_inventory(assets, inputs.get("artifacts"))
+    proofs = _verify_inventory(
+        assets,
+        inputs.get("artifacts"),
+        manifest_sha256=inputs["sha256"],
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     data = _load_inventory_prepared(
         assets, proofs, byte_enabled=config.model.memory in {"byte", "portable"}
     )
@@ -677,6 +741,8 @@ def _run_pilot(
     inherited_fds: tuple[int, ...] = (),
     cancel_path: Path | None = None,
     pilot_deadline_policy: PilotDeadlinePolicy | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> dict[str, Any]:
     if cancel_path is not None and cancel_path.exists():
         raise InterruptedError("staging cancelled before pilot initialization")
@@ -697,6 +763,11 @@ def _run_pilot(
                 str(root),
                 purpose,
                 *([] if cancel_path is None else ["--cancel-path", str(cancel_path)]),
+                *(
+                    ["--verification-root", str(proof_store.root)]
+                    if verification_mode == "verified_reuse" and proof_store is not None
+                    else ["--cold-verify"]
+                ),
             ],
             purpose=purpose,
             directory=directory,
@@ -755,6 +826,8 @@ def stage(
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
     pilot_deadline_policy: PilotDeadlinePolicy | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> Path:
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
@@ -796,14 +869,28 @@ def stage(
                 raise FileExistsError(
                     "stage output belongs to another executable source"
                 )
-            _verify_inventory(output, bundle.get("artifacts"))
+            _verify_inventory(
+                output,
+                bundle.get("artifacts"),
+                manifest_sha256=bundle["sha256"],
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
             if through != "inspect":
                 verify_stage_bundle(
-                    output, config, allow_runtime_drift=allow_runtime_drift
+                    output,
+                    config,
+                    allow_runtime_drift=allow_runtime_drift,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
                 )
                 if prepared_inputs is not None:
                     verify_prepared_inputs(
-                        prepared_inputs, config, allow_runtime_drift=allow_runtime_drift
+                        prepared_inputs,
+                        config,
+                        allow_runtime_drift=allow_runtime_drift,
+                        proof_store=proof_store,
+                        verification_mode=verification_mode,
                     )
                 elif config.tokenizer.path.exists() and sha256_file(
                     config.tokenizer.path
@@ -924,6 +1011,8 @@ def stage(
                             resource_envelope=resource_envelope,
                             tokenizer_batch_documents=tokenizer_batch_documents,
                             tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                            proof_store=proof_store,
+                            verification_mode=verification_mode,
                         )
                     else:
                         prepared_root = prepared_inputs.resolve(strict=True)
@@ -934,6 +1023,8 @@ def stage(
                             config,
                             allow_runtime_drift=allow_runtime_drift,
                             _proofs=prepared_proofs,
+                            proof_store=proof_store,
+                            verification_mode=verification_mode,
                         )
                     copied_assets = _copy_tree(
                         prepared_root / "assets",
@@ -984,6 +1075,8 @@ def stage(
                         inherited_fds=inherited_fds,
                         cancel_path=cancel_path,
                         pilot_deadline_policy=pilot_deadline_policy,
+                        proof_store=proof_store,
+                        verification_mode=verification_mode,
                     )
                     reports.append(pilot)
                     observations.extend(

@@ -42,6 +42,7 @@ from sparselab.training.manifest import (
     config_sha256,
     sha256_file,
 )
+from sparselab.verification_proofs import ProofStore, VerificationMode
 
 if TYPE_CHECKING:
     from sparselab.data.verification import VerifiedPreparedData
@@ -342,6 +343,9 @@ def _variant_identity(
     source: Path,
     authored_artifacts: dict[str, Artifact],
     memo: dict[tuple[object, ...], Any],
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Reverify all materialized dependencies against the declared release."""
     release = Path(record["release_path"])
@@ -423,7 +427,13 @@ def _variant_identity(
             sha256=digest,
             path=str(path),
         )
-        verified = verify_artifact(spec, source, memo=memo)
+        verified = verify_artifact(
+            spec,
+            source,
+            memo=memo,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         identities[kind] = {
             key: value for key, value in verified.items() if key != "path"
         }
@@ -627,6 +637,8 @@ def resolve_plan(
     *,
     prepared: dict[str, Any] | None = None,
     max_runs: int = 1000,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> ResolvedExperimentPlan:
     """Resolve verifiable scientific inputs without asserting runtime capability."""
     source = Path(source).resolve()
@@ -635,7 +647,13 @@ def resolve_plan(
     phases = _phases(plan)
     variants = _prepared_variants(plan, prepared)
     memo: dict[tuple[object, ...], Any] = {}
-    verified_inputs = verify_inputs(plan, source, memo=memo)
+    verified_inputs = verify_inputs(
+        plan,
+        source,
+        memo=memo,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     artifacts: dict[str, dict[str, Any]] = {}
     availability: dict[str, Any] = {
         "inputs": {},
@@ -659,7 +677,13 @@ def resolve_plan(
                 raise ValueError(f"planned artifact {name} has unknown producing phase")
             artifacts[name] = artifact.model_dump(mode="json", exclude={"path"})
             continue
-        verified = verify_artifact(artifact, source, memo=memo)
+        verified = verify_artifact(
+            artifact,
+            source,
+            memo=memo,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         artifacts[name] = {
             **{key: val for key, val in verified.items() if key != "path"},
             "producer": artifact.producer,
@@ -681,6 +705,8 @@ def resolve_plan(
             source,
             plan.artifacts,
             memo,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         for kind, identity in identities[name].items():
             key = f"variant.{name}.{kind}"
@@ -1056,11 +1082,19 @@ def _exclusive_bytes(path: Path, content: bytes) -> None:
         staging.unlink(missing_ok=True)
 
 
-def publish_lock(lock: ResolvedExperimentPlan, workspace: Path) -> Path:
+def publish_lock(
+    lock: ResolvedExperimentPlan,
+    workspace: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> Path:
     """Publish once; reuse only resolver-sealed proofs on this exact object."""
     proof = _publication_proof(lock)
     lock = ResolvedExperimentPlan.model_validate(lock.model_dump(mode="json"))
-    _check_resolved_artifacts(lock, proof)
+    _check_resolved_artifacts(
+        lock, proof, proof_store=proof_store, verification_mode=verification_mode
+    )
     directory = Path(workspace) / "locks"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{lock.plan_sha256}.json"
@@ -1082,7 +1116,9 @@ def publish_lock(lock: ResolvedExperimentPlan, workspace: Path) -> Path:
         + b"\n"
     )
     if path.exists() or sidecar.exists():
-        existing = _open_lock(path, proof)
+        existing = _open_lock(
+            path, proof, proof_store=proof_store, verification_mode=verification_mode
+        )
         if existing.model_dump(mode="json") != lock.model_dump(mode="json"):
             raise ValueError(
                 f"lock {path} already exists with a different availability binding"
@@ -1094,17 +1130,30 @@ def publish_lock(lock: ResolvedExperimentPlan, workspace: Path) -> Path:
     except BaseException:
         sidecar.unlink(missing_ok=True)
         raise
-    _open_lock(path, proof)
+    _open_lock(
+        path, proof, proof_store=proof_store, verification_mode=verification_mode
+    )
     return path
 
 
-def open_lock(path: Path) -> ResolvedExperimentPlan:
-    """Cold reopen always verifies every external artifact independently."""
-    return _open_lock(path, None)
+def open_lock(
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> ResolvedExperimentPlan:
+    """Direct reopen is independent cold; trusted reuse is explicitly operational."""
+    return _open_lock(
+        path, None, proof_store=proof_store, verification_mode=verification_mode
+    )
 
 
 def _check_resolved_artifacts(
-    lock: ResolvedExperimentPlan, proof: _LockArtifactProof | None
+    lock: ResolvedExperimentPlan,
+    proof: _LockArtifactProof | None,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> None:
     for name, identity in lock.artifacts.items():
         if identity.get("from_phase") is not None:
@@ -1113,12 +1162,23 @@ def _check_resolved_artifacts(
             {**identity, "path": lock.availability["artifacts"][name]}
         )
         if proof is None:
-            verify_artifact(artifact, Path("."))
+            verify_artifact(
+                artifact,
+                Path("."),
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
         else:
             _reuse_verified_artifact(artifact, Path("."), proof.memo)
 
 
-def _open_lock(path: Path, proof: _LockArtifactProof | None) -> ResolvedExperimentPlan:
+def _open_lock(
+    path: Path,
+    proof: _LockArtifactProof | None,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> ResolvedExperimentPlan:
     """Authenticate canonical bytes and all bindings; skip only sealed artifact scans."""
     path = Path(path)
     lock_bytes = path.read_bytes()
@@ -1170,7 +1230,12 @@ def _open_lock(path: Path, proof: _LockArtifactProof | None) -> ResolvedExperime
             {**identity, "path": availability["artifacts"][name]}
         )
         if proof is None:
-            verify_artifact(artifact, path)
+            verify_artifact(
+                artifact,
+                path,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
         else:
             _reuse_verified_artifact(artifact, path, proof.memo)
     for name, identity in lock.inputs.items():

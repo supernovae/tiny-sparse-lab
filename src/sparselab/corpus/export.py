@@ -8,6 +8,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -15,11 +16,23 @@ from sparselab.config.loading import load_config, load_tokenizer_config
 from sparselab.config.models import DatasetConfig, RunConfig, TokenizerTrainConfig
 from sparselab.training.manifest import canonical_json, sha256_file
 
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
 
-def _release(path: Path) -> dict[str, object]:
+
+def _release(
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, object]:
     from sparselab.corpus.release import verify_release
 
-    manifest = verify_release(path)
+    manifest = verify_release(
+        path,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     if manifest.get("release_id") != path.name:
         raise ValueError("release directory does not match verified release ID")
     return manifest
@@ -259,13 +272,84 @@ def export_release(
     return destination
 
 
-def verify_release_export(dataset: DatasetConfig) -> dict[str, object]:
+def verify_release_export(
+    dataset: DatasetConfig,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    _domain_cold: bool = False,
+) -> dict[str, object]:
+    """Verify an export; typed reuse is restricted to its complete trusted closure."""
+    from sparselab.corpus.release import _verification_operation
+
+    with _verification_operation():
+        if (
+            not _domain_cold
+            and proof_store is not None
+            and verification_mode == "verified_reuse"
+            and dataset.corpus_export_path is not None
+        ):
+            from sparselab.experiments.artifacts import verify_artifact
+            from sparselab.experiments.plan import Artifact
+
+            path = dataset.corpus_export_path
+            export = json.loads((path / "export.json").read_text(encoding="utf-8"))
+            verify_artifact(
+                Artifact(
+                    kind="corpus_export",
+                    version=export["schema_version"],
+                    producer="sparselab",
+                    identifier=path.name,
+                    sha256=path.name,
+                    path=str(path),
+                ),
+                path / "export.json",
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            # A signed export receipt authenticates its on-disk run configuration,
+            # not an arbitrary caller's dataset object.
+            run = load_config(path / "run.yaml")
+            if run.dataset != dataset:
+                raise ValueError("corpus export generated dataset mismatch")
+            return _export_binding(export)
+        return _verify_release_export_cold(
+            dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+
+
+def _export_binding(export: dict[str, object]) -> dict[str, object]:
+    splits = export["splits"]
+    return {
+        "release_id": export["release_id"],
+        "view": export["view"],
+        "vocab_size": export["vocab_size"],
+        "train_sha256": splits["train"]["sha256"],
+        "validation_sha256": splits["validation"]["sha256"],
+        "report_sha256": export["report_sha256"],
+        "license_report_sha256": export["license_report_sha256"],
+        "export_sha256": hashlib.sha256(canonical_json(export) + b"\n").hexdigest(),
+    }
+
+
+def _verify_release_export_cold(
+    dataset: DatasetConfig,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, object]:
     """Verify the release, export request, and exact bytes selected by dataset."""
     if dataset.corpus_release_path is None or dataset.corpus_export_path is None:
         raise ValueError("dataset does not reference a frozen corpus export")
     release_dir = dataset.corpus_release_path
     export_dir = dataset.corpus_export_path
-    manifest = _release(release_dir)
+    manifest = _release(
+        release_dir,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     export_bytes = (export_dir / "export.json").read_bytes()
     export = json.loads(export_bytes)
     if (

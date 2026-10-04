@@ -7,6 +7,7 @@ import json
 import os
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tokenizers import Tokenizer
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
@@ -19,6 +20,9 @@ from sparselab.corpus.export import verify_release_export
 from sparselab.data.datasets import iter_documents
 from sparselab.data.local_stories import verify_snapshot
 from sparselab.progress import progress_phase
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
 
 SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
 
@@ -81,6 +85,8 @@ def _verify_tokenizer_manifest(
     revision: str | None,
     vocab_size: int,
     dataset: DatasetConfig | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, object]:
     """Check a candidate's own bytes and dataset without applying bakeoff selection."""
     manifest_path = path.with_name("tokenizer_manifest.json")
@@ -121,7 +127,11 @@ def _verify_tokenizer_manifest(
         if manifest.get("source_manifest_sha256") != snapshot_digest:
             raise ValueError("tokenizer snapshot identity mismatch")
     if dataset is not None and dataset.corpus_release_path is not None:
-        binding = verify_release_export(dataset)
+        binding = verify_release_export(
+            dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         if bakeoff is not None:
             if (
                 manifest.get("corpus_export") is not None
@@ -150,20 +160,68 @@ def verify_tokenizer_artifact(
     revision: str | None,
     vocab_size: int,
     dataset: DatasetConfig | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    _domain_cold: bool = False,
 ) -> dict[str, object]:
-    """Verify the complete tokenizer, including its selection when bakeoff-produced."""
-    manifest = _verify_tokenizer_manifest(
-        path,
-        source=source,
-        revision=revision,
-        vocab_size=vocab_size,
-        dataset=dataset,
-    )
-    if manifest.get("corpus_forge_bakeoff") is not None:
-        if not isinstance(manifest["corpus_forge_bakeoff"], dict):
-            raise ValueError("invalid bakeoff provenance")
-        _verify_bakeoff_selection(path, manifest)
-    return manifest
+    """Verify the tokenizer and its complete provenance closure."""
+    from sparselab.corpus.release import _verification_operation
+
+    with _verification_operation():
+        if (
+            not _domain_cold
+            and proof_store is not None
+            and verification_mode == "verified_reuse"
+            and dataset is not None
+            and dataset.corpus_export_path is not None
+        ):
+            from sparselab.experiments.artifacts import verify_artifact
+            from sparselab.experiments.plan import Artifact
+
+            path = Path(path)
+            manifest = json.loads(
+                path.with_name("tokenizer_manifest.json").read_text(encoding="utf-8")
+            )
+            verify_artifact(
+                Artifact(
+                    kind="tokenizer",
+                    version=1,
+                    producer="sparselab",
+                    identifier=path.parent.name,
+                    sha256=manifest["sha256"],
+                    path=str(path),
+                ),
+                path.with_name("tokenizer_manifest.json"),
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            if (
+                manifest.get("source") != source
+                or manifest.get("vocab_size") != vocab_size
+                or (
+                    manifest.get("revision") != revision
+                    and not (
+                        manifest.get("corpus_forge_bakeoff") is not None
+                        and dataset.revision == revision
+                    )
+                )
+            ):
+                raise ValueError("tokenizer artifact provenance mismatch")
+            return manifest
+        manifest = _verify_tokenizer_manifest(
+            path,
+            source=source,
+            revision=revision,
+            vocab_size=vocab_size,
+            dataset=dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+        if manifest.get("corpus_forge_bakeoff") is not None:
+            if not isinstance(manifest["corpus_forge_bakeoff"], dict):
+                raise ValueError("invalid bakeoff provenance")
+            _verify_bakeoff_selection(path, manifest)
+        return manifest
 
 
 def _bounded_documents(

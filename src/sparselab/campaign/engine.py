@@ -26,8 +26,18 @@ def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
     def guarded(*args: Any, **kwargs: Any) -> Any:
         from sparselab.corpus.release import _verification_operation
 
-        with _verification_operation():
-            return function(*args, **kwargs)
+        engine = args[0]
+        previous = getattr(engine, "_verification_options", None)
+        if previous is None:
+            from sparselab.verification_proofs import verification_options
+
+            engine._verification_options = verification_options(engine.work_dir)
+        try:
+            with _verification_operation():
+                return function(*args, **kwargs)
+        finally:
+            if previous is None:
+                del engine._verification_options
 
     return guarded
 
@@ -48,6 +58,13 @@ class CampaignEngine:
         self.after_commit = after_commit
         self.runtime_profile = runtime_profile
         self.stages = {stage.id: stage for stage in self.plan.stages}
+
+    def _verification(self) -> dict[str, Any]:
+        from sparselab.verification_proofs import verification_options
+
+        return getattr(self, "_verification_options", None) or verification_options(
+            self.work_dir
+        )
 
     def _runtime_binding(
         self,
@@ -313,7 +330,7 @@ class CampaignEngine:
         from sparselab.experiments.lock import open_lock
 
         row = self._upstream(rows, name)
-        lock = open_lock(Path(row["availability"]["path"]))
+        lock = open_lock(Path(row["availability"]["path"]), **self._verification())
         if lock.plan_sha256 != row["outputs"][0]["sha256"]:
             raise ValueError("experiment lock identity changed")
         return lock
@@ -348,7 +365,9 @@ class CampaignEngine:
         if kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            verified = verify_artifact(stage.artifact, self.source)
+            verified = verify_artifact(
+                stage.artifact, self.source, **self._verification()
+            )
             if output != {
                 key: verified[key] for key in ("kind", "identifier", "sha256")
             }:
@@ -362,7 +381,7 @@ class CampaignEngine:
         elif kind == "experiment_plan":
             from sparselab.experiments.lock import open_lock
 
-            lock = open_lock(path)
+            lock = open_lock(path, **self._verification())
             if lock.plan_sha256 != output["sha256"] or lock.id != output["identifier"]:
                 raise ValueError("experiment plan identity changed")
             self._check_lock(stage, rows, lock)
@@ -620,7 +639,7 @@ class CampaignEngine:
         if stage.kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            verify_artifact(stage.artifact, self.source)
+            verify_artifact(stage.artifact, self.source, **self._verification())
         elif stage.kind == "corpus_release":
             from sparselab.corpus.project import ProjectConfig, load_project
             from sparselab.experiments.plan import read_document
@@ -649,7 +668,7 @@ class CampaignEngine:
         elif stage.kind == "experiment_plan" and stage.mode == "reference":
             from sparselab.experiments.lock import open_lock
 
-            open_lock(self._operational_path(stage.lock))
+            open_lock(self._operational_path(stage.lock), **self._verification())
         elif stage.kind == "evaluation":
             from sparselab.evaluation.suite import load_suite
 
@@ -1341,7 +1360,9 @@ class CampaignEngine:
                     "DO_NOT_ADVANCE",
                     reason=f"missing declared artifact: {path}",
                 )
-            verified = verify_artifact(stage.artifact, self.source)
+            verified = verify_artifact(
+                stage.artifact, self.source, **self._verification()
+            )
             return self._result(
                 outputs=[
                     {key: verified[key] for key in ("kind", "identifier", "sha256")}
@@ -1480,7 +1501,7 @@ class CampaignEngine:
                         "DO_NOT_ADVANCE",
                         reason=f"missing experiment lock: {path}",
                     )
-                lock = open_lock(path)
+                lock = open_lock(path, **self._verification())
                 self._check_lock(stage, rows, lock)
             else:
                 prepared = None
@@ -1498,15 +1519,19 @@ class CampaignEngine:
                                 "existing immutable preparation receipt is invalid"
                             )
                     else:
-                        prepared = prepare_plan(plan, source, workspace)
+                        prepared = prepare_plan(
+                            plan, source, workspace, **self._verification()
+                        )
                         with record_path.open("xb") as handle:
                             handle.write(canonical_json(prepared) + b"\n")
                             handle.flush()
                             os.fsync(handle.fileno())
-                lock = resolve_plan(plan, source, prepared=prepared)
+                lock = resolve_plan(
+                    plan, source, prepared=prepared, **self._verification()
+                )
                 self._check_lock(stage, rows, lock)
                 path = publish_lock(lock, workspace)
-                lock = open_lock(path)
+                lock = open_lock(path, **self._verification())
             return self._result(
                 outputs=self._identity("experiment_plan", lock.id, lock.plan_sha256),
                 availability={"path": str(path), "workspace": str(workspace)},

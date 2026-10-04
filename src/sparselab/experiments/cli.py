@@ -12,12 +12,33 @@ from sparselab.experiments.plan import base_run_config, load_plan
 from sparselab.workdir import resolve_work_dir
 
 
+def _verification(args: argparse.Namespace) -> dict[str, Any]:
+    from sparselab.verification_proofs import verification_options
+
+    options = getattr(args, "_verification_options", None)
+    if options is None:
+        options = verification_options(
+            resolve_work_dir(), cold=getattr(args, "cold_verify", False)
+        )
+        args._verification_options = options
+    return options
+
+
 def _emit(args: argparse.Namespace, data: dict[str, Any]) -> None:
     envelope = {
         "format": "sparselab-experiment-command-v1",
         "command": args.experiment_command,
         **data,
     }
+    options = getattr(args, "_verification_options", None)
+    if options is not None:
+        store = options["proof_store"]
+        envelope["verification"] = {
+            "mode": options["verification_mode"],
+            "proof_hits": 0 if store is None else store.hits,
+            "proof_misses": 0 if store is None else store.misses,
+            "proof_records": 0 if store is None else store.recorded,
+        }
     if args.json:
         print(json.dumps(envelope, sort_keys=True, allow_nan=False, default=str))
     else:
@@ -57,7 +78,13 @@ def _inspect_declaration(args: argparse.Namespace) -> None:
         prepared = _preparation(_workspace(plan.id))
         if prepared is None:
             raise ValueError("prepare corpus variants before resolving comparisons")
-        locked = resolve_plan(plan, source, prepared=prepared, max_runs=args.max_runs)
+        locked = resolve_plan(
+            plan,
+            source,
+            prepared=prepared,
+            max_runs=args.max_runs,
+            **_verification(args),
+        )
         _emit(
             args,
             {
@@ -137,7 +164,9 @@ def _inspect_declaration(args: argparse.Namespace) -> None:
         )
         if len(prepared_names) == 1 and not typed_choices:
             prepared_receipt = verify_prepared_artifact(
-                plan.artifacts[next(iter(prepared_names))], source
+                plan.artifacts[next(iter(prepared_names))],
+                source,
+                **_verification(args),
             )
         payload["estimates"] = [
             storage_preview(
@@ -210,6 +239,7 @@ def _prepare(args: argparse.Namespace) -> None:
         resource_envelope=resource_envelope,
         tokenizer_batch_documents=args.tokenizer_batch_documents,
         tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+        **_verification(args),
     )
     record["declaration_provenance"] = provenance
     record["storage_checks"] = getattr(args, "storage_checks", [])
@@ -249,9 +279,13 @@ def _lock(args: argparse.Namespace) -> None:
     plan, source = _declaration(args)
     workspace = _workspace(plan.id)
     resolved = resolve_plan(
-        plan, source, prepared=_preparation(workspace), max_runs=args.max_runs
+        plan,
+        source,
+        prepared=_preparation(workspace),
+        max_runs=args.max_runs,
+        **_verification(args),
     )
-    path = publish_lock(resolved, workspace)
+    path = publish_lock(resolved, workspace, **_verification(args))
     _emit(
         args,
         {
@@ -344,7 +378,7 @@ def _bind(args: argparse.Namespace) -> None:
     from sparselab.experiments.lock import open_lock
     from sparselab.workers.controller import Controller
 
-    locked = open_lock(Path(args.lock))
+    locked = open_lock(Path(args.lock), **_verification(args))
     selected = [
         cell for cell in locked.cells if args.cell is None or cell.id == args.cell
     ]
@@ -400,7 +434,7 @@ def _run(args: argparse.Namespace) -> None:
     from sparselab.workers.controller import Controller
     from sparselab.workers.models import WorkerDefinition
 
-    locked = open_lock(Path(args.lock))
+    locked = open_lock(Path(args.lock), **_verification(args))
     from sparselab.recovery.provenance import declaration_preflight
 
     if not locked.evaluations and not locked.evaluation_suite:
@@ -538,7 +572,7 @@ def _collect(args: argparse.Namespace) -> None:
     from sparselab.experiments.evidence import collect_evidence
     from sparselab.experiments.lock import open_lock
 
-    locked = open_lock(Path(args.lock))
+    locked = open_lock(Path(args.lock), **_verification(args))
     workspace = _workspace(locked.id)
     _emit(args, collect_evidence(locked, workspace))
 
@@ -546,7 +580,7 @@ def _collect(args: argparse.Namespace) -> None:
 def _explain(args: argparse.Namespace) -> None:
     from sparselab.experiments.lock import open_lock
 
-    locked = open_lock(Path(args.lock))
+    locked = open_lock(Path(args.lock), **_verification(args))
     _emit(
         args,
         {
@@ -570,7 +604,7 @@ def _reconstruct(args: argparse.Namespace) -> None:
     from sparselab.experiments.lock import open_lock
     from sparselab.experiments.retrospective import retrospective_views
 
-    locked = open_lock(Path(args.lock))
+    locked = open_lock(Path(args.lock), **_verification(args))
     options = (
         {}
         if args.index is None
@@ -626,6 +660,17 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             else "lock"
         )
         command.add_argument("--json", action="store_true")
+        if name in {
+            "inspect",
+            "diff",
+            "lock",
+            "bind",
+            "run",
+            "collect",
+            "explain",
+            "reconstruct",
+        }:
+            command.add_argument("--cold-verify", action="store_true")
         if name in {"prepare", "run"}:
             command.add_argument("--allow-uncommitted-declaration", action="store_true")
         if name in {"validate", "inspect", "diff", "lock"}:

@@ -104,3 +104,34 @@ material end-to-end benefit; production cold SHA defaults to one worker.
 The bounded host probe reports x86 SSE4.1/4.2, AVX/AVX2, SHA-NI and AES here;
 AVX512F is absent. Native SHA is `_hashlib`, linked OpenSSL 3.5.5. Capability
 presence is not an acceleration result; no custom hashing or dependency added.
+
+## Host-local proof protocol
+
+`verification_proofs.ProofStore(work_root)` stores versioned HMAC-SHA256 receipts
+under `cache/verification-v1/`. The separate 32-byte secret is
+`$XDG_CONFIG_HOME/sparselab/verification-key-v1` (absolute XDG only), otherwise
+`~/.config/sparselab/verification-key-v1`. Receipt/key files are 0600 and their
+private directories 0700. No proof is written inside an inventoried artifact.
+
+Bindings include typed kind/version/identifier/SHA, canonical absolute path,
+manifest/inventory digest, exact upstream identities, full member/dependency
+device/inode/mode/size/mtime-ns/ctime-ns fingerprints and verification success.
+The signed envelope binds verifier schema 1 and actual package source SHA.
+Only currently minted, process-owned cold verifier seals can publish receipts.
+Warm validation checks the complete signature and binding, trusted ownership
+and fingerprints before and after lookup, then mints a new process-local seal.
+Prepared inventory, manifest digest, dtype and shape checks still run.
+
+Trust requires the selected root and paths below it to be service-UID-owned and
+not group/other writable. Symlinks, multiply linked regular files, unsafe stores,
+foreign/missing keys, unsigned/stale receipts and changed bindings miss to cold.
+Cold corruption fails; there is no mtime/size-only authority or same-UID attacker
+protection. Direct Python verification remains cold unless explicitly opted in.
+
+Experiment `inspect`, `diff`, `lock`, `bind`, `run`, `collect`, `explain` and
+`reconstruct`, and `stage`, accept `--cold-verify`. Normal commands select the
+registered persistent root; only inputs beneath its trusted paths can reuse.
+Cold mode constructs no proof store and reads/writes no proof. Operational
+CLI proof counters are outside plan/scientific digests. Stage/pilot/worker
+parameters forward mode explicitly; portable corpus attachments retain their
+independent binding verification. Archive, recovery and family remain cold.

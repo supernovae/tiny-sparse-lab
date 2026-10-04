@@ -31,6 +31,7 @@ from sparselab.resource_envelope import (
     current_process_rss_bytes,
 )
 from sparselab.training.manifest import config_sha256, sha256_file
+from sparselab.verification_proofs import ProofStore, VerificationMode
 from sparselab.workdir import ensure_work_dir
 from sparselab.workspace_preflight import require_storage, training_storage_checks
 
@@ -40,6 +41,9 @@ def verified_reuse_tokenizer(
     artifacts: dict[str, Artifact],
     source: Path,
     release: ReleaseDeclaration,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, object]:
     """Bind a reused tokenizer and any fraction selector to verified artifacts."""
     name = variant.tokenizer_artifact
@@ -48,7 +52,12 @@ def verified_reuse_tokenizer(
     spec = artifacts[name]
     if spec.kind != "tokenizer":
         raise ValueError(f"{name} is not a tokenizer artifact")
-    identity = verify_artifact(spec, source)
+    identity = verify_artifact(
+        spec,
+        source,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     fraction = release.fraction
     if variant.fraction_tokenizer is not None and fraction is None:
         raise ValueError("fraction tokenizer override requires a fractional release")
@@ -58,7 +67,12 @@ def verified_reuse_tokenizer(
             selector_spec = artifacts[variant.fraction_tokenizer]
             if selector_spec.kind != "tokenizer":
                 raise ValueError("fraction selector is not a tokenizer artifact")
-            selector = verify_artifact(selector_spec, source)
+            selector = verify_artifact(
+                selector_spec,
+                source,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
         if fraction.tokenizer_sha256.lower() != selector["sha256"]:
             raise ValueError("fraction tokenizer digest differs from verified selector")
     return identity
@@ -74,6 +88,8 @@ def prepare_variant(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     """Reuse one project's pinned acquisition and independently freeze its release."""
     validate_tokenizer_batch_limits(
@@ -89,7 +105,14 @@ def prepare_variant(
     values.update(variant.release_set)
     release = ReleaseDeclaration.model_validate(values)
     reused = (
-        verified_reuse_tokenizer(variant, artifacts or {}, source, release)
+        verified_reuse_tokenizer(
+            variant,
+            artifacts or {},
+            source,
+            release,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         if variant.tokenizer_artifact is not None
         else None
     )
@@ -152,6 +175,8 @@ def prepare_variant(
         resource_envelope=resource_envelope,
         tokenizer_batch_documents=tokenizer_batch_documents,
         tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     return {
         "id": variant.id,
@@ -182,6 +207,8 @@ def prepare_plan(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     """Materialize declared variants only, after storage preflight and pinned sources."""
     validate_tokenizer_batch_limits(
@@ -216,6 +243,8 @@ def prepare_plan(
             resource_envelope=resource_envelope,
             tokenizer_batch_documents=tokenizer_batch_documents,
             tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         for variant in plan.corpus_variants
     ]
