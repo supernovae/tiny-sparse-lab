@@ -91,13 +91,25 @@ def test_preflight_byte_difference_and_missing_commit(
 
 
 def test_materialization_reuses_verified_git_bytes_and_rejects_tamper(
-    pinned_project: tuple[Path, Path, str], tmp_path: Path
+    pinned_project: tuple[Path, Path, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _, project, commit = pinned_project
+    rename = Path.rename
+
+    def rename_writable_directory(source: Path, target: Path) -> Path:
+        # Enforce macOS's directory-rename permission rule on every test host.
+        assert source.stat().st_mode & 0o200
+        return rename(source, target)
+
+    monkeypatch.setattr(Path, "rename", rename_writable_directory)
     first = materialize_source(project, commit, tmp_path / "work")
     second = materialize_source(project, commit, tmp_path / "work")
     assert first["source_root"] == second["source_root"]
     source = Path(first["source_root"])
+    assert source.stat().st_mode & 0o777 == 0o555
+    assert all(path.stat().st_mode & 0o222 == 0 for path in source.rglob("*"))
     historical = source / "src" / "sparselab" / "corpus" / "pipeline.py"
     assert historical.read_bytes().endswith(
         b"# historical corpus implementation fixture\n"

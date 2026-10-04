@@ -488,8 +488,12 @@ def materialize_source(source: Path, commit: str, work_root: Path) -> dict[str, 
             ).hexdigest(),
         }
         for directory, _, _ in os.walk(staging):
-            Path(directory).chmod(0o555)
+            if Path(directory) != staging:
+                Path(directory).chmod(0o555)
+        # macOS requires write permission on a directory being renamed. Seal
+        # its root after publication, before publishing the verification receipt.
         staging.rename(target)
+        target.chmod(0o555)
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
     with receipt_path.open("x", encoding="utf-8") as handle:
         json.dump(record, handle, sort_keys=True)

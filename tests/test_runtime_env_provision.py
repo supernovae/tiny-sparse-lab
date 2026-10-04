@@ -17,6 +17,9 @@ from sparselab.runtime_identity_probe import source_identity
 
 @pytest.fixture
 def provision_fixture(tmp_path, monkeypatch):
+    # Vendor installation is mocked, including the recipe's required host.
+    monkeypatch.setattr(provision_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(provision_module.platform, "machine", lambda: "x86_64")
     root = tmp_path / "data" / "sparselab" / "runtimes"
     registry = tmp_path / "config" / "sparselab" / "runtimes.yaml"
     monkeypatch.setenv("SPARSELAB_RUNTIME_DIR", str(root))
@@ -151,6 +154,21 @@ def _provision(identifier="gpu", **kwargs):
 
 def _commands(fixture):
     return [item[0] for item in fixture.commands]
+
+
+@pytest.mark.parametrize(
+    "system,machine", [("Darwin", "arm64"), ("Darwin", "x86_64"), ("Linux", "aarch64")]
+)
+def test_unsupported_host_refuses_before_uv_or_publication(
+    provision_fixture, monkeypatch, system, machine
+):
+    monkeypatch.setattr(provision_module.platform, "system", lambda: system)
+    monkeypatch.setattr(provision_module.platform, "machine", lambda: machine)
+    with pytest.raises(ValueError, match="Linux x86_64"):
+        _provision()
+    assert not provision_fixture.commands
+    assert not provision_fixture.root.exists()
+    assert not provision_fixture.registry.exists()
 
 
 def test_success_receipt_registers_only_verified_vendor_environment(provision_fixture):
