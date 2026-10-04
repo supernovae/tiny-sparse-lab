@@ -52,8 +52,35 @@ def _handle(args: argparse.Namespace) -> None:
         print(publication.freeze(Path(args.build), root))
         return
     release = _release_path(args.release, root)
+    if command == "measure-tokens":
+        from sparselab.corpus.release import _verification_operation
+        from sparselab.corpus.token_denominator import measure_source_tokens
+
+        # Explicit evidence reuse accepts only the reviewed, Git-bound v5 cold
+        # record. It is not authentication supplied by an arbitrary caller SHA.
+        raw_release = Path(args.release)
+        is_reference = "@" in args.release and not (
+            raw_release.exists() or raw_release.is_symlink()
+        )
+        with _verification_operation():
+            result = measure_source_tokens(
+                release if is_reference else raw_release,
+                Path(args.tokenizer),
+                Path(args.policy),
+                Path(args.output),
+                evidence_commit=args.evidence_commit,
+                release_evidence=Path(args.release_evidence)
+                if args.release_evidence is not None
+                else None,
+                selection_evidence=Path(args.selection_evidence)
+                if args.selection_evidence is not None
+                else None,
+                batch_documents=args.batch_documents,
+                batch_source_bytes=args.batch_source_bytes,
+            )
+        print(json.dumps(result, sort_keys=True))
+        return
     if command == "export":
-        publication.verify_release(release)
         print(
             export_release(
                 release, args.view, Path(args.base_run_config), args.vocab_size, root
@@ -123,6 +150,20 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command = sub.add_parser("tokenizer-bakeoff")
     command.add_argument("declaration")
     command.add_argument("--output", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "measure-tokens", help="Measure authenticated distinct source-domain tokens"
+    )
+    command.add_argument("release")
+    command.add_argument("--tokenizer", required=True)
+    command.add_argument("--policy", required=True)
+    command.add_argument("--output", required=True)
+    command.add_argument("--evidence-commit")
+    command.add_argument("--release-evidence")
+    command.add_argument("--selection-evidence")
+    command.add_argument("--batch-documents", type=int, default=256)
+    command.add_argument("--batch-source-bytes", type=int, default=1_048_576)
+    command.add_argument("--json", action="store_true")
     command.set_defaults(handler=_handle)
     for name in (
         "describe",

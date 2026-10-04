@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_meson_build
+kind: git
+canonical_uri: https://github.com/mesonbuild/meson.git
+revision: e961906e10c0be47bf30c59d195904716824dedb
+license: Apache-2.0
+license_url: https://github.com/mesonbuild/meson/blob/e961906e10c0be47bf30c59d195904716824dedb/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/mesonbuild/meson/blob/e961906e10c0be47bf30c59d195904716824dedb/COPYING]
+  notices: ['Retain Meson copyright and Apache-2.0 notices; check test-case snippets for exceptions.']
+domains: [build_systems, meson, configuration]
+document_kinds: [meson]
+source_family: v4_iac_meson_build_train
+notes: 'Original docs build configuration and seven individually chosen first-party Meson language test examples covering configure_file, source sets, feature options, CMake interop and basic projects. These are authored test-case definitions only, not bulk fixtures or their nested copied source. V3 docs/markdown/*.md, mesonbuild/*.py and unittests/*.py remain disjoint. Pinned tree about 30 KB.'
+acquisition:
+  include: ['docs/meson.build', 'data/macros.meson', 'test cases/common/14 configure file/meson.build', 'test cases/common/215 source set realistic example/meson.build', 'test cases/common/192 feature option/meson.build', 'test cases/common/1 trivial/meson.build', 'test cases/cmake/2 advanced/meson.build']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/subprojects/*', '*/wraps/*']
+  max_bytes: 120000

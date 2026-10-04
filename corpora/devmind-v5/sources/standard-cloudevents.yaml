@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_cloudevents
+kind: git
+canonical_uri: https://github.com/cloudevents/spec.git
+revision: fc1f6f31f5f011a72183f1bcea20c987cb683ade
+license: Apache-2.0
+license_url: https://github.com/cloudevents/spec/blob/fc1f6f31f5f011a72183f1bcea20c987cb683ade/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/cloudevents/spec/blob/fc1f6f31f5f011a72183f1bcea20c987cb683ade/LICENSE]
+  notices: ['Retain CloudEvents Authors Apache-2.0 license, copyright and applicable notices.']
+notes: 'Pinned first-party CloudEvents v1.0.2 spec; avoids unversioned WIP pages and third-party integrations. Screen OTel overlap.'
+domains: [protocols, distributed_systems, observability]
+document_kinds: [prose]
+source_family: v3_cloudevents_train
+acquisition:
+  include: ['cloudevents/spec.md']
+  exclude: []
+  max_bytes: 2000000

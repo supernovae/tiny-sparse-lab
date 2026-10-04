@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_undici_js
+kind: git
+canonical_uri: https://github.com/nodejs/undici.git
+revision: 8bbf77cfb4f39f70abd22010b6cf701992cee595
+license: MIT
+license_url: https://github.com/nodejs/undici/blob/8bbf77cfb4f39f70abd22010b6cf701992cee595/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/nodejs/undici/blob/8bbf77cfb4f39f70abd22010b6cf701992cee595/LICENSE]
+  notices: ['Retain Matteo Collina and Undici contributors MIT notice; exclude bundled llhttp WASM JS and external WPT fixtures.']
+domains: [javascript, networking, runtimes]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_undici_js_train
+notes: 'Pinned v7.13.0 commit. Authored HTTP client, dispatcher, fetch and websocket implementation plus independently authored network tests. Complete pinned Git tree: 399 selected files / 2,686,990 bytes before transform; generated llhttp WASM files, WPT corpus and bundles excluded.'
+acquisition:
+  include: ['lib/*.js', 'test/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/wpt/*', 'lib/llhttp/llhttp_simd-wasm.js', 'lib/llhttp/llhttp-wasm.js', 'test/fetch/bundle.js', 'test/env-http-proxy-agent-nodejs-bundle.js']
+  max_bytes: 3800000

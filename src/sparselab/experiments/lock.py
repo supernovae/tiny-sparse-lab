@@ -6,13 +6,22 @@ import hashlib
 import json
 import os
 import tempfile
+import weakref
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
 
 from sparselab.config.models import RunConfig, StrictModel
-from sparselab.experiments.artifacts import verify_artifact, verify_inputs
+from sparselab.experiments.artifacts import (
+    _reuse_verified_artifact,
+    _VerifiedArtifact,
+    verify_artifact,
+    verify_inputs,
+)
 from sparselab.experiments.compiler import (
     apply_patch,
     compare_configs,
@@ -27,12 +36,16 @@ from sparselab.experiments.plan import (
     Phase,
     base_run_config,
 )
+from sparselab.experiments.source_compatibility import locked_source_identity
 from sparselab.training.manifest import (
     canonical_json,
     config_sha256,
     sha256_file,
-    source_identity,
 )
+
+if TYPE_CHECKING:
+    from sparselab.data.verification import VerifiedPreparedData
+
 
 _LOCAL_FIELDS = {
     "logging": ("root_dir",),
@@ -100,6 +113,7 @@ class ResolvedExperimentPlan(StrictModel):
     # Machine-local paths are deliberately outside both digest domains. They are
     # included in the lock and independently authenticated by the lock's sidecar.
     availability: dict[str, Any] = Field(default_factory=dict)
+    _artifact_proof: _LockArtifactProof | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
     def valid_identity(self) -> ResolvedExperimentPlan:
@@ -109,6 +123,35 @@ class ResolvedExperimentPlan(StrictModel):
                 "experiment lock canonical scientific/full digest mismatch"
             )
         return self
+
+
+@dataclass(frozen=True)
+class _LockArtifactProof:
+    """Operation-local evidence; never part of either serialized digest domain."""
+
+    payload: bytes
+    memo: Mapping[tuple[object, ...], _VerifiedArtifact]
+    issuer_pid: int = field(default_factory=os.getpid)
+
+
+# An object reconstructed from lock JSON, copied, or fitted with borrowed private
+# attributes is not the exact resolver result registered in this process.
+_RESOLVED_OWNERS: weakref.WeakValueDictionary[int, ResolvedExperimentPlan] = (
+    weakref.WeakValueDictionary()
+)
+
+
+def _publication_proof(lock: ResolvedExperimentPlan) -> _LockArtifactProof | None:
+    proof = lock._artifact_proof
+    if (
+        _RESOLVED_OWNERS.get(id(lock)) is not lock
+        or not isinstance(proof, _LockArtifactProof)
+        or proof.issuer_pid != os.getpid()
+    ):
+        return None
+    if canonical_json(lock.model_dump(mode="json")) != proof.payload:
+        raise ValueError("resolved lock changed after artifact verification")
+    return proof
 
 
 def _hash(domain: str, value: object) -> str:
@@ -587,7 +630,7 @@ def resolve_plan(
 ) -> ResolvedExperimentPlan:
     """Resolve verifiable scientific inputs without asserting runtime capability."""
     source = Path(source).resolve()
-    package = source_identity()
+    package = locked_source_identity()
     base = base_run_config(plan, source)
     phases = _phases(plan)
     variants = _prepared_variants(plan, prepared)
@@ -977,9 +1020,15 @@ def resolve_plan(
         **data, scientific_sha256="", plan_sha256=""
     ).model_dump(mode="json")
     scientific, full = _identities(raw)
-    return ResolvedExperimentPlan.model_validate(
+    resolved = ResolvedExperimentPlan.model_validate(
         {**raw, "scientific_sha256": scientific, "plan_sha256": full}
     )
+    resolved._artifact_proof = _LockArtifactProof(
+        canonical_json(resolved.model_dump(mode="json")),
+        MappingProxyType(dict(memo)),
+    )
+    _RESOLVED_OWNERS[id(resolved)] = resolved
+    return resolved
 
 
 def _exclusive_bytes(path: Path, content: bytes) -> None:
@@ -1008,8 +1057,10 @@ def _exclusive_bytes(path: Path, content: bytes) -> None:
 
 
 def publish_lock(lock: ResolvedExperimentPlan, workspace: Path) -> Path:
-    """Publish once; existing IDs must be byte-identical and independently valid."""
+    """Publish once; reuse only resolver-sealed proofs on this exact object."""
+    proof = _publication_proof(lock)
     lock = ResolvedExperimentPlan.model_validate(lock.model_dump(mode="json"))
+    _check_resolved_artifacts(lock, proof)
     directory = Path(workspace) / "locks"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{lock.plan_sha256}.json"
@@ -1031,7 +1082,7 @@ def publish_lock(lock: ResolvedExperimentPlan, workspace: Path) -> Path:
         + b"\n"
     )
     if path.exists() or sidecar.exists():
-        existing = open_lock(path)
+        existing = _open_lock(path, proof)
         if existing.model_dump(mode="json") != lock.model_dump(mode="json"):
             raise ValueError(
                 f"lock {path} already exists with a different availability binding"
@@ -1043,12 +1094,32 @@ def publish_lock(lock: ResolvedExperimentPlan, workspace: Path) -> Path:
     except BaseException:
         sidecar.unlink(missing_ok=True)
         raise
-    open_lock(path)
+    _open_lock(path, proof)
     return path
 
 
 def open_lock(path: Path) -> ResolvedExperimentPlan:
-    """Reopen a lock without consulting the authored YAML or unverified aliases."""
+    """Cold reopen always verifies every external artifact independently."""
+    return _open_lock(path, None)
+
+
+def _check_resolved_artifacts(
+    lock: ResolvedExperimentPlan, proof: _LockArtifactProof | None
+) -> None:
+    for name, identity in lock.artifacts.items():
+        if identity.get("from_phase") is not None:
+            continue
+        artifact = Artifact.model_validate(
+            {**identity, "path": lock.availability["artifacts"][name]}
+        )
+        if proof is None:
+            verify_artifact(artifact, Path("."))
+        else:
+            _reuse_verified_artifact(artifact, Path("."), proof.memo)
+
+
+def _open_lock(path: Path, proof: _LockArtifactProof | None) -> ResolvedExperimentPlan:
+    """Authenticate canonical bytes and all bindings; skip only sealed artifact scans."""
     path = Path(path)
     lock_bytes = path.read_bytes()
     binding_bytes = path.with_name(path.stem + ".availability.json").read_bytes()
@@ -1072,7 +1143,12 @@ def open_lock(path: Path) -> ResolvedExperimentPlan:
     ):
         raise ValueError("experiment lock availability binding changed")
     lock = ResolvedExperimentPlan.model_validate({**raw, "availability": availability})
-    package = source_identity()
+    if (
+        proof is not None
+        and canonical_json(lock.model_dump(mode="json")) != proof.payload
+    ):
+        raise ValueError("published lock differs from resolved artifact proof")
+    package = locked_source_identity()
     if canonical_json(lock.source_identity) != canonical_json(package):
         raise ValueError("experiment lock source implementation identity changed")
     if lock.evaluation_suite is not None:
@@ -1093,7 +1169,10 @@ def open_lock(path: Path) -> ResolvedExperimentPlan:
         artifact = Artifact.model_validate(
             {**identity, "path": availability["artifacts"][name]}
         )
-        verify_artifact(artifact, path)
+        if proof is None:
+            verify_artifact(artifact, path)
+        else:
+            _reuse_verified_artifact(artifact, path, proof.memo)
     for name, identity in lock.inputs.items():
         if not any(
             identity
@@ -1169,80 +1248,12 @@ def open_lock(path: Path) -> ResolvedExperimentPlan:
 
 
 def storage_preview(
-    config: RunConfig, retention: dict[str, bool] | None = None
+    config: RunConfig,
+    retention: dict[str, bool] | None = None,
+    *,
+    verified_prepared: VerifiedPreparedData | None = None,
 ) -> dict[str, Any]:
-    """Conservative generation/write planning; validation is not checkpoint cadence."""
-    from dataclasses import asdict
-    from math import ceil
+    """Compatibility entry point for the common bounded storage preflight."""
+    from sparselab.experiments.storage import storage_preview as preview
 
-    from sparselab.model.inspection import inspection_report
-    from sparselab.workspace_preflight import (
-        projected_data_bytes,
-        training_storage_checks,
-    )
-
-    policy = retention or {}
-    training = config.training
-    tokens_per_update = (
-        training.seq_len * training.micro_batch_size * training.gradient_accumulation
-    )
-    steps = min(training.max_steps, ceil(training.max_tokens / tokens_per_update))
-    checkpoints = config.checkpoint
-    explicit = tuple(step for step in checkpoints.steps if 0 < step < steps)
-    scheduled_steps = (
-        (steps - 1) // checkpoints.every_steps if checkpoints.every_steps else 0
-    )
-    scheduled_tokens = (
-        (steps * tokens_per_update) // checkpoints.every_tokens
-        if checkpoints.every_tokens
-        else 0
-    )
-    validation_steps = (steps - 1) // config.evaluation.every_steps
-    # Both step zero and the terminal update are always written. Periodic due
-    # watermarks may be reset by best-validation writes, so count all possible
-    # writes only once per update; minutes are unbounded by wall time but bounded
-    # by the number of optimizer updates.
-    lower = 2 + max(len(explicit), scheduled_steps)
-    upper = steps + 1
-    retained_upper = (
-        upper
-        if checkpoints.keep_periodic and policy.get("keep_periodic", True)
-        else min(upper, 4)
-    )
-    checkpoint_bytes = int(inspection_report(config)["estimated_checkpoint_bytes"])
-    cache_bytes = projected_data_bytes(config)
-    checks = [asdict(check) for check in training_storage_checks(config)]
-    return {
-        "initial_generation": 0,
-        "terminal_generation": steps,
-        "explicit_checkpoint_steps": explicit,
-        "checkpoint_every_steps": checkpoints.every_steps,
-        "checkpoint_every_tokens": checkpoints.every_tokens,
-        "checkpoint_every_minutes": checkpoints.every_minutes,
-        "validation_every_steps": config.evaluation.every_steps,
-        "periodic_step_trigger_upper": scheduled_steps,
-        "periodic_token_trigger_upper": scheduled_tokens,
-        "validation_triggered_best_upper": validation_steps + 1,
-        "write_count_lower": min(lower, upper),
-        "write_count_upper": upper,
-        "retained_generations_lower": 1,
-        "retained_generations_upper": retained_upper,
-        "estimated_checkpoint_bytes": checkpoint_bytes,
-        "estimated_total_write_bytes_upper": ceil(upper * checkpoint_bytes * 1.25),
-        "estimated_retained_bytes_upper": ceil(
-            retained_upper * checkpoint_bytes * 1.25
-        ),
-        "estimated_retained_inodes_upper": retained_upper * 16,
-        "estimated_packed_cache_bytes": cache_bytes,
-        "available_storage": checks,
-        "estimated_free_bytes_after_retention": min(
-            (
-                check["available_bytes"]
-                - ceil(retained_upper * checkpoint_bytes * 1.25)
-                - cache_bytes
-                - check["reserve_bytes"]
-                for check in checks
-            ),
-            default=None,
-        ),
-    }
+    return preview(config, retention, verified_prepared=verified_prepared)

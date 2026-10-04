@@ -1,0 +1,27 @@
+{
+  "ceiling_semantics": "Exactly Corpus Forge export._split_stats/_licenses; UTF8 bytes+documents+1 is an upper bound, not an actual source-token estimate or MODEL-0 budget.",
+  "license_inventory": "AGPL-3.0-only; Apache-2.; Apache-2.0; Apache-2.0 OR MIT; Artistic-2.0 AND ISC; BSD-2-Clause; BSD-2-Clause AND (Apache-2.0 OR MIT); BSD-3-Clause; BSD-3-Clause AND GPL-2.0-or-later; CC-BY-4.0; CC-BY-SA-4.0; GFDL-1.3-or-later; GPL-1.0-or-later; GPL-2.0; GPL-2.0+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; IETF-Trust-TLP-5; ISC; LGPL-2.1; LGPL-2.1-or-later; LicenseRef-SQLite-Public-Domain; MIT; MIT-0; MPL-2.0; MPL-2.0 OR EPL-1.0; ODC-By-1.0; PSF-2.0; PSF-2.0 AND (MIT OR Apache-2.0); PostgreSQL; curl",
+  "lm_view_measurement_version": 1,
+  "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "release_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "splits": {
+    "train": {
+      "documents": 796563,
+      "fits_preregistered_1048576_byte_tokenizer_batch_limit": false,
+      "max_record_utf8_bytes": 4943884,
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/train.jsonl",
+      "rendered_utf8_bytes": 3999387258,
+      "sha256": "24a6e529def703c2b6e0c280d44569ecedf891d92f5dd1a0ee6c995eb2d5ccc4",
+      "token_upper_bound_with_eos": 4000183822
+    },
+    "validation": {
+      "documents": 16411,
+      "fits_preregistered_1048576_byte_tokenizer_batch_limit": true,
+      "max_record_utf8_bytes": 569203,
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/validation.jsonl",
+      "rendered_utf8_bytes": 82578187,
+      "sha256": "79d90dddc7989bcd27c62feecb19cdd68d3b432519629b485a6f80172a556d2a",
+      "token_upper_bound_with_eos": 82594599
+    }
+  }
+}

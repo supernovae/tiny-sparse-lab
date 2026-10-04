@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_angularjs_js
+kind: git
+canonical_uri: https://github.com/angular/angular.js.git
+revision: cf16b241e1c61c22a820ed8211bc2332ede88e62
+license: MIT
+license_url: https://github.com/angular/angular.js/blob/cf16b241e1c61c22a820ed8211bc2332ede88e62/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/angular/angular.js/blob/cf16b241e1c61c22a820ed8211bc2332ede88e62/LICENSE]
+  notices: ['Retain Google LLC and AngularJS contributor MIT notice.']
+domains: [javascript, web_development, developer_tools]
+document_kinds: [javascript, tests]
+source_family: v4_runtime_angularjs_js_train
+notes: 'Pinned final v1.8.3 commit. Historically authored AngularJS digest, dependency injection, compile, animation/routing and unit tests; complements modern Angular TS without copying its files. Excludes generated locale catalog and fixtures. Complete pinned Git tree: 175 selected files / 4,390,235 bytes before transform.'
+acquisition:
+  include: ['src/ng/*.js', 'src/ngAnimate/*.js', 'src/ngMock/*.js', 'src/ngRoute/*.js', 'test/ng/*.js', 'test/ngAnimate/*.js', 'test/ngMock/*.js', 'test/ngRoute/*.js']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*', '*/ngLocale/*']
+  max_bytes: 5700000

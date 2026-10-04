@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_cmake
+kind: git
+canonical_uri: https://github.com/Kitware/CMake.git
+revision: d291927f5ddb49ccfc20acc907863c7d71f3d46e
+license: BSD-3-Clause
+license_url: https://github.com/Kitware/CMake/blob/d291927f5ddb49ccfc20acc907863c7d71f3d46e/LICENSE.rst
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause
+  license_references: [https://github.com/Kitware/CMake/blob/d291927f5ddb49ccfc20acc907863c7d71f3d46e/LICENSE.rst]
+  notices: ['Retain Kitware and Contributors BSD license notices; module-specific imported licenses require file-level screening.']
+domains: [build_systems, developer_tools, programming]
+document_kinds: [cpp, cmake, prose]
+source_family: v3_tool_cmake_train
+notes: 'Kitware CMake authored C++ core, find modules, command documentation and find_package regression tests. Exclude Utilities, bundled kwsys, generated LexerParser, nested fixture packages and separately licensed modules.'
+acquisition:
+  include: ['Source/*.cxx', 'Source/*.h', 'Modules/Find*.cmake', 'Help/command/*.rst', 'Tests/RunCMake/find_package/*.cmake']
+  exclude: ['*/fixtures/*', '*/Fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', 'Source/kwsys/*', 'Source/LexerParser/*', 'Tests/RunCMake/find_package/*/*']
+  max_bytes: 19000000

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_system_cosign
+kind: git
+canonical_uri: https://github.com/sigstore/cosign.git
+revision: 907c3d899c0e5e8ea1c5ce78c23db6d9a9d40247
+license: Apache-2.0
+license_url: https://github.com/sigstore/cosign/blob/907c3d899c0e5e8ea1c5ce78c23db6d9a9d40247/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/sigstore/cosign/blob/907c3d899c0e5e8ea1c5ce78c23db6d9a9d40247/LICENSE]
+  notices: ['Preserve Sigstore Authors notices; avoid example credentials, certificates, key material and test fixture directories.']
+domains: [security, supply_chain, cryptography]
+document_kinds: [go, tests, prose]
+source_family: v3_system_cosign_heldout
+notes: 'Independent heldout repository for artifact signing, verification and transparency-log integration with small tests and developer docs; exclude private fixtures, certificates and generated protocol bindings.'
+acquisition:
+  include: ['cmd/*.go', 'internal/*.go', 'pkg/*.go', 'doc/*.md', 'README.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/keys/*', '*/certs/*', '*.pem', '*.key', '*.crt', '*.p12', '*.pb.go', '*_generated.go']
+  max_bytes: 9000000

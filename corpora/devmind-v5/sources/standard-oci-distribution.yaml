@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_oci_distribution
+kind: git
+canonical_uri: https://github.com/opencontainers/distribution-spec.git
+revision: a139cc423184af6078077b9b7ee336eddbd03f8f
+license: Apache-2.0
+license_url: https://github.com/opencontainers/distribution-spec/blob/a139cc423184af6078077b9b7ee336eddbd03f8f/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/opencontainers/distribution-spec/blob/a139cc423184af6078077b9b7ee336eddbd03f8f/LICENSE]
+  notices: ['Retain OCI authors Apache-2.0 license and file-specific copyright/notices.']
+notes: 'Official OCI v1.1.1 registry distribution protocol spec.md only. Runtime specification is a separate v2 validation family; screen shared text.'
+domains: [containers, protocols, distributed_systems]
+document_kinds: [prose]
+source_family: v3_oci_distribution_train
+acquisition:
+  include: ['spec.md']
+  exclude: []
+  max_bytes: 2000000

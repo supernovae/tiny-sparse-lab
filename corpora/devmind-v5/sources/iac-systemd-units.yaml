@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_systemd_units
+kind: git
+canonical_uri: https://github.com/systemd/systemd.git
+revision: 889bc48f101a7cbb56cb4be202e85e1f6d933151
+license: LGPL-2.1-or-later
+license_url: https://github.com/systemd/systemd/blob/889bc48f101a7cbb56cb4be202e85e1f6d933151/LICENSE.LGPL2.1
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: LGPL-2.1-or-later
+  license_references: [https://github.com/systemd/systemd/blob/889bc48f101a7cbb56cb4be202e85e1f6d933151/LICENSE.LGPL2.1, https://github.com/systemd/systemd/blob/889bc48f101a7cbb56cb4be202e85e1f6d933151/LICENSES/README.md]
+  notices: ['The LGPL is a default, not a blanket grant: inspect SPDX headers and preserve attribution on every selected unit, manual and test.']
+domains: [service_management, configuration, operating_systems]
+document_kinds: [configuration, prose]
+source_family: v4_iac_systemd_units_train
+notes: 'Maintained socket, timer, mount, network and user service configurations paired with original unit, execution and network XML manuals and two first-party execution test units. V3 includes units/*.service.in and units/*.target.in, docs/*.md and meson.build: all excluded here. Avoid unit samples injecting credentials. Pinned Git tree selects 123 files / 1415510 bytes.'
+acquisition:
+  include: ['units/*.socket', 'units/*.timer', 'units/*.mount', 'units/user/*.service', 'network/*.network', 'network/*.link', 'network/*.netdev', 'tmpfiles.d/*.conf', 'man/systemd.unit.xml', 'man/systemd.service.xml', 'man/systemd.socket.xml', 'man/systemd.timer.xml', 'man/systemd.exec.xml', 'man/systemd.network.xml', 'man/systemd.link.xml', 'man/systemd.netdev.xml', 'man/tmpfiles.d.xml', 'test/test-execute/exec-basic.service', 'test/test-execute/exec-dynamicuser-statedir.service']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/private/*', '*/fuzz/*', '*/uapi/*', '*/.service.in', '*/.target.in']
+  max_bytes: 2300000

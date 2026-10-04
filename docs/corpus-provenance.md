@@ -17,6 +17,31 @@ Rights, verification, origin and training shape remain distinct dimensions;
 metadata-only publication does not republish the training export. Historical
 DevMind fail-gates and v1 release identities are not reinterpreted.
 
+## Export storage and consumer authentication
+
+`corpus export RELEASE --work-dir ROOT` stores immutable configs under
+`ROOT/corpora/<corpus-id>/exports/<release-id>/<view>/<request-sha>`.
+`ROOT` may differ from the verified release's workspace. The canonical suffix
+must match the authenticated corpus, release and view; the request SHA binds
+`release_id`, `view`, `base_config_sha256` and `vocab_size`, not the absolute
+operational prefix. Do not relocate an accepted export to satisfy a consumer.
+
+Consumers verify the full release, exact canonical export metadata, generated
+config hashes, release/report/license-report hashes, split paths and hashes,
+actual record/rendered-byte counts, license and applicable publication/training
+policy. Both generated configs are model-validated and their complete dataset
+declarations must equal the consuming dataset. Ceilings retain every record:
+`max_documents = records`, `max_tokens = rendered_utf8_bytes + records + 1`.
+Changing a consumer dataset field or rehashing an inconsistent generated config
+does not bypass this contract. A selected external tokenizer path may differ;
+tokenizer selection, vocabulary and provenance remain separately authenticated.
+
+Operational paths inside configs and location-bound metadata can change file
+digests between separately produced exports. That does not make the storage root
+part of the canonical scientific request identity, nor permit editing an
+existing immutable export. Typed artifact/evidence references still bind their
+exact recorded file digests.
+
 ## Compare releases without reacquiring sources
 
 One project may point to multiple checked-in release declarations while retaining the same `id`, source declarations, snapshots and acquisition lock. For example, keep `sources/*.yaml`, `splits.yaml`, and `transforms/*.yaml` fixed, then make project variants that differ only in the `release:` YAML reference. Declare `include_shapes` and/or `include_origins` in each release YAML. `corpus build ... --offline` verifies the shared acquisition lock, builds the selected view without mutating a frozen release, and `corpus freeze BUILD` publishes a new release ID. Inspect its `manifest.json` snapshots, `lineage.jsonl`, `audit.json`, and `report.json`; only then export the selected training view. A variant whose selected training split is empty fails freeze rather than silently changing a run.
@@ -38,3 +63,43 @@ reports `UNKNOWN` usefulness per transform until paired evidence isolates the
 variable. Its integrity checks bind results to a run/checkpoint and registered
 card/scorer; they cannot establish an independent test population or causal
 effect. A release with no capability results has no capability matrix.
+
+## Tokenizer selection from a frozen release
+
+Pilot tokenizer-bakeoff declarations (`schema_version: 2`) accept verified
+rights-tracked release schemas 2 and 3. The release verifier remains the rights,
+lineage and immutable-identity gate; accepting schema 3 does not waive its
+training-use policy or admit legacy schema-1 releases.
+
+The three candidates use one train-only fit receipt and independent validation
+families. Reopening a bakeoff authenticates all candidate bytes/manifests,
+fit/held-out samples, measured scores and the smallest-vocabulary winner under
+the declaration's `near_best_ratio`. Consumer verification additionally requires
+the selected candidate, not any tokenizer with a bakeoff marker. An incomplete
+or hand-stamped marker is not a selection receipt.
+
+Keep the winner at `BAKEOFF/candidates/VOCAB/tokenizer.json` with the original
+`report.json`, samples and candidate manifests. Its manifest retains
+`source: local_text`, the fit-sample revision and `corpus_forge_bakeoff` binding.
+`data prepare` and authored tokenizer artifacts can verify that winner against
+an LM export of the same release and vocabulary without changing provenance,
+inventing a `corpus_export` sidecar or fitting again on the full export.
+The artifact identifier is the candidate-directory name (for example `16384`);
+the evidence-export identifier separately binds release ID and vocabulary.
+
+Supply accounting streams distinct selected source documents and deduplicates
+by normalized-content SHA; schema-2 pilots include unpaired/unclassified source
+kinds, while legacy schema 1 retains its original nine-kind scope. Ordered LM
+view totals count each emitted view record separately. General-education
+membership uses lightweight document flags rather than a second full text map;
+unclassified kind counts/bytes are streamed as counters. A RAM-censored bakeoff
+without a complete authenticated report is not a selected tokenizer.
+
+Worker preparation authenticates the original selection before sealing its
+tokenizer/prepared arrays. Portable corpus-binding v2 carries the unchanged
+selection-report bytes and fit/release binding, rather than labeling a bounded
+fit as full-export training. Offline workers verify that metadata closure,
+selected digest, vocabulary, release/export identities and sealed inventory;
+they do not reacquire the corpus or refit the tokenizer. Existing full-export
+tokenizers retain portable binding v1. Native runs preserve all verified metadata
+members, including the selection report, after source locations become unavailable.

@@ -15,7 +15,7 @@ from sparselab.cli.main import main
         ("--tokenizer-batch-documents", "1.5"),
         ("--tokenizer-batch-documents", "true"),
         ("--tokenizer-batch-source-bytes", "0"),
-        ("--tokenizer-batch-source-bytes", "4194305"),
+        ("--tokenizer-batch-source-bytes", "8388609"),
     ],
 )
 def test_invalid_batch_limit_fails_before_workspace(tmp_path, monkeypatch, flag, value):

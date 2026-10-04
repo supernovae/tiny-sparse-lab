@@ -1,0 +1,12 @@
+schema_version: 3
+publication_mode: metadata_reconstruction_only
+training_use_policy: allowed_unless_explicitly_prohibited
+# Descriptive weights; actual retained bytes and distinct tokens are measured separately.
+mixture:
+  general_education: 0.40
+  academic_research: 0.20
+  mathematics: 0.10
+  developer_systems: 0.30
+lm: {selected: true, training_splits: [train, validation]}
+chat: {selected: false, training_splits: []}
+keep_nonredistributable_local: true

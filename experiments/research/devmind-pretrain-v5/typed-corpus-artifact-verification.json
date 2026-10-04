@@ -1,0 +1,24 @@
+{
+  "artifact": {
+    "from_phase": null,
+    "identifier": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "kind": "corpus_release",
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "producer": "sparselab",
+    "selector": null,
+    "sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "state": null,
+    "version": 1
+  },
+  "release_envelope_version": 1,
+  "release_policy_schema_version": 3,
+  "source_verifier_sha256": "ea1d444f23f007393da7c0ebd3409ced1c28ebf90f854822ab359771986f18db",
+  "status": "REAL_FROZEN_V5_TYPED_CORPUS_ARTIFACT_VERIFIED",
+  "verified": {
+    "identifier": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "kind": "corpus_release",
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+    "version": 1
+  }
+}

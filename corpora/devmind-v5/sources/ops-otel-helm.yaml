@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_otel_helm
+kind: git
+canonical_uri: https://github.com/open-telemetry/opentelemetry-helm-charts.git
+revision: 2f7604aff7ee6f910f94cce242bcde4974b7ce0b
+license: Apache-2.0
+license_url: https://github.com/open-telemetry/opentelemetry-helm-charts/blob/2f7604aff7ee6f910f94cce242bcde4974b7ce0b/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/open-telemetry/opentelemetry-helm-charts/blob/2f7604aff7ee6f910f94cce242bcde4974b7ce0b/LICENSE]
+  notices: ['Retain OpenTelemetry contributor notices and review individual Helm template headers; generated rendered releases and CI fixture values excluded.']
+domains: [observability, deployment, configuration]
+document_kinds: [prose, configuration]
+source_family: v4_ops_otel_helm_train
+notes: 'First-party OpenTelemetry Collector chart deployment values, templated service/config/daemonset and upgrade explanation; excludes charts for other products and snapshot/CI fixtures. Separate from v2 Collector Go and v3 operations docs.'
+acquisition:
+  include: ['charts/opentelemetry-collector/README.md', 'charts/opentelemetry-collector/UPGRADING.md', 'charts/opentelemetry-collector/values.yaml', 'charts/opentelemetry-collector/templates/configmap.yaml', 'charts/opentelemetry-collector/templates/daemonset.yaml', 'charts/opentelemetry-collector/templates/deployment.yaml', 'charts/opentelemetry-collector/templates/service.yaml']
+  exclude: ['*/ci/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*']
+  max_bytes: 160000

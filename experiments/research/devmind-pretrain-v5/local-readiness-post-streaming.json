@@ -1,0 +1,25 @@
+{
+  "local_readiness_verification_version": 1,
+  "status": "PASSED_DENSE_SYNTHETIC_LOCAL_RECOVERY_SMOKE",
+  "source_commit": "bea1ea3cd687823e8e9454c9ecd61433450773dc",
+  "source_identity_sha256": "4083eebb70ae117e1a3babc337f3b5f0630e8ffbb1fc1598861e805202636aba",
+  "source_identity_digest_scope": "Formal readiness full scientific/source identity scope; distinct from runtime package-root source_sha256.",
+  "report": {
+    "path": "/srv/sparselab/state/scratch/devmind-v5/readiness-dense-streamed/readiness.json",
+    "sha256": "a2f66065a1f31f745dfa01f05edaa81fb46e41e95b54845bb57a6f72f68e2be1"
+  },
+  "family": {
+    "child_checkpoint": "/srv/sparselab/state/scratch/devmind-v5/readiness-dense-streamed/runs/readiness-dense-resumed/checkpoints/latest.json",
+    "config": "/srv/sparselab/state/scratch/devmind-v5/readiness-dense-streamed/configs/dense.yaml",
+    "effective_config_sha256": "a468cb65073681c98469edc1f9ad6f3ed1444f059fc6f5381332dbea384d5822",
+    "parent_checkpoint": "/srv/sparselab/state/scratch/devmind-v5/readiness-dense-streamed/runs/readiness-dense/checkpoints/latest.json",
+    "source_config": "smoke_cpu.yaml",
+    "source_config_sha256": "a468cb65073681c98469edc1f9ad6f3ed1444f059fc6f5381332dbea384d5822",
+    "status": "passed"
+  },
+  "limitations": [
+    "tiny synthetic data and short runs establish CLI wiring and recovery only",
+    "CUDA, ROCm, XPU, MLX, large-model fit, throughput, and model quality are not tested"
+  ],
+  "claim_boundary": "Local tiny dense CLI staging/training/checkpoint/resume readiness only. Full-size DevMind bakeoff, actual MODEL-0 GPU shape, training and quality remain unproven."
+}

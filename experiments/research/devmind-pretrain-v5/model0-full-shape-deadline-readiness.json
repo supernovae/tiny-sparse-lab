@@ -1,0 +1,710 @@
+{
+  "format_version": 1,
+  "classification": "ACTUAL_FULL_SHAPE_ROCM_OPERATIONAL_READY",
+  "implementation_commit": "f2a856e81d47d2f5c347533abf454df0796dacdf",
+  "authority_commit": "757e54e830dc3b1facc3e2f8fb6d4d70ad755c5a",
+  "actual_execution_source_sha256": "5a011e4ccad4c123bba10239c8bf89a4e8c28b226ed84f46c00d53f8bccd392f",
+  "frozen_config": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-run.yaml",
+    "file_sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5"
+  },
+  "stage": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/stage.json",
+    "file_sha256": "585c3eb05e863436071145383ff038460a3346f620bfa4618dbd6fc6ed1050a9",
+    "sealed_sha256": "e78f69ab8e75694c526f0f569669643508a08f986a22cf47e22899b5d2959768"
+  },
+  "bundle": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/bundle.json",
+    "file_sha256": "a1f81365e3a0ac5a7fcd33709a4a8ff477941526f79cfec1d2b5f1c3de6ccf0f",
+    "sealed_sha256": "73a1a3cba8c084987c008cea06d49cf9b17eee86b8f88eebe1eeabbb0bfa417b"
+  },
+  "cold_bundle_byte_verification": "passed in independent process without transferred proof capabilities",
+  "deadline_policy": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-pilot-deadline-policy-f2a856e-v1.yaml",
+    "file_sha256": "e76f75d8a3569295687a01e36d5c2280fd5d3d4f91e6061ef7126c5be7de2e33"
+  },
+  "denominator_receipt": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json",
+    "file_sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e"
+  },
+  "frozen_budget": {
+    "D": 30175366,
+    "effective_batch": 8192,
+    "max_steps": 5525,
+    "max_tokens": 45260800,
+    "parameters": 69317760
+  },
+  "estimate": {
+    "activations_bytes": 666894336,
+    "assumptions": [
+      "reference-v1: FP32 master parameters and gradients; autocast does not reduce resident model or optimizer state",
+      "categories are disjoint: registered buffers, retained activations, attention working tensors, workspace, and headroom",
+      "dense score/probability allowance remains conservative for sliding, MLA, and block-sparse reference attention",
+      "native calibration: 2 exact-key observations, conservative multiplier 1.06764"
+    ],
+    "attention_working_bytes": 183500800,
+    "calibration_sample_count": 2,
+    "capacity_ceiling_bytes": 23137416806,
+    "gradients_bytes": 277271040,
+    "headroom_bytes": 596873375,
+    "optimizer_bytes": 554542448,
+    "peak_bytes": 3217240883,
+    "resident_weights_bytes": 277271040,
+    "result": "LIKELY_TO_FIT",
+    "runtime_buffers_bytes": 13108480,
+    "version": "reference-v1",
+    "workspace_bytes": 647779364
+  },
+  "optimizer_only_forecast": {
+    "availability": "available",
+    "confidence": "preliminary",
+    "contributing_run_ids": [
+      "warmup-4e9cb61bacba44249a0dcf27345a8cb2"
+    ],
+    "estimate_kind": "optimizer_only",
+    "high_optimizer_only_seconds": 1960.319920136432,
+    "low_optimizer_only_seconds": 1931.9048684972452,
+    "optimizer_only_seconds": 1947.2441807697915,
+    "optimizer_targets_per_second": 23243.515346959382,
+    "pilot_run_id": "warmup-4e9cb61bacba44249a0dcf27345a8cb2",
+    "reason": null,
+    "schema_version": 1,
+    "source": "warmup-calibrated",
+    "total_targets": 45260800
+  },
+  "pilots": [
+    {
+      "purpose": "smoke",
+      "run_id": "smoke-219c482443cc42bfa2a89856124f66c8",
+      "updates": 2,
+      "targets": 16384,
+      "report": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/pilots/smoke/report.json",
+        "file_sha256": "92a39b109eb14821dccc7f7e44dbe7e0c744d7c646a3a9903effe15ff06a14bc",
+        "sealed_sha256": "c0465821a2d5c43fe70ee3cc65dd61e8dd07a98027dbdddbdf9dcf81ad067d4d"
+      },
+      "supervision": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/pilots/smoke/supervisor-completion.json",
+        "file_sha256": "d81ea220586122daa109d598c0c16b3ca2731432f3aa19b686c04d662594b0a3",
+        "sealed_sha256": "7e36c460b67661f243ee84f8d6e83832f011c5e5309252d64ab53eca4cf2cd1a"
+      },
+      "events": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/pilots/smoke/supervisor-events.jsonl",
+        "file_sha256": "285df498169187dd0225bb0b84d4cd1fb161990de1676340d0408ebe6847cf49"
+      },
+      "owned_process": {
+        "create_time": 1791052480.59,
+        "pid": 442145
+      },
+      "elapsed_seconds": 1258.1745909220044,
+      "completed_phase_times": [
+        {
+          "phase": "pilot_start",
+          "seconds": 0.0034339509875280783,
+          "step": null
+        },
+        {
+          "phase": "input_validation",
+          "seconds": 5.376456646001316,
+          "step": null
+        },
+        {
+          "phase": "stage_bundle_verification",
+          "seconds": 8.13234007099527,
+          "step": null
+        },
+        {
+          "phase": "runtime_initialization",
+          "seconds": 4.263189657998737,
+          "step": null
+        },
+        {
+          "phase": "data_open",
+          "seconds": 0.007853030998376198,
+          "step": null
+        },
+        {
+          "phase": "model_initialization",
+          "seconds": 0.9416073019965552,
+          "step": null
+        },
+        {
+          "phase": "optimizer_initialization",
+          "seconds": 0.00595232100749854,
+          "step": null
+        },
+        {
+          "phase": "engine_initialization",
+          "seconds": 0.9752193440072006,
+          "step": null
+        },
+        {
+          "phase": "run_input_materialization",
+          "seconds": 609.1695919620106,
+          "step": null
+        },
+        {
+          "phase": "validation",
+          "seconds": 2.4541943369986257,
+          "step": 0
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 1.3185870199959027,
+          "step": 0
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.6378362240066053,
+          "step": 1
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.3683400010049809,
+          "step": 2
+        },
+        {
+          "phase": "validation",
+          "seconds": 1.6149870799999917,
+          "step": 2
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 3.7799565629975405,
+          "step": 2
+        },
+        {
+          "phase": "training",
+          "seconds": 6.872439441009192,
+          "step": 2
+        },
+        {
+          "phase": "checkpoint_verification",
+          "seconds": 0.5628711710014613,
+          "step": null
+        },
+        {
+          "phase": "model_reload",
+          "seconds": 1.198964666997199,
+          "step": null
+        },
+        {
+          "phase": "data_open",
+          "seconds": 9.281754256997374,
+          "step": null
+        },
+        {
+          "phase": "finite_forward",
+          "seconds": 3.227168254001299,
+          "step": null
+        },
+        {
+          "phase": "pilot_complete",
+          "seconds": 0.013844191009411588,
+          "step": 2
+        }
+      ],
+      "finite_gradient_norms": [
+        4.31043004989624,
+        5.36117696762085
+      ],
+      "checkpoint_sha256": "67183479f7586a00f61c7a84e7dfbd9e4e9a0b9a968b32465e4f44e8ba1d32d4",
+      "checkpoint_resume_level": "full",
+      "checkpoint_reload": "verified_full_state_and_finite_forward",
+      "runtime": {
+        "backend": "rocm",
+        "device_driver_allocated_bytes": null,
+        "device_free_bytes": 24209948672,
+        "device_index": 0,
+        "device_name": "AMD Radeon RX 7900 XTX",
+        "device_recommended_bytes": null,
+        "device_total_bytes": 25708240896,
+        "driver_version": null,
+        "engine": "pytorch",
+        "format_version": 1,
+        "framework_version": "2.13.0+rocm10.0.0",
+        "host_architecture": "x86_64",
+        "host_environment": "wsl2",
+        "host_os": "linux",
+        "limitations": [
+          "driver version unavailable through safe PyTorch APIs"
+        ],
+        "measured_at": "2026-10-03T18:45:00.368349+00:00",
+        "measurement_source": "torch.cuda.mem_get_info",
+        "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+        "physical_device_id": "63643535-3163-3964-6534-396632343564",
+        "precision_capabilities": [
+          "fp32",
+          "bf16",
+          "fp16"
+        ],
+        "runtime_version": "7.15.26333",
+        "system_available_bytes": 23161823232,
+        "system_total_bytes": 33610706944,
+        "tested_features": [
+          "forward_backward_optimizer",
+          "optimizer:adamw",
+          "activation_checkpointing"
+        ],
+        "tested_precisions": [
+          "bf16"
+        ],
+        "torch_device": "cuda:0",
+        "validated_at": "2026-10-03T18:45:00.368505+00:00"
+      },
+      "observed_device_peak_bytes": 2797600768,
+      "observed_host_peak_bytes": 5978349568,
+      "supervised_tree_peak_rss_bytes": 9096417280,
+      "supervised_tree_peak_swap_bytes": 0,
+      "update_observations": [
+        {
+          "step": 1,
+          "targets": 8192,
+          "update_seconds": 0.595723619000637
+        },
+        {
+          "step": 2,
+          "targets": 8192,
+          "update_seconds": 0.35633357500773855
+        }
+      ],
+      "after_first_update_distribution": {
+        "count": 1,
+        "min_seconds": 0.35633357500773855,
+        "median_seconds": 0.35633357500773855,
+        "max_seconds": 0.35633357500773855,
+        "targets_per_second": 22989.694417154187
+      },
+      "real_completed_byte_counter_summary": {
+        "subjects": 44,
+        "total_observed_bytes": 52697045325,
+        "semantics": "Completed bytes read/hashed/copied within each named operation; not a count of unique scientific input bytes or copied payload bytes."
+      }
+    },
+    {
+      "purpose": "warmup",
+      "run_id": "warmup-4e9cb61bacba44249a0dcf27345a8cb2",
+      "updates": 5,
+      "targets": 40960,
+      "report": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/pilots/warmup/report.json",
+        "file_sha256": "14d20f778f4901fb31a1cfe199b1556a19f2be4db3c71820fb9a7294ed101aa2",
+        "sealed_sha256": "eb9b3ef5f9031b674860724468a6f5c7f5fa76ae5a493ebe6f9561a438bf3e34"
+      },
+      "supervision": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/pilots/warmup/supervisor-completion.json",
+        "file_sha256": "103aaf29f968bc2a67b6c66031a0f156bd502305370864cd5c435121d95e09fc",
+        "sealed_sha256": "140aec343a6177ba18575ae77725778bbb44dfc9ba251d70cc5033ed267bc610"
+      },
+      "events": {
+        "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1/pilots/warmup/supervisor-events.jsonl",
+        "file_sha256": "01b4865d55376dd44c39eb168b98324afcfbcb3e977eae3cb667a92fa687e81d"
+      },
+      "owned_process": {
+        "create_time": 1791053738.78,
+        "pid": 444204
+      },
+      "elapsed_seconds": 1303.4253445760114,
+      "completed_phase_times": [
+        {
+          "phase": "pilot_start",
+          "seconds": 0.0035085790004814044,
+          "step": null
+        },
+        {
+          "phase": "input_validation",
+          "seconds": 5.584299459005706,
+          "step": null
+        },
+        {
+          "phase": "stage_bundle_verification",
+          "seconds": 8.118813891996979,
+          "step": null
+        },
+        {
+          "phase": "runtime_initialization",
+          "seconds": 4.211754029005533,
+          "step": null
+        },
+        {
+          "phase": "data_open",
+          "seconds": 0.007268337998539209,
+          "step": null
+        },
+        {
+          "phase": "model_initialization",
+          "seconds": 0.9542822980001802,
+          "step": null
+        },
+        {
+          "phase": "optimizer_initialization",
+          "seconds": 0.0067647610121639445,
+          "step": null
+        },
+        {
+          "phase": "engine_initialization",
+          "seconds": 0.9869178450026084,
+          "step": null
+        },
+        {
+          "phase": "run_input_materialization",
+          "seconds": 628.3183702120004,
+          "step": null
+        },
+        {
+          "phase": "validation",
+          "seconds": 2.507357326991041,
+          "step": 0
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 1.2148705650033662,
+          "step": 0
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.6246999689901713,
+          "step": 1
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.36083354998845607,
+          "step": 2
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.36282453300373163,
+          "step": 3
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.35331503400811926,
+          "step": 4
+        },
+        {
+          "phase": "optimizer_update",
+          "seconds": 0.3615386649908032,
+          "step": 5
+        },
+        {
+          "phase": "validation",
+          "seconds": 1.6077571589994477,
+          "step": 5
+        },
+        {
+          "phase": "checkpoint",
+          "seconds": 3.5630147040064912,
+          "step": 5
+        },
+        {
+          "phase": "training",
+          "seconds": 7.974920478998683,
+          "step": 5
+        },
+        {
+          "phase": "checkpoint_verification",
+          "seconds": 0.5545401210110867,
+          "step": null
+        },
+        {
+          "phase": "model_reload",
+          "seconds": 1.2131591770012164,
+          "step": null
+        },
+        {
+          "phase": "data_open",
+          "seconds": 8.899935028006439,
+          "step": null
+        },
+        {
+          "phase": "finite_forward",
+          "seconds": 3.668613921996439,
+          "step": null
+        },
+        {
+          "phase": "pilot_complete",
+          "seconds": 0.01298754700110294,
+          "step": 5
+        }
+      ],
+      "finite_gradient_norms": [
+        4.31043004989624,
+        4.396824359893799,
+        6.447779655456543,
+        3.8205018043518066,
+        2.8764073848724365
+      ],
+      "checkpoint_sha256": "dcd9e257a71c95cfaccb5b8ad0835d8b49a2209e3ab0acf9e8c0dd6df21a5ec9",
+      "checkpoint_resume_level": "full",
+      "checkpoint_reload": "verified_full_state_and_finite_forward",
+      "runtime": {
+        "backend": "rocm",
+        "device_driver_allocated_bytes": null,
+        "device_free_bytes": 24235884544,
+        "device_index": 0,
+        "device_name": "AMD Radeon RX 7900 XTX",
+        "device_recommended_bytes": null,
+        "device_total_bytes": 25708240896,
+        "driver_version": null,
+        "engine": "pytorch",
+        "format_version": 1,
+        "framework_version": "2.13.0+rocm10.0.0",
+        "host_architecture": "x86_64",
+        "host_environment": "wsl2",
+        "host_os": "linux",
+        "limitations": [
+          "driver version unavailable through safe PyTorch APIs"
+        ],
+        "measured_at": "2026-10-03T19:06:23.168384+00:00",
+        "measurement_source": "torch.cuda.mem_get_info",
+        "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+        "physical_device_id": "63643535-3163-3964-6534-396632343564",
+        "precision_capabilities": [
+          "fp32",
+          "bf16",
+          "fp16"
+        ],
+        "runtime_version": "7.15.26333",
+        "system_available_bytes": 24533299200,
+        "system_total_bytes": 33610706944,
+        "tested_features": [
+          "forward_backward_optimizer",
+          "optimizer:adamw",
+          "activation_checkpointing"
+        ],
+        "tested_precisions": [
+          "bf16"
+        ],
+        "torch_device": "cuda:0",
+        "validated_at": "2026-10-03T19:06:23.168545+00:00"
+      },
+      "observed_device_peak_bytes": 2797600768,
+      "observed_host_peak_bytes": 5992382464,
+      "supervised_tree_peak_rss_bytes": 9118322688,
+      "supervised_tree_peak_swap_bytes": 0,
+      "update_observations": [
+        {
+          "step": 1,
+          "targets": 8192,
+          "update_seconds": 0.5827667010016739
+        },
+        {
+          "step": 2,
+          "targets": 8192,
+          "update_seconds": 0.3548226330021862
+        },
+        {
+          "step": 3,
+          "targets": 8192,
+          "update_seconds": 0.35011151200160384
+        },
+        {
+          "step": 4,
+          "targets": 8192,
+          "update_seconds": 0.34833639800490346
+        },
+        {
+          "step": 5,
+          "targets": 8192,
+          "update_seconds": 0.3548045029892819
+        }
+      ],
+      "after_first_update_distribution": {
+        "count": 4,
+        "min_seconds": 0.34833639800490346,
+        "median_seconds": 0.35245800749544287,
+        "max_seconds": 0.3548226330021862,
+        "targets_per_second": 23271.486909119696
+      },
+      "real_completed_byte_counter_summary": {
+        "subjects": 44,
+        "total_observed_bytes": 52697045325,
+        "semantics": "Completed bytes read/hashed/copied within each named operation; not a count of unique scientific input bytes or copied payload bytes."
+      }
+    }
+  ],
+  "limitations": [
+    "These full-shape 2/5-update pilots do not prove full-budget stability or model quality.",
+    "Pilot optimizer warmup/decay are deliberately shortened; frozen scientific run schedule remains unchanged.",
+    "Optimizer-only forecast excludes preparation, validation, checkpointing, ingestion and reporting.",
+    "New trusted phase attribution does not retroactively identify the exact operation in the original opaque failed attempt."
+  ],
+  "outer_guard": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-f2a856e-deadline-v1/completion.json",
+    "file_sha256": "e1e3b5b078cf06551893ca65f77921732752324aad65ae8356861d24c55d707d",
+    "observation": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "launch": {
+        "monitor_record_version": 1,
+        "kind": "launch",
+        "command": [
+          "env",
+          "UV_PROJECT_ENVIRONMENT=/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx",
+          "uv",
+          "run",
+          "--locked",
+          "--no-sync",
+          "sparselab",
+          "--work-dir",
+          "/srv/sparselab/state",
+          "stage",
+          "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/model0-run.yaml",
+          "--through",
+          "warmup",
+          "--runtime",
+          "rocm-7900xtx",
+          "--resource-envelope",
+          "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-resource-envelope.yaml",
+          "--tokenizer-batch-source-bytes",
+          "8388608",
+          "--pilot-deadline-policy",
+          "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-pilot-deadline-policy-f2a856e-v1.yaml",
+          "--output",
+          "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-stage-warmup-f2a856e-deadline-v1"
+        ],
+        "root": {
+          "pid": 440853,
+          "create_time": 1791051890
+        },
+        "policy": {
+          "monitor_policy_version": 1,
+          "max_tree_rss_bytes": 12884901888,
+          "max_tree_swap_bytes": 1073741824,
+          "min_host_available_ram_bytes": 8589934592,
+          "min_host_free_swap_bytes": 1073741824,
+          "min_disk_free_bytes": 270275294208,
+          "min_disk_free_inodes": 16777216,
+          "min_projected_disk_free_bytes": 270275294208,
+          "min_projected_disk_free_inodes": 16777216,
+          "interval_seconds": 1,
+          "termination_grace_seconds": 5
+        },
+        "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5",
+        "cwd": "/home/byron/src/tiny-sparse-lab",
+        "reserved_bytes": 68719476736,
+        "reserved_inodes": 4096,
+        "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+        "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+        "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-f2a856e-deadline-v1/command.stdout.log",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-f2a856e-deadline-v1/command.stderr.log",
+        "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-f2a856e-deadline-v1/events.jsonl",
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-warmup-f2a856e-deadline-v1/completion.json"
+      },
+      "returncode": 0,
+      "status": "COMPLETE",
+      "violations": [],
+      "peak_tree_rss_bytes": 9902919680,
+      "peak_tree_swap_bytes": 0,
+      "min_host_available_ram_bytes": 20730777600,
+      "min_host_free_swap_bytes": 5918810112,
+      "min_disk_free_bytes": 796587876352,
+      "min_disk_free_inodes": 64982731,
+      "min_projected_disk_free_bytes": 727868399616,
+      "min_projected_disk_free_inodes": 64978635,
+      "elapsed_seconds": 3175.315258510993,
+      "sample_count": 2959
+    }
+  },
+  "cold_verification_guard": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-cold-verify-f2a856e-deadline-v1/completion.json",
+    "file_sha256": "041db3c264e2c3def93bc8658546d6c89378569a9212a6f5ed9865a33709b0ce",
+    "observation": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "launch": {
+        "monitor_record_version": 1,
+        "kind": "launch",
+        "command": [
+          "env",
+          "UV_PROJECT_ENVIRONMENT=/home/byron/.local/share/sparselab/runtimes/rocm-7900xtx",
+          "uv",
+          "run",
+          "--locked",
+          "--no-sync",
+          "python",
+          "/srv/sparselab/state/scratch/devmind-deadline-cli-429f855e-c05b-45e6-9d32-9bc8fc3c0567/verify_fullshape.py"
+        ],
+        "root": {
+          "pid": 447237,
+          "create_time": 1791055610.36
+        },
+        "policy": {
+          "monitor_policy_version": 1,
+          "max_tree_rss_bytes": 12884901888,
+          "max_tree_swap_bytes": 1073741824,
+          "min_host_available_ram_bytes": 8589934592,
+          "min_host_free_swap_bytes": 1073741824,
+          "min_disk_free_bytes": 270275294208,
+          "min_disk_free_inodes": 16777216,
+          "min_projected_disk_free_bytes": 270275294208,
+          "min_projected_disk_free_inodes": 16777216,
+          "interval_seconds": 1,
+          "termination_grace_seconds": 5
+        },
+        "workspace": "/srv/sparselab/state/experiments/devmind-pretrain-v5",
+        "cwd": "/home/byron/src/tiny-sparse-lab",
+        "reserved_bytes": 0,
+        "reserved_inodes": 0,
+        "source_sha256": "d478abcc8df49b1f9405877a7a714435ee03a55420eff967203338e9a461d29b",
+        "policy_sha256": "cf34f07fecd984930a1751e149b098c6f66cb0f122d57bebbc2f0b4c2a5bb34c",
+        "source_path": "/home/byron/src/tiny-sparse-lab/src/sparselab/operational_monitor.py",
+        "policy_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-monitor-policy-v1.yaml",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-cold-verify-f2a856e-deadline-v1/command.stdout.log",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-cold-verify-f2a856e-deadline-v1/command.stderr.log",
+        "events_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-cold-verify-f2a856e-deadline-v1/events.jsonl",
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-full-shape-cold-verify-f2a856e-deadline-v1/completion.json"
+      },
+      "returncode": 0,
+      "status": "COMPLETE",
+      "violations": [],
+      "peak_tree_rss_bytes": 992133120,
+      "peak_tree_swap_bytes": 0,
+      "min_host_available_ram_bytes": 31444590592,
+      "min_host_free_swap_bytes": 5923737600,
+      "min_disk_free_bytes": 800017653760,
+      "min_disk_free_inodes": 64982725,
+      "min_projected_disk_free_bytes": 800017653760,
+      "min_projected_disk_free_inodes": 64982725,
+      "elapsed_seconds": 40.41576547099976,
+      "sample_count": 37
+    }
+  },
+  "phase_duration_semantics": "Inclusive named operation durations from signed root events; nested phases must not be summed as disjoint wall time.",
+  "measured_startup_boundary_gaps": {
+    "observations": [
+      {
+        "purpose": "smoke",
+        "seconds": 599.6216821670532,
+        "before": {
+          "phase": "input_validation",
+          "kind": "complete",
+          "sequence": 4
+        },
+        "after": {
+          "phase": "stage_bundle_verification",
+          "kind": "start",
+          "sequence": 5
+        }
+      },
+      {
+        "purpose": "warmup",
+        "seconds": 624.3544549942017,
+        "before": {
+          "phase": "input_validation",
+          "kind": "complete",
+          "sequence": 4
+        },
+        "after": {
+          "phase": "stage_bundle_verification",
+          "kind": "start",
+          "sequence": 5
+        }
+      }
+    ],
+    "classification": "Unlabelled interval before stage-bundle verification; code inspection identifies the pre-stage Corpus Forge/tokenizer authentication gate as the intervening boundary, not a timed suboperation.",
+    "fix": "Enclose that existing gate in input_validation; do not bypass or reuse its cold semantic authentication."
+  }
+}

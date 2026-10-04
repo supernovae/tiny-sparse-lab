@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_ansible
+kind: git
+canonical_uri: https://github.com/ansible/ansible.git
+revision: a900ea9d0c3665d4013d305dabe6d0af2c3231f8
+license: GPL-3.0-or-later
+license_url: https://github.com/ansible/ansible/blob/a900ea9d0c3665d4013d305dabe6d0af2c3231f8/COPYING
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: GPL-3.0-or-later
+  license_references: [https://github.com/ansible/ansible/blob/a900ea9d0c3665d4013d305dabe6d0af2c3231f8/COPYING, https://github.com/ansible/ansible/blob/a900ea9d0c3665d4013d305dabe6d0af2c3231f8/lib/ansible/playbook/play.py]
+  notices: ['Retain Ansible GPL-3.0-or-later and all authored-file copyright; avoid module_utils, bundled integrations and modules with mixed upstream licenses.']
+domains: [automation, developer_tools, programming]
+document_kinds: [python]
+source_family: v3_tool_ansible_train
+notes: 'Authored Ansible playbook/executor/inventory/CLI and action plugin implementations with selected unit tests. Pinned play.py and plugins/action/normal.py expressly state GPL version 3 or later. Avoid module_utils, collections, module implementations and integration fixtures.'
+acquisition:
+  include: ['lib/ansible/playbook/*.py', 'lib/ansible/executor/*.py', 'lib/ansible/inventory/*.py', 'lib/ansible/cli/*.py', 'lib/ansible/plugins/action/*.py', 'test/units/playbook/test_*.py']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 2300000

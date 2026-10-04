@@ -1,0 +1,51 @@
+plan_version: 1
+id: devmind-v5-model0
+base_run: model0-run.yaml
+artifacts:
+  corpus_release:
+    kind: corpus_release
+    version: 1
+    producer: sparselab
+    identifier: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    sha256: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+  corpus_export:
+    kind: corpus_export
+    version: 1
+    producer: sparselab
+    identifier: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    sha256: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+  tokenizer:
+    kind: tokenizer
+    version: 1
+    producer: sparselab
+    identifier: '32768'
+    sha256: ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json
+  prepared_data:
+    kind: prepared_data
+    version: 1
+    producer: sparselab
+    identifier: 15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84
+    sha256: 6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3
+    path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0
+inputs:
+  corpus_release: corpus_release
+  corpus_export: corpus_export
+  tokenizer: tokenizer
+  prepared_data: prepared_data
+phases:
+  - id: main
+    transition: fresh
+evaluation_suite: suite.yaml
+execution:
+  backend: rocm
+  workspace: /srv/sparselab/state/experiments/devmind-pretrain-v5
+  min_free_bytes: 34359738368
+  min_free_inodes: 4096
+retention:
+  keep_periodic: true
+  keep_best: true
+  keep_previous: true
+  keep_terminal: true

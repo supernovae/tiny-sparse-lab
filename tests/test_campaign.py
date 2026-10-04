@@ -185,6 +185,68 @@ def test_operational_artifact_accepts_external_absolute_location(
         load_campaign(source)
 
 
+@pytest.mark.parametrize(
+    "receipt,sha,policy",
+    [
+        ("budget.json", None, {"min_unique_train_tokens_by_domain": {"developer": 1}}),
+        (None, "a" * 64, {"min_unique_train_tokens_by_domain": {"developer": 1}}),
+        (
+            "budget.json",
+            "A" * 64,
+            {"min_unique_train_tokens_by_domain": {"developer": 1}},
+        ),
+        (
+            "budget.json",
+            "a" * 63,
+            {"min_unique_train_tokens_by_domain": {"developer": 1}},
+        ),
+        (
+            "../budget.json",
+            "a" * 64,
+            {"min_unique_train_tokens_by_domain": {"developer": 1}},
+        ),
+        (
+            "budget.json",
+            "a" * 64,
+            {"min_unique_train_bytes_by_domain": {"developer": 1}},
+        ),
+        ("budget.json", "a" * 64, {"min_heldout_families": 1}),
+    ],
+)
+def test_readiness_receipt_requires_bound_token_only_policy(
+    tmp_path: Path, receipt: str | None, sha: str | None, policy: dict
+) -> None:
+    value = declaration()
+    value["stages"].insert(
+        1,
+        {
+            "id": "tokenizer",
+            "kind": "tokenizer_reference",
+            "scope": "tokenizer",
+            "artifact": {
+                "kind": "tokenizer",
+                "version": 1,
+                "producer": "fixture",
+                "identifier": "selected",
+                "sha256": "a" * 64,
+                "path": str(tmp_path / "tokenizer.json"),
+            },
+        },
+    )
+    ready = value["stages"][2]
+    ready.update(
+        policy=policy,
+        tokenizer="tokenizer",
+        requires=["corpus", "tokenizer"],
+        measurement_receipt=receipt,
+        measurement_sha256=sha,
+    )
+    source = tmp_path / "campaign.yaml"
+    source.write_text(yaml.safe_dump(value))
+    with pytest.raises(ValueError, match="measurement|unsafe operational"):
+        load_campaign(source)
+
+
 def test_author_order_and_schema(tmp_path: Path) -> None:
     value = declaration()
     value["stages"] = [value["stages"][2], value["stages"][1], value["stages"][0]]
@@ -410,6 +472,160 @@ def frozen_corpus(tmp_path: Path) -> Path:
     project = load_project(tmp_path / "recipe/corpus.yaml")
     acquire(project, tmp_path / "work", offline=False)
     return freeze(build(project, tmp_path / "work", offline=True), tmp_path / "work")
+
+
+def test_campaign_committed_source_token_receipt_reopens_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+
+    from sparselab.campaign.engine import CampaignEngine
+    from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
+    from sparselab.corpus import release as release_module
+    from sparselab.corpus.token_denominator import measure_source_tokens
+    from sparselab.data.tokenizer import train_tokenizer
+    from sparselab.training.manifest import sha256_file
+
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    release = frozen_corpus(tmp_path)
+    tokenizer = train_tokenizer(
+        TokenizerTrainConfig(
+            schema_version=1,
+            vocab_size=260,
+            max_documents=100,
+            output_dir=tmp_path / "tokenizer",
+            dataset=DatasetConfig(
+                source="synthetic",
+                cache_dir=tmp_path / "data",
+                synthetic_seed=7,
+                train_max_documents=100,
+                validation_max_documents=100,
+                train_max_tokens=129,
+                validation_max_tokens=81,
+            ),
+        )
+    )
+    policy = {"min_unique_train_tokens_by_domain": {"developer": 1}}
+    policy_path = tmp_path / "budget.yaml"
+    policy_path.write_text(yaml.safe_dump(policy))
+    receipt_path = tmp_path / "budget.json"
+    receipt = measure_source_tokens(release, tokenizer, policy_path, receipt_path)
+    assert receipt["status"] == "COMPLETE"
+    manifest = json.loads((release / "manifest.json").read_text())
+    source_dir = tmp_path / "declarations"
+    source_dir.mkdir()
+    source = source_dir / "campaign.yaml"
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "campaign_version": 1,
+                "id": "receipt-fixture",
+                "stages": [
+                    {
+                        "id": "corpus",
+                        "kind": "artifact_reference",
+                        "scope": "corpus",
+                        "artifact": {
+                            "kind": "corpus_release",
+                            "version": manifest["schema_version"],
+                            "producer": "fixture",
+                            "identifier": manifest["release_id"],
+                            "sha256": manifest["release_id"],
+                            "path": str(release),
+                        },
+                    },
+                    {
+                        "id": "tokenizer",
+                        "kind": "tokenizer_reference",
+                        "scope": "tokenizer",
+                        "artifact": {
+                            "kind": "tokenizer",
+                            "version": 1,
+                            "producer": "fixture",
+                            "identifier": tokenizer.parent.name,
+                            "sha256": sha256_file(tokenizer),
+                            "path": str(tokenizer),
+                        },
+                    },
+                    {
+                        "id": "ready",
+                        "kind": "corpus_readiness",
+                        "scope": "corpus",
+                        "requires": ["corpus", "tokenizer"],
+                        "corpus": "corpus",
+                        "tokenizer": "tokenizer",
+                        "policy": policy,
+                        "measurement_receipt": str(receipt_path),
+                        "measurement_sha256": sha256_file(receipt_path),
+                    },
+                ],
+            }
+        )
+    )
+    subprocess.run(["git", "init", "-q", str(source_dir)], check=True)
+    subprocess.run(["git", "-C", str(source_dir), "add", "campaign.yaml"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(source_dir),
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "Fixture",
+        ],
+        check=True,
+    )
+    full_scans: list[Path] = []
+    original_verify_files = release_module._files
+
+    def count_full_scan(path: Path, inventory: dict) -> None:
+        full_scans.append(path)
+        original_verify_files(path, inventory)
+
+    monkeypatch.setattr(release_module, "_files", count_full_scan)
+    engine = CampaignEngine(source, tmp_path / "campaign-work")
+    completed = by_id(engine.apply())
+    assert full_scans == [release.resolve()]
+    assert completed["ready"]["state"] == "COMPLETE"
+    assert (
+        completed["ready"]["measurements"]["unique_train_tokens_by_domain"]["developer"]
+        == receipt["domains"]["developer"]["source_tokens"]
+    )
+    assert (
+        by_id(engine.inspect("plan"))["ready"]["measurements"]
+        == completed["ready"]["measurements"]
+    )
+    assert full_scans == [release.resolve(), release.resolve()]
+    stage_receipts = list((engine.store.root / "receipts/ready").glob("*.json"))
+    assert len(stage_receipts) == 1
+    stage_bytes = stage_receipts[0].read_bytes()
+
+    original_receipt = receipt_path.read_bytes()
+    receipt_path.write_bytes(original_receipt + b" ")
+    with pytest.raises(ValueError, match="measurement|receipt|SHA|sha"):
+        engine.inspect("plan")
+    with pytest.raises(ValueError, match="measurement|receipt|SHA|sha"):
+        engine.inspect("status")
+    assert stage_receipts[0].read_bytes() == stage_bytes
+    receipt_path.write_bytes(original_receipt)
+
+    original_policy = policy_path.read_bytes()
+    policy_path.write_bytes(original_policy + b"\n")
+    with pytest.raises(ValueError, match="policy|receipt|SHA|sha"):
+        engine.apply(resume=True)
+    assert stage_receipts[0].read_bytes() == stage_bytes
+    policy_path.write_bytes(original_policy)
+
+    documents = release / "documents.jsonl"
+    original_documents = documents.read_bytes()
+    documents.write_bytes(original_documents + b" ")
+    with pytest.raises(ValueError, match="release|artifact|documents|tamper"):
+        engine.apply(resume=True)
+    assert stage_receipts[0].read_bytes() == stage_bytes
 
 
 def test_verified_readiness_denominator_and_deficits(tmp_path: Path) -> None:

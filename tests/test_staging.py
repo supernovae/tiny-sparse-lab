@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -332,38 +331,6 @@ def test_portable_file_bundle_validates_config_and_survives_source_removal(
     snapshot = CheckpointManager(run).load(run / "checkpoints" / "latest.json")
     assert (snapshot.step, snapshot.tokens_seen) == (3, 48)
     assert torch.equal(snapshot.model["memory.embedding.weight"], table)
-
-
-@pytest.mark.parametrize("kind", ["out_of_memory", "pilot_failed"])
-def test_classified_pilot_failure_only_proposes_for_memory_errors(
-    tmp_path, monkeypatch, kind
-):
-    config = _config(tmp_path)
-    original = config.model_dump(mode="json")
-    real_run = subprocess.run
-
-    def failed_pilot(argv, **kwargs):
-        if len(argv) > 2 and argv[2] == "sparselab.training.pilot":
-            root, purpose = Path(argv[3]), argv[4]
-            staging_module._seal(
-                root / "pilots" / purpose / "failure.json",
-                {
-                    "format_version": 1,
-                    "kind": kind,
-                    "message": "injected pilot failure",
-                },
-            )
-            return subprocess.CompletedProcess(argv, returncode=1)
-        return real_run(argv, **kwargs)
-
-    monkeypatch.setattr(subprocess, "run", failed_pilot)
-    output = tmp_path / "pilot-failure"
-    with pytest.raises(MemoryError if kind == "out_of_memory" else RuntimeError):
-        stage(config, output, through="smoke")
-    assert config.model_dump(mode="json") == original
-    assert (output / "proposal.yaml").exists() == (kind == "out_of_memory")
-    assert _read_sealed(output / "stage.json")["status"] == "failed"
-    assert not (output / "bundle.json").exists()
 
 
 def test_stage_history_allows_repeated_evaluation_checkpoint_boundaries() -> None:

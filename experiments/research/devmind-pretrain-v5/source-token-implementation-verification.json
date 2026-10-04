@@ -1,0 +1,123 @@
+{
+  "verification_version": 1,
+  "kind": "source-token-implementation-verification",
+  "status": "VERIFIED_LOCAL_IMPLEMENTATION",
+  "scope": "Code correctness and bounded-memory execution; not the real v5 denominator, device fit, or model quality.",
+  "source_baseline_commit": "8d74147b6f932045c3f5dcffb451b9cb4360b0aa",
+  "branch": "research/devmind-v5-model0",
+  "source_modules": {
+    "src/sparselab/corpus/token_denominator.py": "d5b5a1374da7617d8b42d27dd47b979425bd57ad13460863ca61b951d31b02d5",
+    "src/sparselab/corpus/token_denominator_identity.py": "57f529a8fa85bc041b9898f46f2611bb17ad80f6838674ddf8d9c1fd5a4363f6",
+    "src/sparselab/corpus/cli.py": "7b603be3e7a3202917ff81417f5c9769f120bcb1a3bb5f48367020979fe1d33b"
+  },
+  "definition": {
+    "source": "Frozen documents.jsonl text; kept train rows; requested labels only",
+    "deduplication": "Per (domain, content_sha256), including overlaps independently",
+    "encoding": "Selected tokenizer vocabulary and normalizer; padding and truncation disabled in memory; add_special_tokens=False",
+    "authentication": "Raw binary-line SHA-256 through EOF, including blank-line bytes",
+    "storage": "SQLite file-backed deduplication, 8192 KiB cache; bounded text batches",
+    "default_batch_documents": 256,
+    "default_batch_source_bytes": 1048576,
+    "public_max_document_source_bytes": 1048576,
+    "explicit_preparation_batch_source_bytes_max": 8388608
+  },
+  "verification": [
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_corpus_token_denominator.py tests/test_corpus_token_identity.py tests/test_campaign.py tests/test_campaign_policy.py tests/test_streaming_packing.py tests/test_corpus_exports.py",
+      "passed": 147
+    },
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_corpus_*.py tests/test_tokenizer*.py tests/test_worker*.py tests/test_experiment*.py -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'",
+      "passed": 291
+    },
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_preparation_options.py tests/test_streaming_packing.py",
+      "passed": 24
+    },
+    {
+      "command": "uv run --locked --extra cpu pytest -q -n 2 --dist loadfile -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'",
+      "passed": 1389,
+      "skipped": 3
+    },
+    {
+      "command": "uv run --locked --extra cpu ruff check .",
+      "status": "passed"
+    },
+    {
+      "command": "uv run --locked --extra cpu ruff format --check .",
+      "status": "passed",
+      "files_already_formatted": 509
+    }
+  ],
+  "bounded_subprocess": {
+    "source_bytes": 268437096,
+    "rows": 65974,
+    "peak_rss_bytes": 398495744,
+    "ceiling_rss_bytes": 536870912,
+    "encoding": "Real WordLevel tokenizer; distinct valid content hashes; raw source count equals all rows",
+    "isolation": "Fresh lightweight interpreter launches the measured interpreter; Linux ru_maxrss otherwise retains the test runner's pre-exec RSS peak",
+    "unsafe_legacy_comparator_run": false
+  },
+  "canonical_cli_smoke": {
+    "root": "/srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/denominator-smoke-1790970752839908350",
+    "release_id": "d89bef4b38dab1b57978bc83aa4e04305a2e2758eaa3a709fdeef08ee53a383d",
+    "documents_sha256": "8508f4d9e6b215c67d18985c7914921b70f086f459cd4f6a577b03d77ad501b5",
+    "release_manifest_sha256": "84b07ec2adaf1ac1dfa547d9733486a8d57bca883e296691e50ae9efeee16ccd",
+    "tokenizer_sha256": "df6ef1aec30443fab388a74493883939d037bcdc8833fcc09500f9124e9cf878",
+    "policy_sha256": "c0b35fbc4e32d7fdf3279dd996a23e20c80b8027856e21cfa3a1843042ba3625",
+    "receipt_sha256": "69d2dd1bec8e6221af2615cc8f125d2df09cc489a24e7d923d8ec662f567f777",
+    "scientific_sha256": "f2bef1b3a7b35832870eebadbd8a6dda3f1dc829f43f864b984c77f161da4bab",
+    "domain": "developer",
+    "distinct_documents": 5,
+    "source_tokens": 415,
+    "operational_batch_counts": [5, 2],
+    "scientific_digest_equal_across_batches": true,
+    "read_only_reuse": true,
+    "independent_refusals": ["changed tokenizer", "changed source", "changed policy", "truncated partial", "symlinked literal path", "dangling symlink shadowing a release reference"]
+  },
+  "failure_boundary_proof": {
+    "directory_fsync_failure": "Before: COMPLETE final remained; after: no final and INTERRUPTED marker",
+    "completion_progress_failure": "Regression confirms no COMPLETE final and retained INTERRUPTED marker",
+    "post_link_keyboard_interrupt": "Before: COMPLETE final remained; after: own publication removed and INTERRUPTED marker retained",
+    "competing_publisher": "Existing other-publisher bytes preserved after exclusive-link conflict",
+    "saved_padding_and_truncation": "Authenticated fixture counted 640 before versus correct 415 after; artifact bytes and saved settings unchanged"
+  },
+  "campaign_smokes": {
+    "receipt_root": "/srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/denominator-smoke-1790970752839908350/campaign-smoke-1790971705655477229",
+    "receipt_tokens": 415,
+    "completed_stage_mutation_refused": true,
+    "unrequested_ancillary_facts": null,
+    "mixed_root": "/srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/denominator-smoke-1790970752839908350/mixed-readiness-smoke-1790971717147916250",
+    "explicit_workspace_over_unrelated_proc_default": true,
+    "mixed_facts": {"train_languages": {"en": 10}, "selected_train_shapes": {"raw_document": 10}, "heldout_families": 1, "source_tokens": {"developer": 415, "technical_docs": 475}}
+  },
+  "preparation_bound_smoke": {
+    "root": "/srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/preparation-bound-smoke-1790970768022963851",
+    "largest_record_utf8_bytes": 4943884,
+    "batch_source_bytes": 8388608,
+    "whole_record_token_id": 4,
+    "train_documents": 2,
+    "train_tokens": 515,
+    "validation_documents": 1,
+    "validation_tokens": 513,
+    "no_supervision_mask": true,
+    "manifest_sha256": "a127fb0562a56b842bc620f06eaec39e259eb76a3e1158b1d3c3e6fe72bc3b84",
+    "manifest_file_sha256": "d1f6f38b0c6861bd74a6822c7d6117797ea6dff1f93e34705ffd2d62f0994a4f",
+    "actual_cpu_stage": "smoke"
+  },
+  "local_readiness": {
+    "command": "uv run --locked --extra cpu sparselab --work-dir /srv/sparselab/state readiness smoke --family dense --output /srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/implementation-readiness-dense-raw",
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/scratch/implementation-readiness-dense-raw/readiness.json",
+    "file_sha256": "ee976b6f85c46d06d9e52c532c8042aaa19dceb91912851c72a5b13d3322548c",
+    "source_identity_sha256": "cae85440fb175afe5816f0bf510bfe7df9cda1b56819ea4e5039318ddd71c726",
+    "status": "passed",
+    "scope": "Dense CPU CLI inspect/preflight/prepare/stage/train/checkpoint/eval/generate/child resume on tiny synthetic data"
+  },
+  "scientific_boundary": {
+    "classification": "UNBOUNDED_MEMORY_DESIGN_CONFIRMED",
+    "historical_oom_pid_bound_to_measurement": false,
+    "real_v5_denominator_measured_by_this_record": false,
+    "real_v5_inputs_rebuilt_or_tokenizer_refit": false,
+    "hardware_or_long_run_gates_exercised": false
+  }
+}

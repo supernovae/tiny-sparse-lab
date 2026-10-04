@@ -8,12 +8,40 @@ import os
 import shutil
 import sqlite3
 import tempfile
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from itertools import zip_longest
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from sparselab.training.manifest import canonical_json, sha256_file
+
+
+@dataclass(frozen=True)
+class _VerifiedRelease:
+    """Full-verifier proof valid only within one synchronous operation."""
+
+    manifest: dict[str, Any]
+    manifest_sha256: str
+
+
+_verified_releases: ContextVar[dict[Path, _VerifiedRelease] | None] = ContextVar(
+    "verified_releases", default=None
+)
+
+
+@contextmanager
+def _verification_operation():
+    """Share full authentication with nested consumers, never across operations."""
+    if _verified_releases.get() is not None:
+        yield
+        return
+    token = _verified_releases.set({})
+    try:
+        yield
+    finally:
+        _verified_releases.reset(token)
 
 
 def _digest(value: Any) -> str:
@@ -1369,6 +1397,14 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
 def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, Any]:
     """Verify the complete release including snapshotted source and lineage evidence."""
     path = Path(path).resolve()
+    proofs = _verified_releases.get()
+    if proofs is not None and path in proofs:
+        proof = proofs[path]
+        if proof.manifest_sha256 != sha256_file(
+            path / "manifest.json"
+        ) or proof.manifest["release_id"] != (expected_id or path.name):
+            raise ValueError("release changed within verification operation")
+        return proof.manifest
     manifest = _load(path / "manifest.json")
     release_id = manifest.get("release_id")
     if release_id != (expected_id or path.name) or len(release_id) != 64:
@@ -1405,6 +1441,8 @@ def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, A
         if _streaming_v3(manifest["build_identity"])
         else _validate_rows
     )(path)
+    if proofs is not None:
+        proofs[path] = _VerifiedRelease(manifest, sha256_file(path / "manifest.json"))
     return manifest
 
 

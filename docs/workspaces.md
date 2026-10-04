@@ -50,6 +50,65 @@ Promoting a model does not promote its full mutable workspace into version
 control. Reusable tokenizer and prepared-data caches keep their configured
 identities and locations; they need not be duplicated into each experiment.
 
+## Guarding one operational command
+
+`sparselab monitor` launches one command once, records versioned launch,
+per-sample and completion JSON under a new exclusive log directory, and returns
+a nonzero exit code on any guard violation, monitor error or command failure.
+For example:
+
+```sh
+uv run --locked --extra cpu sparselab monitor --policy monitor.yaml --workspace /data/sparselab \
+  --log-dir /data/sparselab/logs/unique-launch \
+  --reserve-bytes 1073741824 --reserve-inodes 100 --json -- \
+  uv run --locked --extra cpu sparselab corpus measure-tokens ...
+```
+
+For a 12 GiB owned-tree RSS cap, 8 GiB host available-RAM floor, 1 GiB
+owned-tree swap cap and independently selected free-swap floor:
+
+```yaml
+monitor_policy_version: 1
+max_tree_rss_bytes: 12884901888
+min_host_available_ram_bytes: 8589934592
+max_tree_swap_bytes: 1073741824
+min_host_free_swap_bytes: 1073741824
+min_projected_disk_free_bytes: 10000000000
+min_projected_disk_free_inodes: 10000
+```
+
+The strict YAML policy starts with `monitor_policy_version: 1`; optional guards
+are `max_tree_rss_bytes`, `max_tree_swap_bytes`,
+`min_host_available_ram_bytes`, `min_host_free_swap_bytes`,
+`min_disk_free_bytes`, `min_disk_free_inodes`,
+`min_projected_disk_free_bytes` and `min_projected_disk_free_inodes`.
+`interval_seconds` defaults to 1 (maximum 2) and
+`termination_grace_seconds` to 5. Reservations subtract from the current free
+space/inodes on the workspace filesystem before projected checks. The policy is
+operational: it is **not** a scientific config, and unlike
+`ResourceEnvelope.min_swap_bytes` the tree swap guard applies only to the
+command's PID/creation-time identified descendants. Host swap *used* is logged
+but never a tree-swap threshold; free host swap has its own minimum.
+
+Python callers can load `MonitorPolicy` with `load_monitor_policy(path)` and call
+`monitor_command(command, policy, workspace=..., log_dir=...,
+policy_path=..., reserved_bytes=..., reserved_inodes=..., cwd=...)`; the result
+is a typed `MonitorCompletion`. The command working directory defaults to the
+caller's directory and is recorded separately from the monitored storage
+workspace; `--cwd` selects it explicitly. The event stream (`events.jsonl`)
+includes the command, root PID and creation time, source/policy paths and SHA-256,
+and log paths. Child stdout/stderr are retained separately as
+`command.stdout.log` and `command.stderr.log`; the CLI emits the final completion
+JSON. `completion.json` repeats that terminal record. `FAILED` preserves a nonzero
+child return code and is not an accepted successful operation. Peaks are sampled
+observations; unavailable readings remain null, not invented zeroes.
+Monitored descendants retain their identity after reparenting if observed before
+orphaning. Signals
+use per-PID Linux pidfds after identity checks, never process-group signals.
+Sampling cannot discover a process that was born and orphaned entirely between
+samples; plan critical workloads accordingly. Missing requested metrics fail
+closed; monitoring does not resume, retry or authenticate scientific inputs.
+
 ## Explicit campaign cleanup
 
 Choose the campaign workspace under the selected persistent root when preparing

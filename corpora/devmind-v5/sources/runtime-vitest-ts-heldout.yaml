@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_vitest_ts_heldout
+kind: git
+canonical_uri: https://github.com/vitest-dev/vitest.git
+revision: c666d149a4516761bae92ca56ce1336d2fd352c3
+license: MIT
+license_url: https://github.com/vitest-dev/vitest/blob/c666d149a4516761bae92ca56ce1336d2fd352c3/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/vitest-dev/vitest/blob/c666d149a4516761bae92ca56ce1336d2fd352c3/LICENSE, https://github.com/vitest-dev/vitest/blob/c666d149a4516761bae92ca56ce1336d2fd352c3/packages/vitest/LICENSE.md]
+  notices: ['Retain Vitest Team MIT notice; packages/vitest/LICENSE.md documents bundled third-party licenses for published artifacts, which are excluded.']
+domains: [typescript, developer_tools, testing]
+document_kinds: [typescript, tests, prose]
+source_family: v4_runtime_vitest_ts_heldout
+notes: 'Pinned v3.2.4 commit; reserve entire independently developed Vitest repository as TypeScript heldout, without any Vitest revision/path in v4 train. Authored runner, expect, spy and core test TS with guide/API docs. GitHub pinned-tree inventory: 433 selected files / 2,094,050 bytes before transform; exclude fixtures, snapshots, generated output and lockfiles.'
+acquisition:
+  include: ['packages/vitest/src/*.ts', 'packages/runner/src/*.ts', 'packages/expect/src/*.ts', 'packages/spy/src/*.ts', 'test/core/test/*.test.ts', 'docs/guide/*.md', 'docs/api/*.md', 'package.json']
+  exclude: ['*/fixtures/*', '*/__fixtures__/*', '*/__snapshots__/*', '*/vendor/*', '*/generated/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/testdata/*', '*/third_party/*']
+  max_bytes: 3000000

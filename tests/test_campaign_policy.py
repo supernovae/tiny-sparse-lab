@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
+from tokenizers.pre_tokenizers import Whitespace
 
 from sparselab.campaign.plan import load_campaign
 from sparselab.campaign.policy import CorpusReadinessPolicy, measure_readiness
@@ -16,7 +19,9 @@ from sparselab.campaign.state import CampaignStore
 from sparselab.corpus.acquisition import acquire
 from sparselab.corpus.pipeline import build
 from sparselab.corpus.project import load_project
-from sparselab.corpus.release import freeze, verify_release
+from sparselab.corpus.release import _verification_operation, freeze, verify_release
+from sparselab.corpus.token_denominator import measure_source_tokens
+from sparselab.training.manifest import sha256_file
 
 
 @pytest.fixture
@@ -156,3 +161,200 @@ def test_validation_only_selected_view_does_not_satisfy_train_shape(
             "domain": "raw_document",
         }
     ]
+
+
+def _fixture_tokenizer(folder: Path) -> Path:
+    folder.mkdir()
+    path = folder / "tokenizer.json"
+    tokenizer = Tokenizer(WordLevel({"[UNK]": 0, "hello": 1}, unk_token="[UNK]"))
+    tokenizer.pre_tokenizer = Whitespace()
+    tokenizer.save(str(path))
+    (folder / "tokenizer_manifest.json").write_text(
+        json.dumps(
+            {
+                "source": "local_text",
+                "revision": "readiness-fixture",
+                "vocab_size": 2,
+                "sha256": sha256_file(path),
+            }
+        )
+    )
+    return path
+
+
+def test_token_only_receipt_uses_authenticated_counts_without_encoding(
+    local_recipe: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "state"))
+    release = _release(local_recipe, tmp_path / "work")
+    tokenizer = _fixture_tokenizer(tmp_path / "tokenizer")
+    policy_file = tmp_path / "policy.yaml"
+    policy_file.write_text(
+        yaml.safe_dump(
+            {"min_unique_train_tokens_by_domain": {"developer": 1, "absent": 0}}
+        )
+    )
+    policy = CorpusReadinessPolicy.model_validate(
+        yaml.safe_load(policy_file.read_bytes())
+    )
+    output = tmp_path / "tokens.json"
+    receipt = measure_source_tokens(release, tokenizer, policy_file, output)
+    import sparselab.corpus.token_denominator as denominator
+
+    def no_encoding(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("receipt readiness must not tokenize")
+
+    monkeypatch.setattr(denominator, "load_tokenizer", no_encoding)
+    original_read_text = Path.read_text
+
+    def no_corpus_read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path.name in {"documents.jsonl", "lineage.jsonl"}:
+            raise AssertionError("corpus ledgers must be streamed")
+        return original_read_text(path, *args, **kwargs)
+
+    result = measure_readiness(
+        release,
+        policy,
+        tokenizer,
+        measurement_receipt=output,
+        measurement_sha256=sha256_file(output),
+    )
+    facts = result["measurements"]
+    assert facts["unique_train_tokens_by_domain"] == {
+        domain: counts["source_tokens"] for domain, counts in receipt["domains"].items()
+    }
+    assert facts["train_languages"] is None
+    assert facts["selected_train_shapes"] is None
+    assert facts["heldout_families"] is None
+    assert facts["unique_train_bytes_by_domain"]["absent"] == 0
+    assert result["state"] == "COMPLETE"
+    import sparselab.campaign.policy as readiness_module
+
+    with _verification_operation():
+        verify_release(release)
+        monkeypatch.setattr(Path, "read_text", no_corpus_read_text)
+
+        def no_lineage(path: Path):
+            if "lineage" in path.name:
+                raise AssertionError("token-only readiness must not scan lineage")
+            return iter(())
+
+        monkeypatch.setattr(readiness_module, "_iter_rows", no_lineage)
+        assert (
+            measure_readiness(
+                release,
+                policy,
+                tokenizer,
+                measurement_receipt=output,
+                measurement_sha256=sha256_file(output),
+            )["measurements"]
+            == facts
+        )
+        absent_tokenizer = measure_readiness(release, policy)
+        assert absent_tokenizer["state"] == "BLOCKED"
+        assert absent_tokenizer["measurements"]["unique_train_tokens_by_domain"] is None
+        assert absent_tokenizer["measurements"]["train_languages"] is None
+    monkeypatch.setattr(Path, "read_text", original_read_text)
+
+    with pytest.raises(ValueError, match="together"):
+        measure_readiness(release, policy, tokenizer, measurement_receipt=output)
+    with pytest.raises(ValueError, match="SHA-256"):
+        measure_readiness(
+            release,
+            policy,
+            tokenizer,
+            measurement_receipt=output,
+            measurement_sha256="0" * 64,
+        )
+    incomplete = tmp_path / "incomplete.json"
+    incomplete.write_bytes(b'{"status":"COMPLETE"')
+    with pytest.raises((ValueError, json.JSONDecodeError)):
+        measure_readiness(
+            release,
+            policy,
+            tokenizer,
+            measurement_receipt=incomplete,
+            measurement_sha256=sha256_file(incomplete),
+        )
+    altered = policy.model_copy(
+        update={"min_unique_train_tokens_by_domain": {"developer": 100000}}
+    )
+    with pytest.raises(ValueError, match="inline policy"):
+        measure_readiness(
+            release,
+            altered,
+            tokenizer,
+            measurement_receipt=output,
+            measurement_sha256=sha256_file(output),
+        )
+    altered_tokenizer = _fixture_tokenizer(tmp_path / "different-tokenizer")
+    altered_tokenizer.write_bytes(altered_tokenizer.read_bytes() + b" ")
+    with pytest.raises(ValueError):
+        measure_readiness(
+            release,
+            policy,
+            altered_tokenizer,
+            measurement_receipt=output,
+            measurement_sha256=sha256_file(output),
+        )
+    altered_release = tmp_path / "different-release" / release.name
+    shutil.copytree(release, altered_release)
+    with (altered_release / "documents.jsonl").open("ab") as stream:
+        stream.write(b"\n")
+    with pytest.raises(ValueError):
+        measure_readiness(
+            altered_release,
+            policy,
+            tokenizer,
+            measurement_receipt=output,
+            measurement_sha256=sha256_file(output),
+        )
+    policy_file.write_bytes(policy_file.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="binding mismatch"):
+        measure_readiness(
+            release,
+            policy,
+            tokenizer,
+            measurement_receipt=output,
+            measurement_sha256=sha256_file(output),
+        )
+
+
+def test_mixed_readiness_preserves_all_domains_and_missing_tokenizer(
+    local_recipe: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "state"))
+    release = _release(local_recipe, tmp_path / "work")
+    tokenizer = _fixture_tokenizer(tmp_path / "tokenizer")
+    policy = CorpusReadinessPolicy(
+        min_unique_train_bytes_by_domain={"developer": 1},
+        min_unique_train_tokens_by_domain={"developer": 1},
+        required_nonzero_languages=("en",),
+        required_nonzero_shapes=("raw_document",),
+        min_heldout_families=1,
+    )
+    result = measure_readiness(release, policy, tokenizer)
+    facts = result["measurements"]
+    assert facts["unique_train_bytes_by_domain"]["developer"] > 0
+    assert facts["unique_train_bytes_by_domain"]["technical_docs"] > 0
+    assert facts["unique_train_tokens_by_domain"]["developer"] > 0
+    assert facts["train_languages"] is not None
+    assert facts["selected_train_shapes"] is not None
+    assert facts["heldout_families"] >= 1
+    without = measure_readiness(release, policy)
+    assert without["state"] == "BLOCKED"
+    assert without["measurements"]["unique_train_tokens_by_domain"] is None
+    assert (
+        without["measurements"]["unique_train_bytes_by_domain"]
+        == facts["unique_train_bytes_by_domain"]
+    )
+    assert without["measurements"]["train_languages"] == facts["train_languages"]
+    assert (
+        without["measurements"]["selected_train_shapes"]
+        == facts["selected_train_shapes"]
+    )
+    assert without["measurements"]["heldout_families"] == facts["heldout_families"]
+    assert any(
+        item["dimension"] == "unique_train_tokens" and item["observed"] is None
+        for item in without["deficits"]
+    )

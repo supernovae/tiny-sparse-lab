@@ -88,6 +88,11 @@ from sparselab.training.manifest import (
 )
 from sparselab.training.metrics import ExperimentStore
 from sparselab.training.optimizer import schedule_payload
+from sparselab.training.pilot_progress import (
+    current_pilot_progress,
+    emit_pilot_progress,
+    pilot_phase,
+)
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.training.throughput import summarize_training_progress
 
@@ -204,6 +209,7 @@ def _copy_artifacts(
     run: Path, config: RunConfig, data: PreparedData, source_run: Path | None = None
 ) -> tuple[ArtifactIdentity, ...]:
     artifacts: list[ArtifactIdentity] = []
+    copied_data = {}
     tokenizer_source = (
         source_run / "tokenizer.json"
         if source_run is not None
@@ -228,15 +234,8 @@ def _copy_artifacts(
         if portable is not None and portable.is_file():
             from sparselab.workers.bundles import verify_portable_corpus_binding
 
-            verify_portable_corpus_binding(config, source_run)
-            for name in (
-                "manifest.json",
-                "report.json",
-                "license-report.json",
-                "audit.json",
-                "export.json",
-                "binding.json",
-            ):
+            binding = verify_portable_corpus_binding(config, source_run)
+            for name in (*binding["files"], "binding.json"):
                 shutil.copy2(source_run / "corpus" / name, corpus_dir / name)
             verify_portable_corpus_binding(
                 config,
@@ -260,7 +259,15 @@ def _copy_artifacts(
             )
             if sha256_file(corpus_dir / "export.json") != binding["export_sha256"]:
                 raise ValueError("corpus export changed while copying run evidence")
-    shutil.copytree(data.root, run / "data")
+    if source_run is not None and current_pilot_progress() is not None:
+        # Run-owned copy with bounded, meaningful byte progress during pilots.
+        from sparselab.staging import _copy_tree
+
+        copied_data = _copy_tree(
+            data.root, run / "data", verified=dict(data.receipt.proofs)
+        )
+    else:
+        shutil.copytree(data.root, run / "data")
     mask_required = supervision_requires_mask(data.manifest)
     for split in ("train", "validation"):
         mask = run / "data" / f"{split}_supervision.npy"
@@ -328,9 +335,22 @@ def _copy_artifacts(
         and item != run / "manifest.json"
         and not item.is_relative_to(run / "checkpoints")
     ):
+        relative = path.relative_to(run)
+        proof = (
+            copied_data.get(relative.relative_to("data").as_posix())
+            if copied_data and relative.parts[0] == "data"
+            else None
+        )
+        if proof is not None:
+            from sparselab.data.verification import _fingerprint, _owned_file
+
+            if not _owned_file(proof) or proof.fingerprint != _fingerprint(path):
+                raise ValueError(f"copied run input changed before manifest: {path}")
         artifacts.append(
             ArtifactIdentity(
-                str(path.relative_to(run)), sha256_file(path), path.stat().st_size
+                str(relative),
+                proof.sha256 if proof is not None else sha256_file(path),
+                proof.size_bytes if proof is not None else path.stat().st_size,
             )
         )
     return tuple(artifacts)
@@ -588,54 +608,56 @@ def _train_impl(
     ):
         raise ValueError("max_wall_seconds must be positive and finite")
     deadline = None if max_wall_seconds is None else time.monotonic() + max_wall_seconds
-    if config.dataset.corpus_release_path is not None:
-        portable = stage_bundle / "assets" if stage_bundle is not None else None
-        if portable is not None and (portable / "corpus" / "binding.json").is_file():
-            from sparselab.workers.bundles import verify_portable_corpus_binding
+    with pilot_phase("input_validation"):
+        if config.dataset.corpus_release_path is not None:
+            portable = stage_bundle / "assets" if stage_bundle is not None else None
+            if (
+                portable is not None
+                and (portable / "corpus" / "binding.json").is_file()
+            ):
+                from sparselab.workers.bundles import verify_portable_corpus_binding
 
-            binding = verify_portable_corpus_binding(config, portable)
-            if sha256_file(config.tokenizer.path) != binding["tokenizer_sha256"]:
-                raise ValueError(
-                    "executed tokenizer differs from portable corpus binding"
-                )
-        else:
-            from sparselab.config.loading import load_config
-
-            export_path = config.dataset.corpus_export_path
-            if export_path is None:
-                raise ValueError("corpus release requires a verified export")
-            exported_tokenizer = load_config(export_path / "run.yaml").tokenizer.path
-            if config.tokenizer.path == exported_tokenizer:
-                verify_tokenizer_artifact(
-                    config.tokenizer.path,
-                    source=config.dataset.source,
-                    revision=config.dataset.revision,
-                    vocab_size=config.model.vocab_size,
-                    dataset=config.dataset,
-                )
+                verify_portable_corpus_binding(config, portable)
             else:
-                from sparselab.experiments.artifacts import verify_artifact
-                from sparselab.experiments.plan import Artifact
+                from sparselab.config.loading import load_config
 
-                tokenizer_path = config.tokenizer.path
-                verify_artifact(
-                    Artifact(
-                        kind="tokenizer",
-                        version=1,
-                        producer="sparselab",
-                        identifier=tokenizer_path.parent.name,
-                        sha256=sha256_file(tokenizer_path),
-                        path=str(tokenizer_path),
-                    ),
-                    export_path / "run.yaml",
-                )
-                if (
-                    load_tokenizer(tokenizer_path).get_vocab_size()
-                    != config.model.vocab_size
-                ):
-                    raise ValueError(
-                        "verified external tokenizer vocabulary differs from model"
+                export_path = config.dataset.corpus_export_path
+                if export_path is None:
+                    raise ValueError("corpus release requires a verified export")
+                exported_tokenizer = load_config(
+                    export_path / "run.yaml"
+                ).tokenizer.path
+                if config.tokenizer.path == exported_tokenizer:
+                    verify_tokenizer_artifact(
+                        config.tokenizer.path,
+                        source=config.dataset.source,
+                        revision=config.dataset.revision,
+                        vocab_size=config.model.vocab_size,
+                        dataset=config.dataset,
                     )
+                else:
+                    from sparselab.experiments.artifacts import verify_artifact
+                    from sparselab.experiments.plan import Artifact
+
+                    tokenizer_path = config.tokenizer.path
+                    verify_artifact(
+                        Artifact(
+                            kind="tokenizer",
+                            version=1,
+                            producer="sparselab",
+                            identifier=tokenizer_path.parent.name,
+                            sha256=sha256_file(tokenizer_path),
+                            path=str(tokenizer_path),
+                        ),
+                        export_path / "run.yaml",
+                    )
+                    if (
+                        load_tokenizer(tokenizer_path).get_vocab_size()
+                        != config.model.vocab_size
+                    ):
+                        raise ValueError(
+                            "verified external tokenizer vocabulary differs from model"
+                        )
     operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):
@@ -724,10 +746,14 @@ def _train_impl(
                 "pilots require immutable staged inputs and fresh initialization"
             )
         staged = None
+        staged_proofs = {}
         if stage_bundle is not None:
             from sparselab.staging import verify_stage_bundle
 
-            staged = verify_stage_bundle(stage_bundle, config, purpose=purpose)
+            with pilot_phase("stage_bundle_verification"):
+                staged = verify_stage_bundle(
+                    stage_bundle, config, purpose=purpose, _proofs=staged_proofs
+                )
         history = StageHistory()
         history.start(ExperimentStage.CONFIGURED)
         history.finish()
@@ -760,7 +786,8 @@ def _train_impl(
             engine = MLXEngine()
         else:
             raise ValueError(f"unsupported execution engine: {config.runtime.engine}")
-        runtime = engine.validate(config, authorization=authorization)
+        with pilot_phase("runtime_initialization"):
+            runtime = engine.validate(config, authorization=authorization)
         config = config.model_copy(
             update={
                 "runtime": config.runtime.model_copy(
@@ -817,20 +844,32 @@ def _train_impl(
             )
         preparation_started = time.perf_counter()
         seed_everything(config.seed, deterministic_cpu=config.training.deterministic)
-        if continuation == "RESUMED":
-            assert source_run is not None
-            data = _load_run_data(source_run, config)
-        elif artifact_source is not None:
-            data = _load_run_data(artifact_source, config)
-        else:
-            tokenizer = load_tokenizer(config.tokenizer.path)
-            data = prepare_data(
-                config,
-                tokenizer,
-                resource_envelope=resource_envelope,
-                tokenizer_batch_documents=tokenizer_batch_documents,
-                tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
-            )
+        with pilot_phase("data_open"):
+            if continuation == "RESUMED":
+                assert source_run is not None
+                data = _load_run_data(source_run, config)
+            elif artifact_source is not None:
+                if staged is not None and artifact_source == Path(
+                    staged["assets_root"]
+                ):
+                    from sparselab.staging import _load_inventory_prepared
+
+                    data = _load_inventory_prepared(
+                        artifact_source,
+                        staged_proofs,
+                        byte_enabled=config.model.memory in {"byte", "portable"},
+                    )
+                else:
+                    data = _load_run_data(artifact_source, config)
+            else:
+                tokenizer = load_tokenizer(config.tokenizer.path)
+                data = prepare_data(
+                    config,
+                    tokenizer,
+                    resource_envelope=resource_envelope,
+                    tokenizer_batch_documents=tokenizer_batch_documents,
+                    tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                )
         dataset = TokenBlockDataset(
             data.train,
             config.training.seq_len,
@@ -930,20 +969,21 @@ def _train_impl(
             if snapshot is not None and continuation == "RESUMED"
             else 1
         )
-        if isinstance(engine, PyTorchEngine):
-            engine.initialize(
-                config,
-                initial_weights=initial_weights,
-                resume_portability=(
-                    continuation == "RESUMED"
-                    and _portability_manifest_v2(
-                        config.training.portability_manifest_path
-                    )
-                    is not None
-                ),
-            )
-        else:
-            engine.initialize(config, initial_weights=initial_weights)
+        with pilot_phase("engine_initialization"):
+            if isinstance(engine, PyTorchEngine):
+                engine.initialize(
+                    config,
+                    initial_weights=initial_weights,
+                    resume_portability=(
+                        continuation == "RESUMED"
+                        and _portability_manifest_v2(
+                            config.training.portability_manifest_path
+                        )
+                        is not None
+                    ),
+                )
+            else:
+                engine.initialize(config, initial_weights=initial_weights)
         resources.callback(engine.close)
         step = tokens = 0
         cursor = BatchCursor()
@@ -989,7 +1029,8 @@ def _train_impl(
             _atomic_json(run / "runtime_authorization.json", authorization.as_dict())
         manager = CheckpointManager(run, keep_periodic=config.checkpoint.keep_periodic)
         resources.enter_context(manager.writer_lease())
-        artifacts = _copy_artifacts(run, config, data, artifact_source)
+        with pilot_phase("run_input_materialization"):
+            artifacts = _copy_artifacts(run, config, data, artifact_source)
         owned_manifest = run / "portability_manifest.json"
         if _portability_manifest_v2(owned_manifest) is not None:
             config = _bind_learned_inputs(config, owned_manifest)
@@ -1310,22 +1351,25 @@ def _train_impl(
             )
             checkpoint_started = time.perf_counter()
             try:
-                record = _save(
-                    manager,
-                    engine,
-                    config,
-                    run_id,
-                    cursor,
-                    step,
-                    tokens,
-                    watermarks,
-                    loss,
-                    source_digest=str(current_source["sha256"]),
-                    parent_digest=continuation_state.parent_checkpoint_sha256,
-                    wall_seconds=elapsed,
-                    update_seconds=cumulative_updates,
-                    lineage_best=lineage_best,
-                )
+                with pilot_phase(
+                    "checkpoint", completed_steps=step, completed_targets=tokens
+                ):
+                    record = _save(
+                        manager,
+                        engine,
+                        config,
+                        run_id,
+                        cursor,
+                        step,
+                        tokens,
+                        watermarks,
+                        loss,
+                        source_digest=str(current_source["sha256"]),
+                        parent_digest=continuation_state.parent_checkpoint_sha256,
+                        wall_seconds=elapsed,
+                        update_seconds=cumulative_updates,
+                        lineage_best=lineage_best,
+                    )
             except BaseException:
                 add_phase_time("checkpoint_attempt", checkpoint_started)
                 phase_reporter.close(failed=True)
@@ -1600,6 +1644,12 @@ def _train_impl(
 
         def evaluation_batches():
             limit = config.evaluation.max_batches
+            progress_total = 0
+            if current_pilot_progress() is not None:
+                count = (
+                    len(validation_dataset) + config.training.micro_batch_size - 1
+                ) // config.training.micro_batch_size
+                progress_total = count if limit is None else min(count, limit)
             for emitted, offset in enumerate(
                 range(0, len(validation_dataset), config.training.micro_batch_size),
                 start=1,
@@ -1626,6 +1676,18 @@ def _train_impl(
                     _stack_optional(records, 4),
                     _stack_optional(records, 5),
                 )
+                if progress_total:
+                    emit_pilot_progress(
+                        "progress",
+                        "validation",
+                        current_step=step,
+                        completed_steps=step,
+                        completed_targets=tokens,
+                        counter="items",
+                        value=emitted,
+                        total=progress_total,
+                        subject=f"validation_step_{step}_consumed_batches",
+                    )
 
         def evaluate_and_record() -> dict[str, object] | None:
             if wall_expired():
@@ -1642,7 +1704,15 @@ def _train_impl(
             )
             validation_started = time.perf_counter()
             try:
-                evaluation_result = engine.evaluate(evaluation_batches()).to_report()
+                with pilot_phase(
+                    "validation",
+                    current_step=step,
+                    completed_steps=step,
+                    completed_targets=tokens,
+                ):
+                    evaluation_result = engine.evaluate(
+                        evaluation_batches()
+                    ).to_report()
                 result: dict[str, object] = {}
                 result.update(evaluation_result)
             except _WallTimeExpired:
@@ -1705,6 +1775,9 @@ def _train_impl(
                 finish_run("interrupted", "wall_time_limit")
                 return run_id
             enter_stage(ExperimentStage.TRAINING)
+            emit_pilot_progress(
+                "start", "training", completed_steps=step, completed_targets=tokens
+            )
             while (
                 step < config.training.max_steps and tokens < config.training.max_tokens
             ):
@@ -1819,6 +1892,13 @@ def _train_impl(
                     )
                 ]
                 retry_seconds = 0.0
+                emit_pilot_progress(
+                    "start",
+                    "optimizer_update",
+                    current_step=step + 1,
+                    completed_steps=step,
+                    completed_targets=tokens,
+                )
                 for retries in range(3):
                     update = engine.train_update(microbatches, step + 1, valid_targets)
                     retry_seconds += update.elapsed_seconds
@@ -1845,6 +1925,13 @@ def _train_impl(
                 cumulative_updates += retry_seconds
                 step, tokens = step + 1, tokens + update.committed_targets
                 cursor = committed_cursor
+                emit_pilot_progress(
+                    "complete",
+                    "optimizer_update",
+                    current_step=step,
+                    completed_steps=step,
+                    completed_targets=tokens,
+                )
                 update_elapsed = max(time.perf_counter() - started, 0.0)
                 last_optimizer_update_elapsed = update_elapsed
                 if update_elapsed - progress_samples[-1][0] >= 5.0:
@@ -1931,6 +2018,13 @@ def _train_impl(
                         if interrupted
                         else "stop_after_step",
                     )
+                    emit_pilot_progress(
+                        "complete",
+                        "training",
+                        current_step=step,
+                        completed_steps=step,
+                        completed_targets=tokens,
+                    )
                     return run_id
                 if (
                     history.current is not None
@@ -1944,5 +2038,6 @@ def _train_impl(
             finish_run("failed", str(error))
             raise
         finally:
+            # No completion event is emitted for an interrupted or failed run.
             signal.signal(signal.SIGINT, old_int)
             signal.signal(signal.SIGTERM, old_term)

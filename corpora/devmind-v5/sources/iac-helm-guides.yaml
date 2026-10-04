@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_helm_guides
+kind: git
+canonical_uri: https://github.com/helm/helm-www.git
+revision: cc4704b322d31b00b36d1b251d8dc562134d4692
+license: MIT
+license_url: https://github.com/helm/helm-www/blob/cc4704b322d31b00b36d1b251d8dc562134d4692/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/helm/helm-www/blob/cc4704b322d31b00b36d1b251d8dc562134d4692/LICENSE]
+  notices: ['Preserve Helm documentation author credits and MIT license; check quoted chart excerpts for third-party attribution.']
+domains: [helm, deployment, configuration]
+document_kinds: [prose, yaml, go_template]
+source_family: v4_iac_helm_guides_train
+notes: 'First-party Helm templating, chart best practice and operator guides with explained YAML and Go-template snippets. Separate from Grafana-maintained real chart source. Pinned tree selected approximately 0.35 MB.'
+acquisition:
+  include: ['docs/chart_template_guide/*.md', 'docs/chart_template_guide/*.mdx', 'docs/chart_best_practices/*.md', 'docs/chart_best_practices/*.mdx', 'docs/topics/*.md', 'docs/topics/*.mdx', 'docs/howto/*.md', 'docs/howto/*.mdx']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/images/*', '*/assets/*']
+  max_bytes: 900000

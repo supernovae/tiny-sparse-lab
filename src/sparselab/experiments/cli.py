@@ -119,10 +119,32 @@ def _inspect_declaration(args: argparse.Namespace) -> None:
         "executable": False,
     }
     if args.experiment_command == "inspect":
+        from sparselab.experiments.artifacts import verify_prepared_artifact
         from sparselab.experiments.lock import storage_preview
 
+        prepared_receipt = None
+        prepared_names = {
+            name
+            for name in plan.inputs.values()
+            if plan.artifacts[name].kind == "prepared_data"
+            and plan.artifacts[name].from_phase is None
+        }
+        typed_choices = any(
+            key.startswith("inputs.")
+            for axis in plan.axes
+            for choice in axis.choices
+            for key in choice.set
+        )
+        if len(prepared_names) == 1 and not typed_choices:
+            prepared_receipt = verify_prepared_artifact(
+                plan.artifacts[next(iter(prepared_names))], source
+            )
         payload["estimates"] = [
-            storage_preview(cell, plan.retention.model_dump(mode="json"))
+            storage_preview(
+                cell,
+                plan.retention.model_dump(mode="json"),
+                verified_prepared=prepared_receipt,
+            )
             for cell, _ in cells
         ]
     if args.experiment_command == "diff":

@@ -121,19 +121,60 @@ LOCK=$(uv run --locked --extra cpu python -c 'import json,sys; print(json.load(o
 uv run --locked --extra cpu sparselab experiment explain "$LOCK" --json
 ```
 
-Validation and inspection check declaration/config shape; they do not verify
-missing input files or prove device fit. Tokenizer/data preparation launches
+Validation checks declaration/config shape. Inspection also cold-authenticates
+an unambiguously bound existing prepared artifact before reporting its measured
+storage footprint; neither operation proves device fit. Preparation launches
 no training. `experiment prepare` materializes declared `corpus_variants`;
 it does not automatically prepare an arbitrary `base_run`. Externally prepared
 inputs need typed artifacts and digests, as above.
 Locking verifies actual inputs, concrete configs, runtime selection
 and continuation constraints, then publishes a content-addressed plan.
+During `experiment lock`, one resolver operation verifies every external artifact,
+then carries a private, nonserialized proof through publication and canonical
+lock/availability readback. This avoids repeating full prepared-array and corpus
+scans within that operation, but rejects an artifact whose path or file metadata
+changed in the meantime. The proof is bound to its issuer process and exact
+resolved object; it cannot be supplied as plan metadata, copied to another lock
+or inherited across a fork as reusable verification. A later
+`experiment explain`, Campaign reopen, or other fresh-process `open_lock`
+independently runs the full artifact verifiers again; neither the availability
+sidecar nor a remembered digest substitutes for cold verification.
+
 
 The printed lock path is authoritative. Keep one code revision, the declaration
 and its inputs fixed across execution. Reopen checks reject changed source or
 artifact identities. For edits/repetitions, copy the declaration, choose a new
 plan ID and adjust its file references to their new location before preparing;
 never rewrite a running plan or its artifacts.
+
+### Explicit operational source compatibility
+
+An operational-only code repair still changes the package source digest. Reusing
+historical lock and prepared bytes across that change requires an explicitly
+reviewed, versioned `OperationalSourceCompatibility` record, not a source-identity
+override or a verifier bypass. The record binds full baseline/execution commits,
+their independently derived package inventories, the exact changed-file digests
+and the operator's non-scientific authorization. Only the listed operational
+integration paths are eligible; eligibility is not proof of semantic equivalence.
+Review the concrete diff before publishing the record.
+
+The operator pins all three environment variables:
+`SPARSELAB_SOURCE_COMPATIBILITY` (absolute committed record path),
+`SPARSELAB_SOURCE_COMPATIBILITY_SHA256` (reviewed record byte digest), and
+`SPARSELAB_SOURCE_COMPATIBILITY_COMMIT` (trusted commit containing those exact
+bytes). Partial, changed, symlinked, uncommitted or incorrectly inventoried records
+fail closed. Git authentication and actual installed-package identity remain
+mandatory. Local runtime children inherit these pins; a remote worker must
+independently receive and authenticate them.
+
+The compatibility binding preserves historical lock identity and permits deep
+authentication of the already-existing historical cache. It never prepares new
+data under a legacy digest. Fresh runtime probes, dispatch specifications, run
+manifests and checkpoints record the actual execution source digest. Without the
+explicit binding, ordinary exact-source rejection remains unchanged. Public
+`open_lock` still performs cold artifact verification with the authenticated
+binding; publication's private proof remains limited to its original process.
+
 
 ## Pilot the resolved configuration
 

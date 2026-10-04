@@ -1,0 +1,22 @@
+schema_version: 3
+id: v2_prometheus_promql
+kind: git
+canonical_uri: https://github.com/prometheus/prometheus.git
+revision: 5c5be17a214a17319dafac23c4dc0671299a241f
+license: Apache-2.0
+license_url: https://github.com/prometheus/prometheus/blob/5c5be17a214a17319dafac23c4dc0671299a241f/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/prometheus/prometheus/blob/5c5be17a214a17319dafac23c4dc0671299a241f/LICENSE]
+  notices: ['Retain Prometheus Authors Apache license, applicable NOTICE and file-specific copyright/modification statements.']
+domains: [observability, storage, distributed_systems]
+document_kinds: [go]
+source_family: v2_prometheus_promql_test
+notes: 'Hold out the whole Prometheus implementation family for test. Only owned PromQL and TSDB Go source; do not select fixtures, snapshots, dashboards, vendored/generated files or unverified documentation.'
+acquisition:
+  include: ['promql/*.go', 'tsdb/*.go']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*_test.go', '*_generated.go']
+  max_bytes: 45000000

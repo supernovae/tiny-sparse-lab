@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_cilium
+kind: git
+canonical_uri: https://github.com/cilium/cilium.git
+revision: e7747e57ae32b8fa255ab27582a32ce7e27880c9
+license: Apache-2.0
+license_url: https://github.com/cilium/cilium/blob/e7747e57ae32b8fa255ab27582a32ce7e27880c9/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/cilium/cilium/blob/e7747e57ae32b8fa255ab27582a32ce7e27880c9/LICENSE]
+  notices: ['Retain Cilium contributor and individual file notices; exclude bpf/ and generated rendered Helm README/values.yaml.']
+domains: [networking, kubernetes, operations]
+document_kinds: [configuration]
+source_family: v4_ops_cilium_train
+notes: 'First-party chart source for live network/flow-log configuration and Helm validation, distinct from v3_system_cilium Go and Documentation prose. values.yaml.tmpl is authored source rather than rendered values.yaml.'
+acquisition:
+  include: ['install/kubernetes/cilium/values.yaml.tmpl', 'install/kubernetes/cilium/templates/cilium-configmap.yaml', 'install/kubernetes/cilium/templates/cilium-flowlog-configmap.yaml', 'install/kubernetes/cilium/templates/cilium-dynamic-metrics-configmap.yaml', 'install/kubernetes/cilium/templates/validate.yaml']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', 'bpf/*']
+  max_bytes: 300000

@@ -1,0 +1,32 @@
+{
+  "preparation_amendment_version": 1,
+  "from_protocol": "devmind-v5-reproducible-model0-1",
+  "to_protocol": "devmind-v5-reproducible-model0-2",
+  "prior_protocol_sha256": "95b4649859fa0d153e81bf19c0f5d62adac4979018b704e98b600d93eaaa6ce1",
+  "reason": "Measured full selected LM train record has 4943884 UTF8 bytes; the initially proposed CLI default bound of 1048576 would reject retained data. Choose 8388608 bytes, which exceeds 125% of the observed maximum, without truncation, segmentation, dropped records or source changes.",
+  "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "measured_train_max_record_utf8_bytes": 4943884,
+  "measured_validation_max_record_utf8_bytes": 569203,
+  "initial_proposal_tokenizer_batch_source_bytes": 1048576,
+  "tokenizer_batch_source_bytes": 8388608,
+  "tokenizer_batch_documents": 256,
+  "max_host_memory_fraction": 0.75,
+  "min_available_ram_bytes": 2147483648,
+  "max_workers": 4,
+  "max_queue_depth": 1,
+  "spill_to_disk": true,
+  "measurement": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/lm-view-measurement.json",
+    "sha256": "e47883fe1d508bf0b15626847d273d536d8a6071fb29926365d6f746adbafb8b"
+  },
+  "measurement_label_correction": "fits_preregistered_1048576_byte_tokenizer_batch_limit in the disposable measurement report labels the initial operational proposal/CLI default. Protocol revision1 did not specify a source-byte limit; it was not a scientific acceptance criterion.",
+  "unchanged": [
+    "All 123 source declarations and split/publication policy",
+    "Committed exact source snapshot/build/release recovery expectations",
+    "Tokenizer candidates, fitting budgets, grouping, heldout and near-best selection criteria",
+    "MODEL-0 seed, vocabulary-selection rule, architecture, objective, effective batch, sequence, precision and optimizer",
+    "Actual selected-tokenizer distinct developer token rule, full-release ordered view and step/target budget",
+    "Runtime fit, terminal checkpoint, heldout evaluation and readiness gates"
+  ],
+  "scope": "Operational preparation record-size/RAM-bound declaration only, recorded before tokenizer fitting, measured token budget or training outcomes."
+}

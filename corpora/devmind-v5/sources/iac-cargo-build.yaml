@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_cargo_build
+kind: git
+canonical_uri: https://github.com/rust-lang/cargo.git
+revision: 523e530d77cce92813eebbf6ac009a04f2df2ac2
+license: Apache-2.0 OR MIT
+license_url: https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-MIT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0 OR MIT
+  license_references: [https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-MIT, https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-APACHE, https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-THIRD-PARTY]
+  notices: ['Retain Cargo dual-license notices; file-specific licenses and LICENSE-THIRD-PARTY exceptions require screening.']
+domains: [build_systems, cargo, configuration]
+document_kinds: [toml, prose]
+source_family: v4_iac_cargo_build_train
+notes: 'Cargo workspace manifests and authored handbook reference explaining features, dependencies, profiles, build scripts and configuration. V3 selects src/*.rs, doc/book/src/commands/*.md, tests/testsuite/*.rs and three CI shell scripts: none overlap. Machine-derived cargo-util-schemas JSON is deliberately excluded. Pinned Git-tree selection approximately 0.48 MB.'
+acquisition:
+  include: ['Cargo.toml', '.cargo/config.toml', 'crates/cargo-platform/Cargo.toml', 'crates/cargo-util-schemas/Cargo.toml', 'doc/book/src/reference/*.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/LICENSE-THIRD-PARTY']
+  max_bytes: 1100000

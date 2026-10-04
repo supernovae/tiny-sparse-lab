@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_babel_ts
+kind: git
+canonical_uri: https://github.com/babel/babel.git
+revision: ccc5fae96f5281ae1ee49fac74c7c275b9111ead
+license: MIT
+license_url: https://github.com/babel/babel/blob/ccc5fae96f5281ae1ee49fac74c7c275b9111ead/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/babel/babel/blob/ccc5fae96f5281ae1ee49fac74c7c275b9111ead/LICENSE]
+  notices: ['Retain Sebastian McKenzie and Babel contributors MIT notice and any selected package-level exceptions.']
+domains: [typescript, compilers, developer_tools]
+document_kinds: [typescript]
+source_family: v4_runtime_babel_ts_train
+notes: 'Pinned v7.28.0 commit. Babel parser, traverse, generator, core and plugin authored TS source; tests/ under plugin trees consist predominantly of fixture projects and are excluded, as is helpers-generated.ts. Full shallow Git tree (GitHub recursive response truncates): 583 selected files / 3,169,313 bytes before transform.'
+acquisition:
+  include: ['packages/*/src/*.ts', 'packages/*/src/*.tsx']
+  exclude: ['packages/babel-helpers/src/helpers-generated.ts', '*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*']
+  max_bytes: 4700000

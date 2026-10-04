@@ -1,0 +1,910 @@
+{
+  "source_intent_version": 1,
+  "id": "devmind-v5-reviewed-v4-source-intent",
+  "reviewed_source_commit": "e260ea866ded8ec5beb23cbacec1fb3c120c1d16",
+  "authoring_base_commit": "365e2d804bcb69c69de27aa78a2651a817a5eb0a",
+  "source_count": 123,
+  "unchanged_declaration_count": 125,
+  "identity_changes": {
+    "project": [
+      "devmind-v4",
+      "devmind-v5"
+    ],
+    "transform": [
+      "devmind_v4_lm",
+      "devmind_v5_lm"
+    ]
+  },
+  "snapshot_imports_allowed": false,
+  "declarations": [
+    {
+      "v4_path": "corpora/devmind-v4/corpus.yaml",
+      "v5_path": "corpora/devmind-v5/corpus.yaml",
+      "v4_sha256": "593b1c59bdc551e0a162c04fa034755493affbe84363592d43c0ad715e743dbf",
+      "v5_sha256": "d39aba972cdfdb78e44b04e75785b6d9cbe115fca949607b0d9dadeed228b169",
+      "byte_identical": false
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-clickhouse-sql.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-clickhouse-sql.yaml",
+      "v4_sha256": "a42f773fbbeed912e9f931f867d301e566429025faf46aa8ed38958ece10968d",
+      "v5_sha256": "a42f773fbbeed912e9f931f867d301e566429025faf46aa8ed38958ece10968d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-doris-sql.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-doris-sql.yaml",
+      "v4_sha256": "d7bf93e5c1637c41eacb0c771f247405f936390aa23095061d4fd834ed7ab91d",
+      "v5_sha256": "d7bf93e5c1637c41eacb0c771f247405f936390aa23095061d4fd834ed7ab91d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-duckdb-docs.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-duckdb-docs.yaml",
+      "v4_sha256": "b0d1c8923a0458257f2320896a2c76fad67b6cd1d32ec51a62c06f1d7cee90db",
+      "v5_sha256": "b0d1c8923a0458257f2320896a2c76fad67b6cd1d32ec51a62c06f1d7cee90db",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-duckdb-sql.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-duckdb-sql.yaml",
+      "v4_sha256": "033ffa41cc98b6794b320c4b749b6a4419c8b956e53037426e8f2a8221da3d2b",
+      "v5_sha256": "033ffa41cc98b6794b320c4b749b6a4419c8b956e53037426e8f2a8221da3d2b",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-h2-sql-validation.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-h2-sql-validation.yaml",
+      "v4_sha256": "a0db370f3d3ac569f239f2cec8c2b23dd6819c8f5ec93b724dd46167fa7a6fbe",
+      "v5_sha256": "a0db370f3d3ac569f239f2cec8c2b23dd6819c8f5ec93b724dd46167fa7a6fbe",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-spark-sql.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-spark-sql.yaml",
+      "v4_sha256": "94dd5354c1a464c1022934618ebacefdf4871916a2c25f3518785b07c0ba627f",
+      "v5_sha256": "94dd5354c1a464c1022934618ebacefdf4871916a2c25f3518785b07c0ba627f",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/fineweb-edu-sample-10bt.yaml",
+      "v5_path": "corpora/devmind-v5/sources/fineweb-edu-sample-10bt.yaml",
+      "v4_sha256": "e2d4ae193577e3bc08a0294605a04086e24f65dccbaef3aa72514a8e77357dbb",
+      "v5_sha256": "e2d4ae193577e3bc08a0294605a04086e24f65dccbaef3aa72514a8e77357dbb",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/db-mariadb-sql.yaml",
+      "v5_path": "corpora/devmind-v5/sources/db-mariadb-sql.yaml",
+      "v4_sha256": "838ae976efe67c6d73076c143f9da29e90613b0d6b8963ffd154a4b1e089d676",
+      "v5_sha256": "838ae976efe67c6d73076c143f9da29e90613b0d6b8963ffd154a4b1e089d676",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-ansible-docs.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-ansible-docs.yaml",
+      "v4_sha256": "517b3061fa4e64527fe8a44c100189d4a56f89cada7380262dadcad20d48e271",
+      "v5_sha256": "517b3061fa4e64527fe8a44c100189d4a56f89cada7380262dadcad20d48e271",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/go-standard.yaml",
+      "v5_path": "corpora/devmind-v5/sources/go-standard.yaml",
+      "v4_sha256": "63992f098b0c59fb16331252f8fd8eaba7746e99c480409bce50c713d2399a47",
+      "v5_sha256": "63992f098b0c59fb16331252f8fd8eaba7746e99c480409bce50c713d2399a47",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/git-technical.yaml",
+      "v5_path": "corpora/devmind-v5/sources/git-technical.yaml",
+      "v4_sha256": "12ce45d59506a252ee4c43bdc99db5a5576e638429864307808d2503b47c115f",
+      "v5_sha256": "12ce45d59506a252ee4c43bdc99db5a5576e638429864307808d2503b47c115f",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/go-faq.yaml",
+      "v5_path": "corpora/devmind-v5/sources/go-faq.yaml",
+      "v4_sha256": "b32059cd291c99aded24c33d94d8b3e88841fe0f2171dc4a5bbcd6e6e54c832e",
+      "v5_sha256": "b32059cd291c99aded24c33d94d8b3e88841fe0f2171dc4a5bbcd6e6e54c832e",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-argocd-validation.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-argocd-validation.yaml",
+      "v4_sha256": "50f1a763719591067a5e775e4fbca607d912277f0df9172445a9d965f36631a5",
+      "v5_sha256": "50f1a763719591067a5e775e4fbca607d912277f0df9172445a9d965f36631a5",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-ansible-playbooks.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-ansible-playbooks.yaml",
+      "v4_sha256": "d0ef49bbfbdb30de4c9c04b2094b88787c556d95f2972f862d7e2a14a80e3bb5",
+      "v5_sha256": "d0ef49bbfbdb30de4c9c04b2094b88787c556d95f2972f862d7e2a14a80e3bb5",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-bazel-validation.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-bazel-validation.yaml",
+      "v4_sha256": "c1edc8e44d1a2fec6b207281233d6c2d3f867d19a121f6a6b1fc6b91600e3795",
+      "v5_sha256": "c1edc8e44d1a2fec6b207281233d6c2d3f867d19a121f6a6b1fc6b91600e3795",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-cargo-build.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-cargo-build.yaml",
+      "v4_sha256": "52040bcbd5f0367dbb66ed69ece169e8e837873cf65f63cf238a9dd1f892900a",
+      "v5_sha256": "52040bcbd5f0367dbb66ed69ece169e8e837873cf65f63cf238a9dd1f892900a",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-grafana-charts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-grafana-charts.yaml",
+      "v4_sha256": "d457d8639328af19ef82b5c2cb3619733bd1efd89ac8f75f6adc0e5fa09ded1b",
+      "v5_sha256": "d457d8639328af19ef82b5c2cb3619733bd1efd89ac8f75f6adc0e5fa09ded1b",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-cmake-build.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-cmake-build.yaml",
+      "v4_sha256": "c6b65e59daab5fddd9d8310ecb98f40d5f400bb7e98c08001ad5b84c01088a47",
+      "v5_sha256": "c6b65e59daab5fddd9d8310ecb98f40d5f400bb7e98c08001ad5b84c01088a47",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-go-build-bootstrap.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-go-build-bootstrap.yaml",
+      "v4_sha256": "eeeceed5d2938a5c8627dc6c4d9c723b335372be9d484524701c12c8609b4a82",
+      "v5_sha256": "eeeceed5d2938a5c8627dc6c4d9c723b335372be9d484524701c12c8609b4a82",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-helm-guides.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-helm-guides.yaml",
+      "v4_sha256": "ca7b24376d13f347c06368a59c56fa3bb4856dfec91fe8d5ba2f912f991f60ef",
+      "v5_sha256": "ca7b24376d13f347c06368a59c56fa3bb4856dfec91fe8d5ba2f912f991f60ef",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-kubernetes-operator.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-kubernetes-operator.yaml",
+      "v4_sha256": "fb95db246dd075ef333a1a3ca32e680e01da4483601e5c5dad92168d545cd44e",
+      "v5_sha256": "fb95db246dd075ef333a1a3ca32e680e01da4483601e5c5dad92168d545cd44e",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-meson-build.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-meson-build.yaml",
+      "v4_sha256": "591b2a18d2a84b5f6759b7d3a2f0be0d2e02e4558b343d847a1f993b293fc58d",
+      "v5_sha256": "591b2a18d2a84b5f6759b7d3a2f0be0d2e02e4558b343d847a1f993b293fc58d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-opentofu-config.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-opentofu-config.yaml",
+      "v4_sha256": "81d8c0f2cfe8f69e9fb01c7038846e089201768b56e5e5474fdf6d3ca8b1d62a",
+      "v5_sha256": "81d8c0f2cfe8f69e9fb01c7038846e089201768b56e5e5474fdf6d3ca8b1d62a",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-ninja-build.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-ninja-build.yaml",
+      "v4_sha256": "8a1442a6533987a6337f20d5feacc22d6db1914a404a1f94b6bb29c5a5b96bbd",
+      "v5_sha256": "8a1442a6533987a6337f20d5feacc22d6db1914a404a1f94b6bb29c5a5b96bbd",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/iac-systemd-units.yaml",
+      "v5_path": "corpora/devmind-v5/sources/iac-systemd-units.yaml",
+      "v4_sha256": "251c26c46b1f306cdb95d81f32473ff4603f9955b75d65d90d0d68ee4110c60a",
+      "v5_sha256": "251c26c46b1f306cdb95d81f32473ff4603f9955b75d65d90d0d68ee4110c60a",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/k8s-concepts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/k8s-concepts.yaml",
+      "v4_sha256": "d896b083193e94fdf9b56f98bd6164a011f9112988cee398bde7d79b14182146",
+      "v5_sha256": "d896b083193e94fdf9b56f98bd6164a011f9112988cee398bde7d79b14182146",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/linux-fs.yaml",
+      "v5_path": "corpora/devmind-v5/sources/linux-fs.yaml",
+      "v4_sha256": "339251a6a981e76839dedf9990a0bfcc50f14b97e22eadd56d6fda779b1c47bb",
+      "v5_sha256": "339251a6a981e76839dedf9990a0bfcc50f14b97e22eadd56d6fda779b1c47bb",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/oci-runtime-specification.yaml",
+      "v5_path": "corpora/devmind-v5/sources/oci-runtime-specification.yaml",
+      "v4_sha256": "252e43792fe11dd8f9336a14d485659f40d208780174ab91028c71dc75ee6904",
+      "v5_sha256": "252e43792fe11dd8f9336a14d485659f40d208780174ab91028c71dc75ee6904",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/omp-harness.yaml",
+      "v5_path": "corpora/devmind-v5/sources/omp-harness.yaml",
+      "v4_sha256": "c3ecab9823d3cbe07a7fd3595ed6f1e966772495289189fb0b4eb5b56280a464",
+      "v5_sha256": "c3ecab9823d3cbe07a7fd3595ed6f1e966772495289189fb0b4eb5b56280a464",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/openwebmath-train.yaml",
+      "v5_path": "corpora/devmind-v5/sources/openwebmath-train.yaml",
+      "v4_sha256": "bb6d2dc6b11db623ffbc22eb2b02b6aabcdb5be9182e5aa588d058086f76ba2d",
+      "v5_sha256": "bb6d2dc6b11db623ffbc22eb2b02b6aabcdb5be9182e5aa588d058086f76ba2d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-alloy.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-alloy.yaml",
+      "v4_sha256": "cea0cb1954d5a45f04a8844feecc8d1cc0a491eb69c9047d1dc45756e5079b9a",
+      "v5_sha256": "cea0cb1954d5a45f04a8844feecc8d1cc0a491eb69c9047d1dc45756e5079b9a",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-cilium.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-cilium.yaml",
+      "v4_sha256": "46e481cb908a9ce1eaa0b036cf05ee40cdc76ebfc447e63e80e7e54ade559719",
+      "v5_sha256": "46e481cb908a9ce1eaa0b036cf05ee40cdc76ebfc447e63e80e7e54ade559719",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-cloudnativepg.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-cloudnativepg.yaml",
+      "v4_sha256": "977ce0464637b2b79c1b8c520416d4180d6a2acc412b6251fc73e0236d3495b6",
+      "v5_sha256": "977ce0464637b2b79c1b8c520416d4180d6a2acc412b6251fc73e0236d3495b6",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-curl.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-curl.yaml",
+      "v4_sha256": "1b0f4f4aaa71274685a5e7593eddc1e76e95a1d74084ad694c74d53d6f0c481d",
+      "v5_sha256": "1b0f4f4aaa71274685a5e7593eddc1e76e95a1d74084ad694c74d53d6f0c481d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-containerd.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-containerd.yaml",
+      "v4_sha256": "eec7e0d9dc7b39a88cc6f4a518dcbca2ca8c3aee7ae1e63d9b070751237f605d",
+      "v5_sha256": "eec7e0d9dc7b39a88cc6f4a518dcbca2ca8c3aee7ae1e63d9b070751237f605d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-envoy.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-envoy.yaml",
+      "v4_sha256": "b1ef10f4f18ca8cd1a739471a04e65dd5ff0cbe65ee6f9387450d531dee31f59",
+      "v5_sha256": "b1ef10f4f18ca8cd1a739471a04e65dd5ff0cbe65ee6f9387450d531dee31f59",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-grafana.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-grafana.yaml",
+      "v4_sha256": "988cdb972f945c5a64e1021532ba740e588a2b04541fc34a7cce3765b2d7adaa",
+      "v5_sha256": "988cdb972f945c5a64e1021532ba740e588a2b04541fc34a7cce3765b2d7adaa",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-loki.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-loki.yaml",
+      "v4_sha256": "1d177a8f57d55ec4f4fa7df6422f78d335d53c31c00c850c8f1ca4ac6473d5c5",
+      "v5_sha256": "1d177a8f57d55ec4f4fa7df6422f78d335d53c31c00c850c8f1ca4ac6473d5c5",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-iputils.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-iputils.yaml",
+      "v4_sha256": "0c67e16ad830d7a0481f29515985394eeeeeee6aaa46429d38da106e96c1e3e3",
+      "v5_sha256": "0c67e16ad830d7a0481f29515985394eeeeeee6aaa46429d38da106e96c1e3e3",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-etcd.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-etcd.yaml",
+      "v4_sha256": "ad061df85d6225c8ff1c4004b9e62c59534e83fb36bfffffa1836d5fb5fea17d",
+      "v5_sha256": "ad061df85d6225c8ff1c4004b9e62c59534e83fb36bfffffa1836d5fb5fea17d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-mimir-heldout.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-mimir-heldout.yaml",
+      "v4_sha256": "24fb5e49dad9310a5f9688aa31d2ea3c3a33e1cb3c606f5ec678fcf87511a491",
+      "v5_sha256": "24fb5e49dad9310a5f9688aa31d2ea3c3a33e1cb3c606f5ec678fcf87511a491",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-otel-proto-heldout.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-otel-proto-heldout.yaml",
+      "v4_sha256": "c1c03bf7bbe3fa5b1debc5fe6ee96c5487eb7d1f8b4fbf94ccb4d8ac5a23373b",
+      "v5_sha256": "c1c03bf7bbe3fa5b1debc5fe6ee96c5487eb7d1f8b4fbf94ccb4d8ac5a23373b",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-omp-tools.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-omp-tools.yaml",
+      "v4_sha256": "efa6a886832abbdb3d190b5aa537bdb150bd70a78be61692ad005e3e65705f73",
+      "v5_sha256": "efa6a886832abbdb3d190b5aa537bdb150bd70a78be61692ad005e3e65705f73",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-otel-helm.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-otel-helm.yaml",
+      "v4_sha256": "9aff33006db71efc33d1c25f61b2fddb6f21bd38213869c023ccc701846a0e38",
+      "v5_sha256": "9aff33006db71efc33d1c25f61b2fddb6f21bd38213869c023ccc701846a0e38",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-tempo.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-tempo.yaml",
+      "v4_sha256": "55e9a64db0af2ecd6ed31b8099f33ccb08c64d29830d382da681a2af502ac02c",
+      "v5_sha256": "55e9a64db0af2ecd6ed31b8099f33ccb08c64d29830d382da681a2af502ac02c",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-strace.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-strace.yaml",
+      "v4_sha256": "63c8df460ec60116426d1fc55d9da4f0b4e7bd982e866fe52333c82069456a0f",
+      "v5_sha256": "63c8df460ec60116426d1fc55d9da4f0b4e7bd982e866fe52333c82069456a0f",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-thanos.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-thanos.yaml",
+      "v4_sha256": "4bd754c2c131834617e2e8cec7531f45bce3de06b54ad41cccda3f464cb6a088",
+      "v5_sha256": "4bd754c2c131834617e2e8cec7531f45bce3de06b54ad41cccda3f464cb6a088",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-pgbackrest.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-pgbackrest.yaml",
+      "v4_sha256": "8e22f0134ae29c13bbb8fb9e49b4699c2b6e03e8fc6bfcc2d41d2fa267825fa2",
+      "v5_sha256": "8e22f0134ae29c13bbb8fb9e49b4699c2b6e03e8fc6bfcc2d41d2fa267825fa2",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-victoriametrics.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-victoriametrics.yaml",
+      "v4_sha256": "823bb384e5a484523fcc3eda69a7febf0a52c888892cdb7fb244156b91278ec6",
+      "v5_sha256": "823bb384e5a484523fcc3eda69a7febf0a52c888892cdb7fb244156b91278ec6",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/otel-specification.yaml",
+      "v5_path": "corpora/devmind-v5/sources/otel-specification.yaml",
+      "v4_sha256": "071a01da360a0618e71f6b294587a9b2013e971e16d205eac75215dfeae0f851",
+      "v5_sha256": "071a01da360a0618e71f6b294587a9b2013e971e16d205eac75215dfeae0f851",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/otel-collector.yaml",
+      "v5_path": "corpora/devmind-v5/sources/otel-collector.yaml",
+      "v4_sha256": "76753cb0391506702b8ec7d8c76a20198fdeb661b1378aa8c96204cbeb395f78",
+      "v5_sha256": "76753cb0391506702b8ec7d8c76a20198fdeb661b1378aa8c96204cbeb395f78",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/ops-zalando-postgres.yaml",
+      "v5_path": "corpora/devmind-v5/sources/ops-zalando-postgres.yaml",
+      "v4_sha256": "5924a9b97157366bab7e98d04a286fac9f997333e796086458be52a272458332",
+      "v5_sha256": "5924a9b97157366bab7e98d04a286fac9f997333e796086458be52a272458332",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/pes2o-v2-fulltext.yaml",
+      "v5_path": "corpora/devmind-v5/sources/pes2o-v2-fulltext.yaml",
+      "v4_sha256": "77f5c50ccc15c1ff25eac6786a80ac2924660c1b8981d4290b2718db902beb76",
+      "v5_sha256": "77f5c50ccc15c1ff25eac6786a80ac2924660c1b8981d4290b2718db902beb76",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/postgres-backend.yaml",
+      "v5_path": "corpora/devmind-v5/sources/postgres-backend.yaml",
+      "v4_sha256": "08b87a8380c8ccd0884f7c5bc72b53448903bd6c3cfc6893f1f29e961a340e94",
+      "v5_sha256": "08b87a8380c8ccd0884f7c5bc72b53448903bd6c3cfc6893f1f29e961a340e94",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/prometheus-promql.yaml",
+      "v5_path": "corpora/devmind-v5/sources/prometheus-promql.yaml",
+      "v4_sha256": "854f4c4aa2518c6a66d8e8193a7413c5c9a63f82aba540c1f395e4a6afe7e265",
+      "v5_sha256": "854f4c4aa2518c6a66d8e8193a7413c5c9a63f82aba540c1f395e4a6afe7e265",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/pes2o-v2-train.yaml",
+      "v5_path": "corpora/devmind-v5/sources/pes2o-v2-train.yaml",
+      "v4_sha256": "02dd5c07e465f28d155cc83d6269241b292744421212c556d5fe535c46eba383",
+      "v5_sha256": "02dd5c07e465f28d155cc83d6269241b292744421212c556d5fe535c46eba383",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/python-library.yaml",
+      "v5_path": "corpora/devmind-v5/sources/python-library.yaml",
+      "v4_sha256": "30ad99f4dc7fa529c9e80b072875ab5db6b727be0a89c52a79fb0c57968055fe",
+      "v5_sha256": "30ad99f4dc7fa529c9e80b072875ab5db6b727be0a89c52a79fb0c57968055fe",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-angularjs-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-angularjs-js.yaml",
+      "v4_sha256": "751a00628d41fdd7467798a58c4fc2313d549809d2a4eb22d0dc48a47d6c5b09",
+      "v5_sha256": "751a00628d41fdd7467798a58c4fc2313d549809d2a4eb22d0dc48a47d6c5b09",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-angular-ts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-angular-ts.yaml",
+      "v4_sha256": "c102f5ea6499a853c44bedaf4f96df6a77f097d886d5fb49e5fd50f949ecfabf",
+      "v5_sha256": "c102f5ea6499a853c44bedaf4f96df6a77f097d886d5fb49e5fd50f949ecfabf",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-babel-ts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-babel-ts.yaml",
+      "v4_sha256": "1ba5ecd3500dd12de1330b3a6e693ff1575c352860258bd57720425b0a6a2c39",
+      "v5_sha256": "1ba5ecd3500dd12de1330b3a6e693ff1575c352860258bd57720425b0a6a2c39",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-bats-shell-heldout.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-bats-shell-heldout.yaml",
+      "v4_sha256": "ea6746b3894e19bfa74d4a81176a781049fcc2311b6997d196ab10a0705e4df1",
+      "v5_sha256": "ea6746b3894e19bfa74d4a81176a781049fcc2311b6997d196ab10a0705e4df1",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-bash-tests-shell.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-bash-tests-shell.yaml",
+      "v4_sha256": "7445464ffcd878c72e7a89fe48d70f44100e56364b3b528f91f27a6cf9010aed",
+      "v5_sha256": "7445464ffcd878c72e7a89fe48d70f44100e56364b3b528f91f27a6cf9010aed",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-bash-manual-shell.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-bash-manual-shell.yaml",
+      "v4_sha256": "280d87dd819a47fd8305797fa1edd36e6819e98fb3f4a5a9c54c3ca4acf8e2e2",
+      "v5_sha256": "280d87dd819a47fd8305797fa1edd36e6819e98fb3f4a5a9c54c3ca4acf8e2e2",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-eslint-js-heldout.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-eslint-js-heldout.yaml",
+      "v4_sha256": "a94c2b76814b39ecb2378fca03fd65ef099ec375ea889ea86c96f45d7001e21c",
+      "v5_sha256": "a94c2b76814b39ecb2378fca03fd65ef099ec375ea889ea86c96f45d7001e21c",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-gatsby-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-gatsby-js.yaml",
+      "v4_sha256": "6733d7dad34d0f3185626be2a3bea96d0e89b4fb88ba1fda5d9ab76bc1e62c40",
+      "v5_sha256": "6733d7dad34d0f3185626be2a3bea96d0e89b4fb88ba1fda5d9ab76bc1e62c40",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-metro-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-metro-js.yaml",
+      "v4_sha256": "dfe6e02daf2b5c6619634710a295bcd2b65f890da142cb63d63887a12b4de78d",
+      "v5_sha256": "dfe6e02daf2b5c6619634710a295bcd2b65f890da142cb63d63887a12b4de78d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-node-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-node-js.yaml",
+      "v4_sha256": "096bc35b8f011015a7557c07c90a6f052f9b3d45ea669db9d8116579e9fd8ec3",
+      "v5_sha256": "096bc35b8f011015a7557c07c90a6f052f9b3d45ea669db9d8116579e9fd8ec3",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-linux-selftests-shell.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-linux-selftests-shell.yaml",
+      "v4_sha256": "37a9e75d6e8beca93b0695f0ddfaedd8f06b8fd8d2867374b8c3ba13aa14396a",
+      "v5_sha256": "37a9e75d6e8beca93b0695f0ddfaedd8f06b8fd8d2867374b8c3ba13aa14396a",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-playwright-ts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-playwright-ts.yaml",
+      "v4_sha256": "afb84fae58ef123749fa2092238434ff108ffc638fa55b2ff50ab512c4db4bb3",
+      "v5_sha256": "afb84fae58ef123749fa2092238434ff108ffc638fa55b2ff50ab512c4db4bb3",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-prettier-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-prettier-js.yaml",
+      "v4_sha256": "1779302720dee9fdd82b6d68ba2b6caf4c0a5c332eaf844d58246bca33205bb7",
+      "v5_sha256": "1779302720dee9fdd82b6d68ba2b6caf4c0a5c332eaf844d58246bca33205bb7",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-react-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-react-js.yaml",
+      "v4_sha256": "2f045b64c0effa6ca284aaee96b713a8be913d1a5b3d08d51fe8c84507daf47e",
+      "v5_sha256": "2f045b64c0effa6ca284aaee96b713a8be913d1a5b3d08d51fe8c84507daf47e",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-npm-cli-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-npm-cli-js.yaml",
+      "v4_sha256": "e76617a92372915645e9088f3ba6f29dc3cf529acf5a4a6838a420cb0382ee97",
+      "v5_sha256": "e76617a92372915645e9088f3ba6f29dc3cf529acf5a4a6838a420cb0382ee97",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-react-native-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-react-native-js.yaml",
+      "v4_sha256": "351b6b61a1325681316ef5bb92625da9eb0454d2c708602f22fd18deb7047057",
+      "v5_sha256": "351b6b61a1325681316ef5bb92625da9eb0454d2c708602f22fd18deb7047057",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-shellspec-shell.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-shellspec-shell.yaml",
+      "v4_sha256": "05f22f1e9d41b447df0a04eefdd5ec93bdb6560d1d83dc8f16e2854458e0bc78",
+      "v5_sha256": "05f22f1e9d41b447df0a04eefdd5ec93bdb6560d1d83dc8f16e2854458e0bc78",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-relay-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-relay-js.yaml",
+      "v4_sha256": "2c0ec92cd0cb4de44888f6dba8772d7494bfb4aa0cb27aa66c66064c0771ddfe",
+      "v5_sha256": "2c0ec92cd0cb4de44888f6dba8772d7494bfb4aa0cb27aa66c66064c0771ddfe",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-undici-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-undici-js.yaml",
+      "v4_sha256": "71f294249c5a1bab151dfbbd4ffed64d3e9448ed08438606b666448c277de4fc",
+      "v5_sha256": "71f294249c5a1bab151dfbbd4ffed64d3e9448ed08438606b666448c277de4fc",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-vitest-ts-heldout.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-vitest-ts-heldout.yaml",
+      "v4_sha256": "4cf223f07d43965c373985b8605c7d020b0228c7f877ac1f2ab1325c11068c59",
+      "v5_sha256": "4cf223f07d43965c373985b8605c7d020b0228c7f877ac1f2ab1325c11068c59",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-vscode-ts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-vscode-ts.yaml",
+      "v4_sha256": "edfaf3972d3c6cfb3a75ebd32e089ef582c903cfde4c46daec28c8d03c0402f8",
+      "v5_sha256": "edfaf3972d3c6cfb3a75ebd32e089ef582c903cfde4c46daec28c8d03c0402f8",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-vite-ts.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-vite-ts.yaml",
+      "v4_sha256": "cfe633c3849e105218e2fd7a1fb3a53eeb4b89263bd976a254fad77428cd6659",
+      "v5_sha256": "cfe633c3849e105218e2fd7a1fb3a53eeb4b89263bd976a254fad77428cd6659",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-util-linux-shell.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-util-linux-shell.yaml",
+      "v4_sha256": "d4e80ddf3a7b31005f9431d6edf76bd54e21681fa43948e9a8d6337e75e836c7",
+      "v5_sha256": "d4e80ddf3a7b31005f9431d6edf76bd54e21681fa43948e9a8d6337e75e836c7",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/runtime-webpack-js.yaml",
+      "v5_path": "corpora/devmind-v5/sources/runtime-webpack-js.yaml",
+      "v4_sha256": "7769f299f29400c35248771f8faa0e17152620e3befe580068363374d50cf8de",
+      "v5_sha256": "7769f299f29400c35248771f8faa0e17152620e3befe580068363374d50cf8de",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/standard-cloudevents.yaml",
+      "v5_path": "corpora/devmind-v5/sources/standard-cloudevents.yaml",
+      "v4_sha256": "dd9ce64e3a0263a3e5bd913caceb457d13dda460f688950603d9860b70d795b7",
+      "v5_sha256": "dd9ce64e3a0263a3e5bd913caceb457d13dda460f688950603d9860b70d795b7",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/rust-core.yaml",
+      "v5_path": "corpora/devmind-v5/sources/rust-core.yaml",
+      "v4_sha256": "36c270d0633f26b23057b3c185fbb04990983c13a356510f7a7ca347c01cbe26",
+      "v5_sha256": "36c270d0633f26b23057b3c185fbb04990983c13a356510f7a7ca347c01cbe26",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/standard-oci-distribution.yaml",
+      "v5_path": "corpora/devmind-v5/sources/standard-oci-distribution.yaml",
+      "v4_sha256": "240b0784b0ce5ebb5d1cd63398cf619e34e810e5cffdfc9ed10fa0d149ee6aa4",
+      "v5_sha256": "240b0784b0ce5ebb5d1cd63398cf619e34e810e5cffdfc9ed10fa0d149ee6aa4",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/standard-oci-image.yaml",
+      "v5_path": "corpora/devmind-v5/sources/standard-oci-image.yaml",
+      "v4_sha256": "2825df0caa00c7a200b566d56ddef75af95c95cbc1795f3672d72b61ea7b5d17",
+      "v5_sha256": "2825df0caa00c7a200b566d56ddef75af95c95cbc1795f3672d72b61ea7b5d17",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-cilium.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-cilium.yaml",
+      "v4_sha256": "ee7fbfa2f53088498afc70934a930699ec5342c714a9a7e1278eed9963dd6412",
+      "v5_sha256": "ee7fbfa2f53088498afc70934a930699ec5342c714a9a7e1278eed9963dd6412",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-containerd.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-containerd.yaml",
+      "v4_sha256": "b0bc3d53846acfb9e194b72b65841d913b8a55763f8b3ec5da68fcd4c19d0407",
+      "v5_sha256": "b0bc3d53846acfb9e194b72b65841d913b8a55763f8b3ec5da68fcd4c19d0407",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/standard-rfc8949.yaml",
+      "v5_path": "corpora/devmind-v5/sources/standard-rfc8949.yaml",
+      "v4_sha256": "652e5c3d0feea8184309893976db75e9f837e5de15c41708ddc13baee4ad8be2",
+      "v5_sha256": "652e5c3d0feea8184309893976db75e9f837e5de15c41708ddc13baee4ad8be2",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-envoy.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-envoy.yaml",
+      "v4_sha256": "79b30c94f7316061154de60381184d4ed90ebd55c584ad1f87887fe3029da30f",
+      "v5_sha256": "79b30c94f7316061154de60381184d4ed90ebd55c584ad1f87887fe3029da30f",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-etcd.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-etcd.yaml",
+      "v4_sha256": "218e381f259772124ec3dec74ca806b0fb6f6c3a0e5d3404daf920a33228ae8b",
+      "v5_sha256": "218e381f259772124ec3dec74ca806b0fb6f6c3a0e5d3404daf920a33228ae8b",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-cosign.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-cosign.yaml",
+      "v4_sha256": "ebcd6c1867f49fc3f252319d036c1d628a22ee38faab1a1333558473f8754a43",
+      "v5_sha256": "ebcd6c1867f49fc3f252319d036c1d628a22ee38faab1a1333558473f8754a43",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-jaeger.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-jaeger.yaml",
+      "v4_sha256": "8aa2e01f1f475c3e4bde3ebebd7e0dbc8c92bcfef75845b95654ac6afb35496d",
+      "v5_sha256": "8aa2e01f1f475c3e4bde3ebebd7e0dbc8c92bcfef75845b95654ac6afb35496d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-musl.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-musl.yaml",
+      "v4_sha256": "55fbcead888e39330a08c4461699822a1bf6539073e5b2f9785d932d29caa026",
+      "v5_sha256": "55fbcead888e39330a08c4461699822a1bf6539073e5b2f9785d932d29caa026",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-openssl.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-openssl.yaml",
+      "v4_sha256": "0c1f77c07053772cc042cc614c0b347dc8618fcf625f9b1d7851df0c71b0ea01",
+      "v5_sha256": "0c1f77c07053772cc042cc614c0b347dc8618fcf625f9b1d7851df0c71b0ea01",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-nginx.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-nginx.yaml",
+      "v4_sha256": "dcc94af90a79b0d5649b3be7860b87c0e8652405da57026b4a287c61d43d44d1",
+      "v5_sha256": "dcc94af90a79b0d5649b3be7860b87c0e8652405da57026b4a287c61d43d44d1",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-kafka.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-kafka.yaml",
+      "v4_sha256": "83a38d03ebe1bf8673a03d44323c4147fdce4b5aa5219adb0cb48cb60a79c569",
+      "v5_sha256": "83a38d03ebe1bf8673a03d44323c4147fdce4b5aa5219adb0cb48cb60a79c569",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-systemd.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-systemd.yaml",
+      "v4_sha256": "ede83dd34e3e134e0f3a34e31b680a4717d63822fb3b56a6126f27916b400305",
+      "v5_sha256": "ede83dd34e3e134e0f3a34e31b680a4717d63822fb3b56a6126f27916b400305",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-tikv.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-tikv.yaml",
+      "v4_sha256": "58dff5c300ab1adea260c97a39d81b506e484ac63be308d2a84a46eb9c702f2d",
+      "v5_sha256": "58dff5c300ab1adea260c97a39d81b506e484ac63be308d2a84a46eb9c702f2d",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-runc.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-runc.yaml",
+      "v4_sha256": "741301e4e2d18bb3cd3fe00dc5537c69e92b868200d6e48370c85483d41893c9",
+      "v5_sha256": "741301e4e2d18bb3cd3fe00dc5537c69e92b868200d6e48370c85483d41893c9",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-sqlite.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-sqlite.yaml",
+      "v4_sha256": "fdac4e56a568a337f8906ea55d5aa59d7dfb4bcc73572a23c39a734ed37d3416",
+      "v5_sha256": "fdac4e56a568a337f8906ea55d5aa59d7dfb4bcc73572a23c39a734ed37d3416",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-vitess.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-vitess.yaml",
+      "v4_sha256": "193659f85bbf89c5b9dbbb9c52de370a5d02a7b6fe62ab3ed02ead0e78d6c372",
+      "v5_sha256": "193659f85bbf89c5b9dbbb9c52de370a5d02a7b6fe62ab3ed02ead0e78d6c372",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-valkey.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-valkey.yaml",
+      "v4_sha256": "cf455e338ed99edb8d9e0ebe3cc24db4d11892d473d761853e2d70c56fd375c1",
+      "v5_sha256": "cf455e338ed99edb8d9e0ebe3cc24db4d11892d473d761853e2d70c56fd375c1",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-util-linux.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-util-linux.yaml",
+      "v4_sha256": "ee63b857304a069235204b8628adf542ae78c27e7dcc4224d133b9b28c2a37fd",
+      "v5_sha256": "ee63b857304a069235204b8628adf542ae78c27e7dcc4224d133b9b28c2a37fd",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/system-zookeeper.yaml",
+      "v5_path": "corpora/devmind-v5/sources/system-zookeeper.yaml",
+      "v4_sha256": "adbb6520be27358bbc44da9102790dffc7e78eebc4a7d8dc7f97adb5abc67f91",
+      "v5_sha256": "adbb6520be27358bbc44da9102790dffc7e78eebc4a7d8dc7f97adb5abc67f91",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-ansible.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-ansible.yaml",
+      "v4_sha256": "ee33c7751f1554017935f3067e6a21ac8d0dda02b7ca8a5181e8895dfe152b04",
+      "v5_sha256": "ee33c7751f1554017935f3067e6a21ac8d0dda02b7ca8a5181e8895dfe152b04",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-cmake.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-cmake.yaml",
+      "v4_sha256": "91a77cd5195680855dc42dfad3c8d7f6796a60871b13d8b5c7783e3ede71eaaf",
+      "v5_sha256": "91a77cd5195680855dc42dfad3c8d7f6796a60871b13d8b5c7783e3ede71eaaf",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-cargo.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-cargo.yaml",
+      "v4_sha256": "1a83bdaa6d5454101fbdb2e084f6a935956f55b2af17be1854919c5eb90f45fb",
+      "v5_sha256": "1a83bdaa6d5454101fbdb2e084f6a935956f55b2af17be1854919c5eb90f45fb",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-cpython-compiler.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-cpython-compiler.yaml",
+      "v4_sha256": "eb8467b3bf57da231cc30b40c60c802b092490fb7fc9edb7108a0d7da4ec40ac",
+      "v5_sha256": "eb8467b3bf57da231cc30b40c60c802b092490fb7fc9edb7108a0d7da4ec40ac",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-go-build.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-go-build.yaml",
+      "v4_sha256": "06990b5556cc72a454f29990351f79c742e085f431cf9591be4788e03513298e",
+      "v5_sha256": "06990b5556cc72a454f29990351f79c742e085f431cf9591be4788e03513298e",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-git-validation.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-git-validation.yaml",
+      "v4_sha256": "a0d0dddd8562ed89033191a4480e39e9fd1d334d64b3c8febbb5f145a13277e2",
+      "v5_sha256": "a0d0dddd8562ed89033191a4480e39e9fd1d334d64b3c8febbb5f145a13277e2",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-meson.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-meson.yaml",
+      "v4_sha256": "a27182beb1af298d90c19c2df6e6592a79d066ce8ad7aa0258cdca2e2025fc6c",
+      "v5_sha256": "a27182beb1af298d90c19c2df6e6592a79d066ce8ad7aa0258cdca2e2025fc6c",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-ninja.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-ninja.yaml",
+      "v4_sha256": "09040f62fb98cdba8ed26f50a66eb63cceee8b0cbbfd5e31be23d038b7bb6b84",
+      "v5_sha256": "09040f62fb98cdba8ed26f50a66eb63cceee8b0cbbfd5e31be23d038b7bb6b84",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-omp-lab.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-omp-lab.yaml",
+      "v4_sha256": "2e0b6338b3a261c320fb63e92ce4fe92443017a8d8bb078bcd2e57b2f290306b",
+      "v5_sha256": "2e0b6338b3a261c320fb63e92ce4fe92443017a8d8bb078bcd2e57b2f290306b",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-opentofu.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-opentofu.yaml",
+      "v4_sha256": "a7a325ba7dc9dc68b93cd885c06eb39793e444148bc4f41826743f619ce17973",
+      "v5_sha256": "a7a325ba7dc9dc68b93cd885c06eb39793e444148bc4f41826743f619ce17973",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-postgres-sql-validation.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-postgres-sql-validation.yaml",
+      "v4_sha256": "3548a483bebbfe9b33ddd283e07c7b48990cdbb7845c328c0955ed8f085c3a01",
+      "v5_sha256": "3548a483bebbfe9b33ddd283e07c7b48990cdbb7845c328c0955ed8f085c3a01",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-pytest.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-pytest.yaml",
+      "v4_sha256": "e96397879914d0000cedc772b9e9c86de34170c32ebb08df05e25d8bf4552c29",
+      "v5_sha256": "e96397879914d0000cedc772b9e9c86de34170c32ebb08df05e25d8bf4552c29",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-rust-book.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-rust-book.yaml",
+      "v4_sha256": "08c93d8d388a63f2dbc9475b5913f0a0c2de1b5bb1fbeed8bed70f90a1afee8f",
+      "v5_sha256": "08c93d8d388a63f2dbc9475b5913f0a0c2de1b5bb1fbeed8bed70f90a1afee8f",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-rust-compiler.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-rust-compiler.yaml",
+      "v4_sha256": "382fe65ea92f941ff34602452a4974f92e13dc2dc550ec2b5b7b6a7cadd67346",
+      "v5_sha256": "382fe65ea92f941ff34602452a4974f92e13dc2dc550ec2b5b7b6a7cadd67346",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-tokio.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-tokio.yaml",
+      "v4_sha256": "a4eddb0f59fc337fa39f2873aedc2dd364de775e03a7f1af05306734610588e5",
+      "v5_sha256": "a4eddb0f59fc337fa39f2873aedc2dd364de775e03a7f1af05306734610588e5",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-spring.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-spring.yaml",
+      "v4_sha256": "6f58b5c914252ba52417cce7e52c0ac009efaae1fc240df4f95726b990a942ff",
+      "v5_sha256": "6f58b5c914252ba52417cce7e52c0ac009efaae1fc240df4f95726b990a942ff",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/tool-typescript.yaml",
+      "v5_path": "corpora/devmind-v5/sources/tool-typescript.yaml",
+      "v4_sha256": "89dee376e2099e0c250277761ccb5939983f674124664a1513f9c878bcbed909",
+      "v5_sha256": "89dee376e2099e0c250277761ccb5939983f674124664a1513f9c878bcbed909",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/wikibooks-20260901.yaml",
+      "v5_path": "corpora/devmind-v5/sources/wikibooks-20260901.yaml",
+      "v4_sha256": "75ab382c2c87d1ae45481ca3977916ebe65da67b5f8f1d9d3e96cb4847088c05",
+      "v5_sha256": "75ab382c2c87d1ae45481ca3977916ebe65da67b5f8f1d9d3e96cb4847088c05",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/sources/wikipedia-20260901.yaml",
+      "v5_path": "corpora/devmind-v5/sources/wikipedia-20260901.yaml",
+      "v4_sha256": "aa7e779e4ef1d922ed98b560c057163df2fba3a1cc680b0b143c08ca1a547136",
+      "v5_sha256": "aa7e779e4ef1d922ed98b560c057163df2fba3a1cc680b0b143c08ca1a547136",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/transforms/lm.yaml",
+      "v5_path": "corpora/devmind-v5/transforms/lm.yaml",
+      "v4_sha256": "06db472a41362abe983acca3e20e2a7f66fce12779302d567b028499d86a6108",
+      "v5_sha256": "8e0dc07e2b5309e29aaa7daa72a33c9bdd0980327f23a6cba081ee0e87b8b512",
+      "byte_identical": false
+    },
+    {
+      "v4_path": "corpora/devmind-v4/splits.yaml",
+      "v5_path": "corpora/devmind-v5/splits.yaml",
+      "v4_sha256": "c6a64d4961af65821f28a842f71a82fa23709ac8e81022792c9eb885c8a8ea77",
+      "v5_sha256": "c6a64d4961af65821f28a842f71a82fa23709ac8e81022792c9eb885c8a8ea77",
+      "byte_identical": true
+    },
+    {
+      "v4_path": "corpora/devmind-v4/release.yaml",
+      "v5_path": "corpora/devmind-v5/release.yaml",
+      "v4_sha256": "4a80085a8db45900d295509cc98faa62db5ab759cc6a2557a189b45768c47acf",
+      "v5_sha256": "4a80085a8db45900d295509cc98faa62db5ab759cc6a2557a189b45768c47acf",
+      "byte_identical": true
+    }
+  ]
+}

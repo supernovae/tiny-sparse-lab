@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_pgbackrest
+kind: git
+canonical_uri: https://github.com/pgbackrest/pgbackrest.git
+revision: 9405fd92e21b18934696acaa45911637a485b8f9
+license: MIT
+license_url: https://github.com/pgbackrest/pgbackrest/blob/9405fd92e21b18934696acaa45911637a485b8f9/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/pgbackrest/pgbackrest/blob/9405fd92e21b18934696acaa45911637a485b8f9/LICENSE]
+  notices: ['Preserve David Steele and PostgreSQL Global Development Group copyright from pgBackRest LICENSE; PostgreSQL repository content is not acquired. Review file-level attribution.']
+domains: [databases, backup, operations]
+document_kinds: [prose, configuration]
+source_family: v4_ops_pgbackrest_train
+notes: 'Independent pgBackRest authorship: backup/restore/replication steps, troubleshooting FAQ, reference and declared error codes. Raw XML guide is authored source, not rendered HTML; do not select upstream PostgreSQL repository.'
+acquisition:
+  include: ['doc/xml/user-guide.xml', 'doc/xml/reference.xml', 'doc/xml/faq.xml', 'build/error.yaml', 'build/config.yaml']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', 'doc/resource/*']
+  max_bytes: 650000

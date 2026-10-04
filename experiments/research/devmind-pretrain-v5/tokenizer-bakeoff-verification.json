@@ -1,0 +1,387 @@
+{
+  "bakeoff_verification_version": 1,
+  "candidates": [
+    {
+      "manifest_sha256": "b0b49bac3a6ba174d9351fe81808c96dc48c10e0254e440877ac99177d535bd8",
+      "per_kind": {
+        "go": {
+          "bytes": 918273,
+          "bytes_per_token": 2.934613995672891,
+          "documents": 200,
+          "tokens": 312911,
+          "tokens_per_document": {
+            "p50": 881,
+            "p95": 5722,
+            "p99": 10051
+          },
+          "tokens_per_document_max": 16950,
+          "tokens_seen_fewer_than_five_times": 2814,
+          "unique_vocab_used": 6045,
+          "vocab_utilization": 0.36895751953125
+        },
+        "json": {
+          "bytes": 7138,
+          "bytes_per_token": 2.409044886938913,
+          "documents": 1,
+          "tokens": 2963,
+          "tokens_per_document": {
+            "p50": 2963,
+            "p95": 2963,
+            "p99": 2963
+          },
+          "tokens_per_document_max": 2963,
+          "tokens_seen_fewer_than_five_times": 313,
+          "unique_vocab_used": 401,
+          "vocab_utilization": 0.02447509765625
+        },
+        "prose": {
+          "bytes": 681159,
+          "bytes_per_token": 3.5775909157755414,
+          "documents": 200,
+          "tokens": 190396,
+          "tokens_per_document": {
+            "p50": 336,
+            "p95": 4197,
+            "p99": 7185
+          },
+          "tokens_per_document_max": 15758,
+          "tokens_seen_fewer_than_five_times": 5446,
+          "unique_vocab_used": 10317,
+          "vocab_utilization": 0.62969970703125
+        },
+        "shell": {
+          "bytes": 342663,
+          "bytes_per_token": 2.765797906257819,
+          "documents": 42,
+          "tokens": 123893,
+          "tokens_per_document": {
+            "p50": 1773,
+            "p95": 5383,
+            "p99": 22334
+          },
+          "tokens_per_document_max": 22334,
+          "tokens_seen_fewer_than_five_times": 1509,
+          "unique_vocab_used": 3069,
+          "vocab_utilization": 0.18731689453125
+        },
+        "yaml": {
+          "bytes": 201702,
+          "bytes_per_token": 3.613047683874897,
+          "documents": 136,
+          "tokens": 55826,
+          "tokens_per_document": {
+            "p50": 165,
+            "p95": 2124,
+            "p99": 4604
+          },
+          "tokens_per_document_max": 4868,
+          "tokens_seen_fewer_than_five_times": 1123,
+          "unique_vocab_used": 2036,
+          "vocab_utilization": 0.124267578125
+        }
+      },
+      "tokenizer_sha256": "8662e6015ca40e0ebfc9f4df0e4842372d9c93b8de08ee434b482a7f6e48b668",
+      "vocab_size": 16384,
+      "weighted_bytes_per_token": 3.538705384367656
+    },
+    {
+      "manifest_sha256": "03d324f73c7b645755383f49642a41351994da058cdb68af7db2131dec461017",
+      "per_kind": {
+        "go": {
+          "bytes": 918273,
+          "bytes_per_token": 2.992345392571544,
+          "documents": 200,
+          "tokens": 306874,
+          "tokens_per_document": {
+            "p50": 865,
+            "p95": 5616,
+            "p99": 9821
+          },
+          "tokens_per_document_max": 16627,
+          "tokens_seen_fewer_than_five_times": 3404,
+          "unique_vocab_used": 6690,
+          "vocab_utilization": 0.272216796875
+        },
+        "json": {
+          "bytes": 7138,
+          "bytes_per_token": 2.5124956001407956,
+          "documents": 1,
+          "tokens": 2841,
+          "tokens_per_document": {
+            "p50": 2841,
+            "p95": 2841,
+            "p99": 2841
+          },
+          "tokens_per_document_max": 2841,
+          "tokens_seen_fewer_than_five_times": 315,
+          "unique_vocab_used": 397,
+          "vocab_utilization": 0.016153971354166668
+        },
+        "prose": {
+          "bytes": 681159,
+          "bytes_per_token": 3.7412751419814794,
+          "documents": 200,
+          "tokens": 182066,
+          "tokens_per_document": {
+            "p50": 321,
+            "p95": 4008,
+            "p99": 6922
+          },
+          "tokens_per_document_max": 15334,
+          "tokens_seen_fewer_than_five_times": 7666,
+          "unique_vocab_used": 12515,
+          "vocab_utilization": 0.5092366536458334
+        },
+        "shell": {
+          "bytes": 342663,
+          "bytes_per_token": 2.8656742630148444,
+          "documents": 42,
+          "tokens": 119575,
+          "tokens_per_document": {
+            "p50": 1753,
+            "p95": 5186,
+            "p99": 21416
+          },
+          "tokens_per_document_max": 21416,
+          "tokens_seen_fewer_than_five_times": 1665,
+          "unique_vocab_used": 3241,
+          "vocab_utilization": 0.13187662760416666
+        },
+        "yaml": {
+          "bytes": 201702,
+          "bytes_per_token": 3.735775670469699,
+          "documents": 136,
+          "tokens": 53992,
+          "tokens_per_document": {
+            "p50": 163,
+            "p95": 2046,
+            "p99": 4493
+          },
+          "tokens_per_document_max": 4759,
+          "tokens_seen_fewer_than_five_times": 1216,
+          "unique_vocab_used": 2110,
+          "vocab_utilization": 0.08585611979166667
+        }
+      },
+      "tokenizer_sha256": "857e9991d84790578d11ec005337563387d4c06296b22fda5fc04524c00c8da9",
+      "vocab_size": 24576,
+      "weighted_bytes_per_token": 3.6951324084726047
+    },
+    {
+      "manifest_sha256": "da5b295c42133ef2c31114a4fd81602e144b0113d2ad81cbddd2c0c722665aa5",
+      "per_kind": {
+        "go": {
+          "bytes": 918273,
+          "bytes_per_token": 3.0351015200743015,
+          "documents": 200,
+          "tokens": 302551,
+          "tokens_per_document": {
+            "p50": 853,
+            "p95": 5474,
+            "p99": 9635
+          },
+          "tokens_per_document_max": 16403,
+          "tokens_seen_fewer_than_five_times": 3749,
+          "unique_vocab_used": 7084,
+          "vocab_utilization": 0.2161865234375
+        },
+        "json": {
+          "bytes": 7138,
+          "bytes_per_token": 2.547466095645967,
+          "documents": 1,
+          "tokens": 2802,
+          "tokens_per_document": {
+            "p50": 2802,
+            "p95": 2802,
+            "p99": 2802
+          },
+          "tokens_per_document_max": 2802,
+          "tokens_seen_fewer_than_five_times": 313,
+          "unique_vocab_used": 390,
+          "vocab_utilization": 0.01190185546875
+        },
+        "prose": {
+          "bytes": 681159,
+          "bytes_per_token": 3.8368886210140314,
+          "documents": 200,
+          "tokens": 177529,
+          "tokens_per_document": {
+            "p50": 314,
+            "p95": 3913,
+            "p99": 6757
+          },
+          "tokens_per_document_max": 15095,
+          "tokens_seen_fewer_than_five_times": 9079,
+          "unique_vocab_used": 13837,
+          "vocab_utilization": 0.422271728515625
+        },
+        "shell": {
+          "bytes": 342663,
+          "bytes_per_token": 2.932001369042526,
+          "documents": 42,
+          "tokens": 116870,
+          "tokens_per_document": {
+            "p50": 1710,
+            "p95": 5092,
+            "p99": 20863
+          },
+          "tokens_per_document_max": 20863,
+          "tokens_seen_fewer_than_five_times": 1744,
+          "unique_vocab_used": 3309,
+          "vocab_utilization": 0.100982666015625
+        },
+        "yaml": {
+          "bytes": 201702,
+          "bytes_per_token": 3.8262007739585706,
+          "documents": 136,
+          "tokens": 52716,
+          "tokens_per_document": {
+            "p50": 158,
+            "p95": 2009,
+            "p99": 4350
+          },
+          "tokens_per_document_max": 4609,
+          "tokens_seen_fewer_than_five_times": 1297,
+          "unique_vocab_used": 2171,
+          "vocab_utilization": 0.066253662109375
+        }
+      },
+      "tokenizer_sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+      "vocab_size": 32768,
+      "weighted_bytes_per_token": 3.7870930862814522
+    }
+  ],
+  "declaration": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/tokenizer-bakeoff.yaml",
+    "sha256": "5538d3e6cc2c3efb0fc5f96ca671d98c23fccd522bfa36ed0ef3f1139f31470b"
+  },
+  "distinct_normalized_train_tokens": 983520212,
+  "expectations": {
+    "path": "/home/byron/src/tiny-sparse-lab/experiments/research/devmind-pretrain-v5/corpus-expectations.json",
+    "sha256": "c67cd5c5082cd9948e5673b795b959a92b47b2bb6483a70acda52842a428e743"
+  },
+  "groups": [
+    "prose",
+    "go",
+    "shell",
+    "yaml",
+    "json"
+  ],
+  "interpretation": "Authentic release-bound canonical bakeoff with independent whole-family heldouts and deterministic near-best winner; not a MODEL-0 budget, model-quality finding or rights promotion.",
+  "near_best_ratio": 0.98,
+  "release_id": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+  "report": {
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/report.json",
+    "sha256": "6927c81a734a266ada296ea7fdd9e138f1887678482ef73815068f6ab8bcb092"
+  },
+  "selected_tokenizer": {
+    "identifier": "32768",
+    "kind": "tokenizer",
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json",
+    "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+    "version": 1
+  },
+  "selected_vocab_size": 32768,
+  "status": "VERIFIED_V5_BAKEOFF_AND_SELECTED_TOKENIZER",
+  "tokenizer_artifact": {
+    "from_phase": null,
+    "identifier": "32768",
+    "kind": "tokenizer",
+    "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json",
+    "producer": "sparselab",
+    "selector": null,
+    "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+    "state": null,
+    "version": 1
+  },
+  "total_selected_train_view_tokens": 983520212,
+  "unclassified_source_kinds": {
+    "abstract": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 337471617,
+      "train_documents": 254968
+    },
+    "c": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 51777991,
+      "train_documents": 2812
+    },
+    "code": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 37164603,
+      "train_documents": 4469
+    },
+    "configuration": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 278243,
+      "train_documents": 115
+    },
+    "cpp": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 79902389,
+      "train_documents": 7275
+    },
+    "hcl": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 1084612,
+      "train_documents": 275
+    },
+    "java": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 77091300,
+      "train_documents": 6980
+    },
+    "javascript": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 58175603,
+      "train_documents": 9852
+    },
+    "meson": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 26465,
+      "train_documents": 7
+    },
+    "ninja": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 1338,
+      "train_documents": 2
+    },
+    "paper": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 717323535,
+      "train_documents": 25762
+    },
+    "sql": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 68070481,
+      "train_documents": 19520
+    },
+    "typescript": {
+      "reason": "not in the frozen nine tokenizer groups",
+      "train_bytes": 92177999,
+      "train_documents": 8049
+    }
+  },
+  "unmeasured_source_groups": {
+    "logs": {
+      "reason": "no paired independent train/validation family",
+      "train_bytes": 0,
+      "train_documents": 0
+    },
+    "python": {
+      "reason": "no paired independent train/validation family",
+      "train_bytes": 34852214,
+      "train_documents": 1605
+    },
+    "rust": {
+      "reason": "no paired independent train/validation family",
+      "train_bytes": 62551224,
+      "train_documents": 3978
+    },
+    "toml": {
+      "reason": "no paired independent train/validation family",
+      "train_bytes": 11595,
+      "train_documents": 4
+    }
+  }
+}

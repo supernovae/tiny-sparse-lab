@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_zalando_postgres
+kind: git
+canonical_uri: https://github.com/zalando/postgres-operator.git
+revision: c8e0225f8f79492300397040c7b034e50a52f2e9
+license: MIT
+license_url: https://github.com/zalando/postgres-operator/blob/c8e0225f8f79492300397040c7b034e50a52f2e9/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/zalando/postgres-operator/blob/c8e0225f8f79492300397040c7b034e50a52f2e9/LICENSE]
+  notices: ['Preserve Zalando SE and contributor attribution with MIT license; first-party operator documentation only, no copied upstream PostgreSQL repository material.']
+domains: [databases, kubernetes, operations]
+document_kinds: [prose]
+source_family: v4_ops_zalando_postgres_train
+notes: 'Independent first-party operator administrator/user procedures, cluster manifest specification, and configuration parameters for PostgreSQL-like operational tasks.'
+acquisition:
+  include: ['docs/administrator.md', 'docs/user.md', 'docs/migrate.md', 'docs/quickstart.md', 'docs/reference/cluster_manifest.md', 'docs/reference/command_line_and_environment.md', 'docs/reference/operator_parameters.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*']
+  max_bytes: 225000

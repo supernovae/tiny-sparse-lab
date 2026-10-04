@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_db_duckdb_docs
+kind: git
+canonical_uri: https://github.com/duckdb/duckdb-web.git
+revision: d9f0f80d22587ee86b1552cdffd91fa523bacc47
+license: MIT
+license_url: https://github.com/duckdb/duckdb-web/blob/d9f0f80d22587ee86b1552cdffd91fa523bacc47/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: MIT
+  license_references: [https://github.com/duckdb/duckdb-web/blob/d9f0f80d22587ee86b1552cdffd91fa523bacc47/LICENSE]
+  notices: ['Retain DuckDB Foundation MIT license and copyright; current-version authored documentation only, not archived versions or externally supplied community extensions.']
+domains: [databases, sql, query_planning]
+document_kinds: [prose, sql]
+source_family: v4_db_duckdb_docs_train
+notes: 'Official DuckDB website authored SQL syntax/function guides, query tuning/planner and SQLLogicTest writing documentation. Separate repository from DuckDB test scripts but same upstream project; no SQLite or PostgreSQL heldout source content, and archived duplicate documentation excluded.'
+acquisition:
+  include: ['docs/current/sql/*.md', 'docs/current/guides/performance/*.md', 'docs/current/guides/sql_features/*.md', 'docs/current/dev/sqllogictest/*.md']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*', '*/community_extensions/*', '*/archive/*', 'docs/preview/*', 'docs/lts/*', '*password*', '*credential*', '*secret*']
+  max_bytes: 2200000

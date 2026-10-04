@@ -113,7 +113,7 @@ Every stage has `id`, `kind`, `scope` and optional `requires` (default `[]`).
 |---|---|---|
 | `artifact_reference` | Derived from artifact kind | External ExperimentPlan `artifact`, including full SHA, identifier, version, producer and verified relative or absolute operational location; `from_phase: null` |
 | `corpus_release` | `corpus` | `project`; only local/deterministic-generator sources accepted, never network acquisition |
-| `corpus_readiness` | `corpus` | `corpus`, `policy`, optional `tokenizer`; token policies require a tokenizer dependency |
+| `corpus_readiness` | `corpus` | `corpus`, `policy`, optional `tokenizer`; token policies require a tokenizer dependency; token-only policies may bind `measurement_receipt` and `measurement_sha256` together |
 | `tokenizer_reference` | `tokenizer` | External `artifact` of kind `tokenizer`; provenance manifest required |
 | `token_measurement` | `tokenizer` | Verified `corpus` release and `tokenizer`; actual selected-view/split counts |
 | `experiment_plan` | `model` | `source`, `mode: lock|reference`, `tokenizer`, `prepared`, optional `corpus`; reference mode requires `lock` |
@@ -162,11 +162,64 @@ is normalized source-document UTF-8 text from `documents.jsonl`, restricted to
 `split: train` and `drop_reason: null`, deduplicated by `content_sha256`
 independently within that domain. It is **not** raw snapshot bytes or the build
 report's overlapping/repeated mixture byte total. Token minima encode those exact
-same kept unique documents with the pinned tokenizer and count `.encode(text).ids`;
-tokens are never inferred from bytes. Languages use these documents; shapes use
-selected views that explicitly include `train` in `training_splits`; heldout
-coverage counts distinct nonempty source-family IDs in kept test lineage.
+same kept unique documents with the pinned tokenizer after disabling tokenizer
+padding and truncation, using `encode(text, add_special_tokens=False)`; tokens
+are never inferred from bytes.
+Languages use these documents; shapes use selected views that explicitly include
+`train` in `training_splits`; heldout coverage counts distinct nonempty
+source-family IDs in kept test lineage.
 An absent measurement produces a typed deficit, not a pass.
+
+### Canonical source-token receipts
+
+`corpus measure-tokens` measures requested source domains, not the rendered-view
+counts returned by `corpus describe` or Campaign `token_measurement`:
+
+```sh
+uv run --locked --extra cpu sparselab --work-dir /data/sparselab \
+  corpus measure-tokens RELEASE --tokenizer TOKENIZER --policy POLICY.yaml \
+  --output /data/sparselab/experiments/TASK/source-tokens.json --json
+```
+
+The command streams raw `documents.jsonl` bytes, authenticates them at EOF,
+deduplicates `(domain, content_sha256)` on disk and counts raw token IDs without
+injected EOS, padding, truncation or packing. Default batches are bounded by
+256 documents and 1,048,576 source UTF-8 bytes. An eligible document larger
+than 1 MiB is rejected,
+not truncated or split. Operational batch choices do not change scientific
+identity. Progress is stderr plus a launch-bound operational JSONL log.
+
+`COMPLETE` is published exclusively after input authentication and successful
+reduction. Existing results are read-only reuse only after validating release,
+tokenizer, policy, implementation and evidence bindings; conflicting results are
+never overwritten. Interrupted work is not a receipt and has no chunk resume.
+
+Normal measurement authenticates the complete release and tokenizer through
+their existing verifiers, sharing the release proof only within this operation.
+The explicit `--evidence-commit`, `--release-evidence` and `--selection-evidence`
+option accepts only the reviewed DevMind v5 post-mount cold record and exact
+committed primary/selection blobs, with current manifest, tokenizer, report and
+winner-manifest hashes checked and documents authenticated during the scan.
+The chosen commit is an operator acceptance of that reviewed cold record, not
+an arbitrary SHA's assertion of authentication or a replacement verifier for
+unrelated releases. It does not establish indefinite external availability.
+
+A token-only Campaign readiness policy may consume a canonical receipt instead
+of encoding again. Declare both its operational `measurement_receipt` path and
+the expected full-file `measurement_sha256` in the committed Campaign. The
+normalized inline policy must equal the receipt's policy, and the original policy
+file's exact SHA, release, streamed documents, tokenizer, implementation and
+evidence must still validate. Completed stages reopen these bindings rather than
+treating their historical stage result as fresh authentication. A mismatch fails;
+it does not authorize a new measurement or overwrite.
+
+Token-only readiness reports requested source-domain bytes and tokens.
+Unrequested language, selected-shape and heldout-family facts are unavailable
+(`null`), not zero. Mixed policies retain their language/shape/heldout semantics
+and use bounded streaming with disk-backed joins; a token-only receipt cannot
+stand in for those other measurements.
+
+### Projected source passes
 
 ```yaml
 passes:

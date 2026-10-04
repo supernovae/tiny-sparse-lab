@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_iputils
+kind: git
+canonical_uri: https://github.com/iputils/iputils.git
+revision: 18717a3984c83452138d6bed76426237dbe41ae7
+license: BSD-3-Clause AND GPL-2.0-or-later
+license_url: https://github.com/iputils/iputils/blob/18717a3984c83452138d6bed76426237dbe41ae7/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: BSD-3-Clause AND GPL-2.0-or-later
+  license_references: [https://github.com/iputils/iputils/blob/18717a3984c83452138d6bed76426237dbe41ae7/LICENSE, https://github.com/iputils/iputils/blob/18717a3984c83452138d6bed76426237dbe41ae7/Documentation/LICENSE.BSD3, https://github.com/iputils/iputils/blob/18717a3984c83452138d6bed76426237dbe41ae7/Documentation/LICENSE.GPL2]
+  notices: ['Top-level LICENSE assigns ping/clockdiff BSD-3-Clause and arping/tracepath GPL-2.0-or-later; keep corresponding notices by file and review doc-level copyright.']
+domains: [networking, diagnostics, operations]
+document_kinds: [prose]
+source_family: v4_ops_iputils_train
+notes: 'Authored DocBook command manuals for ping reachability, tracepath path-MTU, arping link discovery and clockdiff timing; no generated manpage output or translation bulk.'
+acquisition:
+  include: ['doc/ping.xml', 'doc/tracepath.xml', 'doc/arping.xml', 'doc/clockdiff.xml']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', 'po/*']
+  max_bytes: 85000

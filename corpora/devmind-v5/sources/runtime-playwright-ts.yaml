@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_runtime_playwright_ts
+kind: git
+canonical_uri: https://github.com/microsoft/playwright.git
+revision: 00ce6a8b72f3845b8b45a3af684391d2eb8a5cef
+license: Apache-2.0
+license_url: https://github.com/microsoft/playwright/blob/00ce6a8b72f3845b8b45a3af684391d2eb8a5cef/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/microsoft/playwright/blob/00ce6a8b72f3845b8b45a3af684391d2eb8a5cef/LICENSE]
+  notices: ['Retain Microsoft Apache-2.0 and file-level copyright notices; no browser binaries or generated browser-protocol declarations.']
+domains: [typescript, testing, developer_tools]
+document_kinds: [typescript, tests]
+source_family: v4_runtime_playwright_ts_train
+notes: 'Pinned v1.54.2 commit. Authored browser automation client/server, runner, injected scripts and behavioral test TS; exclude protocol.d.ts (explicit generated marker), bundle wrappers, fixture assets and vendored browser bundles. Complete pinned Git tree: 629 selected files / 6,844,829 bytes before transform.'
+acquisition:
+  include: ['packages/playwright-core/src/*.ts', 'packages/playwright/src/*.ts', 'packages/injected/src/*.ts', 'packages/trace-viewer/src/*.ts', 'tests/library/*.spec.ts', 'tests/playwright-test/*.spec.ts']
+  exclude: ['*/protocol.d.ts', '*/utilsBundle.ts', '*/zipBundle.ts', '*/expectBundle.ts', '*/bundles/*', '*/fixtures/*', '*/__fixtures__/*', '*/__test_fixtures__/*', '*/__source__/*', '*/__compiled__/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/__generated__/*', '*/dist/*', '*/node_modules/*', '*/secrets/*', '*/__snapshots__/*', '*/baselines/*', '*/testdata/*']
+  max_bytes: 9200000

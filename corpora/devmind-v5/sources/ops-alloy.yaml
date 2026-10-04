@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_alloy
+kind: git
+canonical_uri: https://github.com/grafana/alloy.git
+revision: b8d349c463120b5a565890661054e09bde8098cb
+license: Apache-2.0
+license_url: https://github.com/grafana/alloy/blob/b8d349c463120b5a565890661054e09bde8098cb/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0
+  license_references: [https://github.com/grafana/alloy/blob/b8d349c463120b5a565890661054e09bde8098cb/LICENSE]
+  notices: ['Retain Grafana Alloy contributors and Apache notices; review externally attributed integrations. Exclude generated component catalogs and embedded third-party samples.']
+domains: [observability, deployment, diagnostics]
+document_kinds: [prose, configuration]
+source_family: v4_ops_alloy_train
+notes: 'First-party Alloy collector deployment, Linux/Kubernetes access, Loki/OTel telemetry collection, metamonitoring and incident diagnosis; no generated reference component catalog or v2 Collector Go paths.'
+acquisition:
+  include: ['docs/sources/access_permissions/*.md', 'docs/sources/collect/logs-in-kubernetes.md', 'docs/sources/collect/metamonitoring.md', 'docs/sources/collect/opentelemetry-data.md', 'docs/sources/collect/opentelemetry-to-lgtm-stack.md', 'docs/sources/configure/*.md', 'docs/sources/monitor/*.md', 'docs/sources/set-up/deploy.md', 'docs/sources/troubleshoot/*.md']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', '*/reference/*', '*/enterprise/*']
+  max_bytes: 330000

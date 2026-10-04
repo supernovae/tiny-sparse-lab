@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_ops_loki
+kind: git
+canonical_uri: https://github.com/grafana/loki.git
+revision: 9f25a05232f5be9cea3d31c73be75855befd4534
+license: AGPL-3.0-only
+license_url: https://github.com/grafana/loki/blob/9f25a05232f5be9cea3d31c73be75855befd4534/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: AGPL-3.0-only
+  license_references: [https://github.com/grafana/loki/blob/9f25a05232f5be9cea3d31c73be75855befd4534/LICENSE]
+  notices: ['Preserve Grafana contributor attribution, file-level notices and AGPL network-use/source obligations; no redistributable training text.']
+domains: [observability, logging, operations]
+document_kinds: [prose, configuration]
+source_family: v4_ops_loki_train
+notes: 'First-party Loki troubleshooting for ingestion/storage, canary and metamonitoring, plus authored deployment/configuration examples and alert template. Exclude generated Helm README, compiled mixin output, fixture secrets and third-party snippets.'
+acquisition:
+  include: ['docs/sources/operations/*.md', 'docs/sources/configure/*.md', 'docs/sources/configure/examples/yaml/*.yaml', 'docs/sources/alert/_index.md', 'production/helm/loki/values.yaml', 'production/helm/loki/templates/monitoring/loki-alerts.yaml']
+  exclude: ['*/test/*', '*/tests/*', '*/testdata/*', '*/fixtures/*', '*/vendor/*', '*/generated/*', '*/secrets/*', '*/enterprise/*', '*/_images/*', '*/_static/*']
+  max_bytes: 1500000

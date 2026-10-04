@@ -24,6 +24,7 @@ def _runtime_payload(
     worker: str | None = None,
     controller: Controller | None = None,
 ) -> dict[str, Any]:
+    from sparselab.experiments.source_compatibility import source_identities_compatible
     from sparselab.runtime import validate_runtime
     from sparselab.runtime_identity_probe import (
         source_identity as runtime_source_identity,
@@ -37,7 +38,10 @@ def _runtime_payload(
         raise ValueError("runtime binding cell is not in the selected lock")
     if config_sha256(cell.config.model_dump(mode="json")) != cell.config_sha256:
         raise ValueError("runtime binding cell config identity changed")
-    if source_identity()["sha256"] != lock.source_identity["sha256"]:
+    execution_source_sha256 = str(source_identity()["sha256"])
+    if not source_identities_compatible(
+        str(lock.source_identity["sha256"]), execution_source_sha256
+    ):
         raise ValueError("locked source identity differs from current package")
     if profile is not None:
         sealed = authorize_profile(profile, cell.config)
@@ -66,7 +70,7 @@ def _runtime_payload(
         if controller is None:
             raise ValueError("registered worker runtime binding requires a controller")
         definition, tested, authorization = controller.validate_registered_worker(
-            worker, cell.config, source_sha256=lock.source_identity["sha256"]
+            worker, cell.config, source_sha256=execution_source_sha256
         )
         descriptor = definition.model_dump(mode="json")
         kind = "worker"

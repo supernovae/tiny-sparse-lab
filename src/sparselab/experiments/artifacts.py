@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
+import weakref
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -12,6 +15,7 @@ import yaml
 from sparselab.training.manifest import sha256_file
 
 if TYPE_CHECKING:
+    from sparselab.data.verification import VerifiedPreparedData
     from sparselab.experiments.plan import Artifact, ExperimentPlan
 
 
@@ -148,7 +152,18 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         if not isinstance(source, str) or type(vocab) is not int:
             raise ValueError("invalid tokenizer provenance")
         dataset = None
-        if manifest.get("corpus_export") is not None:
+        bakeoff = manifest.get("corpus_forge_bakeoff")
+        if bakeoff is not None:
+            if (
+                source != "local_text"
+                or not isinstance(bakeoff, dict)
+                or not isinstance(bakeoff.get("release_id"), str)
+            ):
+                raise ValueError("invalid bakeoff tokenizer provenance")
+            _safe_path(str(path.parent.parent.parent), path)
+            report = _json_file(path.parent.parent.parent / "report.json")
+            _safe_path(report["identity"]["release_path"], path)
+        elif manifest.get("corpus_export") is not None:
             from sparselab.config.models import RunConfig
 
             export = path.parent.parent
@@ -170,20 +185,13 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         tokenizer = load_tokenizer(path)
         if tokenizer.get_vocab_size() != vocab:
             raise ValueError("tokenizer vocabulary differs from manifest")
-        _identity(artifact, path.parent.name, sha256_file(path))
-    elif kind == "prepared_data":
-        from sparselab.data.packing import load_prepared_data
-
-        manifest = _require_directory(path, "manifest.json")
-        if artifact.version != 1:
-            raise ValueError("unsupported prepared-data artifact version")
-        data = load_prepared_data(
-            path, byte_enabled=manifest.get("byte_addressing") is not None
-        )
-        del data
         _identity(
-            artifact, manifest.get("settings_sha256"), manifest.get("manifest_sha256")
+            artifact,
+            path.parent.name,
+            sha256_file(path),
         )
+    elif kind == "prepared_data":
+        _load_verified_prepared(artifact, path)
     elif kind == "stage_bundle":
         from sparselab.config.models import RunConfig
         from sparselab.staging import verify_stage_bundle
@@ -258,31 +266,166 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         raise ValueError(f"no immutable external verifier for {kind}")
 
 
+def _load_verified_prepared(artifact: Artifact, path: Path) -> VerifiedPreparedData:
+    from sparselab.data.packing import load_prepared_data
+
+    manifest = _require_directory(path, "manifest.json")
+    if artifact.version != 1:
+        raise ValueError("unsupported prepared-data artifact version")
+    data = load_prepared_data(
+        path, byte_enabled=manifest.get("byte_addressing") is not None
+    )
+    _identity(
+        artifact, manifest.get("settings_sha256"), manifest.get("manifest_sha256")
+    )
+    return data.receipt
+
+
+def verify_prepared_artifact(artifact: Artifact, source: Path) -> VerifiedPreparedData:
+    """Authenticate a typed existing prepared artifact and return its sealed proof."""
+    if artifact.kind != "prepared_data" or artifact.from_phase is not None:
+        raise ValueError(
+            "prepared storage planning requires an existing prepared artifact"
+        )
+    if artifact.path is None or artifact.sha256 is None:
+        raise ValueError("prepared storage planning requires pinned path and digest")
+    return _load_verified_prepared(artifact, _safe_path(artifact.path, source))
+
+
 _MEMO_SEAL = object()
 
 
 class _VerifiedArtifact:
-    __slots__ = ("_seal", "identity")
+    __slots__ = ("__weakref__", "_seal", "identity", "issuer_pid", "key")
 
-    def __init__(self, identity: dict[str, object], *, _seal: object = None) -> None:
+    def __init__(
+        self,
+        identity: dict[str, object],
+        key: tuple[object, ...],
+        *,
+        _seal: object = None,
+    ) -> None:
         if _seal is not _MEMO_SEAL:
             raise TypeError("artifact evidence cannot be constructed from metadata")
-        self.identity = MappingProxyType(dict(identity))
-        self._seal = _MEMO_SEAL
+        object.__setattr__(self, "identity", MappingProxyType(dict(identity)))
+        object.__setattr__(self, "key", key)
+        object.__setattr__(self, "_seal", _MEMO_SEAL)
+        object.__setattr__(self, "issuer_pid", os.getpid())
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("sealed artifact evidence is immutable")
 
 
-def _fingerprint(path: Path) -> tuple[tuple[str, int, int, int, int], ...]:
+_MINTED_ARTIFACTS: weakref.WeakSet[_VerifiedArtifact] = weakref.WeakSet()
+
+
+def _fingerprint(path: Path) -> tuple[tuple[str, int, int, int, int, int, int], ...]:
     members = [path] if path.is_file() else [path, *sorted(path.rglob("*"))]
-    return tuple(
-        (
-            member.relative_to(path).as_posix() if member != path else ".",
-            member.stat().st_dev,
-            member.stat().st_ino,
-            member.stat().st_size,
-            member.stat().st_mtime_ns,
+    result = []
+    for member in members:
+        info = member.lstat()
+        if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+            raise ValueError(f"nonregular artifact member: {member}")
+        result.append(
+            (
+                member.relative_to(path).as_posix() if member != path else ".",
+                info.st_dev,
+                info.st_ino,
+                info.st_mode,
+                info.st_size,
+                info.st_mtime_ns,
+                info.st_ctime_ns,
+            )
         )
-        for member in members
+    return tuple(result)
+
+
+def _snapshot_dependencies(path: Path, manifest_name: str) -> tuple[Path, ...]:
+    manifest = _json_file(path / manifest_name)
+    _check_snapshot_paths(path, manifest)
+    return tuple(
+        path.parent.parent / "snapshots" / item["source_id"] / item["sha256"]
+        for item in manifest["snapshots"]
     )
+
+
+def _dependent_paths(artifact: Artifact, path: Path) -> tuple[Path, ...]:
+    """Track external files read by domain verifiers alongside the artifact tree."""
+    if artifact.kind == "tokenizer":
+        manifest = path.with_name("tokenizer_manifest.json")
+        paths = [manifest]
+        provenance = _json_file(manifest)
+        release = None
+        if provenance.get("corpus_forge_bakeoff") is not None:
+            selection = path.parent.parent.parent
+            paths.append(selection)
+            release = Path(
+                _json_file(selection / "report.json")["identity"]["release_path"]
+            )
+        elif provenance.get("corpus_export") is not None:
+            export = path.parent.parent
+            paths.append(export)
+            run = yaml.safe_load((export / "run.yaml").read_text(encoding="utf-8"))
+            release = Path(run["dataset"]["corpus_release_path"])
+        if release is not None:
+            paths.append(release)
+            paths.extend(_snapshot_dependencies(release, "manifest.json"))
+        return tuple(paths)
+    if artifact.kind in {"corpus_build", "corpus_release"}:
+        return _snapshot_dependencies(
+            path, "build.json" if artifact.kind == "corpus_build" else "manifest.json"
+        )
+    if artifact.kind == "corpus_export":
+        run = yaml.safe_load((path / "run.yaml").read_text(encoding="utf-8"))
+        release = Path(run["dataset"]["corpus_release_path"])
+        return (release, *_snapshot_dependencies(release, "manifest.json"))
+    return ()
+
+
+def _artifact_key(artifact: Artifact, path: Path) -> tuple[object, ...]:
+    dependencies = tuple(
+        (str(dependency.absolute()), _fingerprint(_safe_path(str(dependency), path)))
+        for dependency in _dependent_paths(artifact, path)
+    )
+    return (
+        path.resolve(strict=True),
+        artifact.kind,
+        artifact.version,
+        artifact.identifier,
+        artifact.sha256,
+        _fingerprint(path),
+        dependencies,
+    )
+
+
+def _reuse_verified_artifact(
+    artifact: Artifact,
+    source: Path,
+    memo: dict[tuple[object, ...], _VerifiedArtifact],
+) -> dict[str, object]:
+    """Fail closed if a resolved artifact or its path changed before publication."""
+    if artifact.from_phase is not None or artifact.path is None:
+        raise ValueError("unresolved artifact cannot reuse verification")
+    path = _safe_path(artifact.path, source)
+    key = _artifact_key(artifact, path)
+    evidence = memo.get(key)
+    if (
+        not isinstance(evidence, _VerifiedArtifact)
+        or evidence._seal is not _MEMO_SEAL
+        or evidence.issuer_pid != os.getpid()
+        or evidence not in _MINTED_ARTIFACTS
+        or evidence.key != key
+        or evidence.identity
+        != {
+            "kind": artifact.kind,
+            "version": artifact.version,
+            "identifier": artifact.identifier,
+            "sha256": artifact.sha256,
+            "path": str(path),
+        }
+    ):
+        raise ValueError(f"artifact changed since resolution: {path}")
+    return dict(evidence.identity)
 
 
 def verify_artifact(
@@ -300,18 +443,19 @@ def verify_artifact(
         raise ValueError(f"{artifact.kind} external artifact lacks path or digest")
     try:
         path = _safe_path(artifact.path, source)
-        key = (
-            path.resolve(strict=True),
-            artifact.kind,
-            artifact.version,
-            artifact.identifier,
-            artifact.sha256,
-            _fingerprint(path),
-        )
+        key = _artifact_key(artifact, path)
         cached = memo.get(key) if memo is not None else None
-        if isinstance(cached, _VerifiedArtifact) and cached._seal is _MEMO_SEAL:
+        if (
+            isinstance(cached, _VerifiedArtifact)
+            and cached._seal is _MEMO_SEAL
+            and cached.issuer_pid == os.getpid()
+            and cached.key == key
+            and cached in _MINTED_ARTIFACTS
+        ):
             return dict(cached.identity)
         _verify_domain(artifact, path)
+        if _artifact_key(artifact, path) != key:
+            raise ValueError(f"artifact changed during verification: {path}")
     except (
         OSError,
         ValueError,
@@ -331,7 +475,9 @@ def verify_artifact(
         "path": str(path),
     }
     if memo is not None:
-        memo[key] = _VerifiedArtifact(verified, _seal=_MEMO_SEAL)
+        evidence = _VerifiedArtifact(verified, key, _seal=_MEMO_SEAL)
+        _MINTED_ARTIFACTS.add(evidence)
+        memo[key] = evidence
     return dict(verified)
 
 

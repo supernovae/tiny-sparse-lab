@@ -50,16 +50,20 @@ def _selection(path: Path) -> tuple[str, str]:
     )
     if not isinstance(report["candidates"], list) or not report["candidates"]:
         raise ValueError("selection has no verified candidates")
+    chosen = choose_candidate(report["candidates"], spec.near_best_ratio)
+    if report.get("selected_vocab_size") != chosen:
+        raise ValueError("selection vocabulary changed")
     candidate = next(
-        item
-        for item in report["candidates"]
-        if item["vocab_size"] == choose_candidate(report["candidates"])
+        item for item in report["candidates"] if item["vocab_size"] == chosen
     )
     selected = (
         path.parent / "candidates" / str(candidate["vocab_size"]) / "tokenizer.json"
     )
     if (
-        report["selected_tokenizer"] != str(selected)
+        selected.is_symlink()
+        or selected.parent.is_symlink()
+        or selected.with_name("tokenizer_manifest.json").is_symlink()
+        or report["selected_tokenizer"] != str(selected)
         or sha256_file(selected) != candidate["tokenizer_sha256"]
     ):
         raise ValueError("selection receipt does not bind the chosen tokenizer")

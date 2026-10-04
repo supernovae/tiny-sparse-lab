@@ -1,0 +1,22 @@
+schema_version: 3
+id: v4_iac_kubernetes_operator
+kind: git
+canonical_uri: https://github.com/kubernetes/website.git
+revision: 69f4fc12ef397cacb60d3b6830ef7c6d6b87245e
+license: CC-BY-4.0
+license_url: https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: CC-BY-4.0
+  license_references: [https://github.com/kubernetes/website/blob/69f4fc12ef397cacb60d3b6830ef7c6d6b87245e/LICENSE, https://creativecommons.org/licenses/by/4.0/]
+  notices: ['Credit Kubernetes documentation contributors with CC BY link and change indication; screen embedded quoted materials and examples.']
+domains: [kubernetes, deployment, operators, configuration]
+document_kinds: [yaml, prose]
+source_family: v4_iac_kubernetes_operator_train
+notes: 'English official operator extension, workload and pod-configuration task explanations paired with first-party CRD, controller, deployment, ConfigMap and application YAML. V2 selects content/en/docs/concepts/*.md, which remains disjoint. Exclude secret examples and token credentials. Pinned tree selected approximately 0.6 MB.'
+acquisition:
+  include: ['content/en/docs/tasks/extend-kubernetes/*.md', 'content/en/docs/tasks/run-application/*.md', 'content/en/docs/tasks/configure-pod-container/*.md', 'content/en/examples/customresourcedefinition/*.yaml', 'content/en/examples/application/*.yaml', 'content/en/examples/deployments/*.yaml', 'content/en/examples/controllers/*.yaml', 'content/en/examples/configmap/*.yaml']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secret/*', '*/secrets/*', '*/private/*', '*/_index.md', '*/README.md', '*/credential*', '*-secret.yaml']
+  max_bytes: 1600000

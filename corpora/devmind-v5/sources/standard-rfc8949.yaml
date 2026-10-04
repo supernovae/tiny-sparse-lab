@@ -1,0 +1,25 @@
+schema_version: 3
+id: v3_rfc8949
+kind: http_document
+canonical_uri: https://www.rfc-editor.org/rfc/rfc8949.txt
+revision: RFC8949-2020-12-sha256-f1164a5b31a39350ad46abe29b83575eb933ca6c45366989c118b6b1058a214a
+license: IETF-Trust-TLP-5
+license_url: https://trustee.ietf.org/documents/trust-legal-provisions/tlp-5/
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: IETF-Trust-TLP-5
+  license_references:
+    - https://www.rfc-editor.org/rfc/rfc8949.txt
+    - https://www.rfc-editor.org/series/rfc-use/
+    - https://trustee.ietf.org/documents/trust-legal-provisions/tlp-5/
+  notices:
+    - 'Keep the complete original RFC and copyright/TLP legends in private provenance. Do not republish transformed RFC prose; metadata-only release. The IETF code-components BSD grant is distinct from the document terms.'
+notes: 'The official numbered original RFC 8949 (CBOR). File-specific rights reviewed in experiments/research/devmind-pretrain-v3/source-research.md; no blanket RFC-series grant. Original bytes measured 185226, SHA-256 pinned; no unreviewed RFC 9110 or website crawl.'
+domains: [protocols, developer_tools, security]
+document_kinds: [prose]
+source_family: v3_rfc8949_train
+acquisition:
+  expected_sha256: f1164a5b31a39350ad46abe29b83575eb933ca6c45366989c118b6b1058a214a
+  max_bytes: 190000

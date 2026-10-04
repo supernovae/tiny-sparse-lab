@@ -1,0 +1,40 @@
+recovery_version: 1
+id: devmind-v5-model0-continuation
+source_commit: e7f6f19dbfcb169781c0353c199eb4861965db44
+steps:
+  - id: corpus
+    kind: external_required
+    role: corpus_release
+    expected_sha256: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    reason: Retained immutable v5 corpus release is verified by the bound Campaign and staging evidence; this continuation closure does not claim deterministic corpus reconstruction.
+  - id: export
+    kind: external_required
+    role: corpus_export
+    expected_sha256: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    reason: Retained immutable LM export requires the external corpus provenance and bytes; no export reconstruction is demonstrated here.
+  - id: tokenizer
+    kind: external_required
+    role: selected_tokenizer
+    expected_sha256: ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56
+    reason: The selected 32768-token vocabulary bytes are retained and authenticated; deterministic tokenizer replay and renewed selection are not claimed.
+  - id: packed
+    kind: external_required
+    role: prepared_data
+    expected_sha256: 6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3
+    reason: Existing packed assets retain their verified 15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84 identity; this closure does not repack or claim replay.
+  - id: plan-lock
+    kind: external_required
+    role: experiment_lock
+    expected_sha256: 275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45
+    reason: The accepted historical-source lock remains external and authenticated through the reviewed operational source-compatibility authority; no lock regeneration is claimed.
+  - id: model-continuation
+    kind: external_required
+    role: model_continuation
+    expected_sha256: 52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709
+    reason: Continuation requires retained full-state step_00005525_gen_000004 bytes and the accepted ROCm runtime; exact source identity and external availability are bound in model0-result.json. No reconstruction, child resume or deterministic model replay is demonstrated.
+evaluation_suite: suite.yaml
+readiness_policy: readiness.yaml
+family: model0-family.yaml
+evidence:
+  - model0-evaluation-reference.json
+  - model0-checkpoint-reference.json

@@ -1,0 +1,22 @@
+schema_version: 3
+id: v3_tool_cargo
+kind: git
+canonical_uri: https://github.com/rust-lang/cargo.git
+revision: 523e530d77cce92813eebbf6ac009a04f2df2ac2
+license: Apache-2.0 OR MIT
+license_url: https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-MIT
+explicit_training_restriction: none_found
+rights:
+  training_eligibility: eligible_with_obligations
+  redistribution_mode: metadata_reconstruction_only
+  spdx_expression: Apache-2.0 OR MIT
+  license_references: [https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-MIT, https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-APACHE, https://github.com/rust-lang/cargo/blob/523e530d77cce92813eebbf6ac009a04f2df2ac2/LICENSE-THIRD-PARTY]
+  notices: ['Retain Cargo dual-license texts and contributor notices; exclude separately licensed dependencies and check exceptions documented in LICENSE-THIRD-PARTY.']
+domains: [build_systems, developer_tools, programming]
+document_kinds: [rust, prose, shell]
+source_family: v3_tool_cargo_train
+notes: 'Authored Cargo resolver, operations and CLI, command handbook, small shell CI maintenance scripts and Rust regression tests. Excludes testsuite fixtures, generated output and separately licensed dependency crates.'
+acquisition:
+  include: ['src/*.rs', 'doc/book/src/commands/*.md', 'tests/testsuite/*.rs', 'ci/clean-test-output.sh', 'ci/validate-man.sh', 'ci/validate-version-bump.sh']
+  exclude: ['*/fixtures/*', '*/testdata/*', '*/vendor/*', '*/third_party/*', '*/generated/*', '*/secrets/*']
+  max_bytes: 12000000
