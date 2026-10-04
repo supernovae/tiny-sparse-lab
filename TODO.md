@@ -30,6 +30,13 @@ close a code item unless the named software acceptance criteria also pass.
   local warmup but its worker smoke fails because tokenizer verification cannot
   find the sealed export's `run.yaml`. Cover dispatch through parent ingestion
   and child continuation, with all provenance files verified after relocation.
+- [ ] Add a non-gating, checkpoint-bound descriptive generation-panel Campaign
+  stage. Bind the collected immutable generation/SHA, authenticated evaluation
+  index, accepted runtime profile, panel declaration and exact decoder/seed;
+  retain raw text, completion token IDs and empty, repetitive or failed outputs.
+  Cover checkpoint/index/runtime mismatches, changed panel/decoder bindings,
+  and negative outputs without rerolls or automatic readiness/promotion changes.
+  DevMind v5 MODEL-0 currently requires a caller-created native inference script.
 - [ ] Validate that checked-in research records bind protocol/config identities
   and evidence references while excluding checkpoints, caches, datasets, logs,
   and other mutable run output.

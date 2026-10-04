@@ -1,0 +1,31 @@
+family_version: 1
+id: devmind-v5-model0
+nodes:
+  - id: model-0
+    parent: null
+    parent_checkpoint_sha256: null
+    corpus:
+      id: devmind-v5
+      sha256: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    tokenizer:
+      id: '32768'
+      sha256: ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56
+    plan:
+      id: devmind-v5-model0
+      sha256: 275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45
+    architecture_sha256: 846bc33342437006e41bcf1a584951a4b9897decf110cbdbd5da1a893eb0cf2e
+    objective: next_token
+    budget:
+      max_steps: 5525
+      max_tokens: 45260800
+    checkpoint:
+      sha256: 52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709
+      path: /srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004
+    evaluation_index:
+      sha256: 1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816
+      path: /srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/suite-1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816.json
+    readiness_result:
+      sha256: 46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8
+      path: /srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/readiness-46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8.json
+    recovery_manifest: model0-recovery.yaml
+    lifecycle_receipts: []

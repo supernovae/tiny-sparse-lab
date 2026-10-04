@@ -282,3 +282,60 @@ remain unchanged.
 This accepts current-source execution readiness, not full-budget stability or
 model quality. The earlier read-only Campaign status command was censored by
 its 180-second outer limit; it dispatched nothing.
+
+## Completed frozen MODEL-0 run and negative observations
+
+[MODEL-0 result](model0-result.json) binds the one approved Campaign attempt,
+completed controller ingestion and collection, and all twelve completed stages.
+Scientific settings remained frozen: **69,317,760 parameters**, measured
+**D=30,175,366**, **5,525 updates**, **45,260,800 committed supervised targets**,
+sequence **1,024**, microbatch **2**, accumulation **4**, BF16 transformer-block
+checkpointing on ROCm device 0, without offload.
+
+- Experiment: `70f48824-aa0a-4672-a1b0-70813515c9bb`.
+- Sole training attempt: `71b0df59-9edb-4946-b57b-33163e387cbb`.
+- Run: `762c4104-3a3b-4226-afa6-402cc350356e`.
+- Unique collected terminal generation: `step_00005525_gen_000004`,
+  checkpoint SHA
+  `52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709`.
+- Independent full-state verification/load confirms exact counters; all
+  **5,525** ordered update/gradient rows are finite and each commits **8,192**
+  targets, with no overflow retries. Retained generations at steps 0, 2,048,
+  4,096 and 5,525 remain intact.
+- Optimizer updates total **1,979.607 seconds**: median **0.355749**, p95
+  **0.381953**, range **0.346642–0.536276 seconds**, aggregate
+  **22,863.533 targets/second**. Recorded training-operation end-to-end time is
+  **2,459.213 seconds**; this does not include worker staging or Campaign
+  verification/reconciliation. Those boundaries are preserved separately.
+- Exact-generation FP32 ROCm heldout: **64 batches**, **131,072 valid targets**,
+  loss **3.208992707**, perplexity **24.754138982**. Evaluation index SHA
+  `1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816`.
+- Preregistered greedy panel ran once on that same checkpoint/index:
+  temperature 0, top-k 0, 64 new tokens, seed 42. Raw text/token IDs are retained.
+  The Python-prefix continuation repeats a C/JavaScript-like block, SQL repeats
+  `--echo #`, and shell repeats comment markers. These are negative descriptive
+  observations, not a quality threshold added after seeing the outputs.
+- Readiness SHA
+  `46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8`
+  reports **READY_FOR_NEXT_STAGE** under the original evidence policy, with one
+  completed heldout gate and no missing gates. It does not establish usefulness.
+
+The one-dispatch runner exhausted its bounded reconciliation lifetime after
+training completed; repeated 120-second foreground windows left ingestion
+`PENDING`, not `ERROR`. A bounded 3,600-second same-attempt window completed
+ingestion, collection and evaluation; its outer cap preserved readiness
+`RUNNING`. A final same-attempt reconciliation completed readiness. All censored
+logs remain, no resource guard reported violations, and no fresh attempt,
+science change, CPU fallback, SFT or promotion occurred.
+
+[Family](model0-family.yaml) pins the unpromoted parent-null node.
+[Continuation recovery](model0-recovery.yaml) deliberately declares retained
+corpus/export/tokenizer/prepared/lock/checkpoint bytes as external requirements.
+Exact physical availability is recorded separately: opaque `external_required`
+steps cannot resolve those locations and do not claim deterministic replay.
+The earlier corpus recovery and crash-recovery records are unchanged.
+
+The descriptive panel remains caller-created procedural glue; its demonstrated
+non-gating Campaign-stage gap is recorded in `TODO.md`. The independent sealed
+Forge `run.yaml` provenance TODO remains: this completed prepared-input route
+does not close its broader worker/relocation acceptance criteria.

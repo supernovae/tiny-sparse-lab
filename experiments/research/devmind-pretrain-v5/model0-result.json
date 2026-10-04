@@ -1,0 +1,1048 @@
+{
+  "evidence_version": 1,
+  "id": "devmind-v5-model0-completed-evidence",
+  "status": "TRAINING_EVALUATION_READINESS_COMPLETE_UNPROMOTED",
+  "scientific_interpretation": "One frozen MODEL-0 execution completed. Finite heldout loss does not prove coding usefulness, superiority, causality or portability. The preregistered panel is repetitive and language-mixed; raw negative observations are retained.",
+  "source": {
+    "run_source_commit": "5fcefc19d6b021e9f2e356cc2a29bdadca444823",
+    "execution_code_commit": "47d48f375392705e2ad9d007284613e1c6684fc3",
+    "execution_package_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+    "baseline_locked_package_sha256": "b58975066ea9625d6d6a71f1b1835fd2d8e3320dc840bdceb83a3951c4df38af",
+    "compatibility_authority_commit": "9c4bd3440cf25832b42b45296d40f0a70ca85a7d",
+    "compatibility_record": "model0-corpus-input-phase-source-compatibility.json",
+    "compatibility_file_sha256": "a16118a6a9456fe838bd53cf62831d4cb714a874b0b373465e7db417bc305deb",
+    "dirty_scientific_declarations": false,
+    "identity_scope_note": "Runtime probe Python-only source hash and package-path-v2 execution identity use different scopes; neither is substituted for the other."
+  },
+  "frozen_science": {
+    "scientific_sha256": "975295d546eadd6d23b44a0fcb8f84cc08aeffb8f2982985f1ecc2675b03b8af",
+    "plan_sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45",
+    "run_config_file_sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5",
+    "measured_developer_unique_train_targets": 30175366,
+    "measurement_receipt_sha256": "24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e",
+    "parameters": 69317760,
+    "max_steps": 5525,
+    "max_committed_supervised_targets": 45260800,
+    "sequence_length": 1024,
+    "micro_batch_size": 2,
+    "gradient_accumulation": 4,
+    "effective_batch": 8,
+    "precision": "bf16",
+    "activation_checkpointing": "transformer_block",
+    "activation_offload": false,
+    "backend": "rocm",
+    "device_index": 0,
+    "seed": 42
+  },
+  "campaign": {
+    "id": "devmind-v5-model0",
+    "declaration_sha256": "417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda",
+    "state_path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/state.json",
+    "state_file_sha256": "3711b1de30a1ae31985b511dc4c34f8a267baf48abfaace122b1886cb5399a96",
+    "states": [
+      {
+        "id": "release",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+            "kind": "corpus_release",
+            "sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b"
+          }
+        ]
+      },
+      {
+        "id": "export",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+            "kind": "corpus_export",
+            "sha256": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6"
+          }
+        ]
+      },
+      {
+        "id": "tokenizer",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "32768",
+            "kind": "tokenizer",
+            "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56"
+          }
+        ]
+      },
+      {
+        "id": "packed",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84",
+            "kind": "prepared_data",
+            "sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3"
+          }
+        ]
+      },
+      {
+        "id": "corpus-ready",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "corpus-ready",
+            "kind": "corpus_readiness",
+            "sha256": "ba8d436dfd965ca6e2712ccef45945eed02055cd1e14d4d644629cde546658c0"
+          }
+        ]
+      },
+      {
+        "id": "plan",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "devmind-v5-model0",
+            "kind": "experiment_plan",
+            "sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45"
+          }
+        ]
+      },
+      {
+        "id": "runtime",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "runtime",
+            "kind": "runtime_acceptance",
+            "sha256": "73235a9d889efd2e84ef51c8d312e8b78bc24344fe61747c1232bb3e733bd065"
+          }
+        ]
+      },
+      {
+        "id": "gate",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "gate",
+            "kind": "approval",
+            "sha256": "2f0b6e02a14437fc4b3f405071ff2cc23e7de3ba94078ded02a59aae70fece47"
+          }
+        ]
+      },
+      {
+        "id": "run",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "762c4104-3a3b-4226-afa6-402cc350356e",
+            "kind": "experiment_run",
+            "sha256": "c66302b923dc4a9d03c86b92ceb568d5b4477d23cc4c857228ad83ef6c8efa9a"
+          }
+        ]
+      },
+      {
+        "id": "collect",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "collect",
+            "kind": "experiment_collect",
+            "sha256": "071c03987f563e7afb0d96f38e16825dc8dd7dba1b8afdec61a4a4112248b75d"
+          }
+        ]
+      },
+      {
+        "id": "evaluation",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "evaluation",
+            "kind": "evaluation",
+            "sha256": "1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816"
+          }
+        ]
+      },
+      {
+        "id": "readiness",
+        "state": "COMPLETE",
+        "output_identities": [
+          {
+            "identifier": "readiness",
+            "kind": "model_readiness",
+            "sha256": "46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8"
+          }
+        ]
+      }
+    ],
+    "next_action": {
+      "action": "none",
+      "identities": {},
+      "reason": "all stages complete"
+    },
+    "approval": {
+      "binding_sha256": "2f0b6e02a14437fc4b3f405071ff2cc23e7de3ba94078ded02a59aae70fece47",
+      "decision": "approve",
+      "declaration_sha256": "417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda",
+      "format": "campaign-approval-receipt-v1",
+      "id": "gate",
+      "identities": [
+        {
+          "id": "corpus-ready",
+          "outputs": [
+            {
+              "identifier": "corpus-ready",
+              "kind": "corpus_readiness",
+              "sha256": "ba8d436dfd965ca6e2712ccef45945eed02055cd1e14d4d644629cde546658c0"
+            }
+          ],
+          "stage_input_sha256": "f543f7f91ca1e86e112794492ec5e0fae21a6af87c85b96d4328128800be3ddf"
+        },
+        {
+          "id": "export",
+          "outputs": [
+            {
+              "identifier": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+              "kind": "corpus_export",
+              "sha256": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6"
+            }
+          ],
+          "stage_input_sha256": "86ccfd8f921cd182a9d325cc026b90e83e38c6b8cff96d7a54bc02584dbd9763"
+        },
+        {
+          "id": "packed",
+          "outputs": [
+            {
+              "identifier": "15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84",
+              "kind": "prepared_data",
+              "sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3"
+            }
+          ],
+          "stage_input_sha256": "c20ed5e70bf45e77bc9915d2642831e802164bee52d1f9c6572a039b549b681d"
+        },
+        {
+          "id": "plan",
+          "outputs": [
+            {
+              "identifier": "devmind-v5-model0",
+              "kind": "experiment_plan",
+              "sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45"
+            }
+          ],
+          "stage_input_sha256": "74ab47d3e619cf09e0810358578792450d52727f647c1e2689d9889c0dc67fcc"
+        },
+        {
+          "id": "release",
+          "outputs": [
+            {
+              "identifier": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+              "kind": "corpus_release",
+              "sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b"
+            }
+          ],
+          "stage_input_sha256": "ca492fbcfa544d5978101f2a1ff64d4e475e8436a4ec599ba1eda0bb9e1bc545"
+        },
+        {
+          "id": "runtime",
+          "outputs": [
+            {
+              "identifier": "runtime",
+              "kind": "runtime_acceptance",
+              "sha256": "73235a9d889efd2e84ef51c8d312e8b78bc24344fe61747c1232bb3e733bd065"
+            }
+          ],
+          "stage_input_sha256": "1c2582b634069d271d664ec56ed35994798eb845c4ca590a6d8aa67478cd6b1b"
+        },
+        {
+          "id": "tokenizer",
+          "outputs": [
+            {
+              "identifier": "32768",
+              "kind": "tokenizer",
+              "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56"
+            }
+          ],
+          "stage_input_sha256": "6a399945fa375c71627cd50ef57f3c061bcc8c92cbe00698d0c2017eae43cca1"
+        }
+      ],
+      "note": "Authorized v5 MODEL-0 using verified preregistered bound inputs",
+      "receipt_sha256": "d3d7bf0f547afe45823b21d141fe1e0c72a495b075ae889cc1eff2cbe698c687",
+      "verified_at": "2026-10-04T00:39:13.039133Z"
+    },
+    "runtime_binding_sha256": "2b90407855affa6cef5d3c6c189c009f7cdf392fad4786a40e52d9d3d62d478c",
+    "identity": {
+      "attempt_id": "71b0df59-9edb-4946-b57b-33163e387cbb",
+      "experiment_id": "70f48824-aa0a-4672-a1b0-70813515c9bb",
+      "run_id": "762c4104-3a3b-4226-afa6-402cc350356e"
+    },
+    "intended_training_attempt_count": 1,
+    "dispatch_authorized_command_count": 1,
+    "controller_status": "COMPLETE",
+    "controller_ingestion_status": "COMPLETE",
+    "collection": {
+      "generation": "step_00005525_gen_000004",
+      "sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+      "step": 5525,
+      "index_path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/evidence/071c03987f563e7afb0d96f38e16825dc8dd7dba1b8afdec61a4a4112248b75d.json",
+      "index_sha256": "071c03987f563e7afb0d96f38e16825dc8dd7dba1b8afdec61a4a4112248b75d"
+    }
+  },
+  "training": {
+    "status": "COMPLETE",
+    "classification": "EXACT_COMPLETED_WORKER_BUDGET_NOT_INGESTION_OR_QUALITY",
+    "identity": {
+      "experiment_id": "70f48824-aa0a-4672-a1b0-70813515c9bb",
+      "attempt_id": "71b0df59-9edb-4946-b57b-33163e387cbb",
+      "run_id": "762c4104-3a3b-4226-afa6-402cc350356e"
+    },
+    "receipt_path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/workers/campaign-run-devmind-v5-model0/attempts/71b0df59-9edb-4946-b57b-33163e387cbb/receipt.json",
+    "receipt_file_sha256": "d4f5df9b0da8f6f2ab1c66a20948743f51a0df1669f7b8df2ce373e973884057",
+    "worker_run_path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/workers/campaign-run-devmind-v5-model0/runs/762c4104-3a3b-4226-afa6-402cc350356e",
+    "run_manifest_sha256": "8882f0126099775d85c66025c29f2e28816f989217291ce6e988bb73d7aeef84",
+    "checkpoint_path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/workers/campaign-run-devmind-v5-model0/runs/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004",
+    "checkpoint_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+    "checkpoint_file_sha256": "4b48d759770c1422141d466e6052afafdc0618f67f284de26369b2b3321bd7f0",
+    "architecture_sha256": "846bc33342437006e41bcf1a584951a4b9897decf110cbdbd5da1a893eb0cf2e",
+    "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+    "step": 5525,
+    "committed_supervised_targets": 45260800,
+    "unique_update_rows": 5525,
+    "full_state_load": "verified",
+    "optimizer_update_seconds": {
+      "sum": 1979.6065879438975,
+      "min": 0.3466423290083185,
+      "median": 0.35574875799648,
+      "p95": 0.3819525802930002,
+      "max": 0.5362761979922652,
+      "targets_per_second": 22863.532721928234
+    },
+    "metric_summary": {
+      "validation/loss": {
+        "rows": 4,
+        "min": 3.2090690918266773,
+        "max": 10.541360974311829,
+        "sum": 22.081049401313066
+      },
+      "validation/perplexity": {
+        "rows": 4,
+        "min": 24.756029904017424,
+        "max": 37849.04299173877,
+        "sum": 38039.33686477356
+      },
+      "batch/accumulation_steps": {
+        "rows": 5525,
+        "min": 4,
+        "max": 4,
+        "sum": 22100
+      },
+      "batch/effective_batch_size": {
+        "rows": 5525,
+        "min": 8,
+        "max": 8,
+        "sum": 44200
+      },
+      "batch/effective_tokens_per_update": {
+        "rows": 5525,
+        "min": 8192,
+        "max": 8192,
+        "sum": 45260800
+      },
+      "batch/micro_batch_size": {
+        "rows": 5525,
+        "min": 2,
+        "max": 2,
+        "sum": 11050
+      },
+      "memory/device_allocated_bytes": {
+        "rows": 5525,
+        "min": 1459385344,
+        "max": 1461253120,
+        "sum": 8063105893376
+      },
+      "memory/device_peak_allocated_bytes": {
+        "rows": 5525,
+        "min": 1813999104,
+        "max": 2372702720,
+        "sum": 13108623824384
+      },
+      "memory/device_peak_reserved_bytes": {
+        "rows": 5525,
+        "min": 2260729856,
+        "max": 2797600768,
+        "sum": 15456207372288
+      },
+      "memory/device_reserved_bytes": {
+        "rows": 5525,
+        "min": 2260729856,
+        "max": 2797600768,
+        "sum": 15456207372288
+      },
+      "memory/observer_active_seconds": {
+        "rows": 5525,
+        "min": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "memory/process_peak_rss_bytes": {
+        "rows": 5525,
+        "min": 996491264,
+        "max": 3690098688,
+        "sum": 14137292603392
+      },
+      "memory/process_rss_bytes": {
+        "rows": 5525,
+        "min": 996274176,
+        "max": 3690098688,
+        "sum": 14134523318272
+      },
+      "memory/sampling_seconds": {
+        "rows": 5525,
+        "min": 0.005369243008317426,
+        "max": 0.008134379997500218,
+        "sum": 34.917841941904044
+      },
+      "memory/system_available_bytes": {
+        "rows": 5525,
+        "min": 22192652288,
+        "max": 30941454336,
+        "sum": 142851696791552
+      },
+      "moe/router_auxiliary_loss": {
+        "rows": 5525,
+        "min": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "optimizer/grad_norm": {
+        "rows": 5525,
+        "min": 0.7188495993614197,
+        "max": 16.664735794067383,
+        "sum": 6987.9466715455055
+      },
+      "optimizer/learning_rate": {
+        "rows": 5525,
+        "min": 1.5e-7,
+        "max": 0.0003,
+        "sum": 0.8816399999999999
+      },
+      "optimizer/overflow_retries": {
+        "rows": 5525,
+        "min": 0,
+        "max": 0,
+        "sum": 0
+      },
+      "performance/step_seconds": {
+        "rows": 5525,
+        "min": 0.3466423290083185,
+        "max": 0.5362761979922652,
+        "sum": 1979.6065879438975
+      },
+      "performance/tokens_per_second": {
+        "rows": 5525,
+        "min": 15275.710595901097,
+        "max": 23632.428340289087,
+        "sum": 126424705.3103304
+      },
+      "recompute/block_call_ratio": {
+        "rows": 5525,
+        "min": 1,
+        "max": 1,
+        "sum": 5525
+      },
+      "train/loss": {
+        "rows": 5525,
+        "min": 3.0371971130371094,
+        "max": 10.569389343261719,
+        "sum": 29266.164512872696
+      }
+    },
+    "runtime_forecast": {
+      "completed_steps": 5525,
+      "completed_targets": 45260800,
+      "cumulative_run_wall_seconds": 2408.496043952997,
+      "end_to_end_seconds": 2459.2133416519937,
+      "observed_at_utc": "2026-10-04T02:30:12.053+00:00",
+      "operation_id": "762c4104-3a3b-4226-afa6-402cc350356e",
+      "phases": {
+        "checkpoint": {
+          "availability": "observed",
+          "observation_count": 4,
+          "seconds": 13.698850030996255
+        },
+        "checkpoint_attempt": {
+          "availability": "unavailable",
+          "observation_count": 0,
+          "seconds": null
+        },
+        "evaluation": {
+          "availability": "not_observed",
+          "reason": "training records inline validation separately",
+          "seconds": null
+        },
+        "generation": {
+          "availability": "not_observed",
+          "reason": "generation is a separate inference operation",
+          "seconds": null
+        },
+        "optimizer_update": {
+          "availability": "observed",
+          "observation_count": 5525,
+          "seconds": 1979.6065879438975
+        },
+        "planning": {
+          "availability": "observed",
+          "observation_count": 1,
+          "seconds": 0.0008091630006674677
+        },
+        "preparation": {
+          "availability": "observed",
+          "observation_count": 1,
+          "seconds": 0.6836729409988038
+        },
+        "reporting": {
+          "availability": "observed",
+          "observation_count": 11080,
+          "seconds": 329.8269914189732
+        },
+        "unclassified_overhead": {
+          "availability": "derived_residual",
+          "seconds": 129.16684435911884
+        },
+        "validation": {
+          "availability": "observed",
+          "observation_count": 4,
+          "seconds": 6.229585795008461
+        },
+        "validation_attempt": {
+          "availability": "unavailable",
+          "observation_count": 0,
+          "seconds": null
+        }
+      },
+      "reason": null,
+      "run_id": "762c4104-3a3b-4226-afa6-402cc350356e",
+      "run_status": "completed",
+      "schema_version": 1,
+      "total_targets": 45260800
+    },
+    "limitation": "Worker completion is separate from controller ingestion, collection, suite evaluation, readiness and scientific usefulness."
+  },
+  "heldout": {
+    "index_path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/suite-1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816.json",
+    "index_sha256": "1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816",
+    "index_file_sha256": "4fa66a91911f922bb022667bd31f09a50c69ae82b79d2b8936640a24110c6f07",
+    "suite_sha256": "6ec9b344351b8a8b3f9efd10cd754ca54646eb2079fad727d7531a486dbf90aa",
+    "checkpoint": "checkpoints/step_00005525_gen_000004",
+    "checkpoint_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+    "observed_runtime": {
+      "backend": "rocm",
+      "device_index": 0,
+      "engine": "pytorch",
+      "observed": {
+        "backend": "rocm",
+        "device_index": 0,
+        "device_name": "AMD Radeon RX 7900 XTX",
+        "engine": "pytorch",
+        "framework_version": "2.13.0+rocm10.0.0",
+        "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+        "precision": "fp32"
+      },
+      "precision": "fp32"
+    },
+    "result": {
+      "elapsed_seconds": 7.823494420008501,
+      "id": "heldout",
+      "kind": "heldout_lm",
+      "path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/suite-heldout-50d0be96579dff3cc32c0b3be2d299d356d35bb6184a110a3963e7d8baccbd27.json",
+      "reason": null,
+      "result": {
+        "batches": 64,
+        "loss": 3.2089927066117525,
+        "perplexity": 24.754138981572698,
+        "perplexity_unavailable_reason": null,
+        "valid_targets": 131072
+      },
+      "role": "gate",
+      "sha256": "50d0be96579dff3cc32c0b3be2d299d356d35bb6184a110a3963e7d8baccbd27",
+      "source_sha256": null,
+      "status": "COMPLETED"
+    }
+  },
+  "generation_panel": {
+    "runner_path": "/srv/sparselab/state/scratch/devmind-v5/tmp/generate_panel_v5.py",
+    "runner_file_sha256": "a24828897e0eaddcdfca6e91f20351e65d84c5a6adbfcef6a8f71f8faafca398",
+    "declaration": "generation-panel.json",
+    "declaration_file_sha256": "e09fc7a48ff3c369daee5def62057d3d827769e80aff9bb5ea5b5851d947fd5b",
+    "output_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-generation-panel-v1.json",
+    "output_file_sha256": "e5a3c84b46feffe3a6037d7cae82404234d6eb1f3407b7a4ccb213a9d1da4774",
+    "record": {
+      "path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/devmind-v5-descriptive-panel-68d72661c7187471b39b730a5c541640abbbce64ca28948a1bbb4b4d4e84b1f5.json",
+      "sha256": "68d72661c7187471b39b730a5c541640abbbce64ca28948a1bbb4b4d4e84b1f5"
+    },
+    "decoder": {
+      "max_new_tokens": 64,
+      "seed": 42,
+      "temperature": 0,
+      "top_k": 0
+    },
+    "runtime": {
+      "backend": "rocm",
+      "device_index": 0,
+      "device_name": "AMD Radeon RX 7900 XTX",
+      "engine": "pytorch",
+      "framework_version": "2.13.0+rocm10.0.0",
+      "os": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43 (WSL)",
+      "precision": "fp32"
+    },
+    "observations": [
+      {
+        "completion_token_ids": [
+          3976,
+          659,
+          344,
+          1397,
+          17,
+          288,
+          66,
+          586,
+          11,
+          1409,
+          596,
+          317,
+          15510,
+          659,
+          344,
+          1397,
+          17,
+          288,
+          66,
+          586,
+          11,
+          1409,
+          596,
+          317,
+          15510,
+          659,
+          344,
+          1397,
+          17,
+          288,
+          66,
+          586,
+          11,
+          1409,
+          596,
+          317,
+          15510,
+          659,
+          344,
+          1397,
+          17,
+          288,
+          66,
+          586,
+          11,
+          1409,
+          596,
+          317,
+          15510,
+          659,
+          344,
+          1397,
+          17,
+          288,
+          66,
+          586,
+          11,
+          1409,
+          596,
+          317,
+          15510,
+          659,
+          344,
+          1397
+        ],
+        "full_text": "def parse_config(path):\n                if (file.is_string(path)) {\n                        if (file.is_string(path)) {\n                        if (file.is_string(path)) {\n                        if (file.is_string(path)) {\n                        if (file.is_string(path)) {\n                        if (file",
+        "prompt": "def parse_config(path):"
+      },
+      {
+        "completion_token_ids": [
+          260,
+          20,
+          30,
+          202,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505,
+          202,
+          349,
+          1575,
+          1505
+        ],
+        "full_text": "SELECT user_id FROM t1;\n\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #\n--echo #",
+        "prompt": "SELECT user_id FROM"
+      },
+      {
+        "completion_token_ids": [
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6,
+          202,
+          6
+        ],
+        "full_text": "#!/bin/sh\nset -eu\n\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#\n#",
+        "prompt": "#!/bin/sh\nset -eu\n"
+      }
+    ],
+    "negative_observations": [
+      "Python-prefix continuation repeats a C/JavaScript-like if/block fragment",
+      "SQL continuation repeats --echo #",
+      "Shell continuation repeats comment markers"
+    ],
+    "role": "DESCRIPTIVE_NOT_QUALITY_GATE_NO_REROLLS"
+  },
+  "readiness": {
+    "path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/readiness-46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8.json",
+    "result_sha256": "46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8",
+    "file_sha256": "9bd4ac59ddd8f14838dae59b9459a8ed8d62dba9cf0a9dd2d71f4fecd8d72db0",
+    "state": "READY_FOR_NEXT_STAGE",
+    "index_sha256": "1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816",
+    "checkpoint_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+    "policy_sha256": "a7e9791a53791dd98a04f32b67e865165697649e0294223728a85d69c7bb6e86",
+    "completed_evaluations": 1,
+    "missing_gates": []
+  },
+  "external_availability": [
+    {
+      "role": "corpus_release",
+      "id": "devmind-v5",
+      "sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "state": "PRESENT_AUTHENTICATED_BY_COMPLETED_BOUND_CAMPAIGN"
+    },
+    {
+      "role": "corpus_export",
+      "id": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "sha256": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "state": "PRESENT_AUTHENTICATED_BY_COMPLETED_BOUND_CAMPAIGN"
+    },
+    {
+      "role": "selected_tokenizer",
+      "id": "32768",
+      "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+      "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json",
+      "state": "PRESENT_AUTHENTICATED_BY_COMPLETED_BOUND_CAMPAIGN"
+    },
+    {
+      "role": "prepared_data",
+      "id": "15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84",
+      "sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+      "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0",
+      "bytes": 4031011511,
+      "state": "PRESENT_COLD_BYTE_VERIFIED_IN_ACCEPTED_STAGING"
+    },
+    {
+      "role": "experiment_lock",
+      "id": "devmind-v5-model0",
+      "sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45",
+      "path": "/srv/sparselab/state/experiments/devmind-v5-model0/locks/275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45.json",
+      "state": "PRESENT_AUTHENTICATED_REFERENCE_LOCK"
+    },
+    {
+      "role": "model_continuation",
+      "id": "model-0",
+      "sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+      "path": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004",
+      "state": "PRESENT_VERIFIED_FULL_STATE_IMMUTABLE_GENERATION",
+      "resume_demonstrated": false
+    }
+  ],
+  "operational_evidence": {
+    "current_source_staging": "model0-current-source-full-shape-readiness.json",
+    "worker_budget_cold_verification": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "returncode": 0,
+      "status": "COMPLETE",
+      "violations": [],
+      "peak_tree_rss_bytes": 415064064,
+      "peak_tree_swap_bytes": 0,
+      "min_host_available_ram_bytes": 30259298304,
+      "min_host_free_swap_bytes": 5450346496,
+      "min_disk_free_bytes": 731939106816,
+      "min_disk_free_inodes": 64982010,
+      "min_projected_disk_free_bytes": 731939106816,
+      "min_projected_disk_free_inodes": 64982000,
+      "elapsed_seconds": 6.132011384004727,
+      "sample_count": 6,
+      "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-worker-budget-cold-verify-v1/completion.json",
+      "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-worker-budget-cold-verify-v1/command.stdout.log",
+      "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-worker-budget-cold-verify-v1/command.stderr.log"
+    },
+    "single_dispatch_and_reconciliation": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "returncode": 1,
+      "status": "FAILED",
+      "violations": [],
+      "peak_tree_rss_bytes": 12319948800,
+      "peak_tree_swap_bytes": 647598080,
+      "min_host_available_ram_bytes": 22134579200,
+      "min_host_free_swap_bytes": 4562157568,
+      "min_disk_free_bytes": 731017003008,
+      "min_disk_free_inodes": 64982014,
+      "min_projected_disk_free_bytes": 662297526272,
+      "min_projected_disk_free_inodes": 64977918,
+      "elapsed_seconds": 25550.20984015199,
+      "sample_count": 23665,
+      "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-one-attempt-v1/completion.json",
+      "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-one-attempt-v1/command.stdout.log",
+      "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-one-attempt-v1/command.stderr.log"
+    },
+    "bounded_ingestion_reconciliation": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "returncode": 124,
+      "status": "FAILED",
+      "violations": [],
+      "peak_tree_rss_bytes": 9404223488,
+      "peak_tree_swap_bytes": 175546368,
+      "min_host_available_ram_bytes": 22788800512,
+      "min_host_free_swap_bytes": 4987371520,
+      "min_disk_free_bytes": 731015061504,
+      "min_disk_free_inodes": 64981948,
+      "min_projected_disk_free_bytes": 662295584768,
+      "min_projected_disk_free_inodes": 64977852,
+      "elapsed_seconds": 21601.291149925994,
+      "sample_count": 20113,
+      "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-complete-attempt-ingestion-v1/completion.json",
+      "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-complete-attempt-ingestion-v1/command.stdout.log",
+      "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-complete-attempt-ingestion-v1/command.stderr.log"
+    },
+    "final_readiness_reconciliation": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "returncode": 0,
+      "status": "COMPLETE",
+      "violations": [],
+      "peak_tree_rss_bytes": 9350918144,
+      "peak_tree_swap_bytes": 0,
+      "min_host_available_ram_bytes": 22977253376,
+      "min_host_free_swap_bytes": 5437071360,
+      "min_disk_free_bytes": 724084871168,
+      "min_disk_free_inodes": 64981931,
+      "min_projected_disk_free_bytes": 724084871168,
+      "min_projected_disk_free_inodes": 64977835,
+      "elapsed_seconds": 8309.561662277993,
+      "sample_count": 7797,
+      "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-readiness-reconcile-v1/completion.json",
+      "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-readiness-reconcile-v1/command.stdout.log",
+      "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-readiness-reconcile-v1/command.stderr.log"
+    },
+    "panel": {
+      "monitor_record_version": 1,
+      "kind": "completion",
+      "returncode": 0,
+      "status": "COMPLETE",
+      "violations": [],
+      "peak_tree_rss_bytes": 2223869952,
+      "peak_tree_swap_bytes": 0,
+      "min_host_available_ram_bytes": 29161197568,
+      "min_host_free_swap_bytes": 5442547712,
+      "min_disk_free_bytes": 731410731008,
+      "min_disk_free_inodes": 64981931,
+      "min_projected_disk_free_bytes": 731410731008,
+      "min_projected_disk_free_inodes": 64981921,
+      "elapsed_seconds": 23.739541405026102,
+      "sample_count": 23,
+      "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-exact-panel-v1/completion.json",
+      "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-exact-panel-v1/command.stdout.log",
+      "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-exact-panel-v1/command.stderr.log"
+    },
+    "censoring_notes": [
+      "Read-only status first censored at 180 seconds; original no-dispatch apply censored by tool at 3600 seconds; durable ancestors resumed without dispatch",
+      "One-dispatch operator runner exhausted its 21600-second reconciliation budget while the completed worker remained ingestion PENDING; preserved status and metric records, no OOM or new attempt inferred",
+      "Same completed attempt reconciled with max-wait-seconds 3600; its 21600-second outer cap left readiness RUNNING after ingestion, collection and evaluation had committed",
+      "Final same-attempt resume completed readiness and all Campaign stages; no run retry occurred",
+      "No failed/censored directories were overwritten or pruned"
+    ],
+    "foreground_budget_note": "Controller._retry_ingestion preserves PENDING when its monotonic foreground deadline is exhausted. Increasing the bounded operational reconciliation window changes no scientific setting.",
+    "lineage_draft_contract_error": {
+      "monitor": {
+        "monitor_record_version": 1,
+        "kind": "completion",
+        "returncode": 1,
+        "status": "FAILED",
+        "violations": [],
+        "peak_tree_rss_bytes": 8962674688,
+        "peak_tree_swap_bytes": 0,
+        "min_host_available_ram_bytes": 23176163328,
+        "min_host_free_swap_bytes": 5453803520,
+        "min_disk_free_bytes": 724081496064,
+        "min_disk_free_inodes": 64981926,
+        "min_projected_disk_free_bytes": 724081496064,
+        "min_projected_disk_free_inodes": 64981826,
+        "elapsed_seconds": 1531.1363458010019,
+        "sample_count": 1482,
+        "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lineage-inspection-v1/completion.json",
+        "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lineage-inspection-v1/command.stdout.log",
+        "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lineage-inspection-v1/command.stderr.log"
+      },
+      "reason": "Draft recovery evidence initially listed unsupported custom JSON formats. A raw native evaluation copy also failed its required run-directory location binding. Both draft mistakes were corrected using research evidence export on the authenticated original evaluation/checkpoint locations; no schema marker was invented and scientific outputs/criteria were unchanged."
+    }
+  },
+  "procedural_glue": [
+    {
+      "classification": "scientific_decision",
+      "item": "Frozen D, architecture, budget, training recipe, heldout suite and descriptive decoder remained unchanged"
+    },
+    {
+      "classification": "operator_authorization",
+      "item": "Exact approval note binds seven preregistered ancestor outputs; one execute-runs command only"
+    },
+    {
+      "classification": "implementation_limitation",
+      "item": "Opaque fixed pilot deadline repaired with typed finite caps, authentic meaningful progress and sealed attributable supervision; current-source full-shape acceptance published before Campaign"
+    },
+    {
+      "classification": "ordinary_execution",
+      "item": "Bounded same-attempt reconciliation resumed durable ancestors and completed ingestion/readiness; no fresh training attempt, fallback or changed token budget"
+    },
+    {
+      "classification": "missing_DSL_or_tooling",
+      "item": "Checkpoint-bound descriptive panel used the existing native caller script; precise non-gating Campaign panel TODO added"
+    },
+    {
+      "classification": "implementation_limitation",
+      "item": "Independent sealed Forge run.yaml provenance TODO remains; this prepared-input MODEL-0 worker route completed and does not close that broader acceptance gap"
+    }
+  ],
+  "not_claimed": [
+    "Model usefulness or superiority",
+    "Portable performance or accelerator coverage outside this RX 7900 XTX execution",
+    "Deterministic corpus/tokenizer/model reconstruction",
+    "Child checkpoint resume",
+    "Promotion, Developer SFT, weight publication or license grant"
+  ],
+  "verification_limits": {
+    "affected_suites": "150 passed, 1 skipped",
+    "unfiltered_suite": "Censored at 900 seconds; no full-suite pass claimed",
+    "cold_checkpoint": "verified final full-state native load and all 5525 ordered finite update rows",
+    "hardware": "Actual ROCm BF16 training and FP32 heldout/generation exercised; CUDA/XPU/MLX and multi-device gates not exercised"
+  },
+  "native_recovery_evidence": [
+    "model0-evaluation-reference.json",
+    "model0-checkpoint-reference.json"
+  ]
+}
