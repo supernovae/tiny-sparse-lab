@@ -85,3 +85,22 @@ Operational hardware, selected workers, proof/key paths and trust modes never
 enter scientific, prepared, artifact or plan digests. Relocation, missing or
 foreign receipts, changed fingerprints/closure or implementation, unsafe paths
 and signature failure require COLD fallback; failed cold verification is fatal.
+
+## Bounded host planner
+
+`host_capacity.plan_host_workers` bounds native independent tasks by affinity,
+physical CPUs (logical fallback), measured available RAM after explicit reserve,
+per-worker memory and operator cap. Unknown RAM permits only one <=8 MiB SHA
+worker. Callers reserve max(1 GiB, total RAM/10); no memory-heavy unknown-RAM work.
+The SHA bound includes the 1 MiB hasher buffer and thread overhead; observed
+medium process RSS differs by only a few MiB across 1/2/4 workers.
+`run_ordered` keeps at most the selected worker count outstanding, reduces in
+input ordinal order and cancels/joins on failure or iterator close.
+
+[Before measurements](../artifacts/benchmarks/capacity-aware-execution-v1-before.json)
+use independent processes and uncontrolled OS cache, not evicted-cache claims.
+Their elapsed times include package imports. Threaded SHA did not demonstrate a
+material end-to-end benefit; production cold SHA defaults to one worker.
+The bounded host probe reports x86 SSE4.1/4.2, AVX/AVX2, SHA-NI and AES here;
+AVX512F is absent. Native SHA is `_hashlib`, linked OpenSSL 3.5.5. Capability
+presence is not an acceleration result; no custom hashing or dependency added.
