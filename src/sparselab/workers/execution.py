@@ -763,20 +763,15 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                         cancellation_requested=True,
                         cancellation_acknowledged=True,
                     )
-                # Bundle verification/materialization is owned by bundles.py.
-                from .bundles import materialize_dispatch_bundle, verify_dispatch_bundle
+                # Materialization authenticates cached bytes and the bundle closure.
+                from .bundles import materialize_dispatch_bundle
 
-                manifest = verify_dispatch_bundle(
-                    Path(_definition_value(definition, "root"))
-                    / ".dispatch-cache"
-                    / "bundles"
-                    / receipt["bundle_digest"]
-                )
                 materialized = directory / "bundle"
-                materialize_dispatch_bundle(
+                manifest = materialize_dispatch_bundle(
                     Path(_definition_value(definition, "root")),
                     receipt["bundle_digest"],
                     materialized,
+                    **verification_options(Path(_definition_value(definition, "root"))),
                 )
                 if manifest.digest() != receipt["bundle_digest"]:
                     raise ValueError("installed bundle digest changed")

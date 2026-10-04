@@ -9,12 +9,20 @@ import shutil
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from sparselab.config.models import RunConfig
-from sparselab.data.packing import load_prepared_data
+from sparselab.data.packing import _publish_prepared_directory, load_prepared_data
 from sparselab.data.tokenizer import load_tokenizer
+from sparselab.data.verification import (
+    VerifiedFile,
+    _receipt_from_proofs,
+    _relocate_proofs,
+    required_arrays,
+    verify_file,
+)
 from sparselab.model.portable_engram import load_portable_engram
+from sparselab.owned_copy import owned_copy
 from sparselab.staging import (
     materialize_prepared_inputs,
     verify_prepared_inputs,
@@ -34,11 +42,12 @@ from sparselab.training.manifest import (
     sha256_file,
     source_identity,
 )
+from sparselab.verification_proofs import (
+    ProofStore,
+    file_binding,
+    validate_mode,
+)
 
-if TYPE_CHECKING:
-    from sparselab.verification_proofs import ProofStore
-
-_CHUNK = 1024 * 1024
 _CACHE = ".dispatch-cache"
 
 
@@ -48,14 +57,9 @@ def _models() -> Any:
     return models
 
 
-def _atomic_copy(source: Path, destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with source.open("rb") as incoming, destination.open("xb") as outgoing:
-        os.chmod(destination, 0o600)
-        while block := incoming.read(_CHUNK):
-            outgoing.write(block)
-        outgoing.flush()
-        os.fsync(outgoing.fileno())
+def _atomic_copy(source: Path, destination: Path) -> VerifiedFile:
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return owned_copy(source, destination).proof
 
 
 def _copy_tree(source: Path, destination: Path) -> None:
@@ -79,17 +83,29 @@ def _copy_tree(source: Path, destination: Path) -> None:
             raise ValueError(f"unsupported dispatch source member: {child}")
 
 
-def _inventory(root: Path) -> list[ArtifactIdentity]:
+def _inventory(
+    root: Path, *, seals: Mapping[str, VerifiedFile] | None = None
+) -> list[ArtifactIdentity]:
+    from sparselab.data.verification import _fingerprint, _owned_file
+
     result: list[ArtifactIdentity] = []
     for member in sorted(root.rglob("*")):
         if member.is_symlink():
             raise ValueError(f"symlinked bundle member: {member}")
         if member.is_file():
+            name = member.relative_to(root).as_posix()
+            seal = seals.get(name) if seals is not None else None
+            if seal is not None and (
+                not _owned_file(seal)
+                or seal.path != member.resolve(strict=True)
+                or seal.fingerprint != _fingerprint(member)
+            ):
+                raise ValueError(f"dispatch inventory member changed: {name}")
             result.append(
                 ArtifactIdentity(
-                    member.relative_to(root).as_posix(),
-                    sha256_file(member),
-                    member.stat().st_size,
+                    name,
+                    seal.sha256 if seal is not None else sha256_file(member),
+                    seal.size_bytes if seal is not None else member.stat().st_size,
                 )
             )
     return result
@@ -532,6 +548,7 @@ def prepare_dispatch_bundle(
         prefix=f".{output.name}.", dir=output.parent
     ) as temp:
         work = Path(temp)
+        prepared_seals: dict[str, VerifiedFile] = {}
         if (
             parent_details is not None
             and (resume is not None or extend_budget is not None)
@@ -580,9 +597,20 @@ def prepare_dispatch_bundle(
                     )
             prepared = work / "prepared"
             materialize_prepared_inputs(
-                prepared_config, prepared, prepared_inputs=stage_bundle
+                prepared_config,
+                prepared,
+                prepared_inputs=stage_bundle,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+                _proofs=prepared_seals,
             )
-            os.rename(prepared / "assets", work / "assets")
+            _publish_prepared_directory(prepared / "assets", work / "assets")
+            prepared_seals = {
+                f"assets/{name}": seal
+                for name, seal in _relocate_proofs(
+                    work / "assets", prepared_seals
+                ).items()
+            }
         if config.dataset.corpus_release_path is not None:
             assets = work / "assets"
             if (assets / "corpus" / "binding.json").is_file():
@@ -656,13 +684,15 @@ def prepare_dispatch_bundle(
                 "required_versions": _versions(),
                 "source_identity_sha256": source_identity()["sha256"],
                 "continuation": continuation.model_dump(mode="json"),
-                "files": [item.__dict__ for item in _inventory(work)],
+                "files": [
+                    item.__dict__ for item in _inventory(work, seals=prepared_seals)
+                ],
                 "stage_evidence": evidence,
             }
         )
         _write_bundle_manifest(work / "bundle.json", manifest)
         verify_dispatch_bundle(work)
-        os.rename(work, output)
+        _publish_prepared_directory(work, output)
         _fsync_directory(output.parent)
     return manifest
 
@@ -772,11 +802,31 @@ def verify_dispatch_bundle(root: Path) -> Any:
     return manifest
 
 
-def _verify_bundle_inputs(bundle_root: Path, config: RunConfig, manifest: Any) -> None:
-    """Verify offline inputs in place; cache verification never creates a bundle copy."""
+def _verify_bundle_inputs(
+    bundle_root: Path,
+    config: RunConfig,
+    manifest: Any,
+    *,
+    seals: Mapping[str, VerifiedFile] | None = None,
+) -> None:
+    """Verify offline inputs, reusing only owned destination seals in this operation."""
     assets = bundle_root / "assets"
+    receipt = None
+    if seals is not None:
+        import json
+
+        prepared = assets / "data"
+        metadata = json.loads((prepared / "manifest.json").read_text(encoding="utf-8"))
+        receipt = _receipt_from_proofs(
+            prepared,
+            metadata,
+            {name: seals[f"assets/data/{name}"] for name in required_arrays(metadata)},
+        )
     data = load_prepared_data(
-        assets / "data", byte_enabled=config.model.memory in {"byte", "portable"}
+        assets / "data",
+        byte_enabled=config.model.memory in {"byte", "portable"},
+        verification="structural" if receipt is not None else "deep",
+        receipt=receipt,
     )
     tokenizer = load_tokenizer(assets / "tokenizer.json")
     if tokenizer.get_vocab_size() != config.model.vocab_size:
@@ -806,14 +856,71 @@ def _cache_paths(worker_root: Path, digest: str) -> tuple[Path, Path]:
     return cache / "assets", cache / "bundles" / digest
 
 
+def _cache_binding(
+    path: Path, item: ArtifactIdentity, manifest: Any
+) -> dict[str, object]:
+    return file_binding(
+        path,
+        item.sha256,
+        kind="dispatch_cache_asset",
+        identifier=item.sha256,
+        closure={
+            "bundle_digest": manifest.digest(),
+            "files": [
+                entry.model_dump() if hasattr(entry, "model_dump") else entry
+                for entry in manifest.files
+            ],
+            "config_sha256": manifest.config_sha256,
+            "continuation": manifest.continuation.model_dump(mode="json"),
+        },
+    )
+
+
+def _cached_asset(
+    assets: Path,
+    item: ArtifactIdentity,
+    manifest: Any,
+    *,
+    proof_store: ProofStore | None,
+    verification_mode: Literal["cold", "verified_reuse"],
+) -> VerifiedFile | None:
+    path = assets / item.sha256
+    if path.is_symlink():
+        raise ValueError("symlinked cached dispatch asset")
+    if not path.exists():
+        return None
+    if not path.is_file() or path.stat().st_size != item.size_bytes:
+        raise ValueError("cached dispatch asset is missing or corrupt")
+    try:
+        binding = _cache_binding(path, item, manifest)
+        hit = (
+            verification_mode == "verified_reuse"
+            and proof_store is not None
+            and proof_store.lookup(binding)
+        )
+        return verify_file(
+            path,
+            expected_sha256=item.sha256,
+            proof_store=proof_store if hit else None,
+            verification_mode=verification_mode if hit else "cold",
+            binding=binding,
+        )
+    except ValueError as error:
+        raise ValueError("cached dispatch asset is missing or corrupt") from error
+
+
 def install_dispatch_bundle(
     worker_root: Path,
     manifest: Any,
     attachments: Mapping[str, Path],
     *,
     check_only: bool,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
+    copy_observations: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Install only missing immutable content-addressed files, then publish manifest."""
+    validate_mode(verification_mode)
     worker_root = worker_root.resolve()
     config = RunConfig.model_validate(manifest.config)
     _models().validate_required_versions(manifest.required_versions)
@@ -834,18 +941,32 @@ def install_dispatch_bundle(
         ArtifactIdentity(**(item.model_dump() if hasattr(item, "model_dump") else item))
         for item in manifest.files
     ]
+    names = [item.relative_path for item in identities]
+    if len(set(names)) != len(names):
+        raise ValueError("duplicate dispatch bundle asset")
+    if not {"assets/tokenizer.json", "assets/data/manifest.json"} <= set(names):
+        raise ValueError("dispatch bundle lacks required offline assets")
+    cached_seals: dict[str, VerifiedFile] = {}
     for item in identities:
-        cached = assets / item.sha256
-        if cached.is_symlink():
-            raise ValueError("symlinked cached dispatch asset")
-        if (
-            not cached.is_file()
-            or cached.stat().st_size != item.size_bytes
-            or sha256_file(cached) != item.sha256
-        ):
+        seal = _cached_asset(
+            assets,
+            item,
+            manifest,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+        if seal is None:
             missing.append(item.sha256)
         else:
-            os.chmod(cached, 0o600)
+            cached_seals[item.sha256] = seal
+    if copy_observations is not None:
+        copy_observations.append(
+            {
+                "operation": "install",
+                "cache_hits": len(identities) - len(missing),
+                "cache_misses": len(set(missing)),
+            }
+        )
     if check_only:
         return {
             "bundle_digest": manifest.digest(),
@@ -871,37 +992,67 @@ def install_dispatch_bundle(
         incoming = asset_attachments.get(f"assets/{item.sha256}")
         if incoming is None:
             continue
-        if (
-            incoming.is_symlink()
-            or incoming.stat().st_size != item.size_bytes
-            or sha256_file(incoming) != item.sha256
-        ):
+        if incoming.is_symlink() or incoming.stat().st_size != item.size_bytes:
             raise ValueError("dispatch attachment integrity failure")
-        target = assets / item.sha256
-        if item.sha256 not in missing:
-            _require_safe(
-                assets, ArtifactIdentity(item.sha256, item.sha256, item.size_bytes)
-            )
+        source_seal = verify_file(incoming, expected_sha256=item.sha256)
+        if item.sha256 in cached_seals:
             continue
-        with tempfile.NamedTemporaryFile(
-            prefix=".asset.", dir=assets, delete=False
-        ) as handle:
-            temporary = Path(handle.name)
-        temporary.unlink()
+        target = assets / item.sha256
         try:
-            _atomic_copy(incoming, temporary)
-            if sha256_file(temporary) != item.sha256:
-                raise ValueError("dispatch attachment changed during install")
-            if target.exists():
-                _require_safe(
-                    assets, ArtifactIdentity(item.sha256, item.sha256, item.size_bytes)
+            result = owned_copy(
+                incoming, target, proof=source_seal, expected_sha256=item.sha256
+            )
+            cached_seals[item.sha256] = result.proof
+            if copy_observations is not None:
+                copy_observations.append(
+                    {
+                        "operation": "transfer",
+                        "mechanism": result.mechanism,
+                        "logical_bytes": result.logical_bytes,
+                    }
                 )
-                if sha256_file(target) != item.sha256:
-                    raise ValueError("conflicting cached dispatch asset")
-            else:
-                os.replace(temporary, target)
-        finally:
-            temporary.unlink(missing_ok=True)
+        except FileExistsError:
+            # A competing installer published this digest; never repair it silently.
+            seal = _cached_asset(
+                assets,
+                item,
+                manifest,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            if seal is None:
+                raise ValueError("conflicting cached dispatch asset")
+            cached_seals[item.sha256] = seal
+    # Only a cold-verified semantic closure may authorize new cache receipts.
+    if any(seal.cold_verified for seal in cached_seals.values()):
+        with tempfile.TemporaryDirectory(prefix=".verify.", dir=assets.parent) as check:
+            root = Path(check)
+            checked_seals: dict[str, VerifiedFile] = {}
+            for item in identities:
+                checked = owned_copy(
+                    assets / item.sha256,
+                    _destination(root, item.relative_path),
+                    proof=cached_seals[item.sha256],
+                    expected_sha256=item.sha256,
+                )
+                checked_seals[item.relative_path] = checked.proof
+                if copy_observations is not None:
+                    copy_observations.append(
+                        {
+                            "operation": "transfer_semantic_check",
+                            "mechanism": checked.mechanism,
+                            "logical_bytes": checked.logical_bytes,
+                        }
+                    )
+            _verify_bundle_inputs(root, config, manifest, seals=checked_seals)
+            _verify_embedded_continuation(root, manifest, config)
+        if proof_store is not None and verification_mode == "verified_reuse":
+            for item in {entry.sha256: entry for entry in identities}.values():
+                seal = cached_seals[item.sha256]
+                if seal.cold_verified:
+                    proof_store.record(
+                        _cache_binding(assets / item.sha256, item, manifest), seal
+                    )
     with (worker_root / _CACHE / ".lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if bundle_dir.exists():
@@ -914,10 +1065,11 @@ def install_dispatch_bundle(
             ) as directory:
                 temporary = Path(directory)
                 _write_bundle_manifest(temporary / "bundle.json", manifest)
-                verify_dispatch_bundle(temporary)
-                os.rename(temporary, bundle_dir)
+                # Cache files were authenticated above against this exact closure.
+                _publish_prepared_directory(temporary, bundle_dir)
                 _fsync_directory(bundle_dir.parent)
-    verify_dispatch_bundle(bundle_dir)
+    if _read_bundle_manifest(bundle_dir / "bundle.json").digest() != manifest.digest():
+        raise ValueError("conflicting bundle digest publication")
     return {
         "bundle_digest": manifest.digest(),
         "missing_asset_digests": [],
@@ -926,12 +1078,22 @@ def install_dispatch_bundle(
 
 
 def materialize_dispatch_bundle(
-    worker_root: Path, bundle_digest: str, destination: Path
+    worker_root: Path,
+    bundle_digest: str,
+    destination: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
+    copy_observations: list[dict[str, object]] | None = None,
 ) -> Any:
     """Make an isolated worker-private layout from an already verified cache."""
+    validate_mode(verification_mode)
     assets, bundle_dir = _cache_paths(worker_root.resolve(), bundle_digest)
     manifest = _read_bundle_manifest(bundle_dir / "bundle.json")
     _models().validate_required_versions(manifest.required_versions)
+    config = RunConfig.model_validate(manifest.config)
+    if manifest.config_sha256 != config_sha256(config.model_dump(mode="json")):
+        raise ValueError("cached dispatch bundle config identity mismatch")
     if manifest.source_identity_sha256 != source_identity()[
         "sha256"
     ] and not _drift_authorized(manifest.continuation):
@@ -946,20 +1108,43 @@ def materialize_dispatch_bundle(
         prefix=f".{destination.name}.", dir=destination.parent
     ) as temp:
         work = Path(temp)
+        copied_seals: dict[str, VerifiedFile] = {}
         for value in manifest.files:
             item = ArtifactIdentity(
                 **(value.model_dump() if hasattr(value, "model_dump") else value)
             )
-            cached = assets / item.sha256
-            if (
-                not cached.is_file()
-                or cached.stat().st_size != item.size_bytes
-                or sha256_file(cached) != item.sha256
-            ):
+            seal = _cached_asset(
+                assets,
+                item,
+                manifest,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            if seal is None:
                 raise ValueError("cached dispatch asset is missing or corrupt")
             target = _destination(work, item.relative_path)
-            _atomic_copy(cached, target)
-        _verify_bundle_inputs(work, RunConfig.model_validate(manifest.config), manifest)
+            result = owned_copy(
+                assets / item.sha256,
+                target,
+                proof=seal,
+                expected_sha256=item.sha256,
+            )
+            copied_seals[item.relative_path] = result.proof
+            if copy_observations is not None:
+                copy_observations.append(
+                    {
+                        "operation": "materialize",
+                        "mechanism": result.mechanism,
+                        "logical_bytes": result.logical_bytes,
+                        "cache_hit": not seal.cold_verified,
+                    }
+                )
+        _verify_bundle_inputs(
+            work,
+            RunConfig.model_validate(manifest.config),
+            manifest,
+            seals=copied_seals,
+        )
         _verify_embedded_continuation(
             work, manifest, RunConfig.model_validate(manifest.config)
         )
@@ -970,23 +1155,41 @@ def materialize_dispatch_bundle(
             "format_version": 1,
             "requested_config": manifest.config.model_dump(mode="json"),
             "source_identity_sha256": manifest.source_identity_sha256,
-            "artifacts": [item.__dict__ for item in _inventory(input_root / "assets")],
+            "artifacts": [
+                item.__dict__
+                for item in _inventory(
+                    input_root / "assets",
+                    seals={
+                        name.removeprefix("assets/"): seal
+                        for name, seal in copied_seals.items()
+                        if name.startswith("assets/")
+                    },
+                )
+            ],
         }
-        (input_root / "inputs.json").write_bytes(
-            canonical_json(
-                {
-                    **payload,
-                    "sha256": hashlib.sha256(canonical_json(payload)).hexdigest(),
-                }
+        with (input_root / "inputs.json").open("wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(
+                canonical_json(
+                    {
+                        **payload,
+                        "sha256": hashlib.sha256(canonical_json(payload)).hexdigest(),
+                    }
+                )
+                + b"\n"
             )
-            + b"\n"
-        )
-        os.chmod(input_root / "inputs.json", 0o600)
+            stream.flush()
+            os.fsync(stream.fileno())
         verify_prepared_inputs(
             input_root,
             RunConfig.model_validate(manifest.config),
             allow_runtime_drift=_drift_authorized(manifest.continuation),
+            _seals={
+                name.removeprefix("assets/"): seal
+                for name, seal in copied_seals.items()
+                if name.startswith("assets/")
+            },
         )
-        os.rename(work, destination)
+        _publish_prepared_directory(work, destination)
         _fsync_directory(destination.parent)
     return manifest

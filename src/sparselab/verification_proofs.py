@@ -209,6 +209,11 @@ class ProofStore:
 
     def _key(self, *, create: bool) -> bytes | None:
         if create:
+            if any(
+                parent.is_symlink()
+                for parent in (self.config_root, *self.config_root.parents)
+            ):
+                return None
             self.config_root.mkdir(parents=True, exist_ok=True, mode=0o700)
             if not _trusted(self.config_root, self.config_root):
                 return None

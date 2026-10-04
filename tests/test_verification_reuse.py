@@ -285,3 +285,19 @@ def test_unchanged_array_node_remains_reusable(trusted_prepared, monkeypatch):
     monkeypatch.setattr(manifests, "sha256_file", counted)
     _load(prepared, store)
     assert reads == ["train.npy"]
+
+
+def test_unsafe_config_ancestry_never_creates_key_outside_selected_path(
+    trusted_prepared, tmp_path, monkeypatch
+):
+    root, _, prepared = trusted_prepared
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    alias = tmp_path / "config-alias"
+    alias.symlink_to(outside, target_is_directory=True)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / "new-config"))
+    store = ProofStore(root)
+    verified = _load(prepared, store)
+    assert all(proof.cold_verified for proof in verified.receipt.proofs.values())
+    assert store.recorded == 0
+    assert not (outside / "new-config").exists()

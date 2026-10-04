@@ -151,3 +151,44 @@ remain eligible while the prepared/plan closure is invalidated.
 Same-size mutation with restored mtime, inode replacement, truncation, altered
 manifest/dependency, relocation and forged/stale/missing receipts are covered.
 Independent cold loads remain reliable; unsigned metadata cannot mint seals.
+
+## Owned stage and worker materialization
+
+`owned_copy` authenticates the source seal/fingerprint and destination SHA before
+exclusive publication and fsync. Linux FICLONE and macOS clone are capability
+attempts, not assumed available. Partial native copies reset before bounded
+buffered fallback. Published destinations are private inodes (0600); source
+permissions and bytes are unchanged. Directory layout and scientific inventories
+still contain the same names and exact bytes.
+
+Only a freshly materialized stage-private `prepared/assets` tree may link to the
+same stage's `assets`. Both historical paths remain in the inventory. Link
+creation changes ctime, so that intentional transition receives an independent
+SHA check before refreshing process-owned seals. Canonical inputs, supplied
+external stage/prepared roots and worker CAS never link to mutable worker paths.
+Persistent receipt trust rejects multiply-linked files; stage-private links use
+operation-local seals and cold verification, not a relaxed persistent policy.
+
+Existing worker `.dispatch-cache` is unchanged: TRANSFER authenticates missing
+content and a semantic/portable/continuation closure before signing cache
+receipts. Same trusted closure hits avoid CAS SHA rescans; a changed/corrupt
+existing CAS asset is fatal, never silently repaired. Destination copies remain
+independently authenticated. Public `verify_dispatch_bundle` remains cold.
+Copy/cache observations are optional return-side collections, never inventory or
+scientific digest members; unavailable physical I/O remains null.
+
+Three alternating fresh-process copies of the same prehashed 67,108,992-byte
+medium array on this host used `copy_file_range` (FICLONE unavailable):
+0.123528 s median, 0.122716–0.123896 s range, versus bounded buffered copies
+0.130750 s median, 0.129062–0.138465 s range. Exact SHA matched all six outputs.
+CPU medians were 0.076741/0.075849 s and process high-water RSS maxima
+377,782,272/377,884,672 bytes respectively. OS cache was uncontrolled, source
+prehash preceded each timed copy; this is a copy-plus-destination-SHA/fsync
+comparison, not end-to-end preparation or a physical-I/O claim.
+
+Materialization gate: 74 focused copy/proof/stage/worker tests passed, including
+late competing-directory no-replace publication. Actual disposable CPU runtime
+exercised stage validate → dispatch prepare → TRANSFER → warm install/private
+materialize: unchanged worker manifest digest, zero warm CAS SHA reads, isolated
+inodes, private corruption rejected and canonical array SHA unchanged. Config
+key creation preflights symlink ancestry before creating directories.

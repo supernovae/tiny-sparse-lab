@@ -12,6 +12,7 @@ from typing import Any
 from sparselab.config.models import RunConfig
 from sparselab.training.manifest import canonical_json
 from sparselab.training.metrics import ExperimentStore
+from sparselab.verification_proofs import verification_options
 from sparselab.workdir import ensure_work_dir
 
 from .execution import (
@@ -106,6 +107,7 @@ def _dispatch(
             manifest,
             attachments,
             check_only=payload["mode"] == "check",
+            **verification_options(definition.root),
         ), {}
     if op == "launch":
         spec_path = attachments.get("spec.json")

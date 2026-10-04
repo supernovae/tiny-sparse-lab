@@ -6,7 +6,6 @@ import fcntl
 import hashlib
 import json
 import os
-import shutil
 import sys
 import tempfile
 from dataclasses import asdict, replace
@@ -25,6 +24,7 @@ from sparselab.data.encoding import (
     validate_tokenizer_batch_limits,
 )
 from sparselab.data.packing import (
+    _publish_prepared_directory,
     _tokenizer_sha256,
     load_prepared_data,
     prepare_data,
@@ -35,6 +35,7 @@ from sparselab.data.verification import (
     _fingerprint,
     _owned_file,
     _receipt_from_proofs,
+    _relocate_proofs,
     _verify_file_with_hasher,
     _written_file,
     verify_file,
@@ -49,6 +50,7 @@ from sparselab.memory import (
 )
 from sparselab.model.inspection import inspection_report, named_tensor_inventory
 from sparselab.model.portable_engram import load_portable_engram
+from sparselab.owned_copy import owned_copy
 from sparselab.resource_envelope import (
     ResourceEnvelope,
     check_envelope,
@@ -65,7 +67,7 @@ from sparselab.runtime_forecasting import (
     warmup_estimate,
 )
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
-from sparselab.training.checkpoints import _atomic_json, _safe_member
+from sparselab.training.checkpoints import _atomic_json, _fsync_directory, _safe_member
 from sparselab.training.manifest import (
     canonical_json,
     config_sha256,
@@ -409,8 +411,9 @@ def _copy_tree(
     destination: Path,
     *,
     verified: dict[str, VerifiedFile] | None = None,
+    copy_observations: list[dict[str, object]] | None = None,
 ) -> dict[str, VerifiedFile]:
-    """Copy into new owned storage, hashing output bytes as they are written."""
+    """Make isolated owned copies with destination SHA and source fingerprint checks."""
     from sparselab.training.pilot_progress import (
         current_pilot_progress,
         emit_pilot_progress,
@@ -451,44 +454,86 @@ def _copy_tree(
             path.relative_to(source).as_posix() if source.is_dir() else destination.name
         )
         target = destination / name if source.is_dir() else destination
-        fingerprint = _fingerprint(path)
         old = verified.get(name) if verified is not None else None
-        if old is not None and (
-            not _owned_file(old)
-            or old.path != path.resolve(strict=True)
-            or old.fingerprint != fingerprint
-        ):
-            raise ValueError(f"verified source changed before copying: {path}")
-        digest = hashlib.sha256()
-        size = 0
-        with path.open("rb") as reader, target.open("xb") as writer:
-            while chunk := reader.read(1024 * 1024):
-                writer.write(chunk)
-                digest.update(chunk)
-                size += len(chunk)
-                if active:
-                    copied_bytes += len(chunk)
-                    if (
-                        copied_bytes - reported >= 64 * 1024 * 1024
-                        or copied_bytes == total
-                    ):
-                        emit_pilot_progress(
-                            "progress",
-                            "run_input_materialization",
-                            counter="bytes",
-                            value=copied_bytes,
-                            total=total,
-                            subject=subject,
-                        )
-                        reported = copied_bytes
-        if fingerprint != _fingerprint(path):
-            raise ValueError(f"source changed while copying: {path}")
-        copied_sha256 = digest.hexdigest()
-        if old is not None and (size != old.size_bytes or copied_sha256 != old.sha256):
-            raise ValueError(f"copied asset differs from verified source: {path}")
-        shutil.copystat(path, target)
-        proofs[name] = _written_file(target, copied_sha256, size)
+        base = copied_bytes
+
+        def progress(count: int, *, base: int = base) -> None:
+            nonlocal copied_bytes, reported
+            copied_bytes = base + count
+            if active and (
+                copied_bytes - reported >= 64 * 1024 * 1024 or copied_bytes == total
+            ):
+                emit_pilot_progress(
+                    "progress",
+                    "run_input_materialization",
+                    counter="bytes",
+                    value=copied_bytes,
+                    total=total,
+                    subject=subject,
+                )
+                reported = copied_bytes
+
+        result = owned_copy(path, target, proof=old, progress=progress)
+        proofs[name] = result.proof
+        if copy_observations is not None:
+            copy_observations.append(
+                {"mechanism": result.mechanism, "logical_bytes": result.logical_bytes}
+            )
     return proofs
+
+
+def _link_stage_assets(
+    work: Path,
+    proofs: dict[str, VerifiedFile],
+    *,
+    copy_observations: list[dict[str, object]] | None = None,
+) -> tuple[dict[str, VerifiedFile], dict[str, VerifiedFile]]:
+    """Link only freshly copied, stage-owned private assets, never canonical input."""
+    source, destination = work / "prepared" / "assets", work / "assets"
+    if work.stat().st_uid != os.getuid() or work.stat().st_mode & 0o077:
+        raise ValueError("stage linking requires a private owned staging directory")
+    destination.mkdir()
+    result, refreshed = {}, {}
+    for path in sorted(source.rglob("*")):
+        target = destination / path.relative_to(source)
+        if path.is_symlink():
+            raise ValueError("symlink in private stage assets")
+        if path.is_dir():
+            target.mkdir()
+            continue
+        name = path.relative_to(source).as_posix()
+        proof = proofs.get(name) or verify_file(path)
+        before = _fingerprint(path)
+        if (
+            not _owned_file(proof)
+            or proof.path != path.resolve()
+            or proof.fingerprint != before
+        ):
+            raise ValueError("private stage source seal changed before linking")
+        try:
+            os.link(path, target)
+        except OSError:
+            copied = owned_copy(path, target, proof=proof)
+            result[name], refreshed[name] = copied.proof, proof
+            mechanism = copied.mechanism
+        else:
+            after = _fingerprint(path)
+            if after[:5] != before[:5] or _fingerprint(target) != after:
+                raise ValueError("private stage asset changed while linking")
+            # Linking changes ctime. Authenticate this intentional transition;
+            # a changed fingerprint alone is never sufficient authority.
+            linked = verify_file(target, expected_sha256=proof.sha256)
+            if _fingerprint(path) != after:
+                raise ValueError(
+                    "private stage source changed during link authentication"
+                )
+            refreshed[name] = _written_file(path, linked.sha256, linked.size_bytes)
+            result[name], mechanism = linked, "stage_private_hardlink"
+        if copy_observations is not None:
+            copy_observations.append(
+                {"mechanism": mechanism, "logical_bytes": result[name].size_bytes}
+            )
+    return result, refreshed
 
 
 def _verify_allocation_assets(
@@ -537,6 +582,8 @@ def materialize_prepared_inputs(
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
+    _proofs: dict[str, VerifiedFile] | None = None,
+    copy_observations: list[dict[str, object]] | None = None,
 ) -> Path:
     """Publish immutable, engine-neutral training inputs without probing a runtime.
 
@@ -578,17 +625,32 @@ def materialize_prepared_inputs(
                 verification_mode=verification_mode,
             )
             assets.mkdir()
-            shutil.copy2(config.tokenizer.path, assets / "tokenizer.json")
+            copied.update(
+                _copy_tree(
+                    config.tokenizer.path,
+                    assets / "tokenizer.json",
+                    copy_observations=copy_observations,
+                )
+            )
             tokenizer_manifest = config.tokenizer.path.with_name(
                 "tokenizer_manifest.json"
             )
             if tokenizer_manifest.is_file():
-                shutil.copy2(tokenizer_manifest, assets / tokenizer_manifest.name)
+                copied.update(
+                    _copy_tree(
+                        tokenizer_manifest,
+                        assets / tokenizer_manifest.name,
+                        copy_observations=copy_observations,
+                    )
+                )
             copied.update(
                 {
                     f"data/{name}": proof
                     for name, proof in _copy_tree(
-                        data.root, assets / "data", verified=dict(data.receipt.proofs)
+                        data.root,
+                        assets / "data",
+                        verified=dict(data.receipt.proofs),
+                        copy_observations=copy_observations,
                     ).items()
                 }
             )
@@ -609,10 +671,13 @@ def materialize_prepared_inputs(
             if config.model.memory_package_path is not None:
                 copied.update(
                     {
-                        f"portable_package/{name}": proof
+                        f"portable_package/{name}"
+                        if config.model.memory_package_path.is_dir()
+                        else "portable_package": proof
                         for name, proof in _copy_tree(
                             config.model.memory_package_path,
                             assets / "portable_package",
+                            copy_observations=copy_observations,
                         ).items()
                     }
                 )
@@ -636,7 +701,14 @@ def materialize_prepared_inputs(
                 verification_mode=verification_mode,
                 _proofs=verified,
             )
-            copied.update(_copy_tree(source / "assets", assets, verified=verified))
+            copied.update(
+                _copy_tree(
+                    source / "assets",
+                    assets,
+                    verified=verified,
+                    copy_observations=copy_observations,
+                )
+            )
         _seal(
             work / "inputs.json",
             {
@@ -652,7 +724,10 @@ def materialize_prepared_inputs(
                 workspace=destination,
                 rss_bytes=current_process_rss_bytes(),
             )
-        os.rename(work, destination)
+        _publish_prepared_directory(work, destination)
+        _fsync_directory(destination.parent)
+        if _proofs is not None:
+            _proofs.update(_relocate_proofs(destination / "assets", copied))
     return destination
 
 
@@ -686,6 +761,7 @@ def verify_prepared_inputs(
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
     _proofs: dict[str, VerifiedFile] | None = None,
+    _seals: dict[str, VerifiedFile] | None = None,
 ) -> dict[str, Any]:
     """Verify a materialized input root without acquiring a target accelerator."""
     root = root.resolve(strict=True)
@@ -704,6 +780,9 @@ def verify_prepared_inputs(
     proofs = _verify_inventory(
         assets,
         inputs.get("artifacts"),
+        memo={
+            (proof.path, proof.fingerprint): proof for proof in (_seals or {}).values()
+        },
         manifest_sha256=inputs["sha256"],
         proof_store=proof_store,
         verification_mode=verification_mode,
@@ -828,6 +907,7 @@ def stage(
     pilot_deadline_policy: PilotDeadlinePolicy | None = None,
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
+    copy_observations: list[dict[str, object]] | None = None,
 ) -> Path:
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
@@ -904,6 +984,7 @@ def stage(
             history = StageHistory()
             reports: list[dict[str, Any]] = []
             copied_assets: dict[str, VerifiedFile] = {}
+            prepared_proofs: dict[str, VerifiedFile] = {}
             runtime = estimate = None
             report: dict[str, Any] = {
                 "format_version": 1,
@@ -1003,7 +1084,6 @@ def stage(
                         raise MemoryError(
                             "estimated training memory exceeds the explicit safe ceiling"
                         )
-                    prepared_proofs: dict[str, VerifiedFile] = {}
                     if prepared_inputs is None:
                         prepared_root = materialize_prepared_inputs(
                             config,
@@ -1013,6 +1093,8 @@ def stage(
                             tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
                             proof_store=proof_store,
                             verification_mode=verification_mode,
+                            _proofs=prepared_proofs,
+                            copy_observations=copy_observations,
                         )
                     else:
                         prepared_root = prepared_inputs.resolve(strict=True)
@@ -1026,11 +1108,17 @@ def stage(
                             proof_store=proof_store,
                             verification_mode=verification_mode,
                         )
-                    copied_assets = _copy_tree(
-                        prepared_root / "assets",
-                        work / "assets",
-                        verified=prepared_proofs or None,
-                    )
+                    if prepared_inputs is None:
+                        copied_assets, prepared_proofs = _link_stage_assets(
+                            work, prepared_proofs, copy_observations=copy_observations
+                        )
+                    else:
+                        copied_assets = _copy_tree(
+                            prepared_root / "assets",
+                            work / "assets",
+                            verified=prepared_proofs,
+                            copy_observations=copy_observations,
+                        )
                     prepared_identity = _read_sealed(prepared_root / "inputs.json")
                     inputs = _seal(
                         work / "inputs.json",
@@ -1155,8 +1243,18 @@ def stage(
                         "artifacts": _inventory(
                             work,
                             copied={
-                                f"assets/{name}": proof
-                                for name, proof in copied_assets.items()
+                                **{
+                                    f"assets/{name}": proof
+                                    for name, proof in copied_assets.items()
+                                },
+                                **(
+                                    {
+                                        f"prepared/assets/{name}": proof
+                                        for name, proof in prepared_proofs.items()
+                                    }
+                                    if prepared_inputs is None
+                                    else {}
+                                ),
                             },
                         ),
                     },
@@ -1201,7 +1299,8 @@ def stage(
                     write_resource_proposal(
                         plan_memory(config, runtime, estimate), work / "proposal.yaml"
                     )
-                os.rename(work, output)
+                _publish_prepared_directory(work, output)
+                _fsync_directory(output.parent)
                 raise
             if resource_envelope is not None:
                 check_envelope(
@@ -1209,5 +1308,6 @@ def stage(
                     workspace=output,
                     rss_bytes=current_process_rss_bytes(),
                 )
-            os.rename(work, output)
+            _publish_prepared_directory(work, output)
+            _fsync_directory(output.parent)
     return output
