@@ -361,3 +361,25 @@ Native [evaluation](model0-evaluation-reference.json) and
 summary. An initial unsupported-reference draft and an invalid raw-index copy
 were rejected and corrected; the failure evidence remains. No scientific
 outputs, source bytes or acceptance criteria changed.
+
+## Verified thin archive and final scope
+
+[Thin archive reference](model0-thin-archive-reference.json) records successful
+native archive creation and verification of exact membership/content digests.
+The **40,960-byte** external archive is
+`/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-thin.tar`,
+SHA `4be596ed9a040512ccbfa5b6596ec6f44bc6ed94c9b5058c980575f641f669a2`.
+Its inventory contains only declarations, native compact references,
+heldout/readiness metadata and the family declaration—no source bytes,
+prepared arrays, checkpoint states or weight payloads. Aggregate result,
+raw panel observations and source-compatibility review remain separately
+versioned/referenced evidence outside this thin native archive closure.
+
+MODEL-0 execution/evidence closure is complete under the frozen protocol.
+The completed deadline TODO was removed; the demonstrated non-gating
+descriptive-panel stage gap was added; independent worker provenance and other
+unrelated backlog remain. Failed/censored evidence, all retained generations
+and the original scientific declarations are preserved. No promotion, SFT,
+license grant, deterministic reconstruction, child resume, cross-backend or
+multi-device performance claim is made. The full unfiltered test run was
+censored; the exercised affected suites passed **150 tests with 1 skip**.

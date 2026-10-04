@@ -1,0 +1,176 @@
+{
+  "evidence_version": 1,
+  "id": "devmind-v5-model0-thin-archive-verification",
+  "status": "VERIFIED_THIN_METADATA_ONLY",
+  "path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/model0-thin.tar",
+  "file_sha256": "4be596ed9a040512ccbfa5b6596ec6f44bc6ed94c9b5058c980575f641f669a2",
+  "size_bytes": 40960,
+  "source": "model0-recovery.yaml",
+  "recovery_metadata_source_commit": "e7f6f19dbfcb169781c0353c199eb4861965db44",
+  "format": "archive-index-v1",
+  "mode": "thin",
+  "inventory": [
+    {
+      "path": "declarations/experiments/research/devmind-pretrain-v5/model0-checkpoint-reference.json",
+      "role": "declaration",
+      "sha256": "a766fea4a85f3a88a48832bf88c322024a2059d60aba54a8bcecabd91c422ed3",
+      "size": 1885
+    },
+    {
+      "path": "declarations/experiments/research/devmind-pretrain-v5/model0-evaluation-reference.json",
+      "role": "declaration",
+      "sha256": "190555bd73f4cc05df7e02b41a026d23f98ee0c370cc02e11fb350d64db1acc7",
+      "size": 1954
+    },
+    {
+      "path": "declarations/experiments/research/devmind-pretrain-v5/model0-family.yaml",
+      "role": "declaration",
+      "sha256": "15406eb31ea77ba75ea279269951b4717b5781ac1dfa39b98e9e9d86a8f90bde",
+      "size": 1845
+    },
+    {
+      "path": "declarations/experiments/research/devmind-pretrain-v5/model0-recovery.yaml",
+      "role": "declaration",
+      "sha256": "825206e067b8a70fdeeb108d04ee81dc18dc148b7f6a90cbe28e27d8be7d487d",
+      "size": 2353
+    },
+    {
+      "path": "declarations/experiments/research/devmind-pretrain-v5/readiness.yaml",
+      "role": "declaration",
+      "sha256": "a7e9791a53791dd98a04f32b67e865165697649e0294223728a85d69c7bb6e86",
+      "size": 195
+    },
+    {
+      "path": "declarations/experiments/research/devmind-pretrain-v5/suite.yaml",
+      "role": "declaration",
+      "sha256": "6ec9b344351b8a8b3f9efd10cd754ca54646eb2079fad727d7531a486dbf90aa",
+      "size": 115
+    },
+    {
+      "path": "evidence/declared/experiments/research/devmind-pretrain-v5/model0-checkpoint-reference.json",
+      "role": "compact_evidence",
+      "sha256": "a766fea4a85f3a88a48832bf88c322024a2059d60aba54a8bcecabd91c422ed3",
+      "size": 1885
+    },
+    {
+      "path": "evidence/declared/experiments/research/devmind-pretrain-v5/model0-evaluation-reference.json",
+      "role": "compact_evidence",
+      "sha256": "190555bd73f4cc05df7e02b41a026d23f98ee0c370cc02e11fb350d64db1acc7",
+      "size": 1954
+    },
+    {
+      "path": "evidence/model-0/evaluation_index/suite-1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816.json",
+      "role": "evaluation_index",
+      "sha256": "4fa66a91911f922bb022667bd31f09a50c69ae82b79d2b8936640a24110c6f07",
+      "size": 4799
+    },
+    {
+      "path": "evidence/model-0/readiness_result/readiness-46b6f8ff39ee57fb312db7aac8fe9d8ba702f01ddc20f18701a34a42764c81b8.json",
+      "role": "readiness_result",
+      "sha256": "9bd4ac59ddd8f14838dae59b9459a8ed8d62dba9cf0a9dd2d71f4fecd8d72db0",
+      "size": 946
+    },
+    {
+      "path": "family/model0-family.yaml",
+      "role": "family",
+      "sha256": "15406eb31ea77ba75ea279269951b4717b5781ac1dfa39b98e9e9d86a8f90bde",
+      "size": 1845
+    }
+  ],
+  "external": [
+    {
+      "id": "762c4104-3a3b-4226-afa6-402cc350356e",
+      "kind": "evaluation_index",
+      "location": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/evaluations/suite-1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816.json",
+      "sha256": "1bd90e0301a8b1f19408c5505d8be13717b40972157fa48fe2ee492b83161816",
+      "state": "REFERENCE_ONLY"
+    },
+    {
+      "id": "step_00005525_gen_000004",
+      "kind": "checkpoint",
+      "location": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004",
+      "sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+      "state": "REFERENCE_ONLY"
+    },
+    {
+      "id": "model-0",
+      "kind": "checkpoint",
+      "location": "/srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004",
+      "sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+      "state": "PRESENT_EXTERNAL"
+    },
+    {
+      "id": "corpus",
+      "kind": "external_required",
+      "location": null,
+      "sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+      "state": "MISSING_EXTERNAL"
+    },
+    {
+      "id": "export",
+      "kind": "external_required",
+      "location": null,
+      "sha256": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+      "state": "MISSING_EXTERNAL"
+    },
+    {
+      "id": "tokenizer",
+      "kind": "external_required",
+      "location": null,
+      "sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+      "state": "MISSING_EXTERNAL"
+    },
+    {
+      "id": "packed",
+      "kind": "external_required",
+      "location": null,
+      "sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+      "state": "MISSING_EXTERNAL"
+    },
+    {
+      "id": "plan-lock",
+      "kind": "external_required",
+      "location": null,
+      "sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45",
+      "state": "MISSING_EXTERNAL"
+    },
+    {
+      "id": "model-continuation",
+      "kind": "external_required",
+      "location": null,
+      "sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+      "state": "MISSING_EXTERNAL"
+    }
+  ],
+  "monitor": {
+    "monitor_record_version": 1,
+    "kind": "completion",
+    "returncode": 0,
+    "status": "COMPLETE",
+    "violations": [],
+    "peak_tree_rss_bytes": 8964579328,
+    "peak_tree_swap_bytes": 0,
+    "min_host_available_ram_bytes": 23188013056,
+    "min_host_free_swap_bytes": 5441064960,
+    "min_disk_free_bytes": 724077826048,
+    "min_disk_free_inodes": 64981916,
+    "min_projected_disk_free_bytes": 723004084224,
+    "min_projected_disk_free_inodes": 64981816,
+    "elapsed_seconds": 1985.8261195450032,
+    "sample_count": 1905,
+    "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-thin-archive-v1/completion.json",
+    "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-thin-archive-v1/command.stdout.log",
+    "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-thin-archive-v1/command.stderr.log"
+  },
+  "checks": [
+    "actual archive create and archive verify CLI succeeded",
+    "exact TAR membership and content digests verified by native archive verifier",
+    "thin inventory contains declarations, native compact references, heldout/readiness metadata and family only",
+    "no source bytes, prepared-data arrays, checkpoint states or weight payloads bundled"
+  ],
+  "limitations": [
+    "External recovery roles remain opaque MISSING_EXTERNAL; exact physical retained-byte availability is separately recorded in model0-result.json",
+    "This is not a portable reconstruction package, weight publication, promotion or license grant",
+    "Aggregate result, raw descriptive panel observations and source-compatibility review remain separately versioned/referenced evidence, outside this thin native archive closure"
+  ]
+}
