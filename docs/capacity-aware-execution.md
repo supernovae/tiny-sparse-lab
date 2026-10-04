@@ -135,3 +135,19 @@ Cold mode constructs no proof store and reads/writes no proof. Operational
 CLI proof counters are outside plan/scientific digests. Stage/pilot/worker
 parameters forward mode explicitly; portable corpus attachments retain their
 independent binding verification. Archive, recovery and family remain cold.
+
+## Prepared array verification
+
+Cold independent array hashes use `run_ordered` with canonical filenames and
+native full-file SHA-256. The measured default remains one worker, including for
+the single large `train.npy`; no tree/chunk digest substitution. All 1/2/N choices
+preserve exact array SHA and manifest bytes in regression checks.
+
+Per-array signed receipts bind SHA, full fingerprint, shape/dtype metadata and
+cache identity. `_receipt_from_proofs` independently rechecks the current
+manifest digest, exact inventory, every new process-owned file seal and each
+NPY header. A changed array node is cold-checked; unchanged array-node proofs
+remain eligible while the prepared/plan closure is invalidated.
+Same-size mutation with restored mtime, inode replacement, truncation, altered
+manifest/dependency, relocation and forged/stale/missing receipts are covered.
+Independent cold loads remain reliable; unsigned metadata cannot mint seals.

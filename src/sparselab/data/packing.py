@@ -47,6 +47,7 @@ from sparselab.data.verification import (
     _written_file,
     required_arrays,
 )
+from sparselab.host_capacity import run_ordered, sha_work_plan
 from sparselab.progress import progress_phase
 from sparselab.resource_envelope import (
     ResourceEnvelope,
@@ -144,10 +145,11 @@ def _verified_receipt(
         return _receipt_from_proofs(root, manifest, receipt.proofs)
     if verification != "deep":
         raise ValueError(f"unknown prepared verification mode: {verification}")
-    proofs: dict[str, VerifiedFile] = {}
-    for name, (metadata, _, _) in required.items():
+
+    def authenticate(name: str) -> tuple[str, VerifiedFile, float]:
+        metadata, _, _ = required[name]
         started = time.monotonic()
-        proofs[name] = _verify_file_with_hasher(
+        proof = _verify_file_with_hasher(
             root / name,
             expected_sha256=metadata.get("sha256"),
             hash_file=_sha256,
@@ -160,8 +162,17 @@ def _verified_receipt(
                 closure={"metadata": metadata, "cache_identity": identity},
             ),
         )
+        return name, proof, time.monotonic() - started
+
+    # One full native SHA per independent member; never a chunk-tree digest.
+    # Serial default retained until comparable storage profiling proves otherwise.
+    proofs: dict[str, VerifiedFile] = {}
+    for name, proof, elapsed in run_ordered(
+        sorted(required), authenticate, plan=sha_work_plan()
+    ):
+        proofs[name] = proof
         if telemetry is not None:
-            telemetry.add("deep_verification_hash_seconds", time.monotonic() - started)
+            telemetry.add("deep_verification_hash_seconds", elapsed)
     return _receipt_from_proofs(root, manifest, proofs)
 
 

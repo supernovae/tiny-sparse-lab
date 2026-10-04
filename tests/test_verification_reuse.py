@@ -238,3 +238,50 @@ def test_typed_dependency_changes_miss(trusted_prepared):
             proof_store=store,
             verification_mode="verified_reuse",
         )
+
+
+def test_prepared_worker_choices_preserve_exact_manifest_and_sha(
+    trusted_prepared, monkeypatch
+):
+    from dataclasses import replace
+
+    from sparselab.data import packing
+    from sparselab.host_capacity import sha_work_plan
+
+    _, _, prepared = trusted_prepared
+    manifest_bytes = (prepared.root / "manifest.json").read_bytes()
+    expected = {name: proof.sha256 for name, proof in prepared.receipt.proofs.items()}
+    plan = sha_work_plan(operator_cap=4)
+    for workers in (1, 2, plan.workers):
+        monkeypatch.setattr(
+            packing,
+            "sha_work_plan",
+            lambda workers=workers: replace(plan, workers=workers),
+        )
+        loaded = load_prepared_data(prepared.root, byte_enabled=False)
+        assert {
+            name: proof.sha256 for name, proof in loaded.receipt.proofs.items()
+        } == expected
+        assert (prepared.root / "manifest.json").read_bytes() == manifest_bytes
+
+
+def test_unchanged_array_node_remains_reusable(trusted_prepared, monkeypatch):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    _load(prepared, store)
+    # Identical bytes at a new inode still require cold verification for that node.
+    path = prepared.root / "train.npy"
+    replacement = path.with_name("replacement")
+    replacement.write_bytes(path.read_bytes())
+    replacement.replace(path)
+    original = manifests.sha256_file
+    reads = []
+
+    def counted(path, *args, **kwargs):
+        if path.suffix == ".npy":
+            reads.append(path.name)
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(manifests, "sha256_file", counted)
+    _load(prepared, store)
+    assert reads == ["train.npy"]
