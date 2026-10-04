@@ -1,0 +1,167 @@
+{
+  "evidence_version": 1,
+  "id": "devmind-v5-model0-lineage-verification",
+  "status": "VERIFIED_GRAPH_AND_LOCATED_MODEL_EVIDENCE_EXTERNAL_REPLAY_NOT_CLAIMED",
+  "family": "model0-family.yaml",
+  "recovery": "model0-recovery.yaml",
+  "recovery_metadata_source_commit": "e7f6f19dbfcb169781c0353c199eb4861965db44",
+  "run_source_commit": "5fcefc19d6b021e9f2e356cc2a29bdadca444823",
+  "source_identity_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f",
+  "commands": [
+    "family show",
+    "family graph",
+    "family verify",
+    "recovery inspect"
+  ],
+  "results": [
+    {
+      "family": "devmind-v5-model0",
+      "format": "sparselab-model-family-v1",
+      "graph_valid": true,
+      "nodes": [
+        {
+          "availability": {
+            "checkpoint": "PRESENT",
+            "corpus": "MISSING_EXTERNAL",
+            "evaluation_index": "PRESENT",
+            "plan": "PRESENT",
+            "prepared_data": "MISSING_EXTERNAL",
+            "readiness_result": "PRESENT",
+            "tokenizer": "MISSING_EXTERNAL"
+          },
+          "checkpoint_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+          "id": "model-0",
+          "node_sha256": "8707d174f5215c085ba540cb00fd2ce0cfd5ae72857115d4099847fc33cb71f1",
+          "parent": null,
+          "parent_node_sha256": null
+        }
+      ]
+    },
+    {
+      "edges": [],
+      "family": "devmind-v5-model0",
+      "format": "sparselab-model-family-v1",
+      "nodes": [
+        "model-0"
+      ]
+    },
+    {
+      "family": "devmind-v5-model0",
+      "format": "sparselab-model-family-v1",
+      "graph_valid": true,
+      "nodes": [
+        {
+          "availability": {
+            "checkpoint": "PRESENT",
+            "corpus": "MISSING_EXTERNAL",
+            "evaluation_index": "PRESENT",
+            "plan": "PRESENT",
+            "prepared_data": "MISSING_EXTERNAL",
+            "readiness_result": "PRESENT",
+            "tokenizer": "MISSING_EXTERNAL"
+          },
+          "checkpoint_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+          "id": "model-0",
+          "node_sha256": "8707d174f5215c085ba540cb00fd2ce0cfd5ae72857115d4099847fc33cb71f1",
+          "parent": null,
+          "parent_node_sha256": null
+        }
+      ]
+    },
+    {
+      "format": "sparselab-recovery-v1",
+      "id": "devmind-v5-model0-continuation",
+      "reason_codes": [
+        "MISSING_EXTERNAL"
+      ],
+      "source_commit": "e7f6f19dbfcb169781c0353c199eb4861965db44",
+      "status": "BLOCKED",
+      "steps": [
+        {
+          "action": null,
+          "actual_sha256": null,
+          "classification": "MISSING_EXTERNAL",
+          "expected_sha256": "72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b",
+          "id": "corpus",
+          "kind": "external_required",
+          "path": null,
+          "reason": "Retained immutable v5 corpus release is verified by the bound Campaign and staging evidence; this continuation closure does not claim deterministic corpus reconstruction."
+        },
+        {
+          "action": null,
+          "actual_sha256": null,
+          "classification": "MISSING_EXTERNAL",
+          "expected_sha256": "621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6",
+          "id": "export",
+          "kind": "external_required",
+          "path": null,
+          "reason": "Retained immutable LM export requires the external corpus provenance and bytes; no export reconstruction is demonstrated here."
+        },
+        {
+          "action": null,
+          "actual_sha256": null,
+          "classification": "MISSING_EXTERNAL",
+          "expected_sha256": "ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56",
+          "id": "tokenizer",
+          "kind": "external_required",
+          "path": null,
+          "reason": "The selected 32768-token vocabulary bytes are retained and authenticated; deterministic tokenizer replay and renewed selection are not claimed."
+        },
+        {
+          "action": null,
+          "actual_sha256": null,
+          "classification": "MISSING_EXTERNAL",
+          "expected_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+          "id": "packed",
+          "kind": "external_required",
+          "path": null,
+          "reason": "Existing packed assets retain their verified 15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84 identity; this closure does not repack or claim replay."
+        },
+        {
+          "action": null,
+          "actual_sha256": null,
+          "classification": "MISSING_EXTERNAL",
+          "expected_sha256": "275e0975d0d000555f8570f0a7ba12051c2311a859da497ed1c67ef15267dc45",
+          "id": "plan-lock",
+          "kind": "external_required",
+          "path": null,
+          "reason": "The accepted historical-source lock remains external and authenticated through the reviewed operational source-compatibility authority; no lock regeneration is claimed."
+        },
+        {
+          "action": null,
+          "actual_sha256": null,
+          "classification": "MISSING_EXTERNAL",
+          "expected_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+          "id": "model-continuation",
+          "kind": "external_required",
+          "path": null,
+          "reason": "Continuation requires retained full-state step_00005525_gen_000004 bytes and the accepted ROCm runtime; exact source identity and external availability are bound in model0-result.json. No reconstruction, child resume or deterministic model replay is demonstrated."
+        }
+      ],
+      "storage_warnings": [],
+      "work_root": "/srv/sparselab/state"
+    }
+  ],
+  "monitor": {
+    "monitor_record_version": 1,
+    "kind": "completion",
+    "returncode": 0,
+    "status": "COMPLETE",
+    "violations": [],
+    "peak_tree_rss_bytes": 8928419840,
+    "peak_tree_swap_bytes": 5730304,
+    "min_host_available_ram_bytes": 23152427008,
+    "min_host_free_swap_bytes": 5273026560,
+    "min_disk_free_bytes": 724079022080,
+    "min_disk_free_inodes": 64981921,
+    "min_projected_disk_free_bytes": 724079022080,
+    "min_projected_disk_free_inodes": 64981821,
+    "elapsed_seconds": 4042.8831702150055,
+    "sample_count": 3882,
+    "completion_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lineage-inspection-v2/completion.json",
+    "stdout_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lineage-inspection-v2/command.stdout.log",
+    "stderr_path": "/srv/sparselab/state/experiments/devmind-pretrain-v5/logs/operational/model0-lineage-inspection-v2/command.stderr.log"
+  },
+  "external_availability_reference": "model0-result.json",
+  "interpretation": "Family checkpoint/evaluation/readiness/plan are PRESENT and graph-valid. Opaque external_required steps intentionally have no location resolver, so recovery reports BLOCKED/MISSING_EXTERNAL even though exact retained-byte locations and authenticated availability are recorded separately. No reconstruct, resume, promotion or portable replay was performed."
+}

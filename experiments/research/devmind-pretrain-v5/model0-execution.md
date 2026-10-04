@@ -339,3 +339,25 @@ The descriptive panel remains caller-created procedural glue; its demonstrated
 non-gating Campaign-stage gap is recorded in `TODO.md`. The independent sealed
 Forge `run.yaml` provenance TODO remains: this completed prepared-input route
 does not close its broader worker/relocation acceptance criteria.
+
+## Verified lineage and external recovery boundary
+
+[Lineage verification](model0-lineage-verification.json) records successful
+`family show`, `family graph`, `family verify` and `recovery inspect`.
+Parent-null `model-0` node SHA is
+`8707d174f5215c085ba540cb00fd2ce0cfd5ae72857115d4099847fc33cb71f1`.
+Checkpoint, evaluation index, readiness result and plan are **PRESENT**.
+Recovery intentionally reports **BLOCKED / MISSING_EXTERNAL** for opaque
+external requirements, rather than claiming those bytes can be reconstructed.
+Physical retained-byte availability is authenticated and located in
+`model0-result.json`; the inspection schema does not resolve those locations.
+
+The recovery metadata revision is
+`e7f6f19dbfcb169781c0353c199eb4861965db44`; the actual run remains bound to
+tested execution code and run source `5fcefc19d6b021e9f2e356cc2a29bdadca444823`.
+Native [evaluation](model0-evaluation-reference.json) and
+[checkpoint](model0-checkpoint-reference.json) references were emitted by
+`research evidence export`, not by assigning a supported marker to a custom
+summary. An initial unsupported-reference draft and an invalid raw-index copy
+were rejected and corrected; the failure evidence remains. No scientific
+outputs, source bytes or acceptance criteria changed.
