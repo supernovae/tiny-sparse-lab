@@ -42,8 +42,46 @@ def _resume_settings(config: RunConfig) -> str:
     return config_sha256(settings)
 
 
+def _extension_settings(
+    source: RunConfig, target: RunConfig, *, parent_tokenizer: Path | None = None
+) -> str:
+    """Compare budget-independent settings; authenticate relocated tokenizer bytes."""
+    comparable = target.model_dump(mode="json")
+    comparable["training"]["max_steps"] = source.training.max_steps
+    comparable["training"]["max_tokens"] = source.training.max_tokens
+    comparable["optimizer"]["decay_steps"] = source.optimizer.decay_steps
+    if parent_tokenizer is not None:
+        manifest = read_manifest(parent_tokenizer.parent / "manifest.json")
+        record = next(
+            (
+                entry
+                for entry in manifest.get("artifacts", [])
+                if entry.get("relative_path") == parent_tokenizer.name
+            ),
+            None,
+        )
+        parent_sha256 = sha256_file(parent_tokenizer)
+        if (
+            record is None
+            or parent_tokenizer.is_symlink()
+            or parent_tokenizer.stat().st_size != record["size_bytes"]
+            or parent_sha256 != record["sha256"]
+        ):
+            raise ValueError(
+                "parent tokenizer differs from its bound run artifact inventory"
+            )
+        if parent_sha256 != sha256_file(target.tokenizer.path):
+            raise ValueError("budget extension requires matching tokenizer identity")
+        comparable["tokenizer"]["path"] = str(source.tokenizer.path)
+    return _resume_settings(RunConfig.model_validate(comparable))
+
+
 def _budget_extension(
-    source: RunConfig, target: RunConfig, snapshot: TrainingSnapshot
+    source: RunConfig,
+    target: RunConfig,
+    snapshot: TrainingSnapshot,
+    *,
+    parent_tokenizer: Path | None = None,
 ) -> dict[str, object]:
     """Validate the sole scientific difference allowed for full-state extension."""
     old = source.training
@@ -52,9 +90,14 @@ def _budget_extension(
     if (
         source.optimizer.name != "adamw"
         or target.optimizer.name != "adamw"
-        or source.optimizer.decay_steps is not None
+        or source.optimizer.decay_steps not in {None, old.max_steps}
         or target.optimizer.decay_steps != old.max_steps
-        or snapshot.schedule.get("kind") != "warmup_cosine_v1"
+        or snapshot.schedule.get("kind")
+        != (
+            "warmup_cosine_floor_v1"
+            if source.optimizer.decay_steps is not None
+            else "warmup_cosine_v1"
+        )
         or snapshot.step != old.max_steps
         or snapshot.tokens_seen != old.max_tokens
         or old.max_tokens != old.max_steps * targets_per_step
@@ -65,13 +108,9 @@ def _budget_extension(
         raise ValueError(
             "budget extension requires a terminal, whole-update AdamW parent and strictly larger whole-update caps"
         )
-    comparable = target.model_dump(mode="json")
-    comparable["training"]["max_steps"] = old.max_steps
-    comparable["training"]["max_tokens"] = old.max_tokens
-    comparable["optimizer"].pop("decay_steps")
-    if _resume_settings(RunConfig.model_validate(comparable)) != _resume_settings(
-        source
-    ):
+    if _extension_settings(
+        source, target, parent_tokenizer=parent_tokenizer
+    ) != _resume_settings(source):
         raise ValueError(
             "budget extension changes settings other than the budget and decay horizon"
         )
@@ -252,7 +291,9 @@ def load_continuation(
                     "resume configuration differs from checkpoint; use promotion for changed scientific settings"
                 )
         else:
-            extension = _budget_extension(saved_config, config, snapshot)
+            extension = _budget_extension(
+                saved_config, config, snapshot, parent_tokenizer=root / "tokenizer.json"
+            )
         if snapshot.engine != runtime.engine or snapshot.backend != runtime.backend:
             raise ValueError("full resume requires the same engine and backend")
         drift: list[dict[str, object]] = []

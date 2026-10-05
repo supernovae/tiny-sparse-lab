@@ -88,9 +88,10 @@ in [AGENTS.md](AGENTS.md#use-the-lab-for-rapid-iteration).
 For a declared Campaign, `campaign status`, `next` and `explain` show progress,
 blockers and the next action. `apply`/`resume` without `--execute-runs` cannot
 enqueue new training. Text output is for interactive use; supported `--json`
-output carries the same checks for agents. The consolidated iteration check and
-remaining declaration conveniences are [implementation work](TODO.md#rapid-iteration),
-not commands available today.
+output carries the same checks for agents. `iteration check` composes read-only
+parent, input, storage and authorization checks; it never dispatches training.
+The [training-program guide](docs/experiment-programs.md) uses native
+`experiment bind-inputs` and `export-config` instead of Python orchestration.
 
 **Machine-local runtimes** are independent of the scientific work root and lock.
 Discover installed interpreters and host hardware separately, then register and

@@ -107,8 +107,8 @@ presence is not an acceleration result; no custom hashing or dependency added.
 
 ## Host-local proof protocol
 
-`verification_proofs.ProofStore(work_root)` stores versioned HMAC-SHA256 receipts
-under `cache/verification-v1/`. The separate 32-byte secret is
+`verification_proofs.ProofStore(work_root)` stores HMAC-SHA256 receipts under
+`cache/verification-v1/`. The separate 32-byte secret is
 `$XDG_CONFIG_HOME/sparselab/verification-key-v1` (absolute XDG only), otherwise
 `~/.config/sparselab/verification-key-v1`. Receipt/key files are 0600 and their
 private directories 0700. No proof is written inside an inventoried artifact.
@@ -116,7 +116,29 @@ private directories 0700. No proof is written inside an inventoried artifact.
 Bindings include typed kind/version/identifier/SHA, canonical absolute path,
 manifest/inventory digest, exact upstream identities, full member/dependency
 device/inode/mode/size/mtime-ns/ctime-ns fingerprints and verification success.
-The signed envelope binds verifier schema 1 and actual package source SHA.
+Receipt schema 2 binds a *typed verifier authority*: SHA-256 of actual source
+bytes for domain verifier entry points, recursively discovered local static and
+lazy imports and package initializers, except audited operational import edges
+whose existing uses are AST-pinned. Typed artifact authorities include their
+own domain branch in `experiments.artifacts`, not unrelated stage, checkpoint
+or evaluator branches. Prepared array and directory receipts exclude producer
+and execution-only imports, including training. Changes to an excluded use
+disable reuse until that edge is re-audited; newly imported local helpers enter
+automatically even outside the original domain package. Missing mandatory
+local import modules or unexported package helpers disable receipts rather than
+silently shortening the authority closure. Nonliteral dynamic imports cannot
+authorize reuse and remain cold; constant local dynamic imports, including
+direct imported aliases, join the closure. Escaped import loaders and dynamic
+`globals`/`locals` namespace access disable receipts rather than concealing an
+indirect verifier dependency. File kinds include prepared arrays, stage inventories, checkpoint
+members, dispatch-cache assets and run evidence.
+Unknown kinds never accept or publish receipts; cold authentication still
+succeeds. Unlike the former package-wide source digest, editing unrelated CLI,
+UI, training code or documentation does not invalidate an unchanged
+prepared-input receipt. Edits to relevant verifier code do; an old
+schema-1 receipt is cold-verified and sealed anew only after successful cold
+authentication, never accepted or re-signed from unsigned metadata. This is an
+operational trust binding, not a change to scientific or artifact identity.
 Only currently minted, process-owned cold verifier seals can publish receipts.
 Warm validation checks the complete signature and binding, trusted ownership
 and fingerprints before and after lookup, then mints a new process-local seal.
@@ -127,6 +149,36 @@ not group/other writable. Symlinks, multiply linked regular files, unsafe stores
 foreign/missing keys, unsigned/stale receipts and changed bindings miss to cold.
 Cold corruption fails; there is no mtime/size-only authority or same-UID attacker
 protection. Direct Python verification remains cold unless explicitly opted in.
+
+`ProofStore.diagnostics()` returns cumulative hits, misses, recorded counts,
+reason counts and per-lookup events with artifact path/kind, typed authority,
+reason, and measured file-verifier bytes hashed/avoided. Reasons include
+`no_receipt`, `untrusted_store`, `changed_fingerprint`,
+`changed_dependency`, `changed_manifest_binding`,
+`verifier_authority_changed`, `corrupt_or_invalid_receipt`, `explicit_cold`,
+and `unknown`. An unavailable authority includes `authority_error` on the event,
+misses with `unknown`, and cannot publish a receipt even after successful cold
+authentication. The receipt locator uses stable typed artifact fields, excluding
+the manifest digest; the complete manifest/upstream binding remains HMAC-signed,
+so a changed manifest reports `changed_manifest_binding` directly without
+scanning unrelated receipts. Unknown artifact-verifier byte counts are null.
+`read_only=True` permits lookup and diagnostics without publishing receipts or
+creating keys.
+
+Trust walks compare every signed member/dependency fingerprint with fresh
+`DirEntry.stat(follow_symlinks=False)` metadata. Ancestor checks are deduplicated
+only within that invocation; no trust decision survives a lookup/publication.
+Tokenizer selection passes the explicit verification context to its nested
+release verifier. Recovery/archive callers retain their cold defaults.
+
+The [pre-MODEL-1 hash comparison](../artifacts/benchmarks/pre-model1-hash.json)
+uses fresh processes and equally pre-read inputs; it is not a disk-cold result.
+On the 3,937,267,228-byte retained training array, median SHA-256/1 MiB was
+1.921 seconds, BLAKE3/single-thread 1.109 seconds, bounded four-thread BLAKE3
+0.540 seconds, and non-authoritative XXH3-128 0.414 seconds. SHA-256/4–16 MiB
+and `file_digest` did not materially improve the existing SHA path. Keep
+authoritative SHA-256 and serial 1 MiB reads; no dependency or blanket threading
+change follows from these component-only measurements.
 
 Experiment `inspect`, `diff`, `lock`, `bind`, `run`, `collect`, `explain` and
 `reconstruct`, and `stage`, accept `--cold-verify`. Normal commands select the

@@ -144,9 +144,61 @@ recovery and Family verification remain cold. There is no Campaign-wide
 `--cold-verify` option. See [capacity-aware execution](capacity-aware-execution.md)
 for exact support and trust limitations.
 
-A consolidated typed iteration-check command is **not shipped yet**. The native
-commands above are the current path; proposed consolidation and a complete
-declarative TinyStories acceptance demo are tracked under
-[rapid iteration](../TODO.md#rapid-iteration). The [direct TinyStories walkthrough](tinystories-microlab.md)
-already teaches baseline, exposure child and optional fresh width comparison
-without Python scripting.
+## Read-only iteration check
+
+```sh
+uv run --locked --extra cpu sparselab iteration check "$DECLARATION_OR_LOCK" \
+  --parent "$GENERATION" --json
+# At a new host or trust boundary:
+uv run --locked --extra cpu sparselab iteration check "$DECLARATION_OR_LOCK" \
+  --parent "$GENERATION" --json --cold-verify
+```
+For a single fresh phase, omit `--parent` to inspect its authored changes against
+the expanded base configuration. This reports `parent.status: NOT_APPLICABLE`;
+a continuation without an exact parent reports `PARENT_REQUIRED` and `BLOCKED`.
+
+
+Pass an authored ExperimentPlan declaration, its immutable lock, or a Campaign
+declaration. The parent must be one exact `step_*_gen_*` directory, not
+`latest.json` or `best.json`. The command authenticates the parent full-state
+checkpoint, compares its **saved** effective configuration with the selected
+continuation cell, and reports actual changed fields and native transition
+compatibility. It inspects source identity, available artifact bindings, storage
+estimates and free capacity, runtime receipt evidence, and Campaign stage status
+where declared. It does not run a runtime probe, pilot, prepare, download,
+training, approval, or Campaign state transition. Cold fallbacks do not publish
+proof receipts. Historical prepared/lock source mismatches require an
+independently reviewed operational compatibility record. Full-state budget
+continuation additionally requires the exact parent execution source: a lock
+compatibility mapping does not authorize optimizer source drift. The command
+never grants either authorization.
+
+JSON and text expose the same versioned result
+(`format: sparselab-iteration-check-v1`): `state`, `parent`, `declared_delta`, `delta`,
+`artifacts`, `verification`, `storage`, `runtime`, `ingestion`, `campaign`,
+`missing_gates` and `next_command`. `declared_delta` lists authored phase
+patches where available; `delta` lists observed parent-to-child values, or
+base-to-candidate values for a fresh phase without a parent, including derived
+exposure and optimizer-horizon effects.
+`verification.diagnostics` exposes proof hits/misses,
+fallback reasons, artifact/kind/verifier authority, and measured bytes hashed
+or avoided; unavailable measurements are `null`. Cold mode has no proof store,
+so diagnostics are `null`, not zero. A retained runtime receipt alone is
+`RECEIPT_ONLY`, not fresh runtime authorization. Campaign runtime acceptance
+establishes the recorded runtime contract, **not** a full-shape staging pilot.
+The separate pilot gate can be waived only for a verified, terminal full-state
+parent already trained at the same model shape, on the exact execution source
+and matching accepted runtime contract. Changed source or runtime still needs
+a new pilot; a bare ExperimentPlan lock remains `NEEDS_PILOT` even with a
+retained runtime binding receipt. Dispatch performs fresh runtime/source checks.
+
+States are `SAFE_TO_PREPARE` (declaration needs immutable lock),
+`NEEDS_PILOT` (unproven runtime or full-shape pilot), `NEEDS_APPROVAL`
+(Campaign gate), `READY_TO_DISPATCH` (all inspected gates), `RUNNING`
+(Campaign work in flight), and `BLOCKED` (failed, incompatible, missing,
+ambiguous or unverifiable prerequisite). Exit status is 0 for non-blocked
+states, 1 for `BLOCKED`, and 2 for CLI usage errors. A non-blocked state is
+not an authorization to execute: the subsequent native command performs its
+own fresh execution-time validation. Independent native `stage`, runtime
+binding, `campaign explain`, and `checkpoint verify` remain authoritative;
+no user-provided pointer or unchecked declaration is silently repaired.

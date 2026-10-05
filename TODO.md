@@ -25,40 +25,16 @@ artifact identities.
 
 The workload is [TinyStories baseline → exposure extension → one-field
 contrast](docs/tinystories-microlab.md) and repeated declared model campaigns.
-Use the [existing native route](docs/iteration.md) now. The items below are
-proposed interfaces, not shipped commands. Keep MODEL-1 continuation repairs
-separate from this ergonomics work; do not build another runner.
+Use the [existing native route](docs/iteration.md), including the read-only
+`iteration check`, direct `experiment bind-inputs` and exact-cell
+`experiment export-config` commands. Remaining work below must reuse those
+interfaces, not introduce another runner.
 
-- [ ] **P1 — Compose a read-only iteration check.** Add a typed adapter over
-  existing ExperimentPlan/Campaign, checkpoint, source/runtime, storage and
-  evidence verifiers. Accept a declaration/lock and an optional exact parent
-  generation; report declared changed fields, verified identities, reuse/cold
-  counters where available, incomplete ingestion, missing gates, reason codes
-  and the supported next command. Distinguish safe-to-prepare, needs-pilot,
-  needs-approval, ready-to-dispatch, running and blocked; do not issue a generic
-  "safe model" verdict. Human text and versioned `--json` must describe the same
-  result; document exit codes. Never acquire data, run pilots/train, mutate an
-  active run, authorize drift or change acceptance criteria. Reuse current
-  verification authority, with explicit cold mode and fail-closed fallbacks;
-  do not cache a scientific verdict. Cover unchanged trusted inputs, one changed
-  declaration/input, relocated/foreign stores, tampering, missing parents,
-  nonterminal/incompatible extension, unavailable runtimes and pending ingestion.
-  Measure warm versus cold work on identical bytes before claiming speedups.
-- [ ] **P1 — Bind direct prepared inputs through the CLI.** The training-program
-  guide still uses Python to verify and assemble tokenizer/prepared artifact
-  references. Extend existing preparation/evidence export to produce a typed
-  ExperimentPlan input binding from a RunConfig and existing authenticated
-  inputs, including source/revision, train-only tokenizer provenance, settings
-  identity and exact digests. Do not refit/repack implicitly or accept placeholder
-  hashes. Validate/reopen the resulting plan with existing verifiers; cover
-  wrong tokenizer/revision, changed arrays, relocation, overwrite rejection and
-  both synthetic and pinned TinyStories fixtures. Replace the guide's artifact
-  assembly script only when this native operation is available.
 - [ ] **P2 — Expose verified declaration/config handoffs.** Where Phase `set`
-  and native scaffolds do not suffice, add CLI derivation/export over the existing
+  and native scaffolds do not suffice, add CLI derivation over the existing
   typed loaders and dotted-path compiler, preserving path anchoring when the
-  output moves. Export exact resolved cells and artifact references without
-  requiring Python or reinterpretation of SHA fields. Write new files only,
+  output moves. Exact resolved-cell export is already available; remaining
+  handoffs must avoid Python and reinterpretation of SHA fields. Write new files only,
   record origin/delta, reject unknown fields and scientific incompatibility.
   Existing checkpoint selectors already serve declared chains; add standalone
   immutable selection only if the direct TinyStories route still needs pointer

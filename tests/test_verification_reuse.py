@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -16,6 +18,7 @@ from sparselab.experiments.artifacts import verify_artifact
 from sparselab.experiments.plan import Artifact
 from sparselab.training import manifest as manifests
 from sparselab.verification_proofs import ProofStore, file_binding
+from sparselab.verifier_authority import verifier_authority
 
 
 @pytest.fixture
@@ -126,10 +129,20 @@ def test_changed_array_or_manifest_fails(trusted_prepared, mutation):
 def test_invalid_receipt_falls_back_to_cold(trusted_prepared, invalid, monkeypatch):
     root, _, prepared = trusted_prepared
     store = ProofStore(root)
-    if invalid == "authentic_stale_implementation":
-        # A valid HMAC from an older verifier is still not current authority.
-        store.source_sha256 = "0" * 64
     _load(prepared, store)
+    if invalid == "authentic_stale_implementation":
+        # A correctly signed schema-1 receipt cannot be promoted by this verifier.
+        for receipt in store.directory.glob("*.json"):
+            raw = json.loads(receipt.read_text())
+            raw["proof"].pop("verifier_authority")
+            raw["proof"]["verification_schema"] = 1
+            raw["proof"]["implementation_sha256"] = "0" * 64
+            raw["hmac"] = hmac.new(
+                store._key(create=False),
+                manifests.canonical_json(raw["proof"]),
+                hashlib.sha256,
+            ).hexdigest()
+            receipt.write_text(json.dumps(raw))
     receipts = list(store.directory.glob("*.json"))
     if invalid == "missing":
         for path in receipts:
@@ -298,6 +311,441 @@ def test_unchanged_array_node_remains_reusable(trusted_prepared, monkeypatch):
     monkeypatch.setattr(manifests, "sha256_file", counted)
     _load(prepared, store)
     assert reads == ["train.npy"]
+
+
+def test_large_inventory_rejects_mutation_after_a_successful_check(tmp_path):
+    from sparselab.experiments.artifacts import _fingerprint as artifact_fingerprint
+
+    root = tmp_path / "work"
+    root.mkdir(mode=0o700)
+    tree = root / "tree"
+    nested = tree / "nested"
+    nested.mkdir(parents=True)
+    for index in range(64):
+        (nested / f"{index:04}.bin").write_bytes(bytes([index]))
+    dependency = root / "upstream.json"
+    dependency.write_text("{}")
+    binding = {
+        "path": str(tree),
+        "members": [list(row) for row in artifact_fingerprint(tree)],
+        "dependencies": [
+            [str(dependency), [list(row) for row in artifact_fingerprint(dependency)]]
+        ],
+    }
+    store = ProofStore(root)
+    assert store._safe_binding(binding)
+    changed = nested / "0000.bin"
+    previous = changed.stat()
+    changed.write_bytes(b"x")
+    os.utime(changed, ns=(previous.st_atime_ns, previous.st_mtime_ns))
+    assert not store._safe_binding(binding)
+
+
+def test_proof_diagnostics_reasons_and_measured_bytes(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    _load(prepared, store)
+    first = store.diagnostics()
+    assert first["reasons"] == {"no_receipt": 2}
+    assert sorted(event["bytes_hashed"] for event in first["events"]) == sorted(
+        (prepared.root / name).stat().st_size
+        for name in ("train.npy", "validation.npy")
+    )
+    _load(prepared, store)
+    warm = store.diagnostics()
+    assert warm["reasons"] == {"no_receipt": 2, "hit": 2}
+    assert sorted(event["bytes_avoided"] for event in warm["events"][2:]) == sorted(
+        (prepared.root / name).stat().st_size
+        for name in ("train.npy", "validation.npy")
+    )
+    assert all(
+        event["verifier_authority"]["kind"] == "prepared_array"
+        for event in warm["events"]
+    )
+
+
+def test_manifest_binding_miss_is_not_missing_receipt(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    path = prepared.root / "train.npy"
+    digest = manifests.sha256_file(path)
+    proof = verify_file(path, expected_sha256=digest)
+    old = file_binding(
+        path, digest, kind="prepared_array", closure={"manifest": "before"}
+    )
+    store.record(old, proof)
+    changed = file_binding(
+        path, digest, kind="prepared_array", closure={"manifest": "after"}
+    )
+    assert not store.lookup(changed)
+    assert store.diagnostics()["events"][-1]["reason"] == "changed_manifest_binding"
+
+
+def test_dependency_fingerprint_miss_is_distinct(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    path = prepared.root / "train.npy"
+    dependency = prepared.root / "manifest.json"
+    digest = manifests.sha256_file(path)
+    binding = file_binding(path, digest)
+    info = dependency.stat()
+    binding["dependencies"] = [
+        [
+            str(dependency),
+            [
+                [
+                    ".",
+                    info.st_dev,
+                    info.st_ino,
+                    info.st_mode,
+                    info.st_size,
+                    info.st_mtime_ns,
+                    info.st_ctime_ns,
+                ]
+            ],
+        ]
+    ]
+    proof = verify_file(path, expected_sha256=digest)
+    store.record(binding, proof)
+    dependency.write_bytes(dependency.read_bytes())
+    changed = file_binding(path, digest)
+    current = dependency.stat()
+    changed["dependencies"] = [
+        [
+            str(dependency),
+            [
+                [
+                    ".",
+                    current.st_dev,
+                    current.st_ino,
+                    current.st_mode,
+                    current.st_size,
+                    current.st_mtime_ns,
+                    current.st_ctime_ns,
+                ]
+            ],
+        ]
+    ]
+    assert not store.lookup(changed)
+    assert store.diagnostics()["events"][-1]["reason"] == "changed_dependency"
+
+
+def test_restored_mtime_same_size_requires_cold_hash(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    _load(prepared, store)
+    path = prepared.root / "train.npy"
+    old = path.stat()
+    raw = path.read_bytes()
+    path.write_bytes(raw[:-1] + bytes([raw[-1] ^ 1]))
+    os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))
+    with pytest.raises(ValueError):
+        _load(prepared, store)
+    assert store.diagnostics()["events"][-1]["reason"] == "changed_fingerprint"
+
+
+@pytest.mark.parametrize(
+    "dependency_import",
+    [
+        b"    from sparselab import proof_helper\n",
+        (
+            b"    from importlib import import_module as load_helper\n"
+            b"    return load_helper('sparselab.proof_helper')\n"
+        ),
+    ],
+)
+def test_lazy_helper_changes_invalidate_signed_array_proofs(
+    trusted_prepared, monkeypatch, dependency_import
+):
+    root, _, prepared = trusted_prepared
+    from sparselab import verifier_authority as authority_module
+
+    original_read = authority_module.Path.read_bytes
+    original_is_file = authority_module.Path.is_file
+    helper = b"SEMANTICS = 1\n"
+    present = True
+
+    def source(self):
+        if self.name == "proof_helper.py":
+            return helper
+        raw = original_read(self)
+        if self.name == "packing.py":
+            return raw + b"\ndef _new_verifier():\n" + dependency_import
+        return raw
+
+    def exists(self):
+        return (present and self.name == "proof_helper.py") or original_is_file(self)
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", source)
+    monkeypatch.setattr(authority_module.Path, "is_file", exists)
+    store = ProofStore(root)
+    _load(prepared, store)
+    _load(prepared, store)
+    assert store.hits == 2
+    helper = b"SEMANTICS = 2\n"
+    _load(prepared, store)
+    assert store.hits == 2
+    assert store.diagnostics()["reasons"]["verifier_authority_changed"] == 2
+    assert store.recorded == 4
+    present = False
+    _load(prepared, store)
+    assert store.hits == 2
+    assert store.recorded == 4
+    assert store.diagnostics()["events"][-1]["reason"] == "unknown"
+    assert "missing verifier" in store.diagnostics()["events"][-1]["authority_error"]
+
+
+@pytest.mark.parametrize(
+    "indirect_access",
+    [
+        (
+            "    from importlib import import_module as load_helper\n"
+            "    loader = load_helper\n"
+            "    return loader('sparselab.proof_helper')\n"
+        ),
+        "    return globals()['table_address'](b'train.npy', 1024)\n",
+    ],
+)
+def test_indirect_verifier_dependencies_cannot_reuse_or_publish_proofs(
+    trusted_prepared, monkeypatch, indirect_access
+):
+    root, _, prepared = trusted_prepared
+    from sparselab import verifier_authority as authority_module
+
+    store = ProofStore(root)
+    _load(prepared, store)
+    _load(prepared, store)
+    assert store.hits == 2
+    assert store.recorded == 2
+    original = authority_module.Path.read_bytes
+
+    def changed(self):
+        raw = original(self)
+        if self.name == "packing.py":
+            return raw + b"\ndef _new_verifier():\n" + indirect_access.encode()
+        return raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", changed)
+    _load(prepared, store)
+    _load(prepared, store)
+    assert store.hits == 2
+    assert store.recorded == 2
+    assert store.diagnostics()["reasons"]["unknown"] == 4
+    assert "dynamic verifier" in store.diagnostics()["events"][-1]["authority_error"]
+
+
+def test_package_initializer_and_nonliteral_import_are_fail_closed(monkeypatch):
+    from sparselab import verifier_authority as authority_module
+
+    before = verifier_authority("prepared_array", 1)
+    assert "data" in before["modules"]
+    original = authority_module.Path.read_bytes
+
+    def changed_initializer(self):
+        raw = original(self)
+        if self.name == "__init__.py" and self.parent.name == "data":
+            return raw + b"\n# changed package initialization\n"
+        return raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", changed_initializer)
+    assert verifier_authority("prepared_array", 1)["sha256"] != before["sha256"]
+
+    def dynamic(self):
+        raw = original(self)
+        if self.name == "packing.py":
+            return (
+                raw + b"\ndef _dynamic_verifier(name):\n    return __import__(name)\n"
+            )
+        return raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", dynamic)
+    with pytest.raises(ValueError, match="dynamic verifier import"):
+        verifier_authority("prepared_array", 1)
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "class UsesExcludedBase(AllocationManifest):\n    pass\n",
+        "class UsesExcludedMetaclass(metaclass=AllocationManifest):\n    pass\n",
+        "@AllocationManifest\nclass UsesExcludedDecorator:\n    pass\n",
+        "class UsesExcludedBody:\n    field = AllocationManifest\n",
+    ],
+)
+def test_new_excluded_helper_class_use_requires_audit(monkeypatch, declaration):
+    from sparselab import verifier_authority as authority_module
+
+    original = authority_module.Path.read_bytes
+
+    def changed(self):
+        raw = original(self)
+        return raw + b"\n" + declaration.encode() if self.name == "packing.py" else raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", changed)
+    with pytest.raises(ValueError, match="verifier exclusion needs review"):
+        verifier_authority("prepared_array", 1)
+
+
+def test_unknown_verifier_kind_is_cold_without_receipt(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    path = prepared.root / "train.npy"
+    digest = manifests.sha256_file(path)
+    store = ProofStore(root)
+    binding = file_binding(path, digest, kind="unsupported_future_kind")
+    proof = verify_file(
+        path,
+        expected_sha256=digest,
+        proof_store=store,
+        verification_mode="verified_reuse",
+        binding=binding,
+    )
+    assert proof.cold_verified
+    assert store.diagnostics()["reasons"] == {"unknown": 1}
+    assert store.recorded == 0
+
+
+@pytest.mark.parametrize(
+    "kind, module",
+    [
+        ("stage_inventory_file", "staging"),
+        ("checkpoint_member", "training.checkpoints"),
+        ("dispatch_cache_asset", "workers.bundles"),
+        ("run_artifact", "evaluation.evidence"),
+        ("ingested_run_artifact", "experiments.evidence"),
+    ],
+)
+def test_file_receipt_kind_rechecks_changed_verifier(
+    kind, module, trusted_prepared, monkeypatch
+):
+    from sparselab import verifier_authority as authority_module
+
+    root, _, prepared = trusted_prepared
+    path = prepared.root / "train.npy"
+    digest = manifests.sha256_file(path)
+    binding = file_binding(path, digest, kind=kind, closure={"verified": "fixture"})
+    store = ProofStore(root)
+    proof = verify_file(path, expected_sha256=digest)
+    store.record(binding, proof)
+    assert store.lookup(binding)
+
+    original = authority_module.Path.read_bytes
+    target = authority_module.Path(module.replace(".", "/") + ".py").name
+
+    def changed(self):
+        raw = original(self)
+        return raw + b"\n# changed domain verifier\n" if self.name == target else raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", changed)
+    assert not store.lookup(binding)
+    assert store.diagnostics()["events"][-1]["reason"] == "verifier_authority_changed"
+    new_proof = verify_file(
+        path,
+        expected_sha256=digest,
+        proof_store=store,
+        verification_mode="verified_reuse",
+        binding=binding,
+    )
+    assert new_proof.cold_verified
+    assert store.lookup(binding)
+
+
+def test_unrelated_module_change_keeps_prepared_receipt_warm(
+    trusted_prepared, monkeypatch
+):
+    from sparselab import verifier_authority as authority_module
+
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    _load(prepared, store)
+    original = authority_module.Path.read_bytes
+
+    def changed(self):
+        raw = original(self)
+        return (
+            raw + b"unrelated training/UI"
+            if self.name in {"trainer.py", "cli.py"}
+            else raw
+        )
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", changed)
+    _load(prepared, store)
+    assert store.hits == 2
+    assert store.recorded == 2
+
+
+def test_full_prepared_artifact_remains_warm_across_training_change(
+    trusted_prepared, monkeypatch
+):
+    from sparselab import verifier_authority as authority_module
+
+    root, _, prepared = trusted_prepared
+    artifact = Artifact(
+        kind="prepared_data",
+        version=1,
+        producer="fixture",
+        identifier=prepared.manifest["settings_sha256"],
+        sha256=prepared.manifest["manifest_sha256"],
+        path=str(prepared.root),
+    )
+    store = ProofStore(root)
+    options = {"proof_store": store, "verification_mode": "verified_reuse"}
+    first = verify_artifact(artifact, root / "plan.yaml", **options)
+    assert verify_artifact(artifact, root / "plan.yaml", **options) == first
+    recorded = store.recorded
+    original = authority_module.Path.read_bytes
+
+    def unrelated(self):
+        raw = original(self)
+        if self.name in {"trainer.py", "cli.py"}:
+            return raw + b"\n# unrelated execution or UI\n"
+        return raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", unrelated)
+    assert verify_artifact(artifact, root / "plan.yaml", **options) == first
+    assert store.diagnostics()["events"][-1]["kind"] == "prepared_data"
+    assert store.diagnostics()["events"][-1]["reason"] == "hit"
+    assert store.recorded == recorded
+
+
+def test_relevant_verifier_change_cold_reseals_not_reblesses(
+    trusted_prepared, monkeypatch
+):
+    from sparselab import verifier_authority as authority_module
+
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root)
+    _load(prepared, store)
+    original = authority_module.Path.read_bytes
+
+    def changed(self):
+        raw = original(self)
+        return raw + b"\n# changed verifier\n" if self.name == "packing.py" else raw
+
+    monkeypatch.setattr(authority_module.Path, "read_bytes", changed)
+    _load(prepared, store)
+    assert store.diagnostics()["reasons"]["verifier_authority_changed"] == 2
+    assert store.recorded == 4
+
+
+def test_read_only_store_never_publishes_on_cold_fallback(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root, read_only=True)
+    _load(prepared, store)
+    assert store.recorded == 0
+    assert not store.directory.exists()
+
+
+def test_explicit_cold_file_verifier_diagnostic(trusted_prepared):
+    root, _, prepared = trusted_prepared
+    store = ProofStore(root, read_only=True)
+    path = prepared.root / "train.npy"
+    digest = manifests.sha256_file(path)
+    verify_file(
+        path, expected_sha256=digest, proof_store=store, verification_mode="cold"
+    )
+    assert store.diagnostics()["events"][-1]["reason"] == "explicit_cold"
+    assert store.diagnostics()["events"][-1]["bytes_hashed"] == path.stat().st_size
+    assert store.misses == store.recorded == 0
 
 
 def test_unsafe_config_ancestry_never_creates_key_outside_selected_path(

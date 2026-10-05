@@ -1362,7 +1362,6 @@ class CheckpointManager:
                     closure={
                         "checkpoint_sha256": digest,
                         "run_manifest_sha256": raw.get("manifest_sha256"),
-                        "expected_manifest_sha256": expected_manifest,
                     },
                 )
                 try:

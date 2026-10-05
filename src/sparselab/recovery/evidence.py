@@ -5,10 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.campaign.state import publish_immutable, read_canonical, utc_now
 from sparselab.training.manifest import sha256_file
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
+
 
 KINDS = (
     "corpus_release",
@@ -21,7 +25,12 @@ KINDS = (
 )
 
 
-def _selection(path: Path) -> tuple[str, str]:
+def _selection(
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> tuple[str, str]:
     from sparselab.corpus.release import verify_release
     from sparselab.corpus.tokenizer_bakeoff import (
         Declaration,
@@ -40,7 +49,12 @@ def _selection(path: Path) -> tuple[str, str]:
     report = json.loads(path.read_text(encoding="utf-8"))
     identity = report["identity"]
     release = Path(identity["release_path"])
-    if verify_release(release)["release_id"] != identity["release_id"]:
+    if (
+        verify_release(
+            release, proof_store=proof_store, verification_mode=verification_mode
+        )["release_id"]
+        != identity["release_id"]
+    ):
         raise ValueError("selection release binding changed")
     spec = Declaration.model_validate(identity["declaration"])
     selected_docs, heldout_docs, train_docs = select_documents(release, spec)

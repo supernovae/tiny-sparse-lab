@@ -893,7 +893,8 @@ def resolve_plan(
                     if (
                         parent.config.optimizer.name != "adamw"
                         or phased.optimizer.name != "adamw"
-                        or parent.config.optimizer.decay_steps is not None
+                        or parent.config.optimizer.decay_steps
+                        not in {None, parent.config.training.max_steps}
                         or phased.optimizer.decay_steps
                         != parent.config.training.max_steps
                         or phased.training.max_steps <= parent.config.training.max_steps
@@ -905,19 +906,14 @@ def resolve_plan(
                         raise ValueError(
                             f"phase {phase.id} requires terminal whole-update AdamW budget extension"
                         )
-                    from sparselab.training.continuation import _resume_settings
+                    from sparselab.training.continuation import (
+                        _extension_settings,
+                        _resume_settings,
+                    )
 
-                    comparable = phased.model_dump(mode="json")
-                    comparable["training"]["max_steps"] = (
-                        parent.config.training.max_steps
-                    )
-                    comparable["training"]["max_tokens"] = (
-                        parent.config.training.max_tokens
-                    )
-                    comparable["optimizer"].pop("decay_steps")
-                    if _resume_settings(
-                        RunConfig.model_validate(comparable)
-                    ) != _resume_settings(parent.config):
+                    if _extension_settings(parent.config, phased) != _resume_settings(
+                        parent.config
+                    ):
                         raise ValueError(
                             f"phase {phase.id} changes more than budget and decay horizon"
                         )
@@ -945,7 +941,10 @@ def resolve_plan(
                     "state": "full",  # trainer emits full generations; promotion transfers weights only
                 }
             elif phase.checkpoint is not None:
-                from sparselab.training.continuation import _resume_settings
+                from sparselab.training.continuation import (
+                    _extension_settings,
+                    _resume_settings,
+                )
                 from sparselab.training.manifest import (
                     architecture_sha256,
                     read_manifest,
@@ -968,7 +967,8 @@ def resolve_plan(
                     if (
                         parent_config.optimizer.name != "adamw"
                         or phased.optimizer.name != "adamw"
-                        or parent_config.optimizer.decay_steps is not None
+                        or parent_config.optimizer.decay_steps
+                        not in {None, parent_config.training.max_steps}
                         or phased.optimizer.decay_steps
                         != parent_config.training.max_steps
                         or checkpoint_record["step"] != parent_config.training.max_steps
@@ -983,16 +983,10 @@ def resolve_plan(
                         raise ValueError(
                             f"phase {phase.id} needs a terminal whole-update AdamW external parent"
                         )
-                    comparable = phased.model_dump(mode="json")
-                    comparable["training"]["max_steps"] = (
-                        parent_config.training.max_steps
-                    )
-                    comparable["training"]["max_tokens"] = (
-                        parent_config.training.max_tokens
-                    )
-                    comparable["optimizer"].pop("decay_steps")
-                    if _resume_settings(
-                        RunConfig.model_validate(comparable)
+                    if _extension_settings(
+                        parent_config,
+                        phased,
+                        parent_tokenizer=parent_run / "tokenizer.json",
                     ) != _resume_settings(parent_config):
                         raise ValueError(
                             f"phase {phase.id} changes more than external parent budget and decay horizon"

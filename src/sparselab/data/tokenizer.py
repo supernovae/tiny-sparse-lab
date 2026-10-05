@@ -27,7 +27,13 @@ if TYPE_CHECKING:
 SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
 
 
-def _verify_bakeoff_selection(path: Path, manifest: dict[str, object]) -> str:
+def _verify_bakeoff_selection(
+    path: Path,
+    manifest: dict[str, object],
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> str:
     """Authenticate the original selection and its train/held-out receipts."""
     from sparselab.recovery.evidence import _selection
 
@@ -52,7 +58,9 @@ def _verify_bakeoff_selection(path: Path, manifest: dict[str, object]) -> str:
         )
     ):
         raise ValueError("invalid bakeoff candidate path")
-    digest, identifier = _selection(report)
+    digest, identifier = _selection(
+        report, proof_store=proof_store, verification_mode=verification_mode
+    )
     binding = manifest["corpus_forge_bakeoff"]
     if (
         digest != manifest["sha256"]
@@ -220,7 +228,12 @@ def verify_tokenizer_artifact(
         if manifest.get("corpus_forge_bakeoff") is not None:
             if not isinstance(manifest["corpus_forge_bakeoff"], dict):
                 raise ValueError("invalid bakeoff provenance")
-            _verify_bakeoff_selection(path, manifest)
+            _verify_bakeoff_selection(
+                path,
+                manifest,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
         return manifest
 
 

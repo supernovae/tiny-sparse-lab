@@ -185,6 +185,11 @@ def _verify_file_with_hasher(
             and proof_store.lookup(signed_binding)
         )
         digest = expected_sha256 if hit else hash_file(path)
+        if not hit and proof_store is not None and signed_binding is not None:
+            if verification_mode == "verified_reuse":
+                proof_store.hashed(signed_binding, fingerprint[3])
+            else:
+                proof_store.cold(signed_binding, bytes_hashed=fingerprint[3])
         if _fingerprint(path) != fingerprint:
             raise ValueError(f"prepared file changed during hashing: {path}")
         proof = VerifiedFile(

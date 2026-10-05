@@ -576,5 +576,15 @@ def test_suite_signed_replay_reuses_payload_and_preserves_canonical_index(
         source, "suite-run", "latest.json", runs, backend="cpu", **options
     )
     verify_evaluation_index(replay, **options)
-    assert hashed_payloads == []
+    assert hashed_payloads == [], options["proof_store"].diagnostics()
     assert replay.read_bytes() == original_index
+    from sparselab.training.checkpoints import CheckpointManager
+
+    checkpoint_root = runs / "suite-run" / "checkpoints"
+    rejected = CheckpointManager(checkpoint_root).verify(
+        checkpoint_root / "latest.json",
+        expected_manifest="0" * 64,
+        **options,
+    )
+    assert rejected.valid is False
+    assert {"field": "manifest_sha256", "reason": "mismatch"} in rejected.errors

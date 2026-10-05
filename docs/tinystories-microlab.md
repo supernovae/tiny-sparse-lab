@@ -185,10 +185,12 @@ Python. See [checkpointing](checkpointing.md).
 
 This direct teaching route still asks the operator to copy an immutable
 generation path. ExperimentPlan's `parent`, `selector: terminal` and `at_step`
-already bind that selection declaratively. Native direct-input binding and
-a full Campaign demo are [tracked implementation work](../TODO.md#rapid-iteration),
-not shipped one-command automation. Use [the iteration guide](iteration.md)
-for current checks between runs.
+already bind that selection declaratively. Native `experiment bind-inputs`
+authenticates existing direct story inputs for a phase template, and
+`iteration check` reports the continuation's gates without executing it.
+A complete declared Campaign demo remains
+[tracked implementation work](../TODO.md#rapid-iteration). Use
+[the iteration guide](iteration.md) for current checks between runs.
 
 ## Optional fresh architecture comparison with the matrix DSL
 
