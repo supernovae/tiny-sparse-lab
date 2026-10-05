@@ -23,19 +23,23 @@ artifact identities.
 
 ### P2 — Make evidence collection and review reusable
 
-- [ ] **Lint checked-in research records.** Extend existing identity/schema
+- [x] **Lint checked-in research records.** Extend existing identity/schema
   checks to validate protocol/config bindings and evidence references under
   `experiments/research/`, and reject checked-in checkpoints, caches, datasets,
   logs, and mutable run output. Complete with valid, missing/mismatched-reference,
   and forbidden-output fixtures. Validate durable declarations and references
   without requiring live external datasets/checkpoints or adding a new registry.
-- [ ] **Preserve a compact metadata explanation of corpus identities.** Extend
+  Fixed with [offline record lint](experiments/research/README.md#offline-record-lint),
+  CI enforcement, and [declaration/reference/output regressions](tests/test_research_lint.py).
+- [x] **Preserve a compact metadata explanation of corpus identities.** Extend
   existing archive/provenance machinery with project/declaration identity,
   source-ID→snapshot-SHA mapping, algorithm/file provenance, full build identity
   payload, and release identity. Complete when metadata round trips and survives
   relocation, declared digest payloads can be checked without source bytes, and
   tampering is rejected. Explaining an identity must not claim verification or
   reconstruction of unavailable source contents.
+  Fixed with [archive identity metadata](docs/research/lifecycle-recovery.md)
+  and [offline round-trip, relocation, and tampering regressions](tests/test_corpus_identity.py).
 
 ## P3 — Conditional work; activate for a concrete workload
 
