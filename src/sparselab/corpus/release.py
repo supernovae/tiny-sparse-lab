@@ -23,10 +23,10 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class _VerifiedRelease:
-    """Full-verifier proof valid only within one synchronous operation."""
+    """Full-verifier proof valid only while its typed closure remains unchanged."""
 
     manifest: dict[str, Any]
-    manifest_sha256: str
+    closure_key: tuple[object, ...]
 
 
 _verified_releases: ContextVar[dict[Path, _VerifiedRelease] | None] = ContextVar(
@@ -1400,10 +1400,18 @@ def _manifest_payload(build: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def freeze(build_dir: Path, work_root: Path) -> Path:
+def freeze(
+    build_dir: Path,
+    work_root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> Path:
     """Publish a verified build at its content-derived full SHA-256, never replacing it."""
     build_dir = Path(build_dir).resolve()
-    build = verify_build(build_dir)
+    build = verify_build(
+        build_dir, proof_store=proof_store, verification_mode=verification_mode
+    )
     release_config = build["identity"]["release"]
     for view in ("lm", "chat"):
         selected = release_config[view]
@@ -1423,7 +1431,9 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
         Path(work_root) / "corpora" / payload["corpus_id"] / "releases" / release_id
     )
     if destination.exists():
-        verify_release(destination)
+        verify_release(
+            destination, proof_store=proof_store, verification_mode=verification_mode
+        )
         if _load(destination / "manifest.json") != {
             **payload,
             "release_id": release_id,
@@ -1443,7 +1453,13 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
         (staging / "manifest.json").write_bytes(
             canonical_json({**payload, "release_id": release_id}) + b"\n"
         )
-        verify_release(staging, expected_id=release_id)
+        verify_release(
+            staging,
+            expected_id=release_id,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
+        )
         from sparselab.corpus.acquisition import _sync_dir
         from sparselab.engram.packs import _rename_noreplace
 
@@ -1458,7 +1474,11 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
             _rename_noreplace(staging, destination)
             _sync_dir(destination.parent)
         except FileExistsError:
-            verify_release(destination)
+            verify_release(
+                destination,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
     return destination
 
 
@@ -1506,6 +1526,25 @@ def verify_release(
         )
 
 
+def _release_closure_key(path: Path, manifest: dict[str, Any]) -> tuple[object, ...]:
+    """Use the artifact verifier's typed inventory and external snapshot binding."""
+    from sparselab.experiments.artifacts import _artifact_key
+    from sparselab.experiments.plan import Artifact
+
+    release_id = manifest["release_id"]
+    return _artifact_key(
+        Artifact(
+            kind="corpus_release",
+            version=manifest["schema_version"],
+            producer="sparselab",
+            identifier=release_id,
+            sha256=release_id,
+            path=str(path),
+        ),
+        path,
+    )
+
+
 def _verify_release_cold(
     path: Path,
     *,
@@ -1518,8 +1557,8 @@ def _verify_release_cold(
     proofs = _verified_releases.get()
     if proofs is not None and path in proofs:
         proof = proofs[path]
-        if proof.manifest_sha256 != sha256_file(
-            path / "manifest.json"
+        if proof.closure_key != _release_closure_key(
+            path, proof.manifest
         ) or proof.manifest["release_id"] != (expected_id or path.name):
             raise ValueError("release changed within verification operation")
         return proof.manifest
@@ -1532,6 +1571,7 @@ def _verify_release_cold(
         != release_id
     ):
         raise ValueError("release manifest identity mismatch")
+    closure_key = _release_closure_key(path, manifest) if proofs is not None else None
     _files(
         path,
         {
@@ -1562,7 +1602,9 @@ def _verify_release_cold(
         else _validate_rows
     )(path, proof_store=proof_store, verification_mode=verification_mode)
     if proofs is not None:
-        proofs[path] = _VerifiedRelease(manifest, sha256_file(path / "manifest.json"))
+        if closure_key != _release_closure_key(path, manifest):
+            raise ValueError("release changed during verification operation")
+        proofs[path] = _VerifiedRelease(manifest, closure_key)
     return manifest
 
 

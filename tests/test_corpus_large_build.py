@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,12 @@ from test_corpus_rights_integration import _prospective
 
 from sparselab.corpus import large_build
 from sparselab.corpus.acquisition import acquire
-from sparselab.corpus.large_build import _deduplicate, _index_prepared, _prepare_file
+from sparselab.corpus.large_build import (
+    _deduplicate,
+    _index_prepared,
+    _prepare_file,
+    _prepare_shard,
+)
 from sparselab.corpus.pipeline import _records_for_file, build
 from sparselab.corpus.progress import BuildProgress
 from sparselab.corpus.project import Project, load_project
@@ -187,10 +193,46 @@ def test_hf_rows_are_streamed_with_original_ids_and_verified_resume(
         json.loads(line)["event"] == "reused_verified_shard"
         for line in (tmp_path / "progress.jsonl").read_text().splitlines()
     )
+    parallel_kwargs = {key: value for key, value in kwargs.items() if key != "progress"}
+    parallel_kwargs["prepared_root"] = tmp_path / "parallel-prepared"
+    with ProcessPoolExecutor(max_workers=2) as executor:
+        result = executor.submit(_prepare_shard, **parallel_kwargs).result()
+    child, documents, input_bytes, output_records, reused = result
+    assert (documents, input_bytes, output_records, reused) == (
+        3,
+        file["size"],
+        3,
+        False,
+    )
+    for name in ("docs.jsonl", "spans.jsonl", "rejected.jsonl"):
+        assert sha256_file(child / name) == sha256_file(prepared / name)
     with (prepared / "docs.jsonl").open("ab") as output:
         output.write(b"{}\n")
     with pytest.raises(ValueError, match="prepared source shard changed"):
         _prepare_file(**kwargs)
+
+
+def test_shard_process_capacity_requires_memory_and_independent_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psutil
+
+    class Memory:
+        total = 16 * 1024**3
+        available = 2 * 512 * 1024**2
+
+    monkeypatch.setattr(psutil, "virtual_memory", Memory)
+    monkeypatch.setattr(psutil, "cpu_count", lambda logical=True: 8 if logical else 4)
+
+    class Affinity:
+        def cpu_affinity(self):
+            return list(range(4))
+
+    monkeypatch.setattr(psutil, "Process", Affinity)
+    assert large_build._process_shard_workers(2) == 1
+    Memory.available = 8 * 1024**3
+    assert large_build._process_shard_workers(1) == 1
+    assert large_build._process_shard_workers(2) == 2
 
 
 def test_sqlite_dedup_keeps_heldout_and_rejects_validation_test_overlap(
@@ -309,3 +351,83 @@ def test_sqlite_dedup_keeps_heldout_and_rejects_validation_test_overlap(
         "cross-split exact text overlap"
     )
     connection.close()
+
+
+@pytest.mark.parametrize("malformed", [False, True])
+def test_process_shard_reduction_preserves_full_build_bytes_and_failure_counters(
+    tmp_path: Path, monkeypatch, malformed: bool
+) -> None:
+    from sparselab.corpus import acquisition
+
+    project = load_project("corpora/devmind-v2/corpus.yaml")
+    source = next(s for s in project.sources if s.id == "fineweb_edu_sample_10bt")
+    project = project.model_copy(
+        update={
+            "sources": (source,),
+            "transforms": tuple(t for t in project.transforms if t.kind == "lm_text"),
+        }
+    )
+    snapshot = tmp_path / "snapshot"
+    (snapshot / "files").mkdir(parents=True)
+    row = {
+        "text": "Educational reproducible document " + "ordinary source text " * 20,
+        "url": "https://example.org/source",
+    }
+    for name, count in (("a.jsonl", 100), ("b.jsonl", 3)):
+        content = b"".join(
+            json.dumps({**row, "text": row["text"] + str(i)}).encode() + b"\n"
+            for i in range(count)
+        )
+        if malformed and name == "a.jsonl":
+            content = content.splitlines(keepends=True)[0] + b"{malformed\n"
+        (snapshot / "files" / name).write_bytes(content)
+    files = [
+        {"path": path.name, "sha256": sha256_file(path), "size": path.stat().st_size}
+        for path in sorted((snapshot / "files").iterdir())
+    ]
+    manifest = {"files": files}
+    monkeypatch.setattr(acquisition, "verify_snapshot", lambda *a, **kw: manifest)
+    monkeypatch.setattr(large_build, "_PROCESS_SHARD_MIN_BYTES", 1)
+    lock = {
+        "sources": {
+            source.id: {
+                "snapshot_path": str(snapshot),
+                "snapshot_sha256": "0" * 64,
+            }
+        }
+    }
+    identity = {
+        "project_id": project.config.id,
+        "release": project.release.model_dump(mode="json"),
+        "implementation_sha256": "1" * 64,
+    }
+    results, counters = [], []
+    for workers in (1, 2):
+        monkeypatch.setattr(
+            large_build,
+            "_process_shard_workers",
+            lambda count, workers=workers: min(workers, max(1, count)),
+        )
+        workspace = tmp_path / f"workers-{workers}"
+        progress = BuildProgress(workspace / "progress.jsonl", "0" * 64)
+        built = large_build.build_large(
+            project,
+            workspace,
+            lock,
+            identity,
+            "0" * 64,
+            workspace / "result",
+            progress,
+        )
+        results.append(
+            {
+                path.relative_to(built).as_posix(): sha256_file(path)
+                for path in sorted(built.rglob("*"))
+                if path.is_file()
+            }
+        )
+        counters.append(
+            (progress.documents, progress.input_bytes, progress.output_records)
+        )
+    assert results[0] == results[1]
+    assert counters[0] == counters[1]

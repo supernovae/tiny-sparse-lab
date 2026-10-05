@@ -127,7 +127,12 @@ def prepare_variant(
     ensure_work_dir(workspace)
     acquisition_path = workspace / "corpora" / candidate.config.id / "acquisition.json"
     if acquisition_path.exists():
-        acquisition = verify_acquisition(candidate, workspace)
+        acquisition = verify_acquisition(
+            candidate,
+            workspace,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
     else:
         if any(
             item.kind not in {"local", "deterministic_generator"}
@@ -137,10 +142,25 @@ def prepare_variant(
             raise ValueError(
                 f"corpus variant {variant.id} needs pre-acquired pinned external sources"
             )
-        acquisition = acquire(candidate, workspace)
-    built = build(candidate, workspace, offline=True)
-    frozen = freeze(built, workspace)
-    verified = verify_release(frozen)
+        acquisition = acquire(
+            candidate,
+            workspace,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+    built = build(
+        candidate,
+        workspace,
+        offline=True,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
+    frozen = freeze(
+        built, workspace, proof_store=proof_store, verification_mode=verification_mode
+    )
+    verified = verify_release(
+        frozen, proof_store=proof_store, verification_mode=verification_mode
+    )
     exported = export_release(
         frozen,
         variant.view,
@@ -151,11 +171,19 @@ def prepare_variant(
             else load_tokenizer(Path(reused["path"])).get_vocab_size()
         ),
         workspace,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     config = load_config(exported / "run.yaml")
-    export_record = verify_release_export(config.dataset)
+    export_record = verify_release_export(
+        config.dataset, proof_store=proof_store, verification_mode=verification_mode
+    )
     if reused is None:
-        tokenizer = train_tokenizer(load_tokenizer_config(exported / "tokenizer.yaml"))
+        tokenizer = train_tokenizer(
+            load_tokenizer_config(exported / "tokenizer.yaml"),
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
     else:
         tokenizer = Path(reused["path"])
         config = RunConfig.model_validate(

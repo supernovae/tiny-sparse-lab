@@ -122,7 +122,7 @@ def _export_metadata(
         "splits": {
             split: {
                 "path": f"{view}/{split}.jsonl",
-                "sha256": sha256_file(release_dir / str(view) / f"{split}.jsonl"),
+                "sha256": manifest["files"][f"{view}/{split}.jsonl"]["sha256"],
                 "records": count,
                 "rendered_bytes": size,
             }
@@ -148,12 +148,20 @@ def export_release(
     base_run_config: Path,
     vocab_size: int,
     work_root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> Path:
     """Create two complete configs bound to one verified immutable release."""
     if view not in {"lm", "chat"} or vocab_size < 260:
         raise ValueError("view must be lm or chat and vocab_size must be >= 260")
     release_dir = Path(release_dir).resolve()
-    manifest = _release(release_dir)
+    manifest = _release(
+        release_dir, proof_store=proof_store, verification_mode=verification_mode
+    )
+    from sparselab.corpus.release import _release_closure_key
+
+    release_key = _release_closure_key(release_dir, manifest)
     base = load_config(Path(base_run_config))
     base_digest = sha256_file(Path(base_run_config))
     release_id = str(manifest["release_id"])
@@ -255,6 +263,8 @@ def export_release(
             or (destination / "tokenizer.yaml").read_bytes() != tokenizer_bytes
         ):
             raise ValueError("existing corpus export has changed")
+        if _release_closure_key(release_dir, manifest) != release_key:
+            raise ValueError("release changed during export creation")
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -268,7 +278,11 @@ def export_release(
             raise FileExistsError(
                 f"corpus export appeared during publication: {destination}"
             )
+        if _release_closure_key(release_dir, manifest) != release_key:
+            raise ValueError("release changed during export creation")
         staging.rename(destination)
+    if _release_closure_key(release_dir, manifest) != release_key:
+        raise ValueError("release changed during export creation")
     return destination
 
 

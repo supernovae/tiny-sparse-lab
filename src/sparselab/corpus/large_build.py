@@ -13,10 +13,11 @@ import os
 import sqlite3
 import tempfile
 from array import array
-from collections import Counter, defaultdict
-from contextlib import ExitStack
+from collections import Counter, defaultdict, deque
+from concurrent.futures import Future, ProcessPoolExecutor
+from contextlib import ExitStack, nullcontext
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.corpus.progress import BuildProgress
 from sparselab.corpus.provenance import (
@@ -30,8 +31,14 @@ from sparselab.corpus.provenance import (
 from sparselab.corpus.rights import resolve_file_rights
 from sparselab.training.manifest import canonical_json, sha256_file
 
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
+
+
 _SPLITS = ("train", "validation", "test")
 _PREPARED_FILES = ("docs.jsonl", "spans.jsonl", "rejected.jsonl")
+_PROCESS_SHARD_MIN_BYTES = 32 * 1024**2
+_PROCESS_SHARD_MAX_LINE_BYTES = 1024**2
 
 
 def _digest(value: Any) -> str:
@@ -84,6 +91,81 @@ def _verify_prepared(path: Path, identity: dict[str, Any]) -> dict[str, Any]:
 
 class _SourceParseError(ValueError):
     """Input file rejected by the normalizer, not a broken receipt or build."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.documents = 0
+        self.input_bytes = 0
+        self.output_records = 0
+
+
+class _ShardProgress:
+    """Accumulate worker counters; the parent journals in input order."""
+
+    def __init__(self) -> None:
+        self.documents = 0
+        self.input_bytes = 0
+        self.output_records = 0
+        self.reused = False
+
+    def update(
+        self, *, documents: int = 0, input_bytes: int = 0, output_records: int = 0
+    ) -> None:
+        self.documents += documents
+        self.input_bytes += input_bytes
+        self.output_records += output_records
+
+    def record(self, event: str) -> None:
+        if event == "reused_verified_shard":
+            self.reused = True
+
+
+def _prepare_shard(**kwargs: Any) -> tuple[Path, int, int, int, bool]:
+    progress = _ShardProgress()
+    try:
+        shard = _prepare_file(**kwargs, progress=progress)
+    except _SourceParseError as error:
+        error.documents = progress.documents
+        error.input_bytes = progress.input_bytes
+        error.output_records = progress.output_records
+        raise
+    return (
+        shard,
+        progress.documents,
+        progress.input_bytes,
+        progress.output_records,
+        progress.reused,
+    )
+
+
+def _process_shard_workers(count: int) -> int:
+    """Use the shared planner with the measured 512 MiB per-process bound."""
+    if count < 2:
+        return 1
+    import psutil
+
+    from sparselab.host_capacity import plan_host_workers
+
+    try:
+        total = psutil.virtual_memory().total
+        return plan_host_workers(
+            "corpus_jsonl_shards",
+            worker_memory_bytes=512 * 1024**2,
+            reserve_bytes=max(1024**3, total // 10),
+            operator_cap=min(2, count),
+        ).workers
+    except AttributeError, OSError, psutil.Error, TypeError, ValueError:
+        # Unknown or insufficient capacity retains the existing serial parser.
+        return 1
+
+
+def _bounded_jsonl_shard(path: Path) -> bool:
+    """Keep oversized JSON rows on the serial path rather than guessing RSS."""
+    with path.open("rb") as stream:
+        while line := stream.readline(_PROCESS_SHARD_MAX_LINE_BYTES + 1):
+            if len(line) > _PROCESS_SHARD_MAX_LINE_BYTES:
+                return False
+    return True
 
 
 def _prepare_file(
@@ -896,6 +978,9 @@ def build_large(
     build_id: str,
     target: Path,
     progress: BuildProgress,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> Path:
     """Build an LM-only v3 corpus with durable per-input receipts and disk-backed joins."""
     from sparselab.corpus.acquisition import verify_snapshot
@@ -921,7 +1006,9 @@ def build_large(
         ):
             continue
         snapshot_path = Path(lock_row["snapshot_path"])
-        snapshot = verify_snapshot(snapshot_path)
+        snapshot = verify_snapshot(
+            snapshot_path, proof_store=proof_store, verification_mode=verification_mode
+        )
         nested_path = source.rights.nested_metadata_path if source.rights else None
         nested_metadata = (
             {
@@ -946,83 +1033,144 @@ def build_large(
                 total_bytes += file["size"]
     progress.expected_input_bytes = total_bytes
     progress.update(phase="normalizing")
-    for source, file, path, lock_row, nested_metadata in inputs:
-        name = file["path"]
-        if name in nested_metadata:
-            rights_files.append(
-                {
-                    "source_id": source.id,
-                    "path": name,
-                    "sha256": file["sha256"],
-                    "size": file["size"],
-                    "role": "license_metadata",
-                    "canonical_uri": source.canonical_uri,
-                    "revision": source.revision,
-                }
+    eligible_jsonl = {
+        path
+        for source, file, path, lock_row, nested_metadata in inputs
+        if source.kind in {"huggingface_dataset", "wikimedia_dump"}
+        and file["path"].endswith(".jsonl")
+        and file["size"] >= _PROCESS_SHARD_MIN_BYTES
+        and file["path"] not in nested_metadata
+        and not (
+            prepared_root
+            / source.id
+            / _digest(
+                _receipt_identity(build_id, source, lock_row["snapshot_sha256"], file)
             )
-            continue
-        decision = (
-            resolve_file_rights(
-                source.rights,
-                name,
-                b"" if name.endswith(".jsonl") else path.read_bytes(),
-                nested_metadata=nested_metadata,
-                prospective_private_research=source.schema_version == 3,
+        ).exists()
+    }
+    workers = _process_shard_workers(len(eligible_jsonl))
+    if workers > 1:
+        eligible_jsonl = {path for path in eligible_jsonl if _bounded_jsonl_shard(path)}
+        workers = _process_shard_workers(len(eligible_jsonl))
+    pool = (
+        ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext(None)
+    )
+    pending: deque[
+        tuple[Future[tuple[Path, int, int, int, bool]], Any, dict[str, Any]]
+    ] = deque()
+
+    def finish_one() -> None:
+        future, source, file = pending.popleft()
+        try:
+            shard, documents, input_bytes, output_records, reused = future.result()
+        except _SourceParseError as exc:
+            source_events.append(
+                {"source_id": source.id, "path": file["path"], "reason": str(exc)}
             )
-            if source.rights
-            else None
+            progress.update(
+                documents=exc.documents,
+                input_bytes=file["size"] + exc.input_bytes,
+                output_records=exc.output_records,
+            )
+            progress.record("source_rejected")
+            return
+        progress.update(
+            documents=documents, input_bytes=input_bytes, output_records=output_records
         )
-        if decision:
-            rights_files.append(
-                {
-                    "source_id": source.id,
-                    "path": name,
-                    "sha256": file["sha256"],
-                    "size": file["size"],
-                    "role": "document",
-                    "canonical_uri": source.canonical_uri,
-                    "revision": source.revision,
-                    "license_url": source.license_url,
-                    "rights": decision.model_dump(mode="json"),
-                }
-            )
-            if decision.training_eligibility not in {
-                "eligible",
-                "eligible_with_obligations",
-            }:
-                source_events.append(
+        if reused:
+            progress.record("reused_verified_shard")
+        prepared.append(shard)
+        source_events.append(shard)
+
+    with pool as executor:
+        for source, file, path, lock_row, nested_metadata in inputs:
+            name = file["path"]
+            if name in nested_metadata:
+                while pending:
+                    finish_one()
+                rights_files.append(
                     {
                         "source_id": source.id,
                         "path": name,
-                        "reason": f"rights {decision.training_eligibility}: {decision.reason}",
+                        "sha256": file["sha256"],
+                        "size": file["size"],
+                        "role": "license_metadata",
+                        "canonical_uri": source.canonical_uri,
+                        "revision": source.revision,
                     }
                 )
-                progress.update(input_bytes=file["size"])
                 continue
-        try:
-            shard = _prepare_file(
-                source=source,
-                file=file,
-                source_path=path,
-                decision=decision,
-                snapshot_sha=lock_row["snapshot_sha256"],
-                prepared_root=prepared_root,
-                build_id=build_id,
-                progress=progress,
+            decision = (
+                resolve_file_rights(
+                    source.rights,
+                    name,
+                    b"" if name.endswith(".jsonl") else path.read_bytes(),
+                    nested_metadata=nested_metadata,
+                    prospective_private_research=source.schema_version == 3,
+                )
+                if source.rights
+                else None
             )
-        except _SourceParseError as exc:
-            source_events.append(
-                {
-                    "source_id": source.id,
-                    "path": name,
-                    "reason": str(exc),
-                }
-            )
-            progress.update(input_bytes=file["size"])
-            progress.record("source_rejected")
-            continue
-        prepared.append(shard)
-        source_events.append(shard)
+            if decision:
+                rights_files.append(
+                    {
+                        "source_id": source.id,
+                        "path": name,
+                        "sha256": file["sha256"],
+                        "size": file["size"],
+                        "role": "document",
+                        "canonical_uri": source.canonical_uri,
+                        "revision": source.revision,
+                        "license_url": source.license_url,
+                        "rights": decision.model_dump(mode="json"),
+                    }
+                )
+                if decision.training_eligibility not in {
+                    "eligible",
+                    "eligible_with_obligations",
+                }:
+                    while pending:
+                        finish_one()
+                    source_events.append(
+                        {
+                            "source_id": source.id,
+                            "path": name,
+                            "reason": f"rights {decision.training_eligibility}: {decision.reason}",
+                        }
+                    )
+                    progress.update(input_bytes=file["size"])
+                    continue
+            kwargs = {
+                "source": source,
+                "file": file,
+                "source_path": path,
+                "decision": decision,
+                "snapshot_sha": lock_row["snapshot_sha256"],
+                "prepared_root": prepared_root,
+                "build_id": build_id,
+            }
+            if executor is not None and path in eligible_jsonl:
+                pending.append(
+                    (executor.submit(_prepare_shard, **kwargs), source, file)
+                )
+                if len(pending) >= workers:
+                    finish_one()
+                continue
+            while pending:
+                finish_one()
+            try:
+                shard = _prepare_file(**kwargs, progress=progress)
+            except _SourceParseError as exc:
+                source_events.append(
+                    {"source_id": source.id, "path": name, "reason": str(exc)}
+                )
+                progress.update(input_bytes=file["size"])
+                progress.record("source_rejected")
+                continue
+            prepared.append(shard)
+            source_events.append(shard)
+        while pending:
+            finish_one()
 
     progress.update(phase="indexing")
     index_root = root / "indices" / build_id

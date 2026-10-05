@@ -192,3 +192,42 @@ exercised stage validate → dispatch prepare → TRANSFER → warm install/priv
 materialize: unchanged worker manifest digest, zero warm CAS SHA reads, isolated
 inodes, private corruption rejected and canonical array SHA unchanged. Config
 key creation preflights symlink ancestry before creating directories.
+
+## Corpus ancestor reuse and bounded parsing
+
+Mutation commands forward the same host-local proof mode through snapshot,
+build, release, export and tokenizer verification. Defaults on direct APIs and
+recovery remain cold. Mutable local acquisition inputs are independently read
+and hashed: a published snapshot receipt never blesses its original raw pathname.
+Full inventory/dependency fingerprints, not a manifest-only memo, bind release
+reuse. Rendering, split statistics and tokenizer document iteration still read
+the bytes their semantics require. Config/evaluation changes reuse unchanged
+ancestors; changed tokenizer/export nodes receive their own canonical bindings.
+
+The measured parser bottleneck included research-exclusion normalization
+(3.082 s of 4.519 s profiled record parsing), not just JSON decoding. Independent
+HF/Wiki JSONL shards at least 32 MiB, with rows bounded to 1 MiB, can use two
+processes. Selection uses the shared CPU/affinity/RAM planner, a 512 MiB bound per
+worker and its reserve; unknown/inadequate capacity, long rows, nested metadata,
+other formats and already prepared shards retain serial processing. Submission
+is bounded and results/counters reduce in canonical source order. SQLite
+deduplication, release identity, provenance, emitted bytes and error ordering
+are unchanged. No arbitrary regex/ISA rewrite or blanket source parallelism.
+
+Three alternating fresh-process observations of two 32 MiB shards include row
+preflight, process startup and shard receipt/output hashing. Serial median:
+5.076521 s (5.059783–5.076647); two-process median: 3.415149 s
+(3.383993–3.447172). Exact output SHA matched all six observations. Process-tree
+RSS maxima were 270,241,792/908,754,944 bytes, observed swap zero; sampled CPU
+lower-bound medians 5.23/7.98 s, physical I/O unavailable. This trades CPU/RAM for
+shard preparation wall time, not a measured end-to-end corpus speedup.
+Separate warmed multi-file SHA observations were not comparable end-to-end
+release measurements; release hashing remains serial.
+
+Raw measurement: task-owned `corpus-process-final.json`,
+SHA-256 `7222e089bf001452b96f0a38aaac82fae39456601c07ade4547627726b775ce9`;
+package implementation `3d55097f77cee97595f50030ca57e9669c2077943187bbfa5d56a3e336fc7557`.
+The 138-test focused gate covers snapshot/ancestor reuse, same-size restored-mtime
+mutation, canonical tokenizer/export binding, config/evaluation-only changes,
+and serial/process full-build bytes plus failure counters. Actual CLI acquire,
+repeated offline build and freeze completed in the disposable sample workspace.

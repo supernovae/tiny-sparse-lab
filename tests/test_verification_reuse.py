@@ -301,3 +301,98 @@ def test_unsafe_config_ancestry_never_creates_key_outside_selected_path(
     assert all(proof.cold_verified for proof in verified.receipt.proofs.values())
     assert store.recorded == 0
     assert not (outside / "new-config").exists()
+
+
+def test_execution_config_and_evaluation_protocol_reuse_prepared_ancestors(
+    trusted_prepared, monkeypatch
+):
+    from sparselab.experiments.lock import resolve_plan
+    from sparselab.experiments.plan import ExperimentPlan
+
+    root, config, prepared = trusted_prepared
+    store = ProofStore(root)
+    panel = root / "panel.json"
+    panel.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "first-panel",
+                "evaluations": [
+                    {"id": "heldout", "role": "gate", "kind": "heldout_lm"}
+                ],
+            }
+        )
+    )
+    plan = ExperimentPlan.model_validate(
+        {
+            "plan_version": 1,
+            "id": "ancestor-reuse",
+            "base_run": config,
+            "evaluation_suite": panel.name,
+            "artifacts": {
+                "tokenizer": {
+                    "kind": "tokenizer",
+                    "version": 1,
+                    "producer": "sparselab",
+                    "identifier": config.tokenizer.path.parent.name,
+                    "sha256": manifests.sha256_file(config.tokenizer.path),
+                    "path": str(config.tokenizer.path),
+                },
+                "packed": {
+                    "kind": "prepared_data",
+                    "version": 1,
+                    "producer": "sparselab",
+                    "identifier": prepared.manifest["settings_sha256"],
+                    "sha256": prepared.manifest["manifest_sha256"],
+                    "path": str(prepared.root),
+                },
+            },
+            "inputs": {"tokenizer": "tokenizer", "training": "packed"},
+        }
+    )
+    source = root / "plan.json"
+    source.write_text(plan.model_dump_json())
+    options = {"proof_store": store, "verification_mode": "verified_reuse"}
+    original = resolve_plan(plan, source, **options)
+    reads = []
+    hasher = manifests.sha256_file
+
+    def counted(path, *args, **kwargs):
+        if path.suffix == ".npy":
+            reads.append(path.name)
+        return hasher(path, *args, **kwargs)
+
+    monkeypatch.setattr(manifests, "sha256_file", counted)
+    changed_config = config.model_copy(
+        update={
+            "optimizer": config.optimizer.model_copy(
+                update={
+                    "peak": config.optimizer.peak / 2,
+                    "floor": config.optimizer.floor / 2,
+                }
+            ),
+        }
+    )
+    config_plan = plan.model_copy(update={"base_run": changed_config})
+    source.write_text(config_plan.model_dump_json())
+    config_lock = resolve_plan(config_plan, source, **options)
+    assert config_lock.scientific_sha256 != original.scientific_sha256
+    assert reads == []
+    panel.write_text(
+        json.dumps(
+            {
+                "evaluation_suite_version": 1,
+                "id": "revised-panel",
+                "evaluations": [
+                    {"id": "revised-heldout", "role": "gate", "kind": "heldout_lm"}
+                ],
+            }
+        )
+    )
+    revised = resolve_plan(config_plan, source, **options)
+    assert revised.scientific_sha256 != config_lock.scientific_sha256
+    assert reads == []
+    assert (
+        prepared.manifest["manifest_sha256"]
+        == _load(prepared, store).manifest["manifest_sha256"]
+    )

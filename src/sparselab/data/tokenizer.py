@@ -285,7 +285,12 @@ def _snapshot_digest(config: TokenizerTrainConfig) -> str | None:
     return hashlib.sha256(config.dataset.source_manifest_path.read_bytes()).hexdigest()
 
 
-def train_tokenizer(config: TokenizerTrainConfig) -> Path:
+def train_tokenizer(
+    config: TokenizerTrainConfig,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> Path:
     """Train BPE from a bounded train-only UTF-8 byte prefix."""
     from sparselab.workspace_preflight import require_storage, tokenizer_storage_checks
 
@@ -297,7 +302,11 @@ def train_tokenizer(config: TokenizerTrainConfig) -> Path:
 
     input_byte_budget = config.dataset.train_max_tokens
     corpus_export = (
-        verify_release_export(config.dataset)
+        verify_release_export(
+            config.dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         if config.dataset.corpus_release_path is not None
         else None
     )
