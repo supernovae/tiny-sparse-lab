@@ -196,9 +196,10 @@ fixed unless they are the declared variable; report unavoidable budget asymmetry
   [official Flash-Next model card](https://huggingface.co/Qwen/Qwen3.8-Flash-Next)
   lists 125B main parameters, 51B n-gram embeddings and 4B MTP, with 6B active:
   this is not a sub-35B-total model or a small-device performance demonstration.
-  Serving support is implementation-specific: current [vLLM PLE offload
-  documentation](https://docs.vllm.ai/en/latest/features/engram/#cpu-offload)
-  requires UVA support on a CUDA-alike platform; [llama.cpp lazy reads](https://github.com/ggml-org/llama.cpp/blob/c06f84160a30c66d7b5a2829ae9b3ea15275cbc3/tools/cli/README.md)
+  The [Qwen-specific vLLM recipe](https://github.com/vllm-project/recipes/blob/8faeba99ff3445c151d4758abb06060388cba9f3/models/Qwen/Qwen3.8-Flash-Next.yaml)
+  documents its `VLLM_PLE_CPU_OFFLOAD` host-memory path as NVIDIA-only;
+  general UVA/CUDA-alike capability does not establish this path's ROCm support.
+  [llama.cpp lazy reads](https://github.com/ggml-org/llama.cpp/blob/c06f84160a30c66d7b5a2829ae9b3ea15275cbc3/tools/cli/README.md)
   are a separate mmap-based disk path. Neither establishes Tiny Sparse Lab ROCm
   support or performance.
 
