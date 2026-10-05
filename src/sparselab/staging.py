@@ -373,6 +373,10 @@ def verify_stage_bundle(
     tokenizer = load_tokenizer(root / "assets" / "tokenizer.json")
     if tokenizer.get_vocab_size() != base.model.vocab_size:
         raise ValueError("staged tokenizer vocabulary does not match model")
+    if base.dataset.corpus_release_path is not None:
+        from sparselab.workers.bundles import verify_portable_corpus_binding
+
+        verify_portable_corpus_binding(base, assets)
     _verify_allocation_assets(
         root / "assets",
         config,
@@ -661,6 +665,12 @@ def materialize_prepared_inputs(
                         observer=observer,
                     )
                 )
+            if config.dataset.corpus_release_path is not None:
+                from sparselab.workers.bundles import _copy_portable_corpus
+
+                # Pilots consume these inputs before dispatch, and must not reopen
+                # controller-local export configs to authenticate the tokenizer.
+                _copy_portable_corpus(config, assets)
             copied.update(
                 {
                     f"data/{name}": proof
@@ -821,6 +831,10 @@ def verify_prepared_inputs(
     tokenizer = load_tokenizer(root / "assets" / "tokenizer.json")
     if tokenizer.get_vocab_size() != config.model.vocab_size:
         raise ValueError("prepared tokenizer vocabulary does not match model")
+    if config.dataset.corpus_release_path is not None:
+        from sparselab.workers.bundles import verify_portable_corpus_binding
+
+        verify_portable_corpus_binding(config, assets)
     if not len(data.train) or not len(data.validation):
         raise ValueError("prepared data is empty")
     _verify_allocation_assets(

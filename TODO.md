@@ -31,11 +31,17 @@ close a code item unless the named software acceptance criteria also pass.
   and relocated offline worker execution with bounded CPU regressions; see
   `docs/experiment-programs.md#direct-story-inputs`. Live Hub and accelerator
   execution were not exercised.
-- [ ] Preserve Corpus Forge export/tokenizer provenance when sealing authored
+- [x] Preserve Corpus Forge export/tokenizer provenance when sealing authored
   plan inputs for worker pilots. A prepared/locked offline Forge plan passes
   local warmup but its worker smoke fails because tokenizer verification cannot
   find the sealed export's `run.yaml`. Cover dispatch through parent ingestion
   and child continuation, with all provenance files verified after relocation.
+  Sealed portable release/export/tokenizer evidence at preparation and verified
+  it through relocated CPU smoke/warmup, parent ingestion and child resume;
+  missing/changed files and rebound inner identities are rejected. See
+  `tests/test_forge_dispatch.py` and
+  `docs/experiment-programs.md#forge-worker-provenance`. No accelerator or
+  scientific MODEL-0 results were changed or claimed.
 - [ ] Add a non-gating, checkpoint-bound descriptive generation-panel Campaign
   stage. Bind the collected immutable generation/SHA, authenticated evaluation
   index, accepted runtime profile, panel declaration and exact decoder/seed;
