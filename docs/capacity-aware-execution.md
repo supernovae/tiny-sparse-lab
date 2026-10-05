@@ -451,3 +451,63 @@ The affected 70 cases passed across the 69-pass broad subset and the corrected
 runtime-relocation case. Corrected-source small/medium/real benchmark and CLI
 gates are required before final publication. The earlier measurement table is
 revision-labelled evidence, not silently relabelled.
+
+## Corrected-source final gate
+
+Clean benchmark revision `1b644745999b0f27e462ddfc850b33d29eaab13c`
+uses the corrected implementation `466b154e…de5f7b`. Its 28 small and 84
+medium cases passed all array, prepared/plan/scientific, frozen-stage and
+dispatch identity comparisons. Each medium row again has three repetitions.
+The full locked CPU suite passed **1606 tests, 12 skipped in 1225.73 s**.
+Ruff check and format check passed (536 files). No accelerator or real
+MODEL-0/MODEL-1 training was launched.
+
+| Workload | Before wall s | After wall s | Avoided SHA bytes | Workers | Peak tree RSS B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Medium prepared cold | 1.403549 | 1.432169 | 0 | 1 | 384638976 |
+| Medium resolve cold | 1.486785 | 1.509235 | 0 | 1 | 388173824 |
+| Medium open cold | 1.455063 | 1.456826 | 0 | 1 | 385310720 |
+| Medium materialize cold | 1.626155 | 1.724634 | 0 | 1 | 389394432 |
+| Medium prepared warm | not measured | 1.451629 | 68157696 | 1 | 382468096 |
+| Medium worker install warm | not measured | 1.467706 | 68157696 | 1 | 384405504 |
+| Original MODEL-0 cold, single/cache uncontrolled | 3.363676 | 8.795047 | 0 | 1 | 384327680 |
+| Task-owned MODEL-0 warm, three repetitions | not measured | 1.446625 | 4031007060 | 1 | 383508480 |
+| Independent two 32 MiB JSONL shard preparation | 5.076521 | 3.415149 | 0 | 2 | 908754944 |
+| Isolated 64 MiB copy, buffered → native | 0.130750 | 0.123528 | 0 | 1 | 377782272 |
+
+Corrected-source real warm range: 1.417440–1.456875 s. Real cross-filesystem
+transfer/prime: 12.130999 s, 385167360 B peak tree RSS, buffered fallback and
+exact frozen array SHA. Frozen-stage native/buffered medians
+1.945728/1.962605 s and dispatch-create 2.000095/2.002844 s have overlapping
+ranges: the earlier no-end-to-end-native-speedup conclusion remains.
+
+Independent current-source `sparselab experiment lock`, warm `explain` and
+`explain --cold-verify` returned identical scientific/plan digests. A separate
+instrumented CLI interpreter observed no warm `.npy` SHA reads, and exactly
+train/validation reads when cold. Signed-proof mutation, stale implementation,
+corruption, crash recovery and private-copy isolation gates passed in the full
+suite. Historical MODEL-0 lock/source authority was intentionally not rewritten;
+real immutable payload verification and new current-source CLI locks were
+exercised instead. Physical I/O and accelerator observations remain unavailable,
+not inferred from wall time.
+
+Corrected raw references under the task-owned external root:
+- `after-small-corrected.json`: `c002d546efd5aa385bb58be67504e0de490c755f52ffd0a94f4c06f5e726c8a3`
+- `after-corrected.json`: `33e08d402e5dc9d665cddc1e8d44cc0d4c6445075f8bba5903b67a6f55fa1c9b`
+- `final-cli-corrected.json`: `33d2df99fb7ff3b0873dac2e0385f40b90812eb0216a97141de684ee75d7d2e4`
+- `recovery-final-smoke.json`: `a756cf39bed1c740f8472f368552b14e7f4abd2c45197cbffaca2e0abe2a1616`
+
+Opt-in API; absent observer means no phase sampling:
+
+```python
+from sparselab.bottleneck_observations import BottleneckObserver
+from sparselab.data.packing import prepare_data
+
+observer = BottleneckObserver()
+prepared = prepare_data(config, tokenizer, observer=observer)
+operational_records = observer.records
+```
+
+The same observer can be passed to `stage`, `Controller` and `CampaignEngine`.
+Records remain operational; endpoint RSS is not a lifetime/phase peak and
+missing accelerator probes produce unknown, not an accelerator-bound claim.
