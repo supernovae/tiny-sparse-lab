@@ -10,9 +10,7 @@ from test_staging import _config
 
 from sparselab.staging import (
     materialize_prepared_inputs,
-    stage,
     verify_prepared_inputs,
-    verify_stage_bundle,
 )
 from sparselab.training import manifest as manifest_module
 from sparselab.verification_proofs import verification_options
@@ -76,32 +74,3 @@ def test_cold_mode_does_not_use_proof_even_when_present(
     assert cold == {"proof_store": None, "verification_mode": "cold"}
     verify_prepared_inputs(prepared, config, **cold)
     assert (store.hits, store.misses, store.recorded) == before
-
-
-def test_stage_bundle_warm_skips_payload_but_cold_rehashes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    config = _config(tmp_path)
-    bundle = stage(config, tmp_path / "stage", through="validate")
-    private_config = tmp_path / "private-config"
-    private_config.mkdir(mode=0o700)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(private_config))
-    options = verification_options(tmp_path)
-    original = manifest_module.sha256_file
-    hashed: list[Path] = []
-
-    def count_hash(path: Path, **kwargs: object) -> str:
-        hashed.append(path)
-        return original(path, **kwargs)
-
-    monkeypatch.setattr(manifest_module, "sha256_file", count_hash)
-    first = verify_stage_bundle(bundle, config, **options)
-    assert [path for path in hashed if path.suffix == ".npy"]
-    hashed.clear()
-    second = verify_stage_bundle(bundle, config, **options)
-    assert first["sha256"] == second["sha256"]
-    assert not [path for path in hashed if path.suffix == ".npy"]
-    hashed.clear()
-    cold = verify_stage_bundle(bundle, config)
-    assert cold["sha256"] == first["sha256"]
-    assert [path for path in hashed if path.suffix == ".npy"]

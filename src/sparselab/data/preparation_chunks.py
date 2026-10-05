@@ -28,6 +28,9 @@ from sparselab.data.verification import (
     required_arrays,
     verify_file,
 )
+from sparselab.data.verification import (
+    _fingerprint as _verified_fingerprint,
+)
 from sparselab.training.manifest import canonical_json
 
 _after_sealed_chunk: Callable[[str, int, Path], None] | None = None
@@ -480,7 +483,7 @@ class PreparationChunks:
                 or metadata.get("tokens") != values.shape[0]
                 or metadata.get("size_bytes") != proof.size_bytes
                 or values.shape[0] == 0
-                or _fingerprint(root / name) != proof.fingerprint
+                or _verified_fingerprint(root / name) != proof.fingerprint
             ):
                 raise ValueError(f"published staging array metadata mismatch: {name}")
             proofs[name] = proof

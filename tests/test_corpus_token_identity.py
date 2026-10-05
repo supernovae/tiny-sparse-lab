@@ -220,7 +220,7 @@ def test_normal_operation_rejects_changed_manifest(
 ) -> None:
     copied = tmp_path / "releases" / lm_release.name
     shutil.copytree(lm_release, copied)
-    (tmp_path / "snapshots").symlink_to(lm_release.parent.parent / "snapshots")
+    shutil.copytree(lm_release.parent.parent / "snapshots", tmp_path / "snapshots")
     tokenizer = _tokenizer(tmp_path / "tokenizer", 2)
     (tokenizer.parent / "tokenizer_manifest.json").write_text(
         json.dumps(

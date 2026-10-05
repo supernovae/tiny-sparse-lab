@@ -373,3 +373,81 @@ than accepting stale signed authority. Config/evaluation changes resolve a new
 protocol identity while retaining eligible unchanged ancestors; this does not
 authorize in-place rewriting of an accepted Campaign declaration or migration
 of its immutable stage receipts.
+
+## Final observations and remaining ROI
+
+Measured clean revision `63cc36ae73bc202603e399261b0c43d829842677`,
+package implementation
+`18d5ac531bf89cf60333f63d2d57be015e17edcb44bfe1d0b6b9082a0467356d`.
+The final harness passed 28 small and 84 medium cases; every medium case has
+three repetitions. Full median/range, user/system CPU, sampled peak tree RSS,
+logical SHA/copy authentication bytes and identity assertions are in
+`artifacts/benchmarks/capacity-aware-execution-v1-results.json`.
+
+| Workload | Before wall s | After wall s | Avoided SHA bytes | Workers | Peak tree RSS B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Medium prepared cold | 1.403549 | 1.446355 | 0 | 1 | 384479232 |
+| Medium resolve cold | 1.486785 | 1.501696 | 0 | 1 | 387932160 |
+| Medium open cold | 1.455063 | 1.469207 | 0 | 1 | 387940352 |
+| Medium materialize cold | 1.626155 | 1.680747 | 0 | 1 | 389292032 |
+| Medium prepared warm | not measured | 1.437198 | 68157696 | 1 | 383152128 |
+| Medium worker install warm | not measured | 1.464224 | 68157696 | 1 | 384413696 |
+| Original MODEL-0 cold, single/cache uncontrolled | 3.363676 | 8.793402 | 0 | 1 | 383934464 |
+| Task-owned MODEL-0 warm, three repetitions | not measured | 1.414212 | 4031007060 | 1 | 382341120 |
+| Independent two 32 MiB JSONL shard preparation | 5.076521 | 3.415149 | 0 | 2 | 908754944 |
+| Isolated 64 MiB copy, buffered → native | 0.130750 | 0.123528 | 0 | 1 | 377782272 |
+
+Warm real verification range: 1.405802–1.416089 s, zero payload SHA calls in
+each fresh process. Frozen original train/validation SHA and manifest identity
+remain exact. The task-owned real copy exercised actual cross-filesystem
+buffered fallback (`st_dev` 2096 → 2112), independent destination authentication
+and cold semantic/index priming: 13.440605 s, 385253376 B peak tree RSS.
+This transfer/prime boundary includes an extra destination cold scan to prime
+the standalone harness; it is not the sealed structural materialization path.
+
+No cold end-to-end speedup is established. Medium import-inclusive medians
+overlap or modestly regress; original real cold observations have uncontrolled
+OS-cache/storage conditions and must not be treated as a code comparison.
+Physical read/write counters remain null/unavailable. The native isolated copy
+gain does not imply end-to-end gain: frozen-stage native/buffered medians
+1.970161/1.961420 s have overlapping ranges; dispatch-create native/buffered
+1.992360/1.989157 s also overlap. Keep serial cold SHA and serial evaluation;
+retain measured bounded two-process shard preparation and the isolated native
+copy mechanism with safe buffered fallback. Tokenizer throughput remains
+statistically overlapping, not a claimed acceleration. ISA capability presence
+and OpenSSL `_hashlib` use are operational observations, not benchmarked SIMD.
+
+Remaining measured ranking: native CLI/worker import and serialized RPC startup;
+artifact transfer plus receipt/checkpoint ingestion; required destination SHA,
+semantic/tensor validation and mandatory private-stage hardlink cold checks;
+then native tokenizer work. Durable state idle sleep is not the demonstrated
+reconciliation bottleneck. No new DAG, CAS, scientific defaults, metrics,
+acceptance criteria or worker provenance authority was introduced.
+
+## Full-gate recovery correction
+
+The first full suite completed 1602 passes, 12 skips and eight failures; the
+300-case focused gate and independent lock/explain CLI proof passed first.
+Published-preparation recovery still compared its historical four-field raw
+chunk fingerprint to the new six-field `VerifiedFile` seal. Recovery now uses
+the verifier fingerprint (including mode and ctime) for published arrays; raw
+chunk receipt schema and length indexing remain unchanged. Existing publication
+and cleanup crash-window regressions pass without re-encoding.
+
+A real external-root smoke injected a crash immediately after atomic
+publication, then another interpreter cold-verified all four ID/byte-address
+arrays exactly once, completed cleanup and recovered without encoding.
+Implementation identity:
+`466b154e5c7e0b2d7d8250929cdf3a515723b4169f0896a6e092f0232bde5f7b`.
+The corpus corruption fixture now owns a copied snapshot tree rather than
+passing an unsafe symlink. Runtime registry-relocation coverage uses a real
+resolved/published tokenizer+prepared lock, not a mocked `open_lock` signature
+or incomplete fabricated availability. Obsolete exception-wording/private
+inventory tests and the unsafe persistent-hardlink warm-skip expectation were
+removed rather than re-pinned. Consumer-level mutation, cold verification,
+zero-hash trusted reuse and copy isolation coverage remain.
+
+The affected 70 cases passed across the 69-pass broad subset and the corrected
+runtime-relocation case. Corrected-source small/medium/real benchmark and CLI
+gates are required before final publication. The earlier measurement table is
+revision-labelled evidence, not silently relabelled.

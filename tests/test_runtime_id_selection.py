@@ -8,13 +8,16 @@ from pathlib import Path
 
 import pytest
 import yaml
-from test_experiment_evidence import _lock
 from test_training import config as training_config
 
 from sparselab.cli.main import _prepare_runtime_command, build_parser, main
+from sparselab.data.packing import prepare_data
+from sparselab.data.tokenizer import load_tokenizer
 from sparselab.experiments.binding import open_runtime_binding
 from sparselab.experiments.lock import _identities
+from sparselab.experiments.plan import ExperimentPlan
 from sparselab.runtime_environments import RuntimeEntry, register_runtime
+from sparselab.training.manifest import sha256_file
 
 
 @pytest.fixture
@@ -272,10 +275,39 @@ def test_cli_bind_id_reopens_receipt_without_changing_science_under_relocated_re
 ):
     import sparselab.experiments.lock as locking
 
-    lock = _lock()
+    config = training_config(tmp_path)
+    prepared = prepare_data(config, load_tokenizer(config.tokenizer.path))
+    plan = ExperimentPlan.model_validate(
+        {
+            "plan_version": 1,
+            "id": "runtime-binding-test",
+            "base_run": config,
+            "artifacts": {
+                "tokenizer": {
+                    "kind": "tokenizer",
+                    "version": 1,
+                    "producer": "fixture",
+                    "identifier": config.tokenizer.path.parent.name,
+                    "sha256": sha256_file(config.tokenizer.path),
+                    "path": str(config.tokenizer.path),
+                },
+                "packed": {
+                    "kind": "prepared_data",
+                    "version": 1,
+                    "producer": "fixture",
+                    "identifier": prepared.manifest["settings_sha256"],
+                    "sha256": prepared.manifest["manifest_sha256"],
+                    "path": str(prepared.root),
+                },
+            },
+            "inputs": {"tokenizer": "tokenizer", "training": "packed"},
+        }
+    )
+    source = tmp_path / "plan.json"
+    source.write_text(plan.model_dump_json())
+    lock = locking.resolve_plan(plan, source)
     original = lock.model_dump(mode="json")
-    monkeypatch.setattr(locking, "open_lock", lambda _: lock)
-    path = tmp_path / "locked-plan.json"
+    path = locking.publish_lock(lock, tmp_path)
     work = tmp_path / "work"
     monkeypatch.setattr(
         sys,
