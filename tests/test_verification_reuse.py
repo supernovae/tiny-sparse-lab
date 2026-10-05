@@ -113,16 +113,29 @@ def test_changed_array_or_manifest_fails(trusted_prepared, mutation):
 
 @pytest.mark.parametrize(
     "invalid",
-    ["missing", "forged", "stale", "missing_key", "foreign_key", "permissions"],
+    [
+        "missing",
+        "forged",
+        "stale",
+        "authentic_stale_implementation",
+        "missing_key",
+        "foreign_key",
+        "permissions",
+    ],
 )
 def test_invalid_receipt_falls_back_to_cold(trusted_prepared, invalid, monkeypatch):
     root, _, prepared = trusted_prepared
     store = ProofStore(root)
+    if invalid == "authentic_stale_implementation":
+        # A valid HMAC from an older verifier is still not current authority.
+        store.source_sha256 = "0" * 64
     _load(prepared, store)
     receipts = list(store.directory.glob("*.json"))
     if invalid == "missing":
         for path in receipts:
             path.unlink()
+    elif invalid == "authentic_stale_implementation":
+        store = ProofStore(root)
     elif invalid in {"forged", "stale"}:
         for path in receipts:
             payload = json.loads(path.read_text())

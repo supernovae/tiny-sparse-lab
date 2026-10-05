@@ -345,3 +345,31 @@ Raw task-owned evidence SHA-256:
 - `control-evidence-before.json`: `b7e8ccaf32add93abf334f02a90960b7a91f8034d3693eff19f599960a5b50b0`
 - `step9-smoke.json`: `ae1c5a16e9ba8ee0fdd6177b7defffb2f2f2614bebad8cc629e83cbc46a7e6e7`
 - `step9-cold-smoke.json`: `2feb7c21fd1ed2be98eb99e71ece06541709ca7e6ebfe2ab8111eb9aabc35e67`
+
+## Final comparable harness
+
+The original cold benchmark operations and their import-inclusive timing
+boundaries remain intact. Additional cases prime signed proofs before fresh
+processes measure prepared/plan/lock warm reads, worker TRANSFER/cache reuse and
+owned materialization. Planned cold arrays alternate requested 1/2/4 workers.
+Logical payload-file SHA and private-copy authentication SHA bytes are separate;
+physical I/O remains unavailable. Independent output-array SHA validation is
+reported outside the additional operation timer, not silently excluded from the
+original baseline materialization operation.
+
+Copy-method equivalence compares the **same frozen stage closure** using native
+and forced buffered fallback, and dispatch manifests created from the same
+frozen stage. Independent `stage(..., through="validate")` invocations legitimately
+have different runtime timestamps/RAM observations and therefore different stage
+receipt digests; those receipts are never stripped or re-pinned for equality.
+The frozen copy smoke observed `copy_file_range` and buffered transfer with
+exactly equal stage digest, array bytes and SHA. Reflink is unavailable on this
+filesystem; simulated clone/reflink and cross-device failures remain safety
+regressions, not measured native acceleration.
+
+An authentic HMAC receipt from an older implementation now has a dedicated
+consumer regression: a current verifier falls back to full array SHA rather
+than accepting stale signed authority. Config/evaluation changes resolve a new
+protocol identity while retaining eligible unchanged ancestors; this does not
+authorize in-place rewriting of an accepted Campaign declaration or migration
+of its immutable stage receipts.
