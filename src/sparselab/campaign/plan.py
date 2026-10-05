@@ -270,6 +270,24 @@ class Evaluation(Stage):
         return value
 
 
+class GenerationPanel(Stage):
+    """Descriptive observations; never a readiness or promotion decision."""
+
+    kind: Literal["generation_panel"]
+    scope: Literal["evaluation"]
+    collect: str
+    evaluation: str
+    runtime: str
+    panel: str
+    backend: Literal["cpu", "mps", "cuda", "rocm", "xpu", "metal"] | None = None
+
+    @field_validator("panel")
+    @classmethod
+    def valid_panel(cls, value: str) -> str:
+        safe_path(Path("."), value)
+        return value
+
+
 class ModelReadiness(Stage):
     kind: Literal["model_readiness"]
     scope: Literal["model"]
@@ -317,6 +335,7 @@ CampaignStage = Annotated[
     | ExperimentRun
     | ExperimentCollect
     | Evaluation
+    | GenerationPanel
     | ModelReadiness
     | Approval,
     Field(discriminator="kind"),
@@ -425,6 +444,16 @@ class CampaignPlan(StrictModel):
                     collect = by_id[stage.collect]
                     if by_id[stage.runtime].plan != collect.plan:
                         raise ValueError("evaluation runtime belongs to another plan")
+            elif isinstance(stage, GenerationPanel):
+                input_is(stage.collect, ("experiment_collect", None))
+                input_is(stage.evaluation, ("evaluation", None))
+                input_is(stage.runtime, ("runtime_acceptance", None))
+                if by_id[stage.evaluation].collect != stage.collect:
+                    raise ValueError(
+                        "generation panel evaluation belongs to another collection"
+                    )
+                if by_id[stage.runtime].plan != by_id[stage.collect].plan:
+                    raise ValueError("generation panel runtime belongs to another plan")
             elif isinstance(stage, ModelReadiness):
                 input_is(stage.evaluation, ("evaluation", None))
             elif isinstance(stage, Approval):
@@ -483,6 +512,8 @@ def load_campaign(path: Path) -> CampaignPlan:
                     operational_path(path.parent, stage.lock)
             elif isinstance(stage, Evaluation):
                 safe_path(path.parent, stage.suite)
+            elif isinstance(stage, GenerationPanel):
+                safe_path(path.parent, stage.panel)
             elif isinstance(stage, ModelReadiness):
                 safe_path(path.parent, stage.policy)
                 if stage.review is not None:
