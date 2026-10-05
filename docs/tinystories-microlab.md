@@ -5,7 +5,9 @@ compare two feed-forward widths using a YAML experiment matrix. The checked-in
 [sample files](../experiments/samples/tinystories-microlab/) use a pinned
 TinyStories revision, a train-only 2,048-token BPE, and a small dense decoder.
 The default is 40 optimizer updates and 10,240 supervised targets per model:
-enough to learn the workflow, not enough to expect fluent stories.
+enough to learn the workflow, not enough to expect fluent stories. Follow one
+baseline through evaluation and a larger-exposure child before the optional
+fresh architecture matrix. No Python scripting is required.
 
 For an authored training program with immutable input bindings and checkpoint
 dependencies, continue with [Chain a training program](experiment-programs.md).
@@ -18,10 +20,14 @@ On CPU or macOS, install the locked environment:
 
 ```sh
 uv sync --locked --extra cpu --dev
-export SPARSELAB_WORK_DIR="$PWD/sparselab-work"
+export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 WORK="$SPARSELAB_WORK_DIR/experiments/tinystories-microlab"
 SAMPLE=experiments/samples/tinystories-microlab
-mkdir -p "$WORK/inputs"
+mkdir -p "$WORK"
+# Choose a new task name if inputs already exists; preserve prior experiments.
+mkdir "$WORK/inputs"
+cp "$SAMPLE/run.yaml" "$SAMPLE/tokenizer.yaml" "$SAMPLE/continued.yaml" \
+  "$SAMPLE/matrix.yaml" "$WORK/inputs/"
 ```
 
 On a provisioned ROCm/CUDA/XPU worker, use its documented vendor environment
@@ -30,39 +36,24 @@ and `uv run --locked --no-sync` for every command below. Running `uv sync` or
 lock. See [worker provisioning](workers.md#user-provisioned-ssh-workers).
 
 Keep downloaded source, tokenizers, prepared data, checkpoints and outputs in
-this ignored workspace. The preparation commands bound the selected text, but
+this external workspace. The preparation commands bound the selected text, but
 the upstream download cache can be larger. Check actual available bytes and
 inodes before downloading; allow several GB for the source cache in addition to
 the small models. The preflight commands estimate known local growth and do not
 bound the upstream download.
 
-Make editable inputs with absolute workspace paths. This also gives you a place
-to select your backend without changing the checked-in sample:
+Paths in the copied YAML are anchored to `$WORK/inputs`: `../tokenizer`,
+`../data` and `../runs` stay within this task workspace. Run the copies, not
+the templates in the checkout. No environment substitution inside YAML is
+required. Select another backend by editing `runtime.backend` in both copied
+run configs before compute; keep every other scientific field matched.
 
-```sh
-uv run --locked --extra cpu python - <<'PY'
-import os
-from pathlib import Path
-import yaml
-from sparselab.config import load_config, load_tokenizer_config
-
-sample = Path("experiments/samples/tinystories-microlab")
-work = Path(os.environ["SPARSELAB_WORK_DIR"]) / "experiments/tinystories-microlab"
-inputs = work / "inputs"
-run = load_config(sample / "run.yaml").model_dump(mode="json")
-tokenizer = load_tokenizer_config(sample / "tokenizer.yaml").model_dump(mode="json")
-run["tokenizer"]["path"] = str(work / "tokenizer/tokenizer.json")
-run["dataset"]["cache_dir"] = str(work / "data")
-run["logging"]["root_dir"] = str(work / "runs")
-tokenizer["output_dir"] = str(work / "tokenizer")
-tokenizer["dataset"]["cache_dir"] = str(work / "data")
-# Select "mps" or "rocm" here when that backend is available.
-run["runtime"]["backend"] = "cpu"
-for name, value in (("run.yaml", run), ("tokenizer.yaml", tokenizer)):
-    (inputs / name).write_text(yaml.safe_dump(value, sort_keys=False))
-(inputs / "matrix.yaml").write_text((sample / "matrix.yaml").read_text())
-PY
-```
+These examples use Bash. See [the iteration guide](iteration.md) for PowerShell
+setup and equivalent variable syntax; native commands are the same.
+For a generated mechanism lesson instead, use the existing `learn scaffold dense`
+with `--scale nano --data tinystories --backend cpu` and a fresh `--output`
+directory, then follow its generated README. That is a separate configuration,
+not this sample's baseline.
 
 | Host/device | Configuration | Current boundary |
 |---|---|---|
@@ -112,8 +103,9 @@ uv run --locked --extra cpu sparselab checkpoint verify \
   "$WORK/runs/stories-base/checkpoints/latest.json" --json
 uv run --locked --extra cpu sparselab eval stories-base --runs-dir "$WORK/runs"
 uv run --locked --extra cpu sparselab evidence stories-base --runs-dir "$WORK/runs" --json
+uv run --locked --extra cpu sparselab triage stories-base --runs-dir "$WORK/runs"
 uv run --locked --extra cpu sparselab generate stories-base --runs-dir "$WORK/runs" \
-  --prompt "Once upon a time, a little rabbit" --max-new-tokens 32
+  --prompt "Once upon a time, a little rabbit" --max-new-tokens 32 --seed 42
 uv run --locked --extra cpu sparselab dashboard --runs-dir "$WORK/runs"
 ```
 
@@ -121,9 +113,84 @@ The dashboard runs in the foreground; stop it or use another terminal for the
 next steps. This is language-model training, so story continuations are the
 natural first interaction. Record held-out loss and actual target counts beside
 the generated text; neither a short completion nor lower loss establishes a
-general assistant. Use new run IDs for repetitions.
+general assistant. Use new run IDs for repetitions. For a single fresh run
+without separate staging, the existing composed
+`sparselab run "$WORK/inputs/run.yaml" --store "$WORK/runs"` prepares,
+queues, pilots, trains and waits for ingestion. Choose that route or staged
+`train` above; running both creates another baseline.
 
-## Compare two architectures with the matrix DSL
+## Iterate on exposure while preserving the parent
+
+The copied [continued.yaml](../experiments/samples/tinystories-microlab/continued.yaml)
+is a complete child config. Its intended scientific delta is:
+
+| Field | Baseline | Child |
+|---|---:|---:|
+| `training.max_steps` | 40 | 80 cumulative |
+| `training.max_tokens` | 10,240 | 20,480 cumulative |
+| Effective decay horizon | 40 (implicit) | 40 (explicit `optimizer.decay_steps`) |
+
+The child adds 40 updates / 10,240 targets and retains other scientific
+settings. It restores full optimizer state, cursor, counters and RNG and
+continues at the original learning-rate floor. This is PyTorch AdamW budget
+extension; skip it for MLX. If you edited the baseline backend or other settings,
+make the identical edits in the copied child config before compute.
+
+Inspect the terminal parent using native commands:
+
+```sh
+uv run --locked --extra cpu sparselab checkpoint inspect \
+  "$WORK/runs/stories-base/checkpoints/latest.json" --json
+ls "$WORK/runs/stories-base/checkpoints"
+```
+
+Copy the full finalized `step_00000040_gen_...` directory name corresponding
+to the inspected terminal checkpoint. Replace `ACTUAL` below with that suffix.
+Do not select a verified parent by sorting filenames. Verify and inspect the
+exact directory: its SHA must match the inspected pointer and its counters
+must be 40 updates and 10,240 targets.
+
+```sh
+GENERATION="$WORK/runs/stories-base/checkpoints/step_00000040_gen_ACTUAL"
+uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" \
+  --config "$WORK/inputs/run.yaml" --json
+uv run --locked --extra cpu sparselab checkpoint inspect "$GENERATION" --json
+uv run --locked --extra cpu sparselab inspect "$WORK/inputs/continued.yaml"
+uv run --locked --extra cpu sparselab workspace preflight "$WORK/inputs/continued.yaml"
+uv run --locked --extra cpu sparselab train "$WORK/inputs/continued.yaml" \
+  --runs-dir "$WORK/runs" --run-id stories-continued --extend-budget "$GENERATION"
+uv run --locked --extra cpu sparselab checkpoint verify \
+  "$WORK/runs/stories-continued/checkpoints/latest.json" --json
+uv run --locked --extra cpu sparselab eval stories-continued --runs-dir "$WORK/runs"
+uv run --locked --extra cpu sparselab evidence stories-continued --runs-dir "$WORK/runs" --json
+uv run --locked --extra cpu sparselab triage stories-continued --runs-dir "$WORK/runs"
+uv run --locked --extra cpu sparselab generate stories-continued --runs-dir "$WORK/runs" \
+  --prompt "Once upon a time, a little rabbit" --max-new-tokens 32 --seed 42
+uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
+```
+
+Full-state extension validates scientific compatibility before creating a child.
+Read the native evidence's actual counters and parent digest. Compare heldout
+loss and identical prompt/decoder observations; retain repetitive or worse
+outputs. Select the child immutable generation the same way and use
+`--checkpoint` for retained endpoint evaluation/generation. Lower loss does
+not establish better prose. Triage reads retained advice; missing advice does
+not authorize another run.
+
+An interrupted child uses `--resume` with its unchanged child config, verified
+checkpoint and a new run ID. Preserve the interrupted attempt. `--promote`
+resets training state and answers another question. Source/runtime drift fails
+unless explicitly authorized by the native contract; do not bypass it with
+Python. See [checkpointing](checkpointing.md).
+
+This direct teaching route still asks the operator to copy an immutable
+generation path. ExperimentPlan's `parent`, `selector: terminal` and `at_step`
+already bind that selection declaratively. Native direct-input binding and
+a full Campaign demo are [tracked implementation work](../TODO.md#rapid-iteration),
+not shipped one-command automation. Use [the iteration guide](iteration.md)
+for current checks between runs.
+
+## Optional fresh architecture comparison with the matrix DSL
 
 The sample matrix changes one field, `model.ffn_dim`, from 256 to 384:
 
@@ -167,47 +234,6 @@ establish a universal winning architecture. Add labeled seed choices for a
 larger declared matrix. [Controlled comparisons](experiments.md) explains
 study receipts, task-specific capability cards and collection when your
 experiment has a separately defined behavioral test.
-
-## Continue a verified checkpoint
-
-For a completed PyTorch AdamW run, explicitly extend the budget to 80 updates
-and 20,480 cumulative targets while retaining the original 40-update decay
-horizon. Make a new config:
-
-```sh
-uv run --locked --extra cpu python - <<'PY'
-import os
-from pathlib import Path
-import yaml
-
-work = Path(os.environ["SPARSELAB_WORK_DIR"]) / "experiments/tinystories-microlab"
-run = yaml.safe_load((work / "inputs/run.yaml").read_text())
-run["name"] = "tinystories-microlab-continued"
-run["training"].update(max_steps=80, max_tokens=20480)
-run["optimizer"]["decay_steps"] = 40
-(work / "inputs/continued.yaml").write_text(yaml.safe_dump(run, sort_keys=False))
-PY
-uv run --locked --extra cpu sparselab checkpoint inspect \
-  "$WORK/runs/stories-base/checkpoints/latest.json" --json
-uv run --locked --extra cpu sparselab inspect "$WORK/inputs/continued.yaml" --json
-```
-
-Resolve the verified pointer once to an immutable generation directory, then
-verify that directory and pass it as `GENERATION`:
-
-```sh
-GENERATION=$(uv run --locked --extra cpu python -c 'import json,sys; from pathlib import Path; p=Path(sys.argv[1]); print(p.parent / json.loads(p.read_text())["relative_path"])' "$WORK/runs/stories-base/checkpoints/latest.json")
-uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
-uv run --locked --extra cpu sparselab train "$WORK/inputs/continued.yaml" \
-  --runs-dir "$WORK/runs" --run-id stories-continued --extend-budget "$GENERATION"
-uv run --locked --extra cpu sparselab eval stories-continued --runs-dir "$WORK/runs"
-```
-
-The parent must be terminal at both 40 updates and 10,240 targets; inspect its
-counters first. The child restores optimizer, cursor, counters and RNG and
-continues at the original learning-rate floor. `--resume` instead continues
-an interrupted run with unchanged budget/settings, and `--promote` starts fresh
-training state from compatible weights. See [checkpointing](checkpointing.md).
 
 All mutable output belongs to this task's workspace. Preserve interrupted and
 failed attempts while investigating them; do not edit or prune active runs.
