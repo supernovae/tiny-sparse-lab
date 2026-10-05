@@ -21,14 +21,6 @@ artifact identities.
 
 ## Experiment ergonomics
 
-### P1 — Make failures inspectable
-
-- [ ] **Return failed replay receipt references in recovery JSON.** Replay
-  already saves failure receipts; include the exact receipt path and digest in
-  the blocked response. Complete when a fixture implementation/build mismatch
-  returns an independently verifiable reference to that failed attempt, without
-  directory scanning, producer retries, or changing expected scientific identity.
-
 ### P2 — Make evidence collection and review reusable
 
 - [ ] **Lint checked-in research records.** Extend existing identity/schema

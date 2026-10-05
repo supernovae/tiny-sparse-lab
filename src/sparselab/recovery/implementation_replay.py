@@ -44,6 +44,15 @@ _ANCESTRY_FORMAT = "sparselab-implementation-replay-v2"
 _SOURCE_FORMAT = "sparselab-materialized-source-v1"
 
 
+class ReplayFailure(ValueError):
+    """A failed attempt whose operational receipt was successfully published."""
+
+    def __init__(self, reason: str, receipt_path: Path, record_sha256: str) -> None:
+        super().__init__(reason)
+        self.receipt_path = receipt_path
+        self.record_sha256 = record_sha256
+
+
 def _reject_symlink_ancestors(path: Path) -> None:
     for component in (path, *path.parents):
         if component.is_symlink():
@@ -673,6 +682,7 @@ def replay_corpus(
             ).hexdigest(),
         },
     }
+    failure: Exception | None = None
     try:
         for value in (expected_build_sha256, expected_release_sha256):
             if value is not None and not _HEX.fullmatch(value):
@@ -950,14 +960,14 @@ def replay_corpus(
         receipt["stage"] = "complete"
         receipt["status"] = "MATCH"
         receipt["path"] = str(frozen)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - publish before raising ReplayFailure
         if (
             isinstance(receipt.get("worker"), dict)
             and receipt["worker"].get("status") == "FAILED"
         ):
             receipt["stage"] = receipt["worker"].get("phase", "historical_producers")
         receipt["error"] = str(error)
-        raise
+        failure = error
     finally:
         receipt["finished_at_utc"] = datetime.now(UTC).isoformat()
         receipt["record_sha256"] = hashlib.sha256(
@@ -966,6 +976,10 @@ def replay_corpus(
         with receipt_path.open("x", encoding="utf-8") as output:
             json.dump(receipt, output, indent=2, sort_keys=True)
             output.write("\n")
+    if failure is not None:
+        raise ReplayFailure(
+            str(failure), receipt_path, receipt["record_sha256"]
+        ) from failure
     return {
         "path": receipt["path"],
         "receipt_path": str(receipt_path),
@@ -1158,6 +1172,7 @@ def _replay_ancestry(
             "orchestrator_sha256": _ancestry_digest(Path(__file__)),
         },
     }
+    failure: Exception | None = None
     try:
         if phase not in {"build", "release"} or not use_historical_project:
             raise ValueError(
@@ -1603,7 +1618,7 @@ def _replay_ancestry(
             receipt["release_id"] = release["release_id"]
         receipt["stage"] = "complete"
         receipt["status"] = "MATCH"
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - publish before raising ReplayFailure
         if (
             isinstance(receipt.get("worker"), dict)
             and receipt["worker"].get("status") == "FAILED"
@@ -1615,7 +1630,7 @@ def _replay_ancestry(
             except (ValueError, TypeError, KeyError, OSError) as closure_error:
                 receipt["closure_verification_error"] = str(closure_error)
         receipt["error"] = str(error)
-        raise
+        failure = error
     finally:
         receipt["finished_at_utc"] = datetime.now(UTC).isoformat()
         receipt["record_sha256"] = hashlib.sha256(
@@ -1624,6 +1639,10 @@ def _replay_ancestry(
         with receipt_path.open("x", encoding="utf-8") as output:
             json.dump(receipt, output, indent=2, sort_keys=True)
             output.write("\n")
+    if failure is not None:
+        raise ReplayFailure(
+            str(failure), receipt_path, receipt["record_sha256"]
+        ) from failure
     verify_replay_receipt(receipt_path)
     return {
         "path": receipt["release"] or str(built),
