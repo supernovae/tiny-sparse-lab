@@ -243,7 +243,7 @@ def _readiness_dependencies(
 
 def _inventory(
     source: Path, mode: Literal["thin", "portable"], root: Path
-) -> tuple[dict[str, tuple[Path, str]], list[dict[str, Any]], str]:
+) -> tuple[dict[str, tuple[Path, str]], list[dict[str, Any]], str, dict[str, Any]]:
     from sparselab.family.cli import show
     from sparselab.family.manifest import load_family
     from sparselab.recovery.engine import inspect_manifest
@@ -253,6 +253,7 @@ def _inventory(
     rows = inspect_manifest(source, root)["steps"]
     inventory: dict[str, tuple[Path, str]] = {}
     external: list[dict[str, Any]] = []
+    corpus_identities: dict[str, Any] = {}
     declaration_root = repository_root(source) or source.parent
     local_payloads = _corpus_inputs(source, manifest, mode)
     for declaration in _declarations(source):
@@ -646,6 +647,13 @@ def _inventory(
             )
             continue
         path = Path(row["path"])
+        if step.kind == "corpus_release":
+            from sparselab.corpus.identity import explain_corpus_identity
+            from sparselab.corpus.project import load_project
+
+            corpus_identities[step.id] = explain_corpus_identity(
+                path, load_project(declaration_reference(source, step.project))
+            )
         if mode == "portable":
             members = (
                 [path / name for name in ("export.json", "run.yaml", "tokenizer.yaml")]
@@ -781,7 +789,7 @@ def _inventory(
                 "artifacts" if mode == "portable" else "evidence"
             ) + f"/{step.id}/{sidecar.name}"
             _add(inventory, location, sidecar, "lock_availability")
-    return inventory, external, family_state
+    return inventory, external, family_state, corpus_identities
 
 
 def create_archive(
@@ -802,7 +810,7 @@ def create_archive(
         raise ValueError(
             f"archive declaration closure must be checked in: {provenance['status']}"
         )
-    inventory, external, family = _inventory(
+    inventory, external, family, corpus_identities = _inventory(
         source, mode, work_root or resolve_work_dir(None)
     )
     entries = [
@@ -815,7 +823,8 @@ def create_archive(
         for name, (path, role) in sorted(inventory.items())
     ]
     index = {
-        "format": "archive-index-v1",
+        "format": "archive-index-v2",
+        "corpus_identities": corpus_identities,
         "mode": mode,
         "family_lineage": family,
         "entries": entries,
@@ -823,6 +832,8 @@ def create_archive(
     }
     _validate_archive_index(index)
     index_bytes = canonical_json(index) + b"\n"
+    if len(index_bytes) > _SMALL_LIMIT:
+        raise ValueError("archive index exceeds bounded metadata size")
     required_bytes = (
         sum(entry["size"] for entry in entries) + len(index_bytes) + len(entries) * 1024
     )
@@ -1577,16 +1588,27 @@ def _verify_portable_closure(
 
 
 def _validate_archive_index(index: Any) -> None:
+    fields = {"format", "mode", "family_lineage", "entries", "external"}
+    if isinstance(index, dict) and index.get("format") == "archive-index-v2":
+        fields.add("corpus_identities")
     if (
         not isinstance(index, dict)
-        or set(index) != {"format", "mode", "family_lineage", "entries", "external"}
-        or index["format"] != "archive-index-v1"
+        or set(index) != fields
+        or index["format"] not in {"archive-index-v1", "archive-index-v2"}
         or index["mode"] not in {"thin", "portable"}
         or index["family_lineage"] not in {"DECLARED", "NOT_DECLARED"}
         or not isinstance(index["entries"], list)
         or not isinstance(index["external"], list)
     ):
         raise ValueError("malformed archive index")
+    if index["format"] == "archive-index-v2":
+        from sparselab.corpus.identity import verify_corpus_identity
+
+        if not isinstance(index["corpus_identities"], dict):
+            raise ValueError("malformed archive corpus identities")
+        for step_id, explanation in index["corpus_identities"].items():
+            _safe(step_id)
+            verify_corpus_identity(explanation)
     if len(index["entries"]) > _MAX_ARCHIVE_MEMBERS:
         raise ValueError("archive inventory exceeds bounded member count")
     seen: set[str] = set()
@@ -1739,6 +1761,11 @@ def verify_archive(path: Path) -> dict[str, Any]:
                 lock_capture or evaluation_capture or step_capture
             ) and member.size > _SMALL_LIMIT:
                 raise ValueError(f"oversized portable evidence metadata: {name}")
+            corpus_capture = (
+                name.endswith("/manifest.json") and roles.get(name) == "corpus_release"
+            )
+            if corpus_capture and member.size > _SMALL_LIMIT:
+                raise ValueError("oversized corpus identity metadata")
             domain_capture = (
                 index["mode"] == "portable"
                 and name.endswith(("/manifest.json", "/tokenizer_manifest.json"))
@@ -1752,7 +1779,8 @@ def verify_archive(path: Path) -> dict[str, Any]:
                 }
             )
             capture = member.size <= _SMALL_LIMIT and (
-                lock_capture
+                corpus_capture
+                or lock_capture
                 or evaluation_capture
                 or domain_capture
                 or declaration_capture
@@ -1799,6 +1827,24 @@ def verify_archive(path: Path) -> dict[str, Any]:
     ):
         raise ValueError("archive inventory malformed")
     _verify_lock_bindings(index, lock_records)
+    if index["format"] == "archive-index-v2":
+        prefix = "artifacts" if index["mode"] == "portable" else "evidence"
+        expected_corpora = {
+            entry["path"]
+            for entry in index["entries"]
+            if entry["role"] == "corpus_release"
+            and entry["path"].endswith("/manifest.json")
+        }
+        explained = {
+            f"{prefix}/{step_id}/manifest.json"
+            for step_id in index["corpus_identities"]
+        }
+        if explained != expected_corpora:
+            raise ValueError("archive corpus_release explanation inventory mismatch")
+        for step_id, explanation in index["corpus_identities"].items():
+            member = f"{prefix}/{step_id}/manifest.json"
+            if canonical_json(explanation["release"]) + b"\n" != manifests[member]:
+                raise ValueError("archive corpus explanation release binding mismatch")
     if index["mode"] == "portable":
         _verify_portable_closure(
             index, declarations, {**lock_records, **evaluation_records, **manifests}
@@ -1833,7 +1879,7 @@ def _handle(args: argparse.Namespace) -> None:
     except (OSError, ValueError, TypeError, KeyError, tarfile.TarError) as error:
         print(
             json.dumps(
-                {"format": "archive-index-v1", "state": "FAILED", "reason": str(error)}
+                {"format": "archive-index-v2", "state": "FAILED", "reason": str(error)}
             )
         )
         raise SystemExit(1) from error
