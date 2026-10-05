@@ -14,9 +14,11 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Throughput and resource proposals
 
-- [ ] Add optional bottleneck observations that distinguish accelerator-bound,
+- [x] Add optional bottleneck observations that distinguish accelerator-bound,
   input/host-bound, memory-pressure, and unknown cases. Low CPU or less than
   100% device utilization is diagnostic evidence, not itself a failure.
+  Shipped opt-in phase observations with measured counters, unknown handling and
+  non-gating provenance labels; see `docs/capacity-aware-execution.md`.
 
 ## Experiment ergonomics
 

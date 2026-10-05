@@ -13,13 +13,19 @@ import os
 from pathlib import Path
 from typing import Any
 
+from sparselab.data.verification import verify_file
 from sparselab.evaluation.evidence import experiment_evidence
 from sparselab.experiments.lock import ResolvedCell, ResolvedExperimentPlan
 from sparselab.training.manifest import (
     canonical_json,
     config_sha256,
     read_manifest,
-    sha256_file,
+)
+from sparselab.verification_proofs import (
+    ProofStore,
+    VerificationMode,
+    file_binding,
+    validate_mode,
 )
 from sparselab.workers.controller import Controller
 from sparselab.workers.models import AttemptReceipt, ExperimentSpec
@@ -50,7 +56,13 @@ def _compatible_execution_source(lock: ResolvedExperimentPlan, digest: str) -> b
 
 
 def _verify_attempt(
-    lock: ResolvedExperimentPlan, cell: ResolvedCell, row: dict[str, Any], root: Path
+    lock: ResolvedExperimentPlan,
+    cell: ResolvedCell,
+    row: dict[str, Any],
+    root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     """Reject mismatched provenance even when the queue reports COMPLETE."""
     spec = ExperimentSpec.model_validate(row["spec"])
@@ -177,14 +189,36 @@ def _verify_attempt(
             or run.resolve() not in path.resolve().parents
         ):
             raise ValueError(f"missing or unsafe ingested artifact {relative}")
-        if path.stat().st_size != item.size_bytes or sha256_file(path) != item.sha256:
+        if path.stat().st_size != item.size_bytes:
             raise ValueError(
                 f"ingested artifact digest differs from receipt: {relative}"
             )
+        verify_file(
+            path,
+            expected_sha256=item.sha256,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            binding=file_binding(
+                path,
+                item.sha256,
+                kind="ingested_run_artifact",
+                identifier=relative,
+                closure={
+                    "receipt_sha256": result["receipt_sha256"],
+                    "run_id": row["run_id"],
+                    "artifacts": [
+                        artifact.model_dump(mode="json")
+                        for artifact in receipt.artifacts
+                    ],
+                },
+            ),
+        )
         inventory.append(item.model_dump(mode="json"))
     if not inventory:
         raise ValueError("completed run receipt has no ingested artifact inventory")
-    observed = experiment_evidence(run)
+    observed = experiment_evidence(
+        run, proof_store=proof_store, verification_mode=verification_mode
+    )
     if not observed["verified_checkpoints"] or observed["run_id"] != row["run_id"]:
         raise ValueError("completed run lacks verified checkpoint evidence")
     result.update(
@@ -214,7 +248,12 @@ def _verify_attempt(
 
 
 def _build_index(
-    lock: ResolvedExperimentPlan, rows: list[dict[str, Any]], controller_root: Path
+    lock: ResolvedExperimentPlan,
+    rows: list[dict[str, Any]],
+    controller_root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     cells = {cell.id: cell for cell in lock.cells}
     grouped: dict[str, list[dict[str, Any]]] = {name: [] for name in cells}
@@ -229,7 +268,14 @@ def _build_index(
             )
         try:
             grouped[cell_id].append(
-                _verify_attempt(lock, cells[cell_id], row, controller_root)
+                _verify_attempt(
+                    lock,
+                    cells[cell_id],
+                    row,
+                    controller_root,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
             )
         except (OSError, ValueError, TypeError, KeyError) as error:
             grouped[cell_id].append(
@@ -311,15 +357,32 @@ def _build_index(
     }
 
 
-def collect_evidence(lock: ResolvedExperimentPlan, workspace: Path) -> dict[str, Any]:
+def collect_evidence(
+    lock: ResolvedExperimentPlan,
+    workspace: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, Any]:
     """Publish one immutable, content-addressed snapshot; identical calls reuse it.
 
     ``workspace`` is the plan workspace, with controller runs under ``controller/``.
     No controller tick, execution, download, or evaluation is performed here.
     """
+    validate_mode(verification_mode)
     root = Path(workspace)
-    controller = Controller(root / "controller")
-    payload = _build_index(lock, controller.list_experiments(), controller.root)
+    controller = Controller(
+        root / "controller",
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
+    payload = _build_index(
+        lock,
+        controller.list_experiments(),
+        controller.root,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     digest = _digest(payload)
     directory = root / "evidence"
     directory.mkdir(parents=True, exist_ok=True)
@@ -339,9 +402,15 @@ def collect_evidence(lock: ResolvedExperimentPlan, workspace: Path) -> dict[str,
 
 
 def read_evidence(
-    lock: ResolvedExperimentPlan, workspace: Path, index_path: Path
+    lock: ResolvedExperimentPlan,
+    workspace: Path,
+    index_path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     """Re-verify a snapshot's identity and its referenced controller/run evidence."""
+    validate_mode(verification_mode)
     path = Path(index_path)
     directory = Path(workspace) / "evidence"
     if path.is_symlink() or path.parent.resolve() != directory.resolve():
@@ -361,7 +430,13 @@ def read_evidence(
         for attempt in cell.get("attempts", [])
     }
     selected = [row for row in rows if row["attempt_id"] in indexed]
-    rebuilt = _build_index(lock, selected, controller.root)
+    rebuilt = _build_index(
+        lock,
+        selected,
+        controller.root,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     if rebuilt != payload:
         raise ValueError(
             "indexed controller/spec/run evidence changed or is unavailable"

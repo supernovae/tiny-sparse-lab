@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import tempfile
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -87,6 +88,7 @@ from sparselab.verification_proofs import file_binding
 from sparselab.workdir import ensure_work_dir
 
 if TYPE_CHECKING:
+    from sparselab.bottleneck_observations import BottleneckObserver
     from sparselab.verification_proofs import ProofStore
 
 
@@ -412,6 +414,7 @@ def _copy_tree(
     *,
     verified: dict[str, VerifiedFile] | None = None,
     copy_observations: list[dict[str, object]] | None = None,
+    observer: BottleneckObserver | None = None,
 ) -> dict[str, VerifiedFile]:
     """Make isolated owned copies with destination SHA and source fingerprint checks."""
     from sparselab.training.pilot_progress import (
@@ -473,7 +476,12 @@ def _copy_tree(
                 )
                 reported = copied_bytes
 
-        result = owned_copy(path, target, proof=old, progress=progress)
+        with (
+            observer.phase("stage_owned_copy", host_kind="copy_bound")
+            if observer is not None
+            else nullcontext()
+        ):
+            result = owned_copy(path, target, proof=old, progress=progress)
         proofs[name] = result.proof
         if copy_observations is not None:
             copy_observations.append(
@@ -487,6 +495,7 @@ def _link_stage_assets(
     proofs: dict[str, VerifiedFile],
     *,
     copy_observations: list[dict[str, object]] | None = None,
+    observer: BottleneckObserver | None = None,
 ) -> tuple[dict[str, VerifiedFile], dict[str, VerifiedFile]]:
     """Link only freshly copied, stage-owned private assets, never canonical input."""
     source, destination = work / "prepared" / "assets", work / "assets"
@@ -510,25 +519,30 @@ def _link_stage_assets(
             or proof.fingerprint != before
         ):
             raise ValueError("private stage source seal changed before linking")
-        try:
-            os.link(path, target)
-        except OSError:
-            copied = owned_copy(path, target, proof=proof)
-            result[name], refreshed[name] = copied.proof, proof
-            mechanism = copied.mechanism
-        else:
-            after = _fingerprint(path)
-            if after[:5] != before[:5] or _fingerprint(target) != after:
-                raise ValueError("private stage asset changed while linking")
-            # Linking changes ctime. Authenticate this intentional transition;
-            # a changed fingerprint alone is never sufficient authority.
-            linked = verify_file(target, expected_sha256=proof.sha256)
-            if _fingerprint(path) != after:
-                raise ValueError(
-                    "private stage source changed during link authentication"
-                )
-            refreshed[name] = _written_file(path, linked.sha256, linked.size_bytes)
-            result[name], mechanism = linked, "stage_private_hardlink"
+        with (
+            observer.phase("stage_private_asset_link", host_kind="copy_bound")
+            if observer is not None
+            else nullcontext()
+        ):
+            try:
+                os.link(path, target)
+            except OSError:
+                copied = owned_copy(path, target, proof=proof)
+                result[name], refreshed[name] = copied.proof, proof
+                mechanism = copied.mechanism
+            else:
+                after = _fingerprint(path)
+                if after[:5] != before[:5] or _fingerprint(target) != after:
+                    raise ValueError("private stage asset changed while linking")
+                # Linking changes ctime. Authenticate this intentional transition;
+                # a changed fingerprint alone is never sufficient authority.
+                linked = verify_file(target, expected_sha256=proof.sha256)
+                if _fingerprint(path) != after:
+                    raise ValueError(
+                        "private stage source changed during link authentication"
+                    )
+                refreshed[name] = _written_file(path, linked.sha256, linked.size_bytes)
+                result[name], mechanism = linked, "stage_private_hardlink"
         if copy_observations is not None:
             copy_observations.append(
                 {"mechanism": mechanism, "logical_bytes": result[name].size_bytes}
@@ -583,6 +597,7 @@ def materialize_prepared_inputs(
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
     _proofs: dict[str, VerifiedFile] | None = None,
+    observer: BottleneckObserver | None = None,
     copy_observations: list[dict[str, object]] | None = None,
 ) -> Path:
     """Publish immutable, engine-neutral training inputs without probing a runtime.
@@ -623,6 +638,7 @@ def materialize_prepared_inputs(
                 tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
                 proof_store=proof_store,
                 verification_mode=verification_mode,
+                observer=observer,
             )
             assets.mkdir()
             copied.update(
@@ -630,6 +646,7 @@ def materialize_prepared_inputs(
                     config.tokenizer.path,
                     assets / "tokenizer.json",
                     copy_observations=copy_observations,
+                    observer=observer,
                 )
             )
             tokenizer_manifest = config.tokenizer.path.with_name(
@@ -641,6 +658,7 @@ def materialize_prepared_inputs(
                         tokenizer_manifest,
                         assets / tokenizer_manifest.name,
                         copy_observations=copy_observations,
+                        observer=observer,
                     )
                 )
             copied.update(
@@ -651,6 +669,7 @@ def materialize_prepared_inputs(
                         assets / "data",
                         verified=dict(data.receipt.proofs),
                         copy_observations=copy_observations,
+                        observer=observer,
                     ).items()
                 }
             )
@@ -678,6 +697,7 @@ def materialize_prepared_inputs(
                             config.model.memory_package_path,
                             assets / "portable_package",
                             copy_observations=copy_observations,
+                            observer=observer,
                         ).items()
                     }
                 )
@@ -694,19 +714,27 @@ def materialize_prepared_inputs(
             if source.name == "assets":
                 source = source.parent
             verified: dict[str, VerifiedFile] = {}
-            verify_prepared_inputs(
-                source,
-                config,
-                proof_store=proof_store,
-                verification_mode=verification_mode,
-                _proofs=verified,
-            )
+            with (
+                observer.phase(
+                    "prepared_input_verification", host_kind="verification_bound"
+                )
+                if observer is not None
+                else nullcontext()
+            ):
+                verify_prepared_inputs(
+                    source,
+                    config,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                    _proofs=verified,
+                )
             copied.update(
                 _copy_tree(
                     source / "assets",
                     assets,
                     verified=verified,
                     copy_observations=copy_observations,
+                    observer=observer,
                 )
             )
         _seal(
@@ -908,6 +936,7 @@ def stage(
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
     copy_observations: list[dict[str, object]] | None = None,
+    observer: BottleneckObserver | None = None,
 ) -> Path:
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
@@ -949,13 +978,22 @@ def stage(
                 raise FileExistsError(
                     "stage output belongs to another executable source"
                 )
-            _verify_inventory(
-                output,
-                bundle.get("artifacts"),
-                manifest_sha256=bundle["sha256"],
-                proof_store=proof_store,
-                verification_mode=verification_mode,
-            )
+            with (
+                observer.phase(
+                    "stage_reuse_verification",
+                    host_kind="verification_bound",
+                    cache_event="hit",
+                )
+                if observer is not None
+                else nullcontext()
+            ):
+                _verify_inventory(
+                    output,
+                    bundle.get("artifacts"),
+                    manifest_sha256=bundle["sha256"],
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
             if through != "inspect":
                 verify_stage_bundle(
                     output,
@@ -1095,22 +1133,34 @@ def stage(
                             verification_mode=verification_mode,
                             _proofs=prepared_proofs,
                             copy_observations=copy_observations,
+                            observer=observer,
                         )
                     else:
                         prepared_root = prepared_inputs.resolve(strict=True)
                         if prepared_root.name == "assets":
                             prepared_root = prepared_root.parent
-                        verify_prepared_inputs(
-                            prepared_root,
-                            config,
-                            allow_runtime_drift=allow_runtime_drift,
-                            _proofs=prepared_proofs,
-                            proof_store=proof_store,
-                            verification_mode=verification_mode,
-                        )
+                        with (
+                            observer.phase(
+                                "stage_prepared_input_verification",
+                                host_kind="verification_bound",
+                            )
+                            if observer is not None
+                            else nullcontext()
+                        ):
+                            verify_prepared_inputs(
+                                prepared_root,
+                                config,
+                                allow_runtime_drift=allow_runtime_drift,
+                                _proofs=prepared_proofs,
+                                proof_store=proof_store,
+                                verification_mode=verification_mode,
+                            )
                     if prepared_inputs is None:
                         copied_assets, prepared_proofs = _link_stage_assets(
-                            work, prepared_proofs, copy_observations=copy_observations
+                            work,
+                            prepared_proofs,
+                            copy_observations=copy_observations,
+                            observer=observer,
                         )
                     else:
                         copied_assets = _copy_tree(
@@ -1118,6 +1168,7 @@ def stage(
                             work / "assets",
                             verified=prepared_proofs,
                             copy_observations=copy_observations,
+                            observer=observer,
                         )
                     prepared_identity = _read_sealed(prepared_root / "inputs.json")
                     inputs = _seal(

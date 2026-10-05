@@ -23,6 +23,7 @@ from safetensors import SafetensorError
 from safetensors.torch import load_file, save_file
 
 from sparselab.config.models import AdamWConfig, RunConfig
+from sparselab.data.verification import verify_file
 from sparselab.engines.base import CanonicalTensor, WeightSource
 from sparselab.model.inspection import TensorSpec, named_tensor_inventory
 from sparselab.training.manifest import (
@@ -47,6 +48,12 @@ from sparselab.training.mlx_checkpoints import (
     write_native_state as write_mlx_native_state,
 )
 from sparselab.training.optimizer import learning_rate_for_step, schedule_payload
+from sparselab.verification_proofs import (
+    ProofStore,
+    VerificationMode,
+    file_binding,
+    validate_mode,
+)
 
 FORMAT_VERSION = 2
 SHARD_BYTES = 256 * 1024 * 1024
@@ -1275,9 +1282,13 @@ class CheckpointManager:
         require_training_state: bool = True,
         *,
         expected_config: RunConfig | None = None,
+        proof_store: ProofStore | None = None,
+        verification_mode: VerificationMode = "cold",
     ) -> VerificationReport:
         errors: list[dict[str, str]] = []
         files: list[dict[str, str]] = []
+        validate_mode(verification_mode)
+        cold_members: list[tuple[dict[str, object], object]] = []
         try:
             pointer: dict[str, object] | None = None
             if path.name in {"latest.json", "best.json"}:
@@ -1332,13 +1343,43 @@ class CheckpointManager:
                     continue
                 names.add(name)
                 safe_members[name] = member
-                if (
-                    not member.is_file()
-                    or member.stat().st_size != entry["bytes"]
-                    or _sha256(member) != entry["sha256"]
-                ):
+                if not member.is_file() or member.stat().st_size != entry["bytes"]:
+                    errors.append({"field": name, "reason": "hash or size mismatch"})
+                    continue
+                if proof_store is None or verification_mode == "cold":
+                    if _sha256(member) != entry["sha256"]:
+                        errors.append(
+                            {"field": name, "reason": "hash or size mismatch"}
+                        )
+                    else:
+                        files.append({"name": name, "sha256": entry["sha256"]})
+                    continue
+                binding = file_binding(
+                    member,
+                    entry["sha256"],
+                    kind="checkpoint_member",
+                    identifier=f"{directory.name}/{name}",
+                    closure={
+                        "checkpoint_sha256": digest,
+                        "run_manifest_sha256": raw.get("manifest_sha256"),
+                        "expected_manifest_sha256": expected_manifest,
+                    },
+                )
+                try:
+                    proof = verify_file(
+                        member,
+                        expected_sha256=entry["sha256"],
+                        proof_store=proof_store
+                        if proof_store.lookup(binding)
+                        else None,
+                        verification_mode=verification_mode,
+                        binding=binding,
+                    )
+                except ValueError:
                     errors.append({"field": name, "reason": "hash or size mismatch"})
                 else:
+                    if proof.cold_verified:
+                        cold_members.append((binding, proof))
                     files.append({"name": name, "sha256": entry["sha256"]})
             codec, codec_version = (
                 raw.get("state_codec"),
@@ -1534,6 +1575,13 @@ class CheckpointManager:
             json.JSONDecodeError,
         ) as error:
             errors.append({"field": "checkpoint", "reason": str(error)})
+        if (
+            not errors
+            and proof_store is not None
+            and verification_mode == "verified_reuse"
+        ):
+            for binding, proof in cold_members:
+                proof_store.record(binding, proof)
         return VerificationReport(
             not errors,
             tuple(errors),
@@ -1542,12 +1590,19 @@ class CheckpointManager:
         )
 
     def load(
-        self, path: Path, mode: Literal["resume", "promote"] = "resume"
+        self,
+        path: Path,
+        mode: Literal["resume", "promote"] = "resume",
+        *,
+        proof_store: ProofStore | None = None,
+        verification_mode: VerificationMode = "cold",
     ) -> TrainingSnapshot:
         report = self.verify(
             path,
             self.manifest_sha256 if mode == "resume" else None,
             require_training_state=mode == "resume",
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         if not report.valid:
             raise ValueError(f"invalid checkpoint: {report.errors}")

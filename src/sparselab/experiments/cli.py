@@ -434,7 +434,8 @@ def _run(args: argparse.Namespace) -> None:
     from sparselab.workers.controller import Controller
     from sparselab.workers.models import WorkerDefinition
 
-    locked = open_lock(Path(args.lock), **_verification(args))
+    verification = _verification(args)
+    locked = open_lock(Path(args.lock), **verification)
     from sparselab.recovery.provenance import declaration_preflight
 
     if not locked.evaluations and not locked.evaluation_suite:
@@ -456,7 +457,7 @@ def _run(args: argparse.Namespace) -> None:
             "DECLARATION_IDENTITY_CHANGED: authored inputs differ from the frozen lock"
         )
     workspace = _workspace(locked.id)
-    controller = Controller(workspace / "controller")
+    controller = Controller(workspace / "controller", **verification)
     selected = _run_cells(locked, args)
     profile = getattr(args, "runtime_profile_loaded", None)
     source_worker = args.worker or (
@@ -572,9 +573,10 @@ def _collect(args: argparse.Namespace) -> None:
     from sparselab.experiments.evidence import collect_evidence
     from sparselab.experiments.lock import open_lock
 
-    locked = open_lock(Path(args.lock), **_verification(args))
+    verification = _verification(args)
+    locked = open_lock(Path(args.lock), **verification)
     workspace = _workspace(locked.id)
-    _emit(args, collect_evidence(locked, workspace))
+    _emit(args, collect_evidence(locked, workspace, **verification))
 
 
 def _explain(args: argparse.Namespace) -> None:
@@ -610,7 +612,7 @@ def _reconstruct(args: argparse.Namespace) -> None:
         if args.index is None
         else {"workspace": _workspace(locked.id), "index_path": Path(args.index)}
     )
-    _emit(args, retrospective_views(locked, **options))
+    _emit(args, retrospective_views(locked, **options, **_verification(args)))
 
 
 def _handle(args: argparse.Namespace) -> None:

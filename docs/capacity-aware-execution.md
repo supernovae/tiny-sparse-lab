@@ -271,3 +271,77 @@ Raw task-owned evidence SHA-256:
 
 The 92-test gate covers host bounds, fresh Rayon exact-output parity, streaming
 packing, resource envelope enforcement and checkpoint-bound evaluation suites.
+
+## Durable reconciliation and measured observations
+
+Campaign run reconciliation re-queries durable attempt state immediately after
+each controller tick. COMPLETE requires ingestion COMPLETE; a changed durable
+row is re-evaluated without sleeping. Only an unchanged row before the shared
+deadline consumes bounded idle sleep. Replay IDs, terminal/ingestion distinction,
+pending-on-deadline and crash recovery remain authoritative.
+
+Run inventories and checkpoint members use the existing signed file proof index
+with authoritative run inventory/checkpoint/manifest bindings; semantic checks,
+prepared headers and evaluation/checkpoint correspondence still execute.
+`experiment_evidence`, collection, retrospective reads and Campaign evaluation
+consumers forward explicit proof mode. Native inference still reads model weights
+for loading and evaluation inputs for computation; avoiding their redundant SHA
+scan is not avoiding the required computation/input read. Independent direct
+APIs, recovery and archival remain cold.
+
+CLI `experiment run --cold-verify` now reaches controller preparation, worker
+TRANSFER/cache installation, private materialization and pilot/training gates.
+RPC `cold_verify` is operational, outside ExperimentSpec and bundle digests.
+Missing direct/external launch policy defaults cold; cold requests are sticky
+across PREPARED same-ID replay. Running/terminal replay is not mutated or retrained.
+The worker's private `verification.json` is outside scientific inventories.
+
+`BottleneckObserver` is opt-in on preparation, staging, Controller and Campaign.
+Phase records measure matched surviving-process user/system CPU and available
+process I/O, endpoint-sampled tree RSS/swap and an optional real accelerator
+utilization probe. Missing counters/probes are null. CPU/I/O exclude children not
+alive at both endpoints; memory maxima are sampled endpoints, not lifetime peaks.
+Records never enter prepared/stage inventories, scientific/plan hashes or metric
+schemas. Probe failures report unavailable observations without blocking work.
+Labels are diagnostic heuristics, not scientific findings or acceptance gates:
+accelerator, input_host, memory_pressure, unknown; host cpu_bound, io_bound,
+serialization_bound, verification_bound, copy_bound, cache_hit, cache_miss,
+unknown. Phase and cache labels require measured activity/counters plus caller
+provenance; low CPU/device utilization alone is not a failure.
+
+Before this change, bounded read-only fixtures observed expired controller tick
+0.000378 s and cold evidence read of an existing two-update synthetic run
+0.010273 s. They exercised no live RPC, transfer, ingestion, collection,
+evaluation or idle wait; those fields remain null, not a control-plane speedup.
+Actual normal CPU integration completed one two-update worker run and ingestion,
+preserving canonical input arrays and cold/warm evidence. Its 39 records observed
+cache_hit/cache_miss/copy_bound/unknown, endpoint tree RSS at most 400,863,232
+bytes and observed swap zero; accelerator and physical I/O unavailable.
+Inclusive totals included discovery RPC 2.588331 s, bundle transfer 4.267456 s,
+status RPC 13.692612 s and active polling 56.961635 s. They overlap and must not
+be summed. A final 31.992090 s tick included ingestion: the 0.1 s idle sleep does
+not explain long reconciliation windows.
+
+The independent cold-worker runtime also reached COMPLETE + ingestion COMPLETE
+with `cold_verify=true` persisted outside the spec, unchanged canonical arrays
+and equivalent cold/warm evidence. Its 51 records separately observed record
+ingestion 13.578576 s, artifact transfer/verification 28.839650 s and terminal
+receipt ingestion 30.144051 s (inclusive/nested); endpoint tree RSS at most
+400,814,080 bytes. No physical-I/O or accelerator counters were manufactured.
+Source package implementation:
+`18d5ac531bf89cf60333f63d2d57be015e17edcb44bfe1d0b6b9082a0467356d`.
+
+The broad 231-case gate initially passed 229 cases; two new counters incorrectly
+counted package-source hashing or verifier entry calls as payload SHA. Corrected
+their measurement scope, then all seven affected payload/observation cases
+passed. Twelve follow-on controller deadline, durable replay and immediate
+Campaign progress cases also passed. Different-process run evidence skips
+unchanged payload SHA; restored-mtime corruption still rejects; suite replay
+preserves canonical index bytes; observation failure preserves real preparation
+identity. The optional-observation TODO is closed; worker-provenance TODO stays
+open.
+
+Raw task-owned evidence SHA-256:
+- `control-evidence-before.json`: `b7e8ccaf32add93abf334f02a90960b7a91f8034d3693eff19f599960a5b50b0`
+- `step9-smoke.json`: `ae1c5a16e9ba8ee0fdd6177b7defffb2f2f2614bebad8cc629e83cbc46a7e6e7`
+- `step9-cold-smoke.json`: `2feb7c21fd1ed2be98eb99e71ece06541709ca7e6ebfe2ab8111eb9aabc35e67`

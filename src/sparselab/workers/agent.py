@@ -107,7 +107,9 @@ def _dispatch(
             manifest,
             attachments,
             check_only=payload["mode"] == "check",
-            **verification_options(definition.root),
+            **verification_options(
+                definition.root, cold=payload.get("cold_verify", True)
+            ),
         ), {}
     if op == "launch":
         spec_path = attachments.get("spec.json")

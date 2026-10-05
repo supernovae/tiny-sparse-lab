@@ -6,7 +6,7 @@ import logging
 import math
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -23,6 +23,7 @@ from sparselab.resource_envelope import (
     current_process_rss_bytes,
 )
 from sparselab.training.manifest import canonical_json, config_sha256
+from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
 from sparselab.workers.store import (
     ACTIVE_QUEUE_STATES,
     RECONCILABLE_QUEUE_STATES,
@@ -56,11 +57,18 @@ class Controller:
         *,
         transfer_timeout: float = 1800,
         read_only: bool = False,
+        proof_store: ProofStore | None = None,
+        verification_mode: VerificationMode = "cold",
+        observer: Any | None = None,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("poll_seconds must be positive")
         if not math.isfinite(transfer_timeout) or transfer_timeout <= 0:
             raise ValueError("transfer_timeout must be finite and positive")
+        validate_mode(verification_mode)
+        self.proof_store = proof_store
+        self.verification_mode = verification_mode
+        self.observer = observer
         self.transfer_timeout = transfer_timeout
         self.root = Path(root)
         if not read_only:
@@ -68,6 +76,13 @@ class Controller:
         self.poll_seconds = poll_seconds
         self.store = ControllerStore(self.root, read_only=read_only)
         self._lock_path = self.root / ".controller.lock"
+
+    def _phase(self, name: str, *, host_kind: str | None = None) -> Any:
+        return (
+            self.observer.phase(name, host_kind=host_kind)
+            if self.observer is not None
+            else nullcontext()
+        )
 
     @staticmethod
     def _dump(value: object) -> dict[str, object]:
@@ -102,7 +117,10 @@ class Controller:
         """Run metadata-only RPCs without leaking reply directories into CWD."""
         from sparselab.workers.transport import call_worker
 
-        with TemporaryDirectory(prefix=".worker-reply-", dir=self.root) as directory:
+        with (
+            self._phase(f"controller.rpc.{op}"),
+            TemporaryDirectory(prefix=".worker-reply-", dir=self.root) as directory,
+        ):
             reply = call_worker(
                 worker,
                 op,
@@ -194,10 +212,7 @@ class Controller:
     def _prepare_entry(
         self, request: dict[str, object], *, queue_depth: int = 0
     ) -> dict[str, object]:
-        from sparselab.workers.bundles import (
-            prepare_dispatch_bundle,
-            verify_dispatch_bundle,
-        )
+        from sparselab.workers.bundles import prepare_dispatch_bundle
 
         config = request["config"]
         if not isinstance(config, RunConfig):
@@ -240,8 +255,10 @@ class Controller:
             resume=request.get("resume"),
             extend_budget=request.get("extend_budget"),
             allow_runtime_drift=bool(request.get("allow_runtime_drift", False)),
+            proof_store=self.proof_store,
+            verification_mode=self.verification_mode,
         )
-        bundle = verify_dispatch_bundle(bundle_dir)
+        # The freshly published bundle already has validated assets.
         experiment_id, attempt_id, run_id = (str(uuid.uuid4()) for _ in range(3))
         config_data = config.model_dump(mode="json")
         spec_data = {
@@ -741,7 +758,11 @@ class Controller:
         check = call_worker(
             worker,
             "install_bundle",
-            {"manifest_digest": manifest.digest(), "mode": "check"},
+            {
+                "manifest_digest": manifest.digest(),
+                "mode": "check",
+                "cold_verify": self.verification_mode == "cold",
+            },
             attachments={"bundle.json": bundle_root / "bundle.json"},
             timeout=_remaining_timeout(self.transfer_timeout, deadline),
         )
@@ -762,7 +783,11 @@ class Controller:
         install = call_worker(
             worker,
             "install_bundle",
-            {"manifest_digest": manifest.digest(), "mode": "install"},
+            {
+                "manifest_digest": manifest.digest(),
+                "mode": "install",
+                "cold_verify": self.verification_mode == "cold",
+            },
             attachments=attachments,
             timeout=_remaining_timeout(self.transfer_timeout, deadline),
         )
@@ -781,6 +806,7 @@ class Controller:
                     "experiment_id": attempt["experiment_id"],
                     "spec_digest": spec.digest(),
                     "bundle_digest": spec.dispatch_bundle_digest,
+                    "cold_verify": self.verification_mode == "cold",
                 },
                 attachments={"spec.json": spec_path},
                 timeout=_remaining_timeout(30, deadline),
@@ -873,9 +899,13 @@ class Controller:
         }
         try:
             if terminal:
-                self._ingest(attempt, worker, receipt, origin_id, deadline=deadline)
+                with self._phase("controller.receipt_ingestion"):
+                    self._ingest(attempt, worker, receipt, origin_id, deadline=deadline)
             else:
-                self._ingest_records(worker, origin_id, drain=False, deadline=deadline)
+                with self._phase("controller.record_ingestion"):
+                    self._ingest_records(
+                        worker, origin_id, drain=False, deadline=deadline
+                    )
         except (
             OSError,
             TimeoutError,
@@ -913,19 +943,23 @@ class Controller:
         if self._artifact_free_terminal(receipt):
             self.store.mark_ingestion_not_required(attempt["attempt_id"])
             return
-        self._ingest_records(worker, origin_id, drain=True, deadline=deadline)
+        with self._phase("controller.record_ingestion"):
+            self._ingest_records(worker, origin_id, drain=True, deadline=deadline)
         spec = self._model("ExperimentSpec", attempt["spec"])
         _, bundle = self._dispatch_bundle(spec)
-        ingest_attempt_artifacts(
-            worker,
-            self._model("AttemptReceipt", receipt),
-            self.root,
-            spec=spec,
-            bundle=bundle,
-            records=self.store.metrics,
-            timeout=self.transfer_timeout,
-            deadline=deadline,
-        )
+        with self._phase(
+            "controller.artifact_transfer_verification", host_kind="copy_bound"
+        ):
+            ingest_attempt_artifacts(
+                worker,
+                self._model("AttemptReceipt", receipt),
+                self.root,
+                spec=spec,
+                bundle=bundle,
+                records=self.store.metrics,
+                timeout=self.transfer_timeout,
+                deadline=deadline,
+            )
         self.store.mark_ingestion_complete(attempt["attempt_id"])
 
     def _ingest_records(
@@ -1126,16 +1160,18 @@ class Controller:
         if worker is None:
             return
         try:
-            result = self._rpc_result(
-                worker,
-                "status",
-                {"attempt_id": attempt["attempt_id"]},
-                deadline=deadline,
-            )
+            with self._phase("controller.ingestion_status"):
+                result = self._rpc_result(
+                    worker,
+                    "status",
+                    {"attempt_id": attempt["attempt_id"]},
+                    deadline=deadline,
+                )
             origin_id = result.get("origin_id")
             if not isinstance(origin_id, str):
                 raise TypeError("worker status omitted outbox origin identity")
-            self._ingest(attempt, worker, receipt, origin_id, deadline=deadline)
+            with self._phase("controller.receipt_ingestion"):
+                self._ingest(attempt, worker, receipt, origin_id, deadline=deadline)
         except (
             OSError,
             TimeoutError,
@@ -1172,7 +1208,8 @@ class Controller:
                 self.store.set_queued_reason(attempt["attempt_id"], reason)
                 continue
             try:
-                self._launch(attempt, capability, deadline=deadline)
+                with self._phase("controller.bundle_transfer", host_kind="copy_bound"):
+                    self._launch(attempt, capability, deadline=deadline)
                 assigned += 1
             except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
                 # CAS assignment remains eligible for same-ID receipt reconciliation.
@@ -1184,15 +1221,17 @@ class Controller:
                 if exhausted():
                     break
                 if attempt["terminal_receipt"] is None:
-                    self._poll_active(attempt, deadline=deadline)
+                    with self._phase("controller.active_poll"):
+                        self._poll_active(attempt, deadline=deadline)
         if not exhausted():
             for attempt in self.store.attempts(
                 frozenset({"ASSIGNED", "CANCEL_REQUESTED"})
             ):
                 if exhausted():
                     break
-                if self._replay_assigned(attempt, deadline=deadline):
-                    assigned += 1
+                with self._phase("controller.assigned_replay"):
+                    if self._replay_assigned(attempt, deadline=deadline):
+                        assigned += 1
         if not exhausted():
             for attempt in self.store.pending_ingestion():
                 if exhausted():

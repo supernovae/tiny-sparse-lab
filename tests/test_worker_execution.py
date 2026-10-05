@@ -468,3 +468,60 @@ def test_receipt_includes_manifest_declared_hidden_cache_owner(tmp_path: Path) -
     names = {item["relative_path"] for item in files}
     assert "run/data/.sparselab-cache-owner.json" in names
     assert "run/.transient" not in names
+
+
+def test_same_attempt_cold_request_is_sticky_and_outside_scientific_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    from test_training import config
+
+    from sparselab.training.manifest import canonical_json
+    from sparselab.workers import execution
+    from sparselab.workers.controller import Controller
+    from sparselab.workers.models import WorkerDefinition
+
+    controller = Controller(tmp_path / "controller")
+    submission = controller.submit(config(tmp_path / "inputs"))
+    attempt = controller.store.attempt_by_run(submission.run_id)
+    spec = controller._model("ExperimentSpec", attempt["spec"])
+    spec_path = tmp_path / "spec.json"
+    spec_path.write_bytes(canonical_json(spec.model_dump(mode="json")))
+    worker = WorkerDefinition(
+        worker_id="worker",
+        name="worker",
+        transport="local",
+        python=Path(sys.executable).absolute(),
+        root=tmp_path / "worker",
+        engine="pytorch",
+        backend="cpu",
+        device_index=0,
+    )
+    # Model a crash after durable preparation and before the detached executor.
+    monkeypatch.setattr(execution, "_spawn_executor", lambda *_: None)
+    payload = {
+        "attempt_id": submission.attempt_id,
+        "run_id": submission.run_id,
+        "experiment_id": submission.experiment_id,
+        "spec_digest": spec.digest(),
+        "bundle_digest": spec.dispatch_bundle_digest,
+    }
+    receipts = []
+    directory = worker.root / "attempts" / submission.attempt_id
+    for requested, expected in ((False, False), (True, True), (False, True)):
+        receipts.append(
+            execution.launch_attempt(
+                worker, {**payload, "cold_verify": requested}, spec_path
+            )
+        )
+        assert json.loads((directory / "verification.json").read_bytes()) == {
+            "verification_version": 1,
+            "cold_verify": expected,
+        }
+        assert (directory / "spec.json").read_bytes() == spec_path.read_bytes()
+    assert {
+        (row["attempt_id"], row["spec_digest"], row["bundle_digest"])
+        for row in receipts
+    } == {(submission.attempt_id, spec.digest(), spec.dispatch_bundle_digest)}
+    assert "cold_verify" not in json.loads(spec_path.read_bytes())
