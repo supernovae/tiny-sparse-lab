@@ -22,11 +22,15 @@ close a code item unless the named software acceptance criteria also pass.
 
 ## Experiment ergonomics
 
-- [ ] Support direct TinyStories and manifest-backed `local_stories` inputs in
+- [x] Support direct TinyStories and manifest-backed `local_stories` inputs in
   authored experiment locks. Bind their pinned source, tokenizer provenance,
   and verified prepared-data identities without requiring Corpus Forge
   release/export artifacts for every non-synthetic dataset; cover preparation,
   lock verification, and dispatch with focused regressions.
+  Verified pinned source/tokenizer/prepared identities, source-aware proof reuse,
+  and relocated offline worker execution with bounded CPU regressions; see
+  `docs/experiment-programs.md#direct-story-inputs`. Live Hub and accelerator
+  execution were not exercised.
 - [ ] Preserve Corpus Forge export/tokenizer provenance when sealing authored
   plan inputs for worker pilots. A prepared/locked offline Forge plan passes
   local warmup but its worker smoke fails because tokenizer verification cannot
