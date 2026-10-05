@@ -63,7 +63,8 @@ additions). Untracked local work is ignored. Missing tracked declarations,
 symlinks, unsafe paths, malformed known schemas, and changed immutable bindings
 fail the check. The checker reuses campaign, experiment, recovery, model-family,
 evaluation-suite, readiness, run-config, and corpus declaration schemas and their
-authored reference closure. Local acquisition datasets and fractional-release
+authored reference closure. Version-1 producer records also validate their
+`protocol` and `corpus_project` declaration references. Local acquisition datasets and fractional-release
 tokenizer bytes are excluded from this metadata-only closure.
 
 Current immutable bindings include `frozen_sha256`, `inputs_sha256`, explicit

@@ -475,3 +475,39 @@ def test_recovery_run_config_outside_research_is_validated(repository: Path) -> 
     )
     _track(repository)
     assert "extra" in _errors(repository)
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [None, "protocol", "corpus_project", "corpus_schema", "version", "traversal"],
+)
+def test_producer_declaration_references(repository: Path, defect: str | None) -> None:
+    import shutil
+
+    sample = Path(__file__).resolve().parents[1] / "corpora/devmind-sample-v0"
+    corpus = repository / "corpora/demo"
+    shutil.copytree(sample, corpus)
+    shutil.rmtree(corpus / "sources/fixtures")
+    raw = {
+        "producer_record_version": 1,
+        "protocol": "experiments/research/demo/protocol.md",
+        "corpus_project": "corpora/demo/corpus.yaml",
+        # Historical source/runtime evidence is neither today's source nor live input.
+        "producer_commit": "a" * 40,
+        "local_dense_readiness": {
+            "path": "/unavailable/readiness.json",
+            "sha256": "b" * 64,
+        },
+    }
+    if defect in {"protocol", "corpus_project"}:
+        raw[defect] = "missing.yaml"
+    elif defect == "corpus_schema":
+        (corpus / "release.yaml").write_text("not_a_release: true\n")
+    elif defect == "version":
+        raw["producer_record_version"] = 2
+    elif defect == "traversal":
+        raw["protocol"] = "../outside.md"
+    _write(repository, "experiments/research/demo/producer.json", raw)
+    _track(repository)
+    report = lint_research(repository)
+    assert report["valid"] == (defect is None), report

@@ -168,6 +168,17 @@ def _document(
                 from sparselab.experiments.plan import base_run_config, load_plan
 
                 base_run_config(load_plan(source), source)
+    if "producer_record_version" in raw:
+        if (
+            type(raw["producer_record_version"]) is not int
+            or raw["producer_record_version"] != 1
+        ):
+            raise ValueError("unsupported producer record version")
+        _reference(root, source, raw.get("protocol"), tracked)
+        project = _reference(root, source, raw.get("corpus_project"), tracked)
+        for target in declaration_paths(project, "corpus", include_local_inputs=False):
+            _safe_file(root, target, tracked)
+            _document(root, target, read_document(target), tracked, visited)
     if "recovery_version" in raw:
         from sparselab.config.loading import load_config, load_tokenizer_config
         from sparselab.recovery.manifest import load_manifest
