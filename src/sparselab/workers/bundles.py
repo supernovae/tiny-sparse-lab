@@ -572,13 +572,17 @@ def prepare_dispatch_bundle(
                     != sha256_file(parent_tokenizer)
                 ):
                     raise ValueError("promotion requires matching tokenizer identity")
-                prepared_config = config.model_copy(
-                    update={
-                        "tokenizer": config.tokenizer.model_copy(
-                            update={"path": parent_tokenizer}
-                        )
-                    }
-                )
+                if config.dataset.corpus_release_path is None:
+                    prepared_config = config.model_copy(
+                        update={
+                            "tokenizer": config.tokenizer.model_copy(
+                                update={"path": parent_tokenizer}
+                            )
+                        }
+                    )
+                # Forge preparation also seals the tokenizer's original export
+                # provenance. Keep that verified source context; the copied bytes
+                # are checked against the parent again below.
                 if config.model.memory_package_path is not None:
                     from sparselab.training.continuation import _package_identity
 

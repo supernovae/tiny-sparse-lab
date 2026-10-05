@@ -10,8 +10,8 @@ extension. For a story model first, see the [TinyStories microlab](tinystories-m
 The example uses a small offline fixture and explicit runtime settings so you
 can learn the whole workflow without downloading a corpus. Runtime choices
 belong to the concrete config and execution settings; see [runtime support](runtime.md).
-[Worker sealing of Corpus Forge provenance](../TODO.md#experiment-ergonomics)
-remains a pending implementation fix.
+Corpus Forge programs seal portable provenance with their prepared inputs; see
+[Forge worker provenance](#forge-worker-provenance) for relocation and continuation.
 
 ## Read the program
 
@@ -184,6 +184,31 @@ relocation without reacquiring or copying the raw story source. These checks
 establish input integrity and execution, not model quality or remote corpus
 availability. Corpus Forge and other dataset routes retain their existing input
 requirements.
+
+### Forge worker provenance
+
+Preparing immutable inputs for a Forge cell verifies its release/export and
+tokenizer origin while the controller sources are available. The sealed assets
+include the tokenizer and its manifest, packed arrays, release manifest, corpus
+report, license report, audit, export metadata and portable `corpus/binding.json`.
+Selected bakeoff tokenizers also retain their selection report. A reused frozen
+tokenizer keeps its original export identity even when the training corpus changes.
+
+Local and worker smoke/warmup pilots verify this portable evidence without
+reopening the original export's `run.yaml`. The original config paths remain
+recorded provenance; relocation does not rewrite scientific identities. Both the
+sealed file inventory and the internal release/export/tokenizer bindings must
+verify. Missing or changed evidence fails closed, including when prepared inputs
+are reused for dispatch.
+
+Training copies the evidence into the native run's authenticated artifact
+inventory. Controller ingestion preserves those bytes, and a dispatched child
+resume carries the parent's evidence and selected checkpoint. The bounded offline
+regressions in `tests/test_forge_dispatch.py` cover authored prepare/lock, relocated
+smoke and warmup, parent ingestion, child resume, and missing/tampered provenance.
+They establish execution and integrity only; no accelerator or model-quality
+claim follows. Older sealed inputs without portable provenance must be rebuilt
+from available verified sources before reuse.
 
 ### Explicit operational source compatibility
 
