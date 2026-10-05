@@ -75,6 +75,24 @@ jobs:
           tests/test_corpus_acquisition.py
           tests/test_corpus_pipeline.py
           tests/test_hf_auth.py
+  evidence-macos-arm64:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Offline research lint and corpus archive acceptance (macOS)
+        run: |
+          uv run --locked --extra cpu python -m sparselab.research.lint --json
+          uv run --locked --extra cpu pytest -q \
+            tests/test_research_lint.py tests/test_declaration_preflight.py \
+            tests/test_corpus_pipeline.py tests/test_corpus_identity.py tests/test_archive.py
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
