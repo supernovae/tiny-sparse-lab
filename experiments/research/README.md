@@ -49,3 +49,41 @@ Current long-form protocols and findings remain indexed from
 [`docs/research/README.md`](../../docs/research/README.md). New campaigns can
 adopt this directory incrementally; moving an established identity-bound config
 is not required merely to satisfy the layout.
+
+## Offline record lint
+
+Before submitting research records, stage the intended files and run:
+
+```sh
+uv run --locked --extra cpu sparselab research lint --json
+```
+
+CI runs the same checker against tracked working-tree files (including staged
+additions). Untracked local work is ignored. Missing tracked declarations,
+symlinks, unsafe paths, malformed known schemas, and changed immutable bindings
+fail the check. The checker reuses campaign, experiment, recovery, model-family,
+evaluation-suite, readiness, run-config, and corpus declaration schemas and their
+authored reference closure. Local acquisition datasets and fractional-release
+tokenizer bytes are excluded from this metadata-only closure.
+
+Current immutable bindings include `frozen_sha256`, `inputs_sha256`, explicit
+`bindings` path/digest objects, protocol/config/base-run path/digest objects, and
+`scientific-evidence-reference-v1` declaration hashes. Referenced declarations
+must stay available at their declared paths with the same bytes; amendments need
+new declarations, preserving earlier evidence. Historical implementation hashes
+and external archive inventories are not assertions about today's checkout.
+Evidence envelopes validate their recorded identity and verification scope;
+passing lint does not reverify an external checkpoint, dataset, or scientific
+conclusion, or authenticate a historical source commit.
+
+Checked-in checkpoints, caches, datasets, log files, run databases, output/store
+folders, CSV/TSV datasets, and binary payload formats are rejected. Supported
+record suffixes are `.md`, `.py`, `.yaml`, `.yml`, `.json`, and validated `.jsonl`;
+other formats require an explicit validator. JSON arrays are limited to the
+existing blind-review panel schema and its summary-bound digest. Each file must
+be at most 1 MiB. JSONL is limited to the existing frozen decoding evidence-panel
+format under `evidence/{development,test}/`, bound by the summary's source-file
+hash and the header's preregistration/prompt hashes. Arbitrary JSONL datasets or
+logs are not accepted merely because they live under `evidence/`. New durable
+record formats should extend the checker and its small offline fixtures; no
+external artifact registry is needed.

@@ -672,7 +672,8 @@ def verify_fraction_tokenizer(project: Project) -> None:
         raise ValueError("fraction tokenizer SHA-256 mismatch")
 
 
-def load_project(path: Path | str) -> Project:
+def load_project(path: Path | str, *, verify_inputs: bool = True) -> Project:
+    """Validate declarations; metadata-only callers may omit input-byte verification."""
     path = Path(path).absolute()
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"missing or symlinked corpus project: {path}")
@@ -725,5 +726,6 @@ def load_project(path: Path | str) -> Project:
         splits=splits,
         release=release,
     )
-    verify_fraction_tokenizer(project)
+    if verify_inputs:
+        verify_fraction_tokenizer(project)
     return project

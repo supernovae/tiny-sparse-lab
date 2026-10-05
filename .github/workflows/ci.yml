@@ -63,9 +63,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+      - name: Lint tracked research declarations and evidence references
+        run: uv run --locked --extra cpu python -m sparselab.research.lint --json
       - name: Focused configuration, corpus, and ingestion checks
         run: >-
           uv run --locked --extra cpu pytest -q
+          tests/test_research_lint.py
+          tests/test_corpus_identity.py
           tests/test_config.py
           tests/test_conversations.py
           tests/test_corpus_acquisition.py
