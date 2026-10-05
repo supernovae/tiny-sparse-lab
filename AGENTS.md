@@ -84,6 +84,39 @@ from an agent's confidence or a passing smoke test.
 
 ## Experiments and evidence
 
+### Use the lab for rapid iteration
+
+- Follow [the native iteration workflow](docs/iteration.md). Use the same native
+  commands and declarations a human would use; select `--json` only where the
+  command supports it. Do not write Python to reimplement artifact hashing,
+  counter checks, checkpoint selection, runtime checks or Campaign state.
+- At a new session boundary, use the bounded `readiness smoke --family dense`
+  when lab wiring needs checking; select additional affected families for code
+  changes. This runs tiny CPU training and resume, so use an isolated output.
+  It does not certify an accelerator or the real experiment's inputs.
+- Identify the actual delta first: declaration, data/tokenizer, code, runtime or
+  location. Use nearest tests for changed code, actual-config `inspect` and
+  `workspace preflight`, and config-specific staging where needed. A tested
+  unchanged revision does not need the full suite before every model iteration.
+- Prefer Campaign `status`, `next` and `explain` for declared workflows; these
+  expose blockers and bound inputs without launching training. Use composed
+  `run` for a single fresh teaching run and ExperimentPlan phases for checkpoint
+  chains. An interrupted attempt needs reconciliation or explicit resume, not
+  an invented fresh retry.
+- Reuse authenticated unchanged inputs through supported CLI verification
+  reuse. Use cold verification at a new trust boundary or when explicitly
+  requested; inspect proof misses and fallbacks rather than trusting file size
+  or remembered hashes. Family/archive/recovery checks retain their documented
+  cold behavior. Do not repeatedly rebuild a frozen tokenizer or dataset.
+- After a run, read native `evidence` and `triage`, verify the selected immutable
+  checkpoint and inspect completed ingestion separately. Triage reads retained
+  advice; it does not approve training, choose a new experiment or promote a
+  model. Keep raw negative and unavailable observations visible.
+- If a necessary check exists only as a Python API, record the exact missing
+  CLI/DSL operation with input/output and failure acceptance criteria in
+  `TODO.md`. Prefer a small typed adapter over a task-specific harness or a
+  second orchestration engine. Do not present a proposed command as shipped.
+
 - Copyable teaching material belongs in `experiments/samples/`. A real scientific
   campaign belongs in `experiments/research/<campaign>/` and must bind its source
   configs/protocol, acceptance gates, and evidence references. Mutable execution

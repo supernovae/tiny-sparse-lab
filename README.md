@@ -48,14 +48,8 @@ git clone https://github.com/supernovae/tiny-sparse-lab.git
 cd tiny-sparse-lab
 uv sync --locked --extra cpu --dev
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
-uv run --locked --extra cpu sparselab tokenizer train configs/tokenizer_smoke.yaml
-uv run --locked --extra cpu sparselab inspect configs/runtime_smoke_cpu.yaml --json
-uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml \
-  --through warmup --output "$SPARSELAB_WORK_DIR/first-run/stage"
-uv run --locked --extra cpu sparselab train configs/runtime_smoke_cpu.yaml \
-  --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs" --run-id first-run \
-  --stage-bundle "$SPARSELAB_WORK_DIR/first-run/stage"
-uv run --locked --extra cpu sparselab eval first-run --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
+uv run --locked --extra cpu sparselab readiness smoke --family dense \
+  --output "$SPARSELAB_WORK_DIR/first-run"
 uv run --locked --extra cpu sparselab dashboard --runs-dir "$SPARSELAB_WORK_DIR/first-run/runs"
 ```
 
@@ -63,15 +57,40 @@ The base installation is Torch-free. Add `--extra cpu` for this CPU workflow and
 the full CLI (which still imports a backend framework); `sparselab runtime env`
 commands use a lightweight Torch-free entry route.
 
-This tiny synthetic run checks that the lab works. For real story data, follow
+The native readiness command prepares an isolated fixture, checks storage and
+configuration, stages a smoke pilot, trains briefly, evaluates and generates,
+then verifies full-state resumed training. It prints the path to `readiness.json`.
+Use a new output directory to repeat it. This checks CPU lab wiring, not model
+quality or accelerator readiness. These shell examples use Bash; the
+[iteration guide](docs/iteration.md) includes PowerShell setup.
+
+For real story data, follow
 the **[TinyStories microlab](docs/tinystories-microlab.md)**: a ~590K-parameter
 starter, a two-cell YAML comparison, generation, and a continued training run.
+The walkthrough uses copyable YAML and native commands for baseline → evaluate
+→ extend exposure → compare, with no Python scripting required.
 Choose your backend explicitly and keep expensive outputs on an adequately sized
 external filesystem (`SPARSELAB_WORK_DIR=/data/sparselab` is recommended for
 substantial campaigns). Example configurations with explicit output/cache locations
 retain those destinations even when the global root changes. Use fresh run IDs and
 stage directories when repeating an experiment; check free storage and runtime
 warmup measurements before scaling.
+
+## Iterate with the lab
+
+Declare one change, inspect its effective settings and storage, pilot the actual
+config when needed, then run through the existing queue or Campaign. Read native
+`evidence` and `triage` afterward; preserve the parent and compare checkpoint-bound
+results. The [rapid iteration guide](docs/iteration.md) explains which checks to
+repeat when code, data, runtime or budget changes. Agents follow the same route
+in [AGENTS.md](AGENTS.md#use-the-lab-for-rapid-iteration).
+
+For a declared Campaign, `campaign status`, `next` and `explain` show progress,
+blockers and the next action. `apply`/`resume` without `--execute-runs` cannot
+enqueue new training. Text output is for interactive use; supported `--json`
+output carries the same checks for agents. The consolidated iteration check and
+remaining declaration conveniences are [implementation work](TODO.md#rapid-iteration),
+not commands available today.
 
 **Machine-local runtimes** are independent of the scientific work root and lock.
 Discover installed interpreters and host hardware separately, then register and

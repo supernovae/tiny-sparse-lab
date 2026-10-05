@@ -2,11 +2,11 @@ schema_version: 1
 vocab_size: 2048
 min_frequency: 2
 max_documents: 2000
-output_dir: ../../../sparselab-work/experiments/tinystories-microlab/tokenizer
+output_dir: ../tokenizer
 dataset:
   source: tinystories
   revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64
-  cache_dir: ../../../sparselab-work/experiments/tinystories-microlab/data
+  cache_dir: ../data
   train_max_documents: 2000
   validation_max_documents: 100
   train_max_tokens: 500000
