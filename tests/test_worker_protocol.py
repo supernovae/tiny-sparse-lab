@@ -326,3 +326,24 @@ def test_wire_scalars_do_not_coerce_type(field: str, value: object) -> None:
     payload[field] = value
     with pytest.raises(ValueError):
         AttemptReceipt.model_validate(payload)
+
+
+@pytest.mark.parametrize("invalid", [0, 1, "true", None, []])
+def test_operational_cold_mode_rejects_nonboolean_protocol_values(invalid) -> None:
+    from sparselab.workers.models import validate_operation
+
+    for op, payload in (
+        ("install_bundle", {"manifest_digest": "0" * 64, "mode": "install"}),
+        (
+            "launch",
+            {
+                "attempt_id": "attempt",
+                "run_id": "run",
+                "experiment_id": "experiment",
+                "spec_digest": "0" * 64,
+                "bundle_digest": "1" * 64,
+            },
+        ),
+    ):
+        with pytest.raises(ValueError, match="cold_verify must be a boolean"):
+            validate_operation(op, {**payload, "cold_verify": invalid})

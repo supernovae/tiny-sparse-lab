@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -69,6 +71,62 @@ def evaluated_run(tmp_path_factory):
         )
     )
     return source, small.logging.root_dir
+
+
+def test_run_evidence_signed_reuse_across_process_and_restored_mtime(
+    evaluated_run, tmp_path, monkeypatch
+):
+    from sparselab.evaluation.evidence import experiment_evidence
+    from sparselab.verification_proofs import ProofStore
+
+    _, runs = evaluated_run
+    root = tmp_path / "trusted"
+    root.mkdir()
+    run = root / "runs" / "suite-run"
+    shutil.copytree(runs / "suite-run", run)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    store = ProofStore(root)
+    cold = experiment_evidence(
+        run, proof_store=store, verification_mode="verified_reuse"
+    )
+    script = """
+import json, sys
+from pathlib import Path
+from sparselab.evaluation.evidence import experiment_evidence
+from sparselab.data.verification import manifest_module
+from sparselab.verification_proofs import ProofStore
+calls = []
+original = manifest_module.sha256_file
+def counted(path):
+    if Path(path).is_relative_to(run):
+        calls.append(str(path))
+    return original(path)
+manifest_module.sha256_file = counted
+run = Path(sys.argv[1])
+result = experiment_evidence(run, proof_store=ProofStore(Path(sys.argv[2])),
+                             verification_mode="verified_reuse")
+print(json.dumps({"run_id": result["run_id"], "payload_sha_calls": calls}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(run), str(root)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    warmed = json.loads(result.stdout)
+    assert warmed["run_id"] == cold["run_id"]
+    assert warmed["payload_sha_calls"] == []
+    target = run / "data" / "train.npy"
+    original = target.read_bytes()
+    timestamp = target.stat().st_mtime_ns
+    target.write_bytes(original[:100] + bytes([original[100] ^ 1]) + original[101:])
+    import os
+
+    os.utime(target, ns=(timestamp, timestamp))
+    with pytest.raises(ValueError, match="digest mismatch"):
+        experiment_evidence(
+            run, proof_store=ProofStore(root), verification_mode="verified_reuse"
+        )
 
 
 @pytest.mark.parametrize(
@@ -239,8 +297,10 @@ def test_checkpoint_runtime_binding_and_cpu_override(evaluated_run, monkeypatch)
     )
     original = inference._verified_checkpoint
 
-    def rocm_checkpoint(run, checkpoint):
-        config, manifest, selected, metadata, manager = original(run, checkpoint)
+    def rocm_checkpoint(run, checkpoint, **verification):
+        config, manifest, selected, metadata, manager = original(
+            run, checkpoint, **verification
+        )
         runtime = config.runtime.model_copy(
             update={"backend": "rocm", "precision": "bf16", "device_index": 2}
         )
@@ -487,3 +547,34 @@ def test_pending_surface_review_preserves_completed_numeric_gate(
         (bundle / "review.json").write_text("{}")
         with pytest.raises(ValueError):
             run_suite(source, "suite-run", generation.name, runs, backend="cpu")
+
+
+def test_suite_signed_replay_reuses_payload_and_preserves_canonical_index(
+    evaluated_run, monkeypatch
+):
+    from sparselab.data import verification
+    from sparselab.verification_proofs import ProofStore
+
+    source, runs = evaluated_run
+    options = {
+        "proof_store": ProofStore(source.parent),
+        "verification_mode": "verified_reuse",
+    }
+    index_path = run_suite(source, "suite-run", "latest.json", runs, backend="cpu")
+    original_index = index_path.read_bytes()
+    run_suite(source, "suite-run", "latest.json", runs, backend="cpu", **options)
+    hashed_payloads = []
+    original_hasher = verification.manifest_module.sha256_file
+
+    def counted(path, *args, **kwargs):
+        if Path(path).suffix in {".npy", ".safetensors"}:
+            hashed_payloads.append(str(path))
+        return original_hasher(path, *args, **kwargs)
+
+    monkeypatch.setattr(verification.manifest_module, "sha256_file", counted)
+    replay = run_suite(
+        source, "suite-run", "latest.json", runs, backend="cpu", **options
+    )
+    verify_evaluation_index(replay, **options)
+    assert hashed_payloads == []
+    assert replay.read_bytes() == original_index

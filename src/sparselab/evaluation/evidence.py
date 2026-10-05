@@ -17,6 +17,12 @@ from sparselab.data.packing import (
 from sparselab.data.verification import VerifiedFile, _receipt_from_proofs, verify_file
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.verification_proofs import (
+    ProofStore,
+    VerificationMode,
+    file_binding,
+    validate_mode,
+)
 
 
 def _inside(root: Path, path: Path) -> bool:
@@ -27,7 +33,11 @@ def _inside(root: Path, path: Path) -> bool:
 
 
 def _validated_artifacts(
-    run: Path, manifest: dict[str, object]
+    run: Path,
+    manifest: dict[str, object],
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> tuple[dict[str, str], dict[str, VerifiedFile]]:
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
@@ -40,10 +50,25 @@ def _validated_artifacts(
         name, digest = item.get("relative_path"), item.get("sha256")
         if not isinstance(name, str) or not isinstance(digest, str):
             raise TypeError("invalid artifact identity")
+        relative = Path(name)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"artifact integrity failure: {name}")
         path = run / name
         if not _inside(run, path) or path.is_symlink() or not path.is_file():
             raise ValueError(f"artifact integrity failure: {name}")
-        proof = verify_file(path, expected_sha256=digest)
+        proof = verify_file(
+            path,
+            expected_sha256=digest,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            binding=file_binding(
+                path,
+                digest,
+                kind="run_artifact",
+                identifier=name,
+                closure={"run_id": manifest["run_id"], "inventory": artifacts},
+            ),
+        )
         if Path(name).parts[0] == "data" and path.suffix == ".npy":
             proofs[path.name] = proof
         verified[name] = digest
@@ -153,10 +178,18 @@ def validate_held_out_report(
         return None, str(error)
 
 
-def experiment_evidence(run: Path) -> dict[str, object]:
+def experiment_evidence(
+    run: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, object]:
     """Return observations only when every referenced immutable artifact verifies."""
+    validate_mode(verification_mode)
     manifest = read_manifest(run / "manifest.json")
-    artifacts, array_proofs = _validated_artifacts(run, manifest)
+    artifacts, array_proofs = _validated_artifacts(
+        run, manifest, proof_store=proof_store, verification_mode=verification_mode
+    )
     config = manifest["effective_config"]
     data_root = run / "data"
     data_manifest = json.loads(
@@ -215,7 +248,13 @@ def experiment_evidence(run: Path) -> dict[str, object]:
     checkpoints: list[dict[str, object]] = []
     checkpoint_lookup: dict[str, dict[str, object]] = {}
     for path in sorted((run / "checkpoints").glob("step_*_gen_*")):
-        report = manager.verify(path, manifest_digest, require_training_state=False)
+        report = manager.verify(
+            path,
+            manifest_digest,
+            require_training_state=False,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         item: dict[str, object] = {
             "path": path.name,
             "verified": report.valid,

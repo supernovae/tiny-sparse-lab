@@ -18,7 +18,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -37,6 +37,9 @@ from sparselab.corpus.project import (
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 from sparselab.training.manifest import canonical_json, sha256_file
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
 
 ADAPTER_VERSION = "corpus-acquisition-v1"
 
@@ -869,7 +872,44 @@ def _verify_wikimedia_receipt(path: Path, manifest: dict[str, Any]) -> None:
         raise ValueError("Wikimedia page receipt mismatch")
 
 
-def verify_snapshot(path: Path | str, *, _staged: bool = False) -> dict[str, Any]:
+def verify_snapshot(
+    path: Path | str,
+    *,
+    _staged: bool = False,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    _domain_cold: bool = False,
+) -> dict[str, Any]:
+    """Authenticate a snapshot; trusted receipts are optional for published roots."""
+    path = Path(path)
+    if (
+        not _staged
+        and not _domain_cold
+        and proof_store is not None
+        and verification_mode == "verified_reuse"
+    ):
+        from sparselab.experiments.artifacts import verify_artifact
+        from sparselab.experiments.plan import Artifact
+
+        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+        verify_artifact(
+            Artifact(
+                kind="source_snapshot",
+                version=manifest["schema_version"],
+                producer="sparselab",
+                identifier=manifest["source_id"],
+                sha256=manifest["snapshot_sha256"],
+                path=str(path),
+            ),
+            path / "manifest.json",
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+        return manifest
+    return _verify_snapshot_cold(path, _staged=_staged)
+
+
+def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any]:
     path = Path(path)
     try:
         manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
@@ -938,7 +978,12 @@ def _project_sha(project: Project) -> str:
 
 
 def verify_acquisition(
-    project: Project, work_root: Path | str, *, lock_path: Path | None = None
+    project: Project,
+    work_root: Path | str,
+    *,
+    lock_path: Path | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     base = Path(work_root) / "corpora" / project.config.id
     selected = Path(lock_path) if lock_path is not None else base / "acquisition.json"
@@ -969,7 +1014,9 @@ def verify_acquisition(
             snapshot = base / "snapshots" / source.id / entry["snapshot_sha256"]
             if entry["snapshot_path"] != str(snapshot.resolve()):
                 raise ValueError("snapshot path mismatch")
-            manifest = verify_snapshot(snapshot)
+            manifest = verify_snapshot(
+                snapshot, proof_store=proof_store, verification_mode=verification_mode
+            )
             if (
                 manifest["snapshot_sha256"] != entry["snapshot_sha256"]
                 or manifest["declaration_sha256"] != entry["declaration_sha256"]
@@ -988,12 +1035,22 @@ def verify_acquisition(
 
 
 def acquire(
-    project: Project, work_root: Path | str, offline: bool = False
+    project: Project,
+    work_root: Path | str,
+    offline: bool = False,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     """Publish verified snapshots independently; replace the active lock only on success."""
     base = Path(work_root) / "corpora" / project.config.id
     if offline:
-        return verify_acquisition(project, work_root)
+        return verify_acquisition(
+            project,
+            work_root,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
     snapshot_root = base / "snapshots"
     snapshot_root.mkdir(parents=True, exist_ok=True)
     entries = {}
@@ -1014,7 +1071,11 @@ def acquire(
             ][source.id]
             old_path = snapshot_root / source.id / old["snapshot_sha256"]
             if old["declaration_sha256"] == declared_digest:
-                manifest = verify_snapshot(old_path)
+                manifest = verify_snapshot(
+                    old_path,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
                 if (
                     source.kind not in ("local", "http_document")
                     and manifest["declaration"] == source_declaration_payload(source)
@@ -1035,7 +1096,11 @@ def acquire(
                 if not candidate.is_dir() or candidate.name.startswith("."):
                     continue
                 try:
-                    manifest = verify_snapshot(candidate)
+                    manifest = verify_snapshot(
+                        candidate,
+                        proof_store=proof_store,
+                        verification_mode=verification_mode,
+                    )
                 except OSError, ValueError, KeyError, TypeError, json.JSONDecodeError:
                     continue
                 if (
@@ -1107,7 +1172,11 @@ def acquire(
                 raise ValueError("staged snapshot identity mismatch")
             destination = parent / identity
             if destination.exists():
-                verify_snapshot(destination)
+                verify_snapshot(
+                    destination,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
             else:
                 for directory in sorted((staging / "files").rglob("*"), reverse=True):
                     if directory.is_dir():
@@ -1116,7 +1185,11 @@ def acquire(
                 _sync_dir(staging)
                 _rename_noreplace(staging, destination)
                 _sync_dir(parent)
-                verify_snapshot(destination)
+                verify_snapshot(
+                    destination,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
             entries[source.id] = {
                 "declaration_sha256": declared_digest,
                 "snapshot_sha256": identity,
@@ -1148,4 +1221,6 @@ def acquire(
     finally:
         if os.path.exists(name):
             os.unlink(name)
-    return verify_acquisition(project, work_root)
+    return verify_acquisition(
+        project, work_root, proof_store=proof_store, verification_mode=verification_mode
+    )

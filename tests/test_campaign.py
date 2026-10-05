@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -810,6 +811,67 @@ def invoke_cli(
     assert envelope["format"] == "sparselab-campaign-command-v1"
     assert envelope["command"] == command
     return envelope
+
+
+def test_run_dispatch_advances_immediately_after_durable_ingestion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sparselab.evaluation.evidence as evidence_module
+    import sparselab.workers.controller as controller_module
+    from sparselab.campaign.engine import CampaignEngine
+
+    attempt = {
+        "attempt_id": "attempt",
+        "experiment_id": "experiment",
+        "run_id": "run",
+        "status": "RUNNING",
+        "ingestion_status": "PENDING",
+    }
+
+    class FakeController:
+        def __init__(self, root, **kwargs):
+            self.root = root
+
+        def tick(self, *, deadline):
+            attempt.update(status="COMPLETE", ingestion_status="COMPLETE")
+
+    engine = object.__new__(CampaignEngine)
+    engine.observer = None
+    engine._verification_options = {"proof_store": None, "verification_mode": "cold"}
+    monkeypatch.setattr(
+        engine,
+        "_lock",
+        lambda rows, plan: SimpleNamespace(cells=[SimpleNamespace(id="cell")]),
+    )
+    monkeypatch.setattr(engine, "_attempts", lambda *args: [dict(attempt)])
+    monkeypatch.setattr(engine, "_submitted_run", lambda *args: True)
+    monkeypatch.setattr(controller_module, "Controller", FakeController)
+    monkeypatch.setattr(
+        evidence_module, "experiment_evidence", lambda *args, **kwargs: {}
+    )
+    monkeypatch.setattr(
+        "sparselab.campaign.engine.time.sleep",
+        lambda duration: pytest.fail("completed ingestion must not sleep"),
+    )
+    stage = SimpleNamespace(kind="experiment_run", id="run", plan="plan", cell="cell")
+    rows = {
+        "run": {"stage_input_sha256": "input"},
+        "plan": {"availability": {"workspace": str(tmp_path)}},
+    }
+    result = CampaignEngine.dispatch.__wrapped__(
+        engine, stage, rows, 1.0, execute_runs=False
+    )
+    assert result["state"] == "COMPLETE"
+    assert result["measurements"] == {
+        key: attempt[key] for key in ("experiment_id", "attempt_id", "run_id")
+    }
+    # The existing attempt remains the only authority when the wait budget ends.
+    attempt.update(status="RUNNING", ingestion_status="PENDING")
+    pending = CampaignEngine.dispatch.__wrapped__(
+        engine, stage, rows, 0.0, execute_runs=False
+    )
+    assert pending["state"] == "RUNNING"
+    assert pending["measurements"] == result["measurements"]
 
 
 def test_engine_full_cpu_and_no_redispatch(

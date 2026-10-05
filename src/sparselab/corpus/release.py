@@ -13,17 +13,20 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from itertools import zip_longest
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sparselab.training.manifest import canonical_json, sha256_file
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
 
 
 @dataclass(frozen=True)
 class _VerifiedRelease:
-    """Full-verifier proof valid only within one synchronous operation."""
+    """Full-verifier proof valid only while its typed closure remains unchanged."""
 
     manifest: dict[str, Any]
-    manifest_sha256: str
+    closure_key: tuple[object, ...]
 
 
 _verified_releases: ContextVar[dict[Path, _VerifiedRelease] | None] = ContextVar(
@@ -190,7 +193,12 @@ def _streaming_v3(identity: dict[str, Any]) -> bool:
     )
 
 
-def _validate_rows_v3(root: Path) -> None:
+def _validate_rows_v3(
+    root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> None:
     """Validate LM-only source evidence with disk-backed identity joins."""
     from sparselab.corpus.acquisition import verify_snapshot
     from sparselab.corpus.pipeline import _normalized, _origin_keys
@@ -216,7 +224,9 @@ def _validate_rows_v3(root: Path) -> None:
         if not snapshot_id:
             continue
         snapshot = verify_snapshot(
-            root.parent.parent / "snapshots" / source["id"] / snapshot_id
+            root.parent.parent / "snapshots" / source["id"] / snapshot_id,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         snapshots[source["id"]] = snapshot
         declaration = snapshot["declaration"]
@@ -697,7 +707,12 @@ def _validate_rows_v3(root: Path) -> None:
             db.close()
 
 
-def _validate_rows(root: Path) -> None:
+def _validate_rows(
+    root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> None:
     documents = _rows(root / "documents.jsonl")
     document_map = {doc["document_id"]: doc for doc in documents}
     if len(document_map) != len(documents):
@@ -719,7 +734,9 @@ def _validate_rows(root: Path) -> None:
         if not snapshot_id:
             continue
         snapshot = verify_snapshot(
-            root.parent.parent / "snapshots" / source["id"] / snapshot_id
+            root.parent.parent / "snapshots" / source["id"] / snapshot_id,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         snapshots[source["id"]] = snapshot
         declaration = snapshot["declaration"]
@@ -1283,7 +1300,52 @@ def _verify_stages(
             raise ValueError("stage receipt does not match output")
 
 
-def verify_build(path: Path) -> dict[str, Any]:
+def verify_build(
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    _domain_cold: bool = False,
+) -> dict[str, Any]:
+    """Verify staged build and its pinned snapshots."""
+    path = Path(path).resolve()
+    with _verification_operation():
+        if (
+            not _domain_cold
+            and proof_store is not None
+            and verification_mode == "verified_reuse"
+        ):
+            from sparselab.experiments.artifacts import verify_artifact
+            from sparselab.experiments.plan import Artifact
+
+            manifest = _load(path / "build.json")
+            verify_artifact(
+                Artifact(
+                    kind="corpus_build",
+                    version=manifest["schema_version"],
+                    producer="sparselab",
+                    identifier=manifest["build_id"],
+                    sha256=manifest["build_id"],
+                    path=str(path),
+                ),
+                path / "build.json",
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            return manifest
+        return _verify_build_cold(
+            path,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+
+
+def _verify_build_cold(
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, Any]:
     """Verify all staged outputs and their claimed immutable input snapshots."""
     path = Path(path).resolve()
     manifest = _load(path / "build.json")
@@ -1311,11 +1373,17 @@ def verify_build(path: Path) -> dict[str, Any]:
             path.parent.parent
             / "snapshots"
             / snapshot["source_id"]
-            / snapshot["sha256"]
+            / snapshot["sha256"],
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         if receipt["snapshot_sha256"] != snapshot["sha256"]:
             raise ValueError("build snapshot identity mismatch")
-    (_validate_rows_v3 if _streaming_v3(manifest["identity"]) else _validate_rows)(path)
+    (_validate_rows_v3 if _streaming_v3(manifest["identity"]) else _validate_rows)(
+        path,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
     return manifest
 
 
@@ -1332,10 +1400,18 @@ def _manifest_payload(build: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def freeze(build_dir: Path, work_root: Path) -> Path:
+def freeze(
+    build_dir: Path,
+    work_root: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> Path:
     """Publish a verified build at its content-derived full SHA-256, never replacing it."""
     build_dir = Path(build_dir).resolve()
-    build = verify_build(build_dir)
+    build = verify_build(
+        build_dir, proof_store=proof_store, verification_mode=verification_mode
+    )
     release_config = build["identity"]["release"]
     for view in ("lm", "chat"):
         selected = release_config[view]
@@ -1355,7 +1431,9 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
         Path(work_root) / "corpora" / payload["corpus_id"] / "releases" / release_id
     )
     if destination.exists():
-        verify_release(destination)
+        verify_release(
+            destination, proof_store=proof_store, verification_mode=verification_mode
+        )
         if _load(destination / "manifest.json") != {
             **payload,
             "release_id": release_id,
@@ -1375,7 +1453,13 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
         (staging / "manifest.json").write_bytes(
             canonical_json({**payload, "release_id": release_id}) + b"\n"
         )
-        verify_release(staging, expected_id=release_id)
+        verify_release(
+            staging,
+            expected_id=release_id,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
+        )
         from sparselab.corpus.acquisition import _sync_dir
         from sparselab.engram.packs import _rename_noreplace
 
@@ -1390,18 +1474,91 @@ def freeze(build_dir: Path, work_root: Path) -> Path:
             _rename_noreplace(staging, destination)
             _sync_dir(destination.parent)
         except FileExistsError:
-            verify_release(destination)
+            verify_release(
+                destination,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
     return destination
 
 
-def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, Any]:
+def verify_release(
+    path: Path,
+    *,
+    expected_id: str | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+    _domain_cold: bool = False,
+) -> dict[str, Any]:
+    """Verify a release, optionally reusing a signed typed artifact receipt."""
+    path = Path(path).resolve()
+    with _verification_operation():
+        if (
+            not _domain_cold
+            and proof_store is not None
+            and verification_mode == "verified_reuse"
+        ):
+            from sparselab.experiments.artifacts import verify_artifact
+            from sparselab.experiments.plan import Artifact
+
+            manifest = _load(path / "manifest.json")
+            if manifest["release_id"] != (expected_id or path.name):
+                raise ValueError("release directory identity mismatch")
+            verify_artifact(
+                Artifact(
+                    kind="corpus_release",
+                    version=manifest["schema_version"],
+                    producer="sparselab",
+                    identifier=manifest["release_id"],
+                    sha256=manifest["release_id"],
+                    path=str(path),
+                ),
+                path / "manifest.json",
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            return manifest
+        return _verify_release_cold(
+            path,
+            expected_id=expected_id,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+
+
+def _release_closure_key(path: Path, manifest: dict[str, Any]) -> tuple[object, ...]:
+    """Use the artifact verifier's typed inventory and external snapshot binding."""
+    from sparselab.experiments.artifacts import _artifact_key
+    from sparselab.experiments.plan import Artifact
+
+    release_id = manifest["release_id"]
+    return _artifact_key(
+        Artifact(
+            kind="corpus_release",
+            version=manifest["schema_version"],
+            producer="sparselab",
+            identifier=release_id,
+            sha256=release_id,
+            path=str(path),
+        ),
+        path,
+    )
+
+
+def _verify_release_cold(
+    path: Path,
+    *,
+    expected_id: str | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, Any]:
     """Verify the complete release including snapshotted source and lineage evidence."""
     path = Path(path).resolve()
     proofs = _verified_releases.get()
     if proofs is not None and path in proofs:
         proof = proofs[path]
-        if proof.manifest_sha256 != sha256_file(
-            path / "manifest.json"
+        if proof.closure_key != _release_closure_key(
+            path, proof.manifest
         ) or proof.manifest["release_id"] != (expected_id or path.name):
             raise ValueError("release changed within verification operation")
         return proof.manifest
@@ -1414,6 +1571,7 @@ def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, A
         != release_id
     ):
         raise ValueError("release manifest identity mismatch")
+    closure_key = _release_closure_key(path, manifest) if proofs is not None else None
     _files(
         path,
         {
@@ -1432,7 +1590,9 @@ def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, A
             path.parent.parent
             / "snapshots"
             / snapshot["source_id"]
-            / snapshot["sha256"]
+            / snapshot["sha256"],
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
         if receipt["snapshot_sha256"] != snapshot["sha256"]:
             raise ValueError("release snapshot identity mismatch")
@@ -1440,9 +1600,11 @@ def verify_release(path: Path, *, expected_id: str | None = None) -> dict[str, A
         _validate_rows_v3
         if _streaming_v3(manifest["build_identity"])
         else _validate_rows
-    )(path)
+    )(path, proof_store=proof_store, verification_mode=verification_mode)
     if proofs is not None:
-        proofs[path] = _VerifiedRelease(manifest, sha256_file(path / "manifest.json"))
+        if closure_key != _release_closure_key(path, manifest):
+            raise ValueError("release changed during verification operation")
+        proofs[path] = _VerifiedRelease(manifest, closure_key)
     return manifest
 
 

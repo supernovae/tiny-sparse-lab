@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 
+from sparselab.verification_proofs import verification_options
 from sparselab.workdir import resolve_work_dir
 
 
@@ -30,6 +31,11 @@ def _handle(args: argparse.Namespace) -> None:
 
     root = resolve_work_dir(args.work_dir)
     command = args.corpus_command
+    verification = (
+        verification_options(root)
+        if command in {"acquire", "build", "freeze", "export"}
+        else {}
+    )
     if command == "tokenizer-bakeoff":
         from sparselab.corpus.tokenizer_bakeoff import bakeoff
 
@@ -38,9 +44,9 @@ def _handle(args: argparse.Namespace) -> None:
     if command in {"acquire", "build"}:
         project = load_project(Path(args.project))
         result = (
-            acquire(project, root, offline=args.offline)
+            acquire(project, root, offline=args.offline, **verification)
             if command == "acquire"
-            else build(project, root, offline=args.offline)
+            else build(project, root, offline=args.offline, **verification)
         )
         print(
             json.dumps(result, sort_keys=True, default=str)
@@ -49,7 +55,7 @@ def _handle(args: argparse.Namespace) -> None:
         )
         return
     if command == "freeze":
-        print(publication.freeze(Path(args.build), root))
+        print(publication.freeze(Path(args.build), root, **verification))
         return
     release = _release_path(args.release, root)
     if command == "measure-tokens":
@@ -83,7 +89,12 @@ def _handle(args: argparse.Namespace) -> None:
     if command == "export":
         print(
             export_release(
-                release, args.view, Path(args.base_run_config), args.vocab_size, root
+                release,
+                args.view,
+                Path(args.base_run_config),
+                args.vocab_size,
+                root,
+                **verification,
             )
         )
         return

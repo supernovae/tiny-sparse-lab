@@ -398,3 +398,74 @@ def test_stage_wire_version_compatibility(
     else:
         with pytest.raises(ValueError, match="unsupported stage bundle version"):
             _read_sealed(wire)
+
+
+def test_fresh_stage_private_links_preserve_canonical_inputs_and_fallback_identity(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import os
+
+    from sparselab.training.manifest import sha256_file
+
+    config = _config(tmp_path)
+    original = prepare_data(config, load_tokenizer(config.tokenizer.path))
+    source = original.root / "train.npy"
+    before = sha256_file(source)
+    linked = stage(config, tmp_path / "linked", through="validate")
+    private_source = linked / "prepared/assets/data/train.npy"
+    private_stage = linked / "assets/data/train.npy"
+    assert private_source.stat().st_ino == private_stage.stat().st_ino
+    assert private_stage.stat().st_ino != source.stat().st_ino
+
+    link = os.link
+
+    def no_private_link(source_path, target_path, *args, **kwargs):
+        if "/prepared/assets/" in str(source_path):
+            raise OSError("injected unsupported private hardlink")
+        return link(source_path, target_path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "link", no_private_link)
+    copied = stage(config, tmp_path / "copied", through="validate")
+    assert (
+        _read_sealed(linked / "inputs.json")["sha256"]
+        == _read_sealed(copied / "inputs.json")["sha256"]
+    )
+    assert (copied / "prepared/assets/data/train.npy").stat().st_ino != (
+        copied / "assets/data/train.npy"
+    ).stat().st_ino
+    staging_module.verify_stage_bundle(linked, config)
+    staging_module.verify_stage_bundle(copied, config)
+    with private_stage.open("r+b") as handle:
+        handle.seek(-1, os.SEEK_END)
+        byte = handle.read(1)
+        handle.seek(-1, os.SEEK_END)
+        handle.write(bytes([byte[0] ^ 1]))
+    assert sha256_file(source) == before
+    with pytest.raises(ValueError):
+        staging_module.verify_stage_bundle(linked, config)
+
+
+@pytest.mark.parametrize("operation", ["stage", "materialize"])
+def test_owned_directory_publication_never_replaces_a_late_destination(
+    tmp_path: Path, monkeypatch, operation: str
+) -> None:
+    config = _config(tmp_path)
+    destination = tmp_path / "contended"
+    publish = staging_module._publish_prepared_directory
+
+    def competing_destination(source, target):
+        if target == destination:
+            target.mkdir()
+            (target / "owner.txt").write_bytes(b"competing transaction")
+        return publish(source, target)
+
+    monkeypatch.setattr(
+        staging_module, "_publish_prepared_directory", competing_destination
+    )
+    with pytest.raises(FileExistsError):
+        if operation == "stage":
+            stage(config, destination, through="validate")
+        else:
+            staging_module.materialize_prepared_inputs(config, destination)
+    assert (destination / "owner.txt").read_bytes() == b"competing transaction"
+    assert sorted(path.name for path in destination.iterdir()) == ["owner.txt"]

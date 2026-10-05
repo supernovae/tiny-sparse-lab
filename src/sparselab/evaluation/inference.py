@@ -21,15 +21,17 @@ from sparselab.data.packing import (
     supervision_requires_mask,
 )
 from sparselab.data.tokenizer import load_tokenizer
-from sparselab.data.verification import VerifiedFile, _receipt_from_proofs, verify_file
+from sparselab.data.verification import _receipt_from_proofs
 from sparselab.engines.base import Microbatch
 from sparselab.engines.mlx import MLXEngine, preserve_rng_state
+from sparselab.evaluation.evidence import _validated_artifacts
 from sparselab.model.inspection import inspection_report
 from sparselab.model.transformer import DenseLM
 from sparselab.runtime import discover_runtimes, select_device, torch_device_for
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest
+from sparselab.verification_proofs import ProofStore, VerificationMode
 
 
 @dataclass(frozen=True)
@@ -110,7 +112,11 @@ class InferenceRun:
 
 
 def _verified_checkpoint(
-    run: Path, checkpoint: str | None
+    run: Path,
+    checkpoint: str | None,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> tuple[RunConfig, dict[str, Any], Path, dict[str, Any], CheckpointManager]:
     config = RunConfig.model_validate_json((run / "resolved_config.yaml").read_text())
     manifest = read_manifest(run / "manifest.json")
@@ -146,7 +152,11 @@ def _verified_checkpoint(
         raise ValueError("checkpoint pointer digest does not match selected generation")
     manager = CheckpointManager(run, manifest_sha256=manifest_digest)
     report = manager.verify(
-        selected, expected_manifest=manifest_digest, require_training_state=False
+        selected,
+        expected_manifest=manifest_digest,
+        require_training_state=False,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     if not report.valid:
         raise ValueError(f"invalid checkpoint: {report.errors}")
@@ -181,10 +191,15 @@ def evaluation_config(
     runs_dir: Path,
     checkpoint: str | None = None,
     backend: str | None = None,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> RunConfig:
     """Verify the training checkpoint, then select an ephemeral inference runtime."""
     run = (runs_dir / run_id).resolve()
-    config, _, _, _, _ = _verified_checkpoint(run, checkpoint)
+    config, _, _, _, _ = _verified_checkpoint(
+        run, checkpoint, proof_store=proof_store, verification_mode=verification_mode
+    )
     return _ephemeral_config(config, backend)
 
 
@@ -195,31 +210,19 @@ def load_run(
     backend: str | None = None,
     *,
     authorization: RuntimeAuthorization | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> InferenceRun:
     run = (runs_dir / run_id).resolve()
     config, manifest, selected, metadata, manager = _verified_checkpoint(
-        run, checkpoint
+        run, checkpoint, proof_store=proof_store, verification_mode=verification_mode
     )
     runtime_config = _ephemeral_config(config, backend)
     requested = runtime_config.runtime.backend
     require_authorization(runtime_config, authorization)
-    artifacts: dict[str, str] = {}
-    array_proofs: dict[str, VerifiedFile] = {}
-    for entry in manifest["artifacts"]:
-        relative = Path(entry["relative_path"])
-        path = run / relative
-        if (
-            relative.is_absolute()
-            or ".." in relative.parts
-            or path.is_symlink()
-            or not path.resolve().is_relative_to(run)
-            or not path.is_file()
-        ):
-            raise ValueError(f"run artifact integrity failure: {relative}")
-        proof = verify_file(path, expected_sha256=entry["sha256"])
-        if relative.parts[0] == "data" and relative.suffix == ".npy":
-            array_proofs[relative.name] = proof
-        artifacts[str(relative)] = entry["sha256"]
+    artifacts, array_proofs = _validated_artifacts(
+        run, manifest, proof_store=proof_store, verification_mode=verification_mode
+    )
     required = {
         "tokenizer.json",
         "data/manifest.json",
@@ -314,7 +317,12 @@ def load_run(
             raise ValueError(
                 "model.semantic_memory_dim differs from semantic pack value width"
             )
-    weights = manager.load(selected, "promote").model
+    weights = manager.load(
+        selected,
+        "promote",
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    ).model
     identity = {
         "run_id": run_id,
         "checkpoint_sha256": metadata["sha256"],

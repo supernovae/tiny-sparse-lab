@@ -12,7 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from sparselab.training.manifest import sha256_file
+from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.verification_proofs import (
+    ProofStore,
+    VerificationMode,
+    artifact_binding,
+    validate_mode,
+)
 
 if TYPE_CHECKING:
     from sparselab.data.verification import VerifiedPreparedData
@@ -83,13 +89,24 @@ def _check_snapshot_paths(path: Path, manifest: dict[str, Any]) -> None:
         _safe_path(str(path.parent.parent / "snapshots" / source_id / digest), path)
 
 
-def _verify_domain(artifact: Artifact, path: Path) -> None:
+def _verify_domain(
+    artifact: Artifact,
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> None:
     kind = artifact.kind
     if kind == "source_snapshot":
         from sparselab.corpus.acquisition import verify_snapshot
 
         manifest = _require_directory(path, "manifest.json")
-        verified = verify_snapshot(path)
+        verified = verify_snapshot(
+            path,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
+        )
         if manifest != verified or manifest.get("schema_version") != artifact.version:
             raise ValueError("snapshot manifest/version mismatch")
         _identity(artifact, verified["source_id"], verified["snapshot_sha256"])
@@ -100,7 +117,12 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         if manifest.get("schema_version") != artifact.version:
             raise ValueError("build format version mismatch")
         _check_snapshot_paths(path, manifest)
-        verified = verify_build(path)
+        verified = verify_build(
+            path,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
+        )
         _identity(artifact, verified["build_id"], verified["build_id"])
     elif kind == "corpus_release":
         from sparselab.corpus.release import verify_release
@@ -109,7 +131,12 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         if manifest.get("schema_version") != artifact.version:
             raise ValueError("release format version mismatch")
         _check_snapshot_paths(path, manifest)
-        verified = verify_release(path)
+        verified = verify_release(
+            path,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
+        )
         _identity(artifact, verified["release_id"], verified["release_id"])
     elif kind == "corpus_export":
         from sparselab.config.models import RunConfig
@@ -128,7 +155,12 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         if run.dataset.corpus_release_path is None:
             raise ValueError("export lacks a pinned release")
         _safe_path(str(run.dataset.corpus_release_path), path)
-        verified = verify_release_export(run.dataset)
+        verified = verify_release_export(
+            run.dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
+        )
         _identity(artifact, path.name, path.name)
         if verified["export_sha256"] != sha256_file(path / "export.json"):
             raise ValueError("export sidecar changed")
@@ -180,7 +212,14 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         elif source == "local_stories":
             raise ValueError("local_stories tokenizer requires a pinned source dataset")
         verify_tokenizer_artifact(
-            path, source=source, revision=revision, vocab_size=vocab, dataset=dataset
+            path,
+            source=source,
+            revision=revision,
+            vocab_size=vocab,
+            dataset=dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+            _domain_cold=True,
         )
         tokenizer = load_tokenizer(path)
         if tokenizer.get_vocab_size() != vocab:
@@ -191,7 +230,9 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
             sha256_file(path),
         )
     elif kind == "prepared_data":
-        _load_verified_prepared(artifact, path)
+        _load_verified_prepared(
+            artifact, path, proof_store=proof_store, verification_mode=verification_mode
+        )
     elif kind == "stage_bundle":
         from sparselab.config.models import RunConfig
         from sparselab.staging import verify_stage_bundle
@@ -200,7 +241,9 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         if artifact.version != 1:
             raise ValueError("unsupported stage-bundle version")
         config = RunConfig.model_validate(inputs["requested_config"])
-        verified = verify_stage_bundle(path, config)
+        verified = verify_stage_bundle(
+            path, config, proof_store=proof_store, verification_mode=verification_mode
+        )
         _identity(artifact, verified.get("sha256"), verified.get("sha256"))
     elif kind == "checkpoint":
         from sparselab.training.checkpoints import FORMAT_VERSION, CheckpointManager
@@ -266,14 +309,23 @@ def _verify_domain(artifact: Artifact, path: Path) -> None:
         raise ValueError(f"no immutable external verifier for {kind}")
 
 
-def _load_verified_prepared(artifact: Artifact, path: Path) -> VerifiedPreparedData:
+def _load_verified_prepared(
+    artifact: Artifact,
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> VerifiedPreparedData:
     from sparselab.data.packing import load_prepared_data
 
     manifest = _require_directory(path, "manifest.json")
     if artifact.version != 1:
         raise ValueError("unsupported prepared-data artifact version")
     data = load_prepared_data(
-        path, byte_enabled=manifest.get("byte_addressing") is not None
+        path,
+        byte_enabled=manifest.get("byte_addressing") is not None,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     _identity(
         artifact, manifest.get("settings_sha256"), manifest.get("manifest_sha256")
@@ -281,7 +333,13 @@ def _load_verified_prepared(artifact: Artifact, path: Path) -> VerifiedPreparedD
     return data.receipt
 
 
-def verify_prepared_artifact(artifact: Artifact, source: Path) -> VerifiedPreparedData:
+def verify_prepared_artifact(
+    artifact: Artifact,
+    source: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> VerifiedPreparedData:
     """Authenticate a typed existing prepared artifact and return its sealed proof."""
     if artifact.kind != "prepared_data" or artifact.from_phase is not None:
         raise ValueError(
@@ -289,14 +347,26 @@ def verify_prepared_artifact(artifact: Artifact, source: Path) -> VerifiedPrepar
         )
     if artifact.path is None or artifact.sha256 is None:
         raise ValueError("prepared storage planning requires pinned path and digest")
-    return _load_verified_prepared(artifact, _safe_path(artifact.path, source))
+    return _load_verified_prepared(
+        artifact,
+        _safe_path(artifact.path, source),
+        proof_store=proof_store,
+        verification_mode=verification_mode,
+    )
 
 
 _MEMO_SEAL = object()
 
 
 class _VerifiedArtifact:
-    __slots__ = ("__weakref__", "_seal", "identity", "issuer_pid", "key")
+    __slots__ = (
+        "__weakref__",
+        "_seal",
+        "cold_verified",
+        "identity",
+        "issuer_pid",
+        "key",
+    )
 
     def __init__(
         self,
@@ -304,6 +374,7 @@ class _VerifiedArtifact:
         key: tuple[object, ...],
         *,
         _seal: object = None,
+        cold_verified: bool = True,
     ) -> None:
         if _seal is not _MEMO_SEAL:
             raise TypeError("artifact evidence cannot be constructed from metadata")
@@ -311,6 +382,7 @@ class _VerifiedArtifact:
         object.__setattr__(self, "key", key)
         object.__setattr__(self, "_seal", _MEMO_SEAL)
         object.__setattr__(self, "issuer_pid", os.getpid())
+        object.__setattr__(self, "cold_verified", cold_verified)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("sealed artifact evidence is immutable")
@@ -382,6 +454,67 @@ def _dependent_paths(artifact: Artifact, path: Path) -> tuple[Path, ...]:
     return ()
 
 
+def _manifest_binding(artifact: Artifact, path: Path) -> str:
+    """Bind manifests and exact typed upstream identities, not an invented DAG."""
+    manifests = []
+    upstream = []
+    for member in (path, *_dependent_paths(artifact, path)):
+        if member.is_file():
+            candidates = (
+                [member.with_name("tokenizer_manifest.json")]
+                if member.name == "tokenizer.json"
+                else []
+            )
+        else:
+            candidates = [
+                member / name
+                for name in ("manifest.json", "build.json", "export.json")
+                if (member / name).is_file()
+            ]
+        for candidate in candidates:
+            raw = _json_file(candidate)
+            manifests.append((str(candidate.absolute()), sha256_file(candidate)))
+            if "release_id" in raw:
+                upstream.append(
+                    {
+                        "kind": "corpus_release",
+                        "version": raw.get("schema_version"),
+                        "identifier": raw["release_id"],
+                        "sha256": raw["release_id"],
+                    }
+                )
+            elif "snapshot_sha256" in raw:
+                upstream.append(
+                    {
+                        "kind": "source_snapshot",
+                        "version": raw.get("schema_version"),
+                        "identifier": raw.get("source_id"),
+                        "sha256": raw["snapshot_sha256"],
+                    }
+                )
+            elif "build_id" in raw:
+                upstream.append(
+                    {
+                        "kind": "corpus_build",
+                        "version": raw.get("schema_version"),
+                        "identifier": raw["build_id"],
+                        "sha256": raw["build_id"],
+                    }
+                )
+            elif "export_id" in raw:
+                upstream.append(
+                    {
+                        "kind": "corpus_export",
+                        "version": raw.get("schema_version"),
+                        "identifier": raw["export_id"],
+                        "sha256": raw["export_id"],
+                    }
+                )
+    return canonical_json({"manifests": manifests, "upstream": upstream}).decode(
+        "utf-8"
+    )
+
+
 def _artifact_key(artifact: Artifact, path: Path) -> tuple[object, ...]:
     dependencies = tuple(
         (str(dependency.absolute()), _fingerprint(_safe_path(str(dependency), path)))
@@ -395,6 +528,8 @@ def _artifact_key(artifact: Artifact, path: Path) -> tuple[object, ...]:
         artifact.sha256,
         _fingerprint(path),
         dependencies,
+        artifact.state,
+        _manifest_binding(artifact, path),
     )
 
 
@@ -433,8 +568,11 @@ def verify_artifact(
     source: Path,
     *,
     memo: dict[tuple[object, ...], _VerifiedArtifact] | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, object]:
     """Verify one pinned external identity and return JSON-native identity/availability."""
+    validate_mode(verification_mode)
     if artifact.from_phase is not None:
         raise ValueError(
             f"{artifact.kind} planned output {artifact.identifier} is unresolved until execution"
@@ -451,9 +589,32 @@ def verify_artifact(
             and cached.issuer_pid == os.getpid()
             and cached.key == key
             and cached in _MINTED_ARTIFACTS
+            and (verification_mode != "cold" or cached.cold_verified)
         ):
             return dict(cached.identity)
-        _verify_domain(artifact, path)
+        identity = {
+            "kind": artifact.kind,
+            "version": artifact.version,
+            "identifier": artifact.identifier,
+            "sha256": artifact.sha256,
+            "path": str(path),
+        }
+        binding = artifact_binding(key, identity)
+        hit = (
+            verification_mode == "verified_reuse"
+            and proof_store is not None
+            and proof_store.lookup(binding)
+        )
+        if not hit:
+            if proof_store is None or verification_mode == "cold":
+                _verify_domain(artifact, path)
+            else:
+                _verify_domain(
+                    artifact,
+                    path,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
         if _artifact_key(artifact, path) != key:
             raise ValueError(f"artifact changed during verification: {path}")
     except (
@@ -474,9 +635,11 @@ def verify_artifact(
         "sha256": artifact.sha256,
         "path": str(path),
     }
+    evidence = _VerifiedArtifact(verified, key, _seal=_MEMO_SEAL, cold_verified=not hit)
+    _MINTED_ARTIFACTS.add(evidence)
+    if not hit and verification_mode == "verified_reuse" and proof_store is not None:
+        proof_store.record(binding, evidence)
     if memo is not None:
-        evidence = _VerifiedArtifact(verified, key, _seal=_MEMO_SEAL)
-        _MINTED_ARTIFACTS.add(evidence)
         memo[key] = evidence
     return dict(verified)
 
@@ -486,9 +649,17 @@ def verify_inputs(
     source: Path,
     *,
     memo: dict[tuple[object, ...], _VerifiedArtifact] | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, dict[str, object]]:
     """Resolve named plan inputs only; planned phase outputs remain unresolved."""
     return {
-        name: verify_artifact(plan.artifacts[reference], source, memo=memo)
+        name: verify_artifact(
+            plan.artifacts[reference],
+            source,
+            memo=memo,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         for name, reference in plan.inputs.items()
     }

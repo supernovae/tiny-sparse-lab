@@ -1,0 +1,286 @@
+{
+  "caveats": [
+    "Inclusive and nested phases are not additive.",
+    "Logical I/O and disk free delta are not physical I/O.",
+    "Preparation swap is historical host-wide used swap, not owned swap.",
+    "Reconciliation windows are censored separately; no causal attribution to polling sleep.",
+    "Absent CPU/I/O counters are null; no native ISA speedup inferred."
+  ],
+  "classification": "retrospective_operational_evidence_not_new_scientific_result",
+  "format": "capacity-aware-execution-v1-baseline",
+  "phases": [
+    {
+      "classification": "source_scan_native_encoding",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 29.32581881999795,
+      "json_pointer": "/operational/wall_seconds",
+      "peak_tree_rss_bytes": 1469599744,
+      "phase": "source_denominator",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/source-token-measurement-verification.json",
+      "swap_bytes": 20480
+    },
+    {
+      "classification": "inclusive_authentication_encoding_materialization",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 2274.6807552639984,
+      "json_pointer": "/preparation/elapsed_seconds",
+      "peak_tree_rss_bytes": 8834408448,
+      "phase": "preparation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "swap_bytes": 631164928
+    },
+    {
+      "classification": "inclusive_verification",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 1604.3218688729976,
+      "json_pointer": "/lock_execution/observed/elapsed_seconds",
+      "peak_tree_rss_bytes": 8858251264,
+      "phase": "lock",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-plan-lock-acceptance.json",
+      "swap_bytes": 0
+    },
+    {
+      "classification": "independent_verification",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 1538.7991635979997,
+      "json_pointer": "/independent_cold_explain/observed/elapsed_seconds",
+      "peak_tree_rss_bytes": 8790904832,
+      "phase": "cold_explain",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-plan-lock-acceptance.json",
+      "swap_bytes": 0
+    },
+    {
+      "classification": "inclusive_input_validation",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 621.631335433005,
+      "json_pointer": "/pilots/smoke/phase_completions/2/seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "smoke_input_validation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "inclusive_input_materialization",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 638.220471927998,
+      "json_pointer": "/pilots/smoke/phase_completions/9/seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "smoke_input_materialization",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "inclusive_input_validation",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 628.2833820590022,
+      "json_pointer": "/pilots/warmup/phase_completions/2/seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "warmup_input_validation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "inclusive_input_materialization",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 609.6432930010051,
+      "json_pointer": "/pilots/warmup/phase_completions/9/seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "warmup_input_materialization",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "optimizer_only",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 1979.6065879438975,
+      "json_pointer": "/training/optimizer_update_seconds/sum",
+      "peak_tree_rss_bytes": null,
+      "phase": "optimizer_updates",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "inclusive_training_operation",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 2459.2133416519937,
+      "json_pointer": "/training/runtime_forecast/end_to_end_seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "training_operation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "native_heldout",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 7.823494420008501,
+      "json_pointer": "/heldout/result/elapsed_seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "heldout",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "nested_training_checkpoints",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 13.698850030996255,
+      "json_pointer": "/training/runtime_forecast/phases/checkpoint/seconds",
+      "peak_tree_rss_bytes": null,
+      "phase": "four_checkpoints",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": null
+    },
+    {
+      "classification": "censored_reconciliation",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 25550.20984015199,
+      "json_pointer": "/operational_evidence/single_dispatch_and_reconciliation/elapsed_seconds",
+      "peak_tree_rss_bytes": 12319948800,
+      "phase": "single_dispatch_and_reconciliation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": 647598080
+    },
+    {
+      "classification": "censored_reconciliation",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 21601.291149925994,
+      "json_pointer": "/operational_evidence/bounded_ingestion_reconciliation/elapsed_seconds",
+      "peak_tree_rss_bytes": 9404223488,
+      "phase": "bounded_ingestion_reconciliation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": 175546368
+    },
+    {
+      "classification": "successful_closure",
+      "cpu_system_seconds": null,
+      "cpu_user_seconds": null,
+      "elapsed_seconds": 8309.561662277993,
+      "json_pointer": "/operational_evidence/final_readiness_reconciliation/elapsed_seconds",
+      "peak_tree_rss_bytes": 9350918144,
+      "phase": "final_readiness_reconciliation",
+      "physical_read_bytes": null,
+      "physical_write_bytes": null,
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-result.json",
+      "swap_bytes": 0
+    }
+  ],
+  "preparation_counters": {
+    "finalize_fsync_seconds": {
+      "json_pointer": "/preparation/preparation_telemetry_final/raw_counters/finalize_fsync_seconds",
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "value": 17.091629226972145
+    },
+    "logical_input_bytes": {
+      "json_pointer": "/preparation/preparation_telemetry_final/raw_counters/logical_input_bytes",
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "value": 4081965445
+    },
+    "logical_output_bytes": {
+      "json_pointer": "/preparation/preparation_telemetry_final/raw_counters/logical_output_bytes",
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "value": 4031007060
+    },
+    "records": {
+      "json_pointer": "/preparation/preparation_telemetry_final/raw_counters/records",
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "value": 812974
+    },
+    "tokenizer_encoding_seconds": {
+      "json_pointer": "/preparation/preparation_telemetry_final/raw_counters/tokenizer_encoding_seconds",
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "value": 598.1250705740604
+    },
+    "tokenizer_rayon_threads": {
+      "json_pointer": "/preparation/preparation_telemetry_final/raw_counters/tokenizer_rayon_threads",
+      "source": "../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "value": 4
+    }
+  },
+  "prepared_inventory": {
+    "files": [
+      {
+        "name": ".sparselab-cache-owner.json",
+        "size_bytes": 140
+      },
+      {
+        "name": "manifest.json",
+        "size_bytes": 4311
+      },
+      {
+        "name": "train.npy",
+        "size_bytes": 3937267228
+      },
+      {
+        "name": "validation.npy",
+        "size_bytes": 93739832
+      }
+    ],
+    "frozen_arrays": {
+      "train": {
+        "adjacent_next_token_targets": 984316774,
+        "documents": 796563,
+        "full_block_target_slots": 984315904,
+        "full_sequence_blocks": 961246,
+        "packed_ids_including_eos": 984316775,
+        "sha256": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+        "size_bytes": 3937267228,
+        "unusable_tail_targets_for_full_blocks": 870
+      },
+      "validation": {
+        "adjacent_next_token_targets": 23434925,
+        "documents": 16411,
+        "full_block_target_slots": 23434240,
+        "full_sequence_blocks": 22885,
+        "packed_ids_including_eos": 23434926,
+        "sha256": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d",
+        "size_bytes": 93739832,
+        "unusable_tail_targets_for_full_blocks": 685
+      }
+    },
+    "measured_file_count": 4,
+    "path": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0"
+  },
+  "source_commit": "7d66419b5c79d44081da51622a1b831c7b31830a",
+  "targets_per_second": 22863.532721928234
+}

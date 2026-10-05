@@ -145,7 +145,7 @@ def show(source: Path, *, work_root: Path | None = None) -> dict[str, Any]:
         if lock_path.is_file():
             from sparselab.experiments.lock import open_lock
 
-            lock = open_lock(lock_path)
+            lock = open_lock(lock_path, verification_mode="cold")
             if lock.id != node.plan.id or lock.plan_sha256 != node.plan.sha256:
                 raise ValueError(f"family plan lock mismatch: {node.id}")
             candidates = [

@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import asdict
 from functools import wraps
 from pathlib import Path
@@ -26,8 +27,18 @@ def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
     def guarded(*args: Any, **kwargs: Any) -> Any:
         from sparselab.corpus.release import _verification_operation
 
-        with _verification_operation():
-            return function(*args, **kwargs)
+        engine = args[0]
+        previous = getattr(engine, "_verification_options", None)
+        if previous is None:
+            from sparselab.verification_proofs import verification_options
+
+            engine._verification_options = verification_options(engine.work_dir)
+        try:
+            with _verification_operation():
+                return function(*args, **kwargs)
+        finally:
+            if previous is None:
+                del engine._verification_options
 
     return guarded
 
@@ -40,6 +51,7 @@ class CampaignEngine:
         after_commit: Callable[[str, dict], None] | None = None,
         *,
         runtime_profile: RuntimeProfile | None = None,
+        observer: Any | None = None,
     ) -> None:
         self.source = Path(source).resolve()
         self.plan = load_campaign(self.source)
@@ -47,7 +59,22 @@ class CampaignEngine:
         self.work_dir = Path(work_dir).resolve()
         self.after_commit = after_commit
         self.runtime_profile = runtime_profile
+        self.observer = observer
         self.stages = {stage.id: stage for stage in self.plan.stages}
+
+    def _verification(self) -> dict[str, Any]:
+        from sparselab.verification_proofs import verification_options
+
+        return getattr(self, "_verification_options", None) or verification_options(
+            self.work_dir
+        )
+
+    def _phase(self, name: str, *, host_kind: str | None = None) -> Any:
+        return (
+            self.observer.phase(name, host_kind=host_kind)
+            if self.observer is not None
+            else nullcontext()
+        )
 
     def _runtime_binding(
         self,
@@ -313,7 +340,7 @@ class CampaignEngine:
         from sparselab.experiments.lock import open_lock
 
         row = self._upstream(rows, name)
-        lock = open_lock(Path(row["availability"]["path"]))
+        lock = open_lock(Path(row["availability"]["path"]), **self._verification())
         if lock.plan_sha256 != row["outputs"][0]["sha256"]:
             raise ValueError("experiment lock identity changed")
         return lock
@@ -348,7 +375,9 @@ class CampaignEngine:
         if kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            verified = verify_artifact(stage.artifact, self.source)
+            verified = verify_artifact(
+                stage.artifact, self.source, **self._verification()
+            )
             if output != {
                 key: verified[key] for key in ("kind", "identifier", "sha256")
             }:
@@ -362,7 +391,7 @@ class CampaignEngine:
         elif kind == "experiment_plan":
             from sparselab.experiments.lock import open_lock
 
-            lock = open_lock(path)
+            lock = open_lock(path, **self._verification())
             if lock.plan_sha256 != output["sha256"] or lock.id != output["identifier"]:
                 raise ValueError("experiment plan identity changed")
             self._check_lock(stage, rows, lock)
@@ -370,7 +399,12 @@ class CampaignEngine:
             from sparselab.experiments.evidence import read_evidence
 
             lock = self._lock(rows, stage.plan)
-            evidence = read_evidence(lock, Path(row["availability"]["workspace"]), path)
+            evidence = read_evidence(
+                lock,
+                Path(row["availability"]["workspace"]),
+                path,
+                **self._verification(),
+            )
             if evidence["index_sha256"] != output["sha256"]:
                 raise ValueError("evidence index changed")
             cell = self._check_collection(stage, evidence, rows)
@@ -392,7 +426,7 @@ class CampaignEngine:
                 or matches[0]["ingestion_status"] != "COMPLETE"
             ):
                 raise ValueError("completed run lost ingestion")
-            evidence = experiment_evidence(path)
+            evidence = experiment_evidence(path, **self._verification())
             if (
                 evidence["run_id"] != output["identifier"]
                 or digest("campaign-run-v1", self._run_identity(matches[0]))
@@ -414,7 +448,7 @@ class CampaignEngine:
             from sparselab.evaluation.suite import verify_evaluation_index
             from sparselab.training.manifest import sha256_file
 
-            index = verify_evaluation_index(path)
+            index = verify_evaluation_index(path, **self._verification())
             collect = self.stages[stage.collect]
             collected = self._upstream(rows, stage.collect)["measurements"]
             run = self._upstream(rows, collect.run)
@@ -620,7 +654,7 @@ class CampaignEngine:
         if stage.kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            verify_artifact(stage.artifact, self.source)
+            verify_artifact(stage.artifact, self.source, **self._verification())
         elif stage.kind == "corpus_release":
             from sparselab.corpus.project import ProjectConfig, load_project
             from sparselab.experiments.plan import read_document
@@ -649,7 +683,7 @@ class CampaignEngine:
         elif stage.kind == "experiment_plan" and stage.mode == "reference":
             from sparselab.experiments.lock import open_lock
 
-            open_lock(self._operational_path(stage.lock))
+            open_lock(self._operational_path(stage.lock), **self._verification())
         elif stage.kind == "evaluation":
             from sparselab.evaluation.suite import load_suite
 
@@ -1341,7 +1375,9 @@ class CampaignEngine:
                     "DO_NOT_ADVANCE",
                     reason=f"missing declared artifact: {path}",
                 )
-            verified = verify_artifact(stage.artifact, self.source)
+            verified = verify_artifact(
+                stage.artifact, self.source, **self._verification()
+            )
             return self._result(
                 outputs=[
                     {key: verified[key] for key in ("kind", "identifier", "sha256")}
@@ -1480,7 +1516,7 @@ class CampaignEngine:
                         "DO_NOT_ADVANCE",
                         reason=f"missing experiment lock: {path}",
                     )
-                lock = open_lock(path)
+                lock = open_lock(path, **self._verification())
                 self._check_lock(stage, rows, lock)
             else:
                 prepared = None
@@ -1498,15 +1534,19 @@ class CampaignEngine:
                                 "existing immutable preparation receipt is invalid"
                             )
                     else:
-                        prepared = prepare_plan(plan, source, workspace)
+                        prepared = prepare_plan(
+                            plan, source, workspace, **self._verification()
+                        )
                         with record_path.open("xb") as handle:
                             handle.write(canonical_json(prepared) + b"\n")
                             handle.flush()
                             os.fsync(handle.fileno())
-                lock = resolve_plan(plan, source, prepared=prepared)
+                lock = resolve_plan(
+                    plan, source, prepared=prepared, **self._verification()
+                )
                 self._check_lock(stage, rows, lock)
                 path = publish_lock(lock, workspace)
-                lock = open_lock(path)
+                lock = open_lock(path, **self._verification())
             return self._result(
                 outputs=self._identity("experiment_plan", lock.id, lock.plan_sha256),
                 availability={"path": str(path), "workspace": str(workspace)},
@@ -1662,7 +1702,11 @@ class CampaignEngine:
             workspace = Path(rows[stage.plan]["availability"]["workspace"])
             if not execute_runs and not self._submitted_run(stage, rows):
                 raise ValueError("new model execution requires --execute-runs")
-            controller = Controller(workspace / "controller")
+            controller = Controller(
+                workspace / "controller",
+                observer=self.observer,
+                **self._verification(),
+            )
             matches = self._attempts(controller, lock, stage, rows)
             if len(matches) > 1:
                 raise ValueError("ambiguous controller attempts for locked cell")
@@ -1758,7 +1802,12 @@ class CampaignEngine:
                 ):
                     from sparselab.evaluation.evidence import experiment_evidence
 
-                    experiment_evidence(Path(availability["path"]))
+                    with self._phase(
+                        "campaign.run_evidence", host_kind="verification_bound"
+                    ):
+                        experiment_evidence(
+                            Path(availability["path"]), **self._verification()
+                        )
                     return self._result(
                         outputs=self._identity(
                             "experiment_run",
@@ -1790,15 +1839,34 @@ class CampaignEngine:
                         availability=availability,
                         measurements=ids,
                     )
-                controller.tick(deadline=deadline)
-                time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+                with self._phase("campaign.controller_tick"):
+                    controller.tick(deadline=deadline)
+                refreshed = self._attempts(controller, lock, stage, rows)
+                if len(refreshed) != 1:
+                    raise ValueError("controller submission missing or conflicting")
+                # Re-enter the durable gate immediately; only an unchanged attempt
+                # consumes idle time, and never beyond the shared deadline.
+                if refreshed[0] != attempt:
+                    continue
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    with self._phase("campaign.state_idle"):
+                        time.sleep(min(0.1, remaining))
         if kind == "experiment_collect":
             from sparselab.experiments.evidence import collect_evidence, read_evidence
 
             lock = self._lock(rows, stage.plan)
             workspace = Path(rows[stage.plan]["availability"]["workspace"])
-            evidence = collect_evidence(lock, workspace)
-            verified = read_evidence(lock, workspace, Path(evidence["index_path"]))
+            with self._phase(
+                "campaign.checkpoint_collection", host_kind="verification_bound"
+            ):
+                evidence = collect_evidence(lock, workspace, **self._verification())
+                verified = read_evidence(
+                    lock,
+                    workspace,
+                    Path(evidence["index_path"]),
+                    **self._verification(),
+                )
             cell = self._check_collection(stage, verified, rows)
             selected = self._selected_collection_checkpoint(cell)
             return self._result(
@@ -1824,7 +1892,11 @@ class CampaignEngine:
             run_id = run["outputs"][0]["identifier"]
             checkpoint = str(run_path / "checkpoints" / collected["generation"])
             config = evaluation_config(
-                run_id, run_path.parent, checkpoint, stage.backend
+                run_id,
+                run_path.parent,
+                checkpoint,
+                stage.backend,
+                **self._verification(),
             )
             authorization = None
             if stage.runtime is not None:
@@ -1863,15 +1935,17 @@ class CampaignEngine:
                     "DO_NOT_ADVANCE",
                     reason="RUNTIME_REQUIRED: accelerator checkpoint evaluation needs runtime",
                 )
-            index_path = run_suite(
-                self._path(stage.suite),
-                run_id,
-                checkpoint,
-                run_path.parent,
-                stage.backend,
-                authorization=authorization,
-            )
-            index = verify_evaluation_index(index_path)
+            with self._phase("campaign.evaluation"):
+                index_path = run_suite(
+                    self._path(stage.suite),
+                    run_id,
+                    checkpoint,
+                    run_path.parent,
+                    stage.backend,
+                    authorization=authorization,
+                    **self._verification(),
+                )
+            index = verify_evaluation_index(index_path, **self._verification())
             if (
                 index["run_id"] != run["outputs"][0]["identifier"]
                 or index["checkpoint_sha256"] != collected["sha256"]

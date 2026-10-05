@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.experiments.lock import ResolvedExperimentPlan
+from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
 
 _FORMAT = "sparselab-experiment-retrospective-v1"
 
@@ -15,6 +16,8 @@ def retrospective_views(
     *,
     workspace: Path | None = None,
     index_path: Path | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     """Describe a resolved plan; optionally read a *verified* collected evidence index.
 
@@ -22,6 +25,7 @@ def retrospective_views(
     outcomes are accepted only via ``read_evidence`` with an explicit workspace and
     content-addressed index path; an unverified dict cannot supply observations.
     """
+    validate_mode(verification_mode)
     lock = ResolvedExperimentPlan.model_validate(lock.model_dump(mode="json"))
     if (workspace is None) != (index_path is None):
         raise ValueError(
@@ -31,7 +35,13 @@ def retrospective_views(
     if index_path is not None:
         from sparselab.experiments.evidence import read_evidence
 
-        evidence = read_evidence(lock, Path(workspace), Path(index_path))
+        evidence = read_evidence(
+            lock,
+            Path(workspace),
+            Path(index_path),
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
         if (
             evidence.get("plan_sha256") != lock.plan_sha256
             or evidence.get("scientific_sha256") != lock.scientific_sha256

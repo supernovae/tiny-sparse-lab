@@ -12,7 +12,10 @@ import time
 from pathlib import Path
 from typing import Any, Self
 
+import psutil
 from tokenizers import Tokenizer
+
+from sparselab.host_capacity import plan_host_workers
 
 TOKENIZER_BATCH_DOCUMENTS = 256
 TOKENIZER_BATCH_SOURCE_BYTES = 1_048_576
@@ -42,6 +45,18 @@ class PreparationEncoder:
         self._process: subprocess.Popen[bytes] | None = None
         self._pending = bytearray()
         try:
+            try:
+                total = psutil.virtual_memory().total
+            except OSError, psutil.Error, AttributeError:
+                total = 0
+            # The measured 4-thread tree peaked below 512 MiB. Keep a conservative
+            # per-thread bound, including the child, buffers and native overhead.
+            self.host_work_plan = plan_host_workers(
+                "tokenizer_rayon",
+                worker_memory_bytes=512 * 1024**2,
+                reserve_bytes=max(1024**3, total // 10),
+                operator_cap=4 if max_workers is None else min(4, max_workers),
+            )
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
@@ -53,9 +68,7 @@ class PreparationEncoder:
                 self._path = Path(scratch.name)
                 scratch.write(tokenizer.to_str())
                 scratch.flush()
-            workers = (
-                min(4, os.cpu_count() or 1) if max_workers is None else max_workers
-            )
+            workers = self.host_work_plan.workers
             self.rayon_threads = workers
             env = os.environ.copy()
             env["RAYON_NUM_THREADS"] = str(workers)

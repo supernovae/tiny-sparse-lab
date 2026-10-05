@@ -5,8 +5,12 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import psutil
+
+if TYPE_CHECKING:
+    from sparselab.bottleneck_observations import BottleneckObserver
 
 _DURATIONS = (
     "source_iteration_seconds",
@@ -19,8 +23,11 @@ _DURATIONS = (
 
 
 class PreparationTelemetry:
-    def __init__(self, workspace: Path) -> None:
+    def __init__(
+        self, workspace: Path, *, observer: BottleneckObserver | None = None
+    ) -> None:
         self.workspace = workspace
+        self.observer = observer
         self.started = time.monotonic()
         self.records = 0
         self.source_bytes = 0
@@ -29,6 +36,7 @@ class PreparationTelemetry:
         self.logical_output_bytes = 0
         self.peak_rss_bytes: int | None = None
         self.tokenizer_rayon_threads: int | None = None
+        self.tokenizer_host_work_plan: dict[str, object] | None = None
         self.durations = dict.fromkeys(_DURATIONS, 0.0)
         try:
             self._process = psutil.Process()
@@ -58,7 +66,7 @@ class PreparationTelemetry:
             free_inodes: int | None = disk.f_favail if disk.f_files else None
         except OSError:
             disk_free = free_inodes = None
-        return {
+        result = {
             "records": self.records,
             "source_bytes": self.source_bytes,
             "output_tokens": self.output_tokens,
@@ -72,6 +80,7 @@ class PreparationTelemetry:
             "current_rss_bytes": rss,
             "peak_rss_bytes": self.peak_rss_bytes,
             "tokenizer_rayon_threads": self.tokenizer_rayon_threads,
+            "tokenizer_host_work_plan": self.tokenizer_host_work_plan,
             "host_available_ram_bytes": available_ram,
             "logical_input_bytes": self.logical_input_bytes,
             "logical_output_bytes": self.logical_output_bytes,
@@ -79,3 +88,6 @@ class PreparationTelemetry:
             "disk_free_inodes": free_inodes,
             **self.durations,
         }
+        if self.observer is not None:
+            result["bottleneck_observations"] = list(self.observer.records)
+        return result

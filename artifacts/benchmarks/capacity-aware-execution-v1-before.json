@@ -1,0 +1,372 @@
+{
+  "cache_condition": "uncontrolled OS cache; independent cold verifier in each subprocess; no cache drop",
+  "fixture": "medium",
+  "historical_lock": {
+    "observed_error": "experiment lock source implementation identity changed",
+    "rewritten": false,
+    "status": "unavailable"
+  },
+  "metadata": {
+    "compression": {
+      "zlib": "1.3.1"
+    },
+    "executable": "/home/byron/src/tiny-sparse-lab/.venv/bin/python",
+    "hashlib_sha256_module": "_hashlib",
+    "host": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "isa": "not_measured",
+    "machine": "x86_64",
+    "openssl": "OpenSSL 3.5.5 27 Jan 2026",
+    "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "rayon": "tokenizers native runtime; separately observed in preparation receipt",
+    "source_commit": "7d66419b5c79d44081da51622a1b831c7b31830a",
+    "versions": {
+      "numpy": "2.5.3",
+      "psutil": "7.2.2",
+      "tokenizers": "0.22.2",
+      "zstandard": "not_measured"
+    }
+  },
+  "model0_read_only": {
+    "case": "prepared_cold",
+    "cpu_system_seconds": 0.893114,
+    "cpu_user_seconds": 4.440359999999999,
+    "elapsed_seconds": 3.363675600005081,
+    "identities": {
+      "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3"
+    },
+    "peak_tree_rss_bytes": 383389696,
+    "peak_tree_swap_bytes": 0,
+    "read_bytes": "not_measured",
+    "status": "ok",
+    "workers": 1,
+    "write_bytes": "not_measured"
+  },
+  "raw_summary_path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/before-io.json",
+  "raw_summary_sha256": "0fd05abf560e0372d1aa873fab3eec752a9c44192cca4ee504e92ca8fc41f342",
+  "rows": [
+    {
+      "case": "prepared_cold",
+      "cpu_system_seconds_median": 0.40470599999999995,
+      "cpu_user_seconds_median": 2.7330069999999997,
+      "identities": {
+        "manifest_sha256": "3e559b3725c8828e4332e435b8290efdfbed393936fc31b8f893ffcef192ab44"
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4035487159853801,
+      "peak_tree_rss_bytes": 383078400,
+      "range_seconds": [
+        1.392182325012982,
+        1.4156029729929287
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "resolve",
+      "cpu_system_seconds_median": 0.398464,
+      "cpu_user_seconds_median": 2.7894300000000003,
+      "identities": {
+        "plan_sha256": "0d87169d33c28715c0d3dee87a29089d47320f8e7a1b7ccd84fc053d801d0774",
+        "scientific_sha256": "fcc1e5eac63b33f42a4de037bfe0c40f544eac443218336e4356e5e9378fc316"
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4867845799890347,
+      "peak_tree_rss_bytes": 386818048,
+      "range_seconds": [
+        1.4837090369837824,
+        1.5027721080114134
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "open",
+      "cpu_system_seconds_median": 0.38497,
+      "cpu_user_seconds_median": 2.8210870000000003,
+      "identities": {
+        "cells": 1,
+        "plan_sha256": "0d87169d33c28715c0d3dee87a29089d47320f8e7a1b7ccd84fc053d801d0774",
+        "scientific_sha256": "fcc1e5eac63b33f42a4de037bfe0c40f544eac443218336e4356e5e9378fc316"
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4550630429876037,
+      "peak_tree_rss_bytes": 384438272,
+      "range_seconds": [
+        1.43567692200304,
+        1.4692630280042067
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "explain",
+      "cpu_system_seconds_median": 0.36016099999999995,
+      "cpu_user_seconds_median": 2.752913,
+      "identities": {
+        "cells": 1,
+        "plan_sha256": "0d87169d33c28715c0d3dee87a29089d47320f8e7a1b7ccd84fc053d801d0774",
+        "scientific_sha256": "fcc1e5eac63b33f42a4de037bfe0c40f544eac443218336e4356e5e9378fc316"
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4310695719905198,
+      "peak_tree_rss_bytes": 384331776,
+      "range_seconds": [
+        1.4297428419813514,
+        1.4572769410151523
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "stage_verify",
+      "cpu_system_seconds_median": 0.378807,
+      "cpu_user_seconds_median": 2.7794480000000004,
+      "identities": {
+        "stage_sha256": "8ca07f0000bbba4c9f061c7ee0abf1bde36bc902072fb72d8df25412293b11e8"
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4820223120041192,
+      "peak_tree_rss_bytes": 388239360,
+      "range_seconds": [
+        1.4592546060157474,
+        1.493657166021876
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "materialize",
+      "cpu_system_seconds_median": 0.482917,
+      "cpu_user_seconds_median": 2.8495299999999997,
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.6261547180183697,
+      "peak_tree_rss_bytes": 388317184,
+      "range_seconds": [
+        1.599659311992582,
+        1.6763129299797583
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "controller_read",
+      "cpu_system_seconds_median": 0.372648,
+      "cpu_user_seconds_median": 2.658495,
+      "identities": {
+        "attempt_states": [
+          [
+            "fixture-attempt",
+            "QUEUED"
+          ]
+        ],
+        "expired_tick": {
+          "assigned": 0,
+          "queued": 1
+        }
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.3745199269906152,
+      "peak_tree_rss_bytes": 381538304,
+      "range_seconds": [
+        1.3603625069954433,
+        1.3939923889993224
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "campaign_read",
+      "cpu_system_seconds_median": 0.393303,
+      "cpu_user_seconds_median": 2.728149,
+      "identities": {
+        "id": "capacity-fixture",
+        "status": null
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4166423710121308,
+      "peak_tree_rss_bytes": 385191936,
+      "range_seconds": [
+        1.416569116001483,
+        1.4273069229966495
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "sha",
+      "cpu_system_seconds_median": 0.377788,
+      "cpu_user_seconds_median": 2.766172,
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.415854410995962,
+      "peak_tree_rss_bytes": 383164416,
+      "range_seconds": [
+        1.409108888998162,
+        1.4274408890050836
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "sha",
+      "cpu_system_seconds_median": 0.354093,
+      "cpu_user_seconds_median": 2.771069,
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4032875590201002,
+      "peak_tree_rss_bytes": 384425984,
+      "range_seconds": [
+        1.4009280780155677,
+        1.427366149990121
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 2,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    },
+    {
+      "case": "sha",
+      "cpu_system_seconds_median": 0.33010399999999995,
+      "cpu_user_seconds_median": 2.82023,
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "identities_equal_across_repetitions": true,
+      "median_seconds": 1.4203272129816469,
+      "peak_tree_rss_bytes": 384385024,
+      "range_seconds": [
+        1.402345337002771,
+        1.4256678740202915
+      ],
+      "read_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ],
+      "repetitions": 3,
+      "workers": 4,
+      "write_bytes": [
+        "not_measured",
+        "not_measured",
+        "not_measured"
+      ]
+    }
+  ]
+}

@@ -801,9 +801,14 @@ def validate_operation(
         "artifact": {"attempt_id", "relative_path", "offset", "max_bytes"},
         "cancel": {"attempt_id", "reason"},
     }
-    if not response and set(value) != required[op]:
+    optional = {"cold_verify"} if op in {"install_bundle", "launch"} else set()
+    if not response and (
+        not required[op] <= set(value) or set(value) - required[op] - optional
+    ):
         raise ValueError(f"invalid {op} payload fields")
     if not response:
+        if "cold_verify" in value and type(value["cold_verify"]) is not bool:
+            raise ValueError("cold_verify must be a boolean")
         if op == "validate":
             RunConfig.model_validate(value["config"])
             if value["bundle_digest"] is not None:

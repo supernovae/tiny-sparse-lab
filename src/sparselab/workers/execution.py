@@ -28,6 +28,7 @@ from sparselab.resource_envelope import check_envelope, current_process_rss_byte
 from sparselab.runtime import discover_runtimes, validate_runtime
 from sparselab.runtime_profile import authorize_worker, require_authorization
 from sparselab.training.manifest import canonical_json, source_identity
+from sparselab.verification_proofs import verification_options
 
 from .leases import acquire_lease, boot_identity, process_matches, process_start
 
@@ -453,10 +454,31 @@ def _spec_from_path(path: Path) -> dict[str, Any]:
     return {"payload": spec, "digest": digest}
 
 
+def _attempt_cold_verify(directory: Path) -> bool:
+    """Operational launch policy; missing external/legacy policy stays independent."""
+    path = directory / "verification.json"
+    if path.is_symlink():
+        raise ValueError("symlinked attempt verification policy")
+    if not path.exists():
+        return True
+    policy = _strict_json(path)
+    if (
+        set(policy) != {"verification_version", "cold_verify"}
+        or type(policy["verification_version"]) is not int
+        or policy["verification_version"] != 1
+        or type(policy["cold_verify"]) is not bool
+    ):
+        raise ValueError("invalid attempt verification policy")
+    return policy["cold_verify"]
+
+
 def launch_attempt(
     definition: Any, payload: Mapping[str, Any], spec_path: Path
 ) -> dict[str, Any]:
     """Durably prepare then detach exactly one possible executor for an attempt."""
+    cold_verify = payload.get("cold_verify", True)
+    if type(cold_verify) is not bool:
+        raise ValueError("cold_verify must be a boolean")
     expected = _receipt_payload(definition, payload)
     spec = _spec_from_path(spec_path)
     if spec["digest"] != expected["spec_digest"]:
@@ -509,6 +531,13 @@ def launch_attempt(
                 return receipt
         else:
             receipt = _write_receipt(definition, expected)
+        policy_path = directory / "verification.json"
+        if policy_path.exists() or policy_path.is_symlink():
+            previous_cold = _attempt_cold_verify(directory)
+            cold_verify = cold_verify or previous_cold
+        _atomic_json(
+            policy_path, {"verification_version": 1, "cold_verify": cold_verify}
+        )
         _spawn_executor(definition, expected["attempt_id"])
         return _load_receipt(definition, expected["attempt_id"])
 
@@ -762,20 +791,19 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                         cancellation_requested=True,
                         cancellation_acknowledged=True,
                     )
-                # Bundle verification/materialization is owned by bundles.py.
-                from .bundles import materialize_dispatch_bundle, verify_dispatch_bundle
+                # Materialization authenticates cached bytes and the bundle closure.
+                from .bundles import materialize_dispatch_bundle
 
-                manifest = verify_dispatch_bundle(
-                    Path(_definition_value(definition, "root"))
-                    / ".dispatch-cache"
-                    / "bundles"
-                    / receipt["bundle_digest"]
+                verification = verification_options(
+                    Path(_definition_value(definition, "root")),
+                    cold=_attempt_cold_verify(directory),
                 )
                 materialized = directory / "bundle"
-                materialize_dispatch_bundle(
+                manifest = materialize_dispatch_bundle(
                     Path(_definition_value(definition, "root")),
                     receipt["bundle_digest"],
                     materialized,
+                    **verification,
                 )
                 if manifest.digest() != receipt["bundle_digest"]:
                     raise ValueError("installed bundle digest changed")
@@ -842,6 +870,7 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     resource_envelope=envelope,
                     tokenizer_batch_documents=typed_spec.tokenizer_batch_documents,
                     tokenizer_batch_source_bytes=typed_spec.tokenizer_batch_source_bytes,
+                    **verification,
                 )
                 if _cancelled(directory):
                     return _terminal_receipt(
@@ -883,6 +912,7 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                     "resource_envelope": envelope,
                     "tokenizer_batch_documents": typed_spec.tokenizer_batch_documents,
                     "tokenizer_batch_source_bytes": typed_spec.tokenizer_batch_source_bytes,
+                    **verification,
                     "cancel_path": directory / "cancel.json",
                     "stage_bundle": stage_dir,
                     "experiment_id": receipt["experiment_id"],

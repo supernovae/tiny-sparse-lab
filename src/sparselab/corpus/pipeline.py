@@ -15,7 +15,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit
 
 from sparselab.config.models import StrictModel
@@ -34,6 +34,9 @@ from sparselab.corpus.provenance import (
 )
 from sparselab.corpus.rights import FileRights, resolve_file_rights
 from sparselab.training.manifest import canonical_json, sha256_file
+
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore, VerificationMode
 
 
 class NormalizedDocument(StrictModel):
@@ -1311,13 +1314,21 @@ def _scenario_shape(scenario: dict[str, Any], kind: str) -> str:
 
 
 def _snapshot_file(
-    project: Any, lock: dict[str, Any], source_id: str, name: str
+    project: Any,
+    lock: dict[str, Any],
+    source_id: str,
+    name: str,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> bytes:
     entry = lock["sources"][source_id]
     root = Path(entry["snapshot_path"])
     from sparselab.corpus.acquisition import verify_snapshot
 
-    manifest = verify_snapshot(root)
+    manifest = verify_snapshot(
+        root, proof_store=proof_store, verification_mode=verification_mode
+    )
     matches = [item for item in manifest["files"] if item["path"] == name]
     if len(matches) != 1:
         raise ValueError(f"ambiguous/missing snapshotted input: {source_id}/{name}")
@@ -1375,11 +1386,20 @@ def _staged_build(root: Path, build_id: str) -> Iterator[Path]:
             raise
 
 
-def build(project: Any, work_root: Path, offline: bool = False) -> Path:
+def build(
+    project: Any,
+    work_root: Path,
+    offline: bool = False,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> Path:
     """Build an immutable derived inventory from the exact acquisition lock."""
     from sparselab.corpus.acquisition import verify_acquisition
 
-    lock = verify_acquisition(project, work_root)
+    lock = verify_acquisition(
+        project, work_root, proof_store=proof_store, verification_mode=verification_mode
+    )
     root = Path(work_root) / "corpora" / project.config.id / "builds"
     root.mkdir(parents=True, exist_ok=True)
     transforms = _ordered_transforms(project)
@@ -1434,7 +1454,9 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
     if target.exists():
         from sparselab.corpus.release import verify_build
 
-        verify_build(target)
+        verify_build(
+            target, proof_store=proof_store, verification_mode=verification_mode
+        )
         return target
     if large_lm_build:
         from sparselab.corpus.large_build import build_large
@@ -1443,7 +1465,15 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
         workspace = Path(work_root) / "corpora" / project.config.id
         progress = BuildProgress(workspace / "progress" / f"{build_id}.jsonl", build_id)
         return build_large(
-            project, workspace, lock, identity, build_id, target, progress
+            project,
+            workspace,
+            lock,
+            identity,
+            build_id,
+            target,
+            progress,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
         )
     with _staged_build(root, build_id) as staging:
         documents: list[dict[str, Any]] = []
@@ -1479,7 +1509,11 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                 continue
             from sparselab.corpus.acquisition import verify_snapshot
 
-            snapshot = verify_snapshot(Path(entry["snapshot_path"]))
+            snapshot = verify_snapshot(
+                Path(entry["snapshot_path"]),
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
             nested_path = source.rights.nested_metadata_path if source.rights else None
             nested_metadata = (
                 {
@@ -1858,7 +1892,14 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                         )
                 semantic.extend(output)
             elif kind == "manual_semantic":
-                raw = _snapshot_file(project, lock, params["source_id"], params["path"])
+                raw = _snapshot_file(
+                    project,
+                    lock,
+                    params["source_id"],
+                    params["path"],
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
                 output = []
                 for entry in (
                     json.loads(line)
@@ -2170,10 +2211,20 @@ def build(project: Any, work_root: Path, offline: bool = False) -> Path:
                     raise ValueError("incomplete recorded inference generator")
                 source_id = params["generator_source_id"]
                 template = _snapshot_file(
-                    project, lock, source_id, params["prompt_template_path"]
+                    project,
+                    lock,
+                    source_id,
+                    params["prompt_template_path"],
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
                 )
                 response_bytes = _snapshot_file(
-                    project, lock, source_id, params["responses_path"]
+                    project,
+                    lock,
+                    source_id,
+                    params["responses_path"],
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
                 )
                 output = []
                 responses = [

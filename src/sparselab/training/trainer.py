@@ -19,6 +19,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
@@ -42,7 +43,7 @@ from sparselab.data.packing import (
     prepare_data,
     supervision_requires_mask,
 )
-from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
+from sparselab.data.tokenizer import load_tokenizer
 from sparselab.engines.base import EngineState, Microbatch
 from sparselab.engines.pytorch import PyTorchEngine
 from sparselab.evaluation.post_train_triage import triage_completed_run
@@ -96,6 +97,9 @@ from sparselab.training.pilot_progress import (
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.training.throughput import summarize_training_progress
 
+if TYPE_CHECKING:
+    from sparselab.verification_proofs import ProofStore
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -103,9 +107,18 @@ class _WallTimeExpired(Exception):
     """Internal signal that discards an incomplete cooperative evaluation."""
 
 
-def _load_run_data(run: Path, config: RunConfig) -> PreparedData:
+def _load_run_data(
+    run: Path,
+    config: RunConfig,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
+) -> PreparedData:
     return load_prepared_data(
-        run / "data", byte_enabled=config.model.memory in {"byte", "portable"}
+        run / "data",
+        byte_enabled=config.model.memory in {"byte", "portable"},
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
 
 
@@ -503,6 +516,8 @@ def train(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> str:
     """Run one independent experiment, optionally bound to a stage bundle."""
     require_authorization(config, authorization)
@@ -545,6 +560,8 @@ def train(
         resource_envelope=resource_envelope,
         tokenizer_batch_documents=tokenizer_batch_documents,
         tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     try:
         progress = config.logging.root_dir / completed_run_id / "progress.json"
@@ -590,6 +607,8 @@ def _train_impl(
     resource_envelope: ResourceEnvelope | None = None,
     tokenizer_batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
+    proof_store: ProofStore | None = None,
+    verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> str:
 
     require_authorization(config, authorization)
@@ -620,44 +639,46 @@ def _train_impl(
                 verify_portable_corpus_binding(config, portable)
             else:
                 from sparselab.config.loading import load_config
+                from sparselab.experiments.artifacts import verify_artifact
+                from sparselab.experiments.plan import Artifact
 
                 export_path = config.dataset.corpus_export_path
                 if export_path is None:
                     raise ValueError("corpus release requires a verified export")
-                exported_tokenizer = load_config(
-                    export_path / "run.yaml"
-                ).tokenizer.path
-                if config.tokenizer.path == exported_tokenizer:
-                    verify_tokenizer_artifact(
-                        config.tokenizer.path,
-                        source=config.dataset.source,
-                        revision=config.dataset.revision,
-                        vocab_size=config.model.vocab_size,
-                        dataset=config.dataset,
-                    )
-                else:
-                    from sparselab.experiments.artifacts import verify_artifact
-                    from sparselab.experiments.plan import Artifact
 
-                    tokenizer_path = config.tokenizer.path
-                    verify_artifact(
-                        Artifact(
-                            kind="tokenizer",
-                            version=1,
-                            producer="sparselab",
-                            identifier=tokenizer_path.parent.name,
-                            sha256=sha256_file(tokenizer_path),
-                            path=str(tokenizer_path),
-                        ),
-                        export_path / "run.yaml",
-                    )
-                    if (
-                        load_tokenizer(tokenizer_path).get_vocab_size()
-                        != config.model.vocab_size
-                    ):
-                        raise ValueError(
-                            "verified external tokenizer vocabulary differs from model"
-                        )
+                export_config = load_config(export_path / "run.yaml")
+                if (
+                    export_config.dataset.corpus_export_path != export_path
+                    or export_config.dataset.corpus_release_path
+                    != config.dataset.corpus_release_path
+                    or export_config.dataset.source != config.dataset.source
+                    or export_config.dataset.revision != config.dataset.revision
+                ):
+                    raise ValueError("tokenizer export does not match selected corpus")
+                tokenizer_path = config.tokenizer.path
+                manifest_path = tokenizer_path.with_name("tokenizer_manifest.json")
+                if manifest_path.is_symlink():
+                    raise ValueError("tokenizer provenance must not be a symlink")
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if not isinstance(manifest, dict) or not isinstance(
+                    manifest.get("sha256"), str
+                ):
+                    raise ValueError("tokenizer provenance lacks a digest")
+                verify_artifact(
+                    Artifact(
+                        kind="tokenizer",
+                        version=1,
+                        producer="sparselab",
+                        identifier=tokenizer_path.parent.name,
+                        sha256=manifest["sha256"],
+                        path=str(tokenizer_path),
+                    ),
+                    export_path / "run.yaml",
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
+                if manifest.get("vocab_size") != config.model.vocab_size:
+                    raise ValueError("verified tokenizer vocabulary differs from model")
     operation_started = time.perf_counter()
     with ExitStack() as resources:
         if (experiment_id is None) != (attempt_id is None):
@@ -752,7 +773,12 @@ def _train_impl(
 
             with pilot_phase("stage_bundle_verification"):
                 staged = verify_stage_bundle(
-                    stage_bundle, config, purpose=purpose, _proofs=staged_proofs
+                    stage_bundle,
+                    config,
+                    purpose=purpose,
+                    _proofs=staged_proofs,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
                 )
         history = StageHistory()
         history.start(ExperimentStage.CONFIGURED)
@@ -847,7 +873,12 @@ def _train_impl(
         with pilot_phase("data_open"):
             if continuation == "RESUMED":
                 assert source_run is not None
-                data = _load_run_data(source_run, config)
+                data = _load_run_data(
+                    source_run,
+                    config,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
             elif artifact_source is not None:
                 if staged is not None and artifact_source == Path(
                     staged["assets_root"]
@@ -860,7 +891,12 @@ def _train_impl(
                         byte_enabled=config.model.memory in {"byte", "portable"},
                     )
                 else:
-                    data = _load_run_data(artifact_source, config)
+                    data = _load_run_data(
+                        artifact_source,
+                        config,
+                        proof_store=proof_store,
+                        verification_mode=verification_mode,
+                    )
             else:
                 tokenizer = load_tokenizer(config.tokenizer.path)
                 data = prepare_data(
@@ -869,6 +905,8 @@ def _train_impl(
                     resource_envelope=resource_envelope,
                     tokenizer_batch_documents=tokenizer_batch_documents,
                     tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
                 )
         dataset = TokenBlockDataset(
             data.train,

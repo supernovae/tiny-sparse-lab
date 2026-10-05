@@ -18,6 +18,7 @@ from sparselab.experiments.plan import read_document
 from sparselab.runtime_profile import RuntimeAuthorization
 from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
+from sparselab.verification_proofs import ProofStore, VerificationMode, validate_mode
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -89,7 +90,14 @@ def _checked_file(path: Path, expected: str) -> dict[str, Any]:
     return read_document(path)
 
 
-def _selected_checkpoint(run: Path, relative: str, expected: str) -> None:
+def _selected_checkpoint(
+    run: Path,
+    relative: str,
+    expected: str,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> None:
     parts = Path(relative).parts
     if (
         len(parts) != 2
@@ -105,7 +113,11 @@ def _selected_checkpoint(run: Path, relative: str, expected: str) -> None:
     manifest = read_manifest(run / "manifest.json")
     run_sha = hashlib.sha256(canonical_json(manifest)).hexdigest()
     report = CheckpointManager(run, manifest_sha256=run_sha).verify(
-        candidate, expected_manifest=run_sha, require_training_state=False
+        candidate,
+        expected_manifest=run_sha,
+        require_training_state=False,
+        proof_store=proof_store,
+        verification_mode=verification_mode,
     )
     if (
         not report.valid
@@ -161,7 +173,11 @@ def _index_binding(
 
 
 def _supplied_index(
-    reference: Path, checkpoint_sha256: str
+    reference: Path,
+    checkpoint_sha256: str,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> tuple[Path, dict[str, Any]]:
     """Authenticate a checked-in small reference through the existing index verifier."""
     raw = read_document(reference)
@@ -174,7 +190,9 @@ def _supplied_index(
     target = Path(record["external_location"])
     if not target.exists():
         raise FileNotFoundError(f"missing referenced evaluation index: {target}")
-    verified = verify_evaluation_index(target)
+    verified = verify_evaluation_index(
+        target, proof_store=proof_store, verification_mode=verification_mode
+    )
     if (
         verified["index_sha256"] != record["sha256"]
         or verified["checkpoint_sha256"] != checkpoint_sha256
@@ -221,6 +239,8 @@ def run_suite(
     backend: str | None = None,
     *,
     authorization: RuntimeAuthorization | None = None,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
 ) -> Path:
     """Evaluate one verified generation; unsupported declared evaluators remain unavailable."""
     from sparselab.evaluation.capabilities import (
@@ -234,6 +254,11 @@ def run_suite(
         write_inference_result,
     )
 
+    validate_mode(verification_mode)
+    verification = {
+        "proof_store": proof_store,
+        "verification_mode": verification_mode,
+    }
     source, runs_dir = Path(source).resolve(), Path(runs_dir).resolve()
     suite = load_suite(source)
     run = runs_dir / run_id
@@ -241,7 +266,12 @@ def run_suite(
     unavailable_backend = None
     try:
         loaded = load_run(
-            run_id, runs_dir, checkpoint, backend, authorization=authorization
+            run_id,
+            runs_dir,
+            checkpoint,
+            backend,
+            authorization=authorization,
+            **verification,
         )
     except (EngineCapabilityError, NotImplementedError, ValueError) as error:
         authorization_reason = (
@@ -250,7 +280,7 @@ def run_suite(
         runtime_backend = backend
         if runtime_backend is None and str(error).endswith(authorization_reason):
             runtime_backend = evaluation_config(
-                run_id, runs_dir, checkpoint, backend
+                run_id, runs_dir, checkpoint, backend, **verification
             ).runtime.backend
         authorization_missing = (
             str(error) == f"{runtime_backend} {authorization_reason}"
@@ -298,7 +328,7 @@ def run_suite(
             raise ValueError(
                 "checkpoint pointer digest does not match selected generation"
             )
-        _selected_checkpoint(run, generation, checkpoint_sha256)
+        _selected_checkpoint(run, generation, checkpoint_sha256, **verification)
         identity = {
             "checkpoint_relative_path": generation,
             "checkpoint_sha256": checkpoint_sha256,
@@ -308,12 +338,12 @@ def run_suite(
         identity = loaded.identity
         generation = identity["checkpoint_relative_path"]
         checkpoint_sha256 = identity["checkpoint_sha256"]
-        _selected_checkpoint(run, generation, checkpoint_sha256)
+        _selected_checkpoint(run, generation, checkpoint_sha256, **verification)
     if loaded is not None:
         requested_runtime = loaded.config.runtime
     else:
         requested_runtime = evaluation_config(
-            run_id, runs_dir, generation, backend
+            run_id, runs_dir, generation, backend, **verification
         ).runtime
     evaluation_runtime = {
         "engine": requested_runtime.engine,
@@ -404,7 +434,9 @@ def run_suite(
                 reference = _source(source, item.source or "")
                 if reference.is_file():
                     try:
-                        target, verified = _supplied_index(reference, checkpoint_sha256)
+                        target, verified = _supplied_index(
+                            reference, checkpoint_sha256, **verification
+                        )
                     except (UnsupportedEvidenceReference, FileNotFoundError) as error:
                         row["reason"] = f"unavailable supplied evidence: {error}"
                     else:
@@ -454,14 +486,24 @@ def run_suite(
     payload["record_sha256"] = hashlib.sha256(canonical_json(payload)).hexdigest()
     output = run / "evaluations" / f"suite-{index_sha}.json"
     if output.exists():
-        verify_evaluation_index(output)
+        verify_evaluation_index(output, **verification)
     else:
         publish_immutable(output, payload)
     return output
 
 
-def verify_evaluation_index(path: Path) -> dict[str, Any]:
+def verify_evaluation_index(
+    path: Path,
+    *,
+    proof_store: ProofStore | None = None,
+    verification_mode: VerificationMode = "cold",
+) -> dict[str, Any]:
     """Reopen the exact generation, suite, card and each completed result."""
+    validate_mode(verification_mode)
+    verification = {
+        "proof_store": proof_store,
+        "verification_mode": verification_mode,
+    }
     path = Path(path)
     record = read_canonical(path)
     if record.get("format") != "evaluation-index-v1":
@@ -476,7 +518,9 @@ def verify_evaluation_index(path: Path) -> dict[str, Any]:
         or run.name != record["run_id"]
     ):
         raise ValueError("evaluation index run mismatch")
-    _selected_checkpoint(run, record["checkpoint"], record["checkpoint_sha256"])
+    _selected_checkpoint(
+        run, record["checkpoint"], record["checkpoint_sha256"], **verification
+    )
     evaluation_runtime = record["evaluation_runtime"]
     if (
         not isinstance(evaluation_runtime, dict)
@@ -525,7 +569,9 @@ def verify_evaluation_index(path: Path) -> dict[str, Any]:
             if item.kind == "evidence_reference":
                 if source is None or row["source_sha256"] is None:
                     raise ValueError("missing pinned evidence reference")
-                target, verified = _supplied_index(source, record["checkpoint_sha256"])
+                target, verified = _supplied_index(
+                    source, record["checkpoint_sha256"], **verification
+                )
                 if (
                     result_path != target
                     or row["sha256"] != verified["index_sha256"]

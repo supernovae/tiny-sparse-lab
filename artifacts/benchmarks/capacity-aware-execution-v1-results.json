@@ -1,0 +1,2510 @@
+{
+  "after_medium": [
+    {
+      "case": "prepared_cold",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.200738,
+        "median": 3.150044,
+        "min": 3.148371
+      },
+      "cpu_system_seconds": {
+        "max": 0.46383399999999997,
+        "median": 0.394527,
+        "min": 0.33272
+      },
+      "cpu_user_seconds": {
+        "max": 2.815651,
+        "median": 2.806211,
+        "min": 2.68621
+      },
+      "elapsed_seconds": {
+        "max": 1.4516529670218006,
+        "median": 1.432169317995431,
+        "min": 1.4320718419912737
+      },
+      "identities": {
+        "manifest_sha256": "89b87602fd59be1b7f3bfe7f6c36a4eecab24631ba15403ddca0d584d0003d1b"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384638976,
+        "median": 384323584,
+        "min": 384057344
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "resolve",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.2348899999999996,
+        "median": 3.212958,
+        "min": 3.1779669999999998
+      },
+      "cpu_system_seconds": {
+        "max": 0.43831,
+        "median": 0.384166,
+        "min": 0.37748
+      },
+      "cpu_user_seconds": {
+        "max": 2.8507239999999996,
+        "median": 2.800487,
+        "min": 2.774648
+      },
+      "elapsed_seconds": {
+        "max": 1.5319643590191845,
+        "median": 1.5092350019840524,
+        "min": 1.492879460012773
+      },
+      "identities": {
+        "plan_sha256": "e1f5c6bac4e371cc0c5f16f401eb7577fe0ca7eccedda0c13e6442202259129b",
+        "scientific_sha256": "abfa41a5f70e50bdcb26620083ca88b6051c8cd50ead1377d55a19f931786b9f"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388173824,
+        "median": 388157440,
+        "min": 387944448
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "open",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.191121,
+        "median": 3.180567,
+        "min": 3.1518569999999997
+      },
+      "cpu_system_seconds": {
+        "max": 0.434784,
+        "median": 0.424471,
+        "min": 0.406869
+      },
+      "cpu_user_seconds": {
+        "max": 2.76665,
+        "median": 2.745783,
+        "min": 2.7449879999999998
+      },
+      "elapsed_seconds": {
+        "max": 1.4600658180133905,
+        "median": 1.4568263569963165,
+        "min": 1.4451504070020746
+      },
+      "identities": {
+        "plan_sha256": "e1f5c6bac4e371cc0c5f16f401eb7577fe0ca7eccedda0c13e6442202259129b",
+        "scientific_sha256": "abfa41a5f70e50bdcb26620083ca88b6051c8cd50ead1377d55a19f931786b9f"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 385310720,
+        "median": 385249280,
+        "min": 385216512
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "explain",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.244256,
+        "median": 3.2027520000000003,
+        "min": 3.1438189999999997
+      },
+      "cpu_system_seconds": {
+        "max": 0.421068,
+        "median": 0.41067599999999993,
+        "min": 0.39936
+      },
+      "cpu_user_seconds": {
+        "max": 2.823188,
+        "median": 2.803392,
+        "min": 2.7331429999999997
+      },
+      "elapsed_seconds": {
+        "max": 1.5007834539865144,
+        "median": 1.4669460669974796,
+        "min": 1.465508524008328
+      },
+      "identities": {
+        "plan_sha256": "e1f5c6bac4e371cc0c5f16f401eb7577fe0ca7eccedda0c13e6442202259129b",
+        "scientific_sha256": "abfa41a5f70e50bdcb26620083ca88b6051c8cd50ead1377d55a19f931786b9f"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 385568768,
+        "median": 385265664,
+        "min": 385122304
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "stage_verify",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.276052,
+        "median": 3.27386,
+        "min": 3.227055
+      },
+      "cpu_system_seconds": {
+        "max": 0.501082,
+        "median": 0.43527299999999997,
+        "min": 0.42769199999999996
+      },
+      "cpu_user_seconds": {
+        "max": 2.84836,
+        "median": 2.791782,
+        "min": 2.7727779999999997
+      },
+      "elapsed_seconds": {
+        "max": 1.52896563502145,
+        "median": 1.5252342669991776,
+        "min": 1.4995430769922677
+      },
+      "identities": {
+        "stage_sha256": "b8efc9e47bd66cfc0cd42de3a7b21ce10a834879352aa223aac9c2869f836015"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 389242880,
+        "median": 389103616,
+        "min": 389066752
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "materialize",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.438556,
+        "median": 3.3855319999999995,
+        "min": 3.35048
+      },
+      "cpu_system_seconds": {
+        "max": 0.5195599999999999,
+        "median": 0.496297,
+        "min": 0.495704
+      },
+      "cpu_user_seconds": {
+        "max": 2.942259,
+        "median": 2.8898279999999996,
+        "min": 2.8309200000000003
+      },
+      "elapsed_seconds": {
+        "max": 1.7467858129821252,
+        "median": 1.7246339840057772,
+        "min": 1.7026883519720286
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 389394432,
+        "median": 389087232,
+        "min": 389062656
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "controller_read",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.168812,
+        "median": 3.128362,
+        "min": 3.0803299999999996
+      },
+      "cpu_system_seconds": {
+        "max": 0.388016,
+        "median": 0.38049499999999997,
+        "min": 0.336036
+      },
+      "cpu_user_seconds": {
+        "max": 2.792326,
+        "median": 2.788317,
+        "min": 2.6923139999999997
+      },
+      "elapsed_seconds": {
+        "max": 1.4345788469945546,
+        "median": 1.3926302439940628,
+        "min": 1.3917107580055017
+      },
+      "identities": {},
+      "peak_tree_rss_bytes": {
+        "max": 382742528,
+        "median": 381739008,
+        "min": 381730816
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "campaign_read",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.176478,
+        "median": 3.1749,
+        "min": 3.154629
+      },
+      "cpu_system_seconds": {
+        "max": 0.424738,
+        "median": 0.39120699999999997,
+        "min": 0.374179
+      },
+      "cpu_user_seconds": {
+        "max": 2.783693,
+        "median": 2.78045,
+        "min": 2.75174
+      },
+      "elapsed_seconds": {
+        "max": 1.454447436000919,
+        "median": 1.4433526789944153,
+        "min": 1.414120694011217
+      },
+      "identities": {},
+      "peak_tree_rss_bytes": {
+        "max": 386117632,
+        "median": 386101248,
+        "min": 383561728
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "sha",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.265434,
+        "median": 3.136142,
+        "min": 3.1005979999999997
+      },
+      "cpu_system_seconds": {
+        "max": 0.43421,
+        "median": 0.40953799999999996,
+        "min": 0.363641
+      },
+      "cpu_user_seconds": {
+        "max": 2.8312239999999997,
+        "median": 2.772501,
+        "min": 2.69106
+      },
+      "elapsed_seconds": {
+        "max": 1.5188479269854724,
+        "median": 1.4488661789800972,
+        "min": 1.4081725660071243
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384368640,
+        "median": 384348160,
+        "min": 384327680
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "sha",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.280748,
+        "median": 3.1958329999999995,
+        "min": 3.1439819999999994
+      },
+      "cpu_system_seconds": {
+        "max": 0.464153,
+        "median": 0.43693999999999994,
+        "min": 0.39345399999999997
+      },
+      "cpu_user_seconds": {
+        "max": 2.816595,
+        "median": 2.7588929999999996,
+        "min": 2.7505279999999996
+      },
+      "elapsed_seconds": {
+        "max": 1.5277364079956897,
+        "median": 1.4594558759999927,
+        "min": 1.4496219189895783
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 385503232,
+        "median": 385421312,
+        "min": 385232896
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 2,
+      "write_bytes": null
+    },
+    {
+      "case": "sha",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.193686,
+        "median": 3.183904,
+        "min": 3.1117299999999997
+      },
+      "cpu_system_seconds": {
+        "max": 0.40048199999999995,
+        "median": 0.397995,
+        "min": 0.392783
+      },
+      "cpu_user_seconds": {
+        "max": 2.800903,
+        "median": 2.785909,
+        "min": 2.711248
+      },
+      "elapsed_seconds": {
+        "max": 1.4483868370007258,
+        "median": 1.4347188149986323,
+        "min": 1.4256071480049286
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 385302528,
+        "median": 385273856,
+        "min": 385097728
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 4,
+      "write_bytes": null
+    },
+    {
+      "case": "prepared_cold_planned",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.2174309999999995,
+        "median": 3.1977889999999998,
+        "min": 3.1908990000000004
+      },
+      "cpu_system_seconds": {
+        "max": 0.49757699999999994,
+        "median": 0.43167399999999995,
+        "min": 0.414288
+      },
+      "cpu_user_seconds": {
+        "max": 2.783501,
+        "median": 2.7592250000000003,
+        "min": 2.7198539999999998
+      },
+      "elapsed_seconds": {
+        "max": 1.521690010005841,
+        "median": 1.4791036460082978,
+        "min": 1.458335954026552
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "manifest_sha256": "89b87602fd59be1b7f3bfe7f6c36a4eecab24631ba15403ddca0d584d0003d1b"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "payload_sha_calls": {
+          "max": 2,
+          "median": 2,
+          "min": 2
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 385294336,
+        "median": 385142784,
+        "min": 385110016
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "prepared_cold_planned",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.2611320000000004,
+        "median": 3.246036,
+        "min": 3.243127
+      },
+      "cpu_system_seconds": {
+        "max": 0.455477,
+        "median": 0.44221,
+        "min": 0.40903199999999995
+      },
+      "cpu_user_seconds": {
+        "max": 2.834095,
+        "median": 2.8056550000000002,
+        "min": 2.803826
+      },
+      "elapsed_seconds": {
+        "max": 1.5584526200254913,
+        "median": 1.5143924310104921,
+        "min": 1.495069036987843
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "manifest_sha256": "89b87602fd59be1b7f3bfe7f6c36a4eecab24631ba15403ddca0d584d0003d1b"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "payload_sha_calls": {
+          "max": 2,
+          "median": 2,
+          "min": 2
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 386957312,
+        "median": 386924544,
+        "min": 386568192
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 2,
+      "write_bytes": null
+    },
+    {
+      "case": "prepared_cold_planned",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.24939,
+        "median": 3.205188,
+        "min": 3.183637
+      },
+      "cpu_system_seconds": {
+        "max": 0.5083030000000001,
+        "median": 0.439438,
+        "min": 0.36603800000000003
+      },
+      "cpu_user_seconds": {
+        "max": 2.817599,
+        "median": 2.76575,
+        "min": 2.741087
+      },
+      "elapsed_seconds": {
+        "max": 1.5430828839889728,
+        "median": 1.4583197520114481,
+        "min": 1.4571168679976836
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "manifest_sha256": "89b87602fd59be1b7f3bfe7f6c36a4eecab24631ba15403ddca0d584d0003d1b"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "payload_sha_calls": {
+          "max": 2,
+          "median": 2,
+          "min": 2
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 386953216,
+        "median": 386945024,
+        "min": 386527232
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 4,
+      "write_bytes": null
+    },
+    {
+      "case": "prepared_warm",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.1680449999999998,
+        "median": 3.1630519999999995,
+        "min": 3.1573399999999996
+      },
+      "cpu_system_seconds": {
+        "max": 0.44730299999999995,
+        "median": 0.437712,
+        "min": 0.406221
+      },
+      "cpu_user_seconds": {
+        "max": 2.7511189999999996,
+        "median": 2.730333,
+        "min": 2.7157489999999997
+      },
+      "elapsed_seconds": {
+        "max": 1.4737224630080163,
+        "median": 1.4516287459991872,
+        "min": 1.4421308070013765
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "manifest_sha256": "89b87602fd59be1b7f3bfe7f6c36a4eecab24631ba15403ddca0d584d0003d1b"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 382468096,
+        "median": 382316544,
+        "min": 382205952
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "resolve_warm",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.266793,
+        "median": 3.229064,
+        "min": 3.2255459999999996
+      },
+      "cpu_system_seconds": {
+        "max": 0.452962,
+        "median": 0.43998399999999993,
+        "min": 0.389908
+      },
+      "cpu_user_seconds": {
+        "max": 2.839156,
+        "median": 2.813831,
+        "min": 2.7855619999999996
+      },
+      "elapsed_seconds": {
+        "max": 1.5492374319874216,
+        "median": 1.5206469359982293,
+        "min": 1.4869617429794744
+      },
+      "identities": {
+        "plan_sha256": "e1f5c6bac4e371cc0c5f16f401eb7577fe0ca7eccedda0c13e6442202259129b",
+        "scientific_sha256": "abfa41a5f70e50bdcb26620083ca88b6051c8cd50ead1377d55a19f931786b9f"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384778240,
+        "median": 384512000,
+        "min": 384450560
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "open_warm",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.232201,
+        "median": 3.219443,
+        "min": 3.1883489999999997
+      },
+      "cpu_system_seconds": {
+        "max": 0.46324099999999996,
+        "median": 0.403767,
+        "min": 0.37809299999999996
+      },
+      "cpu_user_seconds": {
+        "max": 2.8413500000000003,
+        "median": 2.828434,
+        "min": 2.7251079999999996
+      },
+      "elapsed_seconds": {
+        "max": 1.5002169460058212,
+        "median": 1.4825963369803503,
+        "min": 1.464734106004471
+      },
+      "identities": {
+        "plan_sha256": "e1f5c6bac4e371cc0c5f16f401eb7577fe0ca7eccedda0c13e6442202259129b",
+        "scientific_sha256": "abfa41a5f70e50bdcb26620083ca88b6051c8cd50ead1377d55a19f931786b9f"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 383819776,
+        "median": 383619072,
+        "min": 383266816
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "explain_warm",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.2100959999999996,
+        "median": 3.194135,
+        "min": 3.192517
+      },
+      "cpu_system_seconds": {
+        "max": 0.446529,
+        "median": 0.412956,
+        "min": 0.348474
+      },
+      "cpu_user_seconds": {
+        "max": 2.844043,
+        "median": 2.7971399999999997,
+        "min": 2.747606
+      },
+      "elapsed_seconds": {
+        "max": 1.4829465479997452,
+        "median": 1.4784335430013016,
+        "min": 1.4468425619998015
+      },
+      "identities": {
+        "plan_sha256": "e1f5c6bac4e371cc0c5f16f401eb7577fe0ca7eccedda0c13e6442202259129b",
+        "scientific_sha256": "abfa41a5f70e50bdcb26620083ca88b6051c8cd50ead1377d55a19f931786b9f"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 383823872,
+        "median": 383631360,
+        "min": 383496192
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "stage_verify_warm",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.28855,
+        "median": 3.2853939999999997,
+        "min": 3.266863
+      },
+      "cpu_system_seconds": {
+        "max": 0.487714,
+        "median": 0.47440699999999997,
+        "min": 0.391771
+      },
+      "cpu_user_seconds": {
+        "max": 2.875092,
+        "median": 2.814143,
+        "min": 2.7976799999999997
+      },
+      "elapsed_seconds": {
+        "max": 1.580541112984065,
+        "median": 1.5605469130096026,
+        "min": 1.5240004679944832
+      },
+      "identities": {
+        "stage_sha256": "b8efc9e47bd66cfc0cd42de3a7b21ce10a834879352aa223aac9c2869f836015"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 136315392,
+          "median": 136315392,
+          "min": 136315392
+        },
+        "payload_sha_calls": {
+          "max": 4,
+          "median": 4,
+          "min": 4
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 389525504,
+        "median": 389267456,
+        "min": 389246976
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "materialize_warm",
+      "copy_mechanisms": [
+        "copy_file_range"
+      ],
+      "cpu_seconds": {
+        "max": 3.366748,
+        "median": 3.365985,
+        "min": 3.3597069999999998
+      },
+      "cpu_system_seconds": {
+        "max": 0.578799,
+        "median": 0.541544,
+        "min": 0.48113599999999995
+      },
+      "cpu_user_seconds": {
+        "max": 2.884849,
+        "median": 2.8181629999999998,
+        "min": 2.787949
+      },
+      "elapsed_seconds": {
+        "max": 1.8698257449723314,
+        "median": 1.6883361680083908,
+        "min": 1.6805500729824416
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 68206576,
+          "median": 68206576,
+          "min": 68206576
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388976640,
+        "median": 388947968,
+        "min": 388845568
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "worker_install_warm",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.2165139999999997,
+        "median": 3.213068,
+        "min": 3.1734479999999996
+      },
+      "cpu_system_seconds": {
+        "max": 0.40964799999999996,
+        "median": 0.39499199999999995,
+        "min": 0.394345
+      },
+      "cpu_user_seconds": {
+        "max": 2.818723,
+        "median": 2.806866,
+        "min": 2.778456
+      },
+      "elapsed_seconds": {
+        "max": 1.4696828039886896,
+        "median": 1.4677061149850488,
+        "min": 1.4674703380151186
+      },
+      "identities": {
+        "bundle_digest": "4a22058091b560941615086131ca1e9b3aec4f10ed299cc9e7e23618d1ff8f5c"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384405504,
+        "median": 384167936,
+        "min": 383819776
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "worker_materialize_cold",
+      "copy_mechanisms": [
+        "copy_file_range"
+      ],
+      "cpu_seconds": {
+        "max": 3.4124540000000003,
+        "median": 3.387259,
+        "min": 3.3494139999999994
+      },
+      "cpu_system_seconds": {
+        "max": 0.586971,
+        "median": 0.524728,
+        "min": 0.48252699999999993
+      },
+      "cpu_user_seconds": {
+        "max": 2.8668869999999997,
+        "median": 2.8625309999999997,
+        "min": 2.825483
+      },
+      "elapsed_seconds": {
+        "max": 2.3180846809991635,
+        "median": 1.7248561230080668,
+        "min": 1.690785078011686
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "bundle_digest": "4a22058091b560941615086131ca1e9b3aec4f10ed299cc9e7e23618d1ff8f5c"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 68185233,
+          "median": 68185233,
+          "min": 68185233
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "payload_sha_calls": {
+          "max": 2,
+          "median": 2,
+          "min": 2
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388386816,
+        "median": 388333568,
+        "min": 388276224
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "worker_materialize_warm",
+      "copy_mechanisms": [
+        "copy_file_range"
+      ],
+      "cpu_seconds": {
+        "max": 3.339769,
+        "median": 3.3255589999999997,
+        "min": 3.287429
+      },
+      "cpu_system_seconds": {
+        "max": 0.53719,
+        "median": 0.45154199999999994,
+        "min": 0.44219899999999995
+      },
+      "cpu_user_seconds": {
+        "max": 2.888227,
+        "median": 2.84523,
+        "min": 2.788369
+      },
+      "elapsed_seconds": {
+        "max": 1.7057247060001828,
+        "median": 1.657203890994424,
+        "min": 1.648816162982257
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "bundle_digest": "4a22058091b560941615086131ca1e9b3aec4f10ed299cc9e7e23618d1ff8f5c"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 68185233,
+          "median": 68185233,
+          "min": 68185233
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "payload_sha_calls": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388632576,
+        "median": 388354048,
+        "min": 388222976
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "stage_copy_native",
+      "copy_mechanisms": [
+        "copy_file_range"
+      ],
+      "cpu_seconds": {
+        "max": 3.5899180000000004,
+        "median": 3.572257,
+        "min": 3.531147
+      },
+      "cpu_system_seconds": {
+        "max": 0.663864,
+        "median": 0.6101260000000001,
+        "min": 0.55763
+      },
+      "cpu_user_seconds": {
+        "max": 3.0322880000000003,
+        "median": 2.962131,
+        "min": 2.8672829999999996
+      },
+      "elapsed_seconds": {
+        "max": 1.9598431279882789,
+        "median": 1.9457275659951847,
+        "min": 1.9445932949893177
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "stage_sha256": "b8efc9e47bd66cfc0cd42de3a7b21ce10a834879352aa223aac9c2869f836015"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 272770830,
+          "median": 272770830,
+          "min": 272770830
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 136315392,
+          "median": 136315392,
+          "min": 136315392
+        },
+        "payload_sha_calls": {
+          "max": 4,
+          "median": 4,
+          "min": 4
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 390475776,
+        "median": 390467584,
+        "min": 390193152
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "stage_copy_buffered",
+      "copy_mechanisms": [
+        "buffered"
+      ],
+      "cpu_seconds": {
+        "max": 3.5673120000000003,
+        "median": 3.56247,
+        "min": 3.5440899999999997
+      },
+      "cpu_system_seconds": {
+        "max": 0.624714,
+        "median": 0.616778,
+        "min": 0.6028669999999999
+      },
+      "cpu_user_seconds": {
+        "max": 2.950534,
+        "median": 2.941223,
+        "min": 2.937756
+      },
+      "elapsed_seconds": {
+        "max": 1.989408027002355,
+        "median": 1.9626053560059518,
+        "min": 1.9585981059935875
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "stage_sha256": "b8efc9e47bd66cfc0cd42de3a7b21ce10a834879352aa223aac9c2869f836015"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 272770830,
+          "median": 272770830,
+          "min": 272770830
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 136315392,
+          "median": 136315392,
+          "min": 136315392
+        },
+        "payload_sha_calls": {
+          "max": 4,
+          "median": 4,
+          "min": 4
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 390832128,
+        "median": 390815744,
+        "min": 390524928
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "dispatch_create_native",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.731161,
+        "median": 3.7104160000000004,
+        "min": 3.667736
+      },
+      "cpu_system_seconds": {
+        "max": 0.676836,
+        "median": 0.594367,
+        "min": 0.49204899999999996
+      },
+      "cpu_user_seconds": {
+        "max": 3.218367,
+        "median": 3.073369,
+        "min": 3.0543250000000004
+      },
+      "elapsed_seconds": {
+        "max": 2.0103367019910365,
+        "median": 2.0000954999995884,
+        "min": 1.9627687059983145
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "bundle_digest": "4a22058091b560941615086131ca1e9b3aec4f10ed299cc9e7e23618d1ff8f5c"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 68182136,
+          "median": 68182136,
+          "min": 68182136
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 477103872,
+          "median": 477103872,
+          "min": 477103872
+        },
+        "payload_sha_calls": {
+          "max": 14,
+          "median": 14,
+          "min": 14
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 392929280,
+        "median": 392671232,
+        "min": 391413760
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "worker_install_transfer",
+      "copy_mechanisms": [
+        "copy_file_range"
+      ],
+      "cpu_seconds": {
+        "max": 3.4573050000000003,
+        "median": 3.4106759999999996,
+        "min": 3.407715
+      },
+      "cpu_system_seconds": {
+        "max": 0.633794,
+        "median": 0.5650949999999999,
+        "min": 0.502267
+      },
+      "cpu_user_seconds": {
+        "max": 2.908409,
+        "median": 2.84262,
+        "min": 2.8235110000000003
+      },
+      "elapsed_seconds": {
+        "max": 1.8617359710042365,
+        "median": 1.8473452129983343,
+        "min": 1.8230026779929176
+      },
+      "identities": {
+        "bundle_digest": "4a22058091b560941615086131ca1e9b3aec4f10ed299cc9e7e23618d1ff8f5c"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 136370466,
+          "median": 136370466,
+          "min": 136370466
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 68157696,
+          "median": 68157696,
+          "min": 68157696
+        },
+        "payload_sha_calls": {
+          "max": 2,
+          "median": 2,
+          "min": 2
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388222976,
+        "median": 385933312,
+        "min": 385789952
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "dispatch_create_buffered",
+      "copy_mechanisms": [],
+      "cpu_seconds": {
+        "max": 3.687891,
+        "median": 3.6873549999999997,
+        "min": 3.66189
+      },
+      "cpu_system_seconds": {
+        "max": 0.6143029999999999,
+        "median": 0.60865,
+        "min": 0.5660409999999999
+      },
+      "cpu_user_seconds": {
+        "max": 3.121314,
+        "median": 3.079241,
+        "min": 3.047587
+      },
+      "elapsed_seconds": {
+        "max": 2.020244893996278,
+        "median": 2.00284367101267,
+        "min": 1.978702644992154
+      },
+      "identities": {
+        "array_sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        },
+        "bundle_digest": "4a22058091b560941615086131ca1e9b3aec4f10ed299cc9e7e23618d1ff8f5c"
+      },
+      "logical_sha_measurement": {
+        "copy_authentication_sha_read_bytes": {
+          "max": 68182136,
+          "median": 68182136,
+          "min": 68182136
+        },
+        "logical_payload_bytes_avoided": {
+          "max": 0,
+          "median": 0,
+          "min": 0
+        },
+        "logical_payload_sha_read_bytes": {
+          "max": 477103872,
+          "median": 477103872,
+          "min": 477103872
+        },
+        "payload_sha_calls": {
+          "max": 14,
+          "median": 14,
+          "min": 14
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 393056256,
+        "median": 391761920,
+        "min": 390701056
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    }
+  ],
+  "before_medium": [
+    {
+      "case": "prepared_cold",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.40878699999999996,
+        "median": 0.40470599999999995,
+        "min": 0.39259599999999995
+      },
+      "cpu_user_seconds": {
+        "max": 2.740039,
+        "median": 2.7330069999999997,
+        "min": 2.686377
+      },
+      "elapsed_seconds": {
+        "max": 1.4156029729929287,
+        "median": 1.4035487159853801,
+        "min": 1.392182325012982
+      },
+      "identities": {
+        "manifest_sha256": "3e559b3725c8828e4332e435b8290efdfbed393936fc31b8f893ffcef192ab44"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 383078400,
+        "median": 383074304,
+        "min": 383062016
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "resolve",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.43526299999999996,
+        "median": 0.398464,
+        "min": 0.391656
+      },
+      "cpu_user_seconds": {
+        "max": 2.821932,
+        "median": 2.7894300000000003,
+        "min": 2.763826
+      },
+      "elapsed_seconds": {
+        "max": 1.5027721080114134,
+        "median": 1.4867845799890347,
+        "min": 1.4837090369837824
+      },
+      "identities": {
+        "plan_sha256": "0d87169d33c28715c0d3dee87a29089d47320f8e7a1b7ccd84fc053d801d0774",
+        "scientific_sha256": "fcc1e5eac63b33f42a4de037bfe0c40f544eac443218336e4356e5e9378fc316"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 386818048,
+        "median": 386564096,
+        "min": 386547712
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "open",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.387208,
+        "median": 0.38497,
+        "min": 0.37060899999999997
+      },
+      "cpu_user_seconds": {
+        "max": 2.8218370000000004,
+        "median": 2.8210870000000003,
+        "min": 2.7986319999999996
+      },
+      "elapsed_seconds": {
+        "max": 1.4692630280042067,
+        "median": 1.4550630429876037,
+        "min": 1.43567692200304
+      },
+      "identities": {
+        "plan_sha256": "0d87169d33c28715c0d3dee87a29089d47320f8e7a1b7ccd84fc053d801d0774",
+        "scientific_sha256": "fcc1e5eac63b33f42a4de037bfe0c40f544eac443218336e4356e5e9378fc316"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384438272,
+        "median": 384024576,
+        "min": 383950848
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "explain",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.381501,
+        "median": 0.36016099999999995,
+        "min": 0.32276699999999997
+      },
+      "cpu_user_seconds": {
+        "max": 2.8607910000000003,
+        "median": 2.752913,
+        "min": 2.7483370000000003
+      },
+      "elapsed_seconds": {
+        "max": 1.4572769410151523,
+        "median": 1.4310695719905198,
+        "min": 1.4297428419813514
+      },
+      "identities": {
+        "plan_sha256": "0d87169d33c28715c0d3dee87a29089d47320f8e7a1b7ccd84fc053d801d0774",
+        "scientific_sha256": "fcc1e5eac63b33f42a4de037bfe0c40f544eac443218336e4356e5e9378fc316"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384331776,
+        "median": 384163840,
+        "min": 384118784
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "stage_verify",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.449786,
+        "median": 0.378807,
+        "min": 0.375138
+      },
+      "cpu_user_seconds": {
+        "max": 2.813748,
+        "median": 2.7794480000000004,
+        "min": 2.7753680000000003
+      },
+      "elapsed_seconds": {
+        "max": 1.493657166021876,
+        "median": 1.4820223120041192,
+        "min": 1.4592546060157474
+      },
+      "identities": {
+        "stage_sha256": "8ca07f0000bbba4c9f061c7ee0abf1bde36bc902072fb72d8df25412293b11e8"
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388239360,
+        "median": 388063232,
+        "min": 388022272
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "materialize",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.489205,
+        "median": 0.482917,
+        "min": 0.4634
+      },
+      "cpu_user_seconds": {
+        "max": 2.9012409999999997,
+        "median": 2.8495299999999997,
+        "min": 2.8296859999999997
+      },
+      "elapsed_seconds": {
+        "max": 1.6763129299797583,
+        "median": 1.6261547180183697,
+        "min": 1.599659311992582
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 388317184,
+        "median": 388161536,
+        "min": 388161536
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "controller_read",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.421782,
+        "median": 0.372648,
+        "min": 0.34566199999999997
+      },
+      "cpu_user_seconds": {
+        "max": 2.733901,
+        "median": 2.658495,
+        "min": 2.6080650000000003
+      },
+      "elapsed_seconds": {
+        "max": 1.3939923889993224,
+        "median": 1.3745199269906152,
+        "min": 1.3603625069954433
+      },
+      "identities": {},
+      "peak_tree_rss_bytes": {
+        "max": 381538304,
+        "median": 381390848,
+        "min": 379088896
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "campaign_read",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.403607,
+        "median": 0.393303,
+        "min": 0.38066
+      },
+      "cpu_user_seconds": {
+        "max": 2.7655570000000003,
+        "median": 2.728149,
+        "min": 2.7221670000000002
+      },
+      "elapsed_seconds": {
+        "max": 1.4273069229966495,
+        "median": 1.4166423710121308,
+        "min": 1.416569116001483
+      },
+      "identities": {},
+      "peak_tree_rss_bytes": {
+        "max": 385191936,
+        "median": 384823296,
+        "min": 380923904
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "sha",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.41220199999999996,
+        "median": 0.377788,
+        "min": 0.34248199999999995
+      },
+      "cpu_user_seconds": {
+        "max": 2.776496,
+        "median": 2.766172,
+        "min": 2.729855
+      },
+      "elapsed_seconds": {
+        "max": 1.4274408890050836,
+        "median": 1.415854410995962,
+        "min": 1.409108888998162
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 383164416,
+        "median": 383131648,
+        "min": 382951424
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 1,
+      "write_bytes": null
+    },
+    {
+      "case": "sha",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.37288499999999997,
+        "median": 0.354093,
+        "min": 0.336839
+      },
+      "cpu_user_seconds": {
+        "max": 2.804568,
+        "median": 2.771069,
+        "min": 2.7558049999999996
+      },
+      "elapsed_seconds": {
+        "max": 1.427366149990121,
+        "median": 1.4032875590201002,
+        "min": 1.4009280780155677
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384425984,
+        "median": 384339968,
+        "min": 384131072
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 2,
+      "write_bytes": null
+    },
+    {
+      "case": "sha",
+      "copy_mechanisms": [],
+      "cpu_system_seconds": {
+        "max": 0.41593399999999997,
+        "median": 0.33010399999999995,
+        "min": 0.32649199999999995
+      },
+      "cpu_user_seconds": {
+        "max": 2.851548,
+        "median": 2.82023,
+        "min": 2.6945360000000003
+      },
+      "elapsed_seconds": {
+        "max": 1.4256678740202915,
+        "median": 1.4203272129816469,
+        "min": 1.402345337002771
+      },
+      "identities": {
+        "sha256": {
+          "train.npy": "c42060915635985d4e38e02c043fa4aea3564070722b05a3758605d0fc10bfd4",
+          "validation.npy": "24db18ec9fd4b918ea4b9d49362874acca592bb80bd3b5700082c65b4076700c"
+        }
+      },
+      "peak_tree_rss_bytes": {
+        "max": 384385024,
+        "median": 383983616,
+        "min": 383922176
+      },
+      "peak_tree_swap_bytes": {
+        "max": 0,
+        "median": 0,
+        "min": 0
+      },
+      "read_bytes": null,
+      "repetitions": 3,
+      "workers": 4,
+      "write_bytes": null
+    }
+  ],
+  "benchmark_revision": "1b644745999b0f27e462ddfc850b33d29eaab13c",
+  "cache_condition": "Uncontrolled OS cache; no cache drop; independent fresh processes; alternating 1/2/4 then 4/2/1; imports included. No other task workloads during final benchmarks. Physical IO counters unavailable.",
+  "cross_revision_generated_plan_equality_claimed": false,
+  "cross_revision_prepared_arrays_equal": true,
+  "format": "capacity-aware-execution-v1-results",
+  "frozen_model0": {
+    "actual_cross_filesystem_devices": {
+      "destination": 2112,
+      "source": 2096
+    },
+    "after_cold": {
+      "case": "prepared_cold",
+      "cpu_system_seconds": 3.3247370000000003,
+      "cpu_user_seconds": 4.553493,
+      "elapsed_seconds": 8.79504703701241,
+      "identities": {
+        "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3"
+      },
+      "peak_tree_rss_bytes": 384327680,
+      "peak_tree_swap_bytes": 0,
+      "read_bytes": "not_measured",
+      "status": "ok",
+      "workers": 1,
+      "write_bytes": "not_measured"
+    },
+    "array_sha256": {
+      "train.npy": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+      "validation.npy": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d"
+    },
+    "before_cold": {
+      "case": "prepared_cold",
+      "cpu_system_seconds": 0.893114,
+      "cpu_user_seconds": 4.440359999999999,
+      "elapsed_seconds": 3.363675600005081,
+      "identities": {
+        "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3"
+      },
+      "peak_tree_rss_bytes": 383389696,
+      "peak_tree_swap_bytes": 0,
+      "read_bytes": "not_measured",
+      "status": "ok",
+      "workers": 1,
+      "write_bytes": "not_measured"
+    },
+    "cache_comparable_speedup_claimed": false,
+    "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+    "original_modified": false,
+    "original_root": "/srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0",
+    "settings_sha256": "15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84",
+    "task_owned_transfer_and_warm": [
+      {
+        "case": "real_owned_copy",
+        "cpu_system_seconds": 5.228338000000001,
+        "cpu_user_seconds": 8.158045,
+        "elapsed_seconds": 12.130998585984344,
+        "identities": {
+          "array_sha256": {
+            "train.npy": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+            "validation.npy": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d"
+          },
+          "copy_observations": [
+            {
+              "logical_bytes": 140,
+              "mechanism": "buffered"
+            },
+            {
+              "logical_bytes": 4311,
+              "mechanism": "buffered"
+            },
+            {
+              "logical_bytes": 3937267228,
+              "mechanism": "buffered"
+            },
+            {
+              "logical_bytes": 93739832,
+              "mechanism": "buffered"
+            }
+          ],
+          "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3"
+        },
+        "logical_sha_measurement": {
+          "copy_authentication_sha_read_bytes": 4031015962,
+          "logical_payload_bytes_avoided": 0,
+          "logical_payload_sha_read_bytes": 8062014120,
+          "payload_sha_calls": 4
+        },
+        "peak_tree_rss_bytes": 385167360,
+        "peak_tree_swap_bytes": 0,
+        "read_bytes": "not_measured",
+        "status": "ok",
+        "workers": 1,
+        "write_bytes": "not_measured"
+      },
+      {
+        "case": "prepared_warm",
+        "cpu_system_seconds": 0.416319,
+        "cpu_user_seconds": 2.740059,
+        "elapsed_seconds": 1.4568753420026042,
+        "identities": {
+          "array_sha256": {
+            "train.npy": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+            "validation.npy": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d"
+          },
+          "capacity_plan": {
+            "affinity_cpus": 24,
+            "available_bytes": 29153685504,
+            "logical_cpus": 24,
+            "operation": "sha256",
+            "operator_cap": 1,
+            "physical_cpus": 12,
+            "reserve_bytes": 3361070694,
+            "total_bytes": 33610706944,
+            "worker_memory_bytes": 8388608,
+            "workers": 1
+          },
+          "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+          "payload_bytes": 4031007060
+        },
+        "logical_sha_measurement": {
+          "copy_authentication_sha_read_bytes": 0,
+          "logical_payload_bytes_avoided": 4031007060,
+          "logical_payload_sha_read_bytes": 0,
+          "payload_sha_calls": 0
+        },
+        "peak_tree_rss_bytes": 382099456,
+        "peak_tree_swap_bytes": 0,
+        "read_bytes": "not_measured",
+        "status": "ok",
+        "workers": 1,
+        "write_bytes": "not_measured"
+      },
+      {
+        "case": "prepared_warm",
+        "cpu_system_seconds": 0.305945,
+        "cpu_user_seconds": 2.836298,
+        "elapsed_seconds": 1.4174404869845603,
+        "identities": {
+          "array_sha256": {
+            "train.npy": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+            "validation.npy": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d"
+          },
+          "capacity_plan": {
+            "affinity_cpus": 24,
+            "available_bytes": 29148635136,
+            "logical_cpus": 24,
+            "operation": "sha256",
+            "operator_cap": 1,
+            "physical_cpus": 12,
+            "reserve_bytes": 3361070694,
+            "total_bytes": 33610706944,
+            "worker_memory_bytes": 8388608,
+            "workers": 1
+          },
+          "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+          "payload_bytes": 4031007060
+        },
+        "logical_sha_measurement": {
+          "copy_authentication_sha_read_bytes": 0,
+          "logical_payload_bytes_avoided": 4031007060,
+          "logical_payload_sha_read_bytes": 0,
+          "payload_sha_calls": 0
+        },
+        "peak_tree_rss_bytes": 383508480,
+        "peak_tree_swap_bytes": 0,
+        "read_bytes": "not_measured",
+        "status": "ok",
+        "workers": 1,
+        "write_bytes": "not_measured"
+      },
+      {
+        "case": "prepared_warm",
+        "cpu_system_seconds": 0.40795699999999996,
+        "cpu_user_seconds": 2.698671,
+        "elapsed_seconds": 1.4466246950032655,
+        "identities": {
+          "array_sha256": {
+            "train.npy": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a",
+            "validation.npy": "c97d54873b6a8b3986e28c019704847317bf938c02bc22530ab638e2e781e92d"
+          },
+          "capacity_plan": {
+            "affinity_cpus": 24,
+            "available_bytes": 29144432640,
+            "logical_cpus": 24,
+            "operation": "sha256",
+            "operator_cap": 1,
+            "physical_cpus": 12,
+            "reserve_bytes": 3361070694,
+            "total_bytes": 33610706944,
+            "worker_memory_bytes": 8388608,
+            "workers": 1
+          },
+          "manifest_sha256": "6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3",
+          "payload_bytes": 4031007060
+        },
+        "logical_sha_measurement": {
+          "copy_authentication_sha_read_bytes": 0,
+          "logical_payload_bytes_avoided": 4031007060,
+          "logical_payload_sha_read_bytes": 0,
+          "payload_sha_calls": 0
+        },
+        "peak_tree_rss_bytes": 383168512,
+        "peak_tree_swap_bytes": 0,
+        "read_bytes": "not_measured",
+        "status": "ok",
+        "workers": 1,
+        "write_bytes": "not_measured"
+      }
+    ]
+  },
+  "identity_checks": {
+    "arrays_equal_1_2_N_cold_warm_copy_methods": true,
+    "dispatch_manifest_equal_native_buffered_cold_warm": true,
+    "frozen_stage_manifest_equal_native_buffered_cold_warm": true,
+    "plan_scientific_and_prepared_manifest_equal_cold_warm": true,
+    "warm_zero_payload_sha_except_private_hardlinked_stage": true
+  },
+  "metadata": {
+    "compression": {
+      "zlib": "1.3.1"
+    },
+    "dirty_tree": false,
+    "executable": "/home/byron/src/tiny-sparse-lab/.venv/bin/python",
+    "hardware_observation": {
+      "hashlib_algorithms_guaranteed": [
+        "blake2b",
+        "blake2s",
+        "md5",
+        "sha1",
+        "sha224",
+        "sha256",
+        "sha384",
+        "sha3_224",
+        "sha3_256",
+        "sha3_384",
+        "sha3_512",
+        "sha512",
+        "shake_128",
+        "shake_256"
+      ],
+      "hashlib_sha256_module": "_hashlib",
+      "isa": {
+        "aes": true,
+        "avx": true,
+        "avx2": true,
+        "avx512f": false,
+        "sha_ni": true,
+        "sse4_1": true,
+        "sse4_2": true
+      },
+      "machine": "x86_64",
+      "openssl": "OpenSSL 3.5.5 27 Jan 2026",
+      "probe": "bounded /proc/cpuinfo"
+    },
+    "hashlib_sha256_module": "_hashlib",
+    "host": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "isa": {
+      "aes": true,
+      "avx": true,
+      "avx2": true,
+      "avx512f": false,
+      "sha_ni": true,
+      "sse4_1": true,
+      "sse4_2": true
+    },
+    "machine": "x86_64",
+    "openssl": "OpenSSL 3.5.5 27 Jan 2026",
+    "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+    "rayon": "tokenizers native runtime; separately observed in preparation receipt",
+    "source_commit": "1b644745999b0f27e462ddfc850b33d29eaab13c",
+    "source_implementation_sha256": "466b154e5c7e0b2d7d8250929cdf3a515723b4169f0896a6e092f0232bde5f7b",
+    "versions": {
+      "numpy": "2.5.3",
+      "psutil": "7.2.2",
+      "tokenizers": "0.22.2",
+      "zstandard": "not_measured"
+    }
+  },
+  "performance_limits": [
+    "Medium cold/import-inclusive medians overlap or modestly regress; no cold/CLI end-to-end speedup claimed.",
+    "Isolated native copy improves 64MiB payload median; end-to-end frozen-stage/dispatch copy medians overlap; no end-to-end native/ISA speedup claimed.",
+    "Original real cold 3.363676 -> 8.795047 seconds is uncontrolled-cache single observations; do not attribute difference to code.",
+    "Warm task-owned real payload verification avoids 4,031,007,060 logical SHA bytes but still imports native stack.",
+    "Worker private destination SHA remains mandatory, even with zero CAS source SHA.",
+    "Stage hardlinks are private; persistent proof index rejects nlink>1 and warm stage still hashes four array paths.",
+    "Optional observations sample endpoint RSS, not phase peaks; nested timing totals are not additive.",
+    "Historical old-source MODEL-0 lock is unavailable under current code and was not rewritten."
+  ],
+  "raw_evidence": [
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/before-io.json",
+      "sha256": "0fd05abf560e0372d1aa873fab3eec752a9c44192cca4ee504e92ca8fc41f342"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/after-small-final.json",
+      "sha256": "891558891ecb54280320f8facee08f24b84d7a6b2833801d84a888bf6d7935f6"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/after-final.json",
+      "sha256": "625bd9bd9b1904f6f9c5ef7f045ef13fe3e6c5ea739d20008331143ffe1f6aa1"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/corpus-process-final.json",
+      "sha256": "7222e089bf001452b96f0a38aaac82fae39456601c07ade4547627726b775ce9"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/copy-profile.json",
+      "sha256": "5da859000f8f691154d658667d5f8fefba6f3017dc01c993f5edbd2cfb82cd3b"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/encoding-profile.json",
+      "sha256": "418cea59da8d1211697378066b8d1780f6a475be6e2eb5ce7ecbe4510c394c24"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/encoding-profile-after.json",
+      "sha256": "d6d58da9c27d4b6631721a3d6876caabaa9b864a71a78c1c9f4e99990e96c690"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/evaluation-profile.json",
+      "sha256": "324b9c074c90656f809d90e83573a9f6b30a2f6b97d1a9ee910d7c9aea980380"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/control-evidence-before.json",
+      "sha256": "b7e8ccaf32add93abf334f02a90960b7a91f8034d3693eff19f599960a5b50b0"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/step9-smoke.json",
+      "sha256": "ae1c5a16e9ba8ee0fdd6177b7defffb2f2f2614bebad8cc629e83cbc46a7e6e7"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/step9-cold-smoke.json",
+      "sha256": "2feb7c21fd1ed2be98eb99e71ece06541709ca7e6ebfe2ab8111eb9aabc35e67"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/after-small-corrected.json",
+      "sha256": "c002d546efd5aa385bb58be67504e0de490c755f52ffd0a94f4c06f5e726c8a3"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/after-corrected.json",
+      "sha256": "33e08d402e5dc9d665cddc1e8d44cc0d4c6445075f8bba5903b67a6f55fa1c9b"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/final-cli-smoke.json",
+      "sha256": "ada11f96492cbd420aad92f7d6c30d968579eea9c5dc0cc42c00cdc5fae922eb"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/final-cli-corrected.json",
+      "sha256": "33d2df99fb7ff3b0873dac2e0385f40b90812eb0216a97141de684ee75d7d2e4"
+    },
+    {
+      "path": "/home/byron/.local/share/sparselab/experiments/capacity-aware-execution-v1/recovery-final-smoke.json",
+      "sha256": "a756cf39bed1c740f8472f368552b14e7f4abd2c45197cbffaca2e0abe2a1616"
+    }
+  ],
+  "selected_defaults": {
+    "cold_sha_workers": 1,
+    "evaluation": "serial native model/GPU execution; no CPU pool; no dominant preprocessing demonstrated",
+    "large_jsonl_source_processes": 2,
+    "native_tokenizer_worker_cap": 4,
+    "owned_copy": "attempt private clone; bounded copy_file_range; buffered cross-device fallback"
+  },
+  "six_column_measured_table": [
+    {
+      "after_wall_seconds": 1.432169317995431,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 1.4035487159853801,
+      "peak_tree_rss_bytes": 384638976,
+      "workers": 1,
+      "workload": "medium prepared_cold"
+    },
+    {
+      "after_wall_seconds": 1.5092350019840524,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 1.4867845799890347,
+      "peak_tree_rss_bytes": 388173824,
+      "workers": 1,
+      "workload": "medium resolve"
+    },
+    {
+      "after_wall_seconds": 1.4568263569963165,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 1.4550630429876037,
+      "peak_tree_rss_bytes": 385310720,
+      "workers": 1,
+      "workload": "medium open"
+    },
+    {
+      "after_wall_seconds": 1.5252342669991776,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 1.4820223120041192,
+      "peak_tree_rss_bytes": 389242880,
+      "workers": 1,
+      "workload": "medium stage_verify"
+    },
+    {
+      "after_wall_seconds": 1.7246339840057772,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 1.6261547180183697,
+      "peak_tree_rss_bytes": 389394432,
+      "workers": 1,
+      "workload": "medium materialize"
+    },
+    {
+      "after_wall_seconds": 1.4516287459991872,
+      "avoided_logical_payload_bytes": 68157696,
+      "before_wall_seconds": null,
+      "peak_tree_rss_bytes": 382468096,
+      "workers": 1,
+      "workload": "medium prepared_warm"
+    },
+    {
+      "after_wall_seconds": 1.4677061149850488,
+      "avoided_logical_payload_bytes": 68157696,
+      "before_wall_seconds": null,
+      "peak_tree_rss_bytes": 384405504,
+      "workers": 1,
+      "workload": "medium worker_install_warm"
+    },
+    {
+      "after_wall_seconds": 8.79504703701241,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 3.363675600005081,
+      "peak_tree_rss_bytes": 384327680,
+      "workers": 1,
+      "workload": "immutable MODEL-0 prepared cold (single; uncontrolled cache)"
+    },
+    {
+      "after_wall_seconds": 1.4466246950032655,
+      "avoided_logical_payload_bytes": 4031007060,
+      "before_wall_seconds": null,
+      "peak_tree_rss_bytes": 383508480,
+      "workers": 1,
+      "workload": "task-owned MODEL-0 prepared warm (three; no pre-change warm implementation)"
+    },
+    {
+      "after_wall_seconds": 3.415149,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 5.076521,
+      "peak_tree_rss_bytes": 908754944,
+      "workers": 2,
+      "workload": "independent 2x32MiB source JSONL shard prepare"
+    },
+    {
+      "after_wall_seconds": 0.123528,
+      "avoided_logical_payload_bytes": 0,
+      "before_wall_seconds": 0.13075,
+      "peak_tree_rss_bytes": 377782272,
+      "workers": 1,
+      "workload": "64MiB isolated private copy buffered -> copy_file_range"
+    }
+  ],
+  "small_ci": {
+    "cases": 28,
+    "identity_checks": {
+      "arrays_equal_1_2_N_cold_warm_copy_methods": true,
+      "dispatch_manifest_equal_native_buffered_cold_warm": true,
+      "frozen_stage_manifest_equal_native_buffered_cold_warm": true,
+      "plan_scientific_and_prepared_manifest_equal_cold_warm": true,
+      "warm_zero_payload_sha_except_private_hardlinked_stage": true
+    }
+  },
+  "source_implementation_sha256": "466b154e5c7e0b2d7d8250929cdf3a515723b4169f0896a6e092f0232bde5f7b",
+  "verification": {
+    "corrected_recovery_and_fixture_subset": {
+      "passed": 70,
+      "separate_runs": true
+    },
+    "focused_before_final_recovery_correction": {
+      "passed": 300,
+      "seconds": 422.36
+    },
+    "full_before_correction": {
+      "failed": 8,
+      "failures_resolved": true,
+      "passed": 1602,
+      "raw_output": "artifact://108",
+      "seconds": 1230.89,
+      "skipped": 12
+    },
+    "full_corrected_source_suite": {
+      "command": "uv run --locked --extra cpu pytest -q tests",
+      "passed": 1606,
+      "raw_output": "artifact://114",
+      "seconds": 1225.73,
+      "skipped": 12
+    },
+    "hardware_gates": "CPU exercised; accelerator probes unavailable; no real MODEL-0/MODEL-1 or accelerator training launched. Twelve platform/optional backend tests skipped.",
+    "historical_lock_rewritten": false,
+    "independent_current_source_cli": {
+      "cold_payload_sha_reads": [
+        "train.npy",
+        "validation.npy"
+      ],
+      "plan_and_scientific_equal": true,
+      "warm_payload_sha_reads": []
+    },
+    "independent_published_crash_recovery": {
+      "arrays_cold_sha_once": 4,
+      "cleanup_completed": true,
+      "reencoded": false
+    },
+    "ruff_check": "passed",
+    "ruff_format_check": {
+      "files": 536,
+      "passed": true
+    }
+  }
+}
