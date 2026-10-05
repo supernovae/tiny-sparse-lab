@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import errno
 import hashlib
 import json
 import os
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from sparselab import staging
+from sparselab import owned_copy, staging
 from sparselab.data import verification
 from sparselab.training.manifest import sha256_file
 
@@ -47,6 +48,14 @@ def test_copied_bytes_progress_has_bounded_values(
 ) -> None:
     from sparselab.training import pilot_progress
 
+    # This test checks chunk thresholds; native clones report completion once.
+    # Native mechanisms remain covered by test_owned_copy's private-copy test.
+    def unavailable(*_args: object) -> None:
+        raise OSError(errno.EOPNOTSUPP, "native clones disabled for progress test")
+
+    monkeypatch.setattr(owned_copy.fcntl, "ioctl", unavailable)
+    monkeypatch.setattr(owned_copy, "_clonefile", unavailable)
+    monkeypatch.delattr(owned_copy.os, "copy_file_range", raising=False)
     source = tmp_path / "source"
     source.mkdir()
     payload = b"x" * (1024 * 1024)

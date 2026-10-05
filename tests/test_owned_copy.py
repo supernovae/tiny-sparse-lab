@@ -18,6 +18,17 @@ def source(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.fixture
+def without_native_clones(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reach transfer fault injection on both reflink and clonefile hosts."""
+
+    def unavailable(*_args: object) -> None:
+        raise OSError(errno.EOPNOTSUPP, "native clones disabled for transfer test")
+
+    monkeypatch.setattr(copy_module.fcntl, "ioctl", unavailable)
+    monkeypatch.setattr(copy_module, "_clonefile", unavailable)
+
+
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -95,25 +106,20 @@ def test_source_proof_requires_live_fingerprint(source: Path, tmp_path: Path) ->
     assert not (tmp_path / "stale").exists()
 
 
+@pytest.mark.usefixtures("without_native_clones")
 def test_native_partial_failure_resets_before_buffered_fallback(
     source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        copy_module.fcntl,
-        "ioctl",
-        lambda *_args: (_ for _ in ()).throw(OSError(errno.EOPNOTSUPP, "no reflink")),
-    )
-    original = os.copy_file_range
     calls = 0
 
     def broken_native(incoming: int, outgoing: int, count: int) -> int:
         nonlocal calls
         calls += 1
         if calls == 1:
-            return original(incoming, outgoing, min(count, 1000))
+            return os.write(outgoing, os.read(incoming, min(count, 1000)))
         raise OSError(errno.EXDEV, "different file system")
 
-    monkeypatch.setattr(copy_module.os, "copy_file_range", broken_native)
+    monkeypatch.setattr(copy_module.os, "copy_file_range", broken_native, raising=False)
     result = copy_module.owned_copy(source, tmp_path / "fallback")
     assert calls == 2
     assert result.mechanism == "buffered"
@@ -121,16 +127,12 @@ def test_native_partial_failure_resets_before_buffered_fallback(
     assert _digest(result.proof.path) == _digest(source)
 
 
+@pytest.mark.usefixtures("without_native_clones")
 def test_native_copy_file_range_keeps_exact_digest(
-    source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    source: Path, tmp_path: Path
 ) -> None:
     if not hasattr(os, "copy_file_range"):
         pytest.skip("native copy_file_range unavailable")
-    monkeypatch.setattr(
-        copy_module.fcntl,
-        "ioctl",
-        lambda *_args: (_ for _ in ()).throw(OSError(errno.EOPNOTSUPP, "no reflink")),
-    )
     result = copy_module.owned_copy(source, tmp_path / "native")
     assert result.mechanism == "copy_file_range"
     assert result.proof.sha256 == _digest(source) == _digest(result.proof.path)
@@ -158,46 +160,35 @@ def test_clonefile_private_copy_and_partial_clone_fallback(
     assert fallback.proof.sha256 == _digest(source) == _digest(fallback.proof.path)
 
 
+@pytest.mark.usefixtures("without_native_clones")
 def test_cross_device_native_failure_uses_buffered_copy(
     source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        copy_module.fcntl,
-        "ioctl",
-        lambda *_args: (_ for _ in ()).throw(OSError(errno.EXDEV, "cross-device")),
-    )
-
     def cross_device(*_args: object) -> int:
         raise OSError(errno.EXDEV, "cross-device")
 
-    monkeypatch.setattr(copy_module.os, "copy_file_range", cross_device)
+    monkeypatch.setattr(copy_module.os, "copy_file_range", cross_device, raising=False)
     result = copy_module.owned_copy(source, tmp_path / "cross-device")
     assert result.mechanism == "buffered"
     assert result.proof.sha256 == _digest(source)
 
 
+@pytest.mark.usefixtures("without_native_clones")
 def test_short_native_result_retries_without_publishing_partial_copy(
     source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        copy_module.fcntl,
-        "ioctl",
-        lambda *_args: (_ for _ in ()).throw(OSError(errno.EOPNOTSUPP, "no reflink")),
+        copy_module.os, "copy_file_range", lambda *_args: 0, raising=False
     )
-    monkeypatch.setattr(copy_module.os, "copy_file_range", lambda *_args: 0)
     result = copy_module.owned_copy(source, tmp_path / "retry")
     assert result.mechanism == "buffered"
     assert result.proof.sha256 == _digest(source)
 
 
+@pytest.mark.usefixtures("without_native_clones")
 def test_copy_corruption_and_source_change_never_publish(
     source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        copy_module.fcntl,
-        "ioctl",
-        lambda *_args: (_ for _ in ()).throw(OSError(errno.EOPNOTSUPP, "no reflink")),
-    )
     monkeypatch.delattr(copy_module.os, "copy_file_range", raising=False)
     actual_transfer = copy_module._transfer
 
@@ -229,14 +220,10 @@ def test_copy_corruption_and_source_change_never_publish(
     assert not (tmp_path / "changed").exists()
 
 
+@pytest.mark.usefixtures("without_native_clones")
 def test_source_truncation_rejects_partial_buffered_copy(
     source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        copy_module.fcntl,
-        "ioctl",
-        lambda *_args: (_ for _ in ()).throw(OSError(errno.EOPNOTSUPP, "no reflink")),
-    )
     monkeypatch.delattr(copy_module.os, "copy_file_range", raising=False)
     actual_transfer = copy_module._transfer
 

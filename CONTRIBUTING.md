@@ -6,9 +6,22 @@ Use Python 3.14 (selected by `.python-version`) and
 ```sh
 uv run --locked --extra cpu ruff check .
 uv run --locked --extra cpu ruff format --check .
-uv run --locked --extra cpu pytest -q -n 2 --dist loadfile \
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \
+uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4 \
+  --dist worksteal --durations=25 \
   -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
 ```
+
+CI runs on pull requests and pushes to `main`; use the workflow's manual dispatch
+for a branch without a PR. New commits cancel superseded runs on the same ref.
+Both Linux x64 and macOS arm64 run the full CPU suite, with up to four pytest
+workers (limited by physical cores) and one BLAS/OpenMP thread per worker.
+Work stealing redistributes pending tests when one worker falls behind; module
+fixtures can be instantiated on more than one worker and must use isolated paths.
+The slowest 25 tests are printed in each job log. Full-suite jobs have a 30-minute
+limit so a hung test cannot occupy a runner for six hours. Hardware and network
+tests retain their separate opt-in gates. PR checkout uses GitHub's synthetic
+merge commit to test integration with the base branch; detached HEAD is expected.
 
 Base installation is Torch-free: the lightweight `sparselab runtime env` CLI
 works without Torch, but the full CLI currently imports a backend framework.

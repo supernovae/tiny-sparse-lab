@@ -389,6 +389,25 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _drain_pipe(fd: int) -> tuple[bytes, bool]:
+    """Drain available bytes before another process scan, with a fairness cap.
+
+    Reading only one small chunk per process scan can mistake buffered output
+    from an exited child for an orphan holding its pipe open. Keep each turn
+    bounded so a noisy writer cannot starve progress or deadline checks.
+    """
+    chunks = bytearray()
+    while len(chunks) < 1_048_576:
+        try:
+            chunk = os.read(fd, min(65_536, 1_048_576 - len(chunks)))
+        except BlockingIOError:
+            break
+        if not chunk:
+            return bytes(chunks), True
+        chunks.extend(chunk)
+    return bytes(chunks), False
+
+
 def supervise_pilot(
     argv: list[str],
     *,
@@ -480,6 +499,7 @@ def supervise_pilot(
             _fsync_directory(directory)
             selector.register(read_fd, selectors.EVENT_READ)
             assert process.stdout is not None
+            os.set_blocking(process.stdout.fileno(), False)
             selector.register(process.stdout, selectors.EVENT_READ)
             last_sample = float("-inf")
             while True:
@@ -554,14 +574,10 @@ def supervise_pilot(
                     _signal_owned(known, signal.SIGKILL)
                 for ready, _ in selector.select(timeout=0.1):
                     fd = ready.fileobj
-                    try:
-                        chunk = os.read(
-                            fd if isinstance(fd, int) else fd.fileno(), 4096
-                        )
-                    except BlockingIOError:
-                        continue
-                    if not chunk:
+                    chunk, eof = _drain_pipe(fd if isinstance(fd, int) else fd.fileno())
+                    if eof:
                         selector.unregister(fd)
+                    if not chunk:
                         continue
                     if fd != read_fd:
                         output_tail.extend(chunk)

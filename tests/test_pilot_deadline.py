@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import signal
 import sys
 import threading
 from pathlib import Path
@@ -13,7 +14,9 @@ from pathlib import Path
 import psutil
 import pytest
 
+from sparselab import operational_monitor
 from sparselab.operational_monitor import MonitorPolicy
+from sparselab.training import pilot_deadline
 from sparselab.training.pilot_deadline import (
     PilotCancelled,
     PilotDeadlinePolicy,
@@ -367,7 +370,13 @@ def test_supervised_authenticated_phase_and_counter(tmp_path: Path) -> None:
     assert evidence["last_progress_timestamp"] is not None
 
 
-def test_hung_owned_child_terminated_and_phase_preserved(tmp_path: Path) -> None:
+@pytest.mark.parametrize("without_pidfds", [False, True])
+def test_hung_owned_child_terminated_and_phase_preserved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, without_pidfds: bool
+) -> None:
+    if without_pidfds:
+        monkeypatch.delattr(os, "pidfd_open", raising=False)
+        monkeypatch.delattr(signal, "pidfd_send_signal", raising=False)
     directory = tmp_path / "hung"
     script = (
         "import os,subprocess,sys,time; "
@@ -395,6 +404,42 @@ def test_hung_owned_child_terminated_and_phase_preserved(tmp_path: Path) -> None
         not psutil.pid_exists(child_pid)
         or psutil.Process(child_pid).status() == psutil.STATUS_ZOMBIE
     )
+
+
+def test_portable_signal_rejects_reused_pid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delattr(os, "pidfd_open", raising=False)
+    process = psutil.Process()
+    identity = operational_monitor.ProcessIdentity(
+        pid=process.pid, create_time=process.create_time() - 1
+    )
+    signalled = []
+    monkeypatch.setattr(
+        psutil.Process, "send_signal", lambda self, signum: signalled.append(signum)
+    )
+    operational_monitor._signal_owned({identity.pid: identity}, signal.SIGTERM)
+    assert signalled == []
+
+
+@pytest.mark.parametrize("end", ["eof", "would_block", "continuous"])
+def test_pipe_drain_consumes_buffered_output_with_bounded_work(
+    monkeypatch: pytest.MonkeyPatch, end: str
+) -> None:
+    calls = []
+
+    def read(fd: int, size: int) -> bytes:
+        assert fd == 123
+        calls.append(size)
+        if len(calls) <= 32 or end == "continuous":
+            return b"x" * min(size, 4096)
+        if end == "would_block":
+            raise BlockingIOError
+        return b""
+
+    monkeypatch.setattr(os, "read", read)
+    data, eof = pilot_deadline._drain_pipe(123)
+    assert data == b"x" * (1_048_576 if end == "continuous" else 131_072)
+    assert eof is (end == "eof")
+    assert len(calls) == (256 if end == "continuous" else 33)
 
 
 def test_cancelled_pilot(tmp_path: Path) -> None:
