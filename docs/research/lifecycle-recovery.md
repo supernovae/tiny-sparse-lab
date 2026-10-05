@@ -168,6 +168,28 @@ updated from a differing result. Failures retain operational receipts and partia
 outputs. A successful corpus replay does not resolve other missing scientific
 decisions, authorize training, or establish model quality.
 
+When a replay attempt fails after publishing its receipt, `recovery reconstruct
+--json` still exits with status 1 and returns `status: "BLOCKED"` and the original
+reason code. Its `failed_replay` object identifies that exact attempt:
+
+```json
+{
+  "receipt_path": "/absolute/work/replay/receipts/<attempt>.json",
+  "record_sha256": "<canonical receipt record SHA-256>"
+}
+```
+
+Pass `receipt_path` directly to
+`sparselab.recovery.implementation_replay.verify_replay_receipt(Path(receipt_path))`
+and compare the returned `record_sha256` with this reference. This is the
+receipt's canonical record digest, not a hash of the pretty-printed JSON file
+or an expected corpus identity. Verification does not retry producers or scan
+for attempts. Keep the receipt and its referenced source/log/artifact evidence
+available for independent verification. Python callers receive a `ReplayFailure`
+(a `ValueError`) with `receipt_path`, `record_sha256`, and the original exception
+as its cause, for both standard and ancestry replay. Failures before receipt
+creation or during receipt publication do not claim a published reference.
+
 Replay integration tests install real locked environments. Use adequately sized
 external scratch rather than a small `/tmp` tmpfs, for example
 `TMPDIR="$SPARSELAB_WORK_DIR/scratch/replay-tests/tmp"` with pytest's

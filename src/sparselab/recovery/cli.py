@@ -13,6 +13,7 @@ from sparselab.recovery.engine import (
     plan_manifest,
     reconstruct_manifest,
 )
+from sparselab.recovery.implementation_replay import ReplayFailure
 from sparselab.workdir import resolve_work_dir
 
 
@@ -85,6 +86,11 @@ def _handle(args: argparse.Namespace) -> None:
             "reason_codes": [reason],
             "reason": str(error),
         }
+        if isinstance(error, ReplayFailure):
+            envelope["failed_replay"] = {
+                "receipt_path": str(error.receipt_path),
+                "record_sha256": error.record_sha256,
+            }
         print(json.dumps(envelope, sort_keys=True, indent=None if args.json else 2))
         raise SystemExit(1) from error
 

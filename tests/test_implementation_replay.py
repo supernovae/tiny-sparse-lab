@@ -16,6 +16,7 @@ from sparselab.corpus.acquisition import verify_acquisition, verify_snapshot
 from sparselab.corpus.project import load_project
 from sparselab.corpus.release import verify_build, verify_release
 from sparselab.recovery.implementation_replay import (
+    ReplayFailure,
     implementation_preflight,
     materialize_source,
     replay_corpus,
@@ -24,6 +25,111 @@ from sparselab.recovery.implementation_replay import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize(
+    ("expected_field", "reason", "stage"),
+    [
+        ("expected_build_sha256", "EXPECTED_BUILD_MISMATCH", "build"),
+        ("expected_release_sha256", "EXPECTED_DIGEST_MISMATCH", "release_verification"),
+    ],
+)
+def test_recovery_json_references_exact_failed_attempt(
+    pinned_project,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    expected_field: str,
+    reason: str,
+    stage: str,
+) -> None:
+    from sparselab.cli.main import build_parser
+    from sparselab.recovery import implementation_replay
+
+    repository, project, commit = pinned_project
+    declaration = repository / "recovery.json"
+    declaration.write_text(
+        json.dumps(
+            {
+                "recovery_version": 1,
+                "id": "failed-replay",
+                "source_commit": commit,
+                "steps": [
+                    {
+                        "id": "corpus",
+                        "kind": "corpus_release",
+                        "project": project.relative_to(repository).as_posix(),
+                        expected_field: "0" * 64,
+                    },
+                    {
+                        "id": "model-choice",
+                        "kind": "external_required",
+                        "role": "family",
+                        "reason": "Data-only fixture.",
+                    },
+                ],
+            }
+        )
+    )
+    _git(repository, "add", "recovery.json")
+    _git(repository, "commit", "-m", "pin recovery expectations")
+    original_declaration = declaration.read_bytes()
+    root = tmp_path / "output"
+    receipts = root / "replay" / "receipts"
+    receipts.mkdir(parents=True)
+    decoy = receipts / "unrelated.json"
+    decoy.write_text("not a receipt from this attempt")
+
+    original_glob = Path.glob
+
+    def no_receipt_scan(path, pattern, **kwargs):
+        assert path != receipts, "recovery must return the attempt's own reference"
+        return original_glob(path, pattern, **kwargs)
+
+    monkeypatch.setattr(Path, "glob", no_receipt_scan)
+    logged = implementation_replay._run_logged
+    operations = []
+
+    def count_operations(command, phase, *args, **kwargs):
+        operations.append(phase)
+        return logged(command, phase, *args, **kwargs)
+
+    monkeypatch.setattr(implementation_replay, "_run_logged", count_operations)
+    parser = build_parser(root)
+    args = parser.parse_args(
+        [
+            "--work-dir",
+            str(root),
+            "recovery",
+            "reconstruct",
+            str(declaration),
+            "--replay-pinned-implementation",
+            "--json",
+        ]
+    )
+    with pytest.raises(SystemExit) as failure:
+        args.handler(args)
+    assert failure.value.code == 1
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["status"] == "BLOCKED"
+    assert envelope["reason_codes"] == [reason], envelope
+    reference = envelope["failed_replay"]
+    receipt_path = Path(reference["receipt_path"])
+    assert receipt_path.parent == receipts
+    assert receipt_path != decoy
+    record = verify_replay_receipt(receipt_path)
+    assert record["record_sha256"] == reference["record_sha256"]
+    assert record["status"] == "FAILED"
+    assert record["stage"] == stage
+    assert record[expected_field] == "0" * 64
+    assert record["error"] == envelope["reason"]
+    assert operations == ["dependencies", "historical_producers"]
+    assert declaration.read_bytes() == original_declaration
+    assert not (root / "recovery").exists()
+    record["error"] = "tampered"
+    receipt_path.write_text(json.dumps(record))
+    with pytest.raises(ValueError, match="record digest mismatch"):
+        verify_replay_receipt(receipt_path)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -208,7 +314,7 @@ def test_dirty_project_input_rejected_before_environment_creation(
         )
     )
     work = tmp_path / "output"
-    with pytest.raises(ValueError, match="SOURCE_COMMIT_MISMATCH"):
+    with pytest.raises(ReplayFailure, match="SOURCE_COMMIT_MISMATCH") as failure:
         replay_corpus(
             project,
             commit,
@@ -218,9 +324,86 @@ def test_dirty_project_input_rejected_before_environment_creation(
             expected_release_sha256=None,
         )
     assert not (work / "replay" / "env").exists()
-    receipts = list((work / "replay" / "receipts").glob("*.json"))
-    assert len(receipts) == 1
-    assert json.loads(receipts[0].read_text())["status"] == "FAILED"
+    record = verify_replay_receipt(failure.value.receipt_path)
+    assert record["record_sha256"] == failure.value.record_sha256
+    assert record["status"] == "FAILED"
+    assert isinstance(failure.value.__cause__, ValueError)
+
+
+@pytest.mark.parametrize("ancestry", [False, True])
+@pytest.mark.parametrize("error_type", [ValueError, TypeError, OSError, RuntimeError])
+def test_replay_failure_reference_survives_materialization_errors(
+    pinned_project,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ancestry: bool,
+    error_type: type[Exception],
+) -> None:
+    _, project, commit = pinned_project
+    cause = error_type("FIXTURE_FAILURE: cannot materialize source")
+
+    def fail(*args, **kwargs):
+        raise cause
+
+    monkeypatch.setattr(
+        "sparselab.recovery.implementation_replay.materialize_source", fail
+    )
+    with pytest.raises(ReplayFailure, match="FIXTURE_FAILURE") as failure:
+        replay_corpus(
+            project,
+            commit,
+            project,
+            tmp_path / "failed",
+            allow_network=False,
+            expected_release_sha256=None,
+            expected_build_sha256="0" * 64,
+            **({"phase": "build", "use_historical_project": True} if ancestry else {}),
+        )
+    error = failure.value
+    assert error.__cause__ is cause
+    record = verify_replay_receipt(error.receipt_path)
+    assert record["status"] == "FAILED"
+    assert record["record_sha256"] == error.record_sha256
+    assert record["error"] == str(cause)
+
+
+@pytest.mark.parametrize("ancestry", [False, True])
+def test_receipt_write_failure_does_not_claim_published_reference(
+    pinned_project,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ancestry: bool,
+) -> None:
+    _, project, commit = pinned_project
+    root = tmp_path / "failed"
+    original_open = Path.open
+
+    def fail_publication(path, *args, **kwargs):
+        if path.parent == root / "replay" / "receipts" and args and args[0] == "x":
+            raise OSError("fixture receipt publication failed")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", fail_publication)
+
+    def fail(*args, **kwargs):
+        raise ValueError("FIXTURE_FAILURE: cannot materialize source")
+
+    monkeypatch.setattr(
+        "sparselab.recovery.implementation_replay.materialize_source", fail
+    )
+    with pytest.raises(OSError, match="fixture receipt publication failed") as failure:
+        replay_corpus(
+            project,
+            commit,
+            project,
+            root,
+            allow_network=False,
+            expected_release_sha256=None,
+            expected_build_sha256="0" * 64,
+            **({"phase": "build", "use_historical_project": True} if ancestry else {}),
+        )
+    assert not isinstance(failure.value, ReplayFailure)
+    assert not list((root / "replay" / "receipts").iterdir())
 
 
 def test_historical_worker_publishes_authentic_artifacts_offline(
