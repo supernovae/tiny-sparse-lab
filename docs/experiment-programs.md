@@ -175,8 +175,10 @@ Local story token caps must accommodate every selected whole story; preparation
 rejects a cap that would truncate one.
 
 Publication and later lock reopening reject changed source files or artifacts,
-including when verification reuse is enabled. Keep the controller's source
-snapshot available for those operations. Worker dispatch carries the verified
+including when verification reuse is enabled. The availability sidecar retains
+the original snapshot paths used to verify each tokenizer; phase-level source
+paths are checked independently. Keep those controller snapshots available for
+publication and reopening. Worker dispatch carries the verified
 prepared arrays and tokenizer in its sealed bundle; it can execute offline after
 relocation without reacquiring or copying the raw story source. These checks
 establish input integrity and execution, not model quality or remote corpus

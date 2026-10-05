@@ -753,6 +753,18 @@ def resolve_plan(
             "state": artifact.state,
         }
         availability["artifacts"][name] = verified["path"]
+        if (
+            artifact.kind == "tokenizer"
+            and json.loads(
+                Path(str(verified["path"]))
+                .with_name("tokenizer_manifest.json")
+                .read_text()
+            ).get("source")
+            == "local_stories"
+        ):
+            availability.setdefault("artifact_datasets", {})[name] = (
+                base.dataset.model_dump(mode="json")
+            )
     for name, item in verified_inputs.items():
         availability["inputs"][name] = item["path"]
     inputs = {
@@ -1211,20 +1223,22 @@ def open_lock(
     )
 
 
-def _artifact_dataset(
-    lock: ResolvedExperimentPlan, artifact: Artifact
-) -> DatasetConfig | None:
-    """Recover a tokenizer's concrete dataset context from its locked consumers."""
-    if artifact.kind != "tokenizer":
+def _artifact_dataset(lock: ResolvedExperimentPlan, name: str) -> DatasetConfig | None:
+    """Recover the exact source context used to verify an external tokenizer."""
+    contexts = lock.availability.get("artifact_datasets", {})
+    if not isinstance(contexts, dict) or any(
+        key not in lock.artifacts
+        or lock.artifacts[key].get("kind") != "tokenizer"
+        or lock.artifacts[key].get("from_phase") is not None
+        for key in contexts
+    ):
+        raise ValueError("invalid artifact dataset context inventory")
+    if name not in contexts:
         return None
-    return next(
-        (
-            cell.config.dataset
-            for cell in lock.cells
-            if str(cell.config.tokenizer.path) == artifact.path
-        ),
-        None,
-    )
+    dataset = DatasetConfig.model_validate(contexts[name])
+    if dataset.source != "local_stories":
+        raise ValueError("artifact dataset context requires local_stories")
+    return dataset
 
 
 def _check_resolved_artifacts(
@@ -1244,7 +1258,7 @@ def _check_resolved_artifacts(
             verify_artifact(
                 artifact,
                 Path("."),
-                dataset=_artifact_dataset(lock, artifact),
+                dataset=_artifact_dataset(lock, name),
                 proof_store=proof_store,
                 verification_mode=verification_mode,
             )
@@ -1253,7 +1267,7 @@ def _check_resolved_artifacts(
                 artifact,
                 Path("."),
                 proof.memo,
-                dataset=_artifact_dataset(lock, artifact),
+                dataset=_artifact_dataset(lock, name),
             )
 
 
@@ -1318,13 +1332,13 @@ def _open_lock(
             verify_artifact(
                 artifact,
                 path,
-                dataset=_artifact_dataset(lock, artifact),
+                dataset=_artifact_dataset(lock, name),
                 proof_store=proof_store,
                 verification_mode=verification_mode,
             )
         else:
             _reuse_verified_artifact(
-                artifact, path, proof.memo, dataset=_artifact_dataset(lock, artifact)
+                artifact, path, proof.memo, dataset=_artifact_dataset(lock, name)
             )
     for name, identity in lock.inputs.items():
         if not any(
