@@ -29,6 +29,7 @@ class PreparationTelemetry:
         self.logical_output_bytes = 0
         self.peak_rss_bytes: int | None = None
         self.tokenizer_rayon_threads: int | None = None
+        self.tokenizer_host_work_plan: dict[str, object] | None = None
         self.durations = dict.fromkeys(_DURATIONS, 0.0)
         try:
             self._process = psutil.Process()
@@ -72,6 +73,7 @@ class PreparationTelemetry:
             "current_rss_bytes": rss,
             "peak_rss_bytes": self.peak_rss_bytes,
             "tokenizer_rayon_threads": self.tokenizer_rayon_threads,
+            "tokenizer_host_work_plan": self.tokenizer_host_work_plan,
             "host_available_ram_bytes": available_ram,
             "logical_input_bytes": self.logical_input_bytes,
             "logical_output_bytes": self.logical_output_bytes,

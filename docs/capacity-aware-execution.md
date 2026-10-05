@@ -231,3 +231,43 @@ The 138-test focused gate covers snapshot/ancestor reuse, same-size restored-mti
 mutation, canonical tokenizer/export binding, config/evaluation-only changes,
 and serial/process full-build bytes plus failure counters. Actual CLI acquire,
 repeated offline build and freeze completed in the disposable sample workspace.
+
+## Native encoding and evaluation capacity
+
+Medium profiling retained the existing 256-document/1 MiB tokenizer batches and
+fresh native Rayon child. Three alternating fresh cases per 1/2/4 choice encoded
+66,272,100 source UTF-8 bytes into 19,011,624 tokens. Before planner integration,
+wall medians were 24.871841/15.423598/10.363416 s; native encoding medians
+20.999457/11.467340/6.838632 s; process-tree RSS maxima
+477,204,480/479,256,576/481,943,552 bytes. Full arrays, manifest and cache identity
+matched across worker choices within that revision.
+
+`PreparationEncoder` now selects CPU/affinity/RAM-bounded native threads with the
+shared planner before creating its child. Operator `max_workers` is an upper
+bound, not permission to exceed measured four-thread capacity. The conservative
+per-thread bound is 512 MiB, reserve max(1 GiB, total RAM/10); unknown/inadequate
+RAM rejects memory-heavy work. The plan is operational receipt telemetry only.
+Same-input post-change medians were 24.585059/15.442836/10.392618 s, tree RSS maxima
+476,958,720/479,350,784/481,722,368 bytes. Four-thread before/after ranges
+10.312176–10.419641 / 10.375050–10.414132 s overlap; the 0.29% median difference
+does not demonstrate a throughput gain. Retained the existing four-thread native
+choice with capacity guards, not extra producer processes or larger batches.
+Arrays match across the cutover; scientific identities match among worker
+choices within each revision, not across changed package identities.
+
+Three warm-process, line-traced CPU-only evaluations of a two-update synthetic
+checkpoint preserve exact metrics and canonical index bytes on replay. Median
+host preprocessing/reporting were about 1.060 ms/0.012 ms versus native model
+7.422 ms, authenticated model load 10.501 ms and suite wall 28.523 ms. CPU
+pre/postprocessing did not dominate: no host worker pool added, GPU execution
+unchanged and unmeasured. Process-lifetime RSS (497,868,800 bytes) includes
+fixture creation and is not an evaluation-specific peak. Physical I/O and
+accelerator utilization were unavailable, not inferred from wall time.
+
+Raw task-owned evidence SHA-256:
+- `encoding-profile.json`: `418cea59da8d1211697378066b8d1780f6a475be6e2eb5ce7ecbe4510c394c24`
+- `encoding-profile-after.json`: `d6d58da9c27d4b6631721a3d6876caabaa9b864a71a78c1c9f4e99990e96c690`
+- `evaluation-profile.json`: `324b9c074c90656f809d90e83573a9f6b30a2f6b97d1a9ee910d7c9aea980380`
+
+The 92-test gate covers host bounds, fresh Rayon exact-output parity, streaming
+packing, resource envelope enforcement and checkpoint-bound evaluation suites.

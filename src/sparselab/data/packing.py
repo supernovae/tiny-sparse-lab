@@ -11,7 +11,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -714,6 +714,7 @@ def _collect_streaming(
             )
     if telemetry is not None:
         telemetry.tokenizer_rayon_threads = encoder.rayon_threads
+        telemetry.tokenizer_host_work_plan = asdict(encoder.host_work_plan)
     tokenizer_spec = json.loads(tokenizer.to_str())
     byte_token_bound = (
         tokenizer_spec.get("model", {}).get("type") == "BPE"
