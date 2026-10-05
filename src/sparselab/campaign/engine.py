@@ -118,6 +118,19 @@ class CampaignEngine:
             raise ValueError("accepted worker differs from runtime declaration")
         return binding
 
+    def _panel_runtime_identity(self, stage: Any, rows: dict[str, dict]) -> dict:
+        """Bind historical panel evidence without reexecuting a runtime probe."""
+        accepted = self._upstream(rows, stage.runtime)
+        collect = self.stages[stage.collect]
+        cell_id = self.stages[collect.run].cell
+        facts = accepted.get("measurements", {})
+        if cell_id not in facts.get("cells", []):
+            raise ValueError("generation panel cell is absent from accepted runtime")
+        return {
+            "runtime_acceptance_sha256": accepted["outputs"][0]["sha256"],
+            "runtime_binding_sha256": facts.get("runtime_bindings", {}).get(cell_id),
+        }
+
     def _path(self, reference: str) -> Path:
         return safe_path(self.source.parent, reference)
 
@@ -462,6 +475,29 @@ class CampaignEngine:
                 raise ValueError(
                     "evaluation suite or collected checkpoint binding changed"
                 )
+        elif kind == "generation_panel":
+            from sparselab.evaluation.panel import verify_panel_result
+            from sparselab.training.manifest import sha256_file
+
+            result = verify_panel_result(path, **self._verification())
+            collect = self.stages[stage.collect]
+            collected = self._upstream(rows, stage.collect)["measurements"]
+            run = self._upstream(rows, collect.run)
+            evaluation = self._upstream(rows, stage.evaluation)
+            if (
+                result["record_sha256"] != output["sha256"]
+                or result["run_id"] != run["outputs"][0]["identifier"]
+                or result["checkpoint_sha256"] != collected["sha256"]
+                or result["checkpoint"] != f"checkpoints/{collected['generation']}"
+                or result["evaluation_index_sha256"]
+                != evaluation["outputs"][0]["sha256"]
+                or result["panel_sha256"] != sha256_file(self._path(stage.panel))
+                or result["runtime_binding"]
+                != self._panel_runtime_identity(stage, rows)
+            ):
+                raise ValueError(
+                    "generation panel declaration or evidence binding changed"
+                )
         elif kind == "model_readiness":
             from sparselab.evaluation.readiness import verify_readiness_result
             from sparselab.training.manifest import sha256_file
@@ -645,6 +681,8 @@ class CampaignEngine:
                     return f"missing declared local lock: {lock_path}"
         elif stage.kind == "evaluation":
             path = self._path(stage.suite)
+        elif stage.kind == "generation_panel":
+            path = self._path(stage.panel)
         elif stage.kind == "model_readiness":
             path = self._path(stage.policy)
         else:
@@ -688,6 +726,10 @@ class CampaignEngine:
             from sparselab.evaluation.suite import load_suite
 
             load_suite(path)
+        elif stage.kind == "generation_panel":
+            from sparselab.evaluation.panel import load_panel
+
+            load_panel(path)
         elif stage.kind == "model_readiness":
             from sparselab.evaluation.readiness import load_policy
 
@@ -1965,6 +2007,104 @@ class CampaignEngine:
                 measurements=facts,
                 outputs=self._identity(kind, stage.id, index["index_sha256"]),
                 availability={"path": str(index_path)},
+            )
+        if kind == "generation_panel":
+            from sparselab.evaluation.inference import evaluation_config
+            from sparselab.evaluation.panel import run_panel, verify_panel_result
+            from sparselab.runtime_profile import rederive_authorization
+            from sparselab.workers.controller import Controller
+
+            collect = self.stages[stage.collect]
+            lock = self._lock(rows, collect.plan)
+            collected = self._upstream(rows, stage.collect)["measurements"]
+            run = self._upstream(rows, collect.run)
+            evaluation = self._upstream(rows, stage.evaluation)
+            runtime_identity = self._panel_runtime_identity(stage, rows)
+            run_path = Path(run["availability"]["path"])
+            run_id = run["outputs"][0]["identifier"]
+            checkpoint = str(run_path / "checkpoints" / collected["generation"])
+            config = evaluation_config(
+                run_id,
+                run_path.parent,
+                checkpoint,
+                stage.backend,
+                **self._verification(),
+            )
+            run_stage = self.stages[collect.run]
+            cell = next(cell for cell in lock.cells if cell.id == run_stage.cell)
+            workspace = Path(rows[collect.plan]["availability"]["workspace"])
+            authorization = None
+            try:
+                binding = self._runtime_binding(
+                    rows,
+                    stage.runtime,
+                    lock,
+                    cell,
+                    Controller(workspace / "controller"),
+                )
+                if binding is None:
+                    if (
+                        config.runtime.backend != "cpu"
+                        or config.runtime.engine != "pytorch"
+                    ):
+                        raise ValueError(
+                            "RUNTIME_REQUIRED: generation panel binding absent"
+                        )
+                else:
+                    if (
+                        binding["source_kind"] == "worker"
+                        and binding["descriptor"]["transport"] != "local"
+                    ):
+                        raise ValueError("remote worker generation panel unsupported")
+                    authorization = rederive_authorization(
+                        binding["runtime_authorization"], config
+                    )
+                    if (
+                        binding["binding_sha256"]
+                        != runtime_identity["runtime_binding_sha256"]
+                    ):
+                        raise ValueError(
+                            "generation panel accepted runtime binding changed"
+                        )
+            except (OSError, ValueError, RuntimeError) as error:
+                return self._result("BLOCKED", "DO_NOT_ADVANCE", reason=str(error))
+            with self._phase("campaign.generation_panel"):
+                result_path = run_panel(
+                    self._path(stage.panel),
+                    Path(evaluation["availability"]["path"]),
+                    backend=stage.backend,
+                    authorization=authorization,
+                    runtime_binding=runtime_identity,
+                    **self._verification(),
+                )
+            result = verify_panel_result(result_path, **self._verification())
+            if (
+                result["run_id"] != run_id
+                or result["checkpoint_sha256"] != collected["sha256"]
+                or result["checkpoint"] != f"checkpoints/{collected['generation']}"
+                or result["evaluation_index_sha256"]
+                != evaluation["outputs"][0]["sha256"]
+                or result["runtime_binding"] != runtime_identity
+            ):
+                raise ValueError(
+                    "generation panel differs from collected evidence/runtime"
+                )
+            # A verified record of negative or failed generations is complete
+            # descriptive evidence, never a readiness assessment or promotion.
+            return self._result(
+                outcome="DESCRIPTIVE_EVIDENCE",
+                reason="descriptive generation panel recorded; no readiness assessment",
+                measurements={
+                    "checkpoint_sha256": result["checkpoint_sha256"],
+                    "evaluation_index_sha256": result["evaluation_index_sha256"],
+                    "runtime_binding": runtime_identity,
+                    "rows": [
+                        {"index": index, "status": item["status"]}
+                        for index, item in enumerate(result["rows"])
+                    ],
+                },
+                outputs=self._identity(kind, stage.id, result["record_sha256"]),
+                availability={"path": str(result_path)},
             )
         if kind == "model_readiness":
             from sparselab.evaluation.readiness import (

@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from sparselab.config.models import RunConfig, StrictModel
+from sparselab.config.models import DatasetConfig, RunConfig, StrictModel
 from sparselab.experiments.artifacts import (
     _reuse_verified_artifact,
     _VerifiedArtifact,
@@ -491,7 +491,7 @@ def _check_cell_inputs(
     }
     required = (
         {"tokenizer", "prepared_data"}
-        if config.dataset.source == "synthetic"
+        if config.dataset.source in {"synthetic", "tinystories", "local_stories"}
         else {"corpus_release", "corpus_export", "tokenizer", "prepared_data"}
     )
     if not required.issubset(by_kind):
@@ -541,6 +541,67 @@ def _check_cell_inputs(
         raise ValueError(
             "prepared cache does not bind the locked dataset/tokenizer/packing/source"
         )
+    if config.dataset.source in {"tinystories", "local_stories"}:
+        from sparselab.data.tokenizer import verify_tokenizer_artifact
+
+        if config.dataset.source == "tinystories":
+            revision = config.dataset.revision or ""
+            if len(revision) != 40 or any(
+                char not in "0123456789abcdef" for char in revision
+            ):
+                raise ValueError(
+                    "direct TinyStories requires a pinned full Hub commit revision"
+                )
+            if config.dataset.dataset_config not in {None, "default"}:
+                raise ValueError(
+                    "direct TinyStories requires the default dataset configuration"
+                )
+        manifest = verify_tokenizer_artifact(
+            Path(tokenizer_path),
+            source=config.dataset.source,
+            revision=config.dataset.revision,
+            vocab_size=config.model.vocab_size,
+            dataset=config.dataset,
+        )
+        contract = manifest.get("training_contract")
+        if (
+            not isinstance(contract, dict)
+            or any(
+                contract.get(key) != expected
+                for key, expected in (
+                    ("source", config.dataset.source),
+                    ("revision", config.dataset.revision),
+                )
+            )
+            or manifest.get("split") != "train"
+        ):
+            raise ValueError(
+                "direct story tokenizer training provenance differs from dataset"
+            )
+        if config.dataset.source == "local_stories":
+            from sparselab.data.local_stories import verify_snapshot
+            from sparselab.experiments.artifacts import _safe_path
+
+            assert config.dataset.source_manifest_path is not None
+            snapshot = verify_snapshot(config.dataset)
+            for member in (
+                config.dataset.source_manifest_path,
+                config.dataset.train_path,
+                config.dataset.validation_path,
+                config.dataset.source_manifest_path.parent
+                / snapshot["excluded"]["path"],
+            ):
+                _safe_path(str(member), Path(tokenizer_path))
+            if (
+                contract.get("source_manifest_sha256")
+                != sha256_file(config.dataset.source_manifest_path)
+                or prepared_identity.get("local_stories_source_sha256")
+                != hashlib.sha256(canonical_json(snapshot)).hexdigest()
+            ):
+                raise ValueError(
+                    "prepared cache/tokenizer does not bind the pinned story snapshot"
+                )
+        return
     if config.dataset.source == "synthetic":
         if (
             config.dataset.corpus_release_path is not None
@@ -650,6 +711,7 @@ def resolve_plan(
     verified_inputs = verify_inputs(
         plan,
         source,
+        dataset=base.dataset,
         memo=memo,
         proof_store=proof_store,
         verification_mode=verification_mode,
@@ -680,6 +742,7 @@ def resolve_plan(
         verified = verify_artifact(
             artifact,
             source,
+            dataset=base.dataset,
             memo=memo,
             proof_store=proof_store,
             verification_mode=verification_mode,
@@ -690,6 +753,18 @@ def resolve_plan(
             "state": artifact.state,
         }
         availability["artifacts"][name] = verified["path"]
+        if (
+            artifact.kind == "tokenizer"
+            and json.loads(
+                Path(str(verified["path"]))
+                .with_name("tokenizer_manifest.json")
+                .read_text()
+            ).get("source")
+            == "local_stories"
+        ):
+            availability.setdefault("artifact_datasets", {})[name] = (
+                base.dataset.model_dump(mode="json")
+            )
     for name, item in verified_inputs.items():
         availability["inputs"][name] = item["path"]
     inputs = {
@@ -1148,6 +1223,24 @@ def open_lock(
     )
 
 
+def _artifact_dataset(lock: ResolvedExperimentPlan, name: str) -> DatasetConfig | None:
+    """Recover the exact source context used to verify an external tokenizer."""
+    contexts = lock.availability.get("artifact_datasets", {})
+    if not isinstance(contexts, dict) or any(
+        key not in lock.artifacts
+        or lock.artifacts[key].get("kind") != "tokenizer"
+        or lock.artifacts[key].get("from_phase") is not None
+        for key in contexts
+    ):
+        raise ValueError("invalid artifact dataset context inventory")
+    if name not in contexts:
+        return None
+    dataset = DatasetConfig.model_validate(contexts[name])
+    if dataset.source != "local_stories":
+        raise ValueError("artifact dataset context requires local_stories")
+    return dataset
+
+
 def _check_resolved_artifacts(
     lock: ResolvedExperimentPlan,
     proof: _LockArtifactProof | None,
@@ -1165,11 +1258,17 @@ def _check_resolved_artifacts(
             verify_artifact(
                 artifact,
                 Path("."),
+                dataset=_artifact_dataset(lock, name),
                 proof_store=proof_store,
                 verification_mode=verification_mode,
             )
         else:
-            _reuse_verified_artifact(artifact, Path("."), proof.memo)
+            _reuse_verified_artifact(
+                artifact,
+                Path("."),
+                proof.memo,
+                dataset=_artifact_dataset(lock, name),
+            )
 
 
 def _open_lock(
@@ -1233,11 +1332,14 @@ def _open_lock(
             verify_artifact(
                 artifact,
                 path,
+                dataset=_artifact_dataset(lock, name),
                 proof_store=proof_store,
                 verification_mode=verification_mode,
             )
         else:
-            _reuse_verified_artifact(artifact, path, proof.memo)
+            _reuse_verified_artifact(
+                artifact, path, proof.memo, dataset=_artifact_dataset(lock, name)
+            )
     for name, identity in lock.inputs.items():
         if not any(
             identity

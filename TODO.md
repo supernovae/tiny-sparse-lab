@@ -21,22 +21,8 @@ artifact identities.
 
 ## Experiment ergonomics
 
-### P1 — Make core inputs portable and failures inspectable
+### P1 — Make failures inspectable
 
-- [ ] **Preserve Forge provenance through worker execution.** Fix sealing and
-  relocation of Corpus Forge export/tokenizer dependencies, including the
-  export's `run.yaml`. A plan that passes local preparation and warmup must also
-  verify on a worker using its sealed inputs. Complete when regression coverage
-  exercises dispatch, parent artifact ingestion, and child continuation after
-  relocation, without depending on original source paths, and rejects missing
-  or tampered provenance. A successful alternative prepared-input route does
-  not close this defect.
-- [ ] **Support existing story datasets in authored experiment locks.** Bind
-  direct TinyStories and manifest-backed `local_stories` inputs to their pinned
-  source, tokenizer provenance, and verified prepared-data identities without
-  requiring Forge release/export artifacts. Complete when both dataset routes
-  pass preparation, lock verification, worker dispatch, and relocation
-  regressions, with changed source/tokenizer/prepared identities rejected.
 - [ ] **Return failed replay receipt references in recovery JSON.** Replay
   already saves failure receipts; include the exact receipt path and digest in
   the blocked response. Complete when a fixture implementation/build mismatch
@@ -45,15 +31,6 @@ artifact identities.
 
 ### P2 — Make evidence collection and review reusable
 
-- [ ] **Add a descriptive generation-panel Campaign stage.** Reuse existing
-  generation primitives to collect a declared panel against a collected,
-  immutable checkpoint. Bind checkpoint generation/SHA, authenticated evaluation
-  index, accepted runtime profile, panel declaration, and exact decoder/seed.
-  Retain raw text, completion token IDs, and empty, repetitive, or failed outputs.
-  Complete when checkpoint/index/runtime mismatches and changed panel/decoder
-  bindings are covered, and negative outputs are retained without rerolls or
-  automatic readiness/promotion changes. The stage must work without a
-  campaign-specific inference script and remain non-gating.
 - [ ] **Lint checked-in research records.** Extend existing identity/schema
   checks to validate protocol/config bindings and evidence references under
   `experiments/research/`, and reject checked-in checkpoints, caches, datasets,

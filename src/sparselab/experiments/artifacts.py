@@ -21,6 +21,7 @@ from sparselab.verification_proofs import (
 )
 
 if TYPE_CHECKING:
+    from sparselab.config.models import DatasetConfig
     from sparselab.data.verification import VerifiedPreparedData
     from sparselab.experiments.plan import Artifact, ExperimentPlan
 
@@ -93,6 +94,7 @@ def _verify_domain(
     artifact: Artifact,
     path: Path,
     *,
+    dataset: DatasetConfig | None = None,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> None:
@@ -183,6 +185,7 @@ def _verify_domain(
         )
         if not isinstance(source, str) or type(vocab) is not int:
             raise ValueError("invalid tokenizer provenance")
+        supplied_dataset = dataset
         dataset = None
         bakeoff = manifest.get("corpus_forge_bakeoff")
         if bakeoff is not None:
@@ -210,7 +213,11 @@ def _verify_domain(
             _safe_path(str(run.dataset.corpus_release_path), path)
             dataset = run.dataset
         elif source == "local_stories":
-            raise ValueError("local_stories tokenizer requires a pinned source dataset")
+            if supplied_dataset is None or supplied_dataset.source != source:
+                raise ValueError(
+                    "local_stories tokenizer requires a pinned source dataset"
+                )
+            dataset = supplied_dataset
         verify_tokenizer_artifact(
             path,
             source=source,
@@ -515,11 +522,44 @@ def _manifest_binding(artifact: Artifact, path: Path) -> str:
     )
 
 
-def _artifact_key(artifact: Artifact, path: Path) -> tuple[object, ...]:
+def _artifact_key(
+    artifact: Artifact, path: Path, dataset: DatasetConfig | None = None
+) -> tuple[object, ...]:
     dependencies = tuple(
         (str(dependency.absolute()), _fingerprint(_safe_path(str(dependency), path)))
         for dependency in _dependent_paths(artifact, path)
     )
+    manifest_binding = _manifest_binding(artifact, path)
+    if (
+        artifact.kind == "tokenizer"
+        and _json_file(path.with_name("tokenizer_manifest.json")).get("source")
+        == "local_stories"
+    ):
+        if dataset is None or dataset.source != "local_stories":
+            raise ValueError("local_stories tokenizer requires a pinned source dataset")
+        assert dataset.source_manifest_path is not None
+        manifest = _json_file(_safe_path(str(dataset.source_manifest_path), path))
+        members = (
+            dataset.source_manifest_path,
+            dataset.train_path,
+            dataset.validation_path,
+            dataset.source_manifest_path.parent / manifest["excluded"]["path"],
+        )
+        dependencies += tuple(
+            (str(member), _fingerprint(_safe_path(str(member), path)))
+            for member in members
+        )
+        manifest_binding = canonical_json(
+            {
+                **json.loads(manifest_binding),
+                "dataset_context": {
+                    "source": dataset.source,
+                    "revision": dataset.revision,
+                    "license": dataset.license,
+                    "source_manifest_sha256": sha256_file(dataset.source_manifest_path),
+                },
+            }
+        ).decode("utf-8")
     return (
         path.resolve(strict=True),
         artifact.kind,
@@ -529,7 +569,7 @@ def _artifact_key(artifact: Artifact, path: Path) -> tuple[object, ...]:
         _fingerprint(path),
         dependencies,
         artifact.state,
-        _manifest_binding(artifact, path),
+        manifest_binding,
     )
 
 
@@ -537,12 +577,14 @@ def _reuse_verified_artifact(
     artifact: Artifact,
     source: Path,
     memo: dict[tuple[object, ...], _VerifiedArtifact],
+    *,
+    dataset: DatasetConfig | None = None,
 ) -> dict[str, object]:
     """Fail closed if a resolved artifact or its path changed before publication."""
     if artifact.from_phase is not None or artifact.path is None:
         raise ValueError("unresolved artifact cannot reuse verification")
     path = _safe_path(artifact.path, source)
-    key = _artifact_key(artifact, path)
+    key = _artifact_key(artifact, path, dataset)
     evidence = memo.get(key)
     if (
         not isinstance(evidence, _VerifiedArtifact)
@@ -567,6 +609,7 @@ def verify_artifact(
     artifact: Artifact,
     source: Path,
     *,
+    dataset: DatasetConfig | None = None,
     memo: dict[tuple[object, ...], _VerifiedArtifact] | None = None,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
@@ -581,7 +624,7 @@ def verify_artifact(
         raise ValueError(f"{artifact.kind} external artifact lacks path or digest")
     try:
         path = _safe_path(artifact.path, source)
-        key = _artifact_key(artifact, path)
+        key = _artifact_key(artifact, path, dataset)
         cached = memo.get(key) if memo is not None else None
         if (
             isinstance(cached, _VerifiedArtifact)
@@ -607,15 +650,23 @@ def verify_artifact(
         )
         if not hit:
             if proof_store is None or verification_mode == "cold":
-                _verify_domain(artifact, path)
+                if (
+                    artifact.kind == "tokenizer"
+                    and dataset is not None
+                    and dataset.source == "local_stories"
+                ):
+                    _verify_domain(artifact, path, dataset=dataset)
+                else:
+                    _verify_domain(artifact, path)
             else:
                 _verify_domain(
                     artifact,
                     path,
+                    dataset=dataset,
                     proof_store=proof_store,
                     verification_mode=verification_mode,
                 )
-        if _artifact_key(artifact, path) != key:
+        if _artifact_key(artifact, path, dataset) != key:
             raise ValueError(f"artifact changed during verification: {path}")
     except (
         OSError,
@@ -648,6 +699,7 @@ def verify_inputs(
     plan: ExperimentPlan,
     source: Path,
     *,
+    dataset: DatasetConfig | None = None,
     memo: dict[tuple[object, ...], _VerifiedArtifact] | None = None,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
@@ -657,6 +709,7 @@ def verify_inputs(
         name: verify_artifact(
             plan.artifacts[reference],
             source,
+            dataset=dataset,
             memo=memo,
             proof_store=proof_store,
             verification_mode=verification_mode,

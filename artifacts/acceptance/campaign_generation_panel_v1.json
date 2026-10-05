@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "kind": "campaign_generation_panel_software_acceptance",
+  "date": "2026-10-05",
+  "base_commit": "b83bcbbe4da2cfb29b85448a70e683f63e6ccb0d",
+  "source_identity_sha256": "596e1cdc8cf0926ce7abfef9583225bd997d5246a9076f8baf14d7f2bc3fd1dd",
+  "file_sha256": {
+    "docs/campaigns.md": "7e236691ae29b17c6ef50852a841fcd92a4dfbd03620f108cd7594b0958c3edb",
+    "schemas/campaign-plan-v1.schema.json": "0e51704d8793d6e764d42aeb755272fc8ad276b3647b0fab8fd8e43018e19c11",
+    "src/sparselab/campaign/engine.py": "3672b553413ab4b5f28f860cc014482b471b74515fd9c4625383142d23e2b2d1",
+    "src/sparselab/campaign/plan.py": "3f51805d91b6a9ff16aad2457051eb11c4a48bcfe651f62b81a7c009aed7ea75",
+    "src/sparselab/campaign/state.py": "a0ddec1b7767ee0bdee3fbeabe0c7770947c6b9927ef7ade577aeb5ca29cbc3d",
+    "src/sparselab/evaluation/panel.py": "f8c3100fa3fb4280510923b9cff6834b3c2db9e90953e5f41ed79725d92d1bf9",
+    "src/sparselab/recovery/provenance.py": "8ca772122b8661c47372852e2fca8e6ec5d878f77c5e73715bc3edc83e57cd4a",
+    "tests/test_campaign_generation_panel.py": "9f7c44b108efbf99d03cf8890ee41a54f1cb80010f885491cbf82937dbdf8250",
+    "tests/test_generation_panel.py": "cfcff640307ff0d902f911fb24b87bcd787243a913314f4834c1bfa1427ae0cc"
+  },
+  "acceptance": [
+    "Strict typed Campaign stage binds collection, authenticated evaluation index, accepted runtime and exact panel/decoder/seed.",
+    "Native CPU generation retains raw text and completion token IDs; empty, repetitive and failed observations remain descriptive.",
+    "Immutable per-prompt attempt journals prevent rerolls after interruption or concurrent invocation.",
+    "Checkpoint, index, runtime, declaration, decoder, output and journal mismatches are rejected.",
+    "Stable runtime identity excludes volatile discovery timestamps and memory counters; stable environment drift is rejected.",
+    "Campaign replay preserves readiness bytes and does not dispatch new training or promote a model."
+  ],
+  "validation": [
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_generation_panel.py",
+      "passed": 27
+    },
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_campaign_generation_panel.py --tb=short",
+      "passed": 30
+    },
+    {
+      "command": "uv run --locked --extra cpu pytest -q tests/test_campaign.py::test_author_order_and_schema tests/test_campaign.py::test_approval_replay_rejection_and_namespace tests/test_campaign_runtime_ids.py --tb=short",
+      "passed": 3
+    },
+    {
+      "command": "uv run --locked --extra cpu sparselab readiness smoke --family dense --output /workspace/panel-final-smoke/readiness",
+      "status": "passed",
+      "successful_commands": 11
+    },
+    {
+      "command": "uv run --locked --extra cpu ruff check .",
+      "status": "passed"
+    },
+    {
+      "command": "uv run --locked --extra cpu ruff format --check .",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "environment": {
+    "UV_CACHE_DIR": "/workspace/.uv-cache",
+    "SPARSELAB_WORK_DIR": "task-owned writable roots outside checkout",
+    "python": "3.14",
+    "backend": "CPU"
+  },
+  "broader_ci": "Full local CPU run and exact final-head hosted CI are reported separately in the draft PR; focused acceptance is not a claim that baseline CI is green.",
+  "baseline_evidence": {
+    "preceding_pr": "https://github.com/supernovae/tiny-sparse-lab/pull/33",
+    "preceding_pr_ci": "https://github.com/supernovae/tiny-sparse-lab/actions/runs/37309567770",
+    "linux": "1656 passed, 3 skipped, 1 unclosed_pilot_pipe failure",
+    "macos": "1642 passed, 6 skipped, 12 existing pilot/platform-copy/progress failures"
+  },
+  "limitations": [
+    "No accelerator hardware execution; native-engine forwarding has mock coverage only.",
+    "No scientific MODEL-0 generation, training campaign, quality result or promotion is claimed.",
+    "Research declarations and artifacts remain unchanged.",
+    "A native exception exposes no partial trajectory; unavailable text/token IDs are null with the error retained."
+  ]
+}

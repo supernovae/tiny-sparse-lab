@@ -37,6 +37,7 @@ _STATES = frozenset(
 _OUTCOMES = frozenset(
     {
         "EXPAND_MORE",
+        "DESCRIPTIVE_EVIDENCE",
         "READY_FOR_TOKENIZER",
         "READY_FOR_NEXT_STAGE",
         "DO_NOT_ADVANCE",

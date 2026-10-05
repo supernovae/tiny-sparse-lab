@@ -10,9 +10,8 @@ extension. For a story model first, see the [TinyStories microlab](tinystories-m
 The example uses a small offline fixture and explicit runtime settings so you
 can learn the whole workflow without downloading a corpus. Runtime choices
 belong to the concrete config and execution settings; see [runtime support](runtime.md).
-[Implementation bugs](../TODO.md#experiment-ergonomics) currently affect
-accelerator locking, direct TinyStories/local-stories bindings, and worker
-sealing of Corpus Forge provenance. They are pending fixes, not DSL design rules.
+Corpus Forge programs seal portable provenance with their prepared inputs; see
+[Forge worker provenance](#forge-worker-provenance) for relocation and continuation.
 
 ## Read the program
 
@@ -146,6 +145,70 @@ and its inputs fixed across execution. Reopen checks reject changed source or
 artifact identities. For edits/repetitions, copy the declaration, choose a new
 plan ID and adjust its file references to their new location before preparing;
 never rewrite a running plan or its artifacts.
+
+### Direct story inputs
+
+Direct `tinystories` and manifest-backed `local_stories` runs use the same two
+external artifacts shown above: `tokenizer` and `prepared_data`. They do not
+require a Corpus Forge release or export. Use the story run as `base_run` and
+prepare its tokenizer and data explicitly before constructing the artifact
+bindings; `experiment prepare` still only materializes `corpus_variants`.
+The [TinyStories microlab](tinystories-microlab.md) supplies matching run and
+tokenizer preparation examples. Use absolute paths in generated declarations.
+
+For direct TinyStories, pin `dataset.revision` to the full 40-character Hub commit
+SHA (for example `f54c09fd23315a6f9c86f9dc80f725de7d8f9c64`), with
+`dataset_config` omitted or `default`. The loader uses the `text` field and the
+separate `train` / `validation` splits. A moving revision such as `main` cannot
+be locked. Locking verifies the tokenizer's train-only source/revision provenance
+and the prepared arrays' dataset, tokenizer, packing and implementation identity;
+it does not download the corpus or repeat tokenizer training.
+
+For `local_stories`, retain the snapshot's `manifest.json`, `train.jsonl`,
+`validation.jsonl` and excluded-ordinal inventory on the controller. Set the
+run's `train_path`, `validation_path` and `source_manifest_path` to that snapshot,
+with its pinned revision and license. Train the tokenizer against this same
+snapshot. Lock verification checks all snapshot bytes and split disjointness,
+the tokenizer's snapshot-manifest digest, and the prepared data's canonical
+snapshot identity. A valid tokenizer from another snapshot is insufficient.
+Local story token caps must accommodate every selected whole story; preparation
+rejects a cap that would truncate one.
+
+Publication and later lock reopening reject changed source files or artifacts,
+including when verification reuse is enabled. The availability sidecar retains
+the original snapshot paths used to verify each tokenizer; phase-level source
+paths are checked independently. Keep those controller snapshots available for
+publication and reopening. Worker dispatch carries the verified
+prepared arrays and tokenizer in its sealed bundle; it can execute offline after
+relocation without reacquiring or copying the raw story source. These checks
+establish input integrity and execution, not model quality or remote corpus
+availability. Corpus Forge and other dataset routes retain their existing input
+requirements.
+
+### Forge worker provenance
+
+Preparing immutable inputs for a Forge cell verifies its release/export and
+tokenizer origin while the controller sources are available. The sealed assets
+include the tokenizer and its manifest, packed arrays, release manifest, corpus
+report, license report, audit, export metadata and portable `corpus/binding.json`.
+Selected bakeoff tokenizers also retain their selection report. A reused frozen
+tokenizer keeps its original export identity even when the training corpus changes.
+
+Local and worker smoke/warmup pilots verify this portable evidence without
+reopening the original export's `run.yaml`. The original config paths remain
+recorded provenance; relocation does not rewrite scientific identities. Both the
+sealed file inventory and the internal release/export/tokenizer bindings must
+verify. Missing or changed evidence fails closed, including when prepared inputs
+are reused for dispatch.
+
+Training copies the evidence into the native run's authenticated artifact
+inventory. Controller ingestion preserves those bytes, and a dispatched child
+resume carries the parent's evidence and selected checkpoint. The bounded offline
+regressions in `tests/test_forge_dispatch.py` cover authored prepare/lock, relocated
+smoke and warmup, parent ingestion, child resume, and missing/tampered provenance.
+They establish execution and integrity only; no accelerator or model-quality
+claim follows. Older sealed inputs without portable provenance must be rebuilt
+from available verified sources before reuse.
 
 ### Explicit operational source compatibility
 

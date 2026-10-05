@@ -15,7 +15,7 @@ The [Campaign JSON Schema](../schemas/campaign-plan-v1.schema.json) describes th
 strict authoring format. YAML/JSON is data only: duplicate keys, executable tags,
 nonfinite numbers, unknown fields, duplicate stage/dependency IDs, unknown or
 self dependencies, cycles and incompatible producer kinds/scopes are rejected.
-Scientific declarations (`project`, `source`, `suite`, `policy`, `recovery`) must
+Scientific declarations (`project`, `source`, `suite`, `policy`, `panel`, `recovery`) must
 be declaration-relative without absolute paths, parent traversal or symlinks.
 Operational artifact paths and reference-mode lock locations may instead be
 absolute locations in the selected persistent root; they preserve their exact
@@ -121,6 +121,7 @@ Every stage has `id`, `kind`, `scope` and optional `requires` (default `[]`).
 | `experiment_run` | `model` | `plan`, matching `runtime`, exact `cell` |
 | `experiment_collect` | `evaluation` | `plan`, matching `run`; seals the selected cell, complete ingested evidence, and unique highest-step verified checkpoint generation/digest |
 | `evaluation` | `evaluation` | `collect`, declaration-relative `suite`, optional `runtime` acceptance reference or explicit `backend: cpu` without a runtime reference; exact collected generation and evaluation runtime |
+| `generation_panel` | `evaluation` | Matching `collect`, `evaluation`, accepted `runtime`, declaration-relative `panel`; immutable descriptive observations, never a quality gate |
 | `model_readiness` | `model` | `evaluation`, mandatory declaration-relative `policy`, optional operational `review` receipt; verifies typed readiness against the suite index and the exact human review binding |
 | `approval` | `release` or `model` | Nonempty `bind` of declared ancestors |
 
@@ -353,3 +354,67 @@ See the [literal hardware acceptance runbook](runtime.md#post-merge-rocm-contrac
 Capacity/probe checks establish bounded execution readiness, not evidence of
 fit on other hardware, throughput superiority, useful model behavior, causality
 or portability.
+
+## Descriptive generation panels
+
+A `generation_panel` stage records one fixed prompt panel against the **same
+immutable checkpoint** as an authenticated evaluation index. It requires explicit
+collection, evaluation and runtime-acceptance dependencies:
+
+```yaml
+- id: descriptions
+  kind: generation_panel
+  scope: evaluation
+  requires: [collect, evaluation, runtime]
+  collect: collect
+  evaluation: evaluation
+  runtime: runtime
+  panel: generation-panel.json
+```
+
+The referenced declaration uses this strict format:
+
+```json
+{
+  "generation_panel_version": 1,
+  "id": "fixed-descriptions",
+  "role": "descriptive_not_quality_gate",
+  "prompts": ["def parse_config(path):", "SELECT user_id FROM"],
+  "decoder": {"temperature": 0, "top_k": 0, "max_new_tokens": 64, "seed": 42},
+  "checkpoint_selection": "same immutable generation as heldout evaluation"
+}
+```
+
+Commit the panel with the Campaign declaration closure. Its prompt order, exact
+text, decoder and seed are bound to the result; changing the panel requires a new
+Campaign identity. `checkpoint_selection` is descriptive text, never permission
+to resolve a moving `latest` or `best` pointer. The stage uses the collected
+immutable generation and SHA authenticated by the evaluation index.
+
+Run through the usual `campaign apply` or `campaign resume`. The stage uses native
+checkpoint inference and the declared accepted runtime; it does not dispatch
+training. An implicit CPU acceptance is supported for a CPU cell. Accelerator
+execution requires a valid local runtime binding. Unsupported remote inference
+and inconsistent checkpoint/index/runtime bindings are rejected before generation.
+
+The immutable result preserves ordered prompts, raw returned text, completion
+token IDs and per-prompt failures. Empty and repetitive outputs are evidence;
+they are neither filtered nor retried. Reopening a completed stage verifies its
+bindings and output bytes instead of generating another sample. A
+`DESCRIPTIVE_EVIDENCE` outcome records completion of observation only. The panel
+does not add quality gates, alter ModelReadiness results, approve a checkpoint or
+promote a model. Keep readiness attached to its authenticated evaluation stage.
+
+Each prompt has a durable attempt marker before inference and an immutable result
+receipt afterward. Resume reuses recorded observations. A started attempt with
+no durable result becomes `FAILED` with `InterruptedAttempt`, unavailable text
+and token IDs, and no retry. Per-binding locking prevents concurrent callers
+from sampling the same prompt twice. Keep the adjacent
+`panel-<binding>.attempts/` journal with the final `panel-<binding>.json`; missing
+or changed journal receipts invalidate the evidence. When native generation
+raises before returning, its unavailable partial text and token IDs are recorded
+as null, with the exception type and message preserved.
+
+The existing DevMind v5 MODEL-0 panel format is supported without modifying that
+research campaign or claiming a new scientific result. CPU regression fixtures
+exercise this integration; accelerator execution needs its own hardware evidence.
