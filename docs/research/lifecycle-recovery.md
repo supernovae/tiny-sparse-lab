@@ -84,6 +84,31 @@ remain hard failures. A pending review does not abort independent numeric gates.
 6. Declare ordered parent/child ModelFamily nodes with pinned corpus, tokenizer, plan, architecture, objective, budgets, and optional checkpoint/index/readiness identities. Inspect `family show`, `family graph`, `family compare` and `family verify` before any action. Comparisons report factual ancestry/settings/evaluation identities, not causality. Use `family promote|reject|supersede <family.yaml> <node> --readiness <result.json> --evaluation <index.json> --approval <review.json> --note '<reason>'` (also `--successor <node>` for supersede). These human-reviewed immutable lifecycle actions are **not** ExperimentPlan weight-transition `promote`. Publish compact lifecycle receipts and name them under `lifecycle_receipts` in the family declaration so archives can inventory decisions after loss of local state.
 7. Invoke `archive create <recovery.yaml> --mode thin --output <new-archive.tar>` only after reviewing the explicit inventory. `archive verify <archive.tar> --json` checks exact TAR membership and hashes without extracting. Thin archives contain small declarations/evidence and **identify unresolved external payloads**; they do not prove absent data. Portable archives require all locally verified required bytes, sufficient destination space/inodes and rights allowing publication. A `metadata_reconstruction_only` corpus or partial `external_required` recipe cannot become portable. Archives never appear automatically.
 
+New archives use `archive-index-v2`; verification still accepts historical v1
+archives. For each available, verified corpus release, the index retains a compact
+`corpus_identities` explanation: project declaration and ID, every normalized
+source declaration (including rejected sources without snapshots), source-ID to
+snapshot-SHA bindings, snapshot adapter/version/module and file provenance, the
+full original build identity payload, and the original release manifest/identity.
+Local acquisition paths are omitted from declaration digest payloads exactly as
+in the original acquisition algorithm. No build, snapshot, or release identity
+algorithm changes, and no source bytes are added to thin archives.
+
+`archive verify` checks these declared SHA-256 payloads and their cross-bindings,
+including the archived release manifest, after relocation and without accessing
+original sources. The explanation records
+`verification_scope: declared_digest_payloads_only`; its metadata-only Python
+validator, `sparselab.corpus.identity.verify_corpus_identity`, also reports
+`source_contents_verified: false` and `release_contents_verified: false`.
+These checks explain the declared identity; they do not verify unavailable file
+contents, reconstruct a corpus, or establish scientific validity. File digests
+and algorithm provenance remain declarations until the corresponding bytes are
+available and checked by the full domain verifier. A wholly replaced, internally
+consistent identity chain still needs an independently trusted release SHA.
+Missing releases retain their external references rather than invented identity
+explanations. Metadata and index size limits also apply to these explanations.
+
+
 Portable verification reopens the bundled recipe and model graph and requires
 their pinned payload closure. Rewriting the outer TAR index, relabeling a
 checkpoint manifest, or replacing its weight bytes cannot substitute for inner

@@ -2618,7 +2618,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         register_research_evidence_parser as register_evidence_parser,
     )
     from sparselab.recovery.snapshot import register_parser as register_snapshot_parser
+    from sparselab.research.lint import register_parser as register_lint_parser
 
+    register_lint_parser(research_commands)
     register_snapshot_parser(research_commands)
     register_evidence_parser(research_commands)
     research_list = research_commands.add_parser("list")

@@ -50,7 +50,9 @@ def declaration_reference(source: Path, reference: str) -> Path:
     return target
 
 
-def declaration_paths(source: Path, kind: DeclarationKind) -> tuple[Path, ...]:
+def declaration_paths(
+    source: Path, kind: DeclarationKind, *, include_local_inputs: bool = True
+) -> tuple[Path, ...]:
     """Close only authored scientific references; never inventory generated stores."""
     from sparselab.campaign.plan import load_campaign
     from sparselab.corpus.project import load_project
@@ -146,7 +148,9 @@ def declaration_paths(source: Path, kind: DeclarationKind) -> tuple[Path, ...]:
                 if path.is_file():
                     read_document(path)
             if all(path.is_file() for path in declarations):
-                sources = load_project(document).sources
+                sources = load_project(
+                    document, verify_inputs=include_local_inputs
+                ).sources
             else:
                 sources = tuple(
                     SourceDeclaration.model_validate(
@@ -156,7 +160,7 @@ def declaration_paths(source: Path, kind: DeclarationKind) -> tuple[Path, ...]:
                     if safe_path(document.parent, name).is_file()
                 )
             for declaration in sources:
-                if declaration.kind == "local":
+                if include_local_inputs and declaration.kind == "local":
                     for entry in declaration.acquisition.files:
                         add(safe_path(document.parent, entry.path))
             return
