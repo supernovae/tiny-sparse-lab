@@ -2,13 +2,31 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# PR updates replace obsolete work; main remains covered after merge.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Tiny CPU fixtures benefit from parallel pytest workers, not nested BLAS pools.
+env:
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
 
 jobs:
   # Pin supported images: Linux x64 and macOS arm64 CPU coverage.
   # https://github.com/actions/runner-images#available-images
   lint:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/ruff-action@v4.1.0
@@ -35,6 +53,7 @@ jobs:
           args: format --check .
   fast:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -54,6 +73,7 @@ jobs:
           tests/test_hf_auth.py
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -66,12 +86,14 @@ jobs:
       - run: uv sync --locked --extra cpu --dev
       - name: Full CPU suite (Linux)
         run: >-
-          uv run --locked --extra cpu pytest -q -n 2 --dist loadfile
+          uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4
+          --dist worksteal --durations=25
           -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
       - run: uv run --locked --extra cpu sparselab --help
       - run: uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json
   test-macos-arm64:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -84,7 +106,8 @@ jobs:
       - run: uv sync --locked --extra cpu --dev
       - name: Full CPU suite (macOS)
         run: >-
-          uv run --locked --extra cpu pytest -q -n 2 --dist loadfile
+          uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4
+          --dist worksteal --durations=25
           -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
       - run: uv run --locked --extra cpu sparselab --help
       - run: uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json

@@ -335,8 +335,20 @@ def sample(
 
 
 def _signal_owned(known: dict[int, ProcessIdentity], signum: int) -> None:
-    """Use Linux pidfds so validation and signalling cannot race PID recycling."""
+    """Signal attributed processes, using race-free pidfds where available.
+
+    On other hosts psutil checks process creation time again before signalling;
+    those hosts do not provide Linux's atomic pidfd signalling guarantee.
+    """
     for identity in list(known.values()):
+        if not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"):
+            try:
+                process = psutil.Process(identity.pid)
+                if _identity(process) == identity:
+                    process.send_signal(signum)
+            except psutil.NoSuchProcess:
+                pass
+            continue
         try:
             fd = os.pidfd_open(identity.pid)
         except ProcessLookupError:
