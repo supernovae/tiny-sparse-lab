@@ -12,79 +12,76 @@ item below with its issue link. A code item is complete only when its tests and
 documentation land. An experiment result, including a negative result, does not
 close a code item unless the named software acceptance criteria also pass.
 
-## Throughput and resource proposals
-
-- [x] Add optional bottleneck observations that distinguish accelerator-bound,
-  input/host-bound, memory-pressure, and unknown cases. Low CPU or less than
-  100% device utilization is diagnostic evidence, not itself a failure.
-  Shipped opt-in phase observations with measured counters, unknown handling and
-  non-gating provenance labels; see `docs/capacity-aware-execution.md`.
+Work from top to bottom within the active priorities. Favor reusable support for
+prepare → lock → dispatch → train/resume → evaluate → retain evidence. Campaign
+names, snapshot counts, prompts, seeds, and machine-specific measurements belong
+in declarations, regression fixtures, or evidence records, not special branches
+in shared lab code. Operational changes must preserve scientific settings and
+artifact identities.
 
 ## Experiment ergonomics
 
-- [x] Support direct TinyStories and manifest-backed `local_stories` inputs in
-  authored experiment locks. Bind their pinned source, tokenizer provenance,
-  and verified prepared-data identities without requiring Corpus Forge
-  release/export artifacts for every non-synthetic dataset; cover preparation,
-  lock verification, and dispatch with focused regressions.
-  Verified pinned source/tokenizer/prepared identities, source-aware proof reuse,
-  and relocated offline worker execution with bounded CPU regressions; see
-  `docs/experiment-programs.md#direct-story-inputs`. Live Hub and accelerator
-  execution were not exercised.
-- [x] Preserve Corpus Forge export/tokenizer provenance when sealing authored
-  plan inputs for worker pilots. A prepared/locked offline Forge plan passes
-  local warmup but its worker smoke fails because tokenizer verification cannot
-  find the sealed export's `run.yaml`. Cover dispatch through parent ingestion
-  and child continuation, with all provenance files verified after relocation.
-  Sealed portable release/export/tokenizer evidence at preparation and verified
-  it through relocated CPU smoke/warmup, parent ingestion and child resume;
-  missing/changed files and rebound inner identities are rejected. See
-  `tests/test_forge_dispatch.py` and
-  `docs/experiment-programs.md#forge-worker-provenance`. No accelerator or
-  scientific MODEL-0 results were changed or claimed.
-- [x] Add a non-gating, checkpoint-bound descriptive generation-panel Campaign
-  stage. Bind the collected immutable generation/SHA, authenticated evaluation
-  index, accepted runtime profile, panel declaration and exact decoder/seed;
-  retain raw text, completion token IDs and empty, repetitive or failed outputs.
-  Cover checkpoint/index/runtime mismatches, changed panel/decoder bindings,
-  and negative outputs without rerolls or automatic readiness/promotion changes.
-  Implemented native inference with immutable per-prompt interruption journals,
-  stable runtime bindings and descriptive-only outcomes. All 57 focused
-  regressions and 11 readiness-smoke commands passed; see
-  `artifacts/acceptance/campaign_generation_panel_v1.json` and
-  `docs/campaigns.md#descriptive-generation-panels`. Existing DevMind v5
-  declarations and scientific evidence were not changed.
-- [ ] Validate that checked-in research records bind protocol/config identities
-  and evidence references while excluding checkpoints, caches, datasets, logs,
-  and other mutable run output.
-- [ ] Expose the saved implementation-replay failure receipt path and digest in
-  blocked recovery JSON. The pinned DevMind v4 build mismatch preserved a typed
-  receipt, but the CLI returned only the reason/digests and required manual
-  receipt discovery. Cover a real fixture build mismatch: the returned reference
-  must verify the exact failed attempt without directory scanning, producer
-  retries, or changes to the expected scientific identity.
-- [ ] Add typed recovery declarations for a later corpus to inherit specified
-  snapshot IDs from a verified parent closure without reacquisition. Cover
-  v2→v3→v4 preserving 19 then 58 IDs and refusing tampered parent evidence.
-- [ ] Add a compact durable metadata closure binding project/declaration
-  identity, source-ID→snapshot-SHA mapping, recorded algorithm/file provenance,
-  full build identity payload and release identity, sufficient to explain a
-  digest without redistributing source bytes; verify tampering and round trips.
+### P1 — Make failures inspectable
 
-## Backend implementation
+- [ ] **Return failed replay receipt references in recovery JSON.** Replay
+  already saves failure receipts; include the exact receipt path and digest in
+  the blocked response. Complete when a fixture implementation/build mismatch
+  returns an independently verifiable reference to that failed attempt, without
+  directory scanning, producer retries, or changing expected scientific identity.
 
-- [ ] Implement native CUDA sparse attention, then add hardware-gated correctness
-  and component benchmarks. CPU or another accelerator cannot close this item.
-- [ ] Keep single-device execution interfaces compatible with a future explicit
-  distributed training design. Define optimizer ownership, data partitioning,
-  checkpoint identity, and MoE expert placement before adding multi-device
-  backward or sharding; independent workers are not a substitute.
+### P2 — Make evidence collection and review reusable
 
-## Spot-instance recovery
+- [ ] **Lint checked-in research records.** Extend existing identity/schema
+  checks to validate protocol/config bindings and evidence references under
+  `experiments/research/`, and reject checked-in checkpoints, caches, datasets,
+  logs, and mutable run output. Complete with valid, missing/mismatched-reference,
+  and forbidden-output fixtures. Validate durable declarations and references
+  without requiring live external datasets/checkpoints or adding a new registry.
+- [ ] **Preserve a compact metadata explanation of corpus identities.** Extend
+  existing archive/provenance machinery with project/declaration identity,
+  source-ID→snapshot-SHA mapping, algorithm/file provenance, full build identity
+  payload, and release identity. Complete when metadata round trips and survives
+  relocation, declared digest payloads can be checked without source bytes, and
+  tampering is rejected. Explaining an identity must not claim verification or
+  reconstruction of unavailable source contents.
 
-- [ ] Add a separately configured spot-safety policy using observed checkpoint
-  write time, expected interruption notice, workspace capacity, and measured
-  restart cost. Keep the scientific config fixed and record the chosen cadence.
-- [ ] Validate abrupt worker loss, verified-generation selection, explicit child
-  resume, remote artifact transfer, and storage retention on a real spot-like
-  executor before claiming cost or recovery benefits.
+## P3 — Conditional work; activate for a concrete workload
+
+These remain implementation gaps, but should not displace P1/P2 without a
+documented workload need and the required acceptance environment.
+
+- [ ] **Implement native CUDA sparse attention.** Activate when a planned CUDA
+  workload needs this path and NVIDIA hardware is available. Preserve reference
+  semantics and add hardware-gated correctness tests and component benchmarks.
+  CPU or another accelerator cannot close this item; component speed does not
+  establish end-to-end throughput or model quality.
+- [ ] **Expose verified snapshot inheritance in recovery declarations.**
+  Activate when recurring corpus-version workflows need declarative reuse.
+  Verified ancestry/reuse already exists in Python APIs; extend the typed
+  recovery schema and CLI rather than adding another replay engine. Complete
+  when explicit parent evidence and selected source IDs preserve snapshot
+  identities without reacquisition, and tampered parents or incompatible source
+  declarations are rejected. Use generic ancestry fixtures rather than requiring
+  a particular campaign's versions or snapshot counts.
+- [ ] **Add an operational spot-safety policy.** Activate for a recurring spot
+  executor workload. Existing checkpoint cadence, retention, verification, and
+  explicit child resume are foundations, not missing features. Add a separately
+  configured policy using observed checkpoint write time, interruption notice,
+  workspace capacity, and measured restart cost; record its chosen cadence while
+  preserving scientific settings. Cover unavailable measurements, insufficient
+  capacity, and the separation of operational cadence from scientific identity.
+
+## Boundaries and acceptance work
+
+Distributed training is deferred under the
+[single-host extension decision](docs/decisions/0015-single-host-extension-boundaries.md).
+It is not an active compatibility/refactoring task. A future proposal must
+define optimizer ownership, data partitioning, checkpoint identity, and MoE
+expert placement before implementation.
+
+Real spot/remote recovery validation belongs in operational acceptance records,
+following the existing [worker acceptance evidence](docs/workers.md#observed-acceptance--2026-09-23).
+Exercise abrupt loss, verified-generation selection, explicit child resume,
+remote artifact transfer, and storage retention before claiming spot cost or
+recovery benefits. Local loss/resume evidence does not close that gate; add code
+tasks here only for missing or defective behavior exposed by acceptance.
