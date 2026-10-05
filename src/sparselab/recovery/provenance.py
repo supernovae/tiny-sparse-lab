@@ -186,7 +186,7 @@ def declaration_paths(source: Path, kind: DeclarationKind) -> tuple[Path, ...]:
                     reference(document, stage.project, "corpus")
                 elif stage.kind == "experiment_plan":
                     reference(document, stage.source, "experiment")
-                for name in ("suite", "policy"):
+                for name in ("suite", "policy", "panel"):
                     value = getattr(stage, name, None)
                     if isinstance(value, str):
                         reference(document, value)
