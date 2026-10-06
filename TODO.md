@@ -23,8 +23,9 @@ artifact identities.
 
 ### Rapid iteration
 
-The workload is [TinyStories baseline → exposure extension → one-field
-contrast](docs/tinystories-microlab.md) and repeated declared model campaigns.
+The workload is baseline → exposure extension → one-field contrast and repeated
+declared model campaigns. The [TinyStories walkthrough](docs/tinystories-microlab.md)
+is one teaching reference for that general workflow.
 Use the [existing native route](docs/iteration.md), including the read-only
 `iteration check`, direct `experiment bind-inputs` and exact-cell
 `experiment export-config` commands. Remaining work below must reuse those
@@ -47,15 +48,15 @@ interfaces, not introduce another runner.
   handoffs must avoid Python and reinterpretation of SHA fields. Write new files only,
   record origin/delta, reject unknown fields and scientific incompatibility.
   Existing checkpoint selectors already serve declared chains; add standalone
-  immutable selection only if the direct TinyStories route still needs pointer
+  immutable selection only if a native iteration still needs pointer
   parsing. Never select an unverified "latest" directory by sorting filenames.
-- [ ] **P2 — Exercise the complete declared TinyStories iteration demo.** Once
-  native direct-input binding is available, add a copyable ExperimentPlan/Campaign
+- [ ] **P2 — Exercise a complete declared iteration demo.** Using native
+  direct-input binding, add a copyable ExperimentPlan/Campaign
   example with one baseline, a checkpoint-bound exposure child, fixed heldout
   suite/descriptive generation panel, a separately labeled fresh one-field
   contrast and optional seed replication. Share the topology with a small offline
   acceptance fixture, including interrupted reconciliation and unchanged parent
-  hashes. Publish actual pinned-TinyStories acceptance separately: declaration
+  hashes. Use a pinned teaching dataset such as TinyStories and record acceptance separately: declaration
   digests, run/ingestion states, checkpoint lineage, counters, evaluation/panel
   references and costs. Keep outputs external and make CLI text/JSON follow the
   same route. No embedded Python, duplicate implicit baseline, automatic promotion

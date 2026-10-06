@@ -1,15 +1,49 @@
-# Campaign v1: declared orchestration
+# Campaigns: declare and execute an experimental workflow
 
-**The Campaign engine executes declared science. It does not design science.**
+A Campaign is a YAML/JSON DSL that connects the steps of an experiment: inputs,
+readiness checks, training plans, runtime selection, collection, evaluation and
+review. Use it when a question needs several dependent operations and you want
+their inputs, controls and completion conditions to remain explicit and reviewable.
 
-`campaign_version: 1` is a narrow orchestration language above Corpus Forge and
-[`ExperimentPlan(plan_version: 1)`](experiments.md#authored-experiment-plans-and-resolved-locks).
-Corpus Forge owns source acquisition, normalized documents, lineage and frozen
-release semantics. ExperimentPlan owns concrete scientific model configuration,
-artifact identities, comparisons and resolved locks. Campaign adds dependencies,
-readiness policies, recoverable execution and explicit authorization; it never
-chooses architecture, data mixture, tokenizer, training budget or quality threshold.
-Existing corpus, tokenizer, experiment, controller and training CLIs remain usable.
+## Why use a Campaign?
+
+Instead of an external Python script choosing files, ordering jobs and deciding
+what counts as complete, the declaration names each stage and binds it to typed
+inputs. The lab checks those bindings during execution and records the outputs
+that downstream stages actually consume. A missing dependency, incompatible
+input or incomplete ingestion blocks the dependent step.
+
+The linked [ExperimentPlan](experiments.md#authored-experiment-plans-and-resolved-locks)
+declares concrete parameter changes, fixed settings, comparison cells and
+checkpoint phases. A Campaign selects those locked cells and connects their
+collected checkpoints to the declared evaluations. Together they make it possible
+to check that the configurations and artifacts being compared are the ones the
+author specified, without separate Python coordination. They do not determine
+whether the hypothesis, controls or evaluation are scientifically sufficient.
+
+For example, to compare attention budgets, declare the changed budget in the
+plan's cells and hold data, tokenizer, seed, exposure and other model settings
+fixed. Add a run stage for each intended cell and bind its collection and
+evaluation stages. Review the plan before dispatch and the retained configurations
+afterward. Campaigns currently require explicit cell selection; they do not
+silently expand an incomplete declaration into all the comparisons you intended.
+
+Corpus Forge owns source acquisition, documents, lineage and frozen releases.
+ExperimentPlan owns scientific configurations, artifact identities, comparisons
+and locks. Campaigns add dependencies, readiness policies, recoverable execution
+and explicit authorization. Individual native CLI operations remain usable for
+a simpler workflow.
+
+The DSL is under active development toward more complete campaign execution.
+Use the supported [stage forms](#stage-forms-and-binding) to compose a workflow;
+[current boundaries](#current-boundaries) describe operations that still need
+separate native preparation or additional implementation. Unsupported steps are
+not implicitly supplied by a hidden script.
+
+## Declaration format
+
+The required `campaign_version: 1` field identifies the machine-readable schema.
+It is not the name of the Campaigns feature or a separate campaign product edition.
 
 The [Campaign JSON Schema](../schemas/campaign-plan-v1.schema.json) describes the
 strict authoring format. YAML/JSON is data only: duplicate keys, executable tags,
@@ -197,13 +231,10 @@ never overwritten. Interrupted work is not a receipt and has no chunk resume.
 
 Normal measurement authenticates the complete release and tokenizer through
 their existing verifiers, sharing the release proof only within this operation.
-The explicit `--evidence-commit`, `--release-evidence` and `--selection-evidence`
-option accepts only the reviewed DevMind v5 post-mount cold record and exact
-committed primary/selection blobs, with current manifest, tokenizer, report and
-winner-manifest hashes checked and documents authenticated during the scan.
-The chosen commit is an operator acceptance of that reviewed cold record, not
-an arbitrary SHA's assertion of authentication or a replacement verifier for
-unrelated releases. It does not establish indefinite external availability.
+Historical evidence overrides are restricted compatibility paths, not a general
+way to skip verification. Their scope is preserved in the
+[development notes](research/development-evidence.md#campaign-specific-measurement-compatibility).
+Use normal native measurement and authenticated receipts for new declarations.
 
 A token-only Campaign readiness policy may consume a canonical receipt instead
 of encoding again. Declare both its operational `measurement_receipt` path and
@@ -336,10 +367,10 @@ assess it explicitly with `sparselab readiness model POLICY INDEX --review RECEI
 author a new Campaign declaration identity if a later Campaign assessment is
 needed.
 
-## Explicit v1 limits
+## Current boundaries
 
 No tokenizer bakeoff, architecture selection, auto-generated evaluation protocol
-or worker-farm scheduling stage is provided. V1 uses pinned tokenizer references
+or worker-farm scheduling stage is provided. Campaigns currently use pinned tokenizer references
 and verified runtime-bound plan/worker adapters. Accelerator acceptance requires
 a matching declared profile ID or named worker; pass `--runtime-profile PROFILE`
 to each apply/resume that needs it. Each runtime stage authorizes only its assigned
@@ -415,6 +446,6 @@ or changed journal receipts invalidate the evidence. When native generation
 raises before returning, its unavailable partial text and token IDs are recorded
 as null, with the exception type and message preserved.
 
-The existing DevMind v5 MODEL-0 panel format is supported without modifying that
-research campaign or claiming a new scientific result. CPU regression fixtures
-exercise this integration; accelerator execution needs its own hardware evidence.
+Generation panels retain descriptive observations for their bound checkpoint.
+They do not change an existing experiment's protocol or turn generated text into
+an automatic quality decision.

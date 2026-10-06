@@ -91,6 +91,12 @@ separate engine using Metal on Apple Silicon. Reserve “runtime validation” a
 present the processor as the subject of a model experiment unless the protocol
 explicitly compares execution backends.
 
+Keep general guides independent of the experiments used to develop the lab.
+Explain the DSL, its value and supported behavior; put named campaigns, run
+budgets and measured outcomes in research records. Dataset-specific walkthroughs
+are optional teaching references. Preserve required schema fields such as
+`campaign_version: 1`, but call the feature “Campaigns,” not “Campaign v1.”
+
 For documentation-only changes, check local links and heading anchors, code-fence
 balance, CLI parser support and explicit path semantics. Do not launch a research
 run to validate prose. Record unavailable hardware or execution checks at handoff.

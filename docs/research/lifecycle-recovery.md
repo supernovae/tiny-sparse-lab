@@ -135,7 +135,10 @@ The first three commands must not create the root or scratch. `reconstruct` only
 
 Recoverable: committed local inputs and deterministic outputs with verified dependencies. Externally required: inaccessible pinned downloads, explicit tokenizer/model/runtime/evaluation decisions not yet authored, or unresolved redistribution rights. Nonreconstructable: a lost checkpoint generation and optimizer state unless a verified independent copy exists. A family parent checkpoint does not recreate a lost child or make unrun planned nodes complete. Restore such bytes from a verified portable archive if rights allow; otherwise retain their pinned missing identity, do **not** silently retrain under it. A deliberately relocated state root needs new location binding/manifest and re-verification of original referenced bytes—not editing old receipts or assuming paths moved. `scratch/` and optional `cache/` are disposable, never scientific evidence. Explicit old output/cache/run paths retain their original meaning, including legacy `sparselab-work/`; selecting an external root does not migrate them.
 
-The [DevMind v4 recovery declaration](../../experiments/research/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.
+A recovery declaration can be partial. If source access, rights, tokenizer,
+model configuration, runtime or evaluation bindings are absent, report those
+prerequisites as unavailable. An expected release digest alone cannot recover
+model weights or authorize new training.
 
 ## Explicit historical Corpus Forge implementation replay
 
@@ -250,24 +253,11 @@ links and artifacts. An intermediate build-only receipt remains verifiable
 after a later acquisition updates the same corpus workspace's active lock.
 Build-only success records a real build and `release: null`; it never freezes.
 
-The DevMind coordinator is deliberately task-scoped, **not** a declarative
-inheritance DSL. Its committed lineage fixes four historical producers and
-gates; each invocation attempts only the named next stage, re-verifies parents,
-and preserves the first failure without automatic retry:
-
-The original invocation is retained with the
-[ancestry replay record](../../experiments/research/devmind-pretrain-v4/ancestry-replay-report.md).
-It is a historical recovery procedure, not a general native lab workflow.
-Declarative snapshot inheritance remains an explicit
-[implementation gap](../../TODO.md#p3--conditional-work-activate-for-a-concrete-workload);
-new workflows should use the native recovery operations above within their
-supported boundaries.
-
-The coordinator enforces pre-launch byte/inode reservations plus a 25% free
-floor; it does not itself monitor live storage growth. Execution must provide
-that monitoring. Typed declarative inheritance and a compact durable identity
-metadata closure remain separate code work in `TODO.md`; the operational
-coordinator does not close either item or prove historical release recovery.
+Some historical recovery procedures used task-specific coordinators. Their
+[retained records](development-evidence.md#task-scoped-ancestry-replay) describe
+those exact attempts, not a general DSL route. Verified snapshot inheritance
+remains an [implementation gap](../../TODO.md#p3--conditional-work-activate-for-a-concrete-workload).
+Use the native recovery operations within their supported boundaries.
 
 ### Future identity design boundary
 

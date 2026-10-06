@@ -73,9 +73,12 @@ Use a new output directory to repeat it. This checks CPU lab wiring, not model
 quality or accelerator readiness. These shell examples use Bash; the
 [iteration guide](docs/iteration.md) includes PowerShell setup.
 
-For real story data, follow
-the **[TinyStories microlab](docs/tinystories-microlab.md)**: a ~590K-parameter
-starter, a two-cell YAML comparison, generation, and a continued training run.
+For an optional end-to-end learning example, use the
+**[TinyStories microlab](docs/tinystories-microlab.md)**. It instruments a small
+reference run from preparation through training, evaluation and continued
+training, with a two-cell comparison to practice changing one setting.
+TinyStories is the example dataset; the lab workflow applies to your own declared
+inputs and questions.
 The walkthrough uses copyable YAML and native commands for baseline → evaluate
 → extend exposure → compare, with no Python scripting required.
 Choose your backend explicitly and keep expensive outputs on an adequately sized

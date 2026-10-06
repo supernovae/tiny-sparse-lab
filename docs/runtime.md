@@ -655,7 +655,7 @@ portability claim.
 
 The [Campaign integration rebase record](../artifacts/acceptance/runtime-prep-v1-rebase.json)
 adds actual worker-dispatch/ingestion CLI proof and the combined CPU suites
-after integrating Campaign v1. Original benchmark measurements retain their
+after integrating Campaign orchestration. Original benchmark measurements retain their
 original source identities; they were not rerun or relabeled as rebase measurements.
 
 
@@ -668,8 +668,8 @@ cause additional writes, but coincident triggers write only one generation.
 All cadence watermarks reset on a save. A configured minute cadence may write
 at every update because optimizer-update duration has no guaranteed bound;
 without that cadence it does not add an unconditional per-update allowance.
-For 5,525 updates with checkpoint and validation intervals of 2,048 and no
-other trigger, the upper bound is four writes (initial, 2,048, 4,096, terminal).
+For example, a 100-update run with checkpoint and validation intervals of 40 and
+no other trigger has four writes (initial, 40, 80, terminal).
 
 `checkpoint.keep_periodic: false` in the run config leaves the checkpoint
 manager's latest two and best generations, potentially three distinct durable
