@@ -93,6 +93,20 @@ These architecture choices describe the PyTorch engine. MLX supports dense feed-
 
 Local conversations support explicit v2 `all_tokens` or `assistant_only` supervision and validated inert tool-call transcripts. Historical unversioned records retain whole-transcript loss. See [conversation format and objectives](instruction-training.md#local-conversation-corpora); storing a tool transcript does not execute the tool.
 
+## Local serving and model debugging
+
+Follow the [TinyText model guide](tinytext-model-guide.md) for a complete
+locate → verify → raw completion → chat → checkpoint comparison workflow, and
+[MODEL-0](model-0.md) for the retained DevMind base checkpoint's exact identity
+and availability. `chat` and `generate` support `--show-prompt`, repeatable
+`--stop`, `--context-length` and `--no-cache`; `generate --json --strict-context`
+provides structured raw debugging without silent prompt cropping.
+
+[`sparselab serve RUN_ID`](local-api.md) loads one verified checkpoint and exposes
+nonstreaming OpenAI-compatible models, raw-completion and chat-completion routes
+on loopback. Use the API guide for curl examples, bounded request semantics and
+optional Open WebUI setup. Unsupported features fail explicitly.
+
 ## Inspect and verify a checkpoint
 
 ```sh

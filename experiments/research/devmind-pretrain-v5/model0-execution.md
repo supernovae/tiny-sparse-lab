@@ -1,10 +1,12 @@
 # DevMind v5 MODEL-0 execution boundary
 
-Status: **INCOMPLETE — full-shape smoke censored by the 900-second pilot deadline**.
-The authenticated lock and independent cold readback passed. Fresh registered
-ROCm doctor is READY; exact locked 69M inspection and staging validation passed.
-Smoke timed out before a successful pilot report, and warmup was not reached.
-Campaign training, collected checkpoint, evaluation and model closure remain unexercised.
+Status: **COMPLETE — MODEL-0 training, ingestion, evaluation and readiness
+completed; unpromoted base checkpoint, no SFT.** The
+[canonical result](model0-result.json) and the completed-execution section below
+record the final state. Earlier timeout and recovery sections preserve historical
+stops, not the current completion status. The retained greedy panel is repetitive;
+readiness does not establish usefulness. For available-artifact checks and human
+inference commands, see the [MODEL-0 guide](../../../docs/model-0.md).
 
 ## Accepted results
 

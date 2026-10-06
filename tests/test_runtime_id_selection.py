@@ -64,6 +64,7 @@ def _command_args(tmp_path, command):
             "--runs-dir",
             str(runs),
         ],
+        "serve": ["serve", "sample", "--runs-dir", str(runs)],
         "run": ["run", str(config)],
         "experiment bind": ["experiment", "bind", str(tmp_path / "lock")],
         "experiment run": ["experiment", "run", str(tmp_path / "lock")],
@@ -91,6 +92,7 @@ def _command_args(tmp_path, command):
         "eval",
         "generate",
         "chat",
+        "serve",
         "run",
         "experiment bind",
         "experiment run",
@@ -141,6 +143,7 @@ def test_runtime_id_excludes_worker_and_binding(tmp_path, command, conflict):
         "eval",
         "generate",
         "chat",
+        "serve",
         "run",
         "experiment bind",
         "experiment run",
@@ -227,7 +230,7 @@ def test_stage_inspect_resolves_id_passively_and_preserves_file_profile(
 
 
 @pytest.mark.parametrize(
-    "command", ["train", "stage", "eval", "generate", "chat", "run"]
+    "command", ["train", "stage", "eval", "generate", "chat", "serve", "run"]
 )
 def test_registered_cpu_id_freshly_authorizes_direct_execution(
     tmp_path, registered_cpu, command
@@ -244,7 +247,7 @@ def test_registered_cpu_id_freshly_authorizes_direct_execution(
 
 
 @pytest.mark.parametrize(
-    "command", ["train", "stage", "eval", "generate", "chat", "run"]
+    "command", ["train", "stage", "eval", "generate", "chat", "serve", "run"]
 )
 def test_cpu_id_cannot_authorize_accelerator_config_before_workdir(
     tmp_path, monkeypatch, registered_cpu, command
