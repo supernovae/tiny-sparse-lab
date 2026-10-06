@@ -31,6 +31,46 @@ Use the [existing native route](docs/iteration.md), including the read-only
 `experiment export-config` commands. Remaining work below must reuse those
 interfaces, not introduce another runner.
 
+- [ ] **P1 — Align Campaign input contracts with native ExperimentPlan inputs.**
+  `experiment bind-inputs` supports direct `tinystories`/`local_stories` inputs,
+  but Campaign's plan binding requires a Corpus Forge release for every
+  non-synthetic cell (`src/sparselab/campaign/engine.py`). Accept an explicitly
+  typed, verified direct dataset/tokenizer/prepared closure as an alternative
+  to a Forge closure; preserve release/export checks when Forge is declared.
+  Reuse existing verifiers rather than special-casing a dataset or fabricating
+  a corpus release. Acceptance: the same direct-input plan runs standalone and
+  through Campaign runtime → run → collect → evaluation, including a verified
+  continuation; missing/mismatched inputs, source drift, incomplete ingestion
+  and broken parents fail before dependent work. Demonstrate another dataset
+  with the same contract, and preserve historical locks/receipts unchanged.
+- [ ] **P2 — Make Hub datasets and snapshots declarative, not dataset-specific.**
+  The current `tinystories` loader selects a fixed Hub repository/config/splits,
+  and public `data snapshot` calls the TinyStories-specific snapshot producer in
+  `src/sparselab/data/local_stories.py`. Replace this coupling with a shared typed
+  source declaration: repository, immutable revision, config, split mapping,
+  text field, attribution/terms, selection bounds and explicit dedup/overlap
+  policy. Reuse Corpus Forge's existing Hub acquisition/provenance where suitable;
+  do not create another acquisition engine. TinyStories should become a checked-in
+  reference declaration using that route. Preserve legacy source identities and
+  verifiers; any migration emits a new declaration/receipt, never relabels old
+  evidence. Acceptance: TinyStories and a second Hub-shaped offline fixture use
+  the same CLI/DSL without Python callbacks; reject moving/unavailable revisions,
+  missing fields, changed snapshots and forbidden split overlap.
+- [ ] **P2 — Report full-split coverage and derive exposure budgets natively.**
+  Add an explicit bounded-versus-source-exhaustion acquisition/preparation policy,
+  with resource admission, resumable bounded-memory processing, retained/excluded
+  record counts, truncation counts, stop reason and source/prepared identities.
+  Existing `data snapshot` requires exact retained counts and errors on early
+  exhaustion; direct Hub packing collects arrays in host memory. Neither is a
+  general scalable “all records” workflow. A native read-only report must distinguish
+  source coverage, prepared complete blocks and supervised target exposure;
+  a typed config derivation can propose steps/targets for a declared pass count
+  using the actual objective/mask, sequence length and effective batch. Reject
+  incomplete coverage claims, insufficient storage, incompatible/missing evidence
+  and unsupported objectives; retain tails, duplicates, nulls and exclusions.
+  Test exhaustion versus document/token caps, interrupted restart, short final
+  updates and masked targets without private Python counter scripts. Keep this
+  dataset-neutral and outside immutable historical identities.
 - [ ] **P1 — Stage explicitly bound existing inputs natively.** The Python
   `staging.stage(..., prepared_inputs=...)` path exists, but public `stage` does
   not expose it. Add a typed adapter taking RunConfig, an authenticated existing

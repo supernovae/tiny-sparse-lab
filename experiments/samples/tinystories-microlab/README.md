@@ -22,6 +22,9 @@ checkpoint verification establishes integrity, not better stories.
 Only task-owned mutable payloads may be removed after checking that no worker
 is active; declarations and retained results stay available. The native commands
 and required gates are described in [the iteration guide](../../../docs/iteration.md).
-A fully declared Campaign version and direct-input binding conveniences remain
-[implementation work](../../../TODO.md#rapid-iteration); this sample does not
-claim that acceptance run has been executed.
+The walkthrough also covers native `experiment bind-inputs`, a declared width
+comparison with checkpoint continuations, and progression toward larger models
+and full-source training. Direct-input ExperimentPlan binding is available;
+Campaign support for that same input contract remains
+[implementation work](../../../TODO.md#rapid-iteration). The guide describes
+exercises to run, not a claim that their acceptance or full-data runs have executed.
