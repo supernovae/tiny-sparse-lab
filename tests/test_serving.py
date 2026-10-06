@@ -689,6 +689,27 @@ def test_ipv6_authorities(loaded):
             thread.join(timeout=5)
 
 
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1"])
+def test_numeric_loopback_binding_does_not_resolve_dns(loaded, monkeypatch, host):
+    if host == "::1":
+        try:
+            with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
+                probe.bind((host, 0))
+        except OSError:
+            pytest.skip("IPv6 loopback is unavailable")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("numeric loopback binding must not call getfqdn")
+
+    monkeypatch.setattr(socket, "getfqdn", forbidden)
+    with LocalHTTPServer((host, 0), LocalInference(loaded)) as server:
+        assert server.server_name == host
+        assert server.server_port == server.socket.getsockname()[1]
+        assert server.server_port > 0
+        authority = f"[{host}]" if ":" in host else host
+        assert f"{authority}:{server.server_port}" in server.allowed_authorities
+
+
 def test_real_cli_process_serves_pinned_model_and_closes_on_sigint(loaded, tmp_path):
     import os
     import signal

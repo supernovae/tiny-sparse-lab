@@ -16,6 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
 from typing import Any
 
 from sparselab.evaluation.chat import ChatMessage, prepare_chat_prompt
@@ -333,6 +334,12 @@ class LocalHTTPServer(ThreadingHTTPServer):
             self.allowed_authorities.update(
                 {name: f"{name}:80" for name in (host, "localhost")}
             )
+
+    def server_bind(self) -> None:
+        # HTTPServer resolves its display name with getfqdn(), which can wait on
+        # reverse DNS. This API binds numeric loopback addresses and needs no DNS.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
     def get_request(self) -> tuple[socket.socket, Any]:
         request, address = super().get_request()
