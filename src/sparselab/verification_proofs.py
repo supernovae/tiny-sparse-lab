@@ -198,29 +198,29 @@ class ProofStore:
         binding: dict[str, object],
         reason: str,
         *,
+        authority: dict[str, object] | None = None,
         bytes_hashed: int | None = None,
         bytes_avoided: int | None = None,
     ) -> None:
         authority_error = None
-        try:
-            authority = verifier_authority(
-                str(binding["kind"]), int(binding["version"])
-            )
-        except (KeyError, TypeError, ValueError, OSError, SyntaxError) as error:
-            authority = None
-            authority_error = f"{type(error).__name__}: {error}"
-            reason = "unknown"
-        self._events.append(
-            {
-                "path": binding.get("path"),
-                "kind": binding.get("kind"),
-                "reason": reason,
-                "verifier_authority": authority,
-                "authority_error": authority_error,
-                "bytes_hashed": bytes_hashed,
-                "bytes_avoided": bytes_avoided,
-            }
-        )
+        if authority is None:
+            try:
+                authority = verifier_authority(
+                    str(binding["kind"]), int(binding["version"])
+                )
+            except (KeyError, TypeError, ValueError, OSError, SyntaxError) as error:
+                authority_error = f"{type(error).__name__}: {error}"
+                reason = "unknown"
+        event = {
+            "path": binding.get("path"),
+            "kind": binding.get("kind"),
+            "reason": reason,
+            "verifier_authority": authority,
+            "authority_error": authority_error,
+            "bytes_hashed": bytes_hashed,
+            "bytes_avoided": bytes_avoided,
+        }
+        self._events.append(event)
 
     def cold(
         self, binding: dict[str, object], *, bytes_hashed: int | None = None
@@ -379,6 +379,7 @@ class ProofStore:
         return key if len(key) == 32 else None
 
     def lookup(self, binding: dict[str, object]) -> bool:
+        authority: dict[str, object] | None = None
         reason = "unknown"
         hit = False
         try:
@@ -404,6 +405,8 @@ class ProofStore:
                 else:
                     raw = json.loads(receipt.read_bytes())
                     payload = self._payload(binding)
+                    authority = payload["verifier_authority"]
+                    assert isinstance(authority, dict)
                     old = raw.get("proof") if isinstance(raw, dict) else None
                     authentic = (
                         isinstance(old, dict)
@@ -457,7 +460,10 @@ class ProofStore:
         self.hits += int(hit)
         self.misses += int(not hit)
         self._event(
-            binding, reason, bytes_avoided=self._binding_size(binding) if hit else None
+            binding,
+            reason,
+            authority=authority,
+            bytes_avoided=self._binding_size(binding) if hit else None,
         )
         return hit
 

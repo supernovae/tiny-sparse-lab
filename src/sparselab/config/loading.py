@@ -17,6 +17,7 @@ _PATH_KEYS = {
     "output_dir",
     "memory_package_path",
     "train_path",
+    "portability_manifest_path",
     "validation_path",
     "allocation_manifest_path",
     "source_manifest_path",

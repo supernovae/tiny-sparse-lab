@@ -139,7 +139,8 @@ jobs:
               -print -exec tail -c 16384 {} \;
           fi
   test:
-    if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
+    # Long native integrations are manual-only; serving-only dispatch skips them.
+    if: github.event_name == 'workflow_dispatch' && !inputs.serving_only
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -160,7 +161,7 @@ jobs:
       - run: uv run --locked --extra cpu sparselab --help
       - run: uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json
   test-macos-arm64:
-    if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
+    if: github.event_name == 'workflow_dispatch' && !inputs.serving_only
     runs-on: macos-15
     timeout-minutes: 30
     steps:

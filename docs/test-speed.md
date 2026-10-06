@@ -19,13 +19,65 @@ uv run --locked --extra cpu pytest -q tests/test_surface_overlay.py tests/test_s
 uv run --locked --extra cpu pytest -q tests/test_hf_auth.py
 ```
 
-Before opening a PR, run the full CPU suite; the focused checks do **not** replace either CI full-suite gate. Use two workers, distributing whole test files so module-scoped fixtures remain together. Pytest's `tmp_path`/`tmp_path_factory` keep test artifacts in worker-specific directories. Do not share a mutable work directory between independently launched suites.
+Pushes and PRs run lint, the focused Linux checks, the smaller macOS
+evidence checks, and bounded serving/CLI checks on Linux and macOS. The full
+Linux and macOS CPU jobs are paused for automatic builds; they run only when
+CI is started with **Run workflow** (`workflow_dispatch`) and `serving_only`
+is left unchecked. Check `serving_only` to skip both full CPU suites during
+a manual dispatch. No tests are deleted. This trades broad automatic
+regression coverage for bounded build feedback; focused jobs do not certify
+the full suite.
+
+For an explicit local full-suite run, use two workers, distributing whole test
+files so module-scoped fixtures remain together. Pytest's `tmp_path` and
+`tmp_path_factory` keep artifacts in worker-specific directories. Do not share
+a mutable work directory between independently launched suites.
 
 ```sh
 uv run --locked --extra cpu pytest -q -n 2 --dist loadfile -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
 uv run --locked --extra cpu ruff check .
 uv run --locked --extra cpu ruff format --check .
 ```
+
+## CPU worker limits and stall diagnosis
+
+The root test `conftest.py` sets `OMP_NUM_THREADS`, `MKL_NUM_THREADS`,
+`OPENBLAS_NUM_THREADS`, and `VECLIB_MAXIMUM_THREADS` to `1` during pytest
+startup. This matches the CI environment and happens before collection and
+xdist worker creation, so workers and subprocesses they launch inherit one
+thread per CPU library. If a pytest plugin imported Torch before the
+conftest, the conftest also caps Torch's intra-op pool without importing Torch
+for Torch-free tests. Like CI, it leaves the inter-op pool unchanged. These limits
+apply only to test processes; they do not change lab runtime defaults.
+
+Campaign status projection verifies each completed dependency-DAG stage once
+per traversal, including shared upstream nodes. Later projections and checks
+before dispatch verify again; no completed-stage cache survives the traversal.
+This is not generic snapshot proof reuse across projections or commands.
+
+Verifier authority walks deduplicate module scheduling and file discovery only
+within one closure walk. Each later authority lookup still reads and hashes the
+verifier source bytes. Proof lookup diagnostics use the same authority that was
+compared with the receipt, rather than walking the closure again for telemetry.
+
+The CPU gate includes native Campaign integrations with real worker startup,
+staging, training, checkpoint transfer, continuation, and evaluation. These can
+take several minutes. A whole-command deadline must allow all separately
+bounded runs and the subsequent verification; a faulthandler stack report is
+not a test failure or a run deadline.
+
+For a suspected CPU stall, retain the normal two-worker layout and ask
+pytest's built-in faulthandler plugin for thread stacks after a bounded interval:
+
+```sh
+uv run --locked --extra cpu pytest -vv -n 2 --dist loadfile \
+  -o faulthandler_timeout=120 \
+  -m 'not mps and not mlx and not cuda and not rocm and not xpu and not network'
+```
+
+`faulthandler_timeout` reports stacks; it does not skip, kill, or otherwise
+turn a slow test into a passing result. Use the reported test name to rerun it
+serially with the same option when isolating the blockage.
 
 On an Apple Silicon machine with the optional MLX runtime installed (`uv sync --locked --dev --extra cpu --extra mlx`), run hardware tests in **one serial process**, after CPU workers finish:
 
@@ -39,4 +91,15 @@ Never use `-n` for MLX/MPS or run another accelerator test/training process agai
 
 ## Why the gate is structured this way
 
-The [successful CI run 36380519748](https://github.com/supernovae/tiny-sparse-lab/actions/runs/36380519748) measured 331 seconds for Linux's serial CPU pytest step and 407 seconds for macOS's serial pytest step; locked installs took 4 and 7 seconds respectively. CI now runs an independent short focused job **concurrently** with both full Linux and macOS CPU suites on pushes and PRs, so fast feedback does not delay the full gate. The macOS job runs MLX-marked cases only after its CPU run finishes, serially, without sharing a hardware lease with a second job. Existing MPS exclusions stay in place until hardware stability has been verified. Locked uv downloads are cached through `setup-uv`. On this Linux workstation, the two-worker CPU gate completed in 128.30 seconds (695 passed, 3 skipped); hosted-run speedup remains unmeasured. The fast gate contains corpus/config/ingestion examples; use the local commands above for the closest tests to each commit.
+The full CPU jobs on Linux and macOS retain their tests, hardware exclusions,
+and existing 30-minute safety limits, but are manual-only while their long
+native integrations are paused as automatic build gates. Automatic lint and
+focused/evidence/serving jobs retain their 5- and 10-minute limits. The manual hosted
+CPU jobs use up to four workers with work-stealing; the local command above
+uses whole-file scheduling for fixture reuse.
+
+The [historical CI run 36380519748](https://github.com/supernovae/tiny-sparse-lab/actions/runs/36380519748)
+measured 331 seconds for Linux's serial CPU step and 407 seconds for macOS's
+serial CPU step. Those measurements are not a bound for today's larger suite.
+Locked uv downloads are cached through `setup-uv`. Accelerator and network
+checks remain separate explicit opt-ins.

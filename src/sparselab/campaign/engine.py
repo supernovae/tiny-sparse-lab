@@ -411,8 +411,27 @@ class CampaignEngine:
         )
         return binding, identities
 
+    def _projection_verification_key(self, stage: Any, row: dict) -> tuple:
+        """Identify a completed stage whose checks passed in this projection."""
+        return (
+            stage.id,
+            row.get("stage_input_sha256"),
+            tuple(
+                (
+                    (output.get("kind"), output.get("identifier"), output.get("sha256"))
+                    if isinstance(output, dict)
+                    else ("invalid", id(output))
+                )
+                for output in row.get("outputs", [])
+            ),
+        )
+
     def _verify(self, stage: Any, row: dict, rows: dict[str, dict]) -> None:
         """Reopen domain artifacts; no completed-invalid stage is ever dispatched again."""
+        cache = getattr(self, "_project_verified", None)
+        key = self._projection_verification_key(stage, row)
+        if cache is not None and key in cache:
+            return
         if row.get("stage_input_sha256") != self.store.input_sha(stage, rows):
             raise ValueError(f"stage input changed: {stage.id}")
         kind = stage.kind
@@ -425,14 +444,14 @@ class CampaignEngine:
         elif kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            verified = verify_artifact(
+            artifact = verify_artifact(
                 stage.artifact,
                 self.source,
                 dataset=self._artifact_dataset(stage),
                 **self._verification(),
             )
             if output != {
-                key: verified[key] for key in ("kind", "identifier", "sha256")
+                key: artifact[key] for key in ("kind", "identifier", "sha256")
             }:
                 raise ValueError(f"external artifact result changed: {stage.id}")
         elif kind == "corpus_release":
@@ -586,6 +605,8 @@ class CampaignEngine:
             expected = digest(f"campaign-{kind}-v1", self._science(row))
             if output is None or output["sha256"] != expected:
                 raise ValueError(f"{kind} result identity changed")
+        if cache is not None:
+            cache.add(key)
 
     @staticmethod
     def _science(row: dict) -> dict:
@@ -814,6 +835,19 @@ class CampaignEngine:
         return None
 
     def _project(self, state: dict) -> dict:
+        """Project once with only traversal-local successful verification reuse."""
+        missing = object()
+        previous = getattr(self, "_project_verified", missing)
+        self._project_verified: set[tuple] = set()
+        try:
+            return self._project_once(state)
+        finally:
+            if previous is missing:
+                del self._project_verified
+            else:
+                self._project_verified = previous
+
+    def _project_once(self, state: dict) -> dict:
         rows = self._rows(state)
         projected: list[dict] = []
         next_action: dict = {

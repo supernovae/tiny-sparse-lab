@@ -216,6 +216,54 @@ explicit binding, ordinary exact-source rejection remains unchanged. Public
 binding; publication's private proof remains limited to its original process.
 
 
+
+## Derive a verified declaration
+
+Use `experiment derive` to publish a new declaration after a typed, cold
+resolution of the complete candidate. It is for declaration-level changes that
+phase `set` cannot express, such as retention, comparisons, axes, or a base-run
+setting. It does not train, enqueue work, publish a lock, or make a runtime-fit
+claim.
+
+Values are strict JSON and each changed field needs its own `--set`. Replace
+phases, axes, or comparisons as complete JSON arrays; dotted sequence indexes
+are not supported. The output parent must already exist without symlinked
+components. Neither output can be overwritten.
+
+```sh
+uv run --locked --extra cpu sparselab experiment derive "$PLAN" \
+  --set 'id="offline-training-chain-v2"' \
+  --set retention.keep_periodic=false \
+  --output "$WORK/inputs/plan-v2.yaml" --json
+```
+
+The output is a YAML declaration and
+`plan-v2.yaml.derivation.json`. The receipt binds source and output byte hashes,
+records the requested assignments, normalized observed declaration delta, path
+rebindings, and a `resolved_experiment` validation boundary. It is an
+operational provenance record, not a lock or a scientific artifact identity.
+Pass `--prepared PREPARATION.json` only when the candidate requires an existing
+prepared corpus-variant record; the supplied record is authenticated and not
+rewritten. Its plan ID must match the derived declaration: an ID change cannot
+reuse preparation bound to the old ID.
+
+Derivation validates the same declared inputs, artifact identities, comparisons,
+and continuation rules as a cold `experiment lock` resolution. It preserves
+declaration references only when the new output location can resolve to exactly
+the same targets. It rejects an unsafe relocation rather than copying or
+rebasing corpus, suite, capability, or prompt declarations. Then create the
+immutable runnable identity through the ordinary `experiment lock` command:
+
+```sh
+LOCK=$(uv run --locked --extra cpu sparselab experiment lock \
+  "$WORK/inputs/plan-v2.yaml" --json | jq -r '.lock')
+```
+
+Use `experiment bind-inputs` before derivation for templates that lack
+authenticated direct inputs. A derivation cannot make an unbound template
+verified or infer replacement artifacts, checkpoint selections, or continuation
+compatibility.
+
 ## Pilot the resolved configuration
 
 The locked cells contain the effective run configs after input binding and

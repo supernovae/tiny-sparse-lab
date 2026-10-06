@@ -377,6 +377,44 @@ def _config_migrate(args: argparse.Namespace) -> None:
     print("\n".join(changes))
 
 
+def _config_derive(args: argparse.Namespace) -> None:
+    """Publish a schema-validated config variant without replacing either input."""
+    try:
+        from sparselab.derivation import derive_config, parse_assignments
+
+        receipt = derive_config(
+            Path(args.source),
+            Path(args.output),
+            parse_assignments(args.settings),
+        )
+    except (OSError, TypeError, ValueError) as error:
+        message = str(error)
+        if args.json:
+            print(json.dumps({"status": "error", "error": message}, allow_nan=False))
+        else:
+            print(f"sparselab config derive: {message}", file=sys.stderr)
+        raise SystemExit(2) from None
+
+    payload = {
+        "status": "ok",
+        "receipt": str(
+            Path(args.output)
+            .absolute()
+            .with_name(Path(args.output).name + ".derivation.json")
+        ),
+        **receipt,
+    }
+    if args.json:
+        print(json.dumps(payload, sort_keys=True, allow_nan=False, default=str))
+        return
+    print(f"output: {receipt['output']['path']}")
+    print(f"receipt: {payload['receipt']}")
+    validation = receipt.get("validation", {})
+    print(f"validation scope: {validation.get('scope', 'typed_config')}")
+    for field, change in receipt.get("delta", {}).items():
+        print(f"delta {field}: {change['base']!r} -> {change['variant']!r}")
+
+
 def _legacy_checkpoint_inventory(path: Path, expected_config=None) -> dict[str, object]:
     from sparselab.training.weight_import import load_legacy_weights
 
@@ -2259,6 +2297,22 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     weight_import.set_defaults(handler=_weights_import)
     config = commands.add_parser("config")
     config_commands = config.add_subparsers(dest="config_command", required=True)
+    config_derive = config_commands.add_parser(
+        "derive",
+        help="Publish a typed config variant; validates schema compatibility, not artifacts or runtime",
+    )
+    config_derive.add_argument("source", help="Source v2 run configuration")
+    config_derive.add_argument(
+        "--set",
+        dest="settings",
+        action="append",
+        required=True,
+        metavar="FIELD=JSON",
+        help="Typed JSON value at a dotted configuration field (repeatable)",
+    )
+    config_derive.add_argument("--output", required=True, help="New YAML output path")
+    config_derive.add_argument("--json", action="store_true")
+    config_derive.set_defaults(handler=_config_derive)
     config_migrate = config_commands.add_parser("migrate")
     config_migrate.add_argument("input")
     config_migrate.add_argument("--output", required=True)

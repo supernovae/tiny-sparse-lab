@@ -36,16 +36,6 @@ coverage/pass budgets, typed Campaign input binding and existing-input staging
 are available through the lab. New Hub workloads use `dataset.source: snapshot`;
 historical dataset-specific inputs retain their original verifiers.
 
-- [ ] **P2 — Expose verified declaration/config handoffs.** Where Phase `set`
-  and native scaffolds do not suffice, add CLI derivation over the existing
-  typed loaders and dotted-path compiler, preserving path anchoring when the
-  output moves. Exact resolved-cell export is already available; remaining
-  handoffs must avoid Python and reinterpretation of SHA fields. Write new files only,
-  record origin/delta, reject unknown fields and scientific incompatibility.
-  Existing checkpoint selectors already serve declared chains; add standalone
-  immutable selection only if a native iteration still needs pointer
-  parsing. Never select an unverified "latest" directory by sorting filenames.
-
 ### Native diagnostic interfaces
 
 - [ ] **P2 — Reuse generic snapshot verification within one native operation.**
