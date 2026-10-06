@@ -7,6 +7,14 @@ prepared-asset and runtime validation as CLI inference. Start with
 [MODEL-0 guide](model-0.md). This is a local debugging interface, not a hosted
 service or a claim that a base model can follow instructions.
 
+Serving performs no dataset acquisition or preparation. Verified historical runs
+remain usable with their original run-owned assets, including runs whose old
+input declarations are retired for new execution. New inputs use
+[`data lock` → `data snapshot` and explicit migration](datasets.md); migration
+creates a new identity and is not required merely to serve a valid old run.
+The server needs the validated run closure, not a bare weight file, an array
+cache from `data prepare`, or a `stage --prepared-inputs` bundle by itself.
+
 ## Start one model
 
 With `RUNS`, `RUN_ID` and `CHECKPOINT` set to a real verified run:

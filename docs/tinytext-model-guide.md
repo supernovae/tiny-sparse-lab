@@ -100,6 +100,48 @@ Missing bytes are a recovery problem, not permission to refit the tokenizer or
 retrain the model. [Checkpointing](checkpointing.md) and
 [recovery](research/lifecycle-recovery.md) explain those boundaries.
 
+## Saved inputs and historical runs
+
+New dataset acquisition follows the canonical [dataset workflow](datasets.md):
+a source declaration → `data lock` → `data snapshot` → `dataset.source: snapshot`
+in the tokenizer/run configurations → tokenizer fitting and preparation. The
+[TinyStories sample](tinystories-microlab.md) supplies a complete declaration-driven
+example. Acquisition can download substantial bytes; it is separate from trying
+an already retained checkpoint. Do not repeat acquisition or preparation merely
+to open chat or start the server.
+
+The retired `tinystories` and `local_stories` authoring forms remain readable for
+historical verification and inference. New execution must use the supported
+snapshot flow. `data migrate` writes a new identity; it does not repair an old
+run in place. To import an existing legacy snapshot, use its authenticated
+manifest and a fresh output directory:
+
+```sh
+uv run --locked --extra cpu sparselab data migrate /path/to/legacy/snapshot/manifest.json \
+  --kind snapshot --output "$SPARSELAB_WORK_DIR/imported-snapshot-1" --json
+```
+
+This preserves the original evidence and writes a generic snapshot plus a new
+dataset binding. Direct-prefix migration from an old run config instead requires
+an explicit resource policy and `--accept-policy-change`; its output remains
+pending until the new source is locked and acquired. Follow
+[legacy migration](datasets.md#legacy-input-migration), review its receipt and
+rebuild/verify downstream inputs for new execution. Neither migration route
+proves that old and new training inputs or results are interchangeable. A
+verified historical checkpoint keeps using its original run-owned assets.
+
+These three locations serve different purposes:
+
+| Location | What it provides |
+| --- | --- |
+| Validated run directory | Checkpoints, resolved config, manifest, tokenizer and run-owned data/sidecars needed by inference |
+| Array cache printed by `data prepare` | Prepared arrays for the declared inputs; not a standalone model or staging bundle |
+| Sealed `PRIOR_STAGE/prepared` bundle | Authenticated inventory accepted by `stage --prepared-inputs`; not interchangeable with the array-cache path |
+
+Missing run assets block inference even if unrelated prepared arrays exist.
+Preserve manifests and location bindings; do not copy an arbitrary tokenizer or
+array cache into a run to make validation pass.
+
 ## Begin with raw completion
 
 A base model predicts continuations. Start with a short prefix resembling its

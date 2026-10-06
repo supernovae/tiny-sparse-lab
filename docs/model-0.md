@@ -39,6 +39,15 @@ checkpoint-bound evaluation/readiness. Source hashes, corpus identity, tokenizer
 identity and model checkpoint digest identify different objects; do not replace
 one with another or infer provenance from a human-facing model alias.
 
+This is MODEL-0's recorded Forge-backed lifecycle. The current generic
+[dataset lock/snapshot workflow](datasets.md) does not rewrite its historical
+release, export, tokenizer or prepared-input identities; Forge contracts retain
+their release/export gates. Inference verifies the retained run and its original
+assets. New acquisition or legacy-input migration creates separate artifacts
+for new execution, not a replacement history for this checkpoint. The array
+cache returned by `data prepare` and a sealed staging `prepared` bundle are
+different objects; neither alone is the complete run needed to load MODEL-0.
+
 The repository contains small declarations and evidence references, **not the
 large MODEL-0 weights or prepared arrays**. The canonical result records this
 controller location on the original host. It is usable only when the validated

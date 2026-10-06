@@ -127,7 +127,9 @@ jobs:
           uv run --locked --extra cpu pytest -vv -ra --tb=long --durations=15 \
             -o faulthandler_timeout=90 --basetemp "$RUNNER_TEMP/serving-pytest" \
             tests/test_serving.py tests/test_inference_debug.py \
-            tests/test_generation_result.py tests/test_runtime_id_selection.py
+            tests/test_generation_result.py tests/test_runtime_id_selection.py \
+            tests/test_snapshot_inference.py tests/test_snapshot_artifact_bindings.py \
+            tests/test_snapshot_authority.py
       - name: Retain CLI startup diagnostics in the job log
         if: always()
         run: |
