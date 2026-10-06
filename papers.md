@@ -342,3 +342,189 @@ fixed unless they are the declared variable; report unavoidable budget asymmetry
 - **Limit:** the main evaluation uses Jetson Orin with NVMe/eMMC. Cache offload
   leaves model weights and training state as separate costs, and its storage
   behavior requires new measurements on discrete ROCm systems.
+
+## Optimizer memory: independent experiment ideas
+
+These additions are **unranked, independent ideas**, not an implementation
+sequence or an extension of the Priority 1–21 reading order above. Paper and
+implementation references were checked on 2026-10-06. Published results motivate
+experiments; they do not establish quality, speed or fit on an RX 7900 XTX (24 GB,
+ROCm), at the lab's roughly 69M baseline or at an exploratory 1–2B scale.
+
+### Fit and comparison boundaries
+
+The current [PyTorch optimizer factory](src/sparselab/training/optimizer.py)
+provides AdamW and Adafactor with `foreach=False`; other choices below need new
+integration. AdamW separates matrix and vector decay groups and deduplicates tied
+parameters. Adafactor uses one decay group and its own parameter-scaling
+semantics. The
+[configuration](src/sparselab/config/models.py) rejects optimizer-state offload;
+runs use one process/device, and the existing [activation offload](docs/offload.md)
+does not move optimizer state.
+
+[Memory accounting](docs/memory.md) keeps FP32 parameters and gradients under
+autocast. Two FP32 AdamW moments alone cost about 8 bytes per trainable parameter:
+552 MB at 69M, 8 GB at 1B and 16 GB at 2B (decimal units). These exclude weights,
+gradients, activations, temporary workspaces and allocator headroom. Count actual
+state dtypes, quantization metadata, projection matrices, uncompressed parameter
+groups and any additional master copies; do not count the same FP32 weights twice.
+An optimizer-state percentage is not a total peak-memory saving or proof of fit.
+
+A possible comparison would retain AdamW as a control, match data, tokenizer,
+architecture, effective batch, sequence length, token budget and seeds, and
+declare each method's tuning budget and schedule semantics. Report held-out loss
+and task quality alongside measured peak allocated/reserved memory, host RSS,
+steady-state update time, end-to-end time and checkpoint cost. Sparse model
+routing does not imply sparse-layout gradients or eliminate resident states.
+
+[Full resume](docs/checkpointing.md#full-resume) binds optimizer configuration.
+The [native verifier](src/sparselab/training/checkpoints.py) currently validates
+AdamW/Adafactor moment inventories, shapes and FP32 dtypes. A new optimizer needs
+configuration, accounting and safe state-codec/verification work, including
+quantization scales, projection matrices or reproducible seeds, refresh phase,
+counters and auxiliary groups where relevant. Compare uninterrupted and resumed
+updates before a scientific run. Switching optimizers is a separately declared
+experiment or compatible weights-only promotion, not ordinary resume.
+
+### 8-bit Optimizers via Block-wise Quantization
+
+**2021 · [Paper](https://arxiv.org/abs/2110.02861) · [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes)**
+
+- **Idea/evidence:** block-wise quantization compresses Adam-family moments;
+  approximately 75% less storage for quantized moments than two FP32 moments,
+  before metadata and exemptions. This has a maintained implementation.
+- **Possible lab experiment:** compare AdamW8bit with the existing AdamW under
+  matched training settings, including checkpoint parity and actual state bytes.
+- **Limits/fit:** [v0.50.2 installation docs](https://huggingface.co/docs/bitsandbytes/v0.50.2/en/installation)
+  document consumer RDNA support and gfx1100 ROCm wheels. Validate the exact
+  Python/PyTorch/ROCm/OS combination and numerical behavior locally. Small tensors
+  below 4096 elements remain FP32 by default; weights and gradients are separate.
+
+### Adafactor: Adaptive Learning Rates with Sublinear Memory Cost
+
+**2018 · [Paper](https://arxiv.org/abs/1804.04235)**
+
+- **Idea/evidence:** factor matrix second moments into row/column statistics;
+  the minimal formulation omits a full first moment. An established method
+  already available through the lab's native PyTorch Adafactor path.
+- **Possible lab experiment:** use the existing implementation as a low-state
+  comparator, measuring quality and update magnitude as well as factor bytes.
+- **Limits/fit:** vectors retain unfactored variance, and tensor shape determines
+  savings. Relative step-size caps and parameter-RMS scaling are not AdamW's
+  learning-rate semantics; library defaults differ. The existing tiny-model
+  [state accounting check](docs/memory.md#adafactor-state-accounting) is not a
+  quality result or a total-memory benchmark.
+
+### Adam-mini: Use Fewer Learning Rates To Gain More
+
+**2024 · [Paper](https://arxiv.org/abs/2406.16793) · [Implementation](https://github.com/zyushun/Adam-mini)**
+
+- **Idea/evidence:** retains full momentum but shares second-moment statistics
+  within parameter blocks, approaching half Adam's moment storage. The paper
+  evaluates models from 39M to 13B parameters.
+- **Possible lab experiment:** compare blockwise statistics with AdamW and
+  Adafactor while auditing group coverage and tied embeddings.
+- **Limits/fit:** the official implementation's parameter-name rules and
+  attention metadata require mapping to this model. Full momentum remains;
+  approximate state savings do not imply half total memory. Author-recommended
+  AdamW hyperparameters are a starting hypothesis, not a quality guarantee.
+
+### GaLore and GaLore 2
+
+**2024/2025 · [GaLore](https://arxiv.org/abs/2403.03507) · [GaLore 2](https://arxiv.org/abs/2504.20437)**
+
+- **Idea/evidence:** keep optimizer statistics in refreshed low-rank gradient
+  subspaces while training full weights. GaLore 2 uses randomized SVD to reduce
+  projection overhead and reports a 7B/500B-token validation.
+- **Possible lab experiment:** vary rank and refresh interval for selected large
+  matrices, recording quality, projection peaks and update-time spikes.
+- **Limits/fit:** include cached bases, SVD workspaces and unprojected groups.
+  The original 24 GB headline combines low-rank states with 8-bit optimization
+  and layerwise updates; plain GaLore does not inherit that fit. Per-layer
+  update hooks need separate compatibility work with accumulation and clipping.
+  Sparse-layout gradients are not supported by the referenced optimizer family.
+
+### APOLLO: SGD-like Memory, AdamW-level Performance
+
+**2024 · [Paper](https://arxiv.org/abs/2412.05270) · [Implementation](https://github.com/zhuhanqing/APOLLO)**
+
+- **Idea/evidence:** uses random low-rank statistics to estimate channel/tensor
+  scaling, then scales the full gradient. APOLLO-Mini uses rank-one, tensor-wide
+  scaling; this is different from GaLore's projected update.
+- **Possible lab experiment:** compare APOLLO and Mini with AdamW across seeds,
+  exposing rank, scale and refresh choices as declared variables.
+- **Limits/fit:** paper accounting can exclude regenerated projections, while the
+  released projector caches a matrix: measure actual resident state. Preserve
+  projection/refresh history in checkpoints and check dense-gradient assumptions.
+  The official repository's predominantly CC-BY-NC licensing also needs review
+  before incorporating code. Published gains do not establish ROCm performance.
+
+### Symbolic Discovery of Optimization Algorithms (Lion)
+
+**2023 · [Paper](https://arxiv.org/abs/2302.06675) · [Implementation](https://github.com/google/automl/tree/master/lion)**
+
+- **Idea/evidence:** sign-based updates retain one momentum buffer, half the
+  moment bytes of same-dtype AdamW. The paper studies vision and language tasks.
+- **Possible lab experiment:** compare language-model quality at matched token
+  budgets with a separately declared learning-rate/decay search.
+- **Limits/fit:** this changes the update rule, not just state precision. Authors
+  suggest learning rates 3–10 times smaller and decay 3–10 times larger than
+  AdamW; copying AdamW settings is not an equivalent comparison.
+
+### Muon is Scalable for LLM Training
+
+**2025 · [Paper](https://arxiv.org/abs/2502.16982) · [Implementation](https://github.com/KellerJordan/Muon)**
+
+- **Idea/evidence:** orthogonalizes momentum updates for hidden weight matrices;
+  language-model studies motivate a quality/efficiency comparison. A
+  [native PyTorch implementation](https://docs.pytorch.org/docs/2.9/generated/torch.optim.Muon.html)
+  is available for 2D parameters.
+- **Possible lab experiment:** compare Muon for eligible hidden matrices plus
+  auxiliary AdamW for embeddings/output and other parameters against all-AdamW.
+- **Limits/fit:** group boundaries and tied weights matter. Count the auxiliary
+  optimizer and Newton–Schulz temporaries as well as momentum; one buffer does
+  not mean half total memory. Standard PyTorch operations make ROCm evaluation
+  plausible, but do not establish speed or stability on this device.
+
+### Memory-Efficient LLM Pretraining via Minimalist Optimizer Design (SCALE)
+
+**2025 · [Paper](https://arxiv.org/abs/2506.16659) · [ICML 2026 proceedings](https://proceedings.mlr.press/v306/glentis26a.html) · [Implementation](https://github.com/OptimAI-Lab/Minimalist_LLM_Pretraining)**
+
+- **Idea/evidence:** normalizes gradient columns, retaining momentum for the
+  output head and AdamW for 1D parameters. A newer, experimental way to reduce
+  hidden-matrix optimizer state.
+- **Possible lab experiment:** compare layer/group choices and quality against
+  AdamW, with explicit handling of the lab's tied input/output embeddings.
+- **Limits/fit:** the quoted use of 35–45% of baseline memory models BF16 weights plus
+  optimizer storage, excluding gradients, activations and workspaces. Main runs use
+  sequence length 256; neither accounting nor results prove longer-context fit
+  under the lab's FP32 parameter policy.
+
+### COAT: Compressing Optimizer States and Activation for Memory-Efficient FP8 Training
+
+**2024 · [Paper](https://arxiv.org/abs/2410.19313) · [Implementation](https://github.com/NVlabs/COAT)**
+
+- **Idea/evidence:** combines FP8 optimizer-state compression with activation
+  quantization. The reported 1.54× end-to-end memory reduction is about 35% less
+  memory in the tested setup, not an optimizer-only saving.
+- **Possible lab experiment:** isolate state compression from activation changes
+  if a compatible implementation becomes available; compare numerical stability.
+- **Limits/fit:** the official release uses CUDA/`qoptim_cuda` and demonstrates
+  H100 execution. This is a research reference, not a verified Radeon drop-in;
+  support for an FP8 dtype alone does not supply the required kernels.
+
+### ZeRO, ZeRO-Offload and ZeRO-Infinity
+
+**2019/2021 · [ZeRO](https://arxiv.org/abs/1910.02054) · [ZeRO-Offload](https://arxiv.org/abs/2101.06840) · [ZeRO-Infinity](https://arxiv.org/abs/2104.07857)**
+
+- **Idea/evidence:** ZeRO stages partition optimizer states, gradients and
+  parameters across workers. Offload moves states/compute to CPU; Infinity adds
+  heterogeneous CPU/NVMe storage. These are training-system approaches that can
+  retain AdamW, rather than competing update rules.
+- **Possible lab experiment:** a separately integrated CPU-state-offload arm
+  could measure device capacity versus host RAM, transfer time and update latency.
+- **Limits/fit:** ordinary sharding offers no world-size capacity benefit on one
+  GPU. CPU/NVMe offload requires bandwidth and substantial host/storage capacity;
+  it is unrelated to saving disk checkpoints. [DeepSpeed's documentation](https://deepspeed.readthedocs.io/en/latest/zero3.html)
+  describes these mechanisms, but general AMD support does not verify CPUAdam
+  build compatibility or performance on this exact Radeon runtime.
