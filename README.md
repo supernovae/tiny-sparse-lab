@@ -89,6 +89,21 @@ retain those destinations even when the global root changes. Use fresh run IDs a
 stage directories when repeating an experiment; check free storage and runtime
 warmup measurements before scaling.
 
+## Try an existing model
+
+Use the [TinyText model guide](docs/tinytext-model-guide.md) to locate and verify
+retained runs, inspect exact prompts, generate raw continuations, and compare
+checkpoints in the existing Streamlit surface. [DevMind MODEL-0](docs/model-0.md)
+is a completed 69M base checkpoint with repetitive samples and no SFT; weights
+must already be available in a validated run. TinyText is not a registered model
+identity in this checkout and is not interchangeable with TinyStories.
+
+For client applications, [`sparselab serve`](docs/local-api.md) exposes one pinned
+model on loopback through `/v1/models`, `/v1/completions` and
+`/v1/chat/completions`. This small API is nonstreaming and rejects unsupported
+options. Open WebUI is optional; terminal chat and raw completion need no added
+frontend. Interface support does not imply instruction-following quality.
+
 ## Iterate with the lab
 
 Declare one change, inspect its effective settings and storage, pilot the actual

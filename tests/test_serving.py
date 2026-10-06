@@ -1,0 +1,546 @@
+from __future__ import annotations
+
+import http.client
+import json
+import shutil
+import socket
+import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+
+import pytest
+from test_inference import trained_run  # noqa: F401
+
+from sparselab.cli.main import build_parser, main
+from sparselab.evaluation import serving
+from sparselab.evaluation.generation import GenerationCancelled, GenerationResult
+from sparselab.evaluation.inference import load_run
+from sparselab.evaluation.serving import (
+    APIError,
+    LocalHTTPServer,
+    LocalInference,
+    ServerLimits,
+)
+
+
+@pytest.fixture(scope="module")
+def loaded(request):
+    trained = request.getfixturevalue("trained_run")
+    return load_run("original", trained.logging.root_dir)
+
+
+def request(server, path, body=None, *, raw=None, headers=None):
+    connection = http.client.HTTPConnection(*server.server_address[:2], timeout=5)
+    try:
+        data = (
+            raw if raw is not None else json.dumps(body) if body is not None else None
+        )
+        connection.request(
+            "GET" if data is None else "POST",
+            path,
+            body=data,
+            headers=headers or {"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        content = response.read()
+        return response.status, json.loads(content) if content else None
+    finally:
+        connection.close()
+
+
+@contextmanager
+def running(loaded, **limits):
+    app = LocalInference(loaded, "test-model", ServerLimits(**limits))
+    with LocalHTTPServer(("127.0.0.1", 0), app) as server:
+        thread = threading.Thread(
+            target=server.serve_forever, kwargs={"poll_interval": 0.01}
+        )
+        thread.start()
+        try:
+            yield server
+        finally:
+            app.closing.set()
+            server.shutdown()
+            thread.join(timeout=5)
+            assert not thread.is_alive()
+
+
+def payload(**changes):
+    return {"model": "test-model", "prompt": "hello", "max_tokens": 2, **changes}
+
+
+def test_models_and_real_raw_chat_roundtrip(loaded):
+    with running(loaded) as server:
+        status, models = request(server, "/v1/models")
+        assert status == 200
+        entry = models["data"][0]
+        assert entry["id"] == "test-model"
+        assert entry["sparselab"]["identity"] == loaded.identity
+        assert entry["sparselab"]["streaming"] is False
+        status, first = request(
+            server, "/v1/completions", payload(temperature=0.8, seed=17, top_k=8)
+        )
+        assert status == 200
+        _, second = request(
+            server, "/v1/completions", payload(temperature=0.8, seed=17, top_k=8)
+        )
+        assert first["choices"] == second["choices"]
+        assert first["sparselab"]["prompt"] == "hello"
+        assert first["usage"]["total_tokens"] == sum(
+            first["usage"][key] for key in ("prompt_tokens", "completion_tokens")
+        )
+        assert first["choices"][0]["finish_reason"] in {"stop", "length"}
+        status, chat = request(
+            server,
+            "/v1/chat/completions",
+            {
+                "model": "test-model",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "Hi"}],
+                "stream": False,
+                "n": 1,
+                "top_p": 1.0,
+                "frequency_penalty": 0,
+            },
+        )
+        assert status == 200
+        assert chat["object"] == "chat.completion"
+        assert chat["choices"][0]["message"]["role"] == "assistant"
+        assert chat["sparselab"]["prompt"] == "User: Hi\n\nAssistant:"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"stream": True},
+        {"stream": 0},
+        {"top_p": 0.9},
+        {"n": 2},
+        {"n": True},
+        {"tools": []},
+        {"tool_choice": "none"},
+        {"response_format": {"type": "text"}},
+        {"logprobs": 1},
+        {"best_of": 1},
+        {"echo": True},
+        {"stream_options": {}},
+        {"frequency_penalty": 1},
+        {"presence_penalty": -1},
+        {"suffix": "x"},
+        {"max_tokens": 0},
+        {"max_tokens": True},
+        {"max_tokens": 257},
+        {"temperature": float("nan")},
+        {"temperature": -0.1},
+        {"temperature": True},
+        {"temperature": 1e300},
+        {"temperature": 10**400},
+        {"seed": -1},
+        {"seed": 2**64},
+        {"top_k": -1},
+        {"top_k": 999999},
+        {"stop": [""]},
+        {"stop": ["a"] * 5},
+        {"stop": "x" * 257},
+        {"prompt": ["batch"]},
+        {"prompt": [1, 2]},
+        {"prompt": None},
+    ],
+)
+def test_unsupported_and_invalid_options_fail_before_generation(
+    loaded, monkeypatch, changes
+):
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid requests must not invoke model")
+
+    monkeypatch.setattr(serving, "generate_result", forbidden)
+    app = LocalInference(loaded, "test-model")
+    with pytest.raises(APIError):
+        app.complete(payload(**changes), chat=False, cancellation=threading.Event())
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        [],
+        [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}],
+        [{"role": "tool", "content": "Hi"}],
+        [{"role": "developer", "content": "Hi"}],
+        [{"role": "assistant", "content": "Hi"}],
+        [{"role": "user", "content": "Hi", "name": "someone"}],
+        [{"role": "user", "content": " "}],
+        [{"role": "system", "content": "Hi"}],
+        [{"role": "user", "content": "Hi"}, {"role": "user", "content": "Hi"}],
+    ],
+)
+def test_chat_messages_rejected(loaded, messages):
+    app = LocalInference(loaded, "test-model")
+    with pytest.raises(APIError):
+        app.complete(
+            {"model": "test-model", "messages": messages, "max_tokens": 1},
+            chat=True,
+            cancellation=threading.Event(),
+        )
+
+
+def test_context_never_silently_truncated(loaded):
+    app = LocalInference(loaded, "test-model")
+    with pytest.raises(APIError, match="context"):
+        app.complete(
+            payload(prompt="hello " * 100), chat=False, cancellation=threading.Event()
+        )
+    with pytest.raises(APIError, match="history"):
+        app.complete(
+            {
+                "model": "test-model",
+                "max_tokens": 1,
+                "messages": [
+                    {"role": "user", "content": "hello " * 100},
+                    {"role": "assistant", "content": "hello"},
+                    {"role": "user", "content": "Hi"},
+                ],
+            },
+            chat=True,
+            cancellation=threading.Event(),
+        )
+
+
+def test_http_errors(loaded):
+    with running(loaded, max_request_bytes=1024) as server:
+        assert request(server, "/missing")[0] == 404
+        assert request(server, "/missing", payload())[0] == 404
+        assert request(server, "/v1/completions", payload(model="wrong"))[0] == 404
+        assert request(server, "/v1/completions", raw="{")[0] == 400
+        assert request(server, "/v1/completions", raw="[]")[0] == 400
+        assert request(server, "/v1/completions", raw="x" * 1025)[0] == 413
+        assert (
+            request(
+                server,
+                "/v1/completions",
+                raw="{}",
+                headers={"Content-Type": "text/plain"},
+            )[0]
+            == 415
+        )
+        assert (
+            request(
+                server,
+                "/v1/completions",
+                raw="{}",
+                headers={"Transfer-Encoding": "chunked"},
+            )[0]
+            == 400
+        )
+        assert request(server, "/v1/completions", payload(stream=True))[0] == 400
+
+
+def test_empty_prompt_usage_accounts_for_bos(loaded):
+    with running(loaded) as server:
+        status, response = request(server, "/v1/completions", payload(prompt=""))
+        assert status == 200
+        assert response["usage"]["prompt_tokens"] == 1
+
+
+def test_stop_metadata_and_actual_trajectory_count(loaded, monkeypatch):
+    calls = []
+
+    def fake(*args, **kwargs):
+        calls.append(kwargs)
+        return GenerationResult(args[2] + "ok", [1, 2, 3], 2, 4, "stop")
+
+    monkeypatch.setattr(serving, "generate_result", fake)
+    with running(loaded) as server:
+        status, response = request(server, "/v1/completions", payload(stop="END"))
+        assert status == 200
+        assert response["choices"][0]["finish_reason"] == "stop"
+        assert response["usage"]["completion_tokens"] == 4
+        assert calls[0]["stop_sequences"] == ["END"]
+
+
+def test_concurrent_requests_are_serialized_and_waiter_can_cancel(loaded, monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+    cancelled = threading.Event()
+    calls = []
+
+    def fake(*args, **kwargs):
+        calls.append(args[2])
+        entered.set()
+        assert release.wait(5)
+        return GenerationResult(args[2], [], 1, 1, "stop")
+
+    monkeypatch.setattr(serving, "generate_result", fake)
+    app = LocalInference(loaded, "test-model")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(
+            app.complete, payload(), chat=False, cancellation=threading.Event()
+        )
+        assert entered.wait(5)
+        second = pool.submit(
+            app.complete, payload(prompt="other"), chat=False, cancellation=cancelled
+        )
+        cancelled.set()
+        try:
+            with pytest.raises(GenerationCancelled):
+                second.result(timeout=5)
+            assert calls == ["hello"]
+        finally:
+            release.set()
+        assert first.result(timeout=5)["choices"][0]["finish_reason"] == "stop"
+    app.complete(payload(prompt="next"), chat=False, cancellation=threading.Event())
+    assert calls == ["hello", "next"]
+
+
+def test_disconnect_cancels_active_generation_and_server_recovers(loaded, monkeypatch):
+    entered = threading.Event()
+    stopped = threading.Event()
+
+    def fake(*args, **kwargs):
+        entered.set()
+        while not kwargs["cancellation"]():
+            stopped.wait(0.01)
+        stopped.set()
+        raise GenerationCancelled("disconnected")
+
+    original = serving.generate_result
+    monkeypatch.setattr(serving, "generate_result", fake)
+    with running(loaded) as server:
+        connection = socket.create_connection(server.server_address)
+        body = json.dumps(payload()).encode()
+        connection.sendall(
+            b"POST /v1/completions HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: "
+            + str(len(body)).encode()
+            + b"\r\n\r\n"
+            + body
+        )
+        assert entered.wait(5)
+        connection.close()
+        assert stopped.wait(5)
+        monkeypatch.setattr(serving, "generate_result", original)
+        assert request(server, "/v1/completions", payload())[0] == 200
+
+
+def test_deadline_cancels_generation(loaded, monkeypatch):
+    stopped = threading.Event()
+
+    def fake(*args, **kwargs):
+        while not kwargs["cancellation"]():
+            stopped.wait(0.01)
+        stopped.set()
+        raise GenerationCancelled("deadline")
+
+    monkeypatch.setattr(serving, "generate_result", fake)
+    with running(loaded, request_timeout=0.2) as server:
+        assert request(server, "/v1/completions", payload())[0] == 408
+        assert stopped.is_set()
+
+
+def test_connection_limit_rejects_excess_requests(loaded, monkeypatch):
+    entered = threading.Event()
+    release = threading.Event()
+
+    def fake(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return GenerationResult(args[2], [], 1, 1, "stop")
+
+    monkeypatch.setattr(serving, "generate_result", fake)
+    with (
+        running(loaded, max_clients=1) as server,
+        ThreadPoolExecutor(max_workers=1) as pool,
+    ):
+        first = pool.submit(request, server, "/v1/completions", payload())
+        assert entered.wait(5)
+        try:
+            assert request(server, "/v1/models")[0] == 503
+        finally:
+            release.set()
+        assert first.result(timeout=5)[0] == 200
+
+
+def test_server_shutdown_cancels_active_generation(loaded, monkeypatch):
+    entered = threading.Event()
+    stopped = threading.Event()
+
+    def fake(*args, **kwargs):
+        entered.set()
+        while not kwargs["cancellation"]():
+            stopped.wait(0.01)
+        stopped.set()
+        raise GenerationCancelled("shutdown")
+
+    monkeypatch.setattr(serving, "generate_result", fake)
+    with running(loaded) as server, ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(request, server, "/v1/completions", payload())
+        assert entered.wait(5)
+        server.inference.closing.set()
+        assert first.result(timeout=5)[0] == 408
+        assert stopped.is_set()
+
+
+def test_loopback_and_limits(loaded):
+    with pytest.raises(ValueError, match="loopback"):
+        LocalHTTPServer(("0.0.0.0", 0), LocalInference(loaded))
+    for options in (
+        {"max_clients": 0},
+        {"max_new_tokens": -1},
+        {"request_timeout": float("nan")},
+        {"max_request_bytes": True},
+    ):
+        with pytest.raises(ValueError):
+            ServerLimits(**options)
+
+
+def test_cli_wires_loader_runtime_and_pinned_identity(loaded, monkeypatch, capsys):
+    from sparselab.cli.serve import serve
+
+    calls = []
+
+    def loader(*args, **kwargs):
+        calls.append((args, kwargs))
+        return loaded
+
+    monkeypatch.setattr("sparselab.evaluation.inference.load_run", loader)
+    monkeypatch.setattr(LocalHTTPServer, "serve_forever", lambda *args, **kwargs: None)
+    args = build_parser().parse_args(
+        [
+            "serve",
+            "original",
+            "--checkpoint",
+            "chosen",
+            "--backend",
+            "cpu",
+            "--port",
+            "0",
+            "--model-id",
+            "fixed",
+        ]
+    )
+    args.runtime_authorization = object()
+    serve(args)
+    result = json.loads(capsys.readouterr().out)
+    assert result["identity"] == loaded.identity
+    assert result["model"] == "fixed"
+    assert calls[0][0][2:] == ("chosen", "cpu")
+    assert calls[0][1]["authorization"] is args.runtime_authorization
+
+
+def test_serve_rejects_corrupt_checkpoint_before_binding(loaded, tmp_path, monkeypatch):
+    shutil.copytree(loaded.run, tmp_path / "bad")
+    (tmp_path / "bad" / "tokenizer.json").write_text("{}")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sparselab", "serve", "bad", "--runs-dir", str(tmp_path), "--backend", "cpu"],
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid artifacts must fail before binding a server")
+
+    monkeypatch.setattr(LocalHTTPServer, "__init__", forbidden)
+    with pytest.raises((ValueError, SystemExit)):
+        main()
+
+
+def test_serve_runtime_gate_precedes_loader(loaded, monkeypatch, tmp_path):
+    from sparselab.cli.main import _prepare_runtime_command
+
+    config = loaded.config.model_copy(
+        update={"runtime": loaded.config.runtime.model_copy(update={"backend": "cuda"})}
+    )
+    run = tmp_path / "gated"
+    run.mkdir()
+    (run / "resolved_config.yaml").write_text(config.model_dump_json())
+    args = build_parser().parse_args(["serve", "gated", "--runs-dir", str(tmp_path)])
+    with pytest.raises(ValueError, match="runtime"):
+        _prepare_runtime_command(args)
+
+
+@pytest.mark.parametrize("changes", [{"prompt": "\ud800"}, {"stop": "\ud800"}])
+def test_invalid_unicode_is_client_error(loaded, changes):
+    with running(loaded) as server:
+        assert request(server, "/v1/completions", payload(**changes))[0] == 400
+
+
+def test_header_read_has_deadline_and_releases_slot(loaded):
+    with running(loaded, max_clients=1, request_timeout=0.2) as server:
+        connection = socket.create_connection(server.server_address)
+        connection.settimeout(5)
+        try:
+            connection.sendall(b"POST /v1/completions HTTP/1.0\r\nX-Incomplete: ")
+            # Header parsing must terminate on its absolute deadline, even when
+            # no POST handler/body watcher has begun. No elapsed-time assertion.
+            response = bytearray()
+            while chunk := connection.recv(1024):
+                response.extend(chunk)
+            assert not response or b"400" in response or b"408" in response
+        finally:
+            connection.close()
+
+
+def test_incomplete_body_is_released_on_deadline(loaded):
+    with running(loaded, request_timeout=0.2) as server:
+        connection = socket.create_connection(server.server_address)
+        connection.settimeout(5)
+        try:
+            connection.sendall(
+                b"POST /v1/completions HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{"
+            )
+            response = bytearray()
+            while chunk := connection.recv(1024):
+                response.extend(chunk)
+            assert not response or b"400" in response or b"408" in response
+        finally:
+            connection.close()
+
+
+def test_model_failure_releases_lock_and_returns_structured_error(loaded, monkeypatch):
+    original = serving.generate_result
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("private/path must not be returned")
+
+    monkeypatch.setattr(serving, "generate_result", broken)
+    with running(loaded) as server:
+        status, error = request(server, "/v1/completions", payload())
+        assert status == 500
+        assert error["error"]["code"] == "inference_error"
+        assert "private/path" not in json.dumps(error)
+        monkeypatch.setattr(serving, "generate_result", original)
+        assert request(server, "/v1/completions", payload())[0] == 200
+
+
+def test_two_http_callers_both_complete_without_overlapping_model(loaded, monkeypatch):
+    original = serving.generate_result
+    entered = threading.Event()
+    release = threading.Event()
+    attempted_second = threading.Event()
+    active = 0
+    peak = 0
+
+    def fake(*args, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        entered.set()
+        try:
+            assert release.wait(5)
+            return original(*args, **kwargs)
+        finally:
+            active -= 1
+
+    monkeypatch.setattr(serving, "generate_result", fake)
+    with running(loaded) as server, ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(request, server, "/v1/completions", payload())
+        assert entered.wait(5)
+
+        def second_request():
+            attempted_second.set()
+            return request(server, "/v1/completions", payload())
+
+        second = pool.submit(second_request)
+        assert attempted_second.wait(5)
+        release.set()
+        assert first.result(timeout=5)[0] == second.result(timeout=5)[0] == 200
+        assert peak == 1

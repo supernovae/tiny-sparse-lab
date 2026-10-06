@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
-from typing import Any
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from threading import Event
+from typing import Any, Literal
 
 import torch
 from tokenizers import Tokenizer
@@ -10,6 +12,35 @@ from tokenizers import Tokenizer
 from sparselab.data.byte_hash import table_address, token_bytes
 from sparselab.engines.mlx import MLXEngine, preserve_rng_state
 from sparselab.engram.semantic import SemanticQueryBatch
+
+
+class GenerationCancelled(RuntimeError):
+    """A request was cancelled at a decoding boundary."""
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    """Decoded text and actual sampling accounting, before text-only trimming.
+
+    ``text`` includes the prompt. ``token_ids`` excludes prompt and EOS tokens;
+    ``completion_tokens`` includes a sampled EOS and any trimmed string stop.
+    An empty prompt consumes a synthetic BOS, counted in ``prompt_tokens``.
+    """
+
+    text: str
+    token_ids: list[int]
+    prompt_tokens: int
+    completion_tokens: int
+    finish_reason: Literal["stop", "length"]
+
+
+def _check_cancelled(cancellation: Event | Callable[[], bool] | None) -> None:
+    if cancellation is not None:
+        cancelled = (
+            cancellation.is_set() if isinstance(cancellation, Event) else cancellation()
+        )
+        if cancelled:
+            raise GenerationCancelled("generation cancelled")
 
 
 def _addresses_from_ids(
@@ -234,6 +265,7 @@ def generate(
     stop_sequences: Sequence[str] = (),
     strict_context: bool = False,
     use_cache: bool = True,
+    cancellation: Event | Callable[[], bool] | None = None,
     engine: MLXEngine | None = None,
     semantic_queries: SemanticQueryBatch
     | Mapping[str, SemanticQueryBatch]
@@ -253,6 +285,7 @@ def generate(
         stop_sequences=stop_sequences,
         strict_context=strict_context,
         use_cache=use_cache,
+        cancellation=cancellation,
         engine=engine,
         semantic_queries=semantic_queries,
     )
@@ -273,12 +306,67 @@ def generate_with_token_ids(
     stop_sequences: Sequence[str] = (),
     strict_context: bool = False,
     use_cache: bool = True,
+    cancellation: Event | Callable[[], bool] | None = None,
     engine: MLXEngine | None = None,
     semantic_queries: SemanticQueryBatch
     | Mapping[str, SemanticQueryBatch]
     | None = None,
 ) -> tuple[str, list[int]]:
     """Continue ``prompt`` using locally seeded sampled decoding.
+
+    Semantic inputs are already-encoded, identity-checked query batches. Sequence
+    queries track context truncation and repeat their final position across generated
+    tokens; cached and full-prefix PyTorch paths preserve the same query trajectory.
+    Native MLX does not implement semantic attachments.
+
+    Returned IDs are sampled completion tokens (not prompt or EOS), before any
+    text-only stop-sequence trimming. They preserve the exact decoding trajectory
+    even if decoding cannot be reversed by encoding the displayed text.
+    """
+    result = generate_result(
+        model,
+        tokenizer,
+        prompt,
+        max_seq_len,
+        max_new_tokens,
+        device,
+        temperature=temperature,
+        top_k=top_k,
+        seed=seed,
+        stop_sequences=stop_sequences,
+        strict_context=strict_context,
+        use_cache=use_cache,
+        cancellation=cancellation,
+        engine=engine,
+        semantic_queries=semantic_queries,
+    )
+    return result.text, result.token_ids
+
+
+def generate_result(
+    model: Any,
+    tokenizer: Tokenizer,
+    prompt: str,
+    max_seq_len: int,
+    max_new_tokens: int,
+    device: torch.device | str,
+    *,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    seed: int = 0,
+    stop_sequences: Sequence[str] = (),
+    strict_context: bool = False,
+    use_cache: bool = True,
+    cancellation: Event | Callable[[], bool] | None = None,
+    engine: MLXEngine | None = None,
+    semantic_queries: SemanticQueryBatch
+    | Mapping[str, SemanticQueryBatch]
+    | None = None,
+) -> GenerationResult:
+    """Continue ``prompt`` with sampling metadata and cooperative cancellation.
+
+    Cancellation is checked at token boundaries; it cannot interrupt a running
+    backend kernel. Request-local caches are discarded and model mode restored.
 
     Semantic inputs are already-encoded, identity-checked query batches. Sequence
     queries track context truncation and repeat their final position across generated
@@ -315,8 +403,9 @@ def generate_with_token_ids(
     prompt_length = len(ids)
     if strict_context and len(ids) + max_new_tokens > max_seq_len:
         raise ValueError("prompt and requested completion exceed max_seq_len")
+    _check_cancelled(cancellation)
     if max_new_tokens == 0:
-        return prompt, []
+        return GenerationResult(prompt, [], prompt_length, 0, "length")
 
     source_bytes = bytearray(prompt.encode("utf-8")) if byte_memory else None
     addresses = (
@@ -339,6 +428,8 @@ def generate_with_token_ids(
     }
     eos = tokenizer.token_to_id("<eos>")
     generated: list[int] = []
+    completion_tokens = 0
+    finish_reason: Literal["stop", "length"] = "length"
     generator = None
     if engine is None:
         generator = torch.Generator(device="cpu")
@@ -399,10 +490,12 @@ def generate_with_token_ids(
     try:
         with preserve_rng_state() if engine is not None else torch.inference_mode():
             key = mx.random.key(seed) if mx is not None else None
+            _check_cancelled(cancellation)
             logits = (
                 rebuild_cache(max_new_tokens) if cache_enabled else full_prefix_logits()
             )
             for _ in range(max_new_tokens):
+                _check_cancelled(cancellation)
                 if engine is not None:
                     token, key = _mlx_next_token(
                         engine,
@@ -421,7 +514,9 @@ def generate_with_token_ids(
                         blocked_ids=blocked_ids,
                         generator=generator,
                     )
+                completion_tokens += 1
                 if token == eos:
+                    finish_reason = "stop"
                     break
                 generated.append(token)
                 ids.append(token)
@@ -437,9 +532,11 @@ def generate_with_token_ids(
                 if stop_sequences:
                     decoded = tokenizer.decode(generated, skip_special_tokens=True)
                     if any(stop in decoded for stop in stop_sequences):
+                        finish_reason = "stop"
                         break
                 if len(generated) == max_new_tokens:
                     break
+                _check_cancelled(cancellation)
                 if not cache_enabled:
                     logits = full_prefix_logits()
                 elif cache.length >= cache.capacity:
@@ -468,9 +565,16 @@ def generate_with_token_ids(
                     )
                     logits = next_logits[0, -1]
     finally:
+        # Drop request-owned tensors even when a caller retains an exception traceback.
+        cache = None
+        options = {}
+        logits = None
+        next_logits = None
         model.train(was_training)
 
     completion = tokenizer.decode(generated, skip_special_tokens=True)
     for stop in stop_sequences:
         completion = completion.split(stop, 1)[0]
-    return prompt + completion, generated
+    return GenerationResult(
+        prompt + completion, generated, prompt_length, completion_tokens, finish_reason
+    )

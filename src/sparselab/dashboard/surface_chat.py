@@ -79,7 +79,10 @@ def verified_checkpoints(
 
 
 def check_common_context(
-    prompt: str, checkpoints: Sequence[tuple[str, InferenceRun]], max_new_tokens: int
+    prompt: str,
+    checkpoints: Sequence[tuple[str, InferenceRun]],
+    max_new_tokens: int,
+    context_length: int | None = None,
 ) -> None:
     """Preflight *all* native tokenizers before generating from *any* model."""
     if not prompt.strip():
@@ -87,9 +90,13 @@ def check_common_context(
     if max_new_tokens < 1:
         raise ValueError("completion length must be positive")
     for _, loaded in checkpoints:
+        native = loaded.config.model.max_seq_len
+        if context_length is not None and not 1 <= context_length <= native:
+            raise ValueError("context cap must fit every model native context")
+        context = native if context_length is None else context_length
         count = len(loaded.tokenizer.encode(prompt, add_special_tokens=False).ids)
         # generate_with_token_ids inserts BOS when tokenization is empty.
-        if max(count, 1) + max_new_tokens > loaded.config.model.max_seq_len:
+        if max(count, 1) + max_new_tokens > context:
             raise ValueError(
                 "prompt and completion do not fit every model's native context"
             )
@@ -114,6 +121,9 @@ def generate_comparison(
     top_k: int,
     seed: int,
     ordinal: int,
+    stop_sequences: Sequence[str] = (),
+    use_cache: bool = True,
+    context_length: int | None = None,
 ) -> dict[str, Any]:
     """Generate sequentially with the same policy and RNG seed on every model."""
     from sparselab.evaluation.generation import generate_with_token_ids
@@ -122,20 +132,24 @@ def generate_comparison(
         raise ValueError("select two to four verified checkpoints")
     if temperature < 0 or top_k < 0:
         raise ValueError("temperature and top_k must be nonnegative")
-    check_common_context(prompt, checkpoints, max_new_tokens)
+    if any(not isinstance(stop, str) or not stop for stop in stop_sequences):
+        raise ValueError("stop sequences must be nonempty strings")
+    check_common_context(prompt, checkpoints, max_new_tokens, context_length)
     replies = []
     for alias, loaded in checkpoints:
         text, token_ids = generate_with_token_ids(
             loaded.model,
             loaded.tokenizer,
             prompt,
-            loaded.config.model.max_seq_len,
+            context_length or loaded.config.model.max_seq_len,
             max_new_tokens,
             loaded.device,
             temperature=temperature,
             top_k=top_k,
             seed=seed + ordinal,
             strict_context=True,
+            stop_sequences=stop_sequences,
+            use_cache=use_cache,
             engine=loaded.engine,
         )
         replies.append(
@@ -144,17 +158,26 @@ def generate_comparison(
                 "identity": loaded.identity,
                 "response": text[len(prompt) :],
                 "token_ids": token_ids,
+                "prompt_tokens": len(
+                    loaded.tokenizer.encode(prompt, add_special_tokens=False).ids
+                ),
+                "context_length": context_length or loaded.config.model.max_seq_len,
             }
         )
     order = anonymous_order(len(checkpoints), seed, ordinal)
     return {
         "prompt": prompt,
+        "prompt_format": "raw",
         "ordinal": ordinal,
         "policy": {
             "temperature": temperature,
             "top_k": top_k,
             "max_new_tokens": max_new_tokens,
             "seed": seed + ordinal,
+            "stop_sequences": list(stop_sequences),
+            "use_cache": use_cache,
+            "context_length": context_length,
+            "strict_context": True,
         },
         "cards": [
             {"label": _LABELS[index], **replies[source]}
@@ -224,7 +247,11 @@ def render_chat(args: Any) -> None:
 
     for turn in turns:
         st.subheader(f"Prompt {turn['ordinal'] + 1}")
-        st.write(turn["prompt"])
+        st.caption(
+            "Raw completion prompt — passed unchanged; no chat template or history added."
+        )
+        st.code(turn["prompt"], language=None)
+        st.json(turn["policy"])
         for card in turn["cards"]:
             st.markdown(f"**Response {card['label']}**")
             st.text(card["response"] or "(empty completion)")
@@ -251,6 +278,14 @@ def render_chat(args: Any) -> None:
                 st.write(
                     f"{card['label']}: {card['alias']} — run {identity['run_id']}, checkpoint {identity['checkpoint_relative_path']}"
                 )
+                st.json(
+                    {
+                        "identity": identity,
+                        "prompt_tokens": card["prompt_tokens"],
+                        "context_length": card["context_length"],
+                        "completion_token_ids": card["token_ids"],
+                    }
+                )
         if (
             turns
             and st.session_state.surface_chat_saved is None
@@ -273,6 +308,9 @@ def render_chat(args: Any) -> None:
     if min(loaded.config.model.max_seq_len for _, loaded in checkpoints) < 2:
         st.error("Selected checkpoint context cannot fit a prompt and completion.")
         return
+    st.caption(
+        "Base checkpoints continue text; a chat interface does not teach instruction following."
+    )
     with st.form("surface_chat_prompt", clear_on_submit=True):
         prompt = st.text_area(
             "Prompt (leave empty to finish)", key="surface_chat_input"
@@ -302,12 +340,23 @@ def render_chat(args: Any) -> None:
             value=40,
             disabled=policy == "Greedy",
         )
+        context_length = st.number_input(
+            "Common context cap (prompt + completion tokens)",
+            min_value=2,
+            max_value=min(loaded.config.model.max_seq_len for _, loaded in checkpoints),
+            value=min(loaded.config.model.max_seq_len for _, loaded in checkpoints),
+        )
+        stops_json = st.text_input("Stop strings (JSON list)", value="[]")
+        use_cache = st.checkbox("Use request-local KV cache when supported", value=True)
         submitted = st.form_submit_button("Generate anonymously")
     if submitted:
         if not prompt.strip():
             st.session_state.surface_chat_finished = True
             st.rerun()
         try:
+            stops = json.loads(stops_json)
+            if not isinstance(stops, list):
+                raise TypeError("stop strings must be a JSON list")
             turn = generate_comparison(
                 prompt,
                 checkpoints,
@@ -316,8 +365,11 @@ def render_chat(args: Any) -> None:
                 top_k=int(top_k) if policy == "Sampled" else 0,
                 seed=args.seed,
                 ordinal=len(turns),
+                stop_sequences=stops,
+                use_cache=use_cache,
+                context_length=int(context_length),
             )
-        except (OSError, ValueError, RuntimeError) as error:
+        except (OSError, ValueError, TypeError, RuntimeError) as error:
             st.error(
                 f"Generation failed ({type(error).__name__}); no partial comparison was recorded."
             )

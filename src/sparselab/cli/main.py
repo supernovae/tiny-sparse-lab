@@ -884,6 +884,13 @@ def _eval(args: argparse.Namespace) -> None:
     print(json.dumps({**result, "output": str(path)}, indent=2))
 
 
+def _inference_context(args: argparse.Namespace, native: int) -> int:
+    context = args.context_length if args.context_length is not None else native
+    if not 1 <= context <= native:
+        raise ValueError(f"context-length must be between 1 and {native}")
+    return context
+
+
 def _generate(args: argparse.Namespace) -> None:
     loaded = load_run(
         args.run_id,
@@ -892,20 +899,55 @@ def _generate(args: argparse.Namespace) -> None:
         args.backend,
         authorization=args.runtime_authorization,
     )
-    print(
-        generate(
-            loaded.model,
-            loaded.tokenizer,
-            args.prompt,
-            loaded.config.model.max_seq_len,
-            args.max_new_tokens,
-            loaded.device,
-            temperature=args.temperature,
-            top_k=args.top_k,
-            seed=args.seed,
-            engine=loaded.engine,
-        )
+    context = _inference_context(args, loaded.config.model.max_seq_len)
+    settings = {
+        "max_new_tokens": args.max_new_tokens,
+        "temperature": args.temperature,
+        "top_k": args.top_k,
+        "seed": args.seed,
+        "stop_sequences": args.stop,
+        "use_cache": not args.no_cache,
+        "context_length": context,
+        "strict_context": args.strict_context,
+    }
+    if args.show_prompt:
+        print(json.dumps({"format": "raw", "prompt": args.prompt}), file=sys.stderr)
+    text = generate(
+        loaded.model,
+        loaded.tokenizer,
+        args.prompt,
+        context,
+        args.max_new_tokens,
+        loaded.device,
+        temperature=args.temperature,
+        top_k=args.top_k,
+        seed=args.seed,
+        stop_sequences=args.stop,
+        use_cache=not args.no_cache,
+        strict_context=args.strict_context,
+        engine=loaded.engine,
     )
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "identity": loaded.identity,
+                    "format": "raw",
+                    "generation": settings,
+                    "prompt": args.prompt,
+                    "prompt_tokens": len(
+                        loaded.tokenizer.encode(
+                            args.prompt, add_special_tokens=False
+                        ).ids
+                    ),
+                    "response": text[len(args.prompt) :],
+                    "text": text,
+                },
+                sort_keys=True,
+            )
+        )
+    else:
+        print(text)
 
 
 def _model_exercise(args: argparse.Namespace) -> None:
@@ -2014,6 +2056,13 @@ def _chat(args: argparse.Namespace) -> None:
         args.backend,
         authorization=args.runtime_authorization,
     )
+    context = _inference_context(args, loaded.config.model.max_seq_len)
+    stops = ["\nUser:", "\nSystem:", "\nAssistant:", *args.stop]
+    if not args.json:
+        print(
+            "Verified checkpoint: " + json.dumps(loaded.identity, sort_keys=True),
+            file=sys.stderr,
+        )
     history: list[ChatMessage] = []
     turns = []
     settings = {
@@ -2021,6 +2070,10 @@ def _chat(args: argparse.Namespace) -> None:
         "temperature": args.temperature,
         "top_k": args.top_k,
         "seed": args.seed,
+        "stop_sequences": stops,
+        "use_cache": not args.no_cache,
+        "context_length": context,
+        "strict_context": True,
     }
     if args.transcript and Path(args.transcript).exists():
         raise FileExistsError(f"transcript already exists: {args.transcript}")
@@ -2030,26 +2083,33 @@ def _chat(args: argparse.Namespace) -> None:
             history,
             message,
             loaded.tokenizer,
-            loaded.config.model.max_seq_len,
+            context,
             args.max_new_tokens,
             system=args.system,
         )
+        if args.show_prompt:
+            print(
+                json.dumps({"format": "chat_transcript_v1", "prompt": prompt}),
+                file=sys.stderr,
+            )
         completion = generate(
             loaded.model,
             loaded.tokenizer,
             prompt,
-            loaded.config.model.max_seq_len,
+            context,
             args.max_new_tokens,
             loaded.device,
             temperature=args.temperature,
             top_k=args.top_k,
             seed=args.seed,
             strict_context=True,
-            stop_sequences=("\nUser:", "\nSystem:", "\nAssistant:"),
+            stop_sequences=stops,
+            use_cache=not args.no_cache,
             engine=loaded.engine,
         )
         reply = assistant_reply(completion, prompt)
         turn = {
+            "format": "chat_transcript_v1",
             "user": message,
             "prompt": prompt,
             "response": reply,
@@ -2860,6 +2920,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     learn_probe.add_argument("--json", action="store_true")
     learn_probe.set_defaults(handler=_learn_probe)
 
+    from sparselab.cli.serve import add_command as add_serve_command
+
+    add_serve_command(commands, runs_dir_default)
     generation = commands.add_parser("generate")
     generation.add_argument("run_id")
     generation.add_argument("--prompt", required=True)
@@ -2873,6 +2936,35 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     generation.add_argument("--temperature", type=float, default=0.0)
     generation.add_argument("--top-k", type=int, default=0)
     generation.add_argument("--seed", type=int, default=0)
+    generation.add_argument(
+        "--stop",
+        action="append",
+        default=[],
+        help="Literal stop string; repeat for multiple stops",
+    )
+    generation.add_argument(
+        "--no-cache", action="store_true", help="Disable request-local KV caching"
+    )
+    generation.add_argument(
+        "--context-length",
+        type=int,
+        help="Context cap, at most the checkpoint native context",
+    )
+    generation.add_argument(
+        "--show-prompt",
+        action="store_true",
+        help="Print the exact serialized prompt as JSON to stderr",
+    )
+    generation.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit identity, prompt, policy and completion JSON",
+    )
+    generation.add_argument(
+        "--strict-context",
+        action="store_true",
+        help="Reject prompt plus completion beyond context; default uses a sliding window",
+    )
     generation.add_argument(
         "--backend", choices=("auto", "metal", "mps", "cuda", "rocm", "xpu", "cpu")
     )
@@ -2898,6 +2990,25 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     chat.add_argument("--temperature", type=float, default=0.0)
     chat.add_argument("--top-k", type=int, default=0)
     chat.add_argument("--seed", type=int, default=0)
+    chat.add_argument(
+        "--stop",
+        action="append",
+        default=[],
+        help="Literal stop string; repeat for multiple stops",
+    )
+    chat.add_argument(
+        "--no-cache", action="store_true", help="Disable request-local KV caching"
+    )
+    chat.add_argument(
+        "--context-length",
+        type=int,
+        help="Context cap, at most the checkpoint native context",
+    )
+    chat.add_argument(
+        "--show-prompt",
+        action="store_true",
+        help="Print the exact serialized prompt as JSON to stderr",
+    )
     chat.add_argument(
         "--transcript",
         help="Save a checkpoint-bound JSON transcript without overwriting",
@@ -3074,7 +3185,15 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     """Gate direct execution before the CLI creates its scratch directory."""
     args.runtime_authorization = None
     args.runtime_profile_loaded = None
-    is_legacy = args.command in {"train", "stage", "eval", "generate", "chat", "run"}
+    is_legacy = args.command in {
+        "train",
+        "stage",
+        "eval",
+        "generate",
+        "chat",
+        "serve",
+        "run",
+    }
     is_experiment = args.command == "experiment" and args.experiment_command in {
         "bind",
         "run",
@@ -3173,7 +3292,9 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
             (run / "resolved_config.yaml").read_text(encoding="utf-8")
         )
     backend_override = (
-        args.backend if args.command in {"train", "eval", "generate", "chat"} else None
+        args.backend
+        if args.command in {"train", "eval", "generate", "chat", "serve"}
+        else None
     )
     if backend_override is not None:
         config = config.model_copy(
