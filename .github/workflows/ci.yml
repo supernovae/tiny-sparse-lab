@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      serving_only:
+        description: "Run bounded serving checks without the full CPU suites"
+        type: boolean
+        default: false
 
 # PR updates replace obsolete work; main remains covered after merge.
 concurrency:
@@ -132,6 +137,7 @@ jobs:
               -print -exec tail -c 16384 {} \;
           fi
   test:
+    if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -152,6 +158,7 @@ jobs:
       - run: uv run --locked --extra cpu sparselab --help
       - run: uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json
   test-macos-arm64:
+    if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
     runs-on: macos-15
     timeout-minutes: 30
     steps:

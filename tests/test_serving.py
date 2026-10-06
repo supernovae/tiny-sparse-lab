@@ -707,8 +707,15 @@ def test_real_cli_process_serves_pinned_model_and_closes_on_sigint(loaded, tmp_p
             process = subprocess.Popen(
                 [
                     sys.executable,
-                    "-m",
-                    "sparselab",
+                    "-c",
+                    # Execute the real module entry point, with child stacks
+                    # retained if imports, validation, or socket startup stall.
+                    (
+                        "import faulthandler, runpy, sys; "
+                        "print('CLI child entered', file=sys.stderr, flush=True); "
+                        "faulthandler.dump_traceback_later(10, repeat=True); "
+                        "runpy.run_module('sparselab', run_name='__main__', alter_sys=True)"
+                    ),
                     "serve",
                     loaded.run.name,
                     "--runs-dir",
