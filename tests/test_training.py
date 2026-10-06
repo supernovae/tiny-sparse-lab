@@ -623,11 +623,16 @@ def test_source_drift_requires_explicit_best_effort_resume(
     assert decision["changes"][0]["effective"] == changed_source["sha256"]
 
 
-def test_budget_extension_preserves_full_state_and_parent(tmp_path: Path) -> None:
+@pytest.mark.parametrize("explicit_parent_decay", [False, True])
+def test_budget_extension_preserves_full_state_and_parent(
+    tmp_path: Path, explicit_parent_decay: bool
+) -> None:
     raw = config(tmp_path).model_dump(mode="json")
     raw["training"].update(max_steps=4, max_tokens=128)
     raw["checkpoint"]["steps"] = [0, 4]
     raw["evaluation"].update(every_steps=4, max_batches=1)
+    if explicit_parent_decay:
+        raw["optimizer"]["decay_steps"] = 4
     parent_config = RunConfig.model_validate(raw)
     train(parent_config, run_id="parent")
     parent_run = parent_config.logging.root_dir / "parent"
@@ -641,6 +646,10 @@ def test_budget_extension_preserves_full_state_and_parent(tmp_path: Path) -> Non
     raw["training"].update(max_steps=8, max_tokens=256)
     raw["optimizer"]["decay_steps"] = 4
     raw["checkpoint"]["steps"] = [0, 4, 8]
+    if explicit_parent_decay:
+        relocated = tmp_path / "relocated-tokenizer.json"
+        relocated.write_bytes(parent_config.tokenizer.path.read_bytes())
+        raw["tokenizer"]["path"] = str(relocated)
     extended = RunConfig.model_validate(raw)
     with pytest.raises(ValueError, match="configuration differs"):
         train(extended, run_id="strict-rejected", resume=generation)
@@ -684,6 +693,16 @@ def test_budget_extension_preserves_full_state_and_parent(tmp_path: Path) -> Non
         extended.logging.root_dir / "resumed/checkpoints/latest.json"
     )
     assert (finished.step, finished.tokens_seen) == (8, 256)
+    if explicit_parent_decay:
+        from sparselab.training.continuation import _extension_settings
+
+        # Equal tampered files must not authorize a new tokenizer identity.
+        (parent_run / "tokenizer.json").write_bytes(b"tampered tokenizer")
+        extended.tokenizer.path.write_bytes(b"tampered tokenizer")
+        with pytest.raises(ValueError, match="bound run artifact inventory"):
+            _extension_settings(
+                parent_config, extended, parent_tokenizer=parent_run / "tokenizer.json"
+            )
 
 
 def test_budget_extension_rejects_other_changes_before_child(tmp_path: Path) -> None:

@@ -16,13 +16,14 @@ from sparselab.corpus.acquisition import acquire
 from sparselab.corpus.export import verify_release_export
 from sparselab.corpus.pipeline import build
 from sparselab.corpus.project import load_project
-from sparselab.corpus.release import freeze
+from sparselab.corpus.release import freeze, verify_release
 from sparselab.corpus.tokenizer_bakeoff import GROUPS, bakeoff
 from sparselab.data.packing import TokenBlockDataset, load_prepared_data
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
 from sparselab.experiments.artifacts import verify_artifact
 from sparselab.experiments.plan import Artifact
 from sparselab.training.manifest import canonical_json
+from sparselab.verification_proofs import ProofStore
 
 
 def _project(
@@ -152,7 +153,7 @@ def _project(
 
 
 def test_selected_tokenizer_survives_export_and_artifact_verification(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     declaration, workspace = _project(tmp_path, release_schema=3, declaration_schema=2)
     report_path = bakeoff(
@@ -245,6 +246,24 @@ def test_selected_tokenizer_survives_export_and_artifact_verification(
         path=str(selected),
     )
     assert verify_artifact(artifact, declaration)["identifier"] == artifact.identifier
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config-home"))
+    proofs = ProofStore(tmp_path)
+    verify_release(release, proof_store=proofs, verification_mode="verified_reuse")
+    before = proofs.hits
+    verify_tokenizer_artifact(
+        selected,
+        source="local_text",
+        revision=dataset.revision,
+        vocab_size=chosen,
+        dataset=dataset,
+        proof_store=proofs,
+        verification_mode="verified_reuse",
+    )
+    assert proofs.hits > before
+    assert any(
+        event["kind"] == "corpus_release" and event["reason"] == "hit"
+        for event in proofs.diagnostics()["events"]
+    )
     prepared_root = Path(cli("data", "prepare", str(selected_run)))
     assert prepared_root.is_relative_to(export / "prepared")
     run = load_config(selected_run)
@@ -419,6 +438,15 @@ def test_selected_tokenizer_survives_export_and_artifact_verification(
         try:
             with pytest.raises(ValueError):
                 verify_artifact(artifact, declaration)
+            with pytest.raises(ValueError):
+                verify_tokenizer_artifact(
+                    selected,
+                    source="local_text",
+                    revision=dataset.revision,
+                    vocab_size=chosen,
+                    proof_store=proofs,
+                    verification_mode="verified_reuse",
+                )
         finally:
             target.write_bytes(original)
     selected_bytes = selected.read_bytes()

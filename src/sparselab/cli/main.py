@@ -2913,6 +2913,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--surface-dir", help="Optional read-only Surface Review overlay"
     )
     dashboard.set_defaults(handler=_dashboard)
+    from sparselab.iteration_cli import register_parser as register_iteration_parser
+
+    register_iteration_parser(commands)
     from sparselab.corpus.cli import add_commands as add_corpus_commands
 
     add_corpus_commands(commands)
@@ -3176,6 +3179,8 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
 def _read_only_command(args: argparse.Namespace) -> bool:
     from sparselab.campaign.cli import READ_ONLY_COMMANDS
 
+    if args.command == "iteration":
+        return True
     if args.command == "campaign":
         return args.campaign_command in READ_ONLY_COMMANDS
     if args.command == "recovery":

@@ -193,3 +193,73 @@ def test_story_lock_rejects_tokenizer_from_other_source(tmp_path, monkeypatch):
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="provenance|source"):
         resolve_plan(plan, declaration)
+
+
+@pytest.mark.parametrize("external_parent", [False, True])
+@pytest.mark.parametrize("explicit_parent_decay", [False, True])
+def test_budget_extension_locks_original_implicit_or_explicit_horizon(
+    tmp_path, monkeypatch, external_parent, explicit_parent_decay
+):
+    from sparselab.training.trainer import train
+
+    plan, declaration, _ = story_plan(tmp_path, monkeypatch, "tinystories")
+    raw = plan.model_dump(mode="json")
+    if explicit_parent_decay:
+        raw["base_run"]["optimizer"]["decay_steps"] = 2
+    extension = {
+        "id": "child",
+        "transition": "extend_budget",
+        "set": {
+            "training.max_steps": 4,
+            "training.max_tokens": 128,
+            "optimizer.decay_steps": 2,
+        },
+    }
+    if external_parent:
+        parent_config = RunConfig.model_validate(raw["base_run"])
+        if explicit_parent_decay:
+            relocated = tmp_path / "parent-tokenizer"
+            relocated.mkdir()
+            for name in ("tokenizer.json", "tokenizer_manifest.json"):
+                (relocated / name).write_bytes(
+                    (parent_config.tokenizer.path.parent / name).read_bytes()
+                )
+            parent_config = parent_config.model_copy(
+                update={
+                    "tokenizer": parent_config.tokenizer.model_copy(
+                        update={"path": relocated / "tokenizer.json"}
+                    )
+                }
+            )
+        run_id = train(parent_config, run_id="parent")
+        generation = parent_config.logging.root_dir / run_id / "checkpoints/latest.json"
+        from sparselab.training.checkpoints import CheckpointManager
+
+        manager = CheckpointManager(parent_config.logging.root_dir / run_id)
+        generation = manager._resolve(generation)
+        snapshot = manager.load(generation)
+        raw["artifacts"]["parent"] = {
+            "kind": "checkpoint",
+            "version": 2,
+            "producer": "sparselab",
+            "identifier": generation.name,
+            "sha256": snapshot.checkpoint_sha256,
+            "path": str(generation),
+            "state": "full",
+        }
+        extension["checkpoint"] = "parent"
+        raw["phases"] = [extension]
+    else:
+        extension.update(parent="parent", selector="terminal", at_step=2)
+        raw["phases"] = [{"id": "parent"}, extension]
+    extended = ExperimentPlan.model_validate(raw)
+    declaration.write_text(extended.model_dump_json())
+    locked = resolve_plan(extended, declaration)
+    child = next(cell for cell in locked.cells if cell.phase == "child")
+    assert child.effective["optimizer_decay_horizon"] == 2
+    assert child.effective["target_token_exposures"] == 128
+    assert child.config.training.max_steps == 4
+
+    extension["set"]["optimizer.decay_steps"] = 3
+    with pytest.raises(ValueError, match="AdamW"):
+        resolve_plan(ExperimentPlan.model_validate(raw), declaration)

@@ -70,57 +70,43 @@ mkdir -p "$WORK/inputs"
 df -h "$WORK"
 df -i "$WORK"
 uv run --locked --extra cpu sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
-uv run --locked --extra cpu sparselab data prepare "$SAMPLE/run.yaml"
+PREPARED=$(uv run --locked --extra cpu sparselab data prepare "$SAMPLE/run.yaml")
 ```
 
-Turn the phase template into a complete authored plan with typed external
-artifacts. This script re-verifies the prepared cache and uses actual domain
-identities rather than placeholder hashes:
+Bind the already-prepared tokenizer and packed root directly. The adapter
+authenticates the real tokenizer, prepared arrays and their relation to the run
+config before exclusively writing a complete plan; it never retrains, downloads
+or prepares inputs. Authoring a plan from an authenticated historical cache does
+not authorize a new execution source: `experiment lock` separately enforces
+source identity or reviewed operational compatibility.
+The root is the directory containing `manifest.json`, not
+its parent `cache_dir`. The run's relative paths are anchored to its own file.
+The phase template's evaluation suite must resolve to the same declaration
+from the output plan's location.
+The template may retain separately authenticated checkpoint artifacts for an
+external `extend_budget` parent. Input names `tokenizer`, `packed`, `release`
+and `export` are reserved; existing input or corpus-variant bindings are rejected.
+Relative external checkpoint locations are anchored to the template before
+export, so moving the authored output does not select another parent.
 
 ```sh
-uv run --locked --extra cpu python - <<'PY'
-import json
-import os
-from pathlib import Path
-import yaml
-from sparselab.config import load_config
-from sparselab.data.packing import prepare_data
-from sparselab.data.tokenizer import load_tokenizer
-from sparselab.training.manifest import sha256_file
-
-sample = Path("experiments/samples/training-program")
-work = Path(os.environ["SPARSELAB_WORK_DIR"]) / "experiments/offline-training-chain-v1"
-config = load_config(sample / "run.yaml")
-prepared = prepare_data(config, load_tokenizer(config.tokenizer.path))
-manifest = json.loads((prepared.root / "manifest.json").read_text())
-plan = yaml.safe_load((sample / "offline-chain.yaml").read_text())
-run_path = work / "inputs/run.yaml"
-run_path.write_text(yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False))
-plan["base_run"] = str(run_path)
-plan["artifacts"] = {
-    "tokenizer": {
-        "kind": "tokenizer", "version": 1, "producer": "sparselab tokenizer train",
-        "identifier": config.tokenizer.path.parent.name,
-        "path": str(config.tokenizer.path), "sha256": sha256_file(config.tokenizer.path),
-    },
-    "packed": {
-        "kind": "prepared_data", "version": 1, "producer": "sparselab data prepare",
-        "identifier": manifest["settings_sha256"], "path": str(prepared.root),
-        "sha256": manifest["manifest_sha256"],
-    },
-}
-plan["inputs"] = {"tokenizer": "tokenizer", "prepared_data": "packed"}
-(work / "inputs/plan.yaml").write_text(yaml.safe_dump(plan, sort_keys=False))
-PY
+uv run --locked --extra cpu sparselab experiment bind-inputs \
+  "$SAMPLE/run.yaml" "$SAMPLE/offline-chain.yaml" \
+  --prepared-root "$PREPARED" \
+  --output "$WORK/inputs/plan.yaml" --json
 PLAN="$WORK/inputs/plan.yaml"
 uv run --locked --extra cpu sparselab experiment validate "$PLAN" --json
 uv run --locked --extra cpu sparselab experiment inspect "$PLAN" --json
-uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json > "$WORK/lock-result.json"
-LOCK=$(uv run --locked --extra cpu python -c 'import json,sys; print(json.load(open(sys.argv[1]))["lock"])' "$WORK/lock-result.json")
+LOCK=$(uv run --locked --extra cpu sparselab experiment lock "$PLAN" --json | jq -r '.lock')
 uv run --locked --extra cpu sparselab experiment explain "$LOCK" --json
 ```
 
-Validation checks declaration/config shape. Inspection also cold-authenticates
+`PREPARED` is the actual directory printed by `sparselab data prepare`,
+under the run's configured `dataset.cache_dir`; do not infer its name.
+`jq` extracts the emitted lock path without reimplementing lock parsing.
+Each `--output` destination must not exist.
+
+Validation checks declaration/config shape. Inspection authenticates
 an unambiguously bound existing prepared artifact before reporting its measured
 storage footprint; neither operation proves device fit. Preparation launches
 no training. `experiment prepare` materializes declared `corpus_variants`;
@@ -136,8 +122,9 @@ changed in the meantime. The proof is bound to its issuer process and exact
 resolved object; it cannot be supplied as plan metadata, copied to another lock
 or inherited across a fork as reusable verification. A later
 `experiment explain`, Campaign reopen, or other fresh-process `open_lock`
-independently runs the full artifact verifiers again; neither the availability
-sidecar nor a remembered digest substitutes for cold verification.
+independently runs the full artifact verifiers again (with explicit cold
+verification available through `--cold-verify`); neither the availability
+sidecar nor a remembered digest substitutes for verified bytes.
 
 
 The printed lock path is authoritative. Keep one code revision, the declaration
@@ -150,11 +137,11 @@ never rewrite a running plan or its artifacts.
 
 Direct `tinystories` and manifest-backed `local_stories` runs use the same two
 external artifacts shown above: `tokenizer` and `prepared_data`. They do not
-require a Corpus Forge release or export. Use the story run as `base_run` and
-prepare its tokenizer and data explicitly before constructing the artifact
-bindings; `experiment prepare` still only materializes `corpus_variants`.
+require a Corpus Forge release or export. Pass the pinned story run config,
+phase template, existing prepared root and new plan output to
+`experiment bind-inputs`; `experiment prepare` still only materializes `corpus_variants`.
 The [TinyStories microlab](tinystories-microlab.md) supplies matching run and
-tokenizer preparation examples. Use absolute paths in generated declarations.
+tokenizer preparation examples. Generated config and artifact paths are absolute.
 
 For direct TinyStories, pin `dataset.revision` to the full 40-character Hub commit
 SHA (for example `f54c09fd23315a6f9c86f9dc80f725de7d8f9c64`), with
@@ -245,19 +232,10 @@ The locked cells contain the effective run configs after input binding and
 phase overrides. Extract them for explicit local inspection and pilots:
 
 ```sh
-uv run --locked --extra cpu python - "$LOCK" "$WORK" <<'PY'
-import sys
-from pathlib import Path
-import yaml
-from sparselab.experiments.lock import open_lock
-
-locked = open_lock(Path(sys.argv[1]))
-work = Path(sys.argv[2])
-for cell in locked.cells:
-    path = work / f"{cell.phase}-effective.yaml"
-    path.write_text(yaml.safe_dump(cell.config.model_dump(mode="json"), sort_keys=False))
-    print(cell.id, path)
-PY
+uv run --locked --extra cpu sparselab experiment export-config "$LOCK" \
+  --cell pretrain:single --output "$WORK/pretrain-effective.yaml" --json
+uv run --locked --extra cpu sparselab experiment export-config "$LOCK" \
+  --cell continue:single --output "$WORK/continue-effective.yaml" --json
 uv run --locked --extra cpu sparselab inspect "$WORK/pretrain-effective.yaml" --json
 uv run --locked --extra cpu sparselab stage "$WORK/pretrain-effective.yaml" \
   --through warmup --output "$WORK/stages/pretrain"
@@ -309,7 +287,7 @@ After both phases complete and ingest:
 
 ```sh
 uv run --locked --extra cpu sparselab experiment collect "$LOCK" --json > "$WORK/collection-result.json"
-INDEX=$(uv run --locked --extra cpu python -c 'import json,sys; print(json.load(open(sys.argv[1]))["index_path"])' "$WORK/collection-result.json")
+INDEX=$(jq -r '.index_path' "$WORK/collection-result.json")
 uv run --locked --extra cpu sparselab experiment reconstruct "$LOCK" --index "$INDEX" --json
 uv run --locked --extra cpu sparselab dashboard --runs-dir "$WORK/controller"
 ```

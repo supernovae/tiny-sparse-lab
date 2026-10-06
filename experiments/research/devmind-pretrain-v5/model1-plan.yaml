@@ -1,0 +1,193 @@
+plan_version: 1
+id: devmind-v5-model1
+base_run:
+  schema_version: 2
+  name: devmind-v5-model0
+  seed: 42
+  runtime:
+    engine: pytorch
+    backend: rocm
+    device_index: 0
+    precision: bf16
+    memory:
+      policy: balanced
+      max_device_memory_fraction: 0.9
+      budget_bytes: null
+      activation_checkpointing:
+        enabled: true
+        strategy: transformer_block
+      activation_offload:
+        enabled: false
+      allowed_sequence_lengths: []
+      allowed_optimizers: []
+  model:
+    vocab_size: 32768
+    hidden_dim: 640
+    num_layers: 10
+    num_heads: 10
+    ffn_dim: 1664
+    max_seq_len: 1024
+    rms_norm_eps: 1.0e-06
+    tie_embeddings: true
+    ffn: dense
+    num_experts: 1
+    experts_per_token: 1
+    shared_expert: false
+    router_aux_loss_coefficient: 0.0
+    memory: none
+    memory_table_size: 0
+    memory_ngram_size: 0
+    memory_dim: 0
+    memory_package_path: null
+    memory_ngram_orders: []
+    memory_hash_heads: 1
+    semantic_memory_dim: null
+  tokenizer:
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json
+  dataset:
+    source: local_text
+    revision: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    dataset_config: null
+    cache_dir: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared
+    train_max_documents: 796563
+    validation_max_documents: 16411
+    train_max_tokens: 4000183822
+    validation_max_tokens: 82594599
+    synthetic_seed: 42
+    train_path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/train.jsonl
+    validation_path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/validation.jsonl
+    license: AGPL-3.0-only; Apache-2.; Apache-2.0; Apache-2.0 OR MIT; Artistic-2.0
+      AND ISC; BSD-2-Clause; BSD-2-Clause AND (Apache-2.0 OR MIT); BSD-3-Clause; BSD-3-Clause
+      AND GPL-2.0-or-later; CC-BY-4.0; CC-BY-SA-4.0; GFDL-1.3-or-later; GPL-1.0-or-later;
+      GPL-2.0; GPL-2.0+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; IETF-Trust-TLP-5;
+      ISC; LGPL-2.1; LGPL-2.1-or-later; LicenseRef-SQLite-Public-Domain; MIT; MIT-0;
+      MPL-2.0; MPL-2.0 OR EPL-1.0; ODC-By-1.0; PSF-2.0; PSF-2.0 AND (MIT OR Apache-2.0);
+      PostgreSQL; curl
+    allocation_manifest_path: null
+    corpus_release_path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    corpus_export_path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+  training:
+    micro_batch_size: 2
+    gradient_accumulation: 4
+    seq_len: 1024
+    max_steps: 5525
+    max_tokens: 45260800
+    grad_clip_norm: 1.0
+    neural_loss_weight: 1.0
+    deterministic: true
+  optimizer:
+    name: adamw
+    peak: 0.0003
+    floor: 3.0e-05
+    warmup_steps: 2000
+    decay_steps: 5525
+    weight_decay: 0.1
+    betas:
+    - 0.9
+    - 0.95
+    eps: 1.0e-08
+    state_offload: false
+  attention:
+    kind: dense
+    rope_base: 10000.0
+    window_size: null
+    latent_dim: null
+    block_size: null
+    selected_blocks: null
+  evaluation:
+    every_steps: 2048
+    max_batches: 64
+  checkpoint:
+    every_steps: 2048
+    every_tokens: null
+    every_minutes: null
+    keep_periodic: true
+  staging:
+    smoke_steps: 2
+    warmup_steps: 5
+  logging:
+    root_dir: /srv/sparselab/state/experiments/devmind-pretrain-v5/runs
+    every_steps: 100
+    architecture_diagnostics: scalar
+artifacts:
+  tokenizer:
+    kind: tokenizer
+    version: 1
+    producer: sparselab tokenizer train
+    identifier: '32768'
+    sha256: ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json
+    from_phase: null
+    selector: null
+    state: null
+  packed:
+    kind: prepared_data
+    version: 1
+    producer: sparselab data prepare
+    identifier: 15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84
+    sha256: 6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3
+    path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0
+    from_phase: null
+    selector: null
+    state: null
+  release:
+    kind: corpus_release
+    version: 1
+    producer: sparselab corpus freeze
+    identifier: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    sha256: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    from_phase: null
+    selector: null
+    state: null
+  export:
+    kind: corpus_export
+    version: 1
+    producer: sparselab corpus export
+    identifier: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    sha256: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    from_phase: null
+    selector: null
+    state: null
+  accepted_parent:
+    kind: checkpoint
+    version: 2
+    producer: sparselab
+    identifier: step_00005525_gen_000004
+    sha256: 52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709
+    path: /srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004
+    from_phase: null
+    selector: null
+    state: full
+inputs:
+  tokenizer: tokenizer
+  prepared_data: packed
+  corpus_release: release
+  corpus_export: export
+corpus_variants: []
+axes: []
+comparisons: []
+phases:
+- id: main
+  transition: extend_budget
+  parent: null
+  checkpoint: accepted_parent
+  selector: null
+  at_step: null
+  set:
+    training.max_steps: 11050
+    training.max_tokens: 90521600
+evaluations: []
+evaluation_suite: suite.yaml
+execution:
+  worker: null
+  backend: rocm
+  workspace: /srv/sparselab/state/experiments/devmind-v5-model1
+  min_free_bytes: 34359738368
+  min_free_inodes: 4096
+retention:
+  keep_periodic: true
+  keep_best: true
+  keep_previous: true
+  keep_terminal: true

@@ -13,8 +13,6 @@ from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
-from sparselab.training.checkpoints import CheckpointManager, strict_json
-
 _MARKER = ".sparselab-cache-owner.json"
 _CACHE_MEMBERS = frozenset(
     {
@@ -171,6 +169,8 @@ def _checkpoint_candidates(
     bound_checkpoints: set[str],
     max_extra_periodic: int,
 ) -> list[dict[str, object]]:
+    from sparselab.training.checkpoints import CheckpointManager, strict_json
+
     candidates: list[dict[str, object]] = []
     for run_id, status, _ in runs:
         if status not in _TERMINAL_RUNS or run_id in active_attempts:
@@ -229,6 +229,7 @@ def _cache_candidates(
     max_cache_entries: int,
 ) -> list[dict[str, object]]:
     from sparselab.data.packing import supervision_requires_mask
+    from sparselab.training.checkpoints import strict_json
 
     if active_attempts or any(status not in _TERMINAL_RUNS for _, status, _ in runs):
         return []
@@ -331,6 +332,8 @@ def write_plan(plan: dict[str, object], output: Path) -> None:
 
 
 def apply_cleanup(plan_path: Path) -> dict[str, int]:
+    from sparselab.training.checkpoints import CheckpointManager, strict_json
+
     saved = strict_json(plan_path)
     if not isinstance(saved, dict) or saved.get("format_version") != 1:
         raise ValueError("invalid cleanup plan")

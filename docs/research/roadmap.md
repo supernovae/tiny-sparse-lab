@@ -61,8 +61,14 @@ questions are:
   as nonreconstructable with the available authenticated closure. It copies all
   123 reviewed final-v4 source declarations and heldouts without historical
   snapshot imports, pins one fresh producer, and requires exact independent
-  build/release recovery before tokenizer selection and dense MODEL-0. Corpus,
-  tokenizer, ROCm training and evaluation outcomes are not yet observed.
+  build/release recovery before tokenizer selection and dense MODEL-0. The
+  [MODEL-0 result](../../experiments/research/devmind-pretrain-v5/model0-result.json)
+  now retains an accepted terminal full-state checkpoint.
+  [MODEL-1's equal-exposure protocol](../../experiments/research/devmind-pretrain-v5/model1-protocol.md)
+  freezes an additional 5,525 updates/45,260,800 targets with the original decay
+  horizon and unchanged scientific inputs. Cross-source full-state authorization,
+  a genuine child lock/Family pin and current-source pilot remain blockers;
+  MODEL-1 has not run.
 - **Lexical Engram:** test transfer/generalization across independent task data, held-out wording/facts, seeds, and collision/capacity controls; keep token and byte results distinct.
 - **Portable byte Engram:** extend the negative two-case result to multiple recipient configurations and held-out cases; prove adapter updates leave source table bytes unchanged and retain disabled/random/frozen-only controls.
 - **Semantic EngramPack:** distinguish exact retrieval of supplied vectors from natural-language understanding. Any text-query capability first needs a reproducible encoder/space contract, an exercised query path, leakage-audited tasks, pack controls, and measured encoder/retrieval cost.

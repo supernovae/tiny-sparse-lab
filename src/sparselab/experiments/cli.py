@@ -38,6 +38,11 @@ def _emit(args: argparse.Namespace, data: dict[str, Any]) -> None:
             "proof_hits": 0 if store is None else store.hits,
             "proof_misses": 0 if store is None else store.misses,
             "proof_records": 0 if store is None else store.recorded,
+            **(
+                {}
+                if store is None or not hasattr(store, "diagnostics")
+                else store.diagnostics()
+            ),
         }
     if args.json:
         print(json.dumps(envelope, sort_keys=True, allow_nan=False, default=str))
@@ -295,6 +300,35 @@ def _lock(args: argparse.Namespace) -> None:
             "plan_sha256": resolved.plan_sha256,
             "valid_science": True,
             "runtime_availability": "not_verified",
+        },
+    )
+
+
+def _bind_inputs(args: argparse.Namespace) -> None:
+    from sparselab.experiments.direct_inputs import bind_direct_inputs
+
+    plan = bind_direct_inputs(
+        Path(args.run_config),
+        Path(args.template),
+        args.prepared_root,
+        args.output,
+        **_verification(args),
+    )
+    _emit(args, {"id": plan.id, "plan": str(args.output.absolute())})
+
+
+def _export_config(args: argparse.Namespace) -> None:
+    from sparselab.experiments.export_config import export_effective_config
+
+    digest = export_effective_config(
+        Path(args.lock), args.cell, args.output, **_verification(args)
+    )
+    _emit(
+        args,
+        {
+            "cell": args.cell,
+            "config": str(args.output.absolute()),
+            "config_sha256": digest,
         },
     )
 
@@ -623,6 +657,10 @@ def _handle(args: argparse.Namespace) -> None:
             _prepare(args)
         elif args.experiment_command == "lock":
             _lock(args)
+        elif args.experiment_command == "bind-inputs":
+            _bind_inputs(args)
+        elif args.experiment_command == "export-config":
+            _export_config(args)
         elif args.experiment_command == "bind":
             _bind(args)
         elif args.experiment_command == "run":
@@ -650,23 +688,31 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "prepare",
         "lock",
         "bind",
+        "bind-inputs",
+        "export-config",
         "run",
         "collect",
         "explain",
         "reconstruct",
     ):
         command = commands.add_parser(name)
-        command.add_argument(
-            "source"
-            if name in {"validate", "inspect", "diff", "prepare", "lock"}
-            else "lock"
-        )
+        if name == "bind-inputs":
+            command.add_argument("run_config")
+            command.add_argument("template")
+        else:
+            command.add_argument(
+                "source"
+                if name in {"validate", "inspect", "diff", "prepare", "lock"}
+                else "lock"
+            )
         command.add_argument("--json", action="store_true")
         if name in {
             "inspect",
             "diff",
             "lock",
             "bind",
+            "bind-inputs",
+            "export-config",
             "run",
             "collect",
             "explain",
@@ -682,6 +728,12 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             from sparselab.cli.main import _tokenizer_batch_arguments
 
             _tokenizer_batch_arguments(command)
+        if name in {"bind-inputs", "export-config"}:
+            command.add_argument("--output", type=Path, required=True)
+        if name == "bind-inputs":
+            command.add_argument("--prepared-root", type=Path, required=True)
+        if name == "export-config":
+            command.add_argument("--cell", required=True)
         if name in {"bind", "run"}:
             command.add_argument("--cell")
         if name == "bind":

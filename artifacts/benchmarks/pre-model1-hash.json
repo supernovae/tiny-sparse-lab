@@ -1,0 +1,38 @@
+{
+  "format": "pre-model1-content-hash-v1",
+  "classification": "operational_benchmark_not_scientific_identity_change",
+  "raw_results": "/srv/sparselab/state/experiments/pre-model1-native-iteration/cold-content-hash-v1-manifest.json",
+  "benchmark": "../../benchmarks/cold_content_verification.py",
+  "invocation": "uv run --locked --no-sync --with blake3 --with xxhash python benchmarks/cold_content_verification.py --output /srv/sparselab/state/experiments/pre-model1-native-iteration/cold-content-hash-v1-manifest.json --timeout 180",
+  "method": "Three alternating-order repetitions per input/case; fresh subprocess per timed sample; full sequential OS-cache pre-read before each hash, without cache drop. Timed phase excludes pre-read and subprocess launch; peak subprocess RSS includes pre-read. Not a physical-disk-cold measurement.",
+  "host": "WSL2 Linux x86_64, Ryzen 9 5900X, 12 physical/24 logical; affinity 24; sha_ni/avx2/aes present, AVX512 absent; OpenSSL 3.5.5, Python 3.14.4, blake3 1.0.10, xxhash 4.0.1; host planner capped BLAKE3 to four threads",
+  "inputs": {
+    "immutable_fixture": {"bytes": 67108864, "sha256": "281e519df3077b557c6b03f5da83c4e8d397219259615dd7c3308f89cae8f2a6"},
+    "read_only_model0_train": {"bytes": 3937267228, "manifest_sha256": "263bb9384f11be256abcbbf63b59cf0da9d7d8f05a024aaa3c57879aff54118a"}
+  },
+  "medians": {
+    "units": "wall_seconds, CPU_seconds, MiB_per_second; final number is maximum peak subprocess RSS MiB over three samples",
+    "fixture": {
+      "sha256_1m": [0.03295, 0.03295, 1942, 42.7],
+      "sha256_4m": [0.03269, 0.03270, 1958, 42.7],
+      "sha256_8m": [0.03332, 0.03332, 1921, 42.7],
+      "sha256_16m": [0.04079, 0.04080, 1569, 58.7],
+      "hashlib_file_digest": [0.03307, 0.03308, 1935, 42.7],
+      "blake3_1thread": [0.02470, 0.02470, 2591, 59.3],
+      "blake3_4threads": [0.02298, 0.03180, 2786, 59.5],
+      "xxh3_128_non_authoritative": [0.01433, 0.01433, 4467, 58.6]
+    },
+    "model0_train": {
+      "sha256_1m": [1.92092, 1.92070, 1955, 42.8],
+      "sha256_4m": [1.92711, 1.92473, 1948, 42.9],
+      "sha256_8m": [1.94457, 1.94426, 1931, 42.7],
+      "sha256_16m": [2.04870, 2.04863, 1833, 58.7],
+      "hashlib_file_digest": [1.93315, 1.92990, 1942, 42.8],
+      "blake3_1thread": [1.10894, 1.10839, 3386, 59.3],
+      "blake3_4threads": [0.54017, 1.19149, 6951, 59.5],
+      "xxh3_128_non_authoritative": [0.41369, 0.41370, 9077, 58.7]
+    }
+  },
+  "identity_checks": "Every SHA256 variant repeated identically and agreed with the native train manifest or deterministic fixture digest; BLAKE3 single/four threads repeated identically and agreed with each other, but not substituted for SHA256; XXH3-128 is noncryptographic and non-authoritative. Both input fingerprints remained unchanged.",
+  "decision": "Retain SHA256 identity and serial 1 MiB SHA256 read default: 4 MiB and file_digest did not materially improve this workload, 8/16 MiB regressed; 16 MiB also raised RSS. Four-thread BLAKE3 lowered isolated large-file hash wall time versus single-thread BLAKE3 and SHA256 but changed the cryptographic identity, cost more CPU, and cannot authorize replacing MODEL0 SHA256. Never enable blanket hash threading or use XXH3 for verification. Timings are component-only, not end-to-end verification speedups."
+}
