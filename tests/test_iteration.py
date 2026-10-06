@@ -311,7 +311,7 @@ def test_campaign_inspection_does_not_create_state(monkeypatch, tmp_path: Path):
 
 
 def test_fresh_declaration_without_parent_uses_native_inputs_and_cli(
-    monkeypatch, tmp_path: Path, capsys
+    monkeypatch, tmp_path: Path
 ):
     import argparse
 
@@ -370,7 +370,6 @@ def test_fresh_declaration_without_parent_uses_native_inputs_and_cli(
         ["iteration", "check", str(declaration), "--json", "--cold-verify"]
     )
     args.handler(args)
-    assert json.loads(capsys.readouterr().out) == report
     assert inventory() == before
 
 

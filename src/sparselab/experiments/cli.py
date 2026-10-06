@@ -342,6 +342,32 @@ def _export_config(args: argparse.Namespace) -> None:
     )
 
 
+def _derive(args: argparse.Namespace) -> None:
+    """Publish a verified, derived experiment declaration."""
+    from sparselab.derivation import derive_experiment, parse_assignments
+
+    prepared = Path(args.prepared).absolute() if args.prepared is not None else None
+    receipt = derive_experiment(
+        Path(args.source).absolute(),
+        Path(args.output).absolute(),
+        parse_assignments(args.settings),
+        prepared=prepared,
+        max_runs=args.max_runs,
+    )
+    _emit(
+        args,
+        {
+            "status": "ok",
+            "receipt": str(
+                Path(args.output)
+                .absolute()
+                .with_name(Path(args.output).name + ".derivation.json")
+            ),
+            "derivation": receipt,
+        },
+    )
+
+
 def locked_cell_request(
     locked: Any,
     cell: Any,
@@ -677,6 +703,8 @@ def _handle(args: argparse.Namespace) -> None:
             _prepare(args)
         elif args.experiment_command == "lock":
             _lock(args)
+        elif args.experiment_command == "derive":
+            _derive(args)
         elif args.experiment_command == "bind-inputs":
             _bind_inputs(args)
         elif args.experiment_command == "export-config":
@@ -707,6 +735,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "diff",
         "prepare",
         "lock",
+        "derive",
         "bind",
         "bind-inputs",
         "export-config",
@@ -715,14 +744,25 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "explain",
         "reconstruct",
     ):
-        command = commands.add_parser(name)
+        command = commands.add_parser(
+            name,
+            **(
+                {
+                    "description": "Derive a new bound declaration with cold input and "
+                    "scientific compatibility verification; does not lock, execute, "
+                    "or verify runtime capability."
+                }
+                if name == "derive"
+                else {}
+            ),
+        )
         if name == "bind-inputs":
             command.add_argument("run_config")
             command.add_argument("template")
         else:
             command.add_argument(
                 "source"
-                if name in {"validate", "inspect", "diff", "prepare", "lock"}
+                if name in {"validate", "inspect", "diff", "prepare", "lock", "derive"}
                 else "lock"
             )
         command.add_argument("--json", action="store_true")
@@ -741,7 +781,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--cold-verify", action="store_true")
         if name in {"prepare", "run"}:
             command.add_argument("--allow-uncommitted-declaration", action="store_true")
-        if name in {"validate", "inspect", "diff", "lock"}:
+        if name in {"validate", "inspect", "diff", "lock", "derive"}:
             command.add_argument("--max-runs", type=int, default=1000)
         if name == "prepare":
             command.add_argument("--resource-envelope", type=Path)
@@ -752,6 +792,17 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--output", type=Path, required=True)
         if name == "bind-inputs":
             command.add_argument("--prepared-root", type=Path, required=True)
+        if name == "derive":
+            command.add_argument(
+                "--set",
+                dest="settings",
+                action="append",
+                required=True,
+                metavar="FIELD=JSON",
+                help="strict JSON assignment; replace complete sequences",
+            )
+            command.add_argument("--output", type=Path, required=True)
+            command.add_argument("--prepared", type=Path)
         if name == "export-config":
             command.add_argument("--cell", required=True)
         if name in {"bind", "run"}:

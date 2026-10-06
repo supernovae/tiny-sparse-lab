@@ -29,6 +29,36 @@ configure a read-only account token as described in the
 When changing code, run the nearest tests first; the [fast test feedback
 guide](test-speed.md) gives local commands and explains the full PR gates.
 
+## Derive a validated config variant
+
+Use `config derive` to author a new standalone v2 run configuration without
+rewriting YAML by hand. Each `--set` value is strict JSON, so strings must be
+quoted. The command publishes a new YAML file and adjacent operational
+`.derivation.json` receipt; neither an existing payload nor receipt is
+replaced. The receipt is not an artifact identity or trusted experiment lock.
+
+```sh
+mkdir -p "$SPARSELAB_WORK_DIR/handoffs"
+uv run --locked --extra cpu sparselab config derive configs/smoke_cpu.yaml \
+  --set optimizer.peak=0.001 --set training.micro_batch_size=2 \
+  --output "$SPARSELAB_WORK_DIR/handoffs/smoke-peak.yaml" --json
+```
+
+The derived configuration preserves path targets relative to the source
+configuration, validates the complete typed configuration, and records the
+requested assignments plus observed field delta. It does not verify prepared
+data, tokenizer bytes, checkpoints, continuation compatibility, or runtime
+execution; use the normal preparation, experiment, and checkpoint commands for
+those boundaries.
+
+Paths supplied by an assignment, including a whole replacement object, are
+anchored to the source YAML directory, never the output directory or cwd.
+Optional default fields such as `optimizer.decay_steps` remain patchable.
+Equal assignments are allowed; only actual normalized changes enter the
+observed delta. The output parent must exist and have no symlinked components.
+Changing a token budget or batch setting never adjusts other scientific
+settings implicitly or turns a config into an approved continuation.
+
 ## Scratch and artifact locations
 
 Implicit persistent state defaults to `${XDG_DATA_HOME}/sparselab` when `XDG_DATA_HOME` is absolute and nonempty, otherwise `~/.local/share/sparselab`. For substantial campaigns, set `SPARSELAB_WORK_DIR=/data/sparselab` on a sufficiently large filesystem. Global `--work-dir PATH` (before the subcommand) overrides that environment variable; an explicit relative path stays relative to the current directory. Durable `experiments/`, `runs/` and artifact/receipt stores share that root; temporary files go to its disposable `scratch/`, and optional `cache/` is reconstructable, not evidence. Read-only inspection does not create the root. Long-lived payloads inside **any** Git checkout trigger a containment warning but are not redirected; check explicit destinations too.
