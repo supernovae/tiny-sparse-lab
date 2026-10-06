@@ -432,8 +432,36 @@ def test_completed_snapshot_tampering_preserves_receipt_and_rejects_reuse(
     receipt = next((engine.store.root / "receipts/snapshot").glob("*.json"))
     retained = receipt.read_bytes()
     train = tmp_path / "snapshot/train.jsonl"
-    train.write_bytes(train.read_bytes() + b"tampered")
+    train_bytes = train.read_bytes()
+    train.write_bytes(train_bytes + b"tampered")
     with pytest.raises(ValueError):
         engine.inspect("next")
     assert receipt.read_bytes() == retained
-    assert rows(engine.inspect("status"))["snapshot"]["state"] == "COMPLETE"
+    train.write_bytes(train_bytes)
+    recovered = rows(engine.inspect("status"))
+    assert recovered["snapshot"]["state"] == "COMPLETE"
+
+
+def test_projection_rechecks_snapshot_after_commit_before_downstream_compute(
+    snapshot_campaign, tmp_path
+):
+    campaign, _ = snapshot_campaign
+    document = yaml.safe_load(campaign.read_text())
+    document["stages"] = document["stages"][:2]
+    write_yaml(campaign, document)
+    retained = {}
+
+    def after_commit(stage_id, state):
+        if stage_id == "snapshot":
+            receipt = next((engine.store.root / "receipts/snapshot").glob("*.json"))
+            retained[receipt] = receipt.read_bytes()
+            train = tmp_path / "snapshot/train.jsonl"
+            train.write_bytes(train.read_bytes() + b"tampered")
+
+    engine = CampaignEngine(campaign, tmp_path / "work", after_commit=after_commit)
+    with pytest.raises(ValueError):
+        engine.apply(allow_uncommitted_declaration=True)
+    assert retained and all(
+        path.read_bytes() == original for path, original in retained.items()
+    )
+    assert not (tmp_path / "tokenizer/tokenizer.json").exists()

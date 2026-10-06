@@ -569,13 +569,21 @@ def verifier_authority(kind: str, version: int) -> dict[str, object]:
     excluded = _excluded_edges(kind)
     package = Path(__file__).parent
     pending = list(_COMMON + roots)
+    scheduled = set(pending)
+    discovered_files: dict[Path, bool] = {}
+
+    def is_source_file(path: Path) -> bool:
+        if path not in discovered_files:
+            discovered_files[path] = path.is_file()
+        return discovered_files[path]
+
     files: dict[str, str] = {}
     while pending:
         name = pending.pop()
         if name in files:
             continue
         path = package / (name.replace(".", "/") + ".py")
-        if not path.is_file():
+        if not is_source_file(path):
             path = package / name.replace(".", "/") / "__init__.py"
         source = (
             path.read_bytes()
@@ -584,8 +592,11 @@ def verifier_authority(kind: str, version: int) -> dict[str, object]:
         parts = name.split(".")
         for index in range(1, len(parts)):
             initializer = ".".join(parts[:index])
-            if (package / initializer.replace(".", "/") / "__init__.py").is_file():
+            if initializer not in scheduled and is_source_file(
+                package / initializer.replace(".", "/") / "__init__.py"
+            ):
                 pending.append(initializer)
+                scheduled.add(initializer)
         imports, required, aliases = _imports(
             source, name, package=path.name == "__init__.py"
         )
@@ -597,11 +608,14 @@ def verifier_authority(kind: str, version: int) -> dict[str, object]:
                 ):
                     raise ValueError(f"verifier exclusion needs review: {edge}")
                 continue
+            if imported in scheduled:
+                continue
             module_path = package / imported.replace(".", "/")
             candidate = module_path.with_suffix(".py")
             initializer = module_path / "__init__.py"
-            if candidate.is_file() or initializer.is_file():
+            if is_source_file(candidate) or is_source_file(initializer):
                 pending.append(imported)
+                scheduled.add(imported)
             elif module_path.is_dir():
                 # A namespace package has no initializer source to digest.
                 continue
@@ -611,12 +625,12 @@ def verifier_authority(kind: str, version: int) -> dict[str, object]:
                 base, _, alias = imported.rpartition(".")
                 if (base, alias) in aliases:
                     base_file = package / (base.replace(".", "/") + ".py")
-                    if base_file.is_file():
+                    if is_source_file(base_file):
                         continue  # a member of a verified module, not another module
                     base_init = package / base.replace(".", "/") / "__init__.py"
                     if not base:
                         base_init = package / "__init__.py"
-                    if not base_init.is_file() or alias not in _package_exports(
+                    if not is_source_file(base_init) or alias not in _package_exports(
                         base_init.read_bytes()
                     ):
                         raise ValueError(f"missing verifier package helper: {imported}")
