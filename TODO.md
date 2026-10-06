@@ -30,6 +30,16 @@ Use the [existing native route](docs/iteration.md), including the read-only
 `experiment export-config` commands. Remaining work below must reuse those
 interfaces, not introduce another runner.
 
+- [ ] **P1 — Stage explicitly bound existing inputs natively.** The Python
+  `staging.stage(..., prepared_inputs=...)` path exists, but public `stage` does
+  not expose it. Add a typed adapter taking RunConfig, an authenticated existing
+  stage-input bundle, selected runtime, through-level and exclusive output;
+  emit the normal stage/pilot receipts. Wrong source/config, tampered inventory,
+  unsafe links and unavailable runtime must fail before optimizer execution.
+  It must not prepare/download/repack, grant runtime/source drift or silently
+  fall back to fresh inputs. This is not a shipped CLI option. DevMind MODEL-1
+  first needs an independently reviewed source authorization; this adapter is
+  not a substitute for that decision.
 - [ ] **P2 — Expose verified declaration/config handoffs.** Where Phase `set`
   and native scaffolds do not suffice, add CLI derivation over the existing
   typed loaders and dotted-path compiler, preserving path anchoring when the

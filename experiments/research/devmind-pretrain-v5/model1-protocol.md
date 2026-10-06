@@ -112,6 +112,10 @@ gate. It has not run. Resolve source/input authorization first: the ordinary
 public `stage --through warmup` path prepares inputs, and launching it now could
 create a new source-bound prepared dataset rather than reuse the frozen input.
 No repack or source-policy bypass is authorized by this protocol.
+The existing-input `staging.stage(..., prepared_inputs=...)` API is not exposed
+by public `stage`; the exact typed adapter and failure acceptance are registered
+in [TODO](../../../TODO.md). No task-specific Python pilot harness was written.
+That unshipped adapter cannot substitute for source authorization.
 
 Native workspace preflight reports adequate capacity for the unchanged parent
 RunConfig: 705,353,482,240 available bytes, 64,981,199 available inodes and
