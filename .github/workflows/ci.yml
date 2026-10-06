@@ -93,6 +93,45 @@ jobs:
           uv run --locked --extra cpu pytest -q \
             tests/test_research_lint.py tests/test_declaration_preflight.py \
             tests/test_corpus_pipeline.py tests/test_corpus_identity.py tests/test_archive.py
+  serving-smoke:
+    name: Serving and CLI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    env:
+      SPARSELAB_WORK_DIR: ${{ runner.temp }}/serving-work
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Report an exact PR head, independently of the full-suite merge run.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --extra cpu --dev
+      - name: Bounded offline serving and CLI regression checks
+        run: |
+          git rev-parse HEAD
+          uv run --locked --extra cpu python --version
+          uv run --locked --extra cpu pytest -vv -ra --tb=long --durations=15 \
+            -o faulthandler_timeout=90 --basetemp "$RUNNER_TEMP/serving-pytest" \
+            tests/test_serving.py tests/test_inference_debug.py \
+            tests/test_generation_result.py tests/test_runtime_id_selection.py
+      - name: Retain CLI startup diagnostics in the job log
+        if: always()
+        run: |
+          if [ -d "$RUNNER_TEMP/serving-pytest" ]; then
+            find "$RUNNER_TEMP/serving-pytest" -type f \
+              \( -name 'serve.stdout.log' -o -name 'serve.stderr.log' \) \
+              -print -exec tail -c 16384 {} \;
+          fi
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
