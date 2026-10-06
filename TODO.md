@@ -23,13 +23,54 @@ artifact identities.
 
 ### Rapid iteration
 
-The workload is [TinyStories baseline → exposure extension → one-field
-contrast](docs/tinystories-microlab.md) and repeated declared model campaigns.
+The workload is baseline → exposure extension → one-field contrast and repeated
+declared model campaigns. The [TinyStories walkthrough](docs/tinystories-microlab.md)
+is one teaching reference for that general workflow.
 Use the [existing native route](docs/iteration.md), including the read-only
 `iteration check`, direct `experiment bind-inputs` and exact-cell
 `experiment export-config` commands. Remaining work below must reuse those
 interfaces, not introduce another runner.
 
+- [ ] **P1 — Align Campaign input contracts with native ExperimentPlan inputs.**
+  `experiment bind-inputs` supports direct `tinystories`/`local_stories` inputs,
+  but Campaign's plan binding requires a Corpus Forge release for every
+  non-synthetic cell (`src/sparselab/campaign/engine.py`). Accept an explicitly
+  typed, verified direct dataset/tokenizer/prepared closure as an alternative
+  to a Forge closure; preserve release/export checks when Forge is declared.
+  Reuse existing verifiers rather than special-casing a dataset or fabricating
+  a corpus release. Acceptance: the same direct-input plan runs standalone and
+  through Campaign runtime → run → collect → evaluation, including a verified
+  continuation; missing/mismatched inputs, source drift, incomplete ingestion
+  and broken parents fail before dependent work. Demonstrate another dataset
+  with the same contract, and preserve historical locks/receipts unchanged.
+- [ ] **P2 — Make Hub datasets and snapshots declarative, not dataset-specific.**
+  The current `tinystories` loader selects a fixed Hub repository/config/splits,
+  and public `data snapshot` calls the TinyStories-specific snapshot producer in
+  `src/sparselab/data/local_stories.py`. Replace this coupling with a shared typed
+  source declaration: repository, immutable revision, config, split mapping,
+  text field, attribution/terms, selection bounds and explicit dedup/overlap
+  policy. Reuse Corpus Forge's existing Hub acquisition/provenance where suitable;
+  do not create another acquisition engine. TinyStories should become a checked-in
+  reference declaration using that route. Preserve legacy source identities and
+  verifiers; any migration emits a new declaration/receipt, never relabels old
+  evidence. Acceptance: TinyStories and a second Hub-shaped offline fixture use
+  the same CLI/DSL without Python callbacks; reject moving/unavailable revisions,
+  missing fields, changed snapshots and forbidden split overlap.
+- [ ] **P2 — Report full-split coverage and derive exposure budgets natively.**
+  Add an explicit bounded-versus-source-exhaustion acquisition/preparation policy,
+  with resource admission, resumable bounded-memory processing, retained/excluded
+  record counts, truncation counts, stop reason and source/prepared identities.
+  Existing `data snapshot` requires exact retained counts and errors on early
+  exhaustion; direct Hub packing collects arrays in host memory. Neither is a
+  general scalable “all records” workflow. A native read-only report must distinguish
+  source coverage, prepared complete blocks and supervised target exposure;
+  a typed config derivation can propose steps/targets for a declared pass count
+  using the actual objective/mask, sequence length and effective batch. Reject
+  incomplete coverage claims, insufficient storage, incompatible/missing evidence
+  and unsupported objectives; retain tails, duplicates, nulls and exclusions.
+  Test exhaustion versus document/token caps, interrupted restart, short final
+  updates and masked targets without private Python counter scripts. Keep this
+  dataset-neutral and outside immutable historical identities.
 - [ ] **P1 — Stage explicitly bound existing inputs natively.** The Python
   `staging.stage(..., prepared_inputs=...)` path exists, but public `stage` does
   not expose it. Add a typed adapter taking RunConfig, an authenticated existing
@@ -37,9 +78,9 @@ interfaces, not introduce another runner.
   emit the normal stage/pilot receipts. Wrong source/config, tampered inventory,
   unsafe links and unavailable runtime must fail before optimizer execution.
   It must not prepare/download/repack, grant runtime/source drift or silently
-  fall back to fresh inputs. This is not a shipped CLI option. DevMind MODEL-1
-  first needs an independently reviewed source authorization; this adapter is
-  not a substitute for that decision.
+  fall back to fresh inputs. This is not a shipped CLI option. A continuation
+  requiring source authorization still needs that independent review; this
+  adapter is not a substitute for that decision.
 - [ ] **P2 — Expose verified declaration/config handoffs.** Where Phase `set`
   and native scaffolds do not suffice, add CLI derivation over the existing
   typed loaders and dotted-path compiler, preserving path anchoring when the
@@ -47,40 +88,78 @@ interfaces, not introduce another runner.
   handoffs must avoid Python and reinterpretation of SHA fields. Write new files only,
   record origin/delta, reject unknown fields and scientific incompatibility.
   Existing checkpoint selectors already serve declared chains; add standalone
-  immutable selection only if the direct TinyStories route still needs pointer
+  immutable selection only if a native iteration still needs pointer
   parsing. Never select an unverified "latest" directory by sorting filenames.
-- [ ] **P2 — Exercise the complete declared TinyStories iteration demo.** Once
-  native direct-input binding is available, add a copyable ExperimentPlan/Campaign
+- [ ] **P2 — Exercise a complete declared iteration demo.** Using native
+  direct-input binding, add a copyable ExperimentPlan/Campaign
   example with one baseline, a checkpoint-bound exposure child, fixed heldout
   suite/descriptive generation panel, a separately labeled fresh one-field
   contrast and optional seed replication. Share the topology with a small offline
   acceptance fixture, including interrupted reconciliation and unchanged parent
-  hashes. Publish actual pinned-TinyStories acceptance separately: declaration
+  hashes. Use a pinned teaching dataset such as TinyStories and record acceptance separately: declaration
   digests, run/ingestion states, checkpoint lineage, counters, evaluation/panel
   references and costs. Keep outputs external and make CLI text/JSON follow the
   same route. No embedded Python, duplicate implicit baseline, automatic promotion
   or claim that offline smoke establishes real-data quality. The current direct
   teaching walkthrough is not this declarative acceptance gate.
 
-### P2 — Make evidence collection and review reusable
+### Native diagnostic interfaces
 
-- [x] **Lint checked-in research records.** Extend existing identity/schema
-  checks to validate protocol/config bindings and evidence references under
-  `experiments/research/`, and reject checked-in checkpoints, caches, datasets,
-  logs, and mutable run output. Complete with valid, missing/mismatched-reference,
-  and forbidden-output fixtures. Validate durable declarations and references
-  without requiring live external datasets/checkpoints or adding a new registry.
-  Fixed with [offline record lint](experiments/research/README.md#offline-record-lint),
-  CI enforcement, and [declaration/reference/output regressions](tests/test_research_lint.py).
-- [x] **Preserve a compact metadata explanation of corpus identities.** Extend
-  existing archive/provenance machinery with project/declaration identity,
-  source-ID→snapshot-SHA mapping, algorithm/file provenance, full build identity
-  payload, and release identity. Complete when metadata round trips and survives
-  relocation, declared digest payloads can be checked without source bytes, and
-  tampering is rejected. Explaining an identity must not claim verification or
-  reconstruction of unavailable source contents.
-  Fixed with [archive identity metadata](docs/research/lifecycle-recovery.md)
-  and [offline round-trip, relocation, and tampering regressions](tests/test_corpus_identity.py).
+- [ ] **P3 — Expose supplied-vector semantic probes natively.** Wrap the existing
+  verified semantic retriever/adapter with a typed declaration: pack identity,
+  canonical query tensors, encoder identity, masks, attachment sites and explicit
+  initialized or checkpoint-bound model selection. Emit verified pack/query/model
+  identities and per-query retrieval/adapter traces. Reject encoder, shape,
+  inventory and checkpoint mismatches before inference; preserve missing,
+  conflicting and time-bounded outcomes. No arbitrary Python callbacks or
+  implicit text encoder. The [semantic lesson](docs/research/semantic-memory.md)
+  currently scaffolds/validates packs but relies on an API demonstration for
+  these queries. A natural-language encoder remains a separate research question.
+- [ ] **P2 — Expose the bounded preparation benchmark through the lab.** Input:
+  an exclusive task workspace, declared generated-corpus sizes, seed, tokenizer
+  batch bounds and host thread limits. Reuse the existing preparation path;
+  emit phase timing, logical byte/record counts, sampled-memory scope and exact
+  prepared identity comparisons. Reject unsafe/reused output, invalid bounds
+  and insufficient storage; never download or start model training. Preserve
+  null counters and keep performance observations outside scientific identities.
+  The historical `benchmarks/preparation_benchmark.py` harness is not a native
+  command; the [retained observations](docs/runtime.md#offline-performance-evidence)
+  must not be silently relabeled as a new benchmark run.
+- [ ] **P2 — Expose continuation/source overlap through the lab.** Wrap the
+  existing descriptive diagnostic with typed CLI input: a retained continuation,
+  explicit source IDs/passages, n-gram size and bounded edit-distance limit.
+  Emit the normal source hashes, normalization identity, raw overlap measures
+  and null/unavailable edit similarity. Bind checkpoint/generation identity when
+  the input comes from a run. Reject missing sources, duplicate IDs, invalid
+  bounds and tampered retained inputs; never infer a copyright threshold,
+  eligibility, memorization verdict or publication approval. No Python recipe
+  should be required. See [current boundary](docs/memorization.md).
+- [ ] **P2 — Expose opt-in phase observations natively.** Add a typed CLI/DSL
+  adapter for the existing `BottleneckObserver` on preparation, staging and
+  orchestration. Input: the normal declaration/config, selected runtime and
+  explicit observation destination. Output: versioned operational phase records
+  with measured counters, sampling scope and unavailable reasons, outside
+  scientific inventories. Reject unsafe output paths and malformed options;
+  missing device probes must remain null, not zero or invented utilization.
+  Verify scientific digests remain unchanged and observation failures follow the
+  existing non-blocking policy. See [boundaries](docs/capacity-aware-execution.md).
+
+### Experiment ledger projection
+
+- [ ] **P2 — Share an evidence-backed experiment ledger between CLI and dashboard.**
+  Extend the existing research lifecycle/report readers, rather than adding a
+  second registry or runner. Input: lifecycle declarations, verified report roots,
+  evidence references and an optional run store. Expose question, declared delta
+  and controls, protocol/checkpoint identity, result and limitations, reviewed
+  decision, next declared test and current evidence availability. Reuse one typed
+  read-only projection for CLI text/JSON and the Research page, with stable links
+  to original records. Preserve negative, interrupted, censored, missing and
+  unassessed rows; reject tampered evidence without hiding its rejection reason.
+  Do not infer promotion, rankings or live execution from historical findings.
+  Acceptance: matching CLI/UI rows, duplicate-reference handling, relocated or
+  missing evidence, invalid digests and offline browsing without creating a run
+  store. The [curated ledger](docs/research/experiment-ledger.md) defines the reader
+  need; no ledger command is shipped yet.
 
 ## P3 — Conditional work; activate for a concrete workload
 

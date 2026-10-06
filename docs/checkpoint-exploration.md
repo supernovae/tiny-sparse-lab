@@ -1,53 +1,40 @@
 # Explore retained checkpoints
 
-These examples use retained research artifacts on a specific workstation.
+Use the native lab interfaces to inspect and compare your own retained models.
 For a new training run, start with the [TinyStories microlab](tinystories-microlab.md).
+Existing weights, run-owned assets and a compatible runtime must be available;
+commands cannot reconstruct a missing checkpoint from its metadata.
 
-To explore the two retained seed-42 endpoints on this ROCm workstation, run
-the [data-rich checkpoint comparator](../experiments/research/tinystories-dense-30m-data-rich-v1/compare.py)
-from the separate data-rich worktree. It verifies both checkpoint identities
-and uses each model's native tokenizer without silently truncating prompts:
+## Verify and explore
+
+Set `GENERATION_A` and `GENERATION_B` to two immutable `step_*_gen_*`
+checkpoint directories. Use fresh output under your external work root.
+The example selects CPU; accelerator execution needs its provisioned environment
+and the supported [runtime setup](runtime.md).
 
 ```sh
-cd /home/byron/src/tiny-sparse-lab-data-rich
-export UV_PROJECT_ENVIRONMENT=/home/byron/src/tiny-sparse-lab/.venv
-export PYTHONPATH="$PWD/src"
-export SPARSELAB_WORK_DIR="$PWD/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1"
-uv run --locked --no-sync python experiments/research/tinystories-dense-30m-data-rich-v1/compare.py
-uv run --locked --no-sync python experiments/research/tinystories-dense-30m-data-rich-v1/compare.py --prompt "Mia carried the little red boat to the pond." --decoder sampled --seed 11
+uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION_A" --json
+uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION_B" --json
+uv run --locked --extra cpu sparselab surface chat \
+  --cell "first=$GENERATION_A" --cell "second=$GENERATION_B" \
+  --backend cpu --seed 11 \
+  --work-dir "$SPARSELAB_WORK_DIR/experiments/checkpoint-exploration"
 ```
 
-The first command opens a one-line-per-prompt terminal session; an empty line
-or Ctrl-D exits. `--prompt-file FILE` accepts a multiline UTF-8 prompt;
-`--prompt "..." --json` prints raw completions, native token counts/IDs and
-checkpoint digests. The same text and decoder settings are used for both
-models, but their vocabularies and contexts differ. On the frozen 256-story
-same-text control the data-rich 30M had lower bits/byte than the earlier
-50M; hand-entered continuations are exploratory, not a prose-quality score.
-The 50M also differs in width, depth, training data, budget, context and
-precision, so this comparison **cannot attribute an outcome to data variety
-instead of depth**. Checkpoints and source snapshots must remain available
-in the two sibling worktrees; no new training is run.
+Surface chat uses each model's native tokenizer and shows anonymous response
+cards. Saved exploratory replies and votes are not sealed evaluation evidence.
+Different data, tokenizer, size, context or precision prevent attributing a
+response difference to a single architectural feature.
 
-For a local **self-blind review of already generated text**, import a verified
-study's original outputs into a new, ignored, task-owned bundle, then open the
-dedicated review page (not the read-only telemetry dashboard):
+## Review existing outputs
 
-```sh
-uv run --locked --extra cpu sparselab surface import data-rich-v1 \
-  --campaign-root /home/byron/src/tiny-sparse-lab-data-rich \
-  --sample quick --selection-seed 2026 --presentation-seed 2027 \
-  --output sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026
-uv run --locked --extra cpu sparselab surface review \
-  sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026 --port 8502
+For a sealed comparison, use `sparselab surface import triage` on compatible
+retained triage outputs, then `surface review` on the new bundle. The
+[Surface Review guide](research/surface-review-v1.md) owns the complete commands,
+required inputs, study-specific importers, privacy limits and verified dashboard
+overlay. Imports verify existing output bytes and do not regenerate missing text.
+One person's review does not establish population preference or promote a model.
 
-The import reads existing, hash-verified campaign JSONLs; it does not run models,
-replace missing files or change old study evidence. Submit all A/B judgments,
-complete the write-once blind review, then explicitly reveal identities and
-descriptive counts. `sparselab surface chat` with two to four
-`--cell ALIAS=GENERATION_PATH` options instead generates *exploratory* local
-checkpoint replies; its votes are not sealed review evidence. See the
-[Surface Review v1 guide](research/surface-review-v1.md)
-for old decoding and triage imports, profiles, dimensions, seed rules, privacy
-limits and the optional verified triage/dashboard overlay. One person's review
-does not establish population preference or promote a model.
+For historical findings and checkpoint-bound records, consult the
+[experiment ledger](research/experiment-ledger.md). Historical comparator scripts
+remain with their original research packets; they are not the general lab workflow.

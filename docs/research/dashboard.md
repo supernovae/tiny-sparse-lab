@@ -21,3 +21,8 @@ artifact HTML/Markdown as trusted content, opens a run store, creates a writer,
 ranks models, adds a leaderboard, or exposes a mutation/run control. See the
 [known-good baseline guide](known-good-baselines.md) for the review and evidence
 rules.
+
+The [curated experiment ledger](experiment-ledger.md) connects project questions
+to retained lessons across studies. A shared CLI/dashboard ledger projection is
+[proposed](../../TODO.md#experiment-ledger-projection); current Research pages
+continue to read their existing lifecycle and verified report sources.

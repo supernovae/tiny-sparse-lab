@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the scale-experiments milestone.
+Accepted: scale-experiments.
 
 ## Decision
 
@@ -12,4 +12,4 @@ The reference scale matrix covers dense, sliding-window, MLA, and combined confi
 
 ## Consequences
 
-Scale claims remain reproducible and condition-aware. This milestone adds experiment protocol and inspectable configurations, not benchmark results.
+Scale claims remain reproducible and condition-aware. This decision establishes experiment protocol and inspectable configurations, not benchmark results.

@@ -4,8 +4,8 @@ This guide explains the execution machinery. Copyable walkthroughs are indexed
 under [`experiments/samples/`](../experiments/samples/); identity-bound research
 campaigns and iteration notes belong under
 [`experiments/research/`](../experiments/research/). Keep downloads, prepared
-data, run stores, checkpoints, logs, and generated reports in a named ignored
-`sparselab-work/experiments/<campaign>/` directory rather than anonymous `/tmp`.
+data, run stores, checkpoints, logs, and generated reports under the external persistent root at
+`$SPARSELAB_WORK_DIR/experiments/<campaign>/`.
 Code gaps discovered during a campaign go to [`TODO.md`](../TODO.md); scientific
 next steps remain in the research roadmap/lifecycle.
 
@@ -31,7 +31,7 @@ The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,89
 
 ## Authored experiment plans and resolved locks
 
-[Campaign v1](campaigns.md) orchestrates Corpus Forge releases and these plans
+[Campaigns](campaigns.md) orchestrates Corpus Forge releases and these plans
 with typed dependencies, declared readiness policies, input-bound authorization
 and recoverable runtime-bound execution. It does not replace ExperimentPlan's
 scientific configuration or infer data/architecture/quality thresholds.
@@ -204,33 +204,15 @@ uv run --locked --extra cpu sparselab study collect experiments/ffn-study.yaml \
 
 Collection verifies the receipt against the current study and each run's resolved config, records checkpoint identities, and emits a content-addressed report beside the receipt. Missing runs or invalid evaluations stay explicitly inconclusive; they are not dropped from the denominator silently. `--checkpoint NAME` selects the same named checkpoint for every run; the default is each run's latest checkpoint. Paired deltas are descriptive, not statistical significance or a universal architecture ranking.
 
-A study submitted without path overrides uses `sparselab-work/experiments/<study-name>/runs` and one sibling `receipt.json`. Collection defaults to the receipt’s sibling `runs/`. Pass the same explicit store as `--runs-dir` for custom layouts. Seeds, architecture cells, budget coordinates, and resumed children share this store; they do not create peer workspaces. See [workspace policy](workspaces.md) for external-disk overrides and evidence retention.
+A study submitted without path overrides uses `<work-dir>/experiments/<study-name>/runs` and one sibling `receipt.json`. Collection defaults to the receipt’s sibling `runs/`. Pass the same explicit store as `--runs-dir` for custom layouts. Seeds, architecture cells, budget coordinates, and resumed children share this store; they do not create peer workspaces. See [workspace policy](workspaces.md) for external-disk overrides and evidence retention.
 
 The study layer compares only configurations and evidence supported by the current training/evaluation stack. It does not add RL reward training or wire record-based Engram packs into model execution; those require separate model/trainer work. Keep data, tokenizer, source revision, runtime, and actual step/token budgets matched within each architecture comparison.
 
-## Completed multi-seed studies
+## Learn from retained comparisons
 
-- [Context/Engram study](context-engram-study.md#execution-results--2026-09-22): 24 endpoints spanning seeds 17/41/73, two exact target budgets, dense/backbone and dense-total comparisons, and collision/address-order diagnostics. Every untouched override endpoint remained 0/8. Added memory capacity and observed bucket collisions are not evidence of a generalization advantage.
-- [Domain adaptation](path-domain-corpus.md#2026-09-22-execution-record): three pretraining/adaptation pairs with frozen supervision, provenance, semantic leakage checks, per-case results, and static-retention measurements. Training-case acquisition improved, but held-out reliability remained poor and retention worsened sharply.
-
-[Independent acceptance](../artifacts/acceptance/scientific_studies_2026_09_22.json) binds the input inventories, endpoint identities, stored responses, paired deltas, and retention observations. These studies retain all declared seeds/endpoints and their negative outcomes; they are not a general model-selection or significance framework.
-
-## Historical controlled dense runs
-
-These recorded runs used the pinned TinyStories revision, the same 8192-token tokenizer, seed, optimizer, 128-token sequence length, and 204,800 target-token budget on MPS. Validation was standalone evaluation over the retained validation split. They predate the current integrity-bound report format; retain them as historical loss observations, not newly verified capability evidence.
-
-| Run | Parameters | Validation loss | Validation perplexity |
-|---|---:|---:|---:|
-| `scale-micro-3m` | 3,344,064 | 5.1614 | 174.42 |
-| `scale-dense-7m` | 6,917,376 | 4.9942 | 147.55 |
-| `scale-dense-10m` | 10,244,160 | 4.8790 | 131.49 |
-| `scale-dense-25m` | 29,893,120 | 4.5751 | 97.04 |
-| `scale-dense-50m` | 50,274,752 | 4.2770 | 72.03 |
-
-These observations suggest lower validation loss at this fixed budget as dense parameter count increases. They do not establish an optimal scaling law, chat ability, or an Engram benefit. Previously published throughput values are withdrawn: the trainer divided one update's tokens by cumulative run time. New measurements use synchronized update duration; rerun controlled pairs before making a performance claim.
-The smoke configurations prove CPU wiring only. For a meaningful comparison, train separate unique run IDs with matching source, tokenizer, device, token budget, sequence length, optimizer, and seed. Store the resulting run directory and SQLite metrics; compare observed loss or throughput only at matching recorded budgets. Do not convert unmatched runs into an aggregate quality score.
-
-Dense attention, sliding-window attention, MLA, MoE, and byte memory alter different resource boundaries. Attribute an observed difference only after a controlled ablation; a combined run is a compatibility check, not evidence that its mechanisms compound beneficially.
+The [experiment ledger](research/experiment-ledger.md) links completed studies to
+their bounded findings and limitations. Those records illustrate how to retain
+comparisons; their datasets, run IDs and budgets are not required by this DSL.
 
 ## Evidence before comparison
 

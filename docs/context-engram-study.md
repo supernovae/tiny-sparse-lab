@@ -112,12 +112,12 @@ Run from repository root after Main’s runtime/checkpoint acceptance work. Thes
 
 ```sh
 # Build or verify the frozen train-only tokenizer artifact.
-uv run sparselab tokenizer train configs/context_study_tokenizer.yaml
+uv run --locked sparselab tokenizer train configs/context_study_tokenizer.yaml
 
 # Exactly the 24 preregistered runs. The second field is the deterministic run ID;
 # the third is its required exact committed-target endpoint.
 while IFS='|' read -r config run_id target; do
-  uv run sparselab train "configs/$config" --run-id "$run_id"
+  uv run --locked sparselab train "configs/$config" --run-id "$run_id"
 done <<'RUNS'
 context_study_dense_s17_b24k.yaml|context-study-dense-s17-b24k|24576
 context_study_engram_s17_b24k.yaml|context-study-engram-s17-b24k|24576
@@ -150,12 +150,12 @@ For each row, identify one generation under `runs/$run_id/checkpoints/` whose ve
 
 ```sh
 # Set ENDPOINT only to the exact-target verified generation selected by the rule above.
-uv run sparselab checkpoint verify "$ENDPOINT" --config "configs/$CONFIG"
+uv run --locked sparselab checkpoint verify "$ENDPOINT" --config "configs/$CONFIG"
 
 # Repeat the following fixed three commands for every valid endpoint: 72 planned evaluations.
-uv run sparselab capability evaluate "$RUN_ID" data/context_override_v2/context_override_acquisition_v1.card.json --checkpoint "$ENDPOINT" --backend cpu
-uv run sparselab capability evaluate "$RUN_ID" data/context_override_v2/context_static_retention_v1.card.json --checkpoint "$ENDPOINT" --backend cpu
-uv run sparselab capability evaluate "$RUN_ID" data/context_override_v2/context_override_untouched_v1.card.json --checkpoint "$ENDPOINT" --backend cpu
+uv run --locked sparselab capability evaluate "$RUN_ID" data/context_override_v2/context_override_acquisition_v1.card.json --checkpoint "$ENDPOINT" --backend cpu
+uv run --locked sparselab capability evaluate "$RUN_ID" data/context_override_v2/context_static_retention_v1.card.json --checkpoint "$ENDPOINT" --backend cpu
+uv run --locked sparselab capability evaluate "$RUN_ID" data/context_override_v2/context_override_untouched_v1.card.json --checkpoint "$ENDPOINT" --backend cpu
 ```
 
 The built-in `capability compare` command is not the reporting mechanism for this packet: it cannot encode the fixed exact-target endpoint rule, failures/partials, paired seed table, or collision occupancy analysis.
@@ -203,4 +203,4 @@ The result artifact provides individual same-seed/same-budget Engram−dense and
 
 The independent actual-implementation address audit covers all 27 usable train blocks with the causal zero-padded, block-reset address rule. For order-3/table-1021 it found 1,728 lookups, 524 unique buckets, 1,204 existing reuse counts, 719 distinct n-grams, 1,009 repeated-identical-n-gram lookups, and 160 buckets containing distinct-key aliases (195 extra distinct-key-to-bucket aliases). Order-3/table-127 had 127 unique buckets, 1,601 reuse counts, and 123 distinct-key collision buckets (592 aliases); order-2/table-1021 had 425 unique buckets, 1,303 reuse counts, and 110 distinct-key collision buckets (127 aliases). Thus the existing `lookups - unique buckets` metric is reported as bucket reuse, not pure hashing aliasing. Endpoint Engram diagnostics are last-forward, update-boundary scalar diagnostics; CPU records process RSS and has no native accelerator allocation/reserved/peak measurement.
 
-Astra independently reverified all endpoint files, rescored all archived responses, checked all 18 paired deltas, and recomputed all four address streams. Excess-key aliases above are not unordered colliding-key pairs: the corresponding pair counts are 234, 2,009, and 148. The result artifact names the former `distinct_key_collision_extra_aliases`; no observed count changed. [Acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json).
+The acceptance audit independently reverified all endpoint files, rescored all archived responses, checked all 18 paired deltas, and recomputed all four address streams. Excess-key aliases above are not unordered colliding-key pairs: the corresponding pair counts are 234, 2,009, and 148. The result artifact names the former `distinct_key_collision_extra_aliases`; no observed count changed. [Acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json).

@@ -55,42 +55,11 @@ availability. `research validate --baseline dense-lm-v1` reports
 candidate-specific validity while retaining global registry diagnostics; none of
 these commands runs experiments or decides promotion.
 
-The [dense-lm-v1 lifecycle record](dense-lm-v1.md) documents a promoted bounded
-three-seed learning reference. All frozen terminal gates passed; OOD capability
-cards remain descriptive, not evidence of chat quality. The canonical lifecycle
-and report bundle bind the retained evidence; unrelated historical Engram errors
-remain visible in global validation.
-
-The completed [dense-lm-token-budget-v1 campaign](../../experiments/research/dense-lm-token-budget-v1/results.md)
-continues that reference with its optimizer state and original learning-rate
-decay horizon through two larger target budgets on all three seeds. Validation
-loss decreased at both milestones, but some fixed outputs developed new
-contradictions or repetition. Start with the [plain-language review](dense-lm-token-budget-review.md);
-the [preregistration](../../experiments/research/dense-lm-token-budget-v1/preregistration.md)
-and [acceptance observations](../../artifacts/acceptance/dense_lm_token_budget_v1.json)
-bind the controls and raw outcomes. No extended checkpoint was promoted.
-
-The completed [dense-lm-scale-v1 study](../../experiments/research/dense-lm-scale-v1/results.md)
-compares a 50.27M-parameter fully dense model against the mature 29.89M-parameter
-reference at the same 16.78M supervised targets on three ROCm seeds. The larger
-model reduced held-out loss at every shared post-initial validation point, but
-fixed-panel story continuity and repetition changed in both directions, at greater
-runtime and memory cost. Its [frozen protocol](../../experiments/research/dense-lm-scale-v1/protocol.md),
-[input registration](../../experiments/research/dense-lm-scale-v1/preregistration.md)
-and [per-seed evidence](../../experiments/research/dense-lm-scale-v1/evidence.json)
-remain distinct from the token-budget Finding and promoted `dense-lm-v1` baseline.
-No checkpoint was automatically promoted; generation/degeneration controls are a
-separate [proposal](roadmap.md#dense-lm-v1-descendants).
-
-The separate [dense-lm-decoding-v1 experiment](../../experiments/research/dense-lm-decoding-v1/results.md)
-generates from the retained mature 30M/50M checkpoints without training. It keeps
-the six-prompt greedy regression decoder intact, chooses one sampled policy using
-only 22 authored development prompts, and compares greedy with the frozen policy
-on 55 independent evaluation prompts. Sampling lowers repetition but often
-drifts from the prompt; 50M's independent mechanical outcomes are mixed.
-[Every generation and checkpoint binding](../../experiments/research/dense-lm-decoding-v1/evidence/summary.json)
-is retained. A [blinded review bundle](../../experiments/research/dense-lm-decoding-v1/review.md)
-exists, but no human voted, so subjective quality remains unavailable.
+The [experiment ledger](experiment-ledger.md) centralizes retained lessons from
+recall, context use, adaptation, architecture, exposure, scale and decoding
+studies. Follow its evidence links for exact identities and controls; use the
+[roadmap](roadmap.md) for declared next questions. Historical completion does not
+imply local checkpoint availability or authorization to rerun a campaign.
 
 Relative path values in matrix axis patches resolve from `matrix.yaml`; paths
 in a base config resolve from that YAML file.
@@ -101,8 +70,8 @@ The allocation recipe requires the provenance-bound path-domain bundle before
 scaffolding:
 
 ```sh
-uv run sparselab research tasks build memory-allocation --output artifacts/allocation
-uv run sparselab research scaffold memory-allocation-curve-v1 \
+uv run --locked sparselab research tasks build memory-allocation --output artifacts/allocation
+uv run --locked sparselab research scaffold memory-allocation-curve-v1 \
   --design iso-total --scale smoke --data offline --backend cpu \
   --output experiments/memory-allocation-iso-total
 ```

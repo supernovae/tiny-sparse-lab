@@ -43,8 +43,9 @@ New architecture code must first gain a focused contract test and a tiny
 end-to-end path here, then a device-specific warmup if its intended backend is
 available. Register a model-quality question separately in the research
 lifecycle. A small pilot cannot establish architecture advantage. MLX supports
-only its documented dense and native block-sparse paths; these CPU runs do not
-establish MLX, CUDA, ROCm, or XPU acceptance. CUDA block-sparse selection still
+only its documented dense and native block-sparse paths; these readiness runs
+execute on CPU. To check workload compatibility with a GPU
+environment, run the appropriate pilot there. CUDA block-sparse selection still
 uses the reference path until the native CUDA item in `TODO.md` is implemented
 and measured on CUDA hardware.
 

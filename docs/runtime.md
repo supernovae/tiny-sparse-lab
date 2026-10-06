@@ -2,6 +2,14 @@
 
 Each SparseLab experiment runs in one process on one host/device. An optional controller schedules multiple whole independent experiments on local or SSH workers; it never shares their optimizer state or gradients. A run records its selected engine, backend, precision, device index, available memory readings, framework/runtime versions, and probe result in its manifest. That record describes the machine that ran it; it is not evidence that another machine has the same capability.
 
+An **engine** is the framework executing the model: PyTorch or MLX. A **backend**
+is its CPU/GPU execution route: PyTorch CPU, NVIDIA CUDA, AMD ROCm, Intel XPU or
+Apple MPS; MLX uses Metal on Apple Silicon. A device is the selected processor.
+Runtime checks ask whether SparseLab can execute a workload in that environment.
+Research experiments ask about their declared model, data or training variables;
+recording the device does not make it the subject of the experiment. A study
+explicitly comparing execution backends must declare that as its own question.
+
 ## Host environment and compute backend
 
 Host OS, execution environment, and compute backend are independent dimensions.
@@ -23,8 +31,9 @@ is recorded as `unknown-wsl`. Host detection never initializes a GPU.
 CPU execution uses the same path on Linux, WSL2, and macOS. NVIDIA CUDA, AMD
 ROCm, and Intel XPU use their installed framework APIs on native Linux or WSL2
 where the vendor supports that host/device combination. Apple MPS and MLX use
-Metal on supported Macs. Discovery and explicit validation decide availability;
-a host label never certifies an accelerator or enables a fallback.
+Metal on supported Macs. Discovery reports local availability, and a disposable
+workload checks the requested operations and precision before execution.
+A host label alone neither selects a device nor enables a fallback.
 
 WSL2 uses the Linux process, locking, and filesystem paths in SparseLab. Keep
 Linux training data, caches, and checkpoints in the Linux filesystem where
@@ -290,208 +299,37 @@ binds the requested/observed evaluation runtime; saved authorization JSON is
 operational evidence only, never a reusable token.
 Portable archives verify the same runtime-bound evaluation index identity.
 
-### Post-merge ROCm contract acceptance runbook
+### Runtime contract acceptance
 
-This is a **real-hardware gate, not a CI result**. Execute only after merging the
-code, on a new normal branch in the existing checkout, with a provisioned vendor
-environment containing this source revision. No DevMind payloads are involved.
-CPU-only CI and mocked accelerator probes do not close this gate.
+Validate each provisioned host/device using the
+[native acceptance workflow](#runtime-acceptance-on-a-provisioned-host).
+Use the actual candidate config, registered interpreter and explicit backend.
+`runtime env doctor`, `inspect` and a full-shape `stage --through warmup` provide
+separate environment, configuration and optimizer-execution observations.
+A check executed on CPU does not exercise SparseLab’s GPU execution path;
+that path needs a workload run in the selected GPU environment.
 
-The commands below use the vendor environment without synchronization. Stop if
-its interpreter or installed source differs. Choose a fresh task directory;
-never overwrite a running or previous acceptance campaign.
+For a declared Campaign, use its runtime stage and input-bound approval gate,
+then `campaign status`, `next` and `explain` to inspect the same attempt. Follow
+[Campaign execution and recovery](campaigns.md) for explicit dispatch and
+reconciliation. A lock or saved probe never authorizes source/runtime drift.
 
-```sh
-set -eu
-git switch main
-git pull --ff-only
-git switch -c acceptance/runtime-contract-rocm
-export SPARSELAB_WORK_DIR=/data/sparselab
-export VENDOR_PY=/absolute/provisioned/vendor/bin/python
-export WORK="$SPARSELAB_WORK_DIR/experiments/runtime-contract-acceptance"
-export PROFILE="$WORK/profile.yaml"
-export SAMPLE=experiments/samples/runtime-contract-acceptance
-test -x "$VENDOR_PY"
-test ! -e "$WORK"
-mkdir -p "$WORK" "$SAMPLE"
-df -h "$WORK"
-df -i "$WORK"
-# This bin/python layout selects the already provisioned project environment.
-export UV_PROJECT_ENVIRONMENT="$(dirname "$(dirname "$VENDOR_PY")")"
-uv run --locked --no-sync python -c 'import os,sys; from pathlib import Path; assert Path(sys.executable).absolute() == Path(os.environ["VENDOR_PY"]).absolute()'
-cat > "$PROFILE" <<EOF
-runtime_profile_version: 1
-id: wsl-rx7900xtx-rocm
-python: $VENDOR_PY
-engine: pytorch
-backend: rocm
-device_index: 0
-requirements:
-  torch_hip: true
-  bf16: true
-  device_name_regex: 'Radeon.*7900 XTX'
-EOF
-```
+Acceptance requires the requested device and precision, completed optimizer
+updates, verified full-state checkpoints, completed ingestion and collection,
+and evaluation bound to the selected checkpoint and observed evaluation runtime.
+Use `checkpoint verify`, `evidence` and `evaluation suite run` through their native
+interfaces. A separate CPU evaluation retains the original training identity.
+Keep missing, failed and interrupted observations visible. No automatic model
+promotion follows from completing this execution contract.
 
-Before invoking preparation/staging, estimate tokenizer/data-cache size, staged
-input copies, disposable pilot checkpoints, controller dispatch copies and all
-retained generations. The fixture below has a 16-wide one-layer model, 129/81
-training/validation targets and two updates; reserve at least 1 GiB and 10,000
-free inodes **in addition to** the worker/environment and existing data. Check
-the `inspect`/stage storage estimates against actual free capacity; stop if that
-margin is inadequate. Do not prune unrelated data to make it fit.
-
-Author and commit the initial declarations before preparing artifacts:
-
-```sh
-uv run --locked --no-sync python - <<'PY'
-import os
-from pathlib import Path
-import yaml
-from sparselab.config import load_config, load_tokenizer_config
-
-sample = Path(os.environ["SAMPLE"])
-work = Path(os.environ["WORK"]).resolve()
-tokenizer = load_tokenizer_config(Path("configs/tokenizer_smoke.yaml"))
-t = tokenizer.model_dump(mode="json")
-t["output_dir"] = str(work / "tokenizer")
-t["dataset"]["cache_dir"] = str(work / "tokenizer-data")
-config = load_config(Path("configs/runtime_smoke_rocm_bf16.yaml"))
-r = config.model_dump(mode="json")
-r["tokenizer"]["path"] = str(work / "tokenizer/tokenizer.json")
-r["dataset"]["cache_dir"] = str(work / "prepared-data")
-r["logging"]["root_dir"] = str(work / "runs")
-r["training"].update(max_steps=2, max_tokens=64)
-r["optimizer"]["warmup_steps"] = 1
-r["checkpoint"]["every_steps"] = 1
-r["evaluation"]["every_steps"] = 1
-assert r["runtime"]["backend"] == "rocm" and r["runtime"]["precision"] == "bf16"
-assert 16 * 1 * 2 * 2 == r["training"]["max_tokens"]
-(sample / "tokenizer.yaml").write_text(yaml.safe_dump(t, sort_keys=False))
-(sample / "run.yaml").write_text(yaml.safe_dump(r, sort_keys=False))
-PY
-git add "$SAMPLE/tokenizer.yaml" "$SAMPLE/run.yaml"
-git commit -m 'Declare tiny ROCm runtime smoke inputs'
-uv run --locked --no-sync sparselab tokenizer train "$SAMPLE/tokenizer.yaml"
-uv run --locked --no-sync sparselab data prepare "$SAMPLE/run.yaml"
-```
-
-Bind the verified prepared manifest and tokenizer identities, then commit the
-plan, suite and campaign before locking or applying:
-
-```sh
-uv run --locked --no-sync python - <<'PY'
-import json
-import os
-from pathlib import Path
-import yaml
-from sparselab.config import load_config
-from sparselab.data.packing import prepare_data
-from sparselab.data.tokenizer import load_tokenizer
-from sparselab.experiments.artifacts import verify_artifact
-from sparselab.experiments.plan import Artifact
-from sparselab.training.manifest import sha256_file
-
-sample = Path(os.environ["SAMPLE"])
-config = load_config(sample / "run.yaml")
-prepared = prepare_data(config, load_tokenizer(config.tokenizer.path))
-manifest = json.loads((prepared.root / "manifest.json").read_text())
-tokenizer = dict(kind="tokenizer", version=1, producer="sparselab",
-                 identifier="tokenizer", sha256=sha256_file(config.tokenizer.path),
-                 path=str(config.tokenizer.path))
-packed = dict(kind="prepared_data", version=1, producer="sparselab",
-              identifier=manifest["settings_sha256"],
-              sha256=manifest["manifest_sha256"], path=str(prepared.root))
-for artifact in (tokenizer, packed):
-    verify_artifact(Artifact.model_validate(artifact), sample / "plan.yaml")
-plan = dict(plan_version=1, id="runtime-contract-rocm-bf16", base_run="run.yaml",
-            artifacts={"tokenizer": tokenizer, "packed": packed},
-            inputs={"tokenizer": "tokenizer", "prepared_data": "packed"},
-            execution={"backend": "rocm"}, evaluation_suite="suite.yaml")
-suite = dict(evaluation_suite_version=1, id="runtime-contract-heldout",
-             evaluations=[dict(id="heldout", role="gate", kind="heldout_lm")])
-stages = [
-    dict(id="tokenizer", kind="artifact_reference", scope="tokenizer", artifact=tokenizer),
-    dict(id="packed", kind="artifact_reference", scope="model", artifact=packed),
-    dict(id="plan", kind="experiment_plan", scope="model", requires=["tokenizer", "packed"],
-         source="plan.yaml", mode="lock", tokenizer="tokenizer", prepared="packed"),
-    dict(id="runtime", kind="runtime_acceptance", scope="runtime", requires=["plan"],
-         plan="plan", profile_id="wsl-rx7900xtx-rocm"),
-    dict(id="gate", kind="approval", scope="model", requires=["runtime"], bind=["runtime"]),
-    dict(id="run", kind="experiment_run", scope="model", requires=["plan", "runtime", "gate"],
-         plan="plan", runtime="runtime", cell="main:single"),
-    dict(id="collect", kind="experiment_collect", scope="evaluation", requires=["plan", "run"],
-         plan="plan", run="run"),
-    dict(id="evaluation", kind="evaluation", scope="evaluation", requires=["collect", "runtime"],
-         collect="collect", suite="suite.yaml", runtime="runtime"),
-]
-campaign = dict(campaign_version=1, id="runtime-contract-rocm-bf16", stages=stages)
-for name, value in (("plan", plan), ("suite", suite), ("campaign", campaign)):
-    (sample / f"{name}.yaml").write_text(yaml.safe_dump(value, sort_keys=False))
-PY
-git add "$SAMPLE/plan.yaml" "$SAMPLE/suite.yaml" "$SAMPLE/campaign.yaml"
-git commit -m 'Bind tiny ROCm plan and campaign intent'
-```
-
-Execute this complete chain, retaining the external JSON outputs:
-
-```sh
-uv run --locked --no-sync sparselab runtime probe "$PROFILE" --json > "$WORK/probe.json"
-uv run --locked --no-sync python -c 'import json,os,re; from pathlib import Path; p=json.loads((Path(os.environ["WORK"])/"probe.json").read_text()); assert p["available"] and p["torch_hip"] and p["backend"]=="rocm" and p["device_index"]==0 and re.search("Radeon.*7900 XTX",p["device_name"]); print(p["device_name"])'
-uv run --locked --no-sync sparselab inspect "$SAMPLE/run.yaml" --json > "$WORK/inspect.json"
-uv run --locked --no-sync sparselab stage "$SAMPLE/run.yaml" --through warmup \
-  --runtime-profile "$PROFILE" --output "$WORK/stage"
-uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; s=json.loads((Path(os.environ["WORK"])/"stage/stage.json").read_text()); assert s["status"]=="complete" and s["runtime"]["backend"]=="rocm" and "bf16" in s["runtime"]["tested_precisions"]'
-uv run --locked --no-sync sparselab experiment lock "$SAMPLE/plan.yaml" --json > "$WORK/lock.json"
-export LOCK="$(uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; print(json.loads((Path(os.environ["WORK"])/"lock.json").read_text())["lock"])')"
-uv run --locked --no-sync sparselab experiment bind "$LOCK" --runtime-profile "$PROFILE" \
-  --cell main:single --json > "$WORK/binding.json"
-uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; print(json.loads((Path(os.environ["WORK"])/"binding.json").read_text())["bindings"][0]["binding_sha256"])'
-uv run --locked --no-sync sparselab campaign apply "$SAMPLE/campaign.yaml" \
-  --runtime-profile "$PROFILE" --json > "$WORK/acceptance.json"
-uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; r={s["id"]:s for s in json.loads((Path(os.environ["WORK"])/"acceptance.json").read_text())["stages"]}; assert r["runtime"]["state"]=="COMPLETE" and r["gate"]["state"]=="AWAITING_APPROVAL"'
-uv run --locked --no-sync sparselab campaign approve "$SAMPLE/campaign.yaml" gate \
-  --note 'verified tiny ROCm capability' --json > "$WORK/approval.json"
-uv run --locked --no-sync sparselab campaign apply "$SAMPLE/campaign.yaml" \
-  --runtime-profile "$PROFILE" --execute-runs --max-wait-seconds 600 --json > "$WORK/apply.json"
-# If run is still RUNNING, reconcile the same attempt; never replace it.
-if uv run --locked --no-sync python -c 'import json,os,sys; from pathlib import Path; r={s["id"]:s for s in json.loads((Path(os.environ["WORK"])/"apply.json").read_text())["stages"]}; sys.exit(0 if r["run"]["state"]=="RUNNING" else 1)'; then
-  uv run --locked --no-sync sparselab campaign resume "$SAMPLE/campaign.yaml" \
-    --runtime-profile "$PROFILE" --max-wait-seconds 600 --json > "$WORK/resume.json"
-fi
-uv run --locked --no-sync sparselab campaign status "$SAMPLE/campaign.yaml" \
-  --json > "$WORK/status.json"
-export RUN_ID="$(uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; r={s["id"]:s for s in json.loads((Path(os.environ["WORK"])/"status.json").read_text())["stages"]}; assert r["run"]["state"]==r["collect"]["state"]==r["evaluation"]["state"]=="COMPLETE"; print(r["run"]["outputs"][0]["identifier"])')"
-export GENERATION="$(uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; r={s["id"]:s for s in json.loads((Path(os.environ["WORK"])/"status.json").read_text())["stages"]}; print(r["collect"]["measurements"]["generation"])')"
-export COLLECTED_SHA="$(uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; r={s["id"]:s for s in json.loads((Path(os.environ["WORK"])/"status.json").read_text())["stages"]}; print(r["collect"]["measurements"]["sha256"])')"
-export CAMPAIGN_CONTROLLER="$(uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; r={s["id"]:s for s in json.loads((Path(os.environ["WORK"])/"status.json").read_text())["stages"]}; print(Path(r["run"]["availability"]["workspace"])/"controller")')"
-uv run --locked --no-sync python -c 'import os; from pathlib import Path; from sparselab.workers.controller import Controller; r=Controller(Path(os.environ["CAMPAIGN_CONTROLLER"]),read_only=True).list_experiments(); a=[x for x in r if x["run_id"]==os.environ["RUN_ID"]]; assert len(a)==1 and a[0]["status"]==a[0]["ingestion_status"]=="COMPLETE"'
-uv run --locked --no-sync sparselab evaluation suite run "$SAMPLE/suite.yaml" "$RUN_ID" \
-  --checkpoint "checkpoints/$GENERATION" --runs-dir "$CAMPAIGN_CONTROLLER" \
-  --runtime-profile "$PROFILE" --json > "$WORK/evaluation-rocm.json"
-uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; from sparselab.evaluation.suite import verify_evaluation_index; p=json.loads((Path(os.environ["WORK"])/"evaluation-rocm.json").read_text()); i=verify_evaluation_index(Path(p["index"])); assert i["checkpoint_sha256"]==os.environ["COLLECTED_SHA"] and i["evaluation_runtime"]["backend"]=="rocm" and i["evaluation_runtime"]["observed"]["backend"]=="rocm"; r=json.loads(Path(i["evaluations"][0]["path"]).read_text()); assert r["identity"]["training_runtime"]["backend"]=="rocm" and r["identity"]["runtime"]["backend"]=="rocm"'
-# Optional explicit CPU evaluation: NO ROCm profile or worker.
-uv run --locked --no-sync sparselab evaluation suite run "$SAMPLE/suite.yaml" "$RUN_ID" \
-  --checkpoint "checkpoints/$GENERATION" --runs-dir "$CAMPAIGN_CONTROLLER" \
-  --backend cpu --json > "$WORK/evaluation-cpu.json"
-uv run --locked --no-sync python -c 'import json,os; from pathlib import Path; from sparselab.evaluation.suite import verify_evaluation_index; p=json.loads((Path(os.environ["WORK"])/"evaluation-cpu.json").read_text()); i=verify_evaluation_index(Path(p["index"])); assert i["checkpoint_sha256"]==os.environ["COLLECTED_SHA"] and i["evaluation_runtime"]["backend"]=="cpu"; r=json.loads(Path(i["evaluations"][0]["path"]).read_text()); assert r["identity"]["runtime"]["backend"]=="cpu" and r["identity"]["training_runtime"]["backend"]=="rocm"'
-```
-
-Hardware acceptance requires the entire ROCm chain to succeed on the real host:
-fresh matching HIP/device/source, BF16 optimizer-tested warmup, runtime COMPLETE,
-one run COMPLETE with ingestion COMPLETE, collection COMPLETE, evaluation
-COMPLETE, and exact collected checkpoint SHA/runtime correspondence. Retain
-failures and interrupted attempts; command completion alone does not establish
-quality, cross-host portability or superiority.
-
-Controller scheduling binds the successful validation reply's tested runtime
-to the freshly discovered registered-worker identity. A subsequent passive
-discovery cannot replace that probe evidence. Campaign tick deadlines also
-bound worker discovery and validation RPCs.
+The [registered-runtime acceptance record](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
+preserves a software integration check run on the recorded GPU. Its device,
+source and checkpoint identities describe the execution environment and outputs;
+new users declare their own runtime.
 
 ## Discovery, validation, and measurements
 
-Discovery is passive: it inventories CPU, MPS, CUDA, ROCm, XPU, and MLX availability without creating a model. It records unavailable runtimes and API limitations rather than guessing. Validation separately exercises a disposable forward/backward/optimizer probe for the requested engine and precision. Discovery or a vendor specification is not a hardware acceptance result.
+Discovery is passive: it inventories CPU, MPS, CUDA, ROCm, XPU, and MLX availability without creating a model. It records unavailable runtimes and API limitations rather than guessing. Validation separately exercises a disposable forward/backward/optimizer probe for the requested engine and precision. This checks workload compatibility with the installed framework and device; it does not evaluate a model or certify the hardware.
 
 Per-update timing synchronizes at update boundaries. `performance/step_seconds` and `performance/tokens_per_second` cover successful update work; validation, checkpointing, staging, and setup are outside that interval. Memory monitoring samples process RSS and supported allocator readings at update phases. CUDA/ROCm/XPU-shaped allocator APIs may supply native peak counters; MPS has a driver allocation reading and an observed sampled peak, not an allocator high-water guarantee. Unsupported readings are omitted and recorded as unavailable rather than emitted as zero.
 
@@ -661,8 +499,8 @@ throughput or model quality.
 
 The existing `fast` resource proposal can preserve effective batch while
 changing microbatch/accumulation based on capacity rules. It is not an empirical
-throughput search. Measured candidate ranking and batch recommendations remain
-tracked separately in the [implementation backlog](../TODO.md#throughput-and-resource-proposals).
+throughput search. Use separately declared candidates and compare measured warmup observations;
+there is no automatic empirical throughput search in this proposal interface.
 
 ## Operational resource envelopes
 
@@ -791,21 +629,13 @@ source/tokenizer/owner identity, unexpected entries, and replacement publication
 
 ### Offline performance evidence
 
-Run the standalone utility offline:
-
-```sh
-uv run --locked --extra cpu --offline python benchmarks/preparation_benchmark.py \
-  --workspace sparselab-work/runtime-prep-v1/benchmarks
-```
-
-It generates 1/8/32 MiB mixed prose/code JSONL, one local BPE tokenizer,
-scalar and 16/64/256-document cases, and controlled 1 versus bounded multi-thread Rayon.
-Raw outputs stay in
-the named ignored workspace; the durable result is
-[`artifacts/benchmarks/runtime-prep-v1.json`](../artifacts/benchmarks/runtime-prep-v1.json).
-Wall time includes imports/child startup and batch-bound instrumentation;
-sampled process-tree RSS includes the tokenizer child. This is a standalone
-measurement utility, not a CI speed assertion or a model-quality result.
+The retained [preparation benchmark](../artifacts/benchmarks/runtime-prep-v1.json)
+measured generated 1/8/32 MiB prose/code JSONL, one local BPE tokenizer,
+scalar and batched encoding, and bounded Rayon thread counts. Wall time includes
+imports, child startup and instrumentation; sampled process-tree RSS includes
+the tokenizer child. This is operational evidence, not a CI timing assertion
+or model-quality result. The historical harness remains in `benchmarks/`;
+a native benchmark adapter is tracked in [TODO.md](../TODO.md#native-diagnostic-interfaces).
 
 The recorded 32 MiB, four-Rayon-thread cases selected the final default **256**
 documents: 5.404 MB/s and 458.2 MiB sampled process-tree peak, versus scalar
@@ -825,7 +655,7 @@ portability claim.
 
 The [Campaign integration rebase record](../artifacts/acceptance/runtime-prep-v1-rebase.json)
 adds actual worker-dispatch/ingestion CLI proof and the combined CPU suites
-after integrating Campaign v1. Original benchmark measurements retain their
+after integrating Campaign orchestration. Original benchmark measurements retain their
 original source identities; they were not rerun or relabeled as rebase measurements.
 
 
@@ -838,8 +668,8 @@ cause additional writes, but coincident triggers write only one generation.
 All cadence watermarks reset on a save. A configured minute cadence may write
 at every update because optimizer-update duration has no guaranteed bound;
 without that cadence it does not add an unconditional per-update allowance.
-For 5,525 updates with checkpoint and validation intervals of 2,048 and no
-other trigger, the upper bound is four writes (initial, 2,048, 4,096, terminal).
+For example, a 100-update run with checkpoint and validation intervals of 40 and
+no other trigger has four writes (initial, 40, 80, terminal).
 
 `checkpoint.keep_periodic: false` in the run config leaves the checkpoint
 manager's latest two and best generations, potentially three distinct durable
@@ -882,7 +712,9 @@ a fresh or promoted run, never full resume.
 
 ## Runtime acceptance on a provisioned host
 
-Use the same acceptance workflow for native Linux, WSL2, and macOS. Select a
+This software integration check covers training, checkpointing and evaluation
+in a selected execution environment. Use the same workflow for native Linux,
+WSL2, and macOS. Select a
 config with an explicit backend and precision supported by the provisioned
 environment. The CPU and ROCm runtime smoke configs use the same 20-step,
 640-target workload; a CUDA or XPU candidate can copy that config and change
@@ -890,40 +722,54 @@ environment. The CPU and ROCm runtime smoke configs use the same 20-step,
 experiment's config. Backend names in configs and run IDs are useful coordinates;
 host/backend combinations do not define separate storage layouts.
 
+Set `SPARSELAB_WORK_DIR` to an external persistent root. Register and doctor the
+interpreter first using [runtime environments](#machine-local-runtime-environments).
+The example uses the registered CPU runtime `cpu-py314`; for an accelerator,
+select its config and registered runtime together. These smoke configs retain
+explicit tokenizer/cache paths in the checkout; the work root does not relocate
+those paths. Use a separately authored config for external input destinations.
+
 ```sh
-WORK=sparselab-work/experiments/runtime-acceptance
-export SPARSELAB_WORK_DIR="$WORK"
+WORK="$SPARSELAB_WORK_DIR/experiments/runtime-acceptance"
 CONFIG=configs/runtime_smoke_cpu.yaml
+RUNTIME=cpu-py314
 RUN_ID="runtime-acceptance-$(date -u +%Y%m%dT%H%M%SZ)"
 STAGE_DIR="$WORK/staging/$RUN_ID"
 # --no-sync preserves the already provisioned worker framework.
 uv run --locked --no-sync sparselab tokenizer train configs/tokenizer_smoke.yaml
 uv run --locked --no-sync sparselab inspect "$CONFIG" --json
-uv run --locked --no-sync sparselab stage "$CONFIG" --through warmup --output "$STAGE_DIR"
-uv run --locked --no-sync sparselab train --runs-dir "$WORK/runs" "$CONFIG" --run-id "$RUN_ID"
-uv run --locked --no-sync sparselab eval "$RUN_ID" --runs-dir "$WORK/runs"
+uv run --locked --no-sync sparselab stage "$CONFIG" --runtime "$RUNTIME" --through warmup --output "$STAGE_DIR"
+uv run --locked --no-sync sparselab train --runs-dir "$WORK/runs" "$CONFIG" --runtime "$RUNTIME" \
+  --stage-bundle "$STAGE_DIR" --run-id "$RUN_ID"
+uv run --locked --no-sync sparselab eval "$RUN_ID" --runs-dir "$WORK/runs" --runtime "$RUNTIME"
 ```
 
 The stage, training manifest, and evaluation must record the requested backend;
 training must commit 20 steps / 640 targets for these runtime smoke configs, and
 evaluation must use the committed checkpoint. Inspect the measured host/device
 identity and probe result. An explicit unavailable backend is a failed
-acceptance. Each new host/device combination requires actual execution evidence.
+software check. Run it in the environment intended for your workload; its
+results concern SparseLab execution there, not the scientific question.
 
 ## Recorded local acceptance
 
-The [Astra CLI record](../artifacts/acceptance/host_cli_2026_09_22.json) contains
+The [Host CLI acceptance record](../artifacts/acceptance/host_cli_2026_09_22.json) contains
 fresh-process CPU FP32 20/640 versus 10+resume, CPU BF16 and Adafactor 4/128
 versus 2+resume, and native MLX FP32 2/64 versus 1+resume. Model, optimizer,
 schedule, scaler, cursor, and RNG match bitwise within each pair; parent
 generations remain unchanged. Native logits differed from canonical PyTorch
 by at most `5.97e-7` on the fixed probe, and a PyTorch-to-MLX promotion committed
 one fresh update. These are bounded implementation checks, not cross-engine
-training equivalence, model-quality results, or foreign-hardware acceptance.
+training equivalence or model-quality results. Their execution environment is
+part of the record, not the subject of a scientific finding.
 
 The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
 
-Native CUDA sparse kernels, actual XPU acceptance, and overlapping real Mac/AMD/Intel execution remain open in [the implementation backlog](../TODO.md). Native HIP sparse attention has been exercised and benchmarked on the RX 7900 XTX; ROCm runtime acceptance remains limited to one WSL2 host and does not establish cross-host support.
+Native CUDA sparse kernels remain an [implementation gap](../TODO.md). Retained
+software integration records do not yet include execution on Intel XPU or a
+simultaneous multi-host Apple/AMD/Intel worker setup. Native HIP sparse-attention
+measurements were collected on an AMD RX 7900 XTX under WSL2; that names the
+environment used for the measurements, not the purpose of the model studies.
 
 The [registered-runtime ROCm gate](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
 records isolated `rocm-gfx1100-v1` provisioning and a fresh RX 7900 XTX BF16

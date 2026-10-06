@@ -14,7 +14,7 @@ Add an optional causal token n-gram memory adapter at the decoder's final hidden
 
 Address generation, value table, latent adapter, gate, and diagnostics are separate components. The table and adapter are ordinary trainable parameters; there is no external retrieval corpus, write cache, distributed shard, approximate nearest-neighbor search, or online mutation. A disabled memory path is an exact no-op.
 
-This milestone deliberately addresses **token IDs**, not bytes. Token-ID addresses are tokenizer-specific. Byte-equivalent span hashing, normalization policy, cross-tokenizer matching, withheld-fact transfer experiments, and claims of knowledge transfer remain future work.
+The token-memory design addresses **token IDs**, not bytes. Token-ID addresses are tokenizer-specific. Byte-equivalent span hashing, normalization policy, cross-tokenizer matching, withheld-fact transfer experiments, and claims of knowledge transfer remain future work.
 
 ## Consequences
 

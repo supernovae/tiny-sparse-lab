@@ -63,3 +63,40 @@ before changing paths or archiving rights-bound corpus content.
 ## Architecture experiments
 
 The [research contribution workflow](docs/research/contributing.md) explains validated local catalog/recipe forks, declared controls and variations, train-only data boundaries, retained negative outcomes, and evidence identities. Do not commit downloaded corpora, prepared arrays, run directories, or checkpoints; a static report bundle is small evidence, not a replacement for its stated limitations.
+
+## Documentation
+
+Write for someone running their own experiment. Use native `sparselab` commands
+and YAML/JSON declarations, through the locked environment; keep Python snippets
+out of user workflows. If a required operation is API-only, describe the missing
+CLI/DSL input, output and failure criteria in TODO.md instead of inventing a
+command or teaching a private script. Label placeholders and prerequisites, and
+use fresh task directories under the persistent work root. A config with an
+explicit in-checkout destination keeps it; setting the root does not relocate it.
+
+Keep feature availability in the [README matrix](README.md#feature-matrix),
+runtime restrictions in [runtime](docs/runtime.md), and scientific lessons in the
+[experiment ledger](docs/research/experiment-ledger.md). Link to the owner of a
+topic instead of copying status summaries. Describe features by behavior rather
+than the branch, release phase or author who introduced them. Retain schema and
+protocol versions, source pins, checkpoint IDs, license attribution and historical
+paths where they identify evidence. Never rewrite a prior result to modernize a
+tutorial, or erase a failed result as obsolete documentation.
+
+Describe research by its question and changed variables, then state where it
+ran: “FFN-width comparison, run with PyTorch on an AMD GPU,” for example.
+CPU, CUDA, ROCm, XPU and MPS describe PyTorch execution capabilities; MLX is a
+separate engine using Metal on Apple Silicon. Reserve “runtime validation” and
+“acceptance” for checks of SparseLab software behavior in an environment. Do not
+present the processor as the subject of a model experiment unless the protocol
+explicitly compares execution backends.
+
+Keep general guides independent of the experiments used to develop the lab.
+Explain the DSL, its value and supported behavior; put named campaigns, run
+budgets and measured outcomes in research records. Dataset-specific walkthroughs
+are optional teaching references. Preserve required schema fields such as
+`campaign_version: 1`, but call the feature “Campaigns,” not “Campaign v1.”
+
+For documentation-only changes, check local links and heading anchors, code-fence
+balance, CLI parser support and explicit path semantics. Do not launch a research
+run to validate prose. Record unavailable hardware or execution checks at handoff.

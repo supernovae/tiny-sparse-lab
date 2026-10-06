@@ -2,17 +2,18 @@
 
 The `semantic-retrieval` lesson teaches a bounded, verified retrieval interface. It is not a language-understanding lesson: a caller supplies **externally encoded canonical vectors**, already in the declared key space. SparseLab does not turn a prompt into those vectors, parse natural language, or infer that a vector match is semantically correct.
 
-Create the standalone, self-contained semantic retrieval workspace:
+Scaffold and verify the tutorial pack through the lab:
 
 ```sh
 sparselab learn scaffold semantic-retrieval --output experiments/semantic-retrieval
-cd experiments/semantic-retrieval
-python demo.py
-sparselab engram pack inspect semantic-pack
-sparselab engram pack verify semantic-pack
+sparselab engram pack inspect experiments/semantic-retrieval/semantic-pack
+sparselab engram pack verify experiments/semantic-retrieval/semantic-pack
 ```
 
-The scaffold materializes the verified tutorial pack, raw semantic assets, query fixtures, a runnable probe, and a hash-bound `lesson.json`. Use its declared canonical key map; do not invent an encoder identity or treat its fixed vectors as natural-language embeddings. A records-only EngramPack is valid as an artifact, but is not executable semantic retrieval.
+The scaffold materializes the tutorial pack, semantic assets, query fixtures,
+an API demonstration and a hash-bound `lesson.json`. Pack inspection/verification
+is native; execution of supplied semantic queries has no general CLI/DSL adapter
+yet. See the [native diagnostic backlog](../../TODO.md#native-diagnostic-interfaces). Use its declared canonical key map; do not invent an encoder identity or treat its fixed vectors as natural-language embeddings. A records-only EngramPack is valid as an artifact, but is not executable semantic retrieval.
 
 ## Verified pack boundary
 
@@ -68,7 +69,7 @@ Each attachment has a unique name and an explicitly owned site:
 
 These are semantic adapter sites, not aliases for lexical-memory placement. Multiple adapters can share a site or independently own hybrid multipack sites. A multipack request uses a SHA-256-keyed query mapping when key spaces differ. Missing/mismatched queries fail closed. Full-prefix and cached forwards agree when the aligned query trajectories are equivalent.
 
-This is a direct PyTorch `DenseLM` API. The standard `sparselab train` and generation CLI paths do not construct semantic query vectors or load a text encoder; callers can pass explicit batches to `generate()`. Position-shaped query batches follow context truncation and repeat their final vector, mask, and `as_of` value across generated continuation tokens. Trainable adapters can be optimized through ordinary `DenseLM` forward calls, but the standard trainer does not currently construct semantic batches. Observe attachment name/site/block index, per-attachment traces, gate, and lookup diagnostics. Sources: `src/sparselab/model/transformer.py:DenseLM.add_semantic_memory` and `src/sparselab/engram/semantic.py:SemanticMemoryAdapter`.
+This is a direct PyTorch `DenseLM` API. The standard `sparselab train` and generation CLI paths do not construct semantic query vectors or load a text encoder. Position-shaped query batches follow context truncation and repeat their final vector, mask, and `as_of` value across generated continuation tokens. Trainable adapters can be optimized through ordinary `DenseLM` forward calls, but the standard trainer does not currently construct semantic batches. Observe attachment name/site/block index, per-attachment traces, gate, and lookup diagnostics. Sources: `src/sparselab/model/transformer.py:DenseLM.add_semantic_memory` and `src/sparselab/engram/semantic.py:SemanticMemoryAdapter`.
 
 ## Toy worlds are partitioned retrieval evidence
 

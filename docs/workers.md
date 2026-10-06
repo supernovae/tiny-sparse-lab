@@ -74,8 +74,9 @@ host: register and doctor the actual interpreter there; remote worker capabiliti
 remain authoritative on that host. `--runtime ID` resolves a local profile,
 while `--worker NAME` selects a worker endpoint; they are not interchangeable.
 
-The following **user-provisioned** registrations illustrate backend selection;
-CUDA, XPU, MPS and MLX/Metal executions are **untested here**. Each interpreter
+The following **user-provisioned** registrations select the framework/device
+used to execute a workload. They are setup examples, not experiment definitions.
+Each interpreter
 must already contain a compatible SparseLab source and actual working device;
 registration runs a real optimizer doctor and refuses unavailable backends.
 MLX uses `--backend metal` (its profile engine is MLX).
@@ -95,7 +96,7 @@ executable, writable local runtime storage with at least 20 GiB free and 100,000
 free inodes. This command installs into a new runtime-root path, not the checkout
 `.venv`; failure retains the partial environment unregistered. There is no automatic
 garbage collection. Do not sync a CPU extra into a vendor environment or treat
-the recipe as ROCm readiness/scientific acceptance. Details:
+installation success as confirmation that the selected workload will run. Details:
 [machine-local runtime environments](runtime.md#machine-local-runtime-environments).
 
 ## User-provisioned SSH workers
@@ -194,13 +195,17 @@ Dry-run resolves the complete coordinates, configuration hashes, and scheduling 
 
 The read-only dashboard can use the controller root as `--runs-dir`. Compare actual observed losses/counters and keep differences in optimizer, precision, architecture, data/tokenizer, effective batch, backend, and budget visible. Equal worker names or similar parameter counts do not make a controlled scientific comparison.
 
-Logical workers named for Mac, AMD, or Intel roles must truthfully report CPU when executed on CPU. Real ROCm, XPU, and overlapping Mac/AMD/Intel acceptance remain blocked without those actual provisioned hosts. SSH framing and quoting tests do not establish remote driver or kernel performance.
+Worker names are labels; their reported backend describes the actual execution
+device. A worker running on CPU reports CPU regardless of its name. Checking
+GPU dispatch or simultaneous work across hosts requires those provisioned
+environments. SSH framing and quoting tests check transport behavior; they do
+not measure remote driver or kernel performance.
 
 No worker shares optimizer state or exchanges gradients/expert tokens with another. There is no process group, all-reduce, expert all-to-all, tensor/model sharding, or heterogeneous distributed backward. Missing implementation and hardware-validation paths remain in `TODO.md`; scientific questions stay in the research roadmap/lifecycle.
 
 ## Observed acceptance — 2026-09-23
 
-[Astra's gate record](../artifacts/acceptance/independent_workers_2026_09_23.json) binds the execution wheel, source identity, commands, native checkpoints, counters, independent checks and retained evidence hashes. The acceptance-time suite passed 335 tests and Ruff lint/format checks; later regression results remain with their evidence records and commits.
+[Worker gate record](../artifacts/acceptance/independent_workers_2026_09_23.json) binds the execution wheel, source identity, commands, native checkpoints, counters, independent checks and retained evidence hashes. The acceptance-time suite passed 335 tests and Ruff lint/format checks; later regression results remain with their evidence records and commits.
 
 - Three genuine CPU workers overlapped with FP32 AdamW, FP32 Adafactor and BF16 AdamW. Their updates continued while the controller was stopped; reconnect imported contiguous, deduplicated records with no echo outbox.
 - Replaying launch retained the original process identity. Cancellation stopped at update 26,943; an explicit child reached 32,768 updates / 2,097,152 targets. Its model, optimizer, RNG, cursor, scaler, schedule and counters matched an uninterrupted baseline bitwise. Wall-clock checkpoint cadence was not compared bitwise.

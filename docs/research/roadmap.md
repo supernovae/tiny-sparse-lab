@@ -4,9 +4,13 @@ This roadmap describes what SparseLab can execute, what has been smoke-tested, w
 
 Durable experiment definitions use the [`experiments/`](../../experiments/)
 layout: copyable teaching material under `samples/`, actual campaigns under
-`research/`, and mutable execution output under the ignored
-`sparselab-work/experiments/` tree. GitHub's Code task and Research experiment
+`research/`, and mutable execution output under the external persistent
+`$SPARSELAB_WORK_DIR/experiments/` tree. GitHub's Code task and Research experiment
 issue templates preserve the same boundary.
+
+The [experiment ledger](experiment-ledger.md) is the compact index of retained
+lessons. This roadmap owns open questions and their scientific gates; detailed
+metrics and historical source/checkpoint identities remain in linked records.
 
 ## Decision coordination
 
@@ -16,7 +20,7 @@ metric as an automatic scientific decision. The first dense synthetic alias
 reference remains an unpromoted candidate: its one-run capture reached the budget
 and acquisition gates, but held-out validation loss rose from 6.176402 to 7.056087.
 The [known-good baseline guide](known-good-baselines.md) records the evidence and
-the failed gate alongside the bounded CPU/offline route and independent branches.
+the failed gate alongside the bounded offline workflow, run on CPU, and independent branches.
 It does not close useful-model, semantic text-query/compiler, full allocation,
 independent lexical generalization, representation portability, CUDA/XPU, or
 cross-host evidence.
@@ -35,8 +39,8 @@ cross-host evidence.
 
 ## Smoke and experiment evidence
 
-- The [CPU/offline FFN smoke and nano reports](sample-report.md) completed 18 runs and 21 comparisons per campaign. All three alias-card scores were zero for every run; lexical memory showed no consistent held-out-loss benefit. The fixed-seed rerun reproduced all 18 losses, but adds no independent seed evidence.
-- The [FineWeb-Edu micro study](../model-scaling.md#completed-fineweb-edu-micro-study) completed 18 MPS runs at 1,024 updates / 262,144 targets. Narrower FFNs had higher held-out loss; lexical deltas changed by seed/width, and all three alias cards were zero. This is bounded, descriptive evidence, not a scaling law or a general quality result.
+- The [FFN-width and lookup smoke and nano reports](sample-report.md) completed 18 runs and 21 comparisons per campaign, using an offline fixture and PyTorch on CPU. All three alias-card scores were zero for every run; lexical memory showed no consistent held-out-loss benefit. The fixed-seed rerun reproduced all 18 losses, but adds no independent seed evidence.
+- The [FineWeb-Edu micro study](development-evidence.md#completed-fineweb-edu-micro-study) completed 18 MPS runs at 1,024 updates / 262,144 targets. Narrower FFNs had higher held-out loss; lexical deltas changed by seed/width, and all three alias cards were zero. This is bounded, descriptive evidence, not a scaling law or a general quality result.
 - The [MLA analysis smoke](sample-report.md#research-analysis-pipeline-smoke) completed 12 CPU/offline runs and exercised factorial, nondominance, allocation, and boundary-sweep reporting. Its 36 card outcomes were measured zeros; the run verifies analysis paths, not an MLA/memory benefit.
 - The [byte-Engram smoke](../byte-addressing.md#verified-smoke-execution) verified nontrivial UTF-8 addresses and two training updates. It does not establish learned byte-memory value.
 - The [portable Engram comparison](../portable-engram.md) tested two held-out cases; baseline, random-table, and trained-adapter systems all had zero exact matches, and the trained adapter did not outperform the random control. General transfer remains unverified.

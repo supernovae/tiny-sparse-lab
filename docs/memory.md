@@ -61,7 +61,7 @@ percentage saving. Adafactor's scheduled learning rate is a relative step-size
 cap with parameter-RMS scaling, not AdamW-equivalent update magnitude. Changing
 optimizer is an explicit new experiment or promotion.
 
-Astra measured 86,444 optimizer-tensor bytes for AdamW and 3,436 for Adafactor
+The acceptance record reports 86,444 optimizer-tensor bytes for AdamW and 3,436 for Adafactor
 on the same 10,800-parameter tied tiny decoder, including 11 step scalars.
 Both exactly match the estimator. This is persistent-state accounting, not a
 total-process memory reduction or quality comparison.
@@ -75,7 +75,7 @@ A smaller `training.micro_batch_size` reduces activation dimensions. Increasing 
 `inspect` can write a separate proposal rather than editing its input:
 
 ```sh
-uv run sparselab inspect configs/runtime_smoke_cpu.yaml \
+uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml \
   --write-proposal sparselab-work/runtime-proposal.yaml
 ```
 
@@ -90,7 +90,7 @@ not a usable proposal. Report or config conflicts fail rather than replacing
 user-owned artifacts. Storage failures during publication roll back files
 created by that invocation.
 
-The [Astra CLI acceptance record](../artifacts/acceptance/resource_policy_2026_09_22.json)
+The [CLI acceptance record](../artifacts/acceptance/resource_policy_2026_09_22.json)
 covers low-memory and capacity-constrained balanced proposals, unchanged source
 files, preserved effective batch, loadable hash-bound YAML, and overwrite refusal.
 These are planner/publication checks, not measured training-capacity claims.

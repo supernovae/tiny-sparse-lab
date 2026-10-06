@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the portability-experiment milestone.
+Accepted: portability-experiment.
 
 ## Decision
 

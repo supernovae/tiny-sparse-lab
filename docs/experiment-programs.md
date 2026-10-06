@@ -58,12 +58,14 @@ checkpoint digest is recorded in the child execution binding.
 
 ## Prepare the inputs and bind the program
 
-From the repository root, use the locked Python 3.14 environment. Leave the
-global work base at `sparselab-work`; the plan ID supplies the experiment
-subdirectory:
+From the repository root, use the locked Python 3.14 environment and an external
+persistent root. The plan ID supplies the experiment subdirectory. The sample
+run/tokenizer configurations retain their explicit in-checkout input destinations;
+this root setting does not relocate those paths. Author new configurations if
+you need external input storage, without editing an active or frozen sample:
 
 ```sh
-export SPARSELAB_WORK_DIR="$PWD/sparselab-work"
+export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
 SAMPLE=experiments/samples/training-program
 WORK="$SPARSELAB_WORK_DIR/experiments/offline-training-chain-v1"
 mkdir -p "$WORK/inputs"

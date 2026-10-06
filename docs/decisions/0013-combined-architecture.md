@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the combined-architecture milestone.
+Accepted: combined-architecture.
 
 ## Decision
 

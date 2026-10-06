@@ -17,13 +17,13 @@ The curriculum contains bounded arithmetic, word reversal, attribute lookup, con
 ## Reference run
 
 ```sh
-uv run sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
-uv run sparselab data prepare configs/instruction_100m.yaml
-uv run sparselab inspect configs/instruction_100m.yaml --json
-uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
-uv run sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
-uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
-uv run sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
+uv run --locked sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
+uv run --locked sparselab data prepare configs/instruction_100m.yaml
+uv run --locked sparselab inspect configs/instruction_100m.yaml --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
+uv run --locked sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
+uv run --locked sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
 ```
 
 `instruction_100m.yaml` is the initial larger reference: 104,843,648 dense parameters, a 20-million-target-token curriculum budget, effective batch size 16, and block activation checkpointing. It is intentionally a 100M—not 200M—configuration: establish that the corpus, transcript, checkpoint, and held-out behavior are useful before paying the substantially higher memory and training cost of a 200M experiment.
@@ -91,7 +91,7 @@ resource usage, and evaluate a separately versioned task card before increasing 
 
 ## Verified supervised runtime path
 
-Astra exercised actual CPU and MLX CLI training, evaluation, and evidence
+The acceptance run exercised actual CPU and MLX CLI training, evaluation, and evidence
 commands on a disposable v2 fixture. Each committed exactly 13 supervised
 training targets in one update. Evaluation scored 33 targets from a 398-token
 validation stream while excluding 19 wholly masked blocks; both produced

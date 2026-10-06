@@ -62,7 +62,7 @@ physical-capacity gain. A one-run report has no invented baseline.
 
 ## Actual MPS comparison
 
-Astra ran three matched FP32 CLI jobs on Apple Silicon with PyTorch 2.14.0:
+The acceptance study ran three matched FP32 CLI jobs on Apple Silicon with PyTorch 2.14.0:
 six updates and 192 committed targets each, discarding the first two updates
 for median timing. These tiny-run measurements are diagnostics, not a general
 performance benchmark.

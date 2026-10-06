@@ -15,7 +15,7 @@ For prospective acquisitions, [the v2 rights protocol](rights-policy.md) adds
 file-level SPDX, source notice and explicit training-restriction evidence.
 Rights, verification, origin and training shape remain distinct dimensions;
 metadata-only publication does not republish the training export. Historical
-DevMind fail-gates and v1 release identities are not reinterpreted.
+Historical readiness decisions and release identities are not reinterpreted.
 
 ## Export storage and consumer authentication
 

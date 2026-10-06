@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the sparse-attention milestone.
+Accepted: sparse-attention.
 
 ## Decision
 

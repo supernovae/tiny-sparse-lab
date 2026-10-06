@@ -16,7 +16,7 @@ The 0.4 deliverable is a tested address contract and prepared span interface. It
 
 ## Consequences
 
-Raw text that is visually equivalent but has different UTF-8 bytes intentionally receives different addresses. Special tokenizer tokens are structural model IDs, not source-text bytes. This milestone makes no knowledge-transfer, retrieval-quality, or tokenizer-agnostic training claim.
+Raw text that is visually equivalent but has different UTF-8 bytes intentionally receives different addresses. Special tokenizer tokens are structural model IDs, not source-text bytes. Byte addressing alone makes no knowledge-transfer, retrieval-quality, or tokenizer-agnostic training claim.
 
 ## References
 

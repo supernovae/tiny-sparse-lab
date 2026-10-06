@@ -1,25 +1,31 @@
-# Surface Review v1: local self-blind comparisons
+# Surface Review: local self-blind comparisons
 
-Surface Review separates **exploratory checkpoint chat** from a **sealed review of existing, verified generations**. Both are local single-reviewer tools, not an automatic model selector. A sealed import reads already generated text; it does not load weights, rerun a cell, replace missing output or alter the original study. Work from the repository root. Put new bundles and votes under the ignored, task-owned `sparselab-work/experiments/surface-review-v1/bundles/` (or another explicit `--output`); do not edit the original studies' review, test or checkpoint files.
+Surface Review separates **exploratory checkpoint chat** from a **sealed review of existing, verified generations**. Both are local single-reviewer tools, not an automatic model selector. A sealed import reads already generated text; it does not load weights, rerun a cell, replace missing output or alter the original study. Work from the repository root. Put new bundles and votes under the task-owned `$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/` (or another explicit `--output`); do not edit the original studies' review, test or checkpoint files.
 
 ## Import existing generations
 
 Each import requires a *new, nonexistent* output directory and verifies the indexed source bytes before selection. The ignored data-rich generation files remain in the separate campaign checkout and must be supplied explicitly; a missing file is an error, not permission to regenerate it.
 
+The first two importers understand specific retained study formats. Set
+`CAMPAIGN_ROOT` to the checkout containing the data-rich study packet and
+`REVIEW_DIR` to the retained decoding review directory. These are required
+existing inputs. For your own runs, prefer the triage importer below.
+Set `SPARSELAB_WORK_DIR` to your external work root.
+
 ```sh
 uv run --locked sparselab surface import data-rich-v1 \
-  --campaign-root /home/byron/src/tiny-sparse-lab-data-rich \
+  --campaign-root "$CAMPAIGN_ROOT" \
   --sample quick --selection-seed 2026 --presentation-seed 2027 \
-  --output sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026
+  --output "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/data-rich-quick-2026"
 
 uv run --locked sparselab surface import decoding-v1 \
-  --review-dir /home/byron/src/tiny-sparse-lab/sparselab-work/experiments/dense-lm-decoding-v1/review \
-  --repository-root /home/byron/src/tiny-sparse-lab \
+  --review-dir "$REVIEW_DIR" \
+  --repository-root "$PWD" \
   --sample quick --selection-seed 2026 --presentation-seed 2027 \
-  --output sparselab-work/experiments/surface-review-v1/bundles/decoding-quick-2026
+  --output "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/decoding-quick-2026"
 
 uv run --locked sparselab surface review \
-  sparselab-work/experiments/surface-review-v1/bundles/data-rich-quick-2026 --port 8502
+  "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/data-rich-quick-2026" --port 8502
 ```
 
 The decoding importer requires the original ignored `review/blind.json`, `key.json` and `test_sha256.json`, the six raw test JSONLs and checked-in evidence. Its 198 existing source pairs include both model-vs-model and within-model decoder comparisons. It preserves original A/B and the six original labels in **private provenance**, then makes a newly seeded anonymous presentation; the original old review is unchanged. The data-rich importer verifies the tracked evidence index and all three 165-cell generation files. Every matched prompt/decoder/RNG coordinate must have one successful row from each checkpoint: 55 greedy and 110 sampled coordinates per checkpoint, yielding 495 eligible unordered model pairs (not 495 independent prompts). These files and the checked-in study packets are read-only inputs.
@@ -30,7 +36,7 @@ To compare compatible Tier-1 outputs from at least two verified, immutable post-
 uv run --locked sparselab surface import triage \
   --triage-run RUN_ID_1 /path/to/runs --triage-run RUN_ID_2 /path/to/runs \
   --sample standard --selection-seed 2026 --presentation-seed 2027 \
-  --output sparselab-work/experiments/surface-review-v1/bundles/triage-standard-2026
+  --output "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/triage-standard-2026"
 ```
 
 `--sample quick` selects up to 12 eligible pairs, `standard` up to 32, and `full` all eligible pairs (495 for the complete data-rich panel, 198 for the old decoding panel). No vote affects the sample size. Candidate IDs are sorted canonically by prompt, decoder, RNG and unordered source pair; a seeded, deterministic greedy rule favors underrepresented category, source pairing, decoder, RNG and prompt in that order, then hashes the selection seed and candidate ID to break ties. A separate presentation seed deterministically shuffles the selected cases, makes opaque case IDs and assigns A/B orientation. Both seeds are signed decimal integers in private provenance; changing either requires a new output directory. No quality judgment enters selection. These are balanced *descriptive* subsets, not a random population estimate.
