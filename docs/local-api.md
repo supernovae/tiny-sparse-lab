@@ -28,7 +28,10 @@ model. Restart to select another checkpoint. The model alias is a routing name;
 
 The listener accepts loopback addresses only (`127.0.0.1` or `::1`), defaults to
 port 8000, and has no authentication, TLS or browser CORS integration. It is for
-trusted local processes. It serializes generation over one loaded model, bounds
+trusted local processes. HTTP requests cannot select local files, checkpoint
+paths or remote weight URLs; `model` must match the startup alias, and unknown
+fields and paths are rejected. There is no static-file route or wildcard CORS.
+It serializes generation over one loaded model, bounds
 request bytes, output budget, connected clients and request duration, and uses
 request-local cache state. Stop it with Ctrl-C. Cancellation is cooperative at
 decode boundaries, so a currently running backend operation must return before

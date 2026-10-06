@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from sparselab.evaluation.chat import ChatMessage, prepare_chat_prompt
-from sparselab.evaluation.generation import GenerationCancelled, generate_result
+from sparselab.evaluation.generation_request import GenerationCancelled, generate_result
 from sparselab.evaluation.inference import InferenceRun
 
 

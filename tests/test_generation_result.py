@@ -10,12 +10,8 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
 
-from sparselab.evaluation.generation import (
-    GenerationCancelled,
-    generate,
-    generate_result,
-    generate_with_token_ids,
-)
+from sparselab.evaluation.generation import generate_with_token_ids
+from sparselab.evaluation.generation_request import GenerationCancelled, generate_result
 
 
 @pytest.fixture
@@ -129,20 +125,16 @@ def test_empty_prompt_counts_bos(tokenizer: Tokenizer) -> None:
     assert result.text == ""
 
 
-@pytest.mark.parametrize(
-    "entrypoint", [generate, generate_with_token_ids, generate_result]
-)
 @pytest.mark.parametrize("callable_signal", [False, True])
 def test_pre_cancelled_request_does_not_execute(
     tokenizer: Tokenizer,
-    entrypoint: object,
     callable_signal: bool,
 ) -> None:
     event = Event()
     event.set()
     model = ScriptedModel([5]).eval()
     with pytest.raises(GenerationCancelled, match="cancelled"):
-        entrypoint(
+        generate_result(
             model,
             tokenizer,
             "hello",
@@ -197,3 +189,47 @@ def test_cancelled_forward_restores_mode_and_discards_cache(
     assert result.token_ids == [5, 5]
     assert result.finish_reason == "length"
     assert all(cache() is None for cache in model.caches)
+
+
+@pytest.mark.parametrize("memory", ["none", "byte", "ngram"])
+@pytest.mark.parametrize("use_cache", [False, True])
+@pytest.mark.parametrize("temperature,top_k", [(0.0, 0), (0.8, 8)])
+def test_request_decoder_matches_frozen_reference(
+    memory, use_cache, temperature, top_k
+):
+    from test_generation import _tokenizer
+
+    from sparselab.config.models import AttentionConfig, ModelConfig
+    from sparselab.model.transformer import DenseLM
+
+    tokenizer = _tokenizer()
+    torch.manual_seed(17)
+    config = ModelConfig(
+        vocab_size=tokenizer.get_vocab_size(),
+        hidden_dim=16,
+        num_layers=1,
+        num_heads=2,
+        ffn_dim=32,
+        max_seq_len=16,
+        memory=memory,
+        memory_table_size=97 if memory != "none" else 0,
+        memory_ngram_size=3 if memory != "none" else 0,
+        memory_dim=8 if memory != "none" else 0,
+    )
+    model = DenseLM(config, AttentionConfig()).eval()
+    options = {
+        "temperature": temperature,
+        "top_k": top_k,
+        "seed": 23,
+        "use_cache": use_cache,
+        "stop_sequences": ("!",),
+    }
+    for prompt, context, limit in [(" é", 16, 4), ("hello", 3, 5), ("", 16, 2)]:
+        expected = generate_with_token_ids(
+            model, tokenizer, prompt, context, limit, torch.device("cpu"), **options
+        )
+        actual = generate_result(
+            model, tokenizer, prompt, context, limit, torch.device("cpu"), **options
+        )
+        assert (actual.text, actual.token_ids) == expected
+        assert not model.training

@@ -11,6 +11,48 @@ name, use its actual run directory and checkpoint below; a display name is not
 provenance. [TinyStories](tinystories-microlab.md) is the separate story-data
 teaching workflow. [MODEL-0](model-0.md) is a completed DevMind base checkpoint.
 
+## Try the complete path with a tiny offline fixture
+
+If you have no retained model yet, this creates a tiny synthetic CPU fixture,
+including a short training/resume check. It downloads no corpus and establishes
+interface wiring, not text quality. Use a fresh `SMOKE` directory each time.
+These commands were exercised against the fixture; its repetitive output is
+expected at this training budget.
+
+```sh
+uv sync --locked --extra cpu --dev
+export SPARSELAB_WORK_DIR="${SPARSELAB_WORK_DIR:-$HOME/.local/share/sparselab}"
+SMOKE="$SPARSELAB_WORK_DIR/text-interface-smoke-1"
+uv run --locked --extra cpu sparselab readiness smoke --family dense --output "$SMOKE"
+RUNS="$SMOKE/runs"
+RUN_ID=readiness-dense
+CHECKPOINT=step_00000002_gen_000002
+GENERATION="$RUNS/$RUN_ID/checkpoints/$CHECKPOINT"
+uv run --locked --extra cpu sparselab checkpoint inspect "$GENERATION" --json
+uv run --locked --extra cpu sparselab checkpoint verify "$GENERATION" --json
+uv run --locked --extra cpu sparselab generate "$RUN_ID" \
+  --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
+  --prompt 'hello' --max-new-tokens 4 --strict-context --show-prompt --json
+uv run --locked --extra cpu sparselab chat "$RUN_ID" \
+  --runs-dir "$RUNS" --checkpoint "$CHECKPOINT" --backend cpu \
+  --message 'Hi' --max-new-tokens 4 --show-prompt --json
+```
+
+The fixture has a 64-token context. Keep its chat questions and completion
+budgets short; the longer examples below are for a selected checkpoint with
+sufficient context. You can now use these variables in the [local API guide](local-api.md),
+or compare its initial and step-2 generations:
+
+```sh
+uv run --locked --extra cpu sparselab surface chat \
+  --cell initial="$RUNS/$RUN_ID/checkpoints/step_00000000_gen_000001" \
+  --cell step2="$GENERATION" --backend cpu --seed 42 --port 8502
+```
+
+For a real teaching model, continue with the separately named
+[TinyStories microlab](tinystories-microlab.md). For a retained research model,
+follow the provenance and availability checks below.
+
 ## Locate the bytes before choosing an interface
 
 Run commands from the repository root. These CPU examples use the locked CPU

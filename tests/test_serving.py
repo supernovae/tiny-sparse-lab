@@ -14,7 +14,10 @@ from test_inference import trained_run  # noqa: F401
 
 from sparselab.cli.main import build_parser, main
 from sparselab.evaluation import serving
-from sparselab.evaluation.generation import GenerationCancelled, GenerationResult
+from sparselab.evaluation.generation_request import (
+    GenerationCancelled,
+    GenerationResult,
+)
 from sparselab.evaluation.inference import load_run
 from sparselab.evaluation.serving import (
     APIError,
@@ -544,3 +547,31 @@ def test_two_http_callers_both_complete_without_overlapping_model(loaded, monkey
         release.set()
         assert first.result(timeout=5)[0] == second.result(timeout=5)[0] == 200
         assert peak == 1
+
+
+def test_no_file_routes_checkpoint_options_or_cors_allowance(loaded):
+    with running(loaded) as server:
+        assert request(server, "/../../etc/passwd")[0] == 404
+        assert (
+            request(server, "/v1/completions", payload(checkpoint="/etc/passwd"))[0]
+            == 400
+        )
+        assert (
+            request(
+                server,
+                "/v1/completions",
+                payload(model="https://example.invalid/weights"),
+            )[0]
+            == 404
+        )
+        connection = http.client.HTTPConnection(*server.server_address[:2], timeout=5)
+        try:
+            connection.request(
+                "GET", "/v1/models", headers={"Origin": "https://example.invalid"}
+            )
+            response = connection.getresponse()
+            assert response.status == 200
+            assert response.getheader("Access-Control-Allow-Origin") is None
+            response.read()
+        finally:
+            connection.close()
