@@ -23,6 +23,7 @@ from sparselab.research.catalog import (
     MechanismLesson,
     ResearchEntry,
     ResearchRecipe,
+    load_dataset_source,
     load_datasets,
     load_lesson,
     load_profiles,
@@ -56,6 +57,7 @@ _PATH_KEYS = frozenset(
         "train_path",
         "validation_path",
         "allocation_manifest_path",
+        "source_manifest_path",
     }
 )
 
@@ -102,7 +104,7 @@ def _dataset_mapping(name: str) -> dict[str, object]:
         raise ValueError(
             f"unknown dataset profile {name!r}; choose {choices}"
         ) from error
-    return {
+    result = {
         "source": profile.source,
         "revision": profile.revision,
         "dataset_config": profile.dataset_config,
@@ -117,24 +119,28 @@ def _dataset_mapping(name: str) -> dict[str, object]:
         "license": None,
         "allocation_manifest_path": None,
     }
+    if profile.source_declaration is not None:
+        source = load_dataset_source(profile)
+        result.update(
+            revision=source["revision"],
+            license=source["license"],
+            train_path="artifacts/snapshot/train.jsonl",
+            validation_path="artifacts/snapshot/validation.jsonl",
+            source_manifest_path="artifacts/snapshot/manifest.json",
+        )
+    return result
 
 
 def _tokenizer_values(name: str) -> dict[str, object]:
     profile = load_datasets().datasets[name]
     dataset = {
-        "source": profile.source,
-        "revision": profile.revision,
-        "dataset_config": profile.dataset_config,
-        "cache_dir": "artifacts/data",
+        **_dataset_mapping(name),
         "train_max_documents": profile.tokenizer_max_documents,
         "validation_max_documents": profile.tokenizer_validation_max_documents,
         "train_max_tokens": profile.tokenizer_train_max_tokens,
         "validation_max_tokens": profile.tokenizer_validation_max_tokens,
-        "synthetic_seed": profile.dataset_seed,
-        "train_path": None,
-        "validation_path": None,
-        "license": None,
     }
+    dataset.pop("allocation_manifest_path", None)
     return {
         "schema_version": 1,
         "vocab_size": profile.vocab_size,
@@ -143,6 +149,30 @@ def _tokenizer_values(name: str) -> dict[str, object]:
         "output_dir": "artifacts/tokenizer",
         "dataset": dataset,
     }
+
+
+def _write_dataset_source(directory: Path, data: str) -> list[str]:
+    profile = load_datasets().datasets[data]
+    if profile.source_declaration is None:
+        return []
+    source = load_dataset_source(profile)
+    _write(directory / "source.yaml", _yaml_bytes(source))
+    relative = "research_sources/" + profile.source_declaration
+    _write(
+        directory / relative, (_RESOURCE_ROOT / profile.source_declaration).read_bytes()
+    )
+    return ["source.yaml", relative]
+
+
+def _acquisition_commands(data: str, command: str) -> str:
+    if load_datasets().datasets[data].source_declaration is None:
+        return ""
+    return (
+        "# Acquire once before tokenizer fitting; reuse the verified snapshot thereafter.\n"
+        "mkdir -p artifacts\n"
+        f"{command} sparselab data lock source.yaml --output artifacts/source.lock.json --cache-dir artifacts/hf-cache\n"
+        f"{command} sparselab data snapshot artifacts/source.lock.json --output artifacts/snapshot --cache-dir artifacts/hf-cache\n"
+    )
 
 
 def _scale_patch(scale: str, data: str, backend: str) -> dict[str, object]:
@@ -358,6 +388,7 @@ export SPARSELAB_WORK_DIR="$WORK"
 ## First: exercise one mechanism without a campaign
 
 ```sh
+{_acquisition_commands(data, command)}\
 {command} sparselab tokenizer train tokenizer.yaml
 {command} sparselab data prepare configs/{first["config_sha256"]}.yaml
 {command} sparselab inspect configs/{first["config_sha256"]}.yaml --json
@@ -379,11 +410,14 @@ export SPARSELAB_WORK_DIR="$WORK"
 - Scale `{scale}`; backend `{backend}`; design `{design}`. The recipe has {run_count} planned coordinates, {pair_count} declared pairs, and {factorial_count} versioned 2×2 factorial designs.
 - Other supported profiles (scale is independent of data and budget):
 {choices}
-- Tokenizer fitting uses only the declared training prefix. Held-out validation and capability-card examples are not tokenizer inputs. Remote dataset preparation can access the network or an existing Hugging Face cache only when the explicit `tokenizer train` or `data prepare` command is run; scaffolding never does.
+- Tokenizer fitting uses only the declared training prefix. Held-out validation and capability-card examples are not tokenizer inputs. Remote acquisition is explicit; scaffolding never accesses dataset bodies. Snapshot profiles declare their acquisition and exclusion policies in `source.yaml`; strict whole-document budgets may differ from retired direct-loading selections.
+- Existing numeric budgets are retained. If strict whole-document preparation rejects a token cap, review the declared document selection and token limits in a new config; the scaffold does not silently resize them.
 - Capability cards: {", ".join(f"`{card}` ({profile.card_applicability.get(card, 'not applicable')})" for card in _CARDS)}. Cards are unchanged, unsealed development/stress evaluations; remote-corpus profiles use them only as out-of-domain stress, not corpus-quality tests. Held-out LM loss and each card stay separate. Generated stories are unscored examples.
 - Configured endpoint stops at the first existing step or target-token limit. Periodic validation is not a preregistered milestone; primary thresholds are absent. Actual steps and targets must be reported.
 
 ## Prepare explicitly, then plan or train
+
+For snapshot profiles, complete the one-time source lock and snapshot commands above first.
 
 ```sh
 {command} sparselab tokenizer train tokenizer.yaml
@@ -587,6 +621,7 @@ def scaffold_research(
             Path(os.path.relpath(workspace, destination.resolve())).as_posix(),
         )
         _write(temporary / "README.md", readme)
+        dataset_inputs = _write_dataset_source(temporary, data)
         source_inputs = {
             "research_sources/catalog-entry.json": (
                 entry_path
@@ -604,6 +639,7 @@ def scaffold_research(
             "tokenizer.yaml",
             "matrix.yaml",
             "study.yaml",
+            *dataset_inputs,
             *source_inputs,
             *sorted(str(item["path"]) for item in coordinates),
         ]
@@ -1062,6 +1098,7 @@ Before running the probe, predict the output shape and diagnostic values from th
 WORK="{workspace}"
 mkdir -p "$WORK"
 export SPARSELAB_WORK_DIR="$WORK"
+{_acquisition_commands(data, command)}\
 {command} sparselab tokenizer train tokenizer.yaml
 {command} sparselab data prepare model.yaml
 {command} sparselab inspect model.yaml --json
@@ -1073,7 +1110,9 @@ export SPARSELAB_WORK_DIR="$WORK"
 {command} sparselab eval lesson-{lesson.id} --runs-dir "$WORK/runs"
 ```
 
-Tokenizer fitting and dataset preparation are explicit; remote datasets may use the network or Hugging Face cache only at those commands. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.
+Acquisition, tokenizer fitting and dataset preparation are explicit. Snapshot profiles declare acquisition and exclusion policies in `source.yaml`; strict whole-document budgets may differ from retired direct-loading selections. The probe is a freshly initialized CPU FP32 reference forward, not a hardware benchmark, learned result, or score prediction. Training/evaluation checkpoints and dashboard diagnostics provide learned observations later.
+
+Existing numeric budgets are retained. If strict whole-document preparation rejects a token cap, review the declared document selection and token limits in a new config; the scaffold does not silently resize them.
 
 ## Walkthrough
 
@@ -1245,6 +1284,12 @@ def scaffold_lesson(
             TokenizerTrainConfig.model_validate(tokenizer_values)
             _write(temporary / "model.yaml", _yaml_bytes(base))
             _write(temporary / "tokenizer.yaml", _yaml_bytes(tokenizer_values))
+            dataset_inputs = _write_dataset_source(temporary, data)
+            if dataset_inputs:
+                lesson_payload.setdefault("inputs", []).extend(
+                    {"path": relative, "sha256": sha256_file(temporary / relative)}
+                    for relative in dataset_inputs
+                )
             lesson_payload["config_sha256"] = config_sha256(
                 config.model_dump(mode="json")
             )

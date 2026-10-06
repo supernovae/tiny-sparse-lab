@@ -26,8 +26,8 @@ fresh architecture matrix. No Python scripting is required.
 
 Start with the first three steps on CPU. Later branches are optional. This is a
 teaching reference for the lab's general iteration pattern, not a dedicated
-TinyStories training engine. Current dataset-specific ingestion and Campaign
-gaps are identified below and in [TODO.md](../TODO.md#rapid-iteration).
+TinyStories training engine. The same pinned dataset and snapshot interfaces work for other standard Hub
+text datasets; only the source declaration changes. See [datasets](datasets.md).
 
 ## Set up a named workspace
 
@@ -42,8 +42,7 @@ SAMPLE=experiments/samples/tinystories-microlab
 mkdir -p "$WORK"
 # Choose a new task name if inputs already exists; preserve prior experiments.
 mkdir "$WORK/inputs"
-cp "$SAMPLE/run.yaml" "$SAMPLE/tokenizer.yaml" "$SAMPLE/continued.yaml" \
-  "$SAMPLE/matrix.yaml" "$WORK/inputs/"
+cp "$SAMPLE/"*.yaml "$WORK/inputs/"
 ```
 
 On a provisioned ROCm/CUDA/XPU worker, use its documented vendor environment
@@ -100,6 +99,10 @@ df -i "$WORK"
 uv run --locked --extra cpu sparselab workspace preflight "$WORK/inputs/tokenizer.yaml" --tokenizer
 uv run --locked --extra cpu sparselab workspace preflight "$WORK/inputs/run.yaml"
 uv run --locked --extra cpu sparselab inspect "$WORK/inputs/run.yaml" --json
+uv run --locked --extra cpu sparselab data lock "$WORK/inputs/source.yaml" \
+  --output "$WORK/inputs/source.lock.json"
+uv run --locked --extra cpu sparselab data snapshot "$WORK/inputs/source.lock.json" \
+  --output "$WORK/snapshot"
 uv run --locked --extra cpu sparselab tokenizer train "$WORK/inputs/tokenizer.yaml"
 PREPARED=$(uv run --locked --extra cpu sparselab data prepare "$WORK/inputs/run.yaml")
 uv run --locked --extra cpu sparselab stage "$WORK/inputs/run.yaml" \
@@ -110,8 +113,13 @@ uv run --locked --extra cpu sparselab stage "$WORK/inputs/run.yaml" \
 for later input binding; do not guess its hash-based name. See [Hub account
 setup](huggingface-access.md) if authentication or rate limits block acquisition.
 
-The first preparation requires network access to TinyStories. Later runs reuse
-the pinned source/cache; tokenizer fitting uses training text only. `stage`
+The first lock/snapshot requires Hub access. The declaration pins the repository,
+revision, splits, text field and selection policy; the lock and immutable snapshot
+retain those identities. Later model iterations reuse that snapshot and frozen
+tokenizer. Acquisition keeps validation first, excludes exact duplicates and
+training overlap, and records exclusions. This policy is explicit in `source.yaml`.
+It differs from historical direct TinyStories prefixes; do not relabel old results.
+Tokenizer fitting uses training text only. `stage`
 launches disposable smoke/warmup pilots, records timing and memory, and leaves
 the full training run's initial state untouched. Use a new stage output path
 for another pilot.
@@ -212,13 +220,13 @@ already bind that selection declaratively. Native `experiment bind-inputs`
 authenticates existing direct story inputs for a phase template, and
 `iteration check` reports the continuation's gates without executing it.
 The [optional program below](#optional-declare-the-comparison-and-continuation)
-uses that route. Campaign integration has a separate
-[current boundary](#where-campaigns-fit).
+uses that route, and the [Campaign](#where-campaigns-fit) composes acquisition
+through evaluation with the same verified inputs.
 
 ## What to check between iterations
 
 One full update here supervises `64 × 2 × 2 = 256` targets: sequence length ×
-microbatch × accumulation. The prepared-data cap is 200,000 tokens; the first
+microbatch × accumulation. The prepared-data safety cap is 2,000,000 tokens; the first
 run uses only 10,240 target exposures. More updates may repeat prepared blocks;
 they do not acquire more stories.
 
@@ -325,140 +333,106 @@ the expansion before submission.
 
 ## Optional: declare the comparison and continuation
 
-ExperimentPlan can express both widths and their checkpoint-bound continuations
-without a Python orchestration script. This is a separate practice exercise:
-two fresh parents and two children, not an import of the direct runs above.
-Use the original 40-update CPU/PyTorch sample for this declaration. If you have
-changed its budget or runtime, restore a separate copy of the original inputs
-and prepare it first; do not overwrite an active experiment.
+The sample `plan.yaml` declares two fresh widths and their checkpoint-bound
+continuations. Its baseline and wider cells use identical data, tokenizer, seed,
+optimizer and exposure; `model.ffn_dim` is the intervention. Each child retains
+its own parent's full AdamW state and original decay horizon. Architecture
+changes occur between fresh parents, not during resume.
+The width comparison declares `phases: [pretrain]`: its controls name concrete
+configuration fields and tokenizer/prepared-data identities. The children start
+from different learned parents, so they are not compared as if checkpoint
+identity were held fixed.
 
-Save this as `$WORK/inputs/story-template.yaml`:
-
-```yaml
-plan_version: 1
-id: stories-program
-base_run: run.yaml
-axes:
-  - name: architecture
-    choices:
-      - label: baseline
-        set: {}
-      - label: wider
-        set: {model.ffn_dim: 384}
-comparisons:
-  - id: wider-versus-baseline
-    baseline: {architecture: baseline}
-    variant: {architecture: wider}
-    interventions: [model.ffn_dim]
-    invariants: [seed, dataset, tokenizer, training, optimizer, runtime]
-phases:
-  - id: pretrain
-    transition: fresh
-  - id: continue
-    transition: extend_budget
-    parent: pretrain
-    selector: terminal
-    at_step: 40
-    set:
-      training.max_steps: 80
-      training.max_tokens: 20480
-      optimizer.decay_steps: 40
-execution:
-  backend: cpu
-```
-
-The parent is selected within each architecture coordinate. The child retains
-its parent's optimizer state and original decay horizon. Architecture changes
-occur between fresh parents, not during resume. Bind the already prepared
-inputs; `PREPARED` is the exact path returned earlier by `data prepare`:
+Bind the prepared inputs from the first exercise without downloading or fitting
+again. Use a new output declaration and plan ID for repetitions:
 
 ```sh
 uv run --locked --extra cpu sparselab experiment bind-inputs \
-  "$WORK/inputs/run.yaml" "$WORK/inputs/story-template.yaml" \
-  --prepared-root "$PREPARED" --output "$WORK/inputs/story-bound.yaml" --json
-uv run --locked --extra cpu sparselab experiment validate "$WORK/inputs/story-bound.yaml" --json
-uv run --locked --extra cpu sparselab experiment inspect "$WORK/inputs/story-bound.yaml" --json
-LOCK=$(uv run --locked --extra cpu sparselab experiment lock "$WORK/inputs/story-bound.yaml" --json | jq -r '.lock')
+  "$WORK/inputs/run.yaml" "$WORK/inputs/plan.yaml" \
+  --prepared-root "$PREPARED" --output "$WORK/inputs/bound-plan.yaml" --json
+uv run --locked --extra cpu sparselab experiment validate "$WORK/inputs/bound-plan.yaml" --json
+uv run --locked --extra cpu sparselab experiment inspect "$WORK/inputs/bound-plan.yaml" --json
+LOCK=$(uv run --locked --extra cpu sparselab experiment lock "$WORK/inputs/bound-plan.yaml" --json | jq -r '.lock')
 uv run --locked --extra cpu sparselab experiment explain "$LOCK" --json
-PROGRAM="$SPARSELAB_WORK_DIR/experiments/stories-program"
 ```
 
-`jq` only selects the returned path; you can instead copy the printed `lock`
-value. Output declarations must be new files. Use a new plan ID and workspace
-for repeats. Keep the source revision and bound inputs fixed through execution.
-The lock verifies identities and declared controls; it does not prove that
-your chosen comparison answers a useful scientific question.
-
-Before dispatch, use the cell IDs from `explain` with `experiment export-config`
-and pilot each resolved configuration as described in
-[training programs](experiment-programs.md#pilot-the-resolved-configuration).
-Then submit the parents and start the controller:
-
-```sh
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase pretrain --json
-uv run --locked --extra cpu sparselab controller run --store "$PROGRAM/controller"
-```
-
-In a second terminal, set the same `PROGRAM` and `LOCK`. Wait until **both**
-parents have `status: COMPLETE` and `ingestion_status: COMPLETE` before submitting
-the children. The running controller will execute them:
-
-```sh
-uv run --locked --extra cpu sparselab experiment list --store "$PROGRAM/controller"
-# Run only after both parents have completed and ingested.
-uv run --locked --extra cpu sparselab experiment run "$LOCK" --phase continue --json
-uv run --locked --extra cpu sparselab experiment list --store "$PROGRAM/controller"
-```
-
-After all four runs complete and ingest, collect and reconstruct their lineage:
-
-```sh
-uv run --locked --extra cpu sparselab experiment collect "$LOCK" --json > "$PROGRAM/collection-result.json"
-INDEX=$(jq -r '.index_path' "$PROGRAM/collection-result.json")
-uv run --locked --extra cpu sparselab experiment reconstruct "$LOCK" --index "$INDEX" --json
-uv run --locked --extra cpu sparselab dashboard --runs-dir "$PROGRAM/controller"
-```
-
-Use each returned run ID with the earlier `checkpoint verify`, `eval`, `evidence`
-and `generate` commands, replacing their runs directory with
-`$PROGRAM/controller`. Compare the two parents at 40 updates, the two children
-at 80, and each parent with its own child. Preserve failures and unavailable
-measurements. Collection records execution and lineage; it does not execute
-an arbitrary behavioral evaluation or select a winning model for you.
+`jq` only selects the emitted lock path; copying that value manually is equivalent.
+Follow [training programs](experiment-programs.md#pilot-the-resolved-configuration)
+for resolved-cell pilots, phase submission, the foreground controller and
+collection. This standalone route executes four extra runs if both phases are
+submitted; it does not import your earlier direct run. The suite declaration
+binds held-out evaluation but standalone collection does not execute it for you.
+The Campaign below makes evaluation and the prompt panel explicit stages.
 
 ## Where Campaigns fit
 
-The [Campaign DSL](campaigns.md) coordinates declared dependencies across input
-preparation, runtime admission, locked experiments, collection and evaluation.
-Its value is that the tested parameter choices and gates remain in reviewable
-declarations rather than in external Python control flow. A matrix expands
-choices; ExperimentPlan adds checkpoint phases and comparison contracts;
-Campaigns coordinate the surrounding workflow.
+Use the checked-in `campaign.yaml` to run acquisition, tokenizer fitting,
+preparation, input binding, runtime admission, baseline training, a verified
+continuation and a separate fresh wider model. Each endpoint is collected and
+evaluated on the fixed suite, then receives the same descriptive prompt panel.
+That is three runs: the Campaign explicitly selects the baseline child and
+leaves the plan's wider child unselected. These are learning comparisons, not
+an automatic quality gate or model promotion.
 
-There is currently an integration gap: Campaign plan binding requires a Corpus
-Forge release for every non-synthetic cell, while ExperimentPlan supports the
-direct TinyStories inputs used here. Therefore this guide uses the supported
-native ExperimentPlan path. A Forge-backed study can use Campaigns today; do
-not invent a release to wrap these direct inputs. [Rapid iteration work](../TODO.md#rapid-iteration)
-tracks a shared typed input contract and a complete declared teaching example.
+Start a **separate** workspace for this alternative end-to-end exercise. Its
+snapshot and tokenizer outputs must not already exist. The same upstream Hub
+cache can be reused. Preserve any earlier direct exercise:
 
-TinyStories is also specialized at ingestion today: `dataset.source: tinystories`
-selects a fixed Hub source, and `data snapshot` invokes a TinyStories-specific
-producer. Training, matrices and checkpoint phases are general lab operations.
-The backlog calls for declarative Hub acquisition and snapshots so this lesson
-becomes a reference source configuration, with the same pattern usable on other
-datasets, rather than an expanding collection of dataset-specific functions.
+```sh
+CAMPAIGN="$SPARSELAB_WORK_DIR/experiments/stories-learning"
+mkdir "$CAMPAIGN"
+mkdir "$CAMPAIGN/inputs"
+cp "$SAMPLE/"*.yaml "$CAMPAIGN/inputs/"
+cp "$SAMPLE/campaign.yaml" "$CAMPAIGN/campaign.yaml"
+uv run --locked --extra cpu sparselab data lock "$CAMPAIGN/inputs/source.yaml" \
+  --output "$CAMPAIGN/inputs/source.lock.json"
+uv run --locked --extra cpu sparselab campaign validate "$CAMPAIGN/campaign.yaml" --json
+uv run --locked --extra cpu sparselab campaign status "$CAMPAIGN/campaign.yaml" --json
+uv run --locked --extra cpu sparselab campaign next "$CAMPAIGN/campaign.yaml" --json
+uv run --locked --extra cpu sparselab campaign apply "$CAMPAIGN/campaign.yaml" \
+  --execute-runs --allow-uncommitted-declaration --max-wait-seconds 60 --json
+```
+
+The explicit uncommitted-declaration flag authorizes your copied teaching inputs;
+it does not waive source, data, runtime or checkpoint verification. In a reviewed
+research program, commit its declarations and use the ordinary provenance gate.
+Keep the lab code revision fixed while a Campaign runs.
+
+`--max-wait-seconds` bounds each run's controller wait, not the complete command:
+input verification, preparation, evaluation and reconciliation add time.
+Inspect `status`, `next`
+and `explain` for the actual next action; use native `campaign resume` after
+interruption instead of inventing a fresh retry. Reuse the same declaration and
+workspace. Completed stages are verified before reuse, and a child cannot run
+before its parent has completed and ingested. Do not edit a locked Campaign to
+change widths, source bounds or budgets: author a new one.
+
+The shipped sample uses CPU. For PyTorch MPS, edit the copied run and plan runtime
+selection together **before locking** and register/doctor the interpreter as in
+[runtime environments](runtime.md#machine-local-runtime-environments). Bind the
+Campaign runtime-acceptance stage to that profile ID and its evaluations to that
+runtime stage. Pilot matching CPU/MPS configurations and choose by measured
+throughput and memory headroom; a tiny model can run faster on CPU. MLX is a
+separate engine and does not support this full-state continuation exercise.
+
+Review all three run counters, immutable parent identities, held-out loss and
+panel outputs. Keep empty, failed and poor completions visible. Campaigns enforce
+that the declared cells and inputs ran; scientific interpretation remains yours.
+The [Campaign reference](campaigns.md) explains existing-artifact reuse, stage
+contracts and reconciliation.
 
 ## Grow the model and the data deliberately
 
 Make each step a new named workspace/config and run ID. Copy the inputs and
-review relative paths; reference the existing frozen tokenizer by its absolute
-path when sharing it. Keep prior data, checkpoints and evidence intact.
+review relative paths. With the same snapshot, reference the frozen tokenizer
+by its absolute path when sharing it. A changed snapshot currently needs matching
+tokenizer provenance; do not describe refitting as an isolated data-only contrast.
+Keep prior data, checkpoints and evidence intact.
 
 | Exercise | Changes to declare | What to compare |
 | --- | --- | --- |
 | Learn beyond the wiring budget | Fresh run with `training.max_steps: 1024`, `training.max_tokens: 262144`, `optimizer.warmup_steps: 100` | Learning curve and fixed prompts against the short run; this is a new schedule, not the previous full-state child. |
-| Add story variety | For example, `dataset.train_max_documents: 20000` and `dataset.train_max_tokens: 2000000`; keep tokenizer and held-out selection fixed | Fresh matched runs with the same supervised-target budget, differing only in training-data selection. Reprepare the larger input. |
+| Add story variety | Increase the source declaration's training-document target, acquire a new snapshot and reprepare with adequate whole-document bounds | Fresh matched-exposure runs; retain held-out selection and report any tokenizer change as a confounder. |
 | Increase capacity | For example, `model.hidden_dim: 256`, `model.num_layers: 4`, `model.num_heads: 4`, `model.ffn_dim: 512` | A fresh model at matching exposure; this changes several capacity fields, not one isolated mechanism. |
 
 These are proposed learning exercises, not measured quality or fit claims.
@@ -477,65 +451,49 @@ execution on the chosen CPU/GPU; they are separate from story quality.
 
 ## An advanced full-TinyStories exercise
 
-Define “full” first: this lesson uses the pinned Hub repository's default
-`train` and `validation` splits. The [source dataset card](https://huggingface.co/datasets/roneneldan/TinyStories/blob/f54c09fd23315a6f9c86f9dc80f725de7d8f9c64/README.md)
-also describes other archives and versions; training the default split does
-not mean combining every file or reproducing the paper. Keep validation out
+Define “full” as the pinned default train/validation splits, not every archive
+mentioned by the [source card](https://huggingface.co/datasets/roneneldan/TinyStories/blob/f54c09fd23315a6f9c86f9dc80f725de7d8f9c64/README.md).
+A complete acquisition reports both excluded records and retained text; a model
+pass covers complete prepared blocks, not every raw token. Keep validation out
 of tokenizer fitting and optimizer updates.
 
-The current CLI has no `--all` or `--epochs` switch. Dataset document/token
-limits are positive bounds. Direct Hub preparation also accumulates token
-arrays in host memory before writing them: a successful tiny GPU pilot says
-nothing about full-source preparation RAM. Plan storage, host RAM, download
-cache and checkpoint growth before attempting this on a suitably sized machine.
-`data snapshot` is not an all-records workaround: it requires exact retained
-counts and fails when the source ends early. Scalable source-exhaustion
-preparation and native coverage/budget reporting are recorded in
-[TODO.md](../TODO.md#rapid-iteration).
+1. Create a separate named workspace and copy the declarations. In its source
+   declaration, set `selection: {mode: exhaustion}` and remove the bounded
+   document targets. Set explicit resource ceilings after storage/RAM admission;
+   resource ceilings are safety stops, not successful selection targets. Use a
+   new lock and snapshot. `data snapshot --resume` authenticates interrupted
+   work before replay; never delete its journal to conceal a failed attempt.
+2. Reuse the frozen tokenizer by absolute path only when its source provenance
+   matches the new training contract. A changed snapshot has a new identity:
+   the present direct-input contract requires tokenizer provenance for that
+   snapshot, so fit a new train-only tokenizer for the full-source exercise and
+   train a fresh model. Do not silently claim it is the same-tokenizer comparison.
+3. Set preparation document bounds high enough for the acquired counts and token
+   bounds high enough for every selected whole document. Packing is disk-backed
+   and resumable; an inadequate cap fails instead of truncating a story. Use
+   `data prepare` to obtain the exact prepared root, then inspect native coverage:
 
-For an adequately provisioned host, the existing bounded path is:
+```sh
+uv run --locked --extra cpu sparselab data coverage \
+  --prepared-root "$PREPARED" --config "$FULL/inputs/run.yaml" --json
+uv run --locked --extra cpu sparselab data budget \
+  --prepared-root "$PREPARED" --config "$FULL/inputs/run.yaml" \
+  --passes 1 --require-full --output "$FULL/inputs/one-pass.yaml" --json
+```
 
-1. Create a separate workspace and copy the original run config into its
-   `inputs/`. Set a distinct run name, absolute path to the frozen 2,048-token
-   tokenizer, and task-local data/runs destinations. Full-data training does
-   not require refitting a tokenizer on every story. If studying a new
-   tokenizer, that is a separate comparison requiring fresh preparation/models.
-2. Raise both document and token ceilings above the selected source size,
-   following resource admission. For example, 10,000,000 training documents /
-   2,000,000,000 training tokens and 100,000 validation documents / 100,000,000
-   validation tokens are **admission ceilings, not measured dataset sizes or
-   a memory-fit recommendation**. Smaller ceilings may intentionally select a
-   subset; never call that full-source coverage.
-3. Run the same `inspect`, `workspace preflight` and `data prepare` commands on
-   the new config. Retain the returned prepared path. Open its `manifest.json`
-   in an editor or with `cat`; under `train` and `validation`, inspect acquired,
-   retained, skipped and truncated document counts and the array `shape`.
-   Successful preparation below both document and token caps indicates source
-   exhaustion on this direct loader. If either cap was reached, coverage is
-   unestablished. Report skipped records and require zero truncation for a claim
-   that all retained source text was prepared. Do not infer coverage from a
-   successful command alone.
-4. Derive exposure from the actual prepared training array, not the ceilings.
-   For this all-token objective, let `T` be its `shape[0]`, `L` the sequence
-   length, and `B` microbatch × accumulation. There are
-   `N = floor((T - 1) / L)` complete training blocks. One pass over those blocks
-   uses `training.max_tokens = N × L` and
-   `training.max_steps = ceil(N / B)`. Use a calculator and author the values
-   in the new config. For multiple passes, multiply the target budget first,
-   then derive steps. A trailing incomplete block is excluded; “one pass”
-   does not mean every raw source token became a supervised target.
-5. Declare a fresh optimizer schedule, checkpoint retention and fixed evaluation
-   budget appropriate to the larger run. Inspect and stage the actual config,
-   then train a fresh run using the earlier native commands. Preserve its
-   receipts and verify the actual counters afterwards. These budgets describe
-   a fresh run; a full-state extension uses cumulative counters and its existing
-   schedule, so do not transplant them blindly into a child.
-6. Evaluate the selected verified endpoint and the same prompt panel. Record
-   source coverage, prepared blocks and supervised exposure separately, along
-   with quality observations and execution cost. A full data pass is an
-   educational milestone, not evidence of paper-level performance.
+Here `FULL` names that separate workspace and `PREPARED` its returned cache path.
+The report separates source exhaustion, exclusions, truncation, packed tokens,
+complete blocks, dropped tails and supervised targets. Budget authoring writes
+new paths/configuration and leaves prior settings untouched. It rejects unproven
+full coverage; `--no-require-full` explicitly requests passes over a bounded
+prepared selection instead.
 
-This pathway needs no external Python, but coverage inspection and budget
-authoring are still manual. The missing native report and declarative pass-count
-proposal should serve any dataset; they should not become a TinyStories-only
-training command.
+Choose a fresh optimizer schedule and checkpoint/evaluation cadence for the
+proposed budget, then repeat `inspect`, preflight and warmup before training.
+Pass-count proposals are for fresh runs, not cumulative continuation counters.
+Review actual targets and steps after completion. A full data pass is an
+educational exercise, not evidence of paper-level performance.
+
+No full-corpus training is needed to learn these commands. The small exercise
+and offline exhaustion/restart tests validate the workflow; a real full-corpus
+run still requires its own resource admission and retained evidence.

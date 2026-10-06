@@ -31,56 +31,11 @@ Use the [existing native route](docs/iteration.md), including the read-only
 `experiment export-config` commands. Remaining work below must reuse those
 interfaces, not introduce another runner.
 
-- [ ] **P1 — Align Campaign input contracts with native ExperimentPlan inputs.**
-  `experiment bind-inputs` supports direct `tinystories`/`local_stories` inputs,
-  but Campaign's plan binding requires a Corpus Forge release for every
-  non-synthetic cell (`src/sparselab/campaign/engine.py`). Accept an explicitly
-  typed, verified direct dataset/tokenizer/prepared closure as an alternative
-  to a Forge closure; preserve release/export checks when Forge is declared.
-  Reuse existing verifiers rather than special-casing a dataset or fabricating
-  a corpus release. Acceptance: the same direct-input plan runs standalone and
-  through Campaign runtime → run → collect → evaluation, including a verified
-  continuation; missing/mismatched inputs, source drift, incomplete ingestion
-  and broken parents fail before dependent work. Demonstrate another dataset
-  with the same contract, and preserve historical locks/receipts unchanged.
-- [ ] **P2 — Make Hub datasets and snapshots declarative, not dataset-specific.**
-  The current `tinystories` loader selects a fixed Hub repository/config/splits,
-  and public `data snapshot` calls the TinyStories-specific snapshot producer in
-  `src/sparselab/data/local_stories.py`. Replace this coupling with a shared typed
-  source declaration: repository, immutable revision, config, split mapping,
-  text field, attribution/terms, selection bounds and explicit dedup/overlap
-  policy. Reuse Corpus Forge's existing Hub acquisition/provenance where suitable;
-  do not create another acquisition engine. TinyStories should become a checked-in
-  reference declaration using that route. Preserve legacy source identities and
-  verifiers; any migration emits a new declaration/receipt, never relabels old
-  evidence. Acceptance: TinyStories and a second Hub-shaped offline fixture use
-  the same CLI/DSL without Python callbacks; reject moving/unavailable revisions,
-  missing fields, changed snapshots and forbidden split overlap.
-- [ ] **P2 — Report full-split coverage and derive exposure budgets natively.**
-  Add an explicit bounded-versus-source-exhaustion acquisition/preparation policy,
-  with resource admission, resumable bounded-memory processing, retained/excluded
-  record counts, truncation counts, stop reason and source/prepared identities.
-  Existing `data snapshot` requires exact retained counts and errors on early
-  exhaustion; direct Hub packing collects arrays in host memory. Neither is a
-  general scalable “all records” workflow. A native read-only report must distinguish
-  source coverage, prepared complete blocks and supervised target exposure;
-  a typed config derivation can propose steps/targets for a declared pass count
-  using the actual objective/mask, sequence length and effective batch. Reject
-  incomplete coverage claims, insufficient storage, incompatible/missing evidence
-  and unsupported objectives; retain tails, duplicates, nulls and exclusions.
-  Test exhaustion versus document/token caps, interrupted restart, short final
-  updates and masked targets without private Python counter scripts. Keep this
-  dataset-neutral and outside immutable historical identities.
-- [ ] **P1 — Stage explicitly bound existing inputs natively.** The Python
-  `staging.stage(..., prepared_inputs=...)` path exists, but public `stage` does
-  not expose it. Add a typed adapter taking RunConfig, an authenticated existing
-  stage-input bundle, selected runtime, through-level and exclusive output;
-  emit the normal stage/pilot receipts. Wrong source/config, tampered inventory,
-  unsafe links and unavailable runtime must fail before optimizer execution.
-  It must not prepare/download/repack, grant runtime/source drift or silently
-  fall back to fresh inputs. This is not a shipped CLI option. A continuation
-  requiring source authorization still needs that independent review; this
-  adapter is not a substitute for that decision.
+Pinned [dataset declarations](docs/datasets.md), resumable snapshots and preparation,
+coverage/pass budgets, typed Campaign input binding and existing-input staging
+are available through the lab. New Hub workloads use `dataset.source: snapshot`;
+historical dataset-specific inputs retain their original verifiers.
+
 - [ ] **P2 — Expose verified declaration/config handoffs.** Where Phase `set`
   and native scaffolds do not suffice, add CLI derivation over the existing
   typed loaders and dotted-path compiler, preserving path anchoring when the
@@ -90,21 +45,18 @@ interfaces, not introduce another runner.
   Existing checkpoint selectors already serve declared chains; add standalone
   immutable selection only if a native iteration still needs pointer
   parsing. Never select an unverified "latest" directory by sorting filenames.
-- [ ] **P2 — Exercise a complete declared iteration demo.** Using native
-  direct-input binding, add a copyable ExperimentPlan/Campaign
-  example with one baseline, a checkpoint-bound exposure child, fixed heldout
-  suite/descriptive generation panel, a separately labeled fresh one-field
-  contrast and optional seed replication. Share the topology with a small offline
-  acceptance fixture, including interrupted reconciliation and unchanged parent
-  hashes. Use a pinned teaching dataset such as TinyStories and record acceptance separately: declaration
-  digests, run/ingestion states, checkpoint lineage, counters, evaluation/panel
-  references and costs. Keep outputs external and make CLI text/JSON follow the
-  same route. No embedded Python, duplicate implicit baseline, automatic promotion
-  or claim that offline smoke establishes real-data quality. The current direct
-  teaching walkthrough is not this declarative acceptance gate.
 
 ### Native diagnostic interfaces
 
+- [ ] **P2 — Reuse generic snapshot verification within one native operation.**
+  Campaign dependency traversal currently repeats cold snapshot hashing and
+  record/overlap replay even for unchanged inputs. Extend the existing typed
+  verification reuse machinery to generic snapshots, retaining per-call config
+  binding and complete inventory checks. Reuse only successful authentication
+  while robust file fingerprints remain unchanged; invalidate on mutation,
+  replacement, symlinks, config mismatch and operation exit. Preserve explicit
+  cold verification. Measure verifier call counts and orchestration time
+  separately from training; do not cache a bare “verified” flag or weaken gates.
 - [ ] **P3 — Expose supplied-vector semantic probes natively.** Wrap the existing
   verified semantic retriever/adapter with a typed declaration: pack identity,
   canonical query tensors, encoder identity, masks, attachment sites and explicit

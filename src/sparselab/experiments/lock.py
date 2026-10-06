@@ -491,7 +491,8 @@ def _check_cell_inputs(
     }
     required = (
         {"tokenizer", "prepared_data"}
-        if config.dataset.source in {"synthetic", "tinystories", "local_stories"}
+        if config.dataset.source
+        in {"synthetic", "tinystories", "local_stories", "snapshot"}
         else {"corpus_release", "corpus_export", "tokenizer", "prepared_data"}
     )
     if not required.issubset(by_kind):
@@ -541,7 +542,7 @@ def _check_cell_inputs(
         raise ValueError(
             "prepared cache does not bind the locked dataset/tokenizer/packing/source"
         )
-    if config.dataset.source in {"tinystories", "local_stories"}:
+    if config.dataset.source in {"tinystories", "local_stories", "snapshot"}:
         from sparselab.data.tokenizer import verify_tokenizer_artifact
 
         if config.dataset.source == "tinystories":
@@ -576,10 +577,13 @@ def _check_cell_inputs(
             or manifest.get("split") != "train"
         ):
             raise ValueError(
-                "direct story tokenizer training provenance differs from dataset"
+                "direct source tokenizer training provenance differs from dataset"
             )
-        if config.dataset.source == "local_stories":
-            from sparselab.data.local_stories import verify_snapshot
+        if config.dataset.source in {"local_stories", "snapshot"}:
+            if config.dataset.source == "snapshot":
+                from sparselab.data.sources import verify_snapshot
+            else:
+                from sparselab.data.local_stories import verify_snapshot
             from sparselab.experiments.artifacts import _safe_path
 
             assert config.dataset.source_manifest_path is not None
@@ -595,11 +599,17 @@ def _check_cell_inputs(
             if (
                 contract.get("source_manifest_sha256")
                 != sha256_file(config.dataset.source_manifest_path)
-                or prepared_identity.get("local_stories_source_sha256")
+                or prepared_identity.get(
+                    "snapshot_source_sha256"
+                    if config.dataset.source == "snapshot"
+                    else "local_stories_source_sha256"
+                )
                 != hashlib.sha256(canonical_json(snapshot)).hexdigest()
             ):
                 raise ValueError(
-                    "prepared cache/tokenizer does not bind the pinned story snapshot"
+                    "prepared cache/tokenizer does not bind the pinned "
+                    + ("source" if config.dataset.source == "snapshot" else "story")
+                    + " snapshot"
                 )
         return
     if config.dataset.source == "synthetic":
@@ -753,15 +763,9 @@ def resolve_plan(
             "state": artifact.state,
         }
         availability["artifacts"][name] = verified["path"]
-        if (
-            artifact.kind == "tokenizer"
-            and json.loads(
-                Path(str(verified["path"]))
-                .with_name("tokenizer_manifest.json")
-                .read_text()
-            ).get("source")
-            == "local_stories"
-        ):
+        if artifact.kind == "tokenizer" and json.loads(
+            Path(str(verified["path"])).with_name("tokenizer_manifest.json").read_text()
+        ).get("source") in {"local_stories", "snapshot"}:
             availability.setdefault("artifact_datasets", {})[name] = (
                 base.dataset.model_dump(mode="json")
             )
@@ -1020,6 +1024,8 @@ def resolve_plan(
                 f"comparison {comparison.id} must uniquely select each declared axis"
             )
         for phase in phases:
+            if comparison.phases and phase.id not in comparison.phases:
+                continue
             left = next(
                 (
                     cell
@@ -1230,8 +1236,8 @@ def _artifact_dataset(lock: ResolvedExperimentPlan, name: str) -> DatasetConfig 
     if name not in contexts:
         return None
     dataset = DatasetConfig.model_validate(contexts[name])
-    if dataset.source != "local_stories":
-        raise ValueError("artifact dataset context requires local_stories")
+    if dataset.source not in {"local_stories", "snapshot"}:
+        raise ValueError("artifact dataset context requires local_stories or snapshot")
     return dataset
 
 

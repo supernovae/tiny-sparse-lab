@@ -525,6 +525,14 @@
           "title": "Mode",
           "type": "string"
         },
+        "phases": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Phases",
+          "type": "array"
+        },
         "variant": {
           "additionalProperties": {
             "type": "string"
@@ -705,6 +713,7 @@
             "local_chat",
             "local_text",
             "local_stories",
+            "snapshot",
             "withheld_facts",
             "engram_recall",
             "fineweb_edu",

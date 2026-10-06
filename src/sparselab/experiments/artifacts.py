@@ -212,11 +212,9 @@ def _verify_domain(
                 raise ValueError("corpus tokenizer lacks a pinned release")
             _safe_path(str(run.dataset.corpus_release_path), path)
             dataset = run.dataset
-        elif source == "local_stories":
+        elif source in {"local_stories", "snapshot"}:
             if supplied_dataset is None or supplied_dataset.source != source:
-                raise ValueError(
-                    "local_stories tokenizer requires a pinned source dataset"
-                )
+                raise ValueError(f"{source} tokenizer requires a pinned source dataset")
             dataset = supplied_dataset
         verify_tokenizer_artifact(
             path,
@@ -530,13 +528,12 @@ def _artifact_key(
         for dependency in _dependent_paths(artifact, path)
     )
     manifest_binding = _manifest_binding(artifact, path)
-    if (
-        artifact.kind == "tokenizer"
-        and _json_file(path.with_name("tokenizer_manifest.json")).get("source")
-        == "local_stories"
-    ):
-        if dataset is None or dataset.source != "local_stories":
-            raise ValueError("local_stories tokenizer requires a pinned source dataset")
+    if artifact.kind == "tokenizer" and _json_file(
+        path.with_name("tokenizer_manifest.json")
+    ).get("source") in {"local_stories", "snapshot"}:
+        source = _json_file(path.with_name("tokenizer_manifest.json"))["source"]
+        if dataset is None or dataset.source != source:
+            raise ValueError(f"{source} tokenizer requires a pinned source dataset")
         assert dataset.source_manifest_path is not None
         manifest = _json_file(_safe_path(str(dataset.source_manifest_path), path))
         members = (
@@ -545,6 +542,10 @@ def _artifact_key(
             dataset.validation_path,
             dataset.source_manifest_path.parent / manifest["excluded"]["path"],
         )
+        if source == "snapshot":
+            # The generic verifier authenticates the whole snapshot inventory,
+            # including its event journal and any additional declared splits.
+            members += (dataset.source_manifest_path.parent,)
         dependencies += tuple(
             (str(member), _fingerprint(_safe_path(str(member), path)))
             for member in members
@@ -653,7 +654,7 @@ def verify_artifact(
                 if (
                     artifact.kind == "tokenizer"
                     and dataset is not None
-                    and dataset.source == "local_stories"
+                    and dataset.source in {"local_stories", "snapshot"}
                 ):
                     _verify_domain(artifact, path, dataset=dataset)
                 else:

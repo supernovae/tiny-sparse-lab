@@ -135,44 +135,32 @@ artifact identities. For edits/repetitions, copy the declaration, choose a new
 plan ID and adjust its file references to their new location before preparing;
 never rewrite a running plan or its artifacts.
 
-### Direct story inputs
+### Direct dataset inputs
 
-Direct `tinystories` and manifest-backed `local_stories` runs use the same two
-external artifacts shown above: `tokenizer` and `prepared_data`. They do not
-require a Corpus Forge release or export. Pass the pinned story run config,
-phase template, existing prepared root and new plan output to
-`experiment bind-inputs`; `experiment prepare` still only materializes `corpus_variants`.
-The [TinyStories microlab](tinystories-microlab.md) supplies matching run and
-tokenizer preparation examples. Generated config and artifact paths are absolute.
+Generic `dataset.source: snapshot` runs use the same two external artifacts
+shown above: `tokenizer` and `prepared_data`. They do not require a Corpus Forge
+release or export. The [dataset interface](datasets.md) declares and locks the
+source, acquires an immutable snapshot and authenticates its selection policy.
+Pass the run config, phase template, existing prepared root and new output to
+`experiment bind-inputs`. This operation verifies existing inputs; it never
+refits, downloads or prepares them.
 
-For direct TinyStories, pin `dataset.revision` to the full 40-character Hub commit
-SHA (for example `f54c09fd23315a6f9c86f9dc80f725de7d8f9c64`), with
-`dataset_config` omitted or `default`. The loader uses the `text` field and the
-separate `train` / `validation` splits. A moving revision such as `main` cannot
-be locked. Locking verifies the tokenizer's train-only source/revision provenance
-and the prepared arrays' dataset, tokenizer, packing and implementation identity;
-it does not download the corpus or repeat tokenizer training.
+Keep the snapshot manifest, split records and accounting inventory available
+on the controller. Locking verifies tokenizer training provenance, snapshot
+identity and the prepared dataset/tokenizer/packing/source binding. A tokenizer
+from another snapshot is not silently substituted. Worker dispatch carries
+verified prepared arrays and tokenizer bytes so execution does not need to fetch
+the Hub source again.
 
-For `local_stories`, retain the snapshot's `manifest.json`, `train.jsonl`,
-`validation.jsonl` and excluded-ordinal inventory on the controller. Set the
-run's `train_path`, `validation_path` and `source_manifest_path` to that snapshot,
-with its pinned revision and license. Train the tokenizer against this same
-snapshot. Lock verification checks all snapshot bytes and split disjointness,
-the tokenizer's snapshot-manifest digest, and the prepared data's canonical
-snapshot identity. A valid tokenizer from another snapshot is insufficient.
-Local story token caps must accommodate every selected whole story; preparation
-rejects a cap that would truncate one.
+The [TinyStories walkthrough](tinystories-microlab.md) shows standalone phases
+and a Campaign using this same contract. Campaign bind mode derives the run
+config from the preparation stage and rebases the evaluation-suite reference
+without changing its content identity. Ordinary standalone binding still requires
+suite paths to resolve consistently between template and output locations.
 
-Publication and later lock reopening reject changed source files or artifacts,
-including when verification reuse is enabled. The availability sidecar retains
-the original snapshot paths used to verify each tokenizer; phase-level source
-paths are checked independently. Keep those controller snapshots available for
-publication and reopening. Worker dispatch carries the verified
-prepared arrays and tokenizer in its sealed bundle; it can execute offline after
-relocation without reacquiring or copying the raw story source. These checks
-establish input integrity and execution, not model quality or remote corpus
-availability. Corpus Forge and other dataset routes retain their existing input
-requirements.
+Historical `tinystories` and `local_stories` artifacts remain verifiable, but
+new authoring/execution requires [write-new migration](datasets.md#legacy-input-migration).
+Do not rewrite old manifests, source paths or receipts to claim a new identity.
 
 ### Forge worker provenance
 

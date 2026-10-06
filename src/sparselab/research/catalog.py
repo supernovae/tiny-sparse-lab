@@ -380,7 +380,10 @@ class ProfilesFile(_Versioned):
 
 
 class DatasetProfile(StrictModel):
-    source: Literal["chat_recall", "tinystories", "fineweb_edu"]
+    source: Literal["chat_recall", "tinystories", "fineweb_edu", "snapshot"]
+    source_declaration: StrictStr | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     revision: StrictStr | None
     dataset_config: StrictStr | None = None
     dataset_seed: StrictInt
@@ -398,6 +401,13 @@ class DatasetProfile(StrictModel):
     source_url: StrictStr
     notes: list[StrictStr]
     card_applicability: dict[StrictStr, StrictStr]
+
+    @field_validator("source_declaration")
+    @classmethod
+    def safe_source_declaration(cls, value: str | None) -> str | None:
+        if value is not None:
+            _relative_resource(value, "source declaration")
+        return value
 
     @model_validator(mode="after")
     def positive_limits(self) -> DatasetProfile:
@@ -419,6 +429,8 @@ class DatasetProfile(StrictModel):
             raise ValueError("dataset and tokenizer limits must be positive")
         if self.source == "fineweb_edu" and not self.dataset_config:
             raise ValueError("fineweb_edu requires dataset_config")
+        if (self.source == "snapshot") != (self.source_declaration is not None):
+            raise ValueError("snapshot profiles require exactly one source_declaration")
         return self
 
 
@@ -627,11 +639,39 @@ def load_datasets() -> DatasetsFile:
     datasets = DatasetsFile.model_validate(raw)
     for dataset in datasets.datasets.values():
         _validate_https(dataset.source_url, "dataset source URL")
+        if dataset.source_declaration is not None:
+            load_dataset_source(dataset)
     if set(datasets.datasets) != {"offline", "tinystories", "fineweb_edu"}:
         raise ValueError(
             "research datasets must define exactly offline, tinystories, and fineweb_edu"
         )
     return datasets
+
+
+def load_dataset_source(profile: DatasetProfile) -> dict[str, object]:
+    """Read an inert packaged declaration without resolving/acquiring Hub data."""
+    from sparselab.data.sources import DatasetSource
+
+    if profile.source_declaration is None:
+        raise ValueError("profile has no source declaration")
+    raw, _, _ = _read_packaged(profile.source_declaration)
+    source = DatasetSource.model_validate(raw)
+    if source.kind != "huggingface" or set(source.splits) != {"train", "validation"}:
+        raise ValueError(
+            "packaged snapshot profiles require Hub train/validation declarations"
+        )
+    if source.revision != profile.revision:
+        raise ValueError("profile and source declaration revisions differ")
+    if source.selection.mode == "bounded" and (
+        source.selection.documents["train"]
+        < max(profile.train_max_documents, profile.tokenizer_max_documents)
+        or source.selection.documents["validation"]
+        < max(
+            profile.validation_max_documents, profile.tokenizer_validation_max_documents
+        )
+    ):
+        raise ValueError("source selection cannot satisfy profile document limits")
+    return source.model_dump(mode="json")
 
 
 def resource_sha256(relative: str) -> str:

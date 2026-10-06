@@ -1,0 +1,221 @@
+{
+  "$defs": {
+    "DedupPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "overlap": {
+          "default": "exclude",
+          "enum": [
+            "exclude",
+            "error",
+            "keep"
+          ],
+          "title": "Overlap",
+          "type": "string"
+        },
+        "priority": {
+          "default": [
+            "validation",
+            "train"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Priority",
+          "type": "array"
+        },
+        "within_split": {
+          "default": "exclude",
+          "enum": [
+            "exclude",
+            "error",
+            "keep"
+          ],
+          "title": "Within Split",
+          "type": "string"
+        }
+      },
+      "title": "DedupPolicy",
+      "type": "object"
+    },
+    "ForgeFiles": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "snapshot_path": {
+          "format": "path",
+          "title": "Snapshot Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshot_path",
+        "files"
+      ],
+      "title": "ForgeFiles",
+      "type": "object"
+    },
+    "ResourceBounds": {
+      "additionalProperties": false,
+      "description": "Explicit ceilings; records are per split, bytes cover all splits.\n\nmax_work_bytes bounds journal + publication disk usage, not Hub library cache\ntraffic. min_free_bytes is checked on both actual output and cache filesystems.\nmax_record_bytes bounds serialized source rows after the library decodes them.",
+      "properties": {
+        "max_record_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Record Bytes",
+          "type": "integer"
+        },
+        "max_source_records": {
+          "exclusiveMinimum": 0,
+          "title": "Max Source Records",
+          "type": "integer"
+        },
+        "max_text_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Text Bytes",
+          "type": "integer"
+        },
+        "max_work_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Work Bytes",
+          "type": "integer"
+        },
+        "min_free_bytes": {
+          "minimum": 0,
+          "title": "Min Free Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_source_records",
+        "max_text_bytes",
+        "max_record_bytes",
+        "max_work_bytes",
+        "min_free_bytes"
+      ],
+      "title": "ResourceBounds",
+      "type": "object"
+    },
+    "Selection": {
+      "additionalProperties": false,
+      "properties": {
+        "documents": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "title": "Documents",
+          "type": "object"
+        },
+        "mode": {
+          "enum": [
+            "bounded",
+            "exhaustion"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "Selection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attribution": {
+      "title": "Attribution",
+      "type": "string"
+    },
+    "config": {
+      "title": "Config",
+      "type": "string"
+    },
+    "dedup": {
+      "$ref": "#/$defs/DedupPolicy"
+    },
+    "forge_files": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ForgeFiles"
+      },
+      "title": "Forge Files",
+      "type": "object"
+    },
+    "kind": {
+      "default": "huggingface",
+      "enum": [
+        "huggingface",
+        "forge_files"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "license": {
+      "title": "License",
+      "type": "string"
+    },
+    "license_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "License Url"
+    },
+    "repo_id": {
+      "title": "Repo Id",
+      "type": "string"
+    },
+    "resources": {
+      "$ref": "#/$defs/ResourceBounds"
+    },
+    "revision": {
+      "title": "Revision",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "selection": {
+      "$ref": "#/$defs/Selection"
+    },
+    "splits": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Splits",
+      "type": "object"
+    },
+    "text_field": {
+      "title": "Text Field",
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_id",
+    "revision",
+    "config",
+    "splits",
+    "text_field",
+    "attribution",
+    "license",
+    "selection",
+    "resources"
+  ],
+  "title": "DatasetSource",
+  "type": "object"
+}

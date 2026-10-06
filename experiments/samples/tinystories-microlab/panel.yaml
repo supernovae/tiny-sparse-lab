@@ -1,0 +1,13 @@
+generation_panel_version: 1
+id: story-development-prompts
+role: descriptive_not_quality_gate
+prompts:
+  - "Once upon a time, a little rabbit"
+  - "Mia wanted to help her friend, but"
+  - "The red ball rolled under"
+decoder:
+  temperature: 0
+  top_k: 0
+  max_new_tokens: 32
+  seed: 42
+checkpoint_selection: same immutable generation as heldout evaluation

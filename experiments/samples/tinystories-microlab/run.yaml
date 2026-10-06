@@ -11,13 +11,17 @@ model:
 tokenizer:
   path: ../tokenizer/tokenizer.json
 dataset:
-  source: tinystories
+  source: snapshot
   revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64
   cache_dir: ../data
+  train_path: ../snapshot/train.jsonl
+  validation_path: ../snapshot/validation.jsonl
+  source_manifest_path: ../snapshot/manifest.json
+  license: CDLA-Sharing-1.0
   train_max_documents: 2000
   validation_max_documents: 100
-  train_max_tokens: 200000
-  validation_max_tokens: 16384
+  train_max_tokens: 2000000
+  validation_max_tokens: 200000
 training:
   seq_len: 64
   micro_batch_size: 2

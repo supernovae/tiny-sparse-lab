@@ -14,11 +14,11 @@ from pathlib import Path
 
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.data.datasets import iter_documents
-from sparselab.data.local_stories import verify_snapshot
 from sparselab.data.tokenizer import (
     SPECIAL_TOKENS,
     load_tokenizer,
     train_tokenizer,
+    verify_snapshot,
     verify_tokenizer_artifact,
 )
 
@@ -46,8 +46,8 @@ def _percentile(values: list[int], quantile: float) -> int:
 
 def bakeoff(dataset: DatasetConfig, output_dir: Path) -> Path:
     """Train three BPEs on the identical whole-story prefix, evaluate only validation[:2000]."""
-    if dataset.source != "local_stories":
-        raise ValueError("bakeoff requires a verified local_stories snapshot")
+    if dataset.source not in {"local_stories", "snapshot"}:
+        raise ValueError("bakeoff requires a verified dataset snapshot")
     source = verify_snapshot(dataset)
     if (
         source["splits"]["train"]["count"] < TRAIN_DOCS

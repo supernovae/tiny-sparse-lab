@@ -190,6 +190,13 @@ def declaration_paths(
                     reference(document, stage.project, "corpus")
                 elif stage.kind == "experiment_plan":
                     reference(document, stage.source, "experiment")
+                elif stage.kind == "dataset_snapshot":
+                    # External immutable locks are operational bindings; Campaign
+                    # adds their content digest to its retained closure directly.
+                    if not Path(stage.lock).is_absolute():
+                        reference(document, stage.lock)
+                elif stage.kind in {"tokenizer_train", "data_prepare"}:
+                    reference(document, stage.config)
                 for name in ("suite", "policy", "panel"):
                     value = getattr(stage, name, None)
                     if isinstance(value, str):

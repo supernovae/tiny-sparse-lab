@@ -162,18 +162,23 @@ def _matrix_requests(args: argparse.Namespace) -> list[dict[str, object]]:
 
 
 def _experiment_submit(args: argparse.Namespace) -> None:
+    from sparselab.data.legacy import require_current_dataset
+
     if bool(args.config) == bool(args.matrix):
         raise ValueError("provide exactly one of CONFIG or --matrix")
     if args.matrix:
         requests = _matrix_requests(args)
         if args.dry_run:
             return
+        for request in requests:
+            require_current_dataset(request["config"].dataset)
         submissions = _controller(Path(args.store)).submit_many(requests)
         _json([submission.model_dump(mode="json") for submission in submissions])
         return
     if args.dry_run:
         raise ValueError("--dry-run is only available with --matrix")
     config = load_config(Path(args.config))
+    require_current_dataset(config.dataset)
     submission = _controller(Path(args.store)).submit(
         config,
         worker=args.worker,

@@ -138,6 +138,7 @@ class DatasetConfig(StrictModel):
         "local_chat",
         "local_text",
         "local_stories",
+        "snapshot",
         "withheld_facts",
         "engram_recall",
         "fineweb_edu",
@@ -171,9 +172,12 @@ class DatasetConfig(StrictModel):
             raise ValueError(
                 "dataset.allocation_manifest_path requires source=local_chat"
             )
-        if self.source_manifest_path is not None and self.source != "local_stories":
+        if self.source_manifest_path is not None and self.source not in {
+            "local_stories",
+            "snapshot",
+        }:
             raise ValueError(
-                "dataset.source_manifest_path requires source=local_stories"
+                "dataset.source_manifest_path requires source=local_stories or snapshot"
             )
         if (self.corpus_release_path is None) != (self.corpus_export_path is None):
             raise ValueError(
@@ -188,11 +192,23 @@ class DatasetConfig(StrictModel):
                 or any(char not in "0123456789abcdef" for char in self.revision)
             ):
                 raise ValueError("corpus export requires full SHA-256 dataset.revision")
-        if self.source == "local_stories":
+        if self.source in {"local_stories", "snapshot"}:
             from sparselab.data.local_stories import LICENSE, REVISION
 
-            if self.revision != REVISION or self.license != LICENSE:
+            if self.source == "local_stories" and (
+                self.revision != REVISION or self.license != LICENSE
+            ):
                 raise ValueError("local_stories requires pinned revision and license")
+            if self.source == "snapshot" and (
+                not self.revision
+                or len(self.revision) not in {40, 64}
+                or any(char not in "0123456789abcdef" for char in self.revision)
+                or not self.license
+                or not self.license.strip()
+            ):
+                raise ValueError(
+                    "snapshot requires pinned revision and explicit license"
+                )
             if any(
                 path is None
                 for path in (
@@ -202,18 +218,18 @@ class DatasetConfig(StrictModel):
                 )
             ):
                 raise ValueError(
-                    "local_stories requires train_path, validation_path and source_manifest_path"
+                    f"{self.source} requires train_path, validation_path and source_manifest_path"
                 )
             if self.train_path.resolve() == self.validation_path.resolve():
                 raise ValueError(
-                    "local_stories train and validation must be separate files"
+                    f"{self.source} train and validation must be separate files"
                 )
             if self.source_manifest_path.resolve() in {
                 self.train_path.resolve(),
                 self.validation_path.resolve(),
             }:
                 raise ValueError(
-                    "local_stories manifest must be separate from story files"
+                    f"{self.source} manifest must be separate from story files"
                 )
             return self
         if (

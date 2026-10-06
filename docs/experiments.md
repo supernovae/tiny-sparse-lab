@@ -27,11 +27,17 @@ uv run --locked --extra cpu sparselab inspect configs/smoke_combined_cpu.yaml --
 ```
 
 
-The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,893,120, and 50,274,752 parameters. They share the pinned TinyStories revision, 8192-token tokenizer, sequence length, token budget, optimizer, and seed. Parameter count alone is not a comparison result: report each completed run's observed validation loss, perplexity, throughput, device, and metric coordinates.
+The retained dense scale presets inspect at 3,344,064, 6,917,376, 10,244,160,
+29,893,120, and 50,274,752 parameters. Their historical dataset-specific inputs
+remain readable for evidence verification; new execution requires a
+[snapshot declaration or explicit migration](datasets.md). Use the microlab's
+snapshot-based matrix for a runnable width comparison. Parameter count alone is
+not a comparison result: report observed validation loss, perplexity, throughput,
+device, and metric coordinates for each completed run.
 
 ## Authored experiment plans and resolved locks
 
-[Campaigns](campaigns.md) orchestrates Corpus Forge releases and these plans
+[Campaigns](campaigns.md) orchestrates direct snapshots, Corpus Forge releases and these plans
 with typed dependencies, declared readiness policies, input-bound authorization
 and recoverable runtime-bound execution. It does not replace ExperimentPlan's
 scientific configuration or infer data/architecture/quality thresholds.
@@ -92,6 +98,13 @@ The parent `execution_binding_sha256` remains distinct from the operational
 `runtime_binding_sha256`; mutable aliases are never checkpoint identities.
 Resume, guarded budget extension, and weight promotion preserve their distinct
 trainer semantics.
+
+Comparison `interventions` and `invariants` name concrete leaf fields, such as
+`model.ffn_dim`, `training.max_tokens` or `artifacts.tokenizer.sha256`; section
+names such as `training` are not field selectors. An optional `phases: [pretrain]`
+limits a comparison to those declared phases. Omitting it retains comparison in
+every phase. This lets fresh architecture contrasts coexist with continuations
+whose distinct parent checkpoint identities require separate interpretation.
 
 `experiment collect LOCK --json` creates a hash-addressed evidence index from
 matching worker specs/receipts and ingested manifests. Missing, failed,

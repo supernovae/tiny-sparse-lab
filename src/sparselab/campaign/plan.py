@@ -125,6 +125,30 @@ class CorpusRelease(Stage):
     project: str
 
 
+class DatasetSnapshot(Stage):
+    kind: Literal["dataset_snapshot"]
+    scope: Literal["corpus"]
+    lock: str
+    output: str
+    cache_dir: str
+    resume: bool = False
+
+
+class TokenizerTrain(Stage):
+    kind: Literal["tokenizer_train"]
+    scope: Literal["tokenizer"]
+    config: str
+    snapshot: str | None = None
+
+
+class DataPrepare(Stage):
+    kind: Literal["data_prepare"]
+    scope: Literal["model"]
+    config: str
+    tokenizer: str
+    snapshot: str | None = None
+
+
 class CorpusReadiness(Stage):
     kind: Literal["corpus_readiness"]
     scope: Literal["corpus"]
@@ -189,11 +213,14 @@ class ExperimentPlanStage(Stage):
     kind: Literal["experiment_plan"]
     scope: Literal["model"]
     source: str
-    mode: Literal["lock", "reference"]
+    mode: Literal["lock", "reference", "bind"]
     lock: str | None = None
     tokenizer: str
     prepared: str
     corpus: str | None = None
+
+    # The run config for bind mode is the native data_prepare declaration. This
+    # avoids adding optional fields to old stage payloads and changing receipts.
 
     @model_validator(mode="after")
     def valid_mode(self) -> ExperimentPlanStage:
@@ -327,6 +354,9 @@ class Approval(Stage):
 CampaignStage = Annotated[
     ArtifactReference
     | CorpusRelease
+    | DatasetSnapshot
+    | TokenizerTrain
+    | DataPrepare
     | CorpusReadiness
     | TokenizerReference
     | TokenMeasurement
@@ -399,8 +429,14 @@ class CampaignPlan(StrictModel):
             tokenizer = (
                 ("tokenizer_reference", None),
                 ("artifact_reference", "tokenizer"),
+                ("tokenizer_train", None),
             )
-            if isinstance(stage, (CorpusReadiness, TokenMeasurement)):
+            if isinstance(stage, (TokenizerTrain, DataPrepare)):
+                if stage.snapshot is not None:
+                    input_is(stage.snapshot, ("dataset_snapshot", None))
+                if isinstance(stage, DataPrepare):
+                    input_is(stage.tokenizer, *tokenizer)
+            elif isinstance(stage, (CorpusReadiness, TokenMeasurement)):
                 input_is(stage.corpus, *release)
                 if stage.tokenizer is not None:
                     input_is(stage.tokenizer, *tokenizer)
@@ -420,7 +456,17 @@ class CampaignPlan(StrictModel):
                     )
             elif isinstance(stage, ExperimentPlanStage):
                 input_is(stage.tokenizer, *tokenizer)
-                input_is(stage.prepared, ("artifact_reference", "prepared_data"))
+                input_is(
+                    stage.prepared,
+                    ("artifact_reference", "prepared_data"),
+                    ("data_prepare", None),
+                )
+                if stage.mode == "bind" and not isinstance(
+                    by_id[stage.prepared], DataPrepare
+                ):
+                    raise ValueError(
+                        "bind mode requires a data_prepare stage with its run config"
+                    )
                 if stage.corpus is not None:
                     input_is(stage.corpus, *release)
             elif isinstance(stage, RuntimeAcceptance):
@@ -506,6 +552,12 @@ def load_campaign(path: Path) -> CampaignPlan:
                     operational_path(path.parent, stage.measurement_receipt)
             elif isinstance(stage, CorpusRelease):
                 safe_path(path.parent, stage.project)
+            elif isinstance(stage, DatasetSnapshot):
+                operational_path(path.parent, stage.lock)
+                operational_path(path.parent, stage.output)
+                operational_path(path.parent, stage.cache_dir)
+            elif isinstance(stage, (TokenizerTrain, DataPrepare)):
+                safe_path(path.parent, stage.config)
             elif isinstance(stage, ExperimentPlanStage):
                 safe_path(path.parent, stage.source)
                 if stage.lock is not None:

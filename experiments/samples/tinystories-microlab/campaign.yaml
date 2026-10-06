@@ -1,0 +1,116 @@
+campaign_version: 1
+id: stories-learning
+stages:
+  - id: snapshot
+    kind: dataset_snapshot
+    scope: corpus
+    lock: inputs/source.lock.json
+    output: snapshot
+    cache_dir: downloads
+  - id: tokenizer
+    kind: tokenizer_train
+    scope: tokenizer
+    requires: [snapshot]
+    config: inputs/tokenizer.yaml
+    snapshot: snapshot
+  - id: prepared
+    kind: data_prepare
+    scope: model
+    requires: [snapshot, tokenizer]
+    config: inputs/run.yaml
+    snapshot: snapshot
+    tokenizer: tokenizer
+  - id: plan
+    kind: experiment_plan
+    scope: model
+    requires: [tokenizer, prepared]
+    mode: bind
+    source: inputs/plan.yaml
+    tokenizer: tokenizer
+    prepared: prepared
+  - id: runtime
+    kind: runtime_acceptance
+    scope: runtime
+    requires: [plan]
+    plan: plan
+  - id: baseline
+    kind: experiment_run
+    scope: model
+    requires: [plan, runtime]
+    plan: plan
+    runtime: runtime
+    cell: pretrain:architecture=baseline
+  - id: baseline-collected
+    kind: experiment_collect
+    scope: evaluation
+    requires: [plan, baseline]
+    plan: plan
+    run: baseline
+  - id: baseline-evaluated
+    kind: evaluation
+    scope: evaluation
+    requires: [baseline-collected]
+    collect: baseline-collected
+    suite: inputs/suite.yaml
+  - id: baseline-panel
+    kind: generation_panel
+    scope: evaluation
+    requires: [baseline-collected, baseline-evaluated, runtime]
+    collect: baseline-collected
+    evaluation: baseline-evaluated
+    runtime: runtime
+    panel: inputs/panel.yaml
+  - id: continued
+    kind: experiment_run
+    scope: model
+    requires: [plan, runtime, baseline-collected]
+    plan: plan
+    runtime: runtime
+    cell: continue:architecture=baseline
+  - id: continued-collected
+    kind: experiment_collect
+    scope: evaluation
+    requires: [plan, continued]
+    plan: plan
+    run: continued
+  - id: continued-evaluated
+    kind: evaluation
+    scope: evaluation
+    requires: [continued-collected]
+    collect: continued-collected
+    suite: inputs/suite.yaml
+  - id: continued-panel
+    kind: generation_panel
+    scope: evaluation
+    requires: [continued-collected, continued-evaluated, runtime]
+    collect: continued-collected
+    evaluation: continued-evaluated
+    runtime: runtime
+    panel: inputs/panel.yaml
+  - id: wider
+    kind: experiment_run
+    scope: model
+    requires: [plan, runtime]
+    plan: plan
+    runtime: runtime
+    cell: pretrain:architecture=wider
+  - id: wider-collected
+    kind: experiment_collect
+    scope: evaluation
+    requires: [plan, wider]
+    plan: plan
+    run: wider
+  - id: wider-evaluated
+    kind: evaluation
+    scope: evaluation
+    requires: [wider-collected]
+    collect: wider-collected
+    suite: inputs/suite.yaml
+  - id: wider-panel
+    kind: generation_panel
+    scope: evaluation
+    requires: [wider-collected, wider-evaluated, runtime]
+    collect: wider-collected
+    evaluation: wider-evaluated
+    runtime: runtime
+    panel: inputs/panel.yaml

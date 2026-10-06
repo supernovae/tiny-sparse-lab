@@ -84,6 +84,11 @@ def iter_documents(
     if config.source == "local_stories":
         yield from iter_local_stories(config, split)
         return
+    if config.source == "snapshot":
+        from sparselab.data.sources import iter_snapshot
+
+        yield from iter_snapshot(config, split)
+        return
     if config.source == "engram_recall":
         yield from iter_engram_recall(config.synthetic_seed, split)
         return
