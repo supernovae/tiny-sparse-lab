@@ -101,8 +101,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15]
-    env:
-      SPARSELAB_WORK_DIR: ${{ runner.temp }}/serving-work
     steps:
       - uses: actions/checkout@v7
         with:
@@ -118,6 +116,7 @@ jobs:
       - run: uv sync --locked --extra cpu --dev
       - name: Bounded offline serving and CLI regression checks
         run: |
+          export SPARSELAB_WORK_DIR="$RUNNER_TEMP/serving-work"
           git rev-parse HEAD
           uv run --locked --extra cpu python --version
           uv run --locked --extra cpu pytest -vv -ra --tb=long --durations=15 \
