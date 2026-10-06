@@ -45,18 +45,6 @@ historical dataset-specific inputs retain their original verifiers.
   Existing checkpoint selectors already serve declared chains; add standalone
   immutable selection only if a native iteration still needs pointer
   parsing. Never select an unverified "latest" directory by sorting filenames.
-- [ ] **P2 — Exercise a complete declared iteration demo.** Using native
-  direct-input binding, add a copyable ExperimentPlan/Campaign
-  example with one baseline, a checkpoint-bound exposure child, fixed heldout
-  suite/descriptive generation panel, a separately labeled fresh one-field
-  contrast and optional seed replication. Share the topology with a small offline
-  acceptance fixture, including interrupted reconciliation and unchanged parent
-  hashes. Use a pinned teaching dataset such as TinyStories and record acceptance separately: declaration
-  digests, run/ingestion states, checkpoint lineage, counters, evaluation/panel
-  references and costs. Keep outputs external and make CLI text/JSON follow the
-  same route. No embedded Python, duplicate implicit baseline, automatic promotion
-  or claim that offline smoke establishes real-data quality. The current direct
-  teaching walkthrough is not this declarative acceptance gate.
 
 ### Native diagnostic interfaces
 

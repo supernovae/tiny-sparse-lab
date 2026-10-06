@@ -36,3 +36,6 @@ not select. Neither route imports a prior baseline automatically.
 
 Coverage and pass budgets use native `data coverage` / `data budget`. Full-data
 execution needs separate resource admission; the sample is a bounded lesson.
+
+The [engineering acceptance record](acceptance.md) retains the scope, identities,
+results and limitations of a completed bounded Campaign using these interfaces.
