@@ -73,7 +73,7 @@ The raw validation-loss interaction is `y11 - y10 - y01 + y00`, with `y00=dense/
 
 The signs are mixed. All three capability-card scores were zero in each of the four cells for all three seeds (36 measured zeros); this smoke found no card evidence of benefit. The generated analysis contained four complete cells per seed, complete matched nondominance groups, configuration-derived allocation heatmaps, and observed-only sweeps. These outputs validate report behavior on this evidence; they do not establish quality, efficiency, or a useful interaction.
 
-Verification: `uv run pytest -q tests/test_study_reporting.py tests/test_research_workbench.py` (13 passed); the regenerated static report and interaction SVG were opened in a browser. The nano FFN-width × lookup experiment above is complete; this MLA smoke remains a separate engineering validation, not a training-quality result.
+Verification: `uv run --locked pytest -q tests/test_study_reporting.py tests/test_research_workbench.py` (13 passed); the regenerated static report and interaction SVG were opened in a browser. The nano FFN-width × lookup experiment above is complete; this MLA smoke remains a separate engineering validation, not a training-quality result.
 
 ## Next work
 

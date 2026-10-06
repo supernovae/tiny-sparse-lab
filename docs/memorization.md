@@ -2,16 +2,10 @@
 
 `src/sparselab/corpus/memorization.py` exposes a **read-only, descriptive** comparison of one generated continuation to known source passages. It does not decide whether text is memorized, licensed, infringing, eligible for training, or releasable; there is no copyright threshold and no corpus-construction gate.
 
-```python
-from sparselab.corpus.memorization import SourcePassage, diagnose_memorization
-
-result = diagnose_memorization(
-    "A continuation to inspect",
-    [SourcePassage("document:paragraph-12", "Original source passage")],
-    ngram_size=3,
-)
-match = result.best_source
-```
+There is currently no native CLI or DSL operation for this diagnostic. It is
+an implementation capability, not a runnable lab workflow. The
+[native diagnostic backlog](../TODO.md#native-diagnostic-interfaces) specifies
+the required adapter; do not substitute a custom experiment script.
 
 Each `SourceMatch` contains the caller's source ID, SHA-256 of the **original UTF-8 passage bytes**, longest exact contiguous normalized substring (text and character count), and overlap fractions between 0 and 1. `MemorizationDiagnostic.sources` includes every source, sorted by ID. Best-source selection is deterministic: longest exact substring, then n-gram, word, character and available edit similarity, with lexicographically smallest ID breaking ties. Duplicate or empty IDs and an empty passage list are rejected.
 

@@ -37,9 +37,9 @@ interfaces, not introduce another runner.
   emit the normal stage/pilot receipts. Wrong source/config, tampered inventory,
   unsafe links and unavailable runtime must fail before optimizer execution.
   It must not prepare/download/repack, grant runtime/source drift or silently
-  fall back to fresh inputs. This is not a shipped CLI option. DevMind MODEL-1
-  first needs an independently reviewed source authorization; this adapter is
-  not a substitute for that decision.
+  fall back to fresh inputs. This is not a shipped CLI option. A continuation
+  requiring source authorization still needs that independent review; this
+  adapter is not a substitute for that decision.
 - [ ] **P2 — Expose verified declaration/config handoffs.** Where Phase `set`
   and native scaffolds do not suffice, add CLI derivation over the existing
   typed loaders and dotted-path compiler, preserving path anchoring when the
@@ -62,25 +62,63 @@ interfaces, not introduce another runner.
   or claim that offline smoke establishes real-data quality. The current direct
   teaching walkthrough is not this declarative acceptance gate.
 
-### P2 — Make evidence collection and review reusable
+### Native diagnostic interfaces
 
-- [x] **Lint checked-in research records.** Extend existing identity/schema
-  checks to validate protocol/config bindings and evidence references under
-  `experiments/research/`, and reject checked-in checkpoints, caches, datasets,
-  logs, and mutable run output. Complete with valid, missing/mismatched-reference,
-  and forbidden-output fixtures. Validate durable declarations and references
-  without requiring live external datasets/checkpoints or adding a new registry.
-  Fixed with [offline record lint](experiments/research/README.md#offline-record-lint),
-  CI enforcement, and [declaration/reference/output regressions](tests/test_research_lint.py).
-- [x] **Preserve a compact metadata explanation of corpus identities.** Extend
-  existing archive/provenance machinery with project/declaration identity,
-  source-ID→snapshot-SHA mapping, algorithm/file provenance, full build identity
-  payload, and release identity. Complete when metadata round trips and survives
-  relocation, declared digest payloads can be checked without source bytes, and
-  tampering is rejected. Explaining an identity must not claim verification or
-  reconstruction of unavailable source contents.
-  Fixed with [archive identity metadata](docs/research/lifecycle-recovery.md)
-  and [offline round-trip, relocation, and tampering regressions](tests/test_corpus_identity.py).
+- [ ] **P3 — Expose supplied-vector semantic probes natively.** Wrap the existing
+  verified semantic retriever/adapter with a typed declaration: pack identity,
+  canonical query tensors, encoder identity, masks, attachment sites and explicit
+  initialized or checkpoint-bound model selection. Emit verified pack/query/model
+  identities and per-query retrieval/adapter traces. Reject encoder, shape,
+  inventory and checkpoint mismatches before inference; preserve missing,
+  conflicting and time-bounded outcomes. No arbitrary Python callbacks or
+  implicit text encoder. The [semantic lesson](docs/research/semantic-memory.md)
+  currently scaffolds/validates packs but relies on an API demonstration for
+  these queries. A natural-language encoder remains a separate research question.
+- [ ] **P2 — Expose the bounded preparation benchmark through the lab.** Input:
+  an exclusive task workspace, declared generated-corpus sizes, seed, tokenizer
+  batch bounds and host thread limits. Reuse the existing preparation path;
+  emit phase timing, logical byte/record counts, sampled-memory scope and exact
+  prepared identity comparisons. Reject unsafe/reused output, invalid bounds
+  and insufficient storage; never download or start model training. Preserve
+  null counters and keep performance observations outside scientific identities.
+  The historical `benchmarks/preparation_benchmark.py` harness is not a native
+  command; the [retained observations](docs/runtime.md#offline-performance-evidence)
+  must not be silently relabeled as a new benchmark run.
+- [ ] **P2 — Expose continuation/source overlap through the lab.** Wrap the
+  existing descriptive diagnostic with typed CLI input: a retained continuation,
+  explicit source IDs/passages, n-gram size and bounded edit-distance limit.
+  Emit the normal source hashes, normalization identity, raw overlap measures
+  and null/unavailable edit similarity. Bind checkpoint/generation identity when
+  the input comes from a run. Reject missing sources, duplicate IDs, invalid
+  bounds and tampered retained inputs; never infer a copyright threshold,
+  eligibility, memorization verdict or publication approval. No Python recipe
+  should be required. See [current boundary](docs/memorization.md).
+- [ ] **P2 — Expose opt-in phase observations natively.** Add a typed CLI/DSL
+  adapter for the existing `BottleneckObserver` on preparation, staging and
+  orchestration. Input: the normal declaration/config, selected runtime and
+  explicit observation destination. Output: versioned operational phase records
+  with measured counters, sampling scope and unavailable reasons, outside
+  scientific inventories. Reject unsafe output paths and malformed options;
+  missing device probes must remain null, not zero or invented utilization.
+  Verify scientific digests remain unchanged and observation failures follow the
+  existing non-blocking policy. See [boundaries](docs/capacity-aware-execution.md).
+
+### Experiment ledger projection
+
+- [ ] **P2 — Share an evidence-backed experiment ledger between CLI and dashboard.**
+  Extend the existing research lifecycle/report readers, rather than adding a
+  second registry or runner. Input: lifecycle declarations, verified report roots,
+  evidence references and an optional run store. Expose question, declared delta
+  and controls, protocol/checkpoint identity, result and limitations, reviewed
+  decision, next declared test and current evidence availability. Reuse one typed
+  read-only projection for CLI text/JSON and the Research page, with stable links
+  to original records. Preserve negative, interrupted, censored, missing and
+  unassessed rows; reject tampered evidence without hiding its rejection reason.
+  Do not infer promotion, rankings or live execution from historical findings.
+  Acceptance: matching CLI/UI rows, duplicate-reference handling, relocated or
+  missing evidence, invalid digests and offline browsing without creating a run
+  store. The [curated ledger](docs/research/experiment-ledger.md) defines the reader
+  need; no ledger command is shipped yet.
 
 ## P3 — Conditional work; activate for a concrete workload
 

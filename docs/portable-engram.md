@@ -5,8 +5,8 @@ A portable Engram package stores only the tokenizer-independent byte-addressed l
 Export from a byte-memory checkpoint:
 
 ```sh
-uv run sparselab engram export RUN_ID --runs-dir runs --output artifacts/memory.engram
-uv run sparselab engram inspect artifacts/memory.engram
+uv run --locked sparselab engram export RUN_ID --runs-dir runs --output artifacts/memory.engram
+uv run --locked sparselab engram inspect artifacts/memory.engram
 ```
 
 `PortableEngramAdapter` freezes the exported table and trains only an output projection and context gate for a target hidden width. Byte-equivalent addressing alone does not prove transfer; use held-out facts and controlled baseline comparisons.

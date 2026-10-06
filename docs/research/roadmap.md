@@ -4,9 +4,13 @@ This roadmap describes what SparseLab can execute, what has been smoke-tested, w
 
 Durable experiment definitions use the [`experiments/`](../../experiments/)
 layout: copyable teaching material under `samples/`, actual campaigns under
-`research/`, and mutable execution output under the ignored
-`sparselab-work/experiments/` tree. GitHub's Code task and Research experiment
+`research/`, and mutable execution output under the external persistent
+`$SPARSELAB_WORK_DIR/experiments/` tree. GitHub's Code task and Research experiment
 issue templates preserve the same boundary.
+
+The [experiment ledger](experiment-ledger.md) is the compact index of retained
+lessons. This roadmap owns open questions and their scientific gates; detailed
+metrics and historical source/checkpoint identities remain in linked records.
 
 ## Decision coordination
 

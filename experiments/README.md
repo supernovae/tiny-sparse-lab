@@ -7,7 +7,7 @@ run output.
 |---|---|---|
 | [`samples/`](samples/) | Copyable teaching and starter experiments | Small configs, walkthroughs, expected artifact shapes, and explicitly non-scientific example output |
 | [`research/`](research/) | Actual SparseLab research campaigns | Identity-bound protocols/config references, preregistered gates, iteration notes, findings, and evidence links |
-| `../sparselab-work/experiments/` | Local execution workspace (ignored) | One named root per experiment, with a shared run store, receipt, staging, exercises, captures, and local reports |
+| `$SPARSELAB_WORK_DIR/experiments/` | External persistent execution workspace | One named root per experiment, with a shared run store, receipt, staging, exercises, captures, and local reports |
 
 Do not promote sample output into research evidence. To turn a sample into a
 campaign, copy its editable inputs into a named `research/<campaign>/` directory,

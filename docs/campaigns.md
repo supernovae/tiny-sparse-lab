@@ -350,7 +350,7 @@ An accelerator checkpoint without that reference blocks; an explicit
 `backend: cpu` evaluation omits the reference and records its CPU override.
 Remote registered workers can train, but local suite evaluation has no SSH RPC:
 declare explicit CPU evaluation or report that unsupported boundary.
-See the [literal hardware acceptance runbook](runtime.md#post-merge-rocm-contract-acceptance-runbook).
+See the [runtime contract acceptance workflow](runtime.md#runtime-contract-acceptance).
 Capacity/probe checks establish bounded execution readiness, not evidence of
 fit on other hardware, throughput superiority, useful model behavior, causality
 or portability.

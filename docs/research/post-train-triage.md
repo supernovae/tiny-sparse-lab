@@ -28,20 +28,21 @@ Candidates sort by cost (`negligible`, `low`, `medium`, `high`), then trigger co
 `sparselab dashboard --runs-dir RUNS_DIR --surface-dir DIR` can show a
 **verified read-only overlay** for sealed [Surface Review v1](surface-review-v1.md)
 bundles. Use, for example,
-`--surface-dir sparselab-work/experiments/surface-review-v1/bundles` when that
+`--surface-dir "$SURFACE_DIR"` when that
 directory holds task-owned imports. `sparselab triage ... --json` includes the
 overlay only when requested. Without `--surface-dir`, the existing triage
 output and telemetry dashboard retain their prior behavior.
 
-For the campaign bundle imported in the Surface Review guide, optional local inspection is:
+Set `RUN_ID` and `RUNS_DIR` to your retained run and its store, and
+`SURFACE_DIR` to the new review bundles described in the Surface Review guide:
 
 ```sh
-uv run --locked sparselab triage tinystories-dense-30m-data-rich-v1-seed42 \
-  --runs-dir /home/byron/src/tiny-sparse-lab-data-rich/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs \
-  --surface-dir sparselab-work/experiments/surface-review-v1/bundles --json
+uv run --locked sparselab triage "$RUN_ID" \
+  --runs-dir "$RUNS_DIR" \
+  --surface-dir "$SURFACE_DIR" --json
 uv run --locked sparselab dashboard \
-  --runs-dir /home/byron/src/tiny-sparse-lab-data-rich/sparselab-work/experiments/tinystories-dense-30m-data-rich-v1/runs \
-  --surface-dir sparselab-work/experiments/surface-review-v1/bundles
+  --runs-dir "$RUNS_DIR" \
+  --surface-dir "$SURFACE_DIR"
 ```
 
 With `--surface-dir`, CLI JSON wraps the verified original report under

@@ -5,10 +5,10 @@ A checkpoint generation is a durable, immutable local snapshot shared by the PyT
 ## Verify before reuse
 
 ```sh
-uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
-uv run sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
-uv run sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-part --stop-after-step 10
+uv run --locked sparselab checkpoint inspect sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+uv run --locked sparselab checkpoint verify sparselab-work/runs/runtime-part/checkpoints/latest.json --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/runtime_smoke_cpu.yaml --run-id runtime-resumed \
   --resume sparselab-work/runs/runtime-part/checkpoints/latest.json
 ```
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the MLA milestone.
+Accepted: MLA.
 
 ## Decision
 

@@ -4,8 +4,8 @@ This guide explains the execution machinery. Copyable walkthroughs are indexed
 under [`experiments/samples/`](../experiments/samples/); identity-bound research
 campaigns and iteration notes belong under
 [`experiments/research/`](../experiments/research/). Keep downloads, prepared
-data, run stores, checkpoints, logs, and generated reports in a named ignored
-`sparselab-work/experiments/<campaign>/` directory rather than anonymous `/tmp`.
+data, run stores, checkpoints, logs, and generated reports under the external persistent root at
+`$SPARSELAB_WORK_DIR/experiments/<campaign>/`.
 Code gaps discovered during a campaign go to [`TODO.md`](../TODO.md); scientific
 next steps remain in the research roadmap/lifecycle.
 

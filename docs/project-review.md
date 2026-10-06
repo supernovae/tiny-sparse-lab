@@ -62,10 +62,10 @@ The interactive transcript is preserved at `runs/review-chat-engram-long/evaluat
 ### Original review verification
 
 ```sh
-uv run ruff check src tests
-uv run pytest -m "not cuda and not rocm and not xpu and not network"
-uv run sparselab data prepare configs/chat_recall_dense_cpu.yaml
-uv run sparselab eval review-local-corpus
+uv run --locked ruff check src tests
+uv run --locked pytest -m "not cuda and not rocm and not xpu and not network"
+uv run --locked sparselab data prepare configs/chat_recall_dense_cpu.yaml
+uv run --locked sparselab eval review-local-corpus
 ```
 
 The local suite includes available MPS/MLX coverage; it is not CUDA, ROCm or XPU acceptance. All local file links in the 40 Markdown documents were checked. Temporary corpus/configuration/card fixtures were removed after retaining the run-owned evidence.
@@ -82,6 +82,8 @@ The local suite includes available MPS/MLX coverage; it is not CUDA, ROCm or XPU
 
 The [scientific acceptance record](../artifacts/acceptance/scientific_studies_2026_09_22.json) independently verifies preserved inputs, native endpoints, responses and comparisons. The [single-host](../artifacts/acceptance/single_host_gate_2026_09_22.json) and [worker](../artifacts/acceptance/independent_workers_2026_09_23.json) gates cover actual execution/recovery/installation scenarios; the suite at that acceptance revision passed 335 tests. A passing engineering gate does not make a negative learning result positive.
 
-Further curriculum or scale experiments need a new explicit hypothesis and frozen evaluation; inspected cases must not become “untouched” again. Generic statistically justified model selection and open-ended response grading are not established by these studies. Native CUDA/HIP work, actual ROCm/XPU acceptance, and overlapping real Mac/AMD/Intel execution remain hardware-blocked. Distributed training remains outside the current scope.
+Further curriculum or scale experiments need a new explicit hypothesis and frozen evaluation; inspected cases must not become “untouched” again. Generic statistically justified model selection and open-ended response grading are not established by these studies. Current hardware boundaries are maintained in the [runtime guide](runtime.md);
+the historical review is not an up-to-date support matrix. Distributed training
+remains outside the current scope.
 
 See [capability workflow](capabilities.md), [chat-oriented data](instruction-training.md), [evidence](evidence.md), the [research roadmap](research/roadmap.md), and the [implementation backlog](../TODO.md).

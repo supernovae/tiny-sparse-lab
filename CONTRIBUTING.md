@@ -63,3 +63,26 @@ before changing paths or archiving rights-bound corpus content.
 ## Architecture experiments
 
 The [research contribution workflow](docs/research/contributing.md) explains validated local catalog/recipe forks, declared controls and variations, train-only data boundaries, retained negative outcomes, and evidence identities. Do not commit downloaded corpora, prepared arrays, run directories, or checkpoints; a static report bundle is small evidence, not a replacement for its stated limitations.
+
+## Documentation
+
+Write for someone running their own experiment. Use native `sparselab` commands
+and YAML/JSON declarations, through the locked environment; keep Python snippets
+out of user workflows. If a required operation is API-only, describe the missing
+CLI/DSL input, output and failure criteria in TODO.md instead of inventing a
+command or teaching a private script. Label placeholders and prerequisites, and
+use fresh task directories under the persistent work root. A config with an
+explicit in-checkout destination keeps it; setting the root does not relocate it.
+
+Keep feature availability in the [README matrix](README.md#feature-matrix),
+runtime restrictions in [runtime](docs/runtime.md), and scientific lessons in the
+[experiment ledger](docs/research/experiment-ledger.md). Link to the owner of a
+topic instead of copying status summaries. Describe features by behavior rather
+than the branch, release phase or author who introduced them. Retain schema and
+protocol versions, source pins, checkpoint IDs, license attribution and historical
+paths where they identify evidence. Never rewrite a prior result to modernize a
+tutorial, or erase a failed result as obsolete documentation.
+
+For documentation-only changes, check local links and heading anchors, code-fence
+balance, CLI parser support and explicit path semantics. Do not launch a research
+run to validate prose. Record unavailable hardware or execution checks at handoff.

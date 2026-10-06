@@ -103,7 +103,7 @@ You are a concise local assistant.
 After training the `instruction-100m` run below:
 
 ```sh
-uv run sparselab chat instruction-100m \
+uv run --locked sparselab chat instruction-100m \
   --system "You are a concise local assistant." \
   --max-new-tokens 32
 ```
@@ -129,7 +129,7 @@ Run these commands from the repository root. Choose new run names for reruns; sa
 First create the existing instruction tokenizer:
 
 ```sh
-uv run sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
+uv run --locked sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
 ```
 
 Use the included **[`configs/instruction_starter.yaml`](../configs/instruction_starter.yaml)**; there is no configuration to assemble first. It keeps the approximately 3.3M backbone but switches to the instruction dataset and its tokenizer.
@@ -148,20 +148,20 @@ The modest budget is for studying learning, not a quality guarantee. Copy the co
 Then exercise the real path before a full run:
 
 ```sh
-uv run sparselab inspect configs/instruction_starter.yaml --json
-uv run sparselab data prepare configs/instruction_starter.yaml
-uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter-pilot --stop-after-step 2
-uv run sparselab checkpoint verify sparselab-work/runs/instruction-starter-pilot/checkpoints/latest.json --json
-uv run sparselab eval instruction-starter-pilot
+uv run --locked sparselab inspect configs/instruction_starter.yaml --json
+uv run --locked sparselab data prepare configs/instruction_starter.yaml
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter-pilot --stop-after-step 2
+uv run --locked sparselab checkpoint verify sparselab-work/runs/instruction-starter-pilot/checkpoints/latest.json --json
+uv run --locked sparselab eval instruction-starter-pilot
 ```
 
 The two-step run should be interrupted at a safe boundary with a verifiable checkpoint. It verifies execution, **not learning quality**. It uses the configured training schedule; it is not a hidden warmup for the next run. Start the learning run fresh:
 
 ```sh
-uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter
-uv run sparselab eval instruction-starter
-uv run sparselab chat instruction-starter --system "You are a concise local assistant." --max-new-tokens 32
-uv run sparselab evidence instruction-starter --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter
+uv run --locked sparselab eval instruction-starter
+uv run --locked sparselab chat instruction-starter --system "You are a concise local assistant." --max-new-tokens 32
+uv run --locked sparselab evidence instruction-starter --json
 ```
 
 Keep a short development questionnaire: greetings, arithmetic, a definition, rewordings, an unrelated question, and a request to correct an earlier answer. Record mistakes as well as good answers. Use a separate frozen set for a final claim; the synthetic validation split alone is not semantic generalization evidence.
@@ -187,7 +187,7 @@ This model learned recognizable sentence templates and one curriculum definition
 The run and `evaluations/guide-chat.json` transcript are retained locally, not committed as model downloads. On the machine containing that run, try it without retraining:
 
 ```sh
-uv run sparselab chat guide-instruction-starter --system "You are a concise local assistant." --max-new-tokens 32
+uv run --locked sparselab chat guide-instruction-starter --system "You are a concise local assistant." --max-new-tokens 32
 ```
 
 This is a verified learning/example run, not a recommended application model. No full 100M instruction run or domain-support quality evaluation was performed for this guide.
@@ -195,13 +195,13 @@ This is a verified learning/example run, not a recommended application model. No
 ### Then try the larger reference deliberately
 
 ```sh
-uv run sparselab inspect configs/instruction_100m.yaml --json
-uv run sparselab data prepare configs/instruction_100m.yaml
-uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
-uv run sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
-uv run sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
-uv run sparselab eval instruction-100m
-uv run sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
+uv run --locked sparselab inspect configs/instruction_100m.yaml --json
+uv run --locked sparselab data prepare configs/instruction_100m.yaml
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
+uv run --locked sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
+uv run --locked sparselab eval instruction-100m
+uv run --locked sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
 ```
 
 Do not launch the full run solely because an estimate says `LIKELY_TO_FIT`. Inspect the actual configured backend and resource cost; use a short real run first. The `inspect` command uses tensor shapes without allocating the model, and `backend: auto` uses the same selector as training. Missing physical-capacity readings cannot certify fit. `stage --through warmup` runs an isolated, disposable pilot and records its measured report; it is still not a substitute for the configured full run or a large-model fit guarantee.
@@ -263,10 +263,10 @@ SparseLab rejects exact cross-split duplicates, but it cannot certify semantic i
 After the starter learning run exists:
 
 ```sh
-uv run sparselab data prepare configs/support_triage.yaml
-uv run sparselab train --runs-dir sparselab-work/runs configs/support_triage.yaml --run-id support-adapted \
+uv run --locked sparselab data prepare configs/support_triage.yaml
+uv run --locked sparselab train --runs-dir sparselab-work/runs configs/support_triage.yaml --run-id support-adapted \
   --promote sparselab-work/runs/instruction-starter/checkpoints/best.json
-uv run sparselab chat support-adapted \
+uv run --locked sparselab chat support-adapted \
   --system "Classify the support request. Reply with exactly one label: access, billing, or delivery." \
   --max-new-tokens 8
 ```
@@ -292,9 +292,9 @@ The case has a unique `identifier`, this `prompt`, `expected: "billing"`, and `k
 Once independently held-out cases have been frozen:
 
 ```sh
-uv run sparselab capability describe data/support-test-v1.json
-uv run sparselab capability evaluate support-adapted data/support-test-v1.json
-uv run sparselab evidence support-adapted --json
+uv run --locked sparselab capability describe data/support-test-v1.json
+uv run --locked sparselab capability evaluate support-adapted data/support-test-v1.json
+uv run --locked sparselab evidence support-adapted --json
 ```
 
 Review the saved per-case replies: wrong label, extra prose, or a truncated answer should not quietly become a pass. Exact-answer cards suit labels and fixed extraction. They do **not** grade open-ended explanations fairly; those need a declared human rubric or a separately implemented evaluator. `best.json` selects lowest validation loss, not the best test score.

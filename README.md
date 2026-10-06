@@ -23,15 +23,24 @@ speed, and memory. We're building a lab where a training program is readable
 YAML, each checkpoint carries its inputs and history, and the evidence stays
 with the experiment—from your first laptop run to a controlled research campaign.
 
-## What will you build?
+## Feature matrix
 
-| Try this | What the lab gives you |
-| --- | --- |
-| **A TinyStories microlab** | Fit a tokenizer, train a small decoder, measure held-out loss, and generate your own story continuations. [Walkthrough →](docs/tinystories-microlab.md) |
-| **An architecture comparison** | Dense, sliding-window, block-sparse, or MLA attention; local Top-K MoE; token, byte, and portable Engram memory. Declare changes and matched controls in YAML. [Architecture →](docs/architecture.md) |
-| **A training program with a history** | Bounded parameter sweeps, verified checkpoints, explicit resume, budget extension, and weight promotion between phases. [Experiment DSL →](docs/experiment-programs.md) |
-| **A local task model** | Train on licensed conversations with whole-transcript or assistant-only loss, then evaluate a specific held-out capability. [Instruction training →](docs/instruction-training.md) |
-| **A corpus you can trace** | Acquire, shape, freeze, and export data with Corpus Forge; retain source, rights, tokenizer, and preparation identities. [Offline recipe →](corpora/devmind-sample-v0/README.md) |
+Support describes the shipped lab interfaces; scientific outcomes live in the
+[experiment ledger](docs/research/experiment-ledger.md). Backend restrictions are
+listed below and in the [runtime guide](docs/runtime.md).
+
+| Feature | Available workflow | Boundary / guide |
+| --- | --- | --- |
+| Tokenizer, preparation, training and generation | Native CLI and YAML RunConfig | [First story model](docs/tinystories-microlab.md); data and weights need local storage. |
+| Attention comparisons | Dense, sliding-window, block-sparse and reference MLA | [Architecture](docs/architecture.md); reference mechanisms are not full paper reproductions. |
+| Conditional capacity | Local Top-K MoE; token, byte and portable Engram | [Capability experiments](docs/capabilities.md); resident and active parameters differ. |
+| Training programs | Matrices, immutable ExperimentPlan locks and checkpoint phases | [DSL](docs/experiment-programs.md); child dispatch follows verified parent completion. |
+| Campaign orchestration | Declared dependencies, readiness, approvals and reconciliation | [Campaigns](docs/campaigns.md); independent single-device runs. |
+| Corpus provenance | Acquire, shape, freeze, export and verify source identities | [Corpus Forge sample](corpora/devmind-sample-v0/README.md); source terms remain separate. |
+| Instruction objectives | Whole-transcript or assistant-only loss on local conversations | [Instruction training](docs/instruction-training.md); tool transcripts are inert. |
+| Evaluation and review | Held-out loss, capability cards, checkpoint-bound suites, self-blind review | [Evidence](docs/evidence.md); promotion requires review. |
+| Local and SSH execution | Explicit runtime selection, staging and independent worker queues | [Workers](docs/workers.md); no distributed training. |
+| Dashboard | Training telemetry, checkpoints, research catalog and verified reports | [Research views](docs/research/dashboard.md); read-only. |
 
 Watch loss curves, throughput, memory, and checkpoint history in the local
 dashboard. Queue whole independent experiments on local or SSH workers when
@@ -93,31 +102,11 @@ parent, input, storage and authorization checks; it never dispatches training.
 The [training-program guide](docs/experiment-programs.md) uses native
 `experiment bind-inputs` and `export-config` instead of Python orchestration.
 
-**Machine-local runtimes** are independent of the scientific work root and lock.
-Discover installed interpreters and host hardware separately, then register and
-doctor a CPU interpreter before selecting its logical ID for execution:
-
-```sh
-uv run --locked --extra cpu sparselab runtime env discover --json
-uv run --locked --extra cpu sparselab runtime env register cpu-py314 \
-  --python "$PWD/.venv/bin/python" --backend cpu --json
-uv run --locked --extra cpu sparselab runtime env doctor cpu-py314 --json
-uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml \
-  --through inspect --runtime cpu-py314 --output "$SPARSELAB_WORK_DIR/first-run/inspect"
-```
-
-The registry is host-local; a detected GPU alone does not authorize execution.
-The runtime root defaults to `~/.local/share/sparselab/runtimes` (or
-`$XDG_DATA_HOME/sparselab/runtimes`, overridden by `SPARSELAB_RUNTIME_DIR`);
-the registry defaults to `~/.config/sparselab/runtimes.yaml` (or
-`$XDG_CONFIG_HOME/sparselab/runtimes.yaml`). Neither is
-`SPARSELAB_WORK_DIR`. See [machine-local runtime environments](docs/runtime.md#machine-local-runtime-environments)
-for provisioning, other backends, and authorization.
-
-**Already have a provisioned ROCm/CUDA/XPU environment?** Select its interpreter
-directly or set `UV_PROJECT_ENVIRONMENT` to its environment prefix and use
-`uv run --locked --no-sync …` throughout. The Linux `cpu` extra uses CPU PyTorch;
-never sync it into a vendor environment. Follow the [worker setup guide](docs/workers.md#user-provisioned-ssh-workers).
+Register and validate machine-local interpreters with the
+[runtime environment guide](docs/runtime.md#machine-local-runtime-environments).
+For a provisioned accelerator environment, follow the
+[worker setup guide](docs/workers.md#user-provisioned-ssh-workers) and use
+`uv run --locked --no-sync …` to preserve its vendor framework.
 
 ## Experiments as programs
 
@@ -150,19 +139,14 @@ continuation and fresh-state weight promotion have different semantics.
 The guide covers working commands, checkpoint chaining, and current implementation
 gaps tracked in [TODO.md](TODO.md#experiment-ergonomics).
 
-[Campaign v1](docs/campaigns.md) adds declared DAGs, verified corpus readiness,
+[Campaign orchestration](docs/campaigns.md) adds declared DAGs, verified corpus readiness,
 input-bound approvals, and recoverable runtime-bound execution above those plans.
 Try the [tiny corpus/readiness/approval example](examples/tiny-campaign.yaml) in
 an isolated workspace; its outcomes are declared-policy results, not model quality.
 
-For durable declaration-to-artifact-to-checkpoint work, use a normal branch in
-the same checkout: `git switch main; git pull --ff-only; git switch -c feat/<task>`.
-Commit authored inputs before acquisition, tokenizer fit, preparation or training;
-there is no automatic worktree, commit, push or relocation of legacy
-`sparselab-work/`. The [lifecycle and recovery protocol](docs/research/lifecycle-recovery.md)
-explains how a shared external persistent root, compact SHA evidence, read-only
-recovery, declared evaluations, human readiness review and rights-aware archives
-fit together. Branch names and checkout paths are not scientific identity.
+Keep declarations and compact evidence references in Git; keep mutable execution
+output under the external work root. The [lifecycle and recovery guide](docs/research/lifecycle-recovery.md)
+covers source identity, reconstruction, reviewed readiness and archival.
 
 ## Bring your machine
 
@@ -183,7 +167,7 @@ for setup, precision, feature boundaries, and acceptance evidence.
 
 - **Learn:** [From flashcards to a local assistant](docs/from-toy-to-useful.md) · [Architecture](docs/architecture.md) · [Memory and fit](docs/memory.md)
 - **Operate:** [CLI](docs/using-sparselab.md) · [Lifecycle recovery](docs/research/lifecycle-recovery.md) · [Training](docs/training.md) · [Checkpoints](docs/checkpointing.md) · [Workers](docs/workers.md)
-- **Investigate:** [Papers we Love](papers.md) · [Research workbench](docs/research/README.md) · [Learning cycle](docs/research/experiment-learning-cycle.md) · [Evidence and results](docs/lab-status.md) · [Retained checkpoint exploration](docs/checkpoint-exploration.md)
+- **Investigate:** [Papers and runnable questions](papers.md) · [Research workbench](docs/research/README.md) · [Learning cycle](docs/research/experiment-learning-cycle.md) · [Experiment ledger](docs/research/experiment-ledger.md) · [Retained checkpoint exploration](docs/checkpoint-exploration.md)
 
 This is a reference lab under active development. Small runs help you test a
 mechanism; fluent language, reliable task behavior, and architecture advantages

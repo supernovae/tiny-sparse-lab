@@ -255,19 +255,13 @@ inheritance DSL. Its committed lineage fixes four historical producers and
 gates; each invocation attempts only the named next stage, re-verifies parents,
 and preserves the first failure without automatic retry:
 
-```sh
-export SPARSELAB_WORK_DIR=/srv/sparselab/state
-TASK="$SPARSELAB_WORK_DIR/experiments/devmind-model0-try2-ancestry"
-uv run --locked --extra cpu python \
-  experiments/research/devmind-pretrain-v4/replay_ancestry.py \
-  --state-root "$TASK" --through v2 --validate-only
-# After source-rights review, storage admission, tested code and an explicit
-# decision to acquire; monitor free bytes/inodes throughout Git cache growth:
-uv run --locked --extra cpu python \
-  experiments/research/devmind-pretrain-v4/replay_ancestry.py \
-  --state-root "$TASK" --through v2 --allow-network
-# Advance separately through v3, v4-intermediate and v4-final, only after MATCH.
-```
+The original invocation is retained with the
+[ancestry replay record](../../experiments/research/devmind-pretrain-v4/ancestry-replay-report.md).
+It is a historical recovery procedure, not a general native lab workflow.
+Declarative snapshot inheritance remains an explicit
+[implementation gap](../../TODO.md#p3--conditional-work-activate-for-a-concrete-workload);
+new workflows should use the native recovery operations above within their
+supported boundaries.
 
 The coordinator enforces pre-launch byte/inode reservations plus a 25% free
 floor; it does not itself monitor live storage growth. Execution must provide

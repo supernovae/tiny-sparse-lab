@@ -96,23 +96,23 @@ Local conversations support explicit v2 `all_tokens` or `assistant_only` supervi
 ## Inspect and verify a checkpoint
 
 ```sh
-uv run --locked --extra cpu sparselab checkpoint inspect sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
-uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/combined-smoke/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab checkpoint inspect "$SPARSELAB_WORK_DIR/runs/combined-smoke/checkpoints/latest.json" --json
+uv run --locked --extra cpu sparselab checkpoint verify "$SPARSELAB_WORK_DIR/runs/combined-smoke/checkpoints/latest.json" --json
 ```
 
-PyTorch and MLX share immutable generations, run-owned inference assets, checkpoint-bound evaluation, recovery, and promotion. Native MLX execution requires the optional pinned runtime; offline checkpoint inspection/verification does not. Supported PyTorch generation uses a bounded request-local KV cache; the Python `generate(..., use_cache=False)` API provides the full-prefix reference. MLX and unsupported cache configurations use full-prefix decoding. These execution checks are not model-quality evidence.
+PyTorch and MLX share immutable generations, run-owned inference assets, checkpoint-bound evaluation, recovery, and promotion. Native MLX execution requires the optional pinned runtime; offline checkpoint inspection/verification does not. Supported PyTorch generation uses a bounded request-local KV cache; the implementation retains a full-prefix reference for parity checks. MLX and unsupported cache configurations use full-prefix decoding. These execution checks are not model-quality evidence.
 
 ## Stage and schedule independent experiments
 
 ```sh
-WORK=sparselab-work/experiments/runtime-smoke
-export SPARSELAB_WORK_DIR="$WORK"
+WORK="$SPARSELAB_WORK_DIR/experiments/runtime-smoke"
 mkdir -p "$WORK"
 uv run --locked --extra cpu sparselab stage configs/runtime_smoke_cpu.yaml --through warmup --output "$WORK/staging/guide-stage"
 uv run --locked --extra cpu sparselab run configs/runtime_smoke_cpu.yaml --store "$WORK/runs"
 uv run --locked --extra cpu sparselab experiment list --json --store "$WORK/runs"
 uv run --locked --extra cpu sparselab experiment submit --matrix tests/fixtures/runtime-matrix.yaml \
   --dry-run --store "$WORK/runs"
+```
 
 The standalone stage command produces isolated pilot evidence; it does not initialize a later experiment from pilot weights. Direct `train` never silently runs pilots. Composed `run` prepares and dispatches through the same worker queue, including worker-side validation/pilots, then waits for terminal ingestion. Without `--worker`, it registers a local endpoint; an existing controller may drive the store while the command waits.
 
@@ -130,7 +130,7 @@ The audit proves the deterministic fixture’s data separation only. It is not a
 ## View recorded local runs
 
 ```sh
-uv run --locked --extra cpu sparselab dashboard --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab dashboard --runs-dir "$SPARSELAB_WORK_DIR/runs"
 ```
 
 The read-only, localhost-only viewer includes Overview, Training, Evaluation, Architecture, Runtime, Memory, Checkpoints, Stages, and searchable Learn pages. Session-scoped refresh preserves selections and marks stale reads. Runtime shows actual worker/backend/precision/optimizer conditions; memory distinguishes native peaks from sampled lower bounds; checkpoint views separate local best from inherited lineage.

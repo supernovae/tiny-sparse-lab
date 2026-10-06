@@ -48,7 +48,7 @@ closure for parameter gradients. Dense and native sparse recomputation have
 numerical gradient/update coverage.
 
 The planner proposes recomputation explicitly; it never silently changes the
-requested config. Astra's focused generation/import/recomputation sweep passed
+requested config. The recorded focused generation/import/recomputation sweep passed
 35 tests, and the [actual MPS offload comparison](offload.md#actual-mps-comparison)
 verified composition with recomputation and final-parameter parity. The
 [host continuation record](../artifacts/acceptance/host_cli_2026_09_22.json)

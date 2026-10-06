@@ -1,7 +1,10 @@
-# Capacity-aware deterministic execution v1
+# Capacity-aware execution and verified reuse
 
-Operational code work only. MODEL-0 science and retained artifacts are immutable;
-no MODEL-1, training or distributed execution is part of this work.
+Use authenticated unchanged inputs to reduce repeated verification and copying
+while retaining artifact identity. Native commands select supported reuse at
+verified boundaries; [iteration](iteration.md) explains when to repeat checks.
+Historical measurements below describe bounded operational observations, not
+training-quality results or universal speedups.
 
 ## Historical baseline
 
@@ -549,17 +552,9 @@ Corrected raw references under the task-owned external root:
 - `final-cli-corrected.json`: `33d2df99fb7ff3b0873dac2e0385f40b90812eb0216a97141de684ee75d7d2e4`
 - `recovery-final-smoke.json`: `a756cf39bed1c740f8472f368552b14e7f4abd2c45197cbffaca2e0abe2a1616`
 
-Opt-in API; absent observer means no phase sampling:
-
-```python
-from sparselab.bottleneck_observations import BottleneckObserver
-from sparselab.data.packing import prepare_data
-
-observer = BottleneckObserver()
-prepared = prepare_data(config, tokenizer, observer=observer)
-operational_records = observer.records
-```
-
-The same observer can be passed to `stage`, `Controller` and `CampaignEngine`.
+Detailed phase observation is currently an opt-in internal API on preparation,
+staging, Controller and Campaign; there is no documented native switch for it.
+See the [native diagnostic backlog](../TODO.md#native-diagnostic-interfaces).
+Without an observer, these phase samples are unavailable.
 Records remain operational; endpoint RSS is not a lifetime/phase peak and
 missing accelerator probes produce unknown, not an accelerator-bound claim.

@@ -11,10 +11,10 @@ The earlier one-token evaluation began at the colon-only assistant prefix, where
 Build an immutable campaign before training:
 
 ```sh
-uv run sparselab research portability build \
+uv run --locked sparselab research portability build \
   --output artifacts/engram-portability-smoke \
   --scale smoke --seed 20260925 --updates 4
-uv run sparselab research portability plan \
+uv run --locked sparselab research portability plan \
   --campaign-root artifacts/engram-portability-smoke
 ```
 
@@ -29,7 +29,7 @@ The builder separates recipient-preparation conversations, adapter-eligible trai
 Inspect artifact hashes in `assets/memory_assets.json` and address records in `assets/address_observations.json`. Probe exact raw-byte behavior without training:
 
 ```sh
-uv run sparselab research portability probe-byte \
+uv run --locked sparselab research portability probe-byte \
   'Recipient adapter training association: report NODE value.'
 ```
 
@@ -48,7 +48,7 @@ The first non-native arm for a width materializes three own-preparation runs (on
 Run a single arm first:
 
 ```sh
-uv run sparselab research portability run \
+uv run --locked sparselab research portability run \
   --campaign-root artifacts/engram-portability-smoke \
   --recipient width32 --representation token \
   --condition adapter-tuned --seed 17
@@ -73,11 +73,11 @@ The predeclared development threshold is exact-answer accuracy ≥0.95. An arm t
 `continue` executes remaining arms in protocol order. Omit `--max-arms` to run the full three-seed matrix; use it for a bounded invocation only:
 
 ```sh
-uv run sparselab research portability continue \
+uv run --locked sparselab research portability continue \
   --campaign-root artifacts/engram-portability-smoke --max-arms 1
-uv run sparselab research portability continue \
+uv run --locked sparselab research portability continue \
   --campaign-root artifacts/engram-portability-smoke
-uv run sparselab research portability report \
+uv run --locked sparselab research portability report \
   --campaign-root artifacts/engram-portability-smoke
 ```
 
