@@ -82,6 +82,32 @@ CLI. Their hash, migrated configuration, tensor shapes/values, and tied aliases
 are checked. Their reported scope is always `weights_only`; they cannot become
 full-resumable by supplying `--config`.
 
+## Training-state comparison API
+
+For offline diagnostics, `sparselab.training.state_digest` provides
+`canonical_training_state(snapshot, observation=observed_update)` and
+`compare_training_states(left, right)`. Load independently verified native
+`TrainingSnapshot` objects at matching committed update boundaries and supply
+the actual step, tokens seen, learning rate, loss, gradient norm, overflow flag,
+and retry state. The comparison reports differing components or
+`BITWISE_EQUIVALENT`; it uses exact tensor bytes and typed state, without a
+numerical tolerance. Missing loss or gradient observations may be `None`, so
+equal unavailable observations establish no equality of those measurements.
+
+The versioned fingerprint covers weights and trainability, optimizer, schedule,
+RNG, scaler, cursor, counters, scientific configuration, validation/lineage
+values and checkpoint cadence. It excludes run/file/source identities,
+operational config paths and cumulative timings. A disabled time-based cadence's
+minutes watermark is excluded; enabled time-based cadence and unknown snapshot
+fields fail closed. Supported tensors are dense PyTorch tensors and compatible
+native-endian NumPy arrays; unsupported state types fail rather than being
+silently omitted.
+
+This API does not authenticate checkpoints or the contents of excluded paths,
+validate optimizer mathematics, grant source compatibility or authorize a run.
+Equal fingerprints describe only the supplied states and observations; they do
+not prove successful resume, future trajectory equivalence, or model quality.
+
 ## Evaluation, best, and lineage
 
 Validation runs at step 0, configured evaluation intervals, and final/interruption boundaries. A new best validation loss causes a checkpoint; a cadence-only checkpoint has `validation_loss: null` rather than inheriting stale attribution. `best.json` points only to a verified evaluated generation physically present in that run. A resumed child may carry an ancestor `lineage_best` record whose checkpoint is not local; it is lineage metadata, not a fabricated local best pointer.
