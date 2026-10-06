@@ -197,9 +197,14 @@ class Comparison(StrictModel):
     invariants: tuple[str, ...] = ()
     mode: Literal["controlled", "multi_factor", "descriptive", "none"] = "controlled"
     confounders: tuple[str, ...] = ()
+    phases: tuple[str, ...] = Field(default=(), exclude_if=lambda value: not value)
 
     @model_validator(mode="after")
     def valid_comparison(self) -> Comparison:
+        if len(self.phases) != len(set(self.phases)) or any(
+            not _ID.fullmatch(phase) for phase in self.phases
+        ):
+            raise ValueError("comparison phases must be unique safe identifiers")
         if not _ID.fullmatch(self.id) or self.baseline == self.variant:
             raise ValueError("comparison requires a safe ID and distinct selectors")
         if set(self.baseline) != set(self.variant):
@@ -343,6 +348,12 @@ class ExperimentPlan(StrictModel):
                 raise ValueError(f"duplicate {label} identifiers")
         if len(self.axes) > 20:
             raise ValueError("too many experiment axes")
+        phase_ids = {phase.id for phase in self.phases} if self.phases else {"main"}
+        for comparison in self.comparisons:
+            if set(comparison.phases) - phase_ids:
+                raise ValueError(
+                    f"comparison {comparison.id} references unknown phases"
+                )
         variant_ids = [variant.id for variant in self.corpus_variants]
         if len(variant_ids) != len(set(variant_ids)):
             raise ValueError("duplicate corpus variant identifiers")

@@ -1024,6 +1024,8 @@ def resolve_plan(
                 f"comparison {comparison.id} must uniquely select each declared axis"
             )
         for phase in phases:
+            if comparison.phases and phase.id not in comparison.phases:
+                continue
             left = next(
                 (
                     cell

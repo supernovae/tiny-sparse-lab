@@ -99,6 +99,13 @@ The parent `execution_binding_sha256` remains distinct from the operational
 Resume, guarded budget extension, and weight promotion preserve their distinct
 trainer semantics.
 
+Comparison `interventions` and `invariants` name concrete leaf fields, such as
+`model.ffn_dim`, `training.max_tokens` or `artifacts.tokenizer.sha256`; section
+names such as `training` are not field selectors. An optional `phases: [pretrain]`
+limits a comparison to those declared phases. Omitting it retains comparison in
+every phase. This lets fresh architecture contrasts coexist with continuations
+whose distinct parent checkpoint identities require separate interpretation.
+
 `experiment collect LOCK --json` creates a hash-addressed evidence index from
 matching worker specs/receipts and ingested manifests. Missing, failed,
 interrupted, and invalid cells remain visible. `experiment reconstruct LOCK

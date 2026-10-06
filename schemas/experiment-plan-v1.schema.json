@@ -525,6 +525,14 @@
           "title": "Mode",
           "type": "string"
         },
+        "phases": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Phases",
+          "type": "array"
+        },
         "variant": {
           "additionalProperties": {
             "type": "string"

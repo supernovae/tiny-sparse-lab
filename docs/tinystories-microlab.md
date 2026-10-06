@@ -338,6 +338,10 @@ continuations. Its baseline and wider cells use identical data, tokenizer, seed,
 optimizer and exposure; `model.ffn_dim` is the intervention. Each child retains
 its own parent's full AdamW state and original decay horizon. Architecture
 changes occur between fresh parents, not during resume.
+The width comparison declares `phases: [pretrain]`: its controls name concrete
+configuration fields and tokenizer/prepared-data identities. The children start
+from different learned parents, so they are not compared as if checkpoint
+identity were held fixed.
 
 Bind the prepared inputs from the first exercise without downloading or fitting
 again. Use a new output declaration and plan ID for repetitions:

@@ -14,7 +14,25 @@ comparisons:
     baseline: {architecture: baseline}
     variant: {architecture: wider}
     interventions: [model.ffn_dim]
-    invariants: [seed, dataset, tokenizer, training, optimizer, runtime]
+    phases: [pretrain]
+    invariants:
+      - seed
+      - dataset.source
+      - dataset.revision
+      - artifacts.tokenizer.sha256
+      - artifacts.prepared_data.sha256
+      - training.seq_len
+      - training.micro_batch_size
+      - training.gradient_accumulation
+      - training.max_steps
+      - training.max_tokens
+      - optimizer.name
+      - optimizer.peak
+      - optimizer.floor
+      - optimizer.warmup_steps
+      - runtime.engine
+      - runtime.backend
+      - runtime.precision
 phases:
   - id: pretrain
     transition: fresh

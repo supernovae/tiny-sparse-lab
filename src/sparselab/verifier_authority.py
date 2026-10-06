@@ -340,7 +340,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "experiments.plan",
         "campaign.plan",
-    ): "9ad2e6a21f48d593a7d3f6464ad704a780adfe55e66a07c36a7d340fa3aed431",
+    ): "f9554766c9133a93501983b6e030a9913468ff55dd8d7c71369dca19dbef5650",
     (
         "experiments.plan",
         "recovery.provenance",
