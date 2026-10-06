@@ -351,7 +351,7 @@ Shape-only inspection estimates parameter, optimizer, activation, and working-me
 | Trainable token/byte Engram plus verified portable-table export and adapters | Generalized lexical/portable transfer or a consistent Engram benefit |
 | Verified semantic retrieval of supplied vectors through the direct PyTorch API | Natural-language query encoding, standard trainer/chat integration, or semantic quality claims |
 | Context passed in the conversation | Tool execution, long-lived user memory, and a secure application permission boundary |
-| Verified bounded PyTorch KV caches and measured native MLX sparse components | Broader hardware validation, fused kernels, and production-serving guarantees |
+| Verified bounded PyTorch KV caches and measured native MLX sparse components | Compatibility checks in additional execution environments, fused kernels, and production-serving guarantees |
 | Shape-only CLI estimates, isolated smoke/warmup pilots, and backend-specific measurements | Measured large-model fit or a general hardware-capacity/performance guarantee |
 | One host/device per experiment; independent local/SSH queues, leases, cancellation, recovery | Actual ROCm/XPU and cross-host acceptance; distributed training remains out of scope |
 | MLX checkpoints, continuation, promotion, generation/chat, and held-out evidence for FP32 dense/native-sparse models | Blanket PyTorch feature or training-trajectory equivalence |

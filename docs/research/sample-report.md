@@ -2,11 +2,14 @@
 
 [Open the static report](../../artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/index.html) · [Inspect its manifest](../../artifacts/research-reports/fbdb00217f8e952e12bd07e053d97d85796f889748ee77d3bc81b21bb3c98c0b/manifest.json)
 
-This is a completed CPU/offline smoke campaign for `engram-ffn-substitution-v1`, not a pretrained model or a performance claim. The report bundles the original receipt and collected evidence, study inputs, per-run results, static charts, and validated local checkpoint evidence. Its verification scope is `report_plus_local_checkpoint_validation`. It contains no model weights, prepared arrays, dataset cache, or runnable checkpoints.
+This small `engram-ffn-substitution-v1` campaign compares feed-forward width
+and lexical lookup using an offline fixture. It ran through PyTorch on CPU.
+The device is execution context; the comparison concerns model architecture.
+The report is not a pretrained model or a performance claim. The report bundles the original receipt and collected evidence, study inputs, per-run results, static charts, and validated local checkpoint evidence. Its verification scope is `report_plus_local_checkpoint_validation`. It contains no model weights, prepared arrays, dataset cache, or runnable checkpoints.
 
 ## Summary
 
-Across the original FFN smoke and nano campaigns plus this fixed-seed nano rerun, lexical memory showed no consistent held-out loss benefit; the nano `1x` lexical-memory pairs had higher loss in all three seeds. All 54 run executions scored zero on each of the three capability cards (162 run/card scores), so these observations provide no evidence that lookup compensates for reduced FFN capacity. These short CPU/offline observations do not establish a general model-quality result.
+Across the original FFN smoke and nano campaigns plus this fixed-seed nano rerun, lexical memory showed no consistent held-out loss benefit; the nano `1x` lexical-memory pairs had higher loss in all three seeds. All 54 run executions scored zero on each of the three capability cards (162 run/card scores), so these observations provide no evidence that lookup compensates for reduced FFN capacity. These short runs on the offline fixture do not establish a general model-quality result.
 
 The nano `4x`/`1x` lexical-memory × FFN interaction is complete and reproduced with identical per-coordinate losses. This result has update-level telemetry, but no declared time-to-quality-target protocol or end-to-end cost comparison; those remain open.
 
@@ -61,7 +64,7 @@ An independent execution with distinct run IDs and a new receipt reused the same
 
 ## Research-analysis pipeline smoke
 
-A CPU/offline `engram-mla-compression-v1` campaign exercised the factorial, nondominance, allocation, and boundary-sweep report paths. This is an engineering smoke, not an attention or memory-quality conclusion. All 12 runs (dense/MLA-half attention × no/lexical memory × seeds 17, 41, and 73) passed local evidence validation and reached step 32 / 4,096 tokens.
+An `engram-mla-compression-v1` reporting check, run on CPU with an offline fixture, exercised the factorial, nondominance, allocation, and boundary-sweep report paths. This is an engineering smoke, not an attention or memory-quality conclusion. All 12 runs (dense/MLA-half attention × no/lexical memory × seeds 17, 41, and 73) passed local evidence validation and reached step 32 / 4,096 tokens.
 
 The raw validation-loss interaction is `y11 - y10 - y01 + y00`, with `y00=dense/no-memory`, `y10=MLA-half/no-memory`, `y01=dense/lexical`, and `y11=MLA-half/lexical`:
 

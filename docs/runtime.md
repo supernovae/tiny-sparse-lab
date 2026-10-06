@@ -2,6 +2,14 @@
 
 Each SparseLab experiment runs in one process on one host/device. An optional controller schedules multiple whole independent experiments on local or SSH workers; it never shares their optimizer state or gradients. A run records its selected engine, backend, precision, device index, available memory readings, framework/runtime versions, and probe result in its manifest. That record describes the machine that ran it; it is not evidence that another machine has the same capability.
 
+An **engine** is the framework executing the model: PyTorch or MLX. A **backend**
+is its CPU/GPU execution route: PyTorch CPU, NVIDIA CUDA, AMD ROCm, Intel XPU or
+Apple MPS; MLX uses Metal on Apple Silicon. A device is the selected processor.
+Runtime checks ask whether SparseLab can execute a workload in that environment.
+Research experiments ask about their declared model, data or training variables;
+recording the device does not make it the subject of the experiment. A study
+explicitly comparing execution backends must declare that as its own question.
+
 ## Host environment and compute backend
 
 Host OS, execution environment, and compute backend are independent dimensions.
@@ -23,8 +31,9 @@ is recorded as `unknown-wsl`. Host detection never initializes a GPU.
 CPU execution uses the same path on Linux, WSL2, and macOS. NVIDIA CUDA, AMD
 ROCm, and Intel XPU use their installed framework APIs on native Linux or WSL2
 where the vendor supports that host/device combination. Apple MPS and MLX use
-Metal on supported Macs. Discovery and explicit validation decide availability;
-a host label never certifies an accelerator or enables a fallback.
+Metal on supported Macs. Discovery reports local availability, and a disposable
+workload checks the requested operations and precision before execution.
+A host label alone neither selects a device nor enables a fallback.
 
 WSL2 uses the Linux process, locking, and filesystem paths in SparseLab. Keep
 Linux training data, caches, and checkpoints in the Linux filesystem where
@@ -297,7 +306,8 @@ Validate each provisioned host/device using the
 Use the actual candidate config, registered interpreter and explicit backend.
 `runtime env doctor`, `inspect` and a full-shape `stage --through warmup` provide
 separate environment, configuration and optimizer-execution observations.
-CPU-only CI and mocked probes cannot establish accelerator acceptance.
+A check executed on CPU does not exercise SparseLab’s GPU execution path;
+that path needs a workload run in the selected GPU environment.
 
 For a declared Campaign, use its runtime stage and input-bound approval gate,
 then `campaign status`, `next` and `explain` to inspect the same attempt. Follow
@@ -313,12 +323,13 @@ Keep missing, failed and interrupted observations visible. No automatic model
 promotion follows from completing this execution contract.
 
 The [registered-runtime acceptance record](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
-preserves the historical hardware gate. Its exact device, source and checkpoint
-identities describe that observation; new users declare their own runtime.
+preserves a software integration check run on the recorded GPU. Its device,
+source and checkpoint identities describe the execution environment and outputs;
+new users declare their own runtime.
 
 ## Discovery, validation, and measurements
 
-Discovery is passive: it inventories CPU, MPS, CUDA, ROCm, XPU, and MLX availability without creating a model. It records unavailable runtimes and API limitations rather than guessing. Validation separately exercises a disposable forward/backward/optimizer probe for the requested engine and precision. Discovery or a vendor specification is not a hardware acceptance result.
+Discovery is passive: it inventories CPU, MPS, CUDA, ROCm, XPU, and MLX availability without creating a model. It records unavailable runtimes and API limitations rather than guessing. Validation separately exercises a disposable forward/backward/optimizer probe for the requested engine and precision. This checks workload compatibility with the installed framework and device; it does not evaluate a model or certify the hardware.
 
 Per-update timing synchronizes at update boundaries. `performance/step_seconds` and `performance/tokens_per_second` cover successful update work; validation, checkpointing, staging, and setup are outside that interval. Memory monitoring samples process RSS and supported allocator readings at update phases. CUDA/ROCm/XPU-shaped allocator APIs may supply native peak counters; MPS has a driver allocation reading and an observed sampled peak, not an allocator high-water guarantee. Unsupported readings are omitted and recorded as unavailable rather than emitted as zero.
 
@@ -701,7 +712,9 @@ a fresh or promoted run, never full resume.
 
 ## Runtime acceptance on a provisioned host
 
-Use the same acceptance workflow for native Linux, WSL2, and macOS. Select a
+This software integration check covers training, checkpointing and evaluation
+in a selected execution environment. Use the same workflow for native Linux,
+WSL2, and macOS. Select a
 config with an explicit backend and precision supported by the provisioned
 environment. The CPU and ROCm runtime smoke configs use the same 20-step,
 640-target workload; a CUDA or XPU candidate can copy that config and change
@@ -735,7 +748,8 @@ The stage, training manifest, and evaluation must record the requested backend;
 training must commit 20 steps / 640 targets for these runtime smoke configs, and
 evaluation must use the committed checkpoint. Inspect the measured host/device
 identity and probe result. An explicit unavailable backend is a failed
-acceptance. Each new host/device combination requires actual execution evidence.
+software check. Run it in the environment intended for your workload; its
+results concern SparseLab execution there, not the scientific question.
 
 ## Recorded local acceptance
 
@@ -746,11 +760,16 @@ schedule, scaler, cursor, and RNG match bitwise within each pair; parent
 generations remain unchanged. Native logits differed from canonical PyTorch
 by at most `5.97e-7` on the fixed probe, and a PyTorch-to-MLX promotion committed
 one fresh update. These are bounded implementation checks, not cross-engine
-training equivalence, model-quality results, or foreign-hardware acceptance.
+training equivalence or model-quality results. Their execution environment is
+part of the record, not the subject of a scientific finding.
 
 The [integrated single-host gate](../artifacts/acceptance/single_host_gate_2026_09_22.json) also retains actual MPS continuation/promotion, corruption and signal recovery, installed-wheel/offline checks, and populated dashboard evidence. The [independent-worker gate](../artifacts/acceptance/independent_workers_2026_09_23.json) adds three overlapping CPU workers, controller disconnect/replay, acknowledged cancellation, explicit recovery after executor loss, offline promotion, actual CLI matrix execution, genuine source-mismatch rejection, and a real MLX/Metal worker.
 
-Native CUDA sparse kernels, actual XPU acceptance, and overlapping real Mac/AMD/Intel execution remain open in [the implementation backlog](../TODO.md). Native HIP sparse attention has been exercised and benchmarked on the RX 7900 XTX; ROCm runtime acceptance remains limited to one WSL2 host and does not establish cross-host support.
+Native CUDA sparse kernels remain an [implementation gap](../TODO.md). Retained
+software integration records do not yet include execution on Intel XPU or a
+simultaneous multi-host Apple/AMD/Intel worker setup. Native HIP sparse-attention
+measurements were collected on an AMD RX 7900 XTX under WSL2; that names the
+environment used for the measurements, not the purpose of the model studies.
 
 The [registered-runtime ROCm gate](../artifacts/acceptance/runtime-contract-rocm-20261001T134938Z.json)
 records isolated `rocm-gfx1100-v1` provisioning and a fresh RX 7900 XTX BF16

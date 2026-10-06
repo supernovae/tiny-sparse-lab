@@ -150,18 +150,26 @@ covers source identity, reconstruction, reviewed readiness and archival.
 
 ## Bring your machine
 
-| Platform / backend | Status today |
-| --- | --- |
-| **macOS** | CPU and Apple Silicon PyTorch MPS exercised; optional MLX/Metal is a separate engine with a smaller feature set. |
-| **Linux / WSL2** | CPU path and Linux CI; accelerator execution requires the matching vendor framework and drivers. |
-| **AMD ROCm** | Training studies and native HIP sparse attention exercised on an RX 7900 XTX under WSL2. Other host/device combinations need their own checks. |
-| **NVIDIA CUDA** | Runtime selection and reference execution paths implemented; hardware validation and native CUDA sparse kernels are coming next. |
-| **Intel XPU** | Runtime selection implemented; hardware acceptance is coming next. |
+Choose the compute available to your installed framework. PyTorch is the
+reference engine; MLX is an optional, separate engine for Apple Silicon.
+These settings describe where an experiment runs. Its question and comparison
+come from the model, data, training and evaluation declarations.
 
-Host OS and compute backend are separate choices. PyTorch is the reference engine;
-MLX supports FP32 dense/native block-sparse training, AdamW, and block recomputation,
-with explicit limits on other mechanisms. See [runtime support](docs/runtime.md)
-for setup, precision, feature boundaries, and acceptance evidence.
+| Compute | Engine / backend | Lab capability and requirements |
+| --- | --- | --- |
+| **CPU** | PyTorch / `cpu` | CPU execution on Linux, WSL2 and macOS. |
+| **NVIDIA GPU** | PyTorch / `cuda` | Requires a compatible CUDA framework and driver installation. Sparse attention currently uses the reference path; native CUDA sparse kernels remain unimplemented. |
+| **AMD GPU** | PyTorch / `rocm` | Requires a compatible ROCm framework and driver installation. A native HIP sparse-attention path is also available within its documented device limits. |
+| **Intel GPU** | PyTorch / `xpu` | Requires a compatible XPU framework and driver installation. |
+| **Apple Silicon GPU** | PyTorch / `mps` | Uses the PyTorch Metal backend on a supported Mac. |
+| **Apple Silicon GPU, optional engine** | MLX / `metal` | FP32 dense/native block-sparse training, AdamW and block recomputation; a smaller feature set than PyTorch. |
+
+Host OS, engine and device are separate choices. Local runtime discovery and
+warmup check whether your installed environment can execute the selected workload.
+See [runtime support](docs/runtime.md) for precision, feature restrictions and
+[recorded software checks](docs/lab-status.md) for the environments used in those
+checks. A study described as running on an AMD GPU is still a study of its
+declared model or training change.
 
 ## Explore the lab
 

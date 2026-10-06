@@ -46,8 +46,9 @@ uv run --locked --extra cpu sparselab readiness smoke --family dense \
 
 This check includes tiny training and child resume; it creates disposable runs
 and evidence. Its `readiness.json` records commands, outcomes and identities.
-It has no `--json` flag. Select other affected families when appropriate; CPU
-success does not establish accelerator acceptance. See [lab readiness](lab-readiness.md).
+It has no `--json` flag. Select other affected families when appropriate.
+Success on CPU does not check whether the same workload executes in your
+selected GPU environment. See [lab readiness](lab-readiness.md).
 Do not repeat the entire test suite for each budget or config iteration on the
 same tested revision. Code changes need nearest behavior tests and the relevant
 broader gate; PRs still require the full CPU suite in [test-speed.md](test-speed.md).

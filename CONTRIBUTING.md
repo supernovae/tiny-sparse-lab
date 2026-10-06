@@ -83,6 +83,14 @@ protocol versions, source pins, checkpoint IDs, license attribution and historic
 paths where they identify evidence. Never rewrite a prior result to modernize a
 tutorial, or erase a failed result as obsolete documentation.
 
+Describe research by its question and changed variables, then state where it
+ran: “FFN-width comparison, run with PyTorch on an AMD GPU,” for example.
+CPU, CUDA, ROCm, XPU and MPS describe PyTorch execution capabilities; MLX is a
+separate engine using Metal on Apple Silicon. Reserve “runtime validation” and
+“acceptance” for checks of SparseLab software behavior in an environment. Do not
+present the processor as the subject of a model experiment unless the protocol
+explicitly compares execution backends.
+
 For documentation-only changes, check local links and heading anchors, code-fence
 balance, CLI parser support and explicit path semantics. Do not launch a research
 run to validate prose. Record unavailable hardware or execution checks at handoff.

@@ -60,7 +60,7 @@ not this sample's baseline.
 | macOS or Linux CPU | `engine: pytorch`, `backend: cpu`, `precision: fp32` | Portable default for this guide. |
 | Apple Silicon | `engine: pytorch`, `backend: mps`, `precision: fp32` | Tested Apple GPU path; inspect and stage on your device. |
 | Linux AMD GPU | `engine: pytorch`, `backend: rocm`, `precision: fp32` | Measured ROCm training exists; vendor provisioning and a config-specific pilot are required. |
-| NVIDIA / Intel GPU | `backend: cuda` / `xpu` | Runtime hooks exist; hardware acceptance is pending. |
+| NVIDIA / Intel GPU | `backend: cuda` / `xpu` | Requires a compatible vendor framework and drivers; check workload compatibility with local staging. |
 | Apple MLX | `engine: mlx`, `backend: metal`, `precision: fp32` | Optional separate engine; see [runtime support](runtime.md). AdamW budget extension below is PyTorch-only. |
 
 Host OS and compute backend are independent. A working CPU example does not
