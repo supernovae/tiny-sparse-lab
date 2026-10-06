@@ -1,0 +1,112 @@
+{
+  "format": "devmind-v5-model1-preparation-reference-v1",
+  "classification": "preregistered_intent_and_operational_evidence_not_model1_result",
+  "verdict": "PRE_MODEL1_BLOCKED",
+  "starting_main": "0043bb93acdfc1097c2d431024d78f2f041a7eea",
+  "tested_infrastructure_commit": "c1ce31263b3089265b8698a127800285a1cb208e",
+  "execution_package_sha256": "295e4eb1a2ce0a97f5a3706e7ac47b169ffe03b618ded73e3ba3301357acd242",
+  "external_evidence_root": "/srv/sparselab/state/experiments/pre-model1-native-iteration",
+  "diagnosis": {
+    "old_prepared_inspect_wall_seconds": [9.42, 4.0],
+    "old_authority": "whole_package_source_identity",
+    "measured_prepared_sha_bytes": 4031007060,
+    "bounded_cold_profile_seconds": 120,
+    "proof_binding_profile_seconds": 68.956,
+    "profile_lstat_calls": 3186148,
+    "additional_cold_path": "tokenizer selection called recovery release verification without the explicit proof context",
+    "qualification": "The bounded profile and prepared-only baseline are different operations; no apples-to-apples whole-workflow speedup is inferred."
+  },
+  "new_authority_cold_binding": {
+    "wall_seconds": 752.78,
+    "proof_hits": 125,
+    "proof_misses": 130,
+    "proof_records": 130,
+    "reasons": {"hit": 125, "verifier_authority_changed": 128, "no_receipt": 2},
+    "measured_prepared_sha_bytes": 4031007060,
+    "evidence": "final-cold-binding.json"
+  },
+  "fresh_process_warm_iteration": {
+    "wall_seconds": [65.29, 64.74],
+    "proof_hits_per_process": 5,
+    "proof_misses_per_process": 6,
+    "proof_records_per_process": 0,
+    "miss_reason": "no_receipt",
+    "miss_kind": "checkpoint_member",
+    "unchanged_artifacts_parent_and_delta": true,
+    "large_prepared_array_hash_events": 0,
+    "artifact_verifier_aggregate_byte_counts": null,
+    "qualification": "Directory-verifier byte totals remain unavailable; do not turn null into zero. A separate actual native-CLI Python-open audit observed zero train.npy/validation.npy opens.",
+    "python_open_audit_wall_seconds": 71.56,
+    "python_open_audit_large_prepared_opens": 0,
+    "python_open_audit_evidence": "warm-payload-open-audit.log",
+    "evidence": ["warm-iteration-1.json", "warm-iteration-2.json", "model1-iteration-check.json"]
+  },
+  "model1_native_binding": {
+    "wall_seconds": 44.66,
+    "proof_hits": 5,
+    "proof_misses": 0,
+    "proof_records": 0,
+    "evidence": "model1-native-binding.json"
+  },
+  "hash_benchmark": "../../../artifacts/benchmarks/pre-model1-hash.json",
+  "hash_policy": "Keep authoritative SHA256 and serial 1 MiB reads; BLAKE3 is only a future explicitly versioned cryptographic candidate; XXH3 is non-authoritative. No permanent dependencies or blanket threading.",
+  "parent": {
+    "generation": "step_00005525_gen_000004",
+    "checkpoint_sha256": "52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709",
+    "native_valid": true,
+    "terminal": true,
+    "full_state": true,
+    "step": 5525,
+    "committed_targets": 45260800,
+    "readiness": "READY_FOR_NEXT_STAGE",
+    "execution_source_sha256": "2f911e6d2a833e748971bd3621f95307b05ac8e536e23ebcc447368a84a88b4f"
+  },
+  "model1": {
+    "plan": "model1-plan.yaml",
+    "authored_delta": ["training.max_steps", "training.max_tokens"],
+    "cumulative_steps": 11050,
+    "cumulative_targets": 90521600,
+    "optimizer_decay_steps": 5525,
+    "native_configuration_compatible": true,
+    "execution_source_compatible": false,
+    "plan_sha256": null,
+    "scientific_sha256": null,
+    "lock_error": "prepared cache does not bind the locked dataset/tokenizer/packing/source",
+    "family_status": "BLOCKED_NO_AUTHENTICATED_CHILD_PLAN_LOCK",
+    "model0_node_changed": false,
+    "attempts_dispatched": 0
+  },
+  "campaign": {
+    "declaration": "model1-campaign.yaml",
+    "declaration_sha256": "738895791668fb90f85865b9bbc796e57540e9828cd7908d1ba3bfe912c556b2",
+    "attempts": 0,
+    "next_action": {"action": "apply", "stage": "parent"},
+    "run_state": "BLOCKED",
+    "descriptive_panel": "generation-panel.json",
+    "readiness_policy": "readiness.yaml",
+    "evidence": ["model1-campaign-status.json", "model1-campaign-next.json", "model1-campaign-explain.json"]
+  },
+  "runtime": {
+    "id": "rocm-7900xtx",
+    "doctor_status": "READY",
+    "device": "AMD Radeon RX 7900 XTX",
+    "framework": "2.13.0+rocm10.0.0",
+    "doctor_evidence": "committed-rocm-doctor.json",
+    "inspection_evidence": "committed-rocm-inspect/stage.json",
+    "inspection_parameter_count": 69317760,
+    "inspection_scope": "CPU control-environment shape inspection, zero optimizer steps; not accelerator execution",
+    "current_source_full_shape_pilot_required": true,
+    "full_shape_pilot_exercised": false,
+    "reason": "Resolve immutable input and full-state execution-source authorization before staging can prepare or consume source-bound data safely."
+  },
+  "verification": {
+    "final_focused_tests": {"passed": 138, "seconds": 163.04},
+    "additional_campaign_source_gate_tests": {"passed": 5, "seconds": 16.04},
+    "earlier_training_contract_tests": {"passed": 56, "skipped": 1, "seconds": 114.63},
+    "campaign_panel_and_budget_selection": {"completed_cases_before_deadline": 34, "deadline_seconds": 600, "full_selection_pass": false},
+    "broader_suite_once": {"passed": 1069, "skipped": 3, "failed": 1, "seconds": 877.81, "failure": "evaluation-suite replay unnecessarily cold-hashed weights; fixed and covered by the passing final focused suite", "full_suite_rerun_after_fix": false},
+    "final_dense_readiness": {"status": "passed", "wall_seconds": 43.07, "evidence": "readiness-final-dense/readiness.json", "scope": "tiny CPU CLI training/resume, not accelerator fit or model quality"},
+    "ruff_check": "passed",
+    "ruff_format_check": "559 files already formatted"
+  }
+}

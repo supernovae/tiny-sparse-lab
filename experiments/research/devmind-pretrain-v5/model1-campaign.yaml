@@ -1,0 +1,120 @@
+campaign_version: 1
+id: devmind-v5-model1
+stages:
+- id: parent
+  kind: artifact_reference
+  scope: model
+  artifact:
+    kind: checkpoint
+    version: 2
+    producer: sparselab
+    identifier: step_00005525_gen_000004
+    sha256: 52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709
+    path: /srv/sparselab/state/campaigns/devmind-v5-model0/417d5245f753873012f2d29b0c31a366bbe586d7ed9f12ef067456f3ad192fda/experiments/plan-devmind-v5-model0/controller/762c4104-3a3b-4226-afa6-402cc350356e/checkpoints/step_00005525_gen_000004
+    state: full
+- id: release
+  kind: artifact_reference
+  scope: corpus
+  artifact:
+    kind: corpus_release
+    version: 1
+    producer: sparselab
+    identifier: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    sha256: 72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/primary/replay/work/51be77ba7fb186b3a4af47e9bfe487c7afa84273/corpora/devmind-v5/releases/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b
+- id: export
+  kind: artifact_reference
+  scope: corpus
+  artifact:
+    kind: corpus_export
+    version: 1
+    producer: sparselab
+    identifier: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    sha256: 621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+    path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6
+- id: tokenizer
+  kind: tokenizer_reference
+  scope: tokenizer
+  artifact:
+    kind: tokenizer
+    version: 1
+    producer: sparselab
+    identifier: '32768'
+    sha256: ad186b251ca712e5deebf4cad2eda968a287a964a958604170b785cc380e2b56
+    path: /srv/sparselab/state/experiments/devmind-pretrain-v5/tokenizer-bakeoff-streamed/candidates/32768/tokenizer.json
+- id: packed
+  kind: artifact_reference
+  scope: model
+  artifact:
+    kind: prepared_data
+    version: 1
+    producer: sparselab
+    identifier: 15986e13517461f080e18bc19cdd6c5ac4008155d53dcc4ce21bdaff62487b84
+    sha256: 6d05088bb9552c1ec5527c374c41ccd08d8dca00bdae67c7a0354fded70429a3
+    path: /srv/sparselab/state/corpora/devmind-v5/exports/72577dc6898c12caa3e17a731375573b5207d3f58a90963e4581531f3f1bf27b/lm/621f407e5a1e506435c4c5c92d580d8b8735ed7ca89cbcf4f402ca8365d3c6c6/prepared/15986e13517461f0
+- id: corpus-ready
+  kind: corpus_readiness
+  scope: corpus
+  requires: [release, tokenizer]
+  corpus: release
+  tokenizer: tokenizer
+  policy:
+    min_unique_train_tokens_by_domain:
+      developer_systems: 1
+  measurement_receipt: /srv/sparselab/state/experiments/devmind-pretrain-v5/measured-model0-budget.json
+  measurement_sha256: 24097253544f31c7c5b22b838f635a0869c7dade8bada03c5c77c8b8c1294d4e
+- id: plan
+  kind: experiment_plan
+  scope: model
+  requires: [parent, release, export, tokenizer, packed, corpus-ready]
+  source: model1-plan.yaml
+  mode: lock
+  tokenizer: tokenizer
+  prepared: packed
+  corpus: release
+- id: runtime
+  kind: runtime_acceptance
+  scope: runtime
+  requires: [plan]
+  plan: plan
+  profile_id: rocm-7900xtx
+- id: gate
+  kind: approval
+  scope: model
+  requires: [runtime]
+  bind: [parent, release, export, tokenizer, packed, corpus-ready, plan, runtime]
+- id: run
+  kind: experiment_run
+  scope: model
+  requires: [plan, runtime, gate]
+  plan: plan
+  runtime: runtime
+  cell: main:single
+- id: collect
+  kind: experiment_collect
+  scope: evaluation
+  requires: [plan, run]
+  plan: plan
+  run: run
+- id: evaluation
+  kind: evaluation
+  scope: evaluation
+  requires: [collect, runtime]
+  collect: collect
+  suite: suite.yaml
+  backend: rocm
+  runtime: runtime
+- id: descriptions
+  kind: generation_panel
+  scope: evaluation
+  requires: [collect, evaluation, runtime]
+  collect: collect
+  evaluation: evaluation
+  runtime: runtime
+  panel: generation-panel.json
+- id: readiness
+  kind: model_readiness
+  scope: model
+  requires: [evaluation]
+  evaluation: evaluation
+  policy: readiness.yaml
