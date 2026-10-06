@@ -378,6 +378,116 @@
       "title": "CorpusRelease",
       "type": "object"
     },
+    "DataPrepare": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "scope": {
+          "const": "model",
+          "title": "Scope",
+          "type": "string"
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "kind": {
+          "const": "data_prepare",
+          "title": "Kind",
+          "type": "string"
+        },
+        "config": {
+          "title": "Config",
+          "type": "string"
+        },
+        "tokenizer": {
+          "title": "Tokenizer",
+          "type": "string"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot"
+        }
+      },
+      "required": [
+        "id",
+        "scope",
+        "kind",
+        "config",
+        "tokenizer"
+      ],
+      "title": "DataPrepare",
+      "type": "object"
+    },
+    "DatasetSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "scope": {
+          "const": "corpus",
+          "title": "Scope",
+          "type": "string"
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "kind": {
+          "const": "dataset_snapshot",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lock": {
+          "title": "Lock",
+          "type": "string"
+        },
+        "output": {
+          "title": "Output",
+          "type": "string"
+        },
+        "cache_dir": {
+          "title": "Cache Dir",
+          "type": "string"
+        },
+        "resume": {
+          "default": false,
+          "title": "Resume",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "scope",
+        "kind",
+        "lock",
+        "output",
+        "cache_dir"
+      ],
+      "title": "DatasetSnapshot",
+      "type": "object"
+    },
     "Evaluation": {
       "additionalProperties": false,
       "properties": {
@@ -530,7 +640,8 @@
         "mode": {
           "enum": [
             "lock",
-            "reference"
+            "reference",
+            "bind"
           ],
           "title": "Mode",
           "type": "string"
@@ -944,6 +1055,57 @@
       ],
       "title": "TokenizerReference",
       "type": "object"
+    },
+    "TokenizerTrain": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "scope": {
+          "const": "tokenizer",
+          "title": "Scope",
+          "type": "string"
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "kind": {
+          "const": "tokenizer_train",
+          "title": "Kind",
+          "type": "string"
+        },
+        "config": {
+          "title": "Config",
+          "type": "string"
+        },
+        "snapshot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot"
+        }
+      },
+      "required": [
+        "id",
+        "scope",
+        "kind",
+        "config"
+      ],
+      "title": "TokenizerTrain",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -965,6 +1127,8 @@
             "artifact_reference": "#/$defs/ArtifactReference",
             "corpus_readiness": "#/$defs/CorpusReadiness",
             "corpus_release": "#/$defs/CorpusRelease",
+            "data_prepare": "#/$defs/DataPrepare",
+            "dataset_snapshot": "#/$defs/DatasetSnapshot",
             "evaluation": "#/$defs/Evaluation",
             "experiment_collect": "#/$defs/ExperimentCollect",
             "experiment_plan": "#/$defs/ExperimentPlanStage",
@@ -973,7 +1137,8 @@
             "model_readiness": "#/$defs/ModelReadiness",
             "runtime_acceptance": "#/$defs/RuntimeAcceptance",
             "token_measurement": "#/$defs/TokenMeasurement",
-            "tokenizer_reference": "#/$defs/TokenizerReference"
+            "tokenizer_reference": "#/$defs/TokenizerReference",
+            "tokenizer_train": "#/$defs/TokenizerTrain"
           },
           "propertyName": "kind"
         },
@@ -983,6 +1148,15 @@
           },
           {
             "$ref": "#/$defs/CorpusRelease"
+          },
+          {
+            "$ref": "#/$defs/DatasetSnapshot"
+          },
+          {
+            "$ref": "#/$defs/TokenizerTrain"
+          },
+          {
+            "$ref": "#/$defs/DataPrepare"
           },
           {
             "$ref": "#/$defs/CorpusReadiness"

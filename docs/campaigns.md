@@ -147,10 +147,13 @@ Every stage has `id`, `kind`, `scope` and optional `requires` (default `[]`).
 |---|---|---|
 | `artifact_reference` | Derived from artifact kind | External ExperimentPlan `artifact`, including full SHA, identifier, version, producer and verified relative or absolute operational location; `from_phase: null` |
 | `corpus_release` | `corpus` | `project`; only local/deterministic-generator sources accepted, never network acquisition |
+| `dataset_snapshot` | `corpus` | Pinned dataset `lock`, exclusive `output`, `cache_dir`, optional interrupted-acquisition `resume`; uses native generic acquisition |
+| `tokenizer_train` | `tokenizer` | Tokenizer `config`, optional upstream `snapshot`; verifies that the config names that snapshot |
+| `data_prepare` | `model` | Run `config`, upstream `tokenizer`, optional `snapshot`; preserves native preparation and provenance checks |
 | `corpus_readiness` | `corpus` | `corpus`, `policy`, optional `tokenizer`; token policies require a tokenizer dependency; token-only policies may bind `measurement_receipt` and `measurement_sha256` together |
 | `tokenizer_reference` | `tokenizer` | External `artifact` of kind `tokenizer`; provenance manifest required |
 | `token_measurement` | `tokenizer` | Verified `corpus` release and `tokenizer`; actual selected-view/split counts |
-| `experiment_plan` | `model` | `source`, `mode: lock|reference`, `tokenizer`, `prepared`, optional `corpus`; reference mode requires `lock` |
+| `experiment_plan` | `model` | `source`, `mode: lock|reference|bind`, `tokenizer`, `prepared`, optional `corpus`; reference mode requires `lock`, bind mode takes the run config from its `data_prepare` producer |
 | `runtime_acceptance` | `runtime` | `plan`, optional mutually exclusive logical `profile_id` or registered `worker`; per-cell fresh runtime bindings and storage-headroom checks |
 | `experiment_run` | `model` | `plan`, matching `runtime`, exact `cell` |
 | `experiment_collect` | `evaluation` | `plan`, matching `run`; seals the selected cell, complete ingested evidence, and unique highest-step verified checkpoint generation/digest |
@@ -167,9 +170,11 @@ Missing local inputs block with their path; existing corrupt/mismatched inputs f
 
 Lock mode reuses existing preparation, resolution and immutable lock publication
 APIs. Reference mode reopens the supplied lock. Selected cells must bind exactly
-the upstream tokenizer and prepared-data artifact digests. Non-synthetic cells
-also require an upstream corpus release whose identity matches the lock's selected
-variant; Campaign never silently substitutes a variant. Synthetic cells must omit
+the upstream tokenizer and prepared-data artifact digests. Direct snapshot inputs
+use the same verified dataset/tokenizer/prepared contract as standalone
+ExperimentPlan. Forge-backed cells still require an upstream corpus release whose
+identity matches the lock's selected variant; Campaign never silently substitutes
+a variant or fabricates a release for a direct dataset. Synthetic cells must omit
 `corpus`: a separate corpus/readiness stage can be a research-workflow prerequisite,
 but is not thereby the model's training data. Every plan consumer reopens the lock.
 An explicit run cell selects exactly one locked cell; there is no automatic
@@ -370,8 +375,10 @@ needed.
 ## Current boundaries
 
 No tokenizer bakeoff, architecture selection, auto-generated evaluation protocol
-or worker-farm scheduling stage is provided. Campaigns currently use pinned tokenizer references
-and verified runtime-bound plan/worker adapters. Accelerator acceptance requires
+or worker-farm scheduling stage is provided. Campaigns can prepare generic dataset
+snapshots, train tokenizers, prepare arrays or reference verified existing inputs.
+See [datasets](datasets.md) and the [complete teaching Campaign](tinystories-microlab.md#where-campaigns-fit).
+Accelerator acceptance requires
 a matching declared profile ID or named worker; pass `--runtime-profile PROFILE`
 to each apply/resume that needs it. Each runtime stage authorizes only its assigned
 run cells, and new dispatch revalidates the accepted identity.

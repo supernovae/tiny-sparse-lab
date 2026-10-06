@@ -220,10 +220,12 @@ def _inspect_declaration(args: argparse.Namespace) -> None:
 
 
 def _prepare(args: argparse.Namespace) -> None:
+    from sparselab.data.legacy import require_current_dataset
     from sparselab.experiments.prepare import prepare_plan
     from sparselab.training.manifest import canonical_json
 
     plan, source = _declaration(args)
+    require_current_dataset(base_run_config(plan, source).dataset)
     from sparselab.recovery.provenance import declaration_preflight
     from sparselab.workdir import ensure_work_dir
 
@@ -279,9 +281,11 @@ def _prepare(args: argparse.Namespace) -> None:
 
 
 def _lock(args: argparse.Namespace) -> None:
+    from sparselab.data.legacy import require_current_dataset
     from sparselab.experiments.lock import publish_lock, resolve_plan
 
     plan, source = _declaration(args)
+    require_current_dataset(base_run_config(plan, source).dataset)
     workspace = _workspace(plan.id)
     resolved = resolve_plan(
         plan,
@@ -290,6 +294,8 @@ def _lock(args: argparse.Namespace) -> None:
         max_runs=args.max_runs,
         **_verification(args),
     )
+    for cell in resolved.cells:
+        require_current_dataset(cell.config.dataset)
     path = publish_lock(resolved, workspace, **_verification(args))
     _emit(
         args,
@@ -305,8 +311,11 @@ def _lock(args: argparse.Namespace) -> None:
 
 
 def _bind_inputs(args: argparse.Namespace) -> None:
+    from sparselab.config.loading import load_config
+    from sparselab.data.legacy import require_current_dataset
     from sparselab.experiments.direct_inputs import bind_direct_inputs
 
+    require_current_dataset(load_config(Path(args.run_config)).dataset)
     plan = bind_direct_inputs(
         Path(args.run_config),
         Path(args.template),
@@ -365,12 +374,20 @@ def locked_cell_request(
             raise ValueError(
                 f"phase {cell.phase} needs one ingested parent {parent_id}"
             )
+        parent_run_id = matches[0].get("run_id")
+        if (
+            not isinstance(parent_run_id, str)
+            or not parent_run_id
+            or Path(parent_run_id).name != parent_run_id
+            or parent_run_id in {".", ".."}
+        ):
+            raise ValueError(f"ingested parent {parent_id} lacks a valid run_id")
         binding, selected_parent = bind_generation(
             workspace,
             plan_sha256=locked.plan_sha256,
             cell_id=cell.id,
             parent_cell_id=parent_id,
-            parent_run=controller.root / matches[0]["run_id"],
+            parent_run=controller.root / parent_run_id,
             selector=phase.selector,
             at_step=phase.at_step,
             full_state=phase.transition != "promote",
@@ -463,6 +480,7 @@ def _run_cells(locked: Any, args: argparse.Namespace) -> list[Any]:
 
 
 def _run(args: argparse.Namespace) -> None:
+    from sparselab.data.legacy import require_current_dataset
     from sparselab.experiments.binding import bind_runtime, open_runtime_binding
     from sparselab.experiments.lock import open_lock
     from sparselab.workers.controller import Controller
@@ -470,6 +488,9 @@ def _run(args: argparse.Namespace) -> None:
 
     verification = _verification(args)
     locked = open_lock(Path(args.lock), **verification)
+    selected = _run_cells(locked, args)
+    for cell in selected:
+        require_current_dataset(cell.config.dataset)
     from sparselab.recovery.provenance import declaration_preflight
 
     if not locked.evaluations and not locked.evaluation_suite:
@@ -492,7 +513,6 @@ def _run(args: argparse.Namespace) -> None:
         )
     workspace = _workspace(locked.id)
     controller = Controller(workspace / "controller", **verification)
-    selected = _run_cells(locked, args)
     profile = getattr(args, "runtime_profile_loaded", None)
     source_worker = args.worker or (
         locked.execution.get("worker")

@@ -98,6 +98,18 @@ def architecture_sha256(config: Mapping[str, Any]) -> str:
 
 def config_sha256(config: Mapping[str, Any]) -> str:
     """Digest scientific configuration while excluding machine-local locations."""
+    # The new generic source binds content through the authenticated snapshot.
+    # Preserve historical local_stories identities, which included this field.
+    dataset = config.get("dataset")
+    if isinstance(dataset, Mapping) and dataset.get("source") == "snapshot":
+        config = {
+            **config,
+            "dataset": {
+                key: value
+                for key, value in dataset.items()
+                if key != "source_manifest_path"
+            },
+        }
     return _digest(
         {
             "identity_version": IDENTITY_VERSION,

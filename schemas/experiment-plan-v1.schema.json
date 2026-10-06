@@ -705,6 +705,7 @@
             "local_chat",
             "local_text",
             "local_stories",
+            "snapshot",
             "withheld_facts",
             "engram_recall",
             "fineweb_edu",

@@ -8,10 +8,14 @@ from pathlib import Path
 import yaml
 
 from sparselab.config.loading import load_config
-from sparselab.experiments.artifacts import verify_artifact
+from sparselab.experiments.artifacts import _safe_path, verify_artifact
 from sparselab.experiments.lock import _check_cell_inputs, _exclusive_bytes
 from sparselab.experiments.plan import ExperimentPlan, load_plan
-from sparselab.recovery.provenance import declaration_reference
+from sparselab.recovery.provenance import (
+    declaration_paths,
+    declaration_reference,
+    repository_root,
+)
 from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import ProofStore, VerificationMode
 
@@ -22,6 +26,7 @@ def bind_direct_inputs(
     prepared_root: Path,
     output: Path,
     *,
+    rebase_suite: bool = False,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> ExperimentPlan:
@@ -41,12 +46,34 @@ def bind_direct_inputs(
     reserved = {"tokenizer", "packed", "release", "export"}
     if reserved.intersection(template.artifacts):
         raise ValueError("phase template uses reserved direct-input artifact names")
-    if template.evaluation_suite is not None and declaration_reference(
-        template_path, template.evaluation_suite
-    ) != declaration_reference(output, template.evaluation_suite):
-        raise ValueError(
-            "phase template evaluation suite changes location when exported"
-        )
+    evaluation_suite = template.evaluation_suite
+    suite_files: dict[Path, bytes] = {}
+    if evaluation_suite is not None:
+        original_suite = declaration_reference(template_path, evaluation_suite)
+        if rebase_suite:
+            from sparselab.campaign.plan import safe_path
+
+            declaration_root = repository_root(template_path) or template_path.parent
+            evaluation_suite = (
+                Path("suite-inputs") / original_suite.relative_to(declaration_root)
+            ).as_posix()
+            # Preserve the authored layout and bytes, including suite panels and
+            # evidence references discovered by the native declaration walker.
+            for member in declaration_paths(template_path, "experiment"):
+                member = _safe_path(str(member), template_path)
+                target = safe_path(
+                    output.parent,
+                    (
+                        Path("suite-inputs") / member.relative_to(declaration_root)
+                    ).as_posix(),
+                )
+                suite_files[target] = member.read_bytes()
+                if target.exists() and target.read_bytes() != suite_files[target]:
+                    raise ValueError(f"suite declaration copy collision: {target}")
+        elif original_suite != declaration_reference(output, evaluation_suite):
+            raise ValueError(
+                "phase template evaluation suite changes location when exported"
+            )
     if config.tokenizer.path.name != "tokenizer.json":
         raise ValueError("run tokenizer must reference tokenizer.json")
     if prepared_root.parent != config.dataset.cache_dir:
@@ -105,6 +132,7 @@ def bind_direct_inputs(
     plan = ExperimentPlan.model_validate(
         {
             **template.model_dump(mode="json"),
+            "evaluation_suite": evaluation_suite,
             "base_run": config.model_dump(mode="json"),
             "artifacts": artifacts,
             "inputs": inputs,
@@ -146,5 +174,13 @@ def bind_direct_inputs(
     content = yaml.safe_dump(plan.model_dump(mode="json"), sort_keys=False).encode(
         "utf-8"
     )
+    for path, payload in suite_files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _safe_path(str(path.parent), output)
+        try:
+            _exclusive_bytes(path, payload)
+        except FileExistsError:
+            if _safe_path(str(path), output).read_bytes() != payload:
+                raise ValueError(f"suite declaration copy collision: {path}") from None
     _exclusive_bytes(output, content)
     return plan

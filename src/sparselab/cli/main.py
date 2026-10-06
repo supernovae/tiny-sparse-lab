@@ -27,7 +27,6 @@ from sparselab.data.encoding import (
     TOKENIZER_BATCH_SOURCE_BYTES,
     validate_tokenizer_batch_limits,
 )
-from sparselab.data.local_stories import snapshot
 from sparselab.data.packing import prepare_data
 from sparselab.data.tokenizer import (
     load_tokenizer,
@@ -632,17 +631,6 @@ def _runtime_probe(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2 if args.json else None, sort_keys=True))
 
 
-def _data_snapshot(args: argparse.Namespace) -> None:
-    print(
-        snapshot(
-            Path(args.output),
-            train_count=args.train_count,
-            validation_count=args.validation_count,
-            cache_dir=Path(args.cache_dir) if args.cache_dir else None,
-        )
-    )
-
-
 def _data_bakeoff(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
     print(bakeoff(config.dataset, Path(args.output)))
@@ -705,6 +693,24 @@ def _stage(args: argparse.Namespace) -> None:
     options = verification_options(
         resolve_work_dir(args.work_dir), cold=args.cold_verify
     )
+    config = load_config(Path(args.config))
+    if args.through != "inspect":
+        from sparselab.data.legacy import require_current_dataset
+
+        require_current_dataset(config.dataset)
+    if args.prepared_inputs is not None:
+        from sparselab.experiments.artifacts import _safe_path
+        from sparselab.staging import verify_prepared_inputs
+
+        output = Path(args.output)
+        if output.exists() or output.is_symlink():
+            raise FileExistsError(
+                f"existing-input stage output already exists: {output}"
+            )
+        prepared = _safe_path(
+            str(args.prepared_inputs.absolute()), Path(args.config).absolute()
+        )
+        verify_prepared_inputs(prepared, config, **options)
 
     policy = (
         load_pilot_deadline_policy(args.pilot_deadline_policy)
@@ -713,9 +719,10 @@ def _stage(args: argparse.Namespace) -> None:
     )
     print(
         stage(
-            load_config(Path(args.config)),
+            config,
             Path(args.output),
             args.through,
+            prepared_inputs=args.prepared_inputs,
             authorization=args.runtime_authorization,
             resource_envelope=args.resource_envelope_value,
             tokenizer_batch_documents=args.tokenizer_batch_documents,
@@ -2263,12 +2270,13 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     data_prepare.add_argument("config")
     data_prepare.add_argument("--resource-envelope", type=Path)
     _tokenizer_batch_arguments(data_prepare)
-    data_snapshot = data_commands.add_parser("snapshot")
-    data_snapshot.add_argument("output", type=Path)
-    data_snapshot.add_argument("--cache-dir", type=Path)
-    data_snapshot.add_argument("--train-count", type=int, default=1_000_000)
-    data_snapshot.add_argument("--validation-count", type=int, default=10_000)
-    data_snapshot.set_defaults(handler=_data_snapshot)
+    from sparselab.data.coverage import register_parser as register_coverage
+    from sparselab.data.legacy import register_parser as register_data_migration
+    from sparselab.data.source_cli import register_parser as register_dataset_sources
+
+    register_dataset_sources(data_commands)
+    register_coverage(data_commands)
+    register_data_migration(data_commands)
     data_bakeoff = data_commands.add_parser("bakeoff")
     data_bakeoff.add_argument("config")
     data_bakeoff.add_argument("output", type=Path)
@@ -2365,6 +2373,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--through", default="smoke", choices=("inspect", "validate", "smoke", "warmup")
     )
     staging.add_argument("--output", required=True)
+    staging.add_argument(
+        "--prepared-inputs",
+        type=Path,
+        help="Verify and stage an existing materialized input bundle without preparing data",
+    )
     staging.add_argument(
         "--cold-verify",
         action="store_true",
@@ -3181,6 +3194,8 @@ def _read_only_command(args: argparse.Namespace) -> bool:
 
     if args.command == "iteration":
         return True
+    if args.command == "data" and args.data_command == "coverage":
+        return True
     if args.command == "campaign":
         return args.campaign_command in READ_ONLY_COMMANDS
     if args.command == "recovery":
@@ -3268,6 +3283,14 @@ def main() -> None:
     else:
         args.resource_envelope_value = None
     try:
+        from sparselab.data.legacy import require_current_dataset
+
+        if args.command in {"train", "stage", "run"} or (
+            args.command == "data" and args.data_command in {"prepare", "bakeoff"}
+        ):
+            require_current_dataset(load_config(Path(args.config)).dataset)
+        elif args.command == "tokenizer" and args.tokenizer_command == "train":
+            require_current_dataset(load_tokenizer_config(Path(args.config)).dataset)
         _prepare_runtime_command(args)
     except (ValueError, OSError) as error:
         raise SystemExit(f"sparselab: {error}") from None

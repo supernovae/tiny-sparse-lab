@@ -27,7 +27,8 @@
       }
     },
     "tinystories": {
-      "source": "tinystories",
+      "source": "snapshot",
+      "source_declaration": "dataset_sources/tinystories.json",
       "revision": "f54c09fd23315a6f9c86f9dc80f725de7d8f9c64",
       "dataset_seed": 42,
       "dataset_config": null,
@@ -43,7 +44,7 @@
       "tokenizer_validation_max_tokens": 65536,
       "license": "CDLA-Sharing-1.0; upstream records GPT-3.5/GPT-4 generated stories.",
       "source_url": "https://huggingface.co/datasets/roneneldan/TinyStories/raw/f54c09fd23315a6f9c86f9dc80f725de7d8f9c64/README.md",
-      "notes": ["Pinned upstream dataset revision; preparation downloads or uses the existing Hugging Face cache only when explicitly requested.", "CDLA-Sharing-1.0 and upstream GPT-3.5/GPT-4 generation disclosures apply; not project MIT or assistant training.", "Alias capability cards are out-of-domain stress, not TinyStories quality tests; held-out cross-entropy is the language-model measurement.", "Tokenizer fitting consumes training documents only; validation and capability cards are excluded."],
+      "notes": ["Pinned declarative snapshot; run the emitted source lock and snapshot commands before fitting the tokenizer. Acquisition excludes duplicates/overlap with validation priority; strict whole-document selection is a new policy relative to retired direct loading.", "CDLA-Sharing-1.0 and upstream GPT-3.5/GPT-4 generation disclosures apply; not project MIT or assistant training.", "Alias capability cards are out-of-domain stress, not TinyStories quality tests; held-out cross-entropy is the language-model measurement.", "Tokenizer fitting consumes training documents only; validation and capability cards are excluded."],
       "card_applicability": {
         "chat-alias-retention-v1": "out-of-domain stress, not story-model quality",
         "chat-alias-recall-v1": "out-of-domain stress, not story-model quality",

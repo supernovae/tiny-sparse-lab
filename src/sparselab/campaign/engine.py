@@ -137,6 +137,26 @@ class CampaignEngine:
     def _operational_path(self, reference: str) -> Path:
         return operational_path(self.source.parent, reference)
 
+    def _artifact_dataset(self, stage: Any) -> Any:
+        """Supply native tokenizer verification with its declared dataset context."""
+        if stage.artifact.kind != "tokenizer":
+            return None
+        from sparselab.config.loading import load_config
+        from sparselab.experiments.plan import base_run_config, load_plan
+
+        for consumer in self.plan.stages:
+            if getattr(consumer, "tokenizer", None) != stage.id:
+                continue
+            if consumer.kind == "data_prepare":
+                path = self._path(consumer.config)
+                if path.is_file():
+                    return load_config(path).dataset
+            elif consumer.kind == "experiment_plan":
+                path = self._path(consumer.source)
+                if path.is_file():
+                    return base_run_config(load_plan(path), path).dataset
+        return None
+
     @staticmethod
     def _identity(kind: str, identifier: str, sha256: str) -> list[dict[str, str]]:
         return [{"kind": kind, "identifier": identifier, "sha256": sha256}]
@@ -158,29 +178,42 @@ class CampaignEngine:
     def _provenance_closure(self, provenance: dict) -> list[dict[str, str | None]]:
         """Compare scientific closure bytes, not branch, HEAD or availability paths."""
         entries = provenance.get("declarations") or []
+        from sparselab.training.manifest import sha256_file
+
+        locks = [
+            {
+                "path": f"dataset-lock:{stage.id}",
+                "sha256": sha256_file(self._operational_path(stage.lock))
+                if self._operational_path(stage.lock).is_file()
+                else None,
+            }
+            for stage in self.plan.stages
+            if stage.kind == "dataset_snapshot"
+        ]
         if entries and provenance.get("status") != "UNKNOWN":
             return sorted(
-                (
+                [
                     {"path": entry["path"], "sha256": entry["sha256"]}
                     for entry in entries
-                ),
+                ]
+                + locks,
                 key=lambda entry: entry["path"],
             )
         # An explicit UNKNOWN override still needs a byte-bound closure when
         # declarations live outside a Git repository.
         from sparselab.recovery.provenance import declaration_paths, repository_root
-        from sparselab.training.manifest import sha256_file
 
         root = repository_root(self.source) or self.source.parent
 
         return sorted(
-            (
+            [
                 {
                     "path": path.relative_to(root).as_posix(),
                     "sha256": sha256_file(path) if path.is_file() else None,
                 }
                 for path in declaration_paths(self.source, "campaign")
-            ),
+            ]
+            + locks,
             key=lambda entry: entry["path"],
         )
 
@@ -385,11 +418,18 @@ class CampaignEngine:
         kind = stage.kind
         output = row["outputs"][0] if row.get("outputs") else None
         path = Path(row.get("availability", {}).get("path", ""))
-        if kind in {"artifact_reference", "tokenizer_reference"}:
+        if kind in {"dataset_snapshot", "tokenizer_train", "data_prepare"}:
+            from sparselab.campaign.preparation import verify
+
+            verify(self, stage, row, rows)
+        elif kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
             verified = verify_artifact(
-                stage.artifact, self.source, **self._verification()
+                stage.artifact,
+                self.source,
+                dataset=self._artifact_dataset(stage),
+                **self._verification(),
             )
             if output != {
                 key: verified[key] for key in ("kind", "identifier", "sha256")
@@ -613,11 +653,22 @@ class CampaignEngine:
                 raise ValueError(
                     "synthetic cell cannot claim the campaign corpus as model input"
                 )
-            if not synthetic:
+            # resolve_plan/open_lock authenticate the complete dataset, tokenizer,
+            # prepared-data and executable-source closure. Campaign binds those
+            # verified identities; it must not invent a Forge dependency for a
+            # direct dataset (including future snapshot-backed sources).
+            forge = (
+                cell.config.dataset.source == "local_text"
+                or cell.config.dataset.corpus_release_path is not None
+                or cell.config.dataset.corpus_export_path is not None
+                or any(
+                    item.get("kind") in {"corpus_release", "corpus_export"}
+                    for item in cell.artifacts.values()
+                )
+            )
+            if forge or stage.corpus is not None:
                 if stage.corpus is None:
-                    raise ValueError(
-                        "non-synthetic locked cell requires a corpus release"
-                    )
+                    raise ValueError("Forge locked cell requires a corpus release")
                 release = self._upstream(rows, stage.corpus)["outputs"][0]
                 actual = [
                     item
@@ -669,6 +720,27 @@ class CampaignEngine:
         }
 
     def _availability(self, stage: Any) -> str | None:
+        if stage.kind == "dataset_snapshot":
+            from sparselab.data.sources import verify_lock
+
+            path = self._operational_path(stage.lock)
+            if not path.exists():
+                return f"missing declared dataset lock: {path}"
+            verify_lock(path)
+            return None
+        if stage.kind in {"tokenizer_train", "data_prepare"}:
+            from sparselab.config.loading import load_config, load_tokenizer_config
+
+            path = self._path(stage.config)
+            if not path.exists():
+                return f"missing declared preparation config: {path}"
+            loader = (
+                load_tokenizer_config
+                if stage.kind == "tokenizer_train"
+                else load_config
+            )
+            loader(path)
+            return None
         if stage.kind in {"artifact_reference", "tokenizer_reference"}:
             path = self._operational_path(stage.artifact.path)
         elif stage.kind == "corpus_release":
@@ -692,7 +764,12 @@ class CampaignEngine:
         if stage.kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
-            verify_artifact(stage.artifact, self.source, **self._verification())
+            verify_artifact(
+                stage.artifact,
+                self.source,
+                dataset=self._artifact_dataset(stage),
+                **self._verification(),
+            )
         elif stage.kind == "corpus_release":
             from sparselab.corpus.project import ProjectConfig, load_project
             from sparselab.experiments.plan import read_document
@@ -1158,6 +1235,21 @@ class CampaignEngine:
                 stage = self.stages[action["stage"]]
                 rows = self._rows(state)
                 row = rows[stage.id]
+                if (
+                    stage.kind == "dataset_snapshot"
+                    and row["state"] in {"RUNNING", "INTERRUPTED"}
+                    and not resume
+                ):
+                    return {
+                        **projection,
+                        "next_action": {
+                            **action,
+                            "action": "resume",
+                            "reason": "interrupted acquisition requires campaign resume",
+                        },
+                        "declaration_provenance": provenance,
+                        "storage_checks": checks,
+                    }
                 submitted = False
                 dispatch_error: OSError | ValueError | KeyError | TypeError | None = (
                     None
@@ -1221,7 +1313,15 @@ class CampaignEngine:
                     if dispatch_error is not None:
                         raise dispatch_error
                     result = self.dispatch(
-                        stage, rows, max_wait_seconds, execute_runs=execute_runs
+                        stage,
+                        rows,
+                        max_wait_seconds,
+                        execute_runs=execute_runs,
+                        **(
+                            {"resume_acquisition": resume}
+                            if stage.kind == "dataset_snapshot"
+                            else {}
+                        ),
                     )
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     result = self._result("FAILED", "DO_NOT_ADVANCE", reason=str(error))
@@ -1241,7 +1341,9 @@ class CampaignEngine:
                     "FAILED",
                     "INCONCLUSIVE",
                     "INTERRUPTED",
-                }:
+                } and not (
+                    stage.kind == "dataset_snapshot" and row["state"] == "INTERRUPTED"
+                ):
                     row = self.store.commit(stage, row)
                 self._record(state, row)
                 if self.after_commit is not None and row["state"] == "COMPLETE":
@@ -1380,16 +1482,31 @@ class CampaignEngine:
                     f"controller continuation does not bind locked cell {cell}"
                 )
             if parent:
-                manifest = json.loads((parent / "manifest.json").read_text())
-                if (
-                    continuation.parent_run_id != manifest["run_id"]
-                    or continuation.artifact_identity.sha256
-                    != continuation.checkpoint_sha256
-                ):
-                    raise ValueError(
-                        f"controller parent does not bind locked cell {cell}"
-                    )
+                self._check_continuation_parent(parent, continuation)
         return matches
+
+    @staticmethod
+    def _check_continuation_parent(parent: Path, continuation: Any) -> None:
+        """Bind a previously verified generation to its authenticated run manifest."""
+        import hashlib
+
+        from sparselab.training.manifest import canonical_json, read_manifest
+
+        run_manifest_path = parent.parent.parent / "manifest.json"
+        run_manifest = read_manifest(run_manifest_path)
+        run_digest = hashlib.sha256(canonical_json(run_manifest)).hexdigest()
+        generation = json.loads((parent / "manifest.json").read_text())
+        identity = continuation.artifact_identity
+        if (
+            continuation.parent_run_id != run_manifest["run_id"]
+            or identity is None
+            or identity.relative_path != "continuation/parent_manifest.json"
+            or identity.sha256 != run_digest
+            or identity.size_bytes != run_manifest_path.stat().st_size
+            or generation.get("manifest_sha256") != run_digest
+            or generation.get("sha256") != continuation.checkpoint_sha256
+        ):
+            raise ValueError("controller parent does not bind locked continuation")
 
     @staticmethod
     def _run_identity(row: dict) -> dict:
@@ -1403,10 +1520,15 @@ class CampaignEngine:
         max_wait_seconds: float,
         *,
         execute_runs: bool = False,
+        resume_acquisition: bool = False,
     ) -> dict:
         """Run one declared adapter; return science identities separately from availability."""
         kind = stage.kind
         input_sha = rows[stage.id]["stage_input_sha256"]
+        if kind in {"dataset_snapshot", "tokenizer_train", "data_prepare"}:
+            from sparselab.campaign.preparation import dispatch
+
+            return dispatch(self, stage, rows, resume_acquisition=resume_acquisition)
         if kind in {"artifact_reference", "tokenizer_reference"}:
             from sparselab.experiments.artifacts import verify_artifact
 
@@ -1418,7 +1540,10 @@ class CampaignEngine:
                     reason=f"missing declared artifact: {path}",
                 )
             verified = verify_artifact(
-                stage.artifact, self.source, **self._verification()
+                stage.artifact,
+                self.source,
+                dataset=self._artifact_dataset(stage),
+                **self._verification(),
             )
             return self._result(
                 outputs=[
@@ -1536,6 +1661,46 @@ class CampaignEngine:
                     reason=f"missing experiment plan: {source}",
                 )
             plan = load_plan(source)
+            if stage.mode == "bind":
+                from sparselab.experiments.direct_inputs import bind_direct_inputs
+
+                prepared_row = self._upstream(rows, stage.prepared)
+                destination = (
+                    self.store.root
+                    / "experiments"
+                    / f"{stage.id}-{plan.id}"
+                    / "bound-plan.yaml"
+                )
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.exists():
+                    import tempfile
+
+                    with tempfile.TemporaryDirectory(
+                        prefix=".bind-verify-", dir=destination.parent
+                    ) as temporary:
+                        expected = bind_direct_inputs(
+                            self._path(self.stages[stage.prepared].config),
+                            source,
+                            Path(prepared_row["availability"]["path"]),
+                            Path(temporary) / "plan.yaml",
+                            rebase_suite=True,
+                            **self._verification(),
+                        )
+                    plan = load_plan(destination)
+                    if plan != expected:
+                        raise ValueError(
+                            "existing bound plan differs from declared native inputs"
+                        )
+                else:
+                    plan = bind_direct_inputs(
+                        self._path(self.stages[stage.prepared].config),
+                        source,
+                        Path(prepared_row["availability"]["path"]),
+                        destination,
+                        rebase_suite=True,
+                        **self._verification(),
+                    )
+                source = destination
             from sparselab.experiments.plan import base_run_config
 
             config = base_run_config(plan, source)
@@ -1586,6 +1751,10 @@ class CampaignEngine:
                 lock = resolve_plan(
                     plan, source, prepared=prepared, **self._verification()
                 )
+                from sparselab.data.legacy import require_current_dataset
+
+                for cell in lock.cells:
+                    require_current_dataset(cell.config.dataset)
                 self._check_lock(stage, rows, lock)
                 path = publish_lock(lock, workspace)
                 lock = open_lock(path, **self._verification())
@@ -1612,6 +1781,10 @@ class CampaignEngine:
             cells = [cell for cell in lock.cells if cell.id in selected]
             if len(cells) != len(selected):
                 raise ValueError("runtime references an absent locked cell")
+            from sparselab.data.legacy import require_current_dataset
+
+            for cell in cells:
+                require_current_dataset(cell.config.dataset)
             profile = self.runtime_profile if stage.profile_id is not None else None
             if stage.worker is not None and self.runtime_profile is not None:
                 return self._result(
@@ -1769,6 +1942,9 @@ class CampaignEngine:
                     "LOST_SUBMISSION: refusing to replace prior run attempt"
                 )
             if not matches:
+                from sparselab.data.legacy import require_current_dataset
+
+                require_current_dataset(cell.config.dataset)
                 try:
                     binding = self._runtime_binding(
                         rows, stage.runtime, lock, cell, controller
@@ -1940,6 +2116,9 @@ class CampaignEngine:
                 stage.backend,
                 **self._verification(),
             )
+            from sparselab.data.legacy import require_current_dataset
+
+            require_current_dataset(config.dataset)
             authorization = None
             if stage.runtime is not None:
                 run_stage = self.stages[collect.run]
@@ -2030,6 +2209,9 @@ class CampaignEngine:
                 stage.backend,
                 **self._verification(),
             )
+            from sparselab.data.legacy import require_current_dataset
+
+            require_current_dataset(config.dataset)
             run_stage = self.stages[collect.run]
             cell = next(cell for cell in lock.cells if cell.id == run_stage.cell)
             workspace = Path(rows[collect.plan]["availability"]["workspace"])

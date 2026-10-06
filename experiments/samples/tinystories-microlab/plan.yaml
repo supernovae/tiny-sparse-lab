@@ -1,0 +1,31 @@
+plan_version: 1
+id: stories-program
+base_run: run.yaml
+evaluation_suite: suite.yaml
+axes:
+  - name: architecture
+    choices:
+      - label: baseline
+        set: {}
+      - label: wider
+        set: {model.ffn_dim: 384}
+comparisons:
+  - id: wider-versus-baseline
+    baseline: {architecture: baseline}
+    variant: {architecture: wider}
+    interventions: [model.ffn_dim]
+    invariants: [seed, dataset, tokenizer, training, optimizer, runtime]
+phases:
+  - id: pretrain
+    transition: fresh
+  - id: continue
+    transition: extend_budget
+    parent: pretrain
+    selector: terminal
+    at_step: 40
+    set:
+      training.max_steps: 80
+      training.max_tokens: 20480
+      optimizer.decay_steps: 40
+execution:
+  backend: cpu

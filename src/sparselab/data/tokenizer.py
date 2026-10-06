@@ -18,7 +18,7 @@ from tokenizers.trainers import BpeTrainer
 from sparselab.config.models import DatasetConfig, TokenizerTrainConfig
 from sparselab.corpus.export import verify_release_export
 from sparselab.data.datasets import iter_documents
-from sparselab.data.local_stories import verify_snapshot
+from sparselab.data.local_stories import verify_snapshot as verify_legacy_snapshot
 from sparselab.progress import progress_phase
 
 if TYPE_CHECKING:
@@ -122,7 +122,7 @@ def _verify_tokenizer_manifest(
         or manifest.get("vocab_size") != vocab_size
     ):
         raise ValueError(f"tokenizer artifact provenance or digest mismatch: {path}")
-    if source == "local_stories":
+    if source in {"local_stories", "snapshot"}:
         if dataset is None:
             raise ValueError(
                 "local_stories tokenizer verification requires dataset configuration"
@@ -290,8 +290,16 @@ def _bounded_documents(
     )
 
 
+def verify_snapshot(dataset: DatasetConfig) -> dict:
+    if dataset.source == "snapshot":
+        from sparselab.data.sources import verify_snapshot as verify_generic_snapshot
+
+        return verify_generic_snapshot(dataset)
+    return verify_legacy_snapshot(dataset)
+
+
 def _snapshot_digest(config: TokenizerTrainConfig) -> str | None:
-    if config.dataset.source != "local_stories":
+    if config.dataset.source not in {"local_stories", "snapshot"}:
         return None
     assert config.dataset.source_manifest_path is not None
     verify_snapshot(config.dataset)
@@ -328,7 +336,11 @@ def train_tokenizer(
             "corpus export vocabulary size does not match tokenizer request"
         )
     source_manifest_sha256 = _snapshot_digest(config)
-    whole_documents = config.dataset.source in {"local_stories", "local_text"}
+    whole_documents = config.dataset.source in {
+        "local_stories",
+        "local_text",
+        "snapshot",
+    }
     stats: dict[str, object] = {}
     source_started = time.monotonic()
     with progress_phase(
@@ -485,7 +497,7 @@ def train_tokenizer(
                 "training_contract": training_contract,
                 "license": config.dataset.license
                 if config.dataset.source
-                in {"local_chat", "local_text", "local_stories"}
+                in {"local_chat", "local_text", "local_stories", "snapshot"}
                 else None,
                 "requested_vocab_size": config.vocab_size,
                 **(

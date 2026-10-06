@@ -1,0 +1,6 @@
+evaluation_suite_version: 1
+id: story-heldout
+evaluations:
+  - id: loss
+    role: descriptive
+    kind: heldout_lm

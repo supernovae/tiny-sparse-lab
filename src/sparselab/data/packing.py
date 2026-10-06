@@ -1103,7 +1103,7 @@ def _prepare_data(
             tokenizer_batch_documents, tokenizer_batch_source_bytes
         )
     )
-    streaming = config.dataset.source in {"local_stories", "local_text"}
+    streaming = config.dataset.source in {"local_stories", "local_text", "snapshot"}
     if (
         streaming
         and resource_envelope is not None
@@ -1124,6 +1124,29 @@ def _prepare_data(
         if config.dataset.source == "local_stories"
         else None
     )
+    generic_snapshot = None
+    if config.dataset.source == "snapshot":
+        from sparselab.data.sources import verify_snapshot as verify_generic_snapshot
+        from sparselab.data.tokenizer import verify_tokenizer_artifact
+
+        generic_snapshot = verify_generic_snapshot(config.dataset)
+        verify_tokenizer_artifact(
+            config.tokenizer.path,
+            source="snapshot",
+            revision=config.dataset.revision,
+            vocab_size=config.model.vocab_size,
+            dataset=config.dataset,
+            proof_store=proof_store,
+            verification_mode=verification_mode,
+        )
+        if (
+            tokenizer.to_str()
+            != Tokenizer.from_file(str(config.tokenizer.path)).to_str()
+        ):
+            raise ValueError(
+                "supplied tokenizer differs from verified snapshot tokenizer"
+            )
+    selected_snapshot = generic_snapshot or local_stories
     corpus_export = (
         verify_release_export(
             config.dataset, proof_store=proof_store, verification_mode=verification_mode
@@ -1179,6 +1202,15 @@ def _prepare_data(
                 ).hexdigest()
             }
             if local_stories is not None
+            else {}
+        ),
+        **(
+            {
+                "snapshot_source_sha256": hashlib.sha256(
+                    canonical_json(generic_snapshot)
+                ).hexdigest()
+            }
+            if generic_snapshot is not None
             else {}
         ),
         "allocation_manifest_sha256": None if allocation is None else allocation.sha256,
@@ -1392,7 +1424,7 @@ def _prepare_data(
         if byte_enabled
         else {}
     )
-    if config.dataset.source in {"local_stories", "local_text"}:
+    if config.dataset.source in {"local_stories", "local_text", "snapshot"}:
         if config.dataset.source == "local_stories":
             assert local_stories is not None
         assert chunks_owner is not None
@@ -1414,9 +1446,9 @@ def _prepare_data(
                 selected_documents=(
                     min(
                         config.dataset.train_max_documents,
-                        local_stories["splits"]["train"]["count"],
+                        selected_snapshot["splits"]["train"]["count"],
                     )
-                    if local_stories is not None
+                    if selected_snapshot is not None
                     else config.dataset.train_max_documents
                 ),
                 resource_envelope=resource_envelope,
@@ -1438,9 +1470,9 @@ def _prepare_data(
                 selected_documents=(
                     min(
                         config.dataset.validation_max_documents,
-                        local_stories["splits"]["validation"]["count"],
+                        selected_snapshot["splits"]["validation"]["count"],
                     )
-                    if local_stories is not None
+                    if selected_snapshot is not None
                     else config.dataset.validation_max_documents
                 ),
                 resource_envelope=resource_envelope,
@@ -1488,7 +1520,7 @@ def _prepare_data(
         ):
             if values is not None:
                 proofs[name] = _atomic_array(temporary_root / name, values)
-    if config.dataset.source not in {"local_stories", "local_text"}:
+    if config.dataset.source not in {"local_stories", "local_text", "snapshot"}:
         proofs["train.npy"] = _atomic_array(temporary_root / "train.npy", train)
         proofs["validation.npy"] = _atomic_array(
             temporary_root / "validation.npy", validation
@@ -1528,6 +1560,10 @@ def _prepare_data(
         "local_text": {
             "license": config.dataset.license,
             "source_attribution": "frozen corpus local_text export",
+        },
+        "snapshot": {
+            "license": config.dataset.license,
+            "source_attribution": "declarative pinned dataset snapshot",
         },
         "local_stories": {
             "license": "CDLA-Sharing-1.0",
@@ -1572,6 +1608,11 @@ def _prepare_data(
     manifest = {
         "packing_version": PACKING_VERSION,
         "cache_identity": cache_identity,
+        **(
+            {"dataset_snapshot": generic_snapshot}
+            if generic_snapshot is not None
+            else {}
+        ),
         "source": config.dataset.source,
         "revision": config.dataset.revision,
         "dataset_config": config.dataset.dataset_config,
@@ -1760,7 +1801,7 @@ def prepare_data(
     )
     if resource_envelope is not None:
         if (
-            config.dataset.source in {"local_stories", "local_text"}
+            config.dataset.source in {"local_stories", "local_text", "snapshot"}
             and not resource_envelope.spill_to_disk
         ):
             raise ValueError(

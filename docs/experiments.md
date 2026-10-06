@@ -27,11 +27,17 @@ uv run --locked --extra cpu sparselab inspect configs/smoke_combined_cpu.yaml --
 ```
 
 
-The dense scale presets are inspected at 3,344,064, 6,917,376, 10,244,160, 29,893,120, and 50,274,752 parameters. They share the pinned TinyStories revision, 8192-token tokenizer, sequence length, token budget, optimizer, and seed. Parameter count alone is not a comparison result: report each completed run's observed validation loss, perplexity, throughput, device, and metric coordinates.
+The retained dense scale presets inspect at 3,344,064, 6,917,376, 10,244,160,
+29,893,120, and 50,274,752 parameters. Their historical dataset-specific inputs
+remain readable for evidence verification; new execution requires a
+[snapshot declaration or explicit migration](datasets.md). Use the microlab's
+snapshot-based matrix for a runnable width comparison. Parameter count alone is
+not a comparison result: report observed validation loss, perplexity, throughput,
+device, and metric coordinates for each completed run.
 
 ## Authored experiment plans and resolved locks
 
-[Campaigns](campaigns.md) orchestrates Corpus Forge releases and these plans
+[Campaigns](campaigns.md) orchestrates direct snapshots, Corpus Forge releases and these plans
 with typed dependencies, declared readiness policies, input-bound authorization
 and recoverable runtime-bound execution. It does not replace ExperimentPlan's
 scientific configuration or infer data/architecture/quality thresholds.
