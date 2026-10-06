@@ -633,9 +633,26 @@ The retained [preparation benchmark](../artifacts/benchmarks/runtime-prep-v1.jso
 measured generated 1/8/32 MiB prose/code JSONL, one local BPE tokenizer,
 scalar and batched encoding, and bounded Rayon thread counts. Wall time includes
 imports, child startup and instrumentation; sampled process-tree RSS includes
-the tokenizer child. This is operational evidence, not a CI timing assertion
-or model-quality result. The historical harness remains in `benchmarks/`;
-a native benchmark adapter is tracked in [TODO.md](../TODO.md#native-diagnostic-interfaces).
+the tokenizer child. This is historical operational evidence, not a CI timing
+assertion or model-quality result.
+
+Use the native bounded replacement for new operational measurements:
+
+```sh
+uv run --locked --extra cpu sparselab data benchmark-preparation declaration.yaml --json
+```
+
+The strict `sparselab-preparation-benchmark-v1` declaration names an **absent**
+workspace and bounds generated sizes (32 MiB each, 64 MiB total), coordinate
+count (32), document batches, CPU threads and worker timeout. Admission checks
+the existing parent filesystem before it claims the workspace, preserving a
+512 MiB/2048-inode reserve and retaining any post-claim failure report. Each
+coordinate runs in a fresh offline CPU process with one Rayon cap and reports
+the native arrays, manifest and cache identities. `report.json` is exclusively
+published in the claimed workspace; a failed/timed-out case or a per-size
+identity mismatch remains visible and makes the report failed. The command does
+not train a model, choose a recommended batch size, or establish a performance
+or quality claim.
 
 The recorded 32 MiB, four-Rayon-thread cases selected the final default **256**
 documents: 5.404 MB/s and 458.2 MiB sampled process-tree peak, versus scalar

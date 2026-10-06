@@ -132,6 +132,7 @@ def test_endpoint_deltas_and_sampled_memory_are_not_lifetime_peaks(
     assert record["process_write_bytes"] == 80
     assert record["observed_tree_rss_max_bytes"] == 200
     assert record["memory_sampling"] == "phase_endpoints_not_lifetime_peak"
+    assert record["cpu_io_coverage"] == ("surviving_processes_at_both_endpoints_only")
     assert record["accelerator_bottleneck"] == "accelerator"
     assert record["host_bottleneck"] == "copy_bound"
 
@@ -197,3 +198,21 @@ def test_preparation_and_stage_records_are_outside_sealed_identities(
         record["phase"] == "stage_prepared_input_verification"
         for record in observer.records
     )
+
+
+def test_collection_failure_never_replaces_workflow_exception(monkeypatch, caplog):
+    import pytest
+
+    import sparselab.bottleneck_observations as observations
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("collection failed")
+
+    monkeypatch.setattr(observations, "_classify", unavailable)
+    original = ValueError("workflow failed")
+    observer = BottleneckObserver()
+    with pytest.raises(ValueError) as captured, observer.phase("failed-operation"):
+        raise original
+    assert captured.value is original
+    assert observer.records == []
+    assert "Optional phase observations unavailable" in caplog.text

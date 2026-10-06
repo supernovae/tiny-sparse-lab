@@ -213,72 +213,88 @@ class BottleneckObserver:
             raise ValueError("unrecognized host phase provenance")
         if cache_event not in (None, "hit", "miss"):
             raise ValueError("unrecognized cache event provenance")
-        before = _safe_snapshot()
-        accelerator_before = self._accelerator()
-        started = time.monotonic()
+        try:
+            before = _safe_snapshot()
+            accelerator_before = self._accelerator()
+            started = time.monotonic()
+        except Exception:
+            _LOGGER.warning(
+                "Optional phase observation setup unavailable", exc_info=True
+            )
+            yield
+            return
         try:
             yield
         finally:
-            seconds = max(time.monotonic() - started, 0.0)
-            after = _safe_snapshot()
-            accelerator_after = self._accelerator()
-            user, system, cpu_count = _delta(before["cpu"], after["cpu"])
-            read, written, io_count = _delta(before["io"], after["io"])
-            cpu_seconds = (
-                user + system if user is not None and system is not None else None
-            )
-            io_bytes = (
-                read + written if read is not None and written is not None else None
-            )
-            rss_samples = [
-                value for value in (before["rss"], after["rss"]) if value is not None
-            ]
-            swap_samples = [
-                value for value in (before["swap"], after["swap"]) if value is not None
-            ]
-            utilization = (
-                max(accelerator_before, accelerator_after)
-                if accelerator_before is not None and accelerator_after is not None
-                else None
-            )
-            available = after["available"]
-            total = after["total"]
-            bottleneck, host = _classify(
-                seconds=seconds,
-                cpu_seconds=cpu_seconds,
-                io_bytes=io_bytes,
-                swap_bytes=max(swap_samples) if swap_samples else None,
-                available_bytes=available,
-                total_bytes=total,
-                accelerator_utilization_percent=utilization,
-                host_kind=host_kind,
-                cache_event=cache_event,
-            )
-            self.records.append(
-                {
-                    "phase": name,
-                    "elapsed_seconds": seconds,
-                    "cpu_user_seconds": user,
-                    "cpu_system_seconds": system,
-                    "cpu_matched_processes": cpu_count,
-                    "process_read_bytes": int(read) if read is not None else None,
-                    "process_write_bytes": int(written)
-                    if written is not None
-                    else None,
-                    "io_matched_processes": io_count,
-                    "observed_tree_rss_max_bytes": max(rss_samples)
-                    if rss_samples
-                    else None,
-                    "observed_tree_swap_max_bytes": max(swap_samples)
-                    if swap_samples
-                    else None,
-                    "host_available_ram_bytes": available,
-                    "accelerator_utilization_percent": utilization,
-                    "accelerator_bottleneck": bottleneck,
-                    "host_bottleneck": host,
-                    "host_kind_provenance": host_kind,
-                    "cache_event_provenance": cache_event,
-                    "memory_sampling": "phase_endpoints_not_lifetime_peak",
-                    "cpu_io_coverage": "surviving_processes_at_both_endpoints_only",
-                }
-            )
+            try:
+                seconds = max(time.monotonic() - started, 0.0)
+                after = _safe_snapshot()
+                accelerator_after = self._accelerator()
+                user, system, cpu_count = _delta(before["cpu"], after["cpu"])
+                read, written, io_count = _delta(before["io"], after["io"])
+                cpu_seconds = (
+                    user + system if user is not None and system is not None else None
+                )
+                io_bytes = (
+                    read + written if read is not None and written is not None else None
+                )
+                rss_samples = [
+                    value
+                    for value in (before["rss"], after["rss"])
+                    if value is not None
+                ]
+                swap_samples = [
+                    value
+                    for value in (before["swap"], after["swap"])
+                    if value is not None
+                ]
+                utilization = (
+                    max(accelerator_before, accelerator_after)
+                    if accelerator_before is not None and accelerator_after is not None
+                    else None
+                )
+                available = after["available"]
+                total = after["total"]
+                bottleneck, host = _classify(
+                    seconds=seconds,
+                    cpu_seconds=cpu_seconds,
+                    io_bytes=io_bytes,
+                    swap_bytes=max(swap_samples) if swap_samples else None,
+                    available_bytes=available,
+                    total_bytes=total,
+                    accelerator_utilization_percent=utilization,
+                    host_kind=host_kind,
+                    cache_event=cache_event,
+                )
+                self.records.append(
+                    {
+                        "phase": name,
+                        "elapsed_seconds": seconds,
+                        "cpu_user_seconds": user,
+                        "cpu_system_seconds": system,
+                        "cpu_matched_processes": cpu_count,
+                        "process_read_bytes": int(read) if read is not None else None,
+                        "process_write_bytes": int(written)
+                        if written is not None
+                        else None,
+                        "io_matched_processes": io_count,
+                        "observed_tree_rss_max_bytes": max(rss_samples)
+                        if rss_samples
+                        else None,
+                        "observed_tree_swap_max_bytes": max(swap_samples)
+                        if swap_samples
+                        else None,
+                        "host_available_ram_bytes": available,
+                        "accelerator_utilization_percent": utilization,
+                        "accelerator_bottleneck": bottleneck,
+                        "host_bottleneck": host,
+                        "host_kind_provenance": host_kind,
+                        "cache_event_provenance": cache_event,
+                        "memory_sampling": "phase_endpoints_not_lifetime_peak",
+                        "cpu_io_coverage": "surviving_processes_at_both_endpoints_only",
+                    }
+                )
+            except Exception:
+                _LOGGER.warning(
+                    "Optional phase observations unavailable", exc_info=True
+                )

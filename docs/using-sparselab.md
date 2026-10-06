@@ -29,6 +29,50 @@ configure a read-only account token as described in the
 When changing code, run the nearest tests first; the [fast test feedback
 guide](test-speed.md) gives local commands and explains the full PR gates.
 
+## Native diagnostic interfaces
+
+These commands expose operational or descriptive observations, not model-quality
+gates or authorization to train:
+
+```sh
+uv run --locked --extra cpu sparselab semantic probe probe.yaml --json
+uv run --locked --extra cpu sparselab memorization analyze overlap.yaml --json
+uv run --locked --extra cpu sparselab data benchmark-preparation benchmark.yaml --json
+```
+
+`semantic probe` authenticates packs and runs one bounded CPU/PyTorch forward with
+explicitly supplied vectors, encoder identities, masks and times. Initialized
+backbones/adapters are labeled untrained; checkpoint backbones retain their native
+generation identity, including declared restored allocation adapters. The
+[semantic lesson](research/semantic-memory.md) scaffolds a ready `probe.yaml`.
+No implicit text encoder, training callback or run store is created.
+
+`memorization analyze` binds an exact UTF-8 file digest or an explicit completed
+row from a natively authenticated generation panel. It compares only supplied
+source passages and preserves raw hashes, normalized overlap and unavailable
+bounded-edit values. It emits no eligibility threshold or memorization verdict;
+see [the declaration and provenance contract](memorization.md).
+
+`data benchmark-preparation` exclusively claims a declared absent workspace,
+generates bounded offline data, trains a tiny tokenizer and prepares each case
+in a fresh thread-bounded worker. It retains failures, memory-coverage labels and
+exact per-size prepared-identity comparisons, without model training or automatic
+batch recommendations. See [runtime observations](runtime.md).
+
+`data prepare`, `stage` and Campaign `plan|status|next|explain|apply|resume` accept
+`--observations-output PATH.json`. The parent must already exist; the destination
+must be absent and outside scientific inventories. The optional envelope records
+the complete handler separately from nested native phases, actual counter coverage,
+null/unavailable measurements and operation-scoped snapshot verifier statistics.
+Diagnostic publication failures warn without changing the workflow result.
+See [phase-observation boundaries](capacity-aware-execution.md).
+
+Generic snapshots reuse full authentication only within one preparation, staging
+or Campaign operation; every invocation rechecks config bindings and inventory.
+`--cold-verify` disables reuse on preparation, staging and Campaign
+`plan|status|next|explain|apply|resume|approve`. Imports and publication remain cold;
+see [snapshot verification lifetime](datasets.md#campaign-and-existing-input-reuse).
+
 ## Derive a validated config variant
 
 Use `config derive` to author a new standalone v2 run configuration without

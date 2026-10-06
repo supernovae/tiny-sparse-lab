@@ -34,10 +34,11 @@ delta, input bindings, parent compatibility, storage and runtime prerequisites.
 Use `experiment explain` for a resolved lock and `campaign status`, `next` and
 `explain` for orchestration state. These read paths do not launch training.
 
-Supported ExperimentPlan operations and `stage` expose `--cold-verify`; use it
-at a new trust boundary or when independently checking retained bytes. There is
-no Campaign-wide `--cold-verify` switch. Reuse and cold-fallback diagnostics belong
-to operational evidence, outside scientific/plan identities.
+Supported ExperimentPlan operations, `stage`, and Campaign `plan`, `status`,
+`next`, `explain`, `apply`, `resume`, and `approve` expose `--cold-verify`; use
+it at a new trust boundary or when independently checking retained bytes.
+Reuse and cold-fallback diagnostics belong to operational evidence, outside
+scientific/plan identities.
 
 ## Bound preparation and materialization
 
@@ -61,8 +62,31 @@ I/O, sampled memory independently of native peaks, and unavailable counters as
 unavailable. Avoid treating an isolated copy or hash improvement as a full-run
 speedup or model-quality result.
 
-Detailed phase observation currently has an internal API but no general native
-switch; the [diagnostic backlog](../TODO.md#native-diagnostic-interfaces) describes
-that adapter. The [retained development evidence](research/development-evidence.md#capacity-execution-measurements-and-implementation-notes)
+## Opt-in phase observations
+
+`data prepare`, `stage`, and Campaign `plan`, `status`, `next`, `explain`,
+`apply`, and `resume` accept `--observations-output PATH.json`. The command
+validates that this is a new JSON file under an existing non-symlinked parent
+before it selects a runtime or creates a work root. Keep it outside the
+prepared cache, stage output, Campaign state, and declared inputs; a sibling
+`observations/` directory in an external task workspace is a suitable location.
+
+The published `sparselab-phase-observations-v1` envelope contains an outer
+operation phase, the native nested phase records, controller-host coverage,
+runtime-selection metadata, and generic snapshot-verification counters. It is
+operational evidence only: the destination and records never enter prepared,
+stage, Campaign, or model identities. Missing process counters remain `null`
+with an availability reason; no accelerator measurement is inferred from host
+information. Publication or sampling failure only writes a warning and does
+not replace the command's original result.
+
+A selected or authorized profile is a request, not execution evidence: unresolved
+execution remains `null`, including failed stages and controller-only Campaign
+operations. Observer setup/collection failures retain an empty record list with
+an explicit availability reason rather than fabricated measurements. Campaign
+admission also protects referenced tokenizers, experiment-plan run stores and
+artifacts, and the native corpus artifact namespace before dispatch.
+
+The [retained development evidence](research/development-evidence.md#capacity-execution-measurements-and-implementation-notes)
 contains implementation details, measured comparisons and corrections from prior
 workloads. Those workloads do not define the reuse interface or your experiment.

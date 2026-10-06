@@ -167,7 +167,7 @@ def migrate(
             imported = import_legacy_snapshot(
                 dataset if dataset is not None else input_path, staging / "snapshot"
             )
-            manifest = verify_snapshot(imported)
+            manifest = verify_snapshot(imported, verification_mode="cold")
             declaration = manifest["lock"]["source"]
         assert declaration is not None
         binding = {

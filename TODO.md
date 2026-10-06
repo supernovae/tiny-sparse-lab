@@ -36,56 +36,6 @@ coverage/pass budgets, typed Campaign input binding and existing-input staging
 are available through the lab. New Hub workloads use `dataset.source: snapshot`;
 historical dataset-specific inputs retain their original verifiers.
 
-### Native diagnostic interfaces
-
-- [ ] **P2 — Reuse generic snapshot verification within one native operation.**
-  Campaign dependency traversal currently repeats cold snapshot hashing and
-  record/overlap replay even for unchanged inputs. Extend the existing typed
-  verification reuse machinery to generic snapshots, retaining per-call config
-  binding and complete inventory checks. Reuse only successful authentication
-  while robust file fingerprints remain unchanged; invalidate on mutation,
-  replacement, symlinks, config mismatch and operation exit. Preserve explicit
-  cold verification. Measure verifier call counts and orchestration time
-  separately from training; do not cache a bare “verified” flag or weaken gates.
-- [ ] **P3 — Expose supplied-vector semantic probes natively.** Wrap the existing
-  verified semantic retriever/adapter with a typed declaration: pack identity,
-  canonical query tensors, encoder identity, masks, attachment sites and explicit
-  initialized or checkpoint-bound model selection. Emit verified pack/query/model
-  identities and per-query retrieval/adapter traces. Reject encoder, shape,
-  inventory and checkpoint mismatches before inference; preserve missing,
-  conflicting and time-bounded outcomes. No arbitrary Python callbacks or
-  implicit text encoder. The [semantic lesson](docs/research/semantic-memory.md)
-  currently scaffolds/validates packs but relies on an API demonstration for
-  these queries. A natural-language encoder remains a separate research question.
-- [ ] **P2 — Expose the bounded preparation benchmark through the lab.** Input:
-  an exclusive task workspace, declared generated-corpus sizes, seed, tokenizer
-  batch bounds and host thread limits. Reuse the existing preparation path;
-  emit phase timing, logical byte/record counts, sampled-memory scope and exact
-  prepared identity comparisons. Reject unsafe/reused output, invalid bounds
-  and insufficient storage; never download or start model training. Preserve
-  null counters and keep performance observations outside scientific identities.
-  The historical `benchmarks/preparation_benchmark.py` harness is not a native
-  command; the [retained observations](docs/runtime.md#offline-performance-evidence)
-  must not be silently relabeled as a new benchmark run.
-- [ ] **P2 — Expose continuation/source overlap through the lab.** Wrap the
-  existing descriptive diagnostic with typed CLI input: a retained continuation,
-  explicit source IDs/passages, n-gram size and bounded edit-distance limit.
-  Emit the normal source hashes, normalization identity, raw overlap measures
-  and null/unavailable edit similarity. Bind checkpoint/generation identity when
-  the input comes from a run. Reject missing sources, duplicate IDs, invalid
-  bounds and tampered retained inputs; never infer a copyright threshold,
-  eligibility, memorization verdict or publication approval. No Python recipe
-  should be required. See [current boundary](docs/memorization.md).
-- [ ] **P2 — Expose opt-in phase observations natively.** Add a typed CLI/DSL
-  adapter for the existing `BottleneckObserver` on preparation, staging and
-  orchestration. Input: the normal declaration/config, selected runtime and
-  explicit observation destination. Output: versioned operational phase records
-  with measured counters, sampling scope and unavailable reasons, outside
-  scientific inventories. Reject unsafe output paths and malformed options;
-  missing device probes must remain null, not zero or invented utilization.
-  Verify scientific digests remain unchanged and observation failures follow the
-  existing non-blocking policy. See [boundaries](docs/capacity-aware-execution.md).
-
 ### Experiment ledger projection
 
 - [ ] **P2 — Share an evidence-backed experiment ledger between CLI and dashboard.**
