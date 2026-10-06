@@ -30,7 +30,18 @@ The listener accepts loopback addresses only (`127.0.0.1` or `::1`), defaults to
 port 8000, and has no authentication, TLS or browser CORS integration. It is for
 trusted local processes. HTTP requests cannot select local files, checkpoint
 paths or remote weight URLs; `model` must match the startup alias, and unknown
-fields and paths are rejected. There is no static-file route or wildcard CORS.
+fields and paths are rejected. There is no static-file route or CORS support.
+
+Every request must send a `Host` naming the actual bound loopback IP or
+`localhost`, with the actual listening port (for example, `127.0.0.1:8000` or
+`localhost:8000`; IPv6 uses `[::1]:8000`). Foreign hostnames, an unbound loopback
+IP and a different port are rejected. Native clients may omit `Origin`.
+If supplied, `Origin` must be the exact `http://` origin for that request's
+accepted Host and port; `null`, foreign origins and other ports receive HTTP 403.
+For example, `Host: 127.0.0.1:8000` with `Origin: http://localhost:8000` is rejected,
+even though both names refer to loopback. These checks also apply to model
+listing. They do not enable a browser frontend on another origin.
+
 It serializes generation over one loaded model, bounds
 request bytes, output budget, connected clients and request duration, and uses
 request-local cache state. Stop it with Ctrl-C. Cancellation is cooperative at
@@ -106,7 +117,10 @@ vision, retrieval and unsupported sampling fields off. A client UI that cannot
 send `stream=false` with this narrow request contract is not supported by this
 server. Consult the official
 [connection guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai-compatible/)
-for your installed release's controls. This optional integration is not an
+for your installed release's controls. Use its server-side provider connection,
+not direct cross-origin browser requests: an Origin naming the WebUI's own port
+will be rejected. Its outgoing Host must retain the SparseLab address and port.
+This optional integration is not an
 end-to-end tested Open WebUI deployment.
 
 Open WebUI can issue extra title, tag, follow-up and search-query tasks with

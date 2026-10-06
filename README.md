@@ -42,6 +42,7 @@ listed below and in the [runtime guide](docs/runtime.md).
 | Evaluation and review | Held-out loss, capability cards, checkpoint-bound suites, self-blind review | [Evidence](docs/evidence.md); promotion requires review. |
 | Local and SSH execution | Explicit runtime selection, staging and independent worker queues | [Workers](docs/workers.md); no distributed training. |
 | Dashboard | Training telemetry, checkpoints, research catalog and verified reports | [Research views](docs/research/dashboard.md); read-only. |
+| Local model exploration | Raw completion, transcript chat, Streamlit comparisons and a loopback API | [Model guide](docs/tinytext-model-guide.md); [nonstreaming API](docs/local-api.md); verified local run required. |
 
 Watch loss curves, throughput, memory, and checkpoint history in the local
 dashboard. Queue whole independent experiments on local or SSH workers when

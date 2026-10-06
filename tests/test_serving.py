@@ -312,7 +312,7 @@ def test_disconnect_cancels_active_generation_and_server_recovers(loaded, monkey
         connection = socket.create_connection(server.server_address)
         body = json.dumps(payload()).encode()
         connection.sendall(
-            b"POST /v1/completions HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: "
+            f"POST /v1/completions HTTP/1.0\r\nHost: 127.0.0.1:{server.server_port}\r\nContent-Type: application/json\r\nContent-Length: ".encode()
             + str(len(body)).encode()
             + b"\r\n\r\n"
             + body
@@ -471,7 +471,9 @@ def test_header_read_has_deadline_and_releases_slot(loaded):
         connection = socket.create_connection(server.server_address)
         connection.settimeout(5)
         try:
-            connection.sendall(b"POST /v1/completions HTTP/1.0\r\nX-Incomplete: ")
+            connection.sendall(
+                f"POST /v1/completions HTTP/1.0\r\nHost: 127.0.0.1:{server.server_port}\r\nX-Incomplete: ".encode()
+            )
             # Header parsing must terminate on its absolute deadline, even when
             # no POST handler/body watcher has begun. No elapsed-time assertion.
             response = bytearray()
@@ -488,7 +490,7 @@ def test_incomplete_body_is_released_on_deadline(loaded):
         connection.settimeout(5)
         try:
             connection.sendall(
-                b"POST /v1/completions HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{"
+                f"POST /v1/completions HTTP/1.0\r\nHost: 127.0.0.1:{server.server_port}\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{{".encode()
             )
             response = bytearray()
             while chunk := connection.recv(1024):
@@ -570,75 +572,215 @@ def test_no_file_routes_checkpoint_options_or_cors_allowance(loaded):
                 "GET", "/v1/models", headers={"Origin": "https://example.invalid"}
             )
             response = connection.getresponse()
-            assert response.status == 200
+            assert response.status == 403
             assert response.getheader("Access-Control-Allow-Origin") is None
             response.read()
         finally:
             connection.close()
 
 
+@pytest.mark.parametrize("method", ["GET", "POST"])
+@pytest.mark.parametrize(
+    "hosts,origins,code",
+    [
+        ([], [], "invalid_host"),
+        (["evil.invalid:{port}"], [], "invalid_host"),
+        (["localhost:1"], [], "invalid_host"),
+        (["localhost.:{port}"], [], "invalid_host"),
+        (["localhost:{port}"] * 2, [], "invalid_host"),
+        (["localhost:{port}"], ["null"], "invalid_origin"),
+        (["localhost:{port}"], ["http://evil.invalid:{port}"], "invalid_origin"),
+        (["localhost:{port}"], ["http://127.0.0.1:{port}"], "invalid_origin"),
+        (["localhost:{port}"], ["https://localhost:{port}"], "invalid_origin"),
+        (["localhost:{port}"], ["http://localhost:1"], "invalid_origin"),
+        (["localhost:{port}"], ["http://localhost:{port}/"], "invalid_origin"),
+        (["localhost:{port}"], ["http://localhost:{port}"] * 2, "invalid_origin"),
+    ],
+)
+def test_authority_rejected_before_metadata_or_inference(
+    loaded, monkeypatch, method, hosts, origins, code
+):
+    def forbidden(*args, **kwargs):
+        pytest.fail("rejected request reached model access")
+
+    with running(loaded) as server:
+        monkeypatch.setattr(server.inference, "models", forbidden)
+        monkeypatch.setattr(server.inference, "complete", forbidden)
+        connection = http.client.HTTPConnection(*server.server_address[:2], timeout=5)
+        try:
+            connection.putrequest(
+                method,
+                "/v1/models" if method == "GET" else "/v1/completions",
+                skip_host=True,
+            )
+            for host in hosts:
+                connection.putheader("Host", host.format(port=server.server_port))
+            for origin in origins:
+                connection.putheader("Origin", origin.format(port=server.server_port))
+            # No body: invalid authority must fail before a body read.
+            connection.putheader("Content-Length", "100")
+            connection.endheaders()
+            response = connection.getresponse()
+            assert response.status == 403
+            assert json.loads(response.read())["error"]["code"] == code
+        finally:
+            connection.close()
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "LOCALHOST"])
+@pytest.mark.parametrize("origin", [False, True])
+def test_native_and_same_origin_authorities(loaded, host, origin):
+    with running(loaded) as server:
+        authority = f"{host}:{server.server_port}"
+        headers = {"Host": authority, "Content-Type": "application/json"}
+        if origin:
+            headers["Origin"] = f"http://{authority}"
+        assert request(server, "/v1/models", headers=headers)[0] == 200
+        assert request(server, "/v1/completions", payload(), headers=headers)[0] == 200
+
+
+def test_default_http_port_authorities(loaded, monkeypatch):
+    def bind_stub(server, address, handler):
+        server.server_address = address
+
+    monkeypatch.setattr(serving.ThreadingHTTPServer, "__init__", bind_stub)
+    server = LocalHTTPServer(
+        ("127.0.0.1", 80), LocalInference(loaded, "test-model", ServerLimits())
+    )
+    assert server.allowed_authorities == {
+        "127.0.0.1": "127.0.0.1:80",
+        "127.0.0.1:80": "127.0.0.1:80",
+        "localhost": "localhost:80",
+        "localhost:80": "localhost:80",
+    }
+
+
+def test_ipv6_authorities(loaded):
+    app = LocalInference(loaded, "test-model", ServerLimits())
+    try:
+        server = LocalHTTPServer(("::1", 0), app)
+    except OSError:
+        pytest.skip("IPv6 loopback is unavailable")
+    with server:
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            for host in ("[::1]", "localhost"):
+                authority = f"{host}:{server.server_port}"
+                assert (
+                    request(
+                        server,
+                        "/v1/models",
+                        headers={"Host": authority, "Origin": f"http://{authority}"},
+                    )[0]
+                    == 200
+                )
+            for host in ("::1", "127.0.0.1", "evil.invalid"):
+                assert (
+                    request(
+                        server,
+                        "/v1/models",
+                        headers={"Host": f"{host}:{server.server_port}"},
+                    )[0]
+                    == 403
+                )
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
 def test_real_cli_process_serves_pinned_model_and_closes_on_sigint(loaded, tmp_path):
     import os
-    import select
     import signal
     import subprocess
+    import time
     from urllib.parse import urlsplit
 
     environment = {**os.environ, "SPARSELAB_WORK_DIR": str(tmp_path / "work")}
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "sparselab",
-            "serve",
-            loaded.run.name,
-            "--runs-dir",
-            str(loaded.run.parent),
-            "--checkpoint",
-            loaded.identity["checkpoint_relative_path"],
-            "--backend",
-            "cpu",
-            "--model-id",
-            "cli-fixture",
-            "--port",
-            "0",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env=environment,
-    )
-    try:
-        assert select.select([process.stdout], [], [], 30)[0], (
-            "server did not announce readiness"
-        )
-        announcement = json.loads(process.stdout.readline())
-        assert (
-            announcement["identity"]["checkpoint_sha256"]
-            == loaded.identity["checkpoint_sha256"]
-        )
-        url = urlsplit(announcement["url"])
-        connection = http.client.HTTPConnection(url.hostname, url.port, timeout=10)
+    stdout_path = tmp_path / "serve.stdout.log"
+    stderr_path = tmp_path / "serve.stderr.log"
+    # Files avoid an unread stderr pipe blocking startup, and preserve diagnostics
+    # for early exits, readiness deadlines, and failures after readiness alike.
+    with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+        process = None
         try:
-            connection.request(
-                "POST",
-                "/v1/completions",
-                json.dumps(
-                    {"model": "cli-fixture", "prompt": "hello", "max_tokens": 2}
-                ),
-                {"Content-Type": "application/json"},
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "sparselab",
+                    "serve",
+                    loaded.run.name,
+                    "--runs-dir",
+                    str(loaded.run.parent),
+                    "--checkpoint",
+                    loaded.identity["checkpoint_relative_path"],
+                    "--backend",
+                    "cpu",
+                    "--model-id",
+                    "cli-fixture",
+                    "--port",
+                    "0",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                env=environment,
             )
-            response = connection.getresponse()
-            assert response.status == 200
-            assert json.loads(response.read())["model"] == "cli-fixture"
-        finally:
-            connection.close()
-        process.send_signal(signal.SIGINT)
-        _, errors = process.communicate(timeout=15)
-        assert process.returncode == 0, errors
-        with pytest.raises(OSError):
-            socket.create_connection((url.hostname, url.port), timeout=1)
-    finally:
-        if process.poll() is None:
-            process.kill()
-            process.communicate(timeout=15)
+            deadline = time.monotonic() + 30
+            while True:
+                returncode = process.poll()
+                assert returncode is None, (
+                    f"server exited before readiness (returncode={returncode})"
+                )
+                output = stdout_path.read_bytes()
+                if b"\n" in output:
+                    announcement = json.loads(output.split(b"\n", 1)[0])
+                    break
+                remaining = deadline - time.monotonic()
+                assert remaining > 0, (
+                    "server still running; readiness deadline exceeded (30s)"
+                )
+                time.sleep(min(0.05, remaining))
+            assert (
+                announcement["identity"]["checkpoint_sha256"]
+                == loaded.identity["checkpoint_sha256"]
+            )
+            url = urlsplit(announcement["url"])
+            connection = http.client.HTTPConnection(url.hostname, url.port, timeout=10)
+            try:
+                connection.request(
+                    "POST",
+                    "/v1/completions",
+                    json.dumps(
+                        {"model": "cli-fixture", "prompt": "hello", "max_tokens": 2}
+                    ),
+                    {"Content-Type": "application/json"},
+                )
+                response = connection.getresponse()
+                assert response.status == 200
+                assert json.loads(response.read())["model"] == "cli-fixture"
+            finally:
+                connection.close()
+            process.send_signal(signal.SIGINT)
+            assert process.wait(timeout=15) == 0
+            with pytest.raises(OSError):
+                socket.create_connection((url.hostname, url.port), timeout=1)
+        except BaseException as error:
+            before_cleanup = process.poll() if process is not None else "not started"
+            if process is not None and before_cleanup is None:
+                try:
+                    process.kill()
+                    process.wait(timeout=15)
+                except (OSError, subprocess.TimeoutExpired) as cleanup_error:
+                    error.add_note(f"Server cleanup failed: {cleanup_error!r}")
+            final_status = process.poll() if process is not None else "not started"
+            error.add_note(
+                f"Server status before cleanup: {before_cleanup}; "
+                f"final returncode: {final_status}"
+            )
+            for path in (stdout_path, stderr_path):
+                with path.open("rb") as log:
+                    log.seek(max(0, path.stat().st_size - 16384))
+                    tail = log.read().decode("utf-8", errors="replace")
+                error.add_note(f"{path} (last 16 KiB):\n{tail}")
+            raise

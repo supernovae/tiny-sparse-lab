@@ -322,6 +322,17 @@ class LocalHTTPServer(ThreadingHTTPServer):
         self.inference = inference
         self.slots = threading.BoundedSemaphore(inference.limits.max_clients)
         super().__init__(address, LocalRequestHandler)
+        bound_host, bound_port = self.server_address[:2]
+        host = str(ipaddress.ip_address(bound_host))
+        host = f"[{host}]" if ":" in host else host
+        self.allowed_authorities = {
+            f"{name}:{bound_port}": f"{name}:{bound_port}"
+            for name in (host, "localhost")
+        }
+        if bound_port == 80:
+            self.allowed_authorities.update(
+                {name: f"{name}:80" for name in (host, "localhost")}
+            )
 
     def get_request(self) -> tuple[socket.socket, Any]:
         request, address = super().get_request()
@@ -412,6 +423,7 @@ class LocalRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         try:
+            self._validate_authority()
             if self.path != "/v1/models":
                 raise APIError("unknown endpoint", 404, "not_found")
             self._reply(200, self.server.inference.models())
@@ -423,6 +435,7 @@ class LocalRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         cancelled = self.cancelled
         try:
+            self._validate_authority()
             if self.path not in {"/v1/completions", "/v1/chat/completions"}:
                 raise APIError("unknown endpoint", 404, "not_found")
             if self.headers.get("Transfer-Encoding") is not None:
@@ -491,6 +504,25 @@ class LocalRequestHandler(BaseHTTPRequestHandler):
                 self._error(APIError("local inference failed", 500, "inference_error"))
             except OSError:
                 pass
+
+    def _validate_authority(self) -> None:
+        # Check before reading bodies or exposing model metadata. Loopback binding
+        # alone does not prevent a browser from reaching us via DNS rebinding.
+        hosts = self.headers.get_all("Host", [])
+        authorities = self.server.allowed_authorities
+        if len(hosts) != 1 or hosts[0].lower() not in authorities:
+            raise APIError("unexpected Host authority", 403, "invalid_host")
+        host = authorities[hosts[0].lower()]
+        origins = self.headers.get_all("Origin", [])
+        if not origins:
+            return  # Native clients do not normally send Origin.
+        origin = origins[0].lower()
+        if (
+            len(origins) != 1
+            or not origin.startswith("http://")
+            or authorities.get(origin[7:]) != host
+        ):
+            raise APIError("unexpected Origin", 403, "invalid_origin")
 
     def _watch(
         self, cancelled: threading.Event, finished: threading.Event, deadline: float

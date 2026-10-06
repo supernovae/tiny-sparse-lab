@@ -2,7 +2,11 @@
 
 Use this guide for human exploration of small text models: inspect their identity,
 try a literal continuation, compare retained checkpoints, and only then try chat.
-No notebook, Gradio installation or Open WebUI instance is required.
+No notebook, Gradio installation or Open WebUI instance is required. This is the
+inference part of the native [experiment learning cycle](research/experiment-learning-cycle.md):
+retain the observation, then choose the next declared question. For interpreting
+model size and recorded comparisons, use [model scaling and accounting](model-scaling.md);
+for task-oriented learning, use [From flashcards to a local assistant](from-toy-to-useful.md).
 
 **Naming boundary:** this checkout has no registered model, corpus declaration or
 historical guide named `TinyText`. Do not substitute TinyStories or DevMind

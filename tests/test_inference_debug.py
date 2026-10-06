@@ -77,6 +77,23 @@ def test_context_cannot_exceed_native():
         cli._inference_context(SimpleNamespace(context_length=101), 100)
 
 
+@pytest.mark.parametrize("prompt, expected_tokens", [("", 1), ("hello", 5)])
+def test_raw_generate_counts_implicit_bos(
+    prompt, expected_tokens, loaded, monkeypatch, capsys
+):
+    monkeypatch.setattr(cli, "load_run", lambda *args, **kwargs: loaded)
+    monkeypatch.setattr(cli, "generate", lambda *args, **kwargs: args[2] + "answer")
+    args = cli.build_parser().parse_args(
+        ["generate", "fixture", "--prompt", prompt, "--json"]
+    )
+    args.runtime_authorization = None
+    args.handler(args)
+    result = json.loads(capsys.readouterr().out)
+    assert result["prompt_tokens"] == expected_tokens
+    assert result["prompt"] == prompt
+    assert result["response"] == "answer"
+
+
 def test_comparison_records_policy_and_per_checkpoint_context(loaded, monkeypatch):
     calls = []
 

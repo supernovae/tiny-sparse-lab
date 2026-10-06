@@ -935,10 +935,13 @@ def _generate(args: argparse.Namespace) -> None:
                     "format": "raw",
                     "generation": settings,
                     "prompt": args.prompt,
-                    "prompt_tokens": len(
-                        loaded.tokenizer.encode(
-                            args.prompt, add_special_tokens=False
-                        ).ids
+                    "prompt_tokens": max(
+                        1,
+                        len(
+                            loaded.tokenizer.encode(
+                                args.prompt, add_special_tokens=False
+                            ).ids
+                        ),
                     ),
                     "response": text[len(args.prompt) :],
                     "text": text,
