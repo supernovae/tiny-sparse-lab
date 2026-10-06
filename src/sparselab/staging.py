@@ -954,12 +954,16 @@ def stage(
 ) -> Path:
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
+    if prepared_inputs is not None and allow_runtime_drift:
+        raise ValueError("existing prepared inputs cannot allow source/runtime drift")
     validate_tokenizer_batch_limits(
         tokenizer_batch_documents, tokenizer_batch_source_bytes
     )
     if _LEVELS[through] >= 2:
         require_authorization(config, authorization)
     output = output.absolute()
+    if prepared_inputs is not None and (output.exists() or output.is_symlink()):
+        raise FileExistsError("existing-input staging requires a new output")
     if resource_envelope is not None:
         check_envelope(
             resource_envelope,
@@ -977,6 +981,28 @@ def stage(
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise FileExistsError("another writer owns this stage output") from error
+        prepared_proofs: dict[str, VerifiedFile] = {}
+        if prepared_inputs is not None:
+            if output.exists() or output.is_symlink():
+                raise FileExistsError("existing-input staging requires a new output")
+            prepared_root = prepared_inputs.resolve(strict=True)
+            if prepared_root.name == "assets":
+                prepared_root = prepared_root.parent
+            with (
+                observer.phase(
+                    "stage_prepared_input_verification",
+                    host_kind="verification_bound",
+                )
+                if observer is not None
+                else nullcontext()
+            ):
+                prepared_identity = verify_prepared_inputs(
+                    prepared_root,
+                    config,
+                    _proofs=prepared_proofs,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
         if output.exists():
             bundle = _read_sealed(output / "bundle.json")
             if bundle.get("status") != "complete" or bundle.get("through") != through:
@@ -1004,6 +1030,7 @@ def stage(
                 _verify_inventory(
                     output,
                     bundle.get("artifacts"),
+                    published_manifest="bundle.json",
                     manifest_sha256=bundle["sha256"],
                     proof_store=proof_store,
                     verification_mode=verification_mode,
@@ -1016,15 +1043,7 @@ def stage(
                     proof_store=proof_store,
                     verification_mode=verification_mode,
                 )
-                if prepared_inputs is not None:
-                    verify_prepared_inputs(
-                        prepared_inputs,
-                        config,
-                        allow_runtime_drift=allow_runtime_drift,
-                        proof_store=proof_store,
-                        verification_mode=verification_mode,
-                    )
-                elif config.tokenizer.path.exists() and sha256_file(
+                if config.tokenizer.path.exists() and sha256_file(
                     config.tokenizer.path
                 ) != sha256_file(output / "assets" / "tokenizer.json"):
                     raise FileExistsError("requested tokenizer changed since staging")
@@ -1036,7 +1055,6 @@ def stage(
             history = StageHistory()
             reports: list[dict[str, Any]] = []
             copied_assets: dict[str, VerifiedFile] = {}
-            prepared_proofs: dict[str, VerifiedFile] = {}
             runtime = estimate = None
             report: dict[str, Any] = {
                 "format_version": 1,
@@ -1149,27 +1167,8 @@ def stage(
                             copy_observations=copy_observations,
                             observer=observer,
                         )
-                    else:
-                        prepared_root = prepared_inputs.resolve(strict=True)
-                        if prepared_root.name == "assets":
-                            prepared_root = prepared_root.parent
-                        with (
-                            observer.phase(
-                                "stage_prepared_input_verification",
-                                host_kind="verification_bound",
-                            )
-                            if observer is not None
-                            else nullcontext()
-                        ):
-                            verify_prepared_inputs(
-                                prepared_root,
-                                config,
-                                allow_runtime_drift=allow_runtime_drift,
-                                _proofs=prepared_proofs,
-                                proof_store=proof_store,
-                                verification_mode=verification_mode,
-                            )
                     if prepared_inputs is None:
+                        prepared_identity = _read_sealed(prepared_root / "inputs.json")
                         copied_assets, prepared_proofs = _link_stage_assets(
                             work,
                             prepared_proofs,
@@ -1184,13 +1183,23 @@ def stage(
                             copy_observations=copy_observations,
                             observer=observer,
                         )
-                    prepared_identity = _read_sealed(prepared_root / "inputs.json")
+                    prepared_manifest = json.loads(
+                        (work / "assets" / "data" / "manifest.json").read_text()
+                    )
                     inputs = _seal(
                         work / "inputs.json",
                         {
                             "format_version": 1,
                             "requested_config": config.model_dump(mode="json"),
                             "source_identity_sha256": source_digest,
+                            "producer_source_identity_sha256": prepared_identity.get(
+                                "producer_source_identity_sha256",
+                                prepared_identity["source_identity_sha256"],
+                            ),
+                            "prepared_production_source_identity_sha256": prepared_manifest[
+                                "cache_identity"
+                            ]["source_identity_sha256"],
+                            "verification_source_identity_sha256": source_digest,
                             "parent_inputs_sha256": prepared_identity["sha256"],
                             "runtime_authorization": (
                                 authorization.as_dict()

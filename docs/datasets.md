@@ -88,6 +88,16 @@ This is the sealed prepared-input bundle, not the array cache returned by
 missing or mismatched inputs fail without downloading or repacking. Select the
 registered runtime explicitly when using an accelerator.
 
+The Python `stage(..., prepared_inputs=...)` API enforces the same input checks,
+including for `through="inspect"`. Existing-input staging requires a new output;
+the destination is checked again under the stage lock and published without
+replacing a competing writer. Generic `allow_runtime_drift` is not accepted in
+this mode. Ordinary staging without supplied inputs retains verified output reuse.
+Validated stage receipts record the input bundle's producer, the prepared data's
+production source, and the current verification source separately. These fields
+describe provenance; they do not grant source compatibility or change the sealed
+input bytes. Older input bundles remain readable without these additional fields.
+
 ## Campaign and existing-input reuse
 
 Campaign `dataset_snapshot`, `tokenizer_train` and `data_prepare` stages call
