@@ -575,3 +575,70 @@ def test_no_file_routes_checkpoint_options_or_cors_allowance(loaded):
             response.read()
         finally:
             connection.close()
+
+
+def test_real_cli_process_serves_pinned_model_and_closes_on_sigint(loaded, tmp_path):
+    import os
+    import select
+    import signal
+    import subprocess
+    from urllib.parse import urlsplit
+
+    environment = {**os.environ, "SPARSELAB_WORK_DIR": str(tmp_path / "work")}
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "serve",
+            loaded.run.name,
+            "--runs-dir",
+            str(loaded.run.parent),
+            "--checkpoint",
+            loaded.identity["checkpoint_relative_path"],
+            "--backend",
+            "cpu",
+            "--model-id",
+            "cli-fixture",
+            "--port",
+            "0",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+    )
+    try:
+        assert select.select([process.stdout], [], [], 30)[0], (
+            "server did not announce readiness"
+        )
+        announcement = json.loads(process.stdout.readline())
+        assert (
+            announcement["identity"]["checkpoint_sha256"]
+            == loaded.identity["checkpoint_sha256"]
+        )
+        url = urlsplit(announcement["url"])
+        connection = http.client.HTTPConnection(url.hostname, url.port, timeout=10)
+        try:
+            connection.request(
+                "POST",
+                "/v1/completions",
+                json.dumps(
+                    {"model": "cli-fixture", "prompt": "hello", "max_tokens": 2}
+                ),
+                {"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            assert response.status == 200
+            assert json.loads(response.read())["model"] == "cli-fixture"
+        finally:
+            connection.close()
+        process.send_signal(signal.SIGINT)
+        _, errors = process.communicate(timeout=15)
+        assert process.returncode == 0, errors
+        with pytest.raises(OSError):
+            socket.create_connection((url.hostname, url.port), timeout=1)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=15)
