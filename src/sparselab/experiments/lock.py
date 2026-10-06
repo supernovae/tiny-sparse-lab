@@ -1218,9 +1218,12 @@ def open_lock(
     verification_mode: VerificationMode = "cold",
 ) -> ResolvedExperimentPlan:
     """Direct reopen is independent cold; trusted reuse is explicitly operational."""
-    return _open_lock(
-        path, None, proof_store=proof_store, verification_mode=verification_mode
-    )
+    from sparselab.data.sources import snapshot_verification_operation
+
+    with snapshot_verification_operation(mode=verification_mode):
+        return _open_lock(
+            path, None, proof_store=proof_store, verification_mode=verification_mode
+        )
 
 
 def _artifact_dataset(lock: ResolvedExperimentPlan, name: str) -> DatasetConfig | None:

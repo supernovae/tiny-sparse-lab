@@ -26,15 +26,23 @@ def _verified_operation(function: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(function)
     def guarded(*args: Any, **kwargs: Any) -> Any:
         from sparselab.corpus.release import _verification_operation
+        from sparselab.data.sources import snapshot_verification_operation
 
         engine = args[0]
         previous = getattr(engine, "_verification_options", None)
         if previous is None:
             from sparselab.verification_proofs import verification_options
 
-            engine._verification_options = verification_options(engine.work_dir)
+            engine._verification_options = verification_options(
+                engine.work_dir, cold=engine.cold_verify
+            )
         try:
-            with _verification_operation():
+            with (
+                _verification_operation(),
+                snapshot_verification_operation(
+                    mode="cold" if engine.cold_verify else "verified_reuse"
+                ),
+            ):
                 return function(*args, **kwargs)
         finally:
             if previous is None:
@@ -52,6 +60,7 @@ class CampaignEngine:
         *,
         runtime_profile: RuntimeProfile | None = None,
         observer: Any | None = None,
+        cold_verify: bool = False,
     ) -> None:
         self.source = Path(source).resolve()
         self.plan = load_campaign(self.source)
@@ -60,13 +69,14 @@ class CampaignEngine:
         self.after_commit = after_commit
         self.runtime_profile = runtime_profile
         self.observer = observer
+        self.cold_verify = cold_verify
         self.stages = {stage.id: stage for stage in self.plan.stages}
 
     def _verification(self) -> dict[str, Any]:
         from sparselab.verification_proofs import verification_options
 
         return getattr(self, "_verification_options", None) or verification_options(
-            self.work_dir
+            self.work_dir, cold=self.cold_verify
         )
 
     def _phase(self, name: str, *, host_kind: str | None = None) -> Any:
@@ -1055,7 +1065,11 @@ class CampaignEngine:
                     }
                 ]
             try:
+                from sparselab.data.sources import snapshot_verification_operation
                 from sparselab.training.manifest import sha256_file
+
+                with snapshot_verification_operation(mode="cold"):
+                    recovery_steps = inspect_manifest(manifest, self.work_dir)["steps"]
 
                 manifest_sha = sha256_file(manifest)
                 rows = [
@@ -1067,7 +1081,7 @@ class CampaignEngine:
                         "actual_sha256": manifest_sha,
                         "reason": "recovery declaration available",
                     },
-                    *inspect_manifest(manifest, self.work_dir)["steps"],
+                    *recovery_steps,
                 ]
                 rows.extend(self._observed_checkpoints(state, manifest, rows))
                 return rows

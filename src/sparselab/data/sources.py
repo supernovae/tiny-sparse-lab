@@ -18,8 +18,11 @@ import re
 import shutil
 import sqlite3
 from collections.abc import Iterator
-from dataclasses import fields, is_dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
+from time import monotonic
 from typing import Annotated, Any, Literal
 from urllib.parse import unquote, urlsplit
 
@@ -31,6 +34,7 @@ from sparselab.engram.packs import _rename_noreplace
 from sparselab.experiments.plan import read_document
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.verification_proofs import VerificationMode
 
 
 class _Model(BaseModel):
@@ -898,7 +902,7 @@ def _snapshot_locked(
         _admit(work, cache, source, growth=len(canonical_json(manifest)) + 1024)
         forge._write_json(publication / "manifest.json", manifest)
         _admit(work, cache, source)
-        verify_snapshot(publication / "manifest.json")
+        verify_snapshot(publication / "manifest.json", verification_mode="cold")
         forge._sync_dir(publication)
         _rename_noreplace(publication, output)
         forge._sync_dir(output.parent)
@@ -919,20 +923,172 @@ def _manifest_path(config: Any) -> Path:
     return Path(config.source_manifest_path)
 
 
-def verify_snapshot(config: Any) -> dict:
-    """Cold verify manifest, journal accounting, split bytes and exact overlap policy.
+_SNAPSHOT_SEAL = object()
 
-    Uses a temporary SQLite index, never an in-memory set proportional to corpus.
-    Manifest paths can move together with their immutable sibling files.
-    """
-    import tempfile
 
+@dataclass(frozen=True)
+class _VerifiedSnapshot:
+    key: tuple
+    issuer_pid: int
+    seal: object = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if self.seal is not _SNAPSHOT_SEAL or self.issuer_pid != os.getpid():
+            raise TypeError("snapshot evidence requires process-owned authentication")
+
+
+@dataclass
+class _SnapshotOperation:
+    pid: int = field(default_factory=os.getpid)
+    evidence: dict[str, _VerifiedSnapshot] = field(default_factory=dict)
+    statistics: dict[str, int | float] = field(
+        default_factory=lambda: {
+            "calls": 0,
+            "cold_verifications": 0,
+            "reuse_hits": 0,
+            "invalidations": 0,
+            "verification_seconds": 0.0,
+            "cold_verification_seconds": 0.0,
+        }
+    )
+
+
+_snapshot_operation: ContextVar[_SnapshotOperation | None] = ContextVar(
+    "snapshot_verification_operation", default=None
+)
+_snapshot_cold: ContextVar[bool] = ContextVar(
+    "snapshot_verification_cold", default=False
+)
+
+
+@contextmanager
+def snapshot_verification_operation(*, mode: VerificationMode = "verified_reuse"):
+    """Authenticate once per unchanged tree, never beyond an operation or PID."""
+    if mode not in {"cold", "verified_reuse"}:
+        raise ValueError("invalid snapshot verification mode")
+    current = _snapshot_operation.get()
+    state_token = None
+    if current is None or current.pid != os.getpid():
+        state_token = _snapshot_operation.set(_SnapshotOperation())
+    cold_token = _snapshot_cold.set(_snapshot_cold.get() or mode == "cold")
+    try:
+        yield
+    finally:
+        _snapshot_cold.reset(cold_token)
+        if state_token is not None:
+            _snapshot_operation.reset(state_token)
+
+
+def snapshot_verification_statistics() -> dict[str, int | float] | None:
+    state = _snapshot_operation.get()
+    return (
+        dict(state.statistics)
+        if state is not None and state.pid == os.getpid()
+        else None
+    )
+
+
+def _reject_snapshot_symlinks(path: Path) -> None:
+    path = path.absolute()
+    for member in (path, *path.parents):
+        if member.is_symlink():
+            raise ValueError(f"symlink snapshot path component: {member}")
+
+
+def _snapshot_key(path: Path, manifest: dict) -> tuple:
+    from sparselab.experiments.artifacts import _fingerprint
+
+    _reject_snapshot_symlinks(path)
+    return (
+        str(path.absolute()),
+        manifest["format"],
+        manifest["manifest_sha256"],
+        manifest["lock"]["lock_sha256"],
+        _fingerprint(path.parent),
+    )
+
+
+def verify_snapshot(
+    config: Any, *, verification_mode: VerificationMode | None = None
+) -> dict:
+    """Retain full-verifier evidence only inside the current native operation."""
+    if verification_mode not in {None, "cold", "verified_reuse"}:
+        raise ValueError("invalid snapshot verification mode")
+    state = _snapshot_operation.get()
+    if state is not None and state.pid != os.getpid():
+        state = None
+    started = monotonic()
+    if state is not None:
+        state.statistics["calls"] += 1
+    locator = str(_manifest_path(config).absolute())
+    try:
+        path, manifest, source = _snapshot_preflight(config)
+        reuse = (
+            state is not None
+            and not _snapshot_cold.get()
+            and verification_mode != "cold"
+        )
+        if source is None:
+            from sparselab.data.snapshot_import import verify_import
+
+            cold_started = monotonic()
+            if state is not None:
+                state.statistics["cold_verifications"] += 1
+            try:
+                return verify_import(config)
+            finally:
+                if state is not None:
+                    state.statistics["cold_verification_seconds"] += (
+                        monotonic() - cold_started
+                    )
+        key = _snapshot_key(path, manifest)
+        if reuse:
+            evidence = state.evidence.get(locator)
+            if evidence is not None and evidence.key != key:
+                del state.evidence[locator]
+                state.statistics["invalidations"] += 1
+                evidence = None
+            if (
+                evidence is not None
+                and evidence.seal is _SNAPSHOT_SEAL
+                and evidence.issuer_pid == os.getpid()
+            ):
+                if _snapshot_key(path, manifest) != key:
+                    raise ValueError("snapshot changed during verification")
+                state.statistics["reuse_hits"] += 1
+                return manifest
+        cold_started = monotonic()
+        if state is not None:
+            state.statistics["cold_verifications"] += 1
+        try:
+            result = _verify_snapshot_cold(path, manifest, source)
+        finally:
+            if state is not None:
+                state.statistics["cold_verification_seconds"] += (
+                    monotonic() - cold_started
+                )
+        if _snapshot_key(path, manifest) != key:
+            raise ValueError("snapshot changed during verification")
+        if reuse:
+            state.evidence[locator] = _VerifiedSnapshot(
+                key, os.getpid(), _SNAPSHOT_SEAL
+            )
+        return result
+    except BaseException:
+        if state is not None:
+            state.evidence.pop(locator, None)
+        raise
+    finally:
+        if state is not None:
+            state.statistics["verification_seconds"] += monotonic() - started
+
+
+def _snapshot_preflight(config: Any) -> tuple[Path, dict, DatasetSource | None]:
     path = _manifest_path(config)
+    _reject_snapshot_symlinks(path)
     manifest = _read(path, "manifest_sha256")
     if manifest.get("format") == "sparselab-dataset-import-v1":
-        from sparselab.data.snapshot_import import verify_import
-
-        return verify_import(config)
+        return path, manifest, None
     if manifest["format"] != "sparselab-dataset-snapshot-v1":
         raise ValueError("unsupported snapshot format")
     lock = manifest["lock"]
@@ -948,6 +1104,7 @@ def verify_snapshot(config: Any) -> dict:
                 raise ValueError(
                     "snapshot runtime requires train and validation splits"
                 )
+            _reject_snapshot_symlinks(Path(configured))
             if Path(configured).resolve() != (path.parent / f"{split}.jsonl").resolve():
                 raise ValueError(
                     f"snapshot source paths/provenance mismatch: configured {split} path differs"
@@ -965,6 +1122,14 @@ def verify_snapshot(config: Any) -> dict:
         raise ValueError("snapshot inventory mismatch")
     for name in expected:
         forge._regular(path.parent / name)
+    return path, manifest, source
+
+
+def _verify_snapshot_cold(path: Path, manifest: dict, source: DatasetSource) -> dict:
+    """Replay the existing scientific authority without memo-dependent semantics."""
+    import tempfile
+
+    lock = manifest["lock"]
     if sha256_file(path.parent / "events.jsonl") != manifest["events_sha256"]:
         raise ValueError("snapshot event digest mismatch")
     if manifest["snapshot_source_sha256"] != _digest(lock["source"]):

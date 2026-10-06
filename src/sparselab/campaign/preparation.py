@@ -137,7 +137,10 @@ def dispatch(
             from sparselab.data.packing import prepare_data
 
             path = prepare_data(
-                config, load_tokenizer(config.tokenizer.path), **engine._verification()
+                config,
+                load_tokenizer(config.tokenizer.path),
+                observer=engine.observer,
+                **engine._verification(),
             ).root
         identity = _artifact(engine, stage, path, config)
     return engine._result(outputs=[identity], availability={"path": str(path)})

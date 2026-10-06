@@ -977,6 +977,68 @@ print(json.dumps(report, indent=2, sort_keys=True))
     )
     demo_path = directory / "demo.py"
     _write(demo_path, demo)
+    query_vectors = [
+        [
+            1.0 if index == key_indices[("atlas", "maps_to")] else 0.0
+            for index in range(len(key_indices))
+        ],
+        [0.0 for _ in key_indices],
+        [
+            1.0 if index == key_indices[("fork", "maps_to")] else 0.0
+            for index in range(len(key_indices))
+        ],
+        [
+            1.0 if index == key_indices[("harbor", "label")] else 0.0
+            for index in range(len(key_indices))
+        ],
+        [
+            1.0 if index == key_indices[("vault", "label")] else 0.0
+            for index in range(len(key_indices))
+        ],
+        [
+            1.0 if index == key_indices[("atlas", "maps_to")] else 0.0
+            for index in range(len(key_indices))
+        ],
+    ]
+    probe = {
+        "format": "sparselab-semantic-probe-v1",
+        "model": {
+            "kind": "initialized",
+            "model": {
+                "vocab_size": 260,
+                "hidden_dim": 16,
+                "num_layers": 2,
+                "num_heads": 4,
+                "ffn_dim": 32,
+                "max_seq_len": 8,
+            },
+            "attention": {},
+            "seed": 17,
+        },
+        "input_tokens": [[1, 2, 3, 4, 5, 6]],
+        "queries": [
+            {
+                "id": "lesson-keys",
+                "encoder": key_encoder,
+                "vectors": [query_vectors],
+                "mask": [[True, True, True, True, True, False]],
+                "as_of": [None, None, None, "2025-06-01", "2025-06-01", None],
+            }
+        ],
+        "attachments": [
+            {
+                "name": "lesson",
+                "pack": "semantic-pack",
+                "expected_pack_id": manifest.pack_id,
+                "query": "lesson-keys",
+                "site": "after_block",
+                "block_index": 0,
+                "min_score": 0.9,
+                "weights": {"kind": "initialized", "seed": 23},
+            }
+        ],
+    }
+    _write(directory / "probe.yaml", _yaml_bytes(probe))
 
     inputs = [
         {"path": name, "sha256": sha256_file(directory / name)}
@@ -986,6 +1048,7 @@ print(json.dumps(report, indent=2, sort_keys=True))
             "semantic_values.safetensors",
             "semantic.json",
             "demo.py",
+            "probe.yaml",
         )
     ]
     pack_manifest_path = pack_path / "manifest.json"
@@ -1039,17 +1102,25 @@ def _lesson_readme(
 
 {lesson.summary}
 
-This standalone workspace contains a verified semantic EngramPack and a runnable Python lesson. Query vectors are explicit structured one-hot fixtures, not natural-language embeddings.
+This standalone workspace contains a verified semantic EngramPack, a ready
+supplied-vector probe declaration, and an optional deeper Python API lesson.
+Query vectors are explicit structured one-hot fixtures, not natural-language
+embeddings.
 
 ## Run and inspect
 
 ```sh
-{command} python demo.py
+{command} sparselab semantic probe probe.yaml --json
 {command} sparselab engram pack inspect semantic-pack
 {command} sparselab engram pack verify semantic-pack
 ```
 
-The demo reports verified pack identity, retrieval status, ordered record IDs and scores, candidate/comparison counts, temporal exclusions, deterministic tie IDs, adapter site, trainable adapter parameter count before freezing, frozen attachment state, observed model metrics, and full-prefix/cached parity. It also runs a two-edge structured lookup. No tokenizer, model training run, external dataset, text encoder, or network access is required.
+The ordinary probe reports the verified pack identity, canonical supplied
+vectors, retrieval statuses, temporal exclusions, deterministic tie IDs,
+adapter site, and per-position traces, including its masked row. `demo.py` is
+an explicitly optional deeper API example: run `{command} python demo.py` for
+cached-forward parity and a two-edge structured lookup. No tokenizer, model
+training run, external dataset, text encoder, or network access is required.
 
 ## Tensor walkthrough
 

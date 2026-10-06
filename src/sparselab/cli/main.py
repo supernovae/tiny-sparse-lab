@@ -691,6 +691,7 @@ def _data_prepare(args: argparse.Namespace) -> None:
             resource_envelope=args.resource_envelope_value,
             tokenizer_batch_documents=args.tokenizer_batch_documents,
             tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+            observer=getattr(args, "observer", None),
         ).root
     )
 
@@ -755,20 +756,39 @@ def _stage(args: argparse.Namespace) -> None:
         if args.pilot_deadline_policy is not None
         else None
     )
-    print(
-        stage(
-            config,
-            Path(args.output),
-            args.through,
-            prepared_inputs=args.prepared_inputs,
-            authorization=args.runtime_authorization,
-            resource_envelope=args.resource_envelope_value,
-            tokenizer_batch_documents=args.tokenizer_batch_documents,
-            tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
-            pilot_deadline_policy=policy,
-            **options,
-        )
+    output = stage(
+        config,
+        Path(args.output),
+        args.through,
+        prepared_inputs=args.prepared_inputs,
+        authorization=args.runtime_authorization,
+        resource_envelope=args.resource_envelope_value,
+        tokenizer_batch_documents=args.tokenizer_batch_documents,
+        tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+        pilot_deadline_policy=policy,
+        observer=getattr(args, "observer", None),
+        **options,
     )
+    if getattr(args, "observer", None) is not None:
+        try:
+            from sparselab.phase_observations import set_observation_runtime
+
+            report = json.loads((output / "stage.json").read_text())
+            set_observation_runtime(
+                args,
+                requested=config.runtime.model_dump(mode="json"),
+                resolved=report.get("runtime"),
+                reason=None
+                if report.get("runtime") is not None
+                else "stage_runtime_unavailable",
+                observation_scope="host_process_tree",
+            )
+        except Exception as error:  # noqa: BLE001 -- optional metadata must not change workflow success
+            print(
+                f"sparselab: optional observation runtime unavailable: {error}",
+                file=sys.stderr,
+            )
+    print(output)
 
 
 def _batch_calibrate(args: argparse.Namespace) -> None:
@@ -2386,7 +2406,14 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     data_prepare = data_commands.add_parser("prepare")
     data_prepare.add_argument("config")
     data_prepare.add_argument("--resource-envelope", type=Path)
+    data_prepare.add_argument("--cold-verify", action="store_true")
+    data_prepare.add_argument("--observations-output", type=Path)
     _tokenizer_batch_arguments(data_prepare)
+    from sparselab.data.preparation_benchmark import (
+        register_parser as register_benchmark,
+    )
+
+    register_benchmark(data_commands)
     from sparselab.data.coverage import register_parser as register_coverage
     from sparselab.data.legacy import register_parser as register_data_migration
     from sparselab.data.source_cli import register_parser as register_dataset_sources
@@ -2490,6 +2517,7 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         "--through", default="smoke", choices=("inspect", "validate", "smoke", "warmup")
     )
     staging.add_argument("--output", required=True)
+    staging.add_argument("--observations-output", type=Path)
     staging.add_argument(
         "--prepared-inputs",
         type=Path,
@@ -3098,7 +3126,13 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
 
     register_iteration_parser(commands)
     from sparselab.corpus.cli import add_commands as add_corpus_commands
+    from sparselab.corpus.memorization_cli import (
+        register_parser as register_memorization,
+    )
+    from sparselab.engram.semantic_cli import register_parser as register_semantic
 
+    register_memorization(commands)
+    register_semantic(commands)
     add_corpus_commands(commands)
     from sparselab.campaign.cli import add_commands as add_campaign_commands
 
@@ -3372,6 +3406,8 @@ def _read_only_command(args: argparse.Namespace) -> bool:
 
     if args.command == "iteration":
         return True
+    if args.command in {"semantic", "memorization"}:
+        return True
     if args.command == "data" and args.data_command == "coverage":
         return True
     if args.command == "campaign":
@@ -3461,6 +3497,16 @@ def main() -> None:
     else:
         args.resource_envelope_value = None
     try:
+        from sparselab.phase_observations import validate_observations_destination
+
+        try:
+            validate_observations_destination(args)
+        except (ValueError, OSError) as error:
+            if args.command == "campaign" and args.json:
+                from sparselab.campaign.cli import argument_error
+
+                argument_error(args.campaign_command, str(error))
+            raise
         from sparselab.data.legacy import require_current_dataset
 
         if args.command in {"train", "stage", "run"} or (
@@ -3506,8 +3552,13 @@ def main() -> None:
     os.environ["SPARSELAB_WORK_DIR"] = str(args.work_dir)
     args.storage_checks = _command_storage_checks(args)
     read_only = _read_only_command(args)
-    deferred = args.command in {"campaign", "recovery", "archive"} or (
-        args.command == "experiment" and args.experiment_command in {"prepare", "run"}
+    deferred = (
+        args.command in {"campaign", "recovery", "archive"}
+        or (
+            args.command == "experiment"
+            and args.experiment_command in {"prepare", "run"}
+        )
+        or (args.command == "data" and args.data_command == "benchmark-preparation")
     )
     if not read_only:
         if args.command not in {"campaign", "recovery"}:
@@ -3537,6 +3588,26 @@ def main() -> None:
                     or getattr(args, "project", None),
                 )
     try:
-        args.handler(args)
+        from sparselab.data.sources import snapshot_verification_operation
+        from sparselab.phase_observations import observation_session
+
+        reuse = (
+            args.command == "stage"
+            or (args.command == "data" and args.data_command == "prepare")
+            or (
+                args.command == "campaign"
+                and args.campaign_command
+                in {"plan", "status", "next", "explain", "apply", "resume", "approve"}
+            )
+        )
+        with (
+            snapshot_verification_operation(
+                mode="verified_reuse"
+                if reuse and not getattr(args, "cold_verify", False)
+                else "cold"
+            ),
+            observation_session(args),
+        ):
+            args.handler(args)
     except (HuggingFaceAccessError, HuggingFaceCredentialError) as error:
         raise SystemExit(f"sparselab: {error}") from None

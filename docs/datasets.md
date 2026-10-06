@@ -111,6 +111,23 @@ Corpus Forge release. Forge-backed inputs retain their release/export gates.
 Missing inputs, inconsistent tokenizer/snapshot provenance and un-ingested
 parents block dependent work. See [Campaigns](campaigns.md).
 
+Generic snapshot verification reuses successful payload hashing and SQLite replay
+only within one `data prepare`, `stage`, or Campaign
+`plan|status|next|explain|apply|resume|approve` operation. Every invocation still
+rereads the manifest and embedded lock, binds the supplied dataset configuration,
+and checks the exact sibling inventory. Complete tree fingerprints invalidate
+reuse after edits, inode replacement, permission changes, or symlinks. The first
+verification in every new command is cold; no persistent proof receipt extends
+this scope. Imported historical snapshots and acquisition publication remain cold.
+
+Pass `--cold-verify` to any of those commands to replay every verification.
+Direct Python `verify_snapshot` calls remain cold unless enclosed in
+`snapshot_verification_operation()`; direct Campaign operations own that same
+exception-safe scope. `snapshot_verification_statistics()` exposes actual calls,
+cold verifications, reuse hits, invalidations and monotonic verifier durations
+while the operation is active, and returns `None` afterward. These are operational
+observations, not changed dataset identities or model-quality evidence.
+
 ## Legacy input migration
 
 The old `tinystories` / `local_stories` authoring forms and implicit TinyStories

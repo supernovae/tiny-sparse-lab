@@ -11,9 +11,19 @@ sparselab engram pack verify experiments/semantic-retrieval/semantic-pack
 ```
 
 The scaffold materializes the tutorial pack, semantic assets, query fixtures,
-an API demonstration and a hash-bound `lesson.json`. Pack inspection/verification
-is native; execution of supplied semantic queries has no general CLI/DSL adapter
-yet. See the [native diagnostic backlog](../../TODO.md#native-diagnostic-interfaces). Use its declared canonical key map; do not invent an encoder identity or treat its fixed vectors as natural-language embeddings. A records-only EngramPack is valid as an artifact, but is not executable semantic retrieval.
+an API demonstration, a ready-to-run `probe.yaml`, and a hash-bound `lesson.json`.
+Run the ordinary supplied-vector diagnostic with:
+
+```sh
+sparselab semantic probe experiments/semantic-retrieval/probe.yaml --json
+```
+
+The probe authenticates the pack before one CPU inference-only forward. Its lesson
+declaration exercises the atlas hit, zero-vector unknown, tied fork conflict,
+time-bounded harbor hit, vault temporal miss, and a masked position. It uses the
+declared canonical key map; do not invent an encoder identity or treat its fixed
+vectors as natural-language embeddings. A records-only EngramPack is valid as an
+artifact, but is not executable semantic retrieval.
 
 ## Verified pack boundary
 
@@ -56,6 +66,24 @@ A semantic query is a `SemanticQueryBatch`: an encoder identity, precomputed vec
 - **`conflict`**: multiple valid records share the best score. Their top-k hits and bounded tie trace remain deterministic.
 
 `last_traces` on the adapter retains at most the most recent 64 query traces. Inspect retrieval status, ordered hit IDs/scores, and tie metadata per query. These are mechanism observations, not a score or answer-quality claim. Sources: `src/sparselab/engram/semantic.py:SemanticQueryBatch`, `SemanticRetriever.retrieve`, and `SemanticRetrievalOutcome`.
+
+## Native supplied-vector probe
+
+`sparselab semantic probe DECLARATION.yaml [--json]` is a read-only CPU
+mechanism diagnostic. The declaration has format
+`"sparselab-semantic-probe-v1"` and names an initialized model or an
+authenticated native checkpoint, rectangular token IDs, explicitly supplied
+vectors, and one or more verified pack attachments. It never encodes text,
+creates a run, trains a model, or chooses a retrieval threshold on the
+caller’s behalf.
+
+Every attachment names its pack ID, full encoder identity, query, injection
+site, and either explicitly seeded initialized adapter weights or an already
+restored checkpoint adapter. The report binds canonical FP32 vectors, masks,
+tokens, time metadata, packs, model state, and adapter-weight origins. It
+reports native per-position retrieval traces, while masked positions are
+explicitly null—not inferred misses. These traces remain descriptive mechanism
+observations, not a quality, factuality, or policy verdict.
 
 ## Frozen assets, trainable adapter, and explicit ownership
 

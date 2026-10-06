@@ -79,6 +79,8 @@ def _handle(args: argparse.Namespace) -> None:
                 source,
                 resolve_work_dir(args.work_dir),
                 runtime_profile=getattr(args, "runtime_profile_loaded", None),
+                cold_verify=getattr(args, "cold_verify", False),
+                observer=getattr(args, "observer", None),
             )
             # Lower-level adapters may print progress; stdout remains one JSON object.
             with redirect_stdout(sys.stderr):
@@ -178,6 +180,10 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command = verbs.add_parser(name)
         command.add_argument("source", metavar="PATH", type=Path)
         command.add_argument("--json", action="store_true")
+        if name in {"plan", "status", "next", "explain", "apply", "resume", "approve"}:
+            command.add_argument("--cold-verify", action="store_true")
+        if name in {"plan", "status", "next", "explain", "apply", "resume"}:
+            command.add_argument("--observations-output", type=Path)
         if name in {"apply", "resume"}:
             command.add_argument("--max-wait-seconds", type=_wait_seconds, default=120)
             command.add_argument("--execute-runs", action="store_true")
