@@ -235,6 +235,11 @@ vendor environment, checks capacity before writes, and refuses an incomplete,
 mismatched, or stale-device receipt rather than overwriting it. It does not
 install drivers, replace the notebook kernel, or sync the CPU extra.
 
+The fixed bootstrap initializes its worker namespace before installing the
+versioned bounded-subprocess helper. Injection uses explicit definitions, not
+dynamic global lookup; semantic verifier authority retains its fail-closed
+source-analysis rules.
+
 With `REMOTE_PYTHON` and `REMOTE_WORKER_ROOT` copied from setup's structured
 result, register and stage the worker:
 

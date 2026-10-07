@@ -21,9 +21,7 @@ import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
-run_bounded: Callable[..., subprocess.CompletedProcess] | None = globals().get(
-    "run_bounded"
-)
+run_bounded: Callable[..., subprocess.CompletedProcess] | None = None
 
 _MAX_JSON = 1024 * 1024
 _UV_URL = "https://files.pythonhosted.org/packages/e5/83/85a6c63c24905af4924fddb11a499b934913f59a134248367a1ef1a4716f/uv-0.12.23-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
