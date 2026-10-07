@@ -205,6 +205,8 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
         common = target / "common-requirements.txt"
         uv(
             "export",
+            "--python",
+            str(interpreter),
             "--locked",
             "--no-default-groups",
             "--no-dev",

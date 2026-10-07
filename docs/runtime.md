@@ -200,6 +200,10 @@ The receipt records the observed filesystem and mount. This supports ephemeral
 hosted VM storage, not a persistence guarantee; network, Drive/FUSE, Windows
 share and unknown filesystem types remain refused.
 
+The locked common-dependency export uses the same validated absolute Python as
+environment creation. Installer isolation removes inherited uv interpreter
+settings; it must not rediscover Python or download a substitute.
+
 The receipt records recipe/file SHA, source commit/SHA, Python/Torch/device,
 package inventory, indexes, commands, profile/probe and tested optimizer
 identity. Registration occurs only after the full import, matching real device
