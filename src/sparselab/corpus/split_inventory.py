@@ -67,8 +67,9 @@ def _wiki_locator_hint(locator: str) -> str | None:
         host = (parsed.hostname or "").lower().removeprefix("www.")
     except ValueError:
         return None
-    if parsed.scheme != "https" or not host.endswith(
-        (".wikipedia.org", ".wikibooks.org", ".wikimedia.org")
+    if parsed.scheme != "https" or not (
+        host in {"wikipedia.com", "wikipedia.org"}
+        or host.endswith((".wikipedia.org", ".wikibooks.org", ".wikimedia.org"))
     ):
         return None
     if parsed.path.startswith("/wiki/"):

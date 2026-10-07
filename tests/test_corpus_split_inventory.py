@@ -161,3 +161,22 @@ def test_git_sections_share_file_family() -> None:
     assert {
         split_inventory._family_hint(source, document, {}) for document, _ in sections
     } == {"git-file:incident_docs:docs/incident.md"}
+
+
+def test_wikimedia_page_hint_accepts_pinned_component_locator() -> None:
+    assert (
+        split_inventory._wiki_locator_hint("https://wikipedia.com/wiki/Amhara_people")
+        == "wikimedia-page:wikipedia.com:amhara people"
+    )
+    assert (
+        split_inventory._wiki_locator_hint(
+            "https://en.wikipedia.org/wiki/Amhara_people"
+        )
+        == "wikimedia-page:en.wikipedia.org:amhara people"
+    )
+    assert (
+        split_inventory._wiki_locator_hint(
+            "https://wikipedia.com.attacker.example/wiki/Amhara_people"
+        )
+        is None
+    )
