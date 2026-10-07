@@ -1,5 +1,18 @@
 # Revision and synchronization log
 
+## 2026-10-07.9 — Card 03 specification draft, 7 October 2026
+
+- Recorded KML-D04: the owner chose incident-response prose and a rights-audited
+  Common Pile subset as source **candidates for specification**, not ingestion
+- Added a reviewable source/rights manifest, 65/25/10 proposed language mixture,
+  family split and leakage rules, train-only 32,768-entry tokenizer contract,
+  separate 200/400-item rubrics and a bounded later source/split pilot request
+- Recorded the conditional native mixture-materialization gap in `TODO.md` and
+  appended S1; Card 03 specification is READY FOR REVIEW, while full acceptance
+  awaits exact source rights/files, acquisition approval and realized evidence
+- No source bytes, tokenizer fit, evaluation scores, optimizer updates or runtime
+  approval; Card 02 A1 remains FAILED and Gate 0 remains unverified
+
 ## 2026-10-07.8 — Card 02 owner review and closure, 7 October 2026
 
 - Recorded KML-D03 accepting A2 for Card 02's tiny-fixture scope and marked

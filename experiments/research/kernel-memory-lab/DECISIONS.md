@@ -2,6 +2,16 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D04 — Card 03 source candidates selected for specification, 2026-10-07
+
+- Question: Which first evidence domain and base-language source should the Card 03 specification cover?
+- Owner choice: Byron selected “Incident-response prose + Common Pile (recommended)” in response to a question that explicitly limited the choice to a specification candidate.
+- Interpretation: Draft Card 03 around incident-response documentation, with a rights-audited Common Pile subset as the base-language candidate. PagerDuty's incident-response documentation is a proposed domain source, not an admitted corpus.
+- Evidence and uncertainty: [The source catalog](SOURCE_CATALOG.md) identifies these leads and their rights gates; exact Common Pile components/files, immutable revisions, per-item rights, PagerDuty file exclusions, and content digests are unresolved.
+- Authorization: Specification work only. This choice does not approve acquisition, tokenizer fitting, evaluation-item materialization, model training, GPU/cloud work or spending.
+- Consequence: Prepare the [Card 03 contract](CARD03_DATA_CONTRACT.md) for review and leave its source-admission and acquisition gate open. Card 02's accepted tiny-fixture result and failed A1 attempt remain unchanged; Gate 0 remains unverified.
+- Revisit trigger: The owner chooses a different domain/source or the rights audit disqualifies a candidate.
+
 ## KML-D03 — Card 02 accepted with failed-attempt note, 2026-10-07
 
 - Question: Does the separate bounded Card 02 confirmation satisfy the tiny-fixture gate despite the preserved first attempt's resource failure?

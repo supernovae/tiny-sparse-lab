@@ -58,6 +58,18 @@ historical dataset-specific inputs retain their original verifiers.
 These remain implementation gaps, but should not displace P1/P2 without a
 documented workload need and the required acceptance environment.
 
+- [ ] **Materialize and verify a deterministic multi-source training mixture.**
+  Activate for Kernel Memory Lab Card 03 preparation after source admission.
+  The current Corpus Forge `requested_mixture` is reporting metadata, not an
+  enacted sampler. Extend the native release/export CLI or DSL with a small typed
+  operation whose inputs are a verified rights-tracked release, pinned tokenizer,
+  source strata, ordered document-family inventories, target-token quotas and a
+  seed. Output an immutable ordered train export and receipt with per-source
+  document IDs, encoded targets, repeats, exclusions, actual shares and quota
+  shortfalls. Fail before publication on tampered inputs, inadmissible rights,
+  validation/test family inclusion, impossible required quotas or changed
+  tokenizer identity. Keep reporting of requested versus realized tokens distinct;
+  do not add a task-specific harness or claim the proposed operation is shipped.
 - [ ] **Implement native CUDA sparse attention.** Activate when a planned CUDA
   workload needs this path and NVIDIA hardware is available. Preserve reference
   semantics and add hardware-gated correctness tests and component benchmarks.
