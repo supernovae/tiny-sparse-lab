@@ -1,5 +1,14 @@
 # Revision and synchronization log
 
+## 2026-10-07.8 — Card 02 owner review and closure, 7 October 2026
+
+- Recorded KML-D03 accepting A2 for Card 02's tiny-fixture scope and marked
+  Card 02 EVIDENCE VERIFIED (done with notes)
+- Kept A1 and its 257/200-update failure intact; identified the completed
+  aggregate-budget code fix and the separate bounded 89-update confirmation
+- Kept Gate 0 unverified pending a provisional data/tokenizer decision and
+  hardware inventory; did not start Card 03 or grant runtime authority
+
 ## 2026-10-07.7 — bounded Card 02 confirmation completed, 7 October 2026
 
 - Appended A2 with the separate 89-update, approximately 36.4-second CPU

@@ -1,6 +1,6 @@
 # Card 02 bounded confirmation protocol after the failed cap
 
-Status: **EXECUTED ONCE under [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07); [A2 result](results/2026-10-07-card02-confirmation.md) READY FOR REVIEW, no remaining runtime authority**. The original
+Status: **EXECUTED ONCE under [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07); [A2 result](results/2026-10-07-card02-confirmation.md) accepted for Card 02 by [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07), no remaining runtime authority**. The original
 [Card 02 attempt](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED,
 and Gate 0 remains unverified. This proposal does not amend that result.
 

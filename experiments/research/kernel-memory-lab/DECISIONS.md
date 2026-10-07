@@ -2,6 +2,17 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D03 — Card 02 accepted with failed-attempt note, 2026-10-07
+
+- Question: Does the separate bounded Card 02 confirmation satisfy the tiny-fixture gate despite the preserved first attempt's resource failure?
+- Evidence reviewed: [A1 failed attempt](results/2026-10-07-card02-tiny-fixtures.md) SHA-256 `ab1390669ab673055057e576bbdac1cd1d97bb2cf233bc9b45f4c15e2610b4c1`; [A2 confirmation](results/2026-10-07-card02-confirmation.md) SHA-256 `f81540d63a07c6b6b74da076e7b73291fd1aa6d47ef34a9049bbaf7bd869a05a`; retained A2 ledger JSON SHA-256 `7adebf61338c3459e97579636624a229ad91cd96fa1f95ffe2c93e4e47e5980f`. A2 selected tests passed 3/3 plus 1/1, charged exactly 89/89 updates, ended with 83.605 seconds remaining, and verified the selected native generations. The original A1 result and its artifacts remain unchanged.
+- Owner review and decision: Byron stated “card 02 has been approved/reviewed” and requested Card 02 be marked done with notes. Accept **A2** as Card 02 EVIDENCE VERIFIED for its tiny CPU fixture scope. Keep **A1 FAILED**: its 257 cumulative updates exceeded its actual 200-update approval by 57, and later success does not erase that breach.
+- Code-fix note: the observed A1 failure was missing aggregate attempt accounting across test reruns, the native full/parent/resumed runs, and the separate sidecar test. Commit `77ec6e73ff84b523001c974aaa37a8dbdacfca6f` added the persistent shared budget ledger, up-front reservations and deadline wrapper; six zero-training unit tests passed. A2 confirmed the fix operationally. No further Card 02 code defect is established by these receipts.
+- Boundary: acceptance covers synthetic label, gradient, overfit, semantic-control and strict-resume plumbing. It does not establish language comprehension, factual retrieval quality, main-tokenizer readiness, GPU fit, or the full Gate 0. Gate 0 still needs its provisional data/tokenizer decision and hardware inventory under the original criteria.
+- Authorization: this is a review decision, not a new training, acquisition, GPU, cloud, Campaign or later-card runtime approval. KML-D02's 89-update confirmation allocation is exhausted.
+- Consequence: mark Card 02 EVIDENCE VERIFIED (done with A1 failure noted); retain both append-only results and all external artifacts. Card 03 can be scoped separately around its domain and source/license prerequisites.
+- Revisit trigger: new evidence contradicts the A2 identities or checks, or a specific residual code defect is reproduced.
+
 ## KML-D02 — bounded Card 02 confirmation approved, 2026-10-07
 
 - Question: May one fresh CPU confirmation run test the repaired aggregate budget accounting after failed attempt `KML-20261007-C02-A1`?

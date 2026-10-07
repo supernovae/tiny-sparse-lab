@@ -228,6 +228,12 @@ legacy regression, before execution. Check the ledger before each active
 command and record charged and observed updates separately. A passing rerun
 cannot erase the original limit breach or complete Gate 0 automatically.
 
+Reviewed outcome: [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07)
+accepts the separate [A2](results/2026-10-07-card02-confirmation.md) tiny-fixture
+confirmation as Card 02 EVIDENCE VERIFIED. The [A1](results/2026-10-07-card02-tiny-fixtures.md)
+200-update cap breach remains FAILED. The aggregate budget code fix is in
+`77ec6e7`; Gate 0 retains its other unmet requirements.
+
 ### Close the card
 
 Return the evidence bundle, append one run record and request the named review. Mark EVIDENCE VERIFIED only after review. Keep failures and blockers visible. Do not start the next card automatically.
