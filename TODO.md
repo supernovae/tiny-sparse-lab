@@ -58,6 +58,8 @@ historical dataset-specific inputs retain their original verifiers.
 These remain implementation gaps, but should not displace P1/P2 without a
 documented workload need and the required acceptance environment.
 
+- [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
+
 - [ ] **Materialize and verify a deterministic multi-source training mixture.**
   Activate for Kernel Memory Lab Card 03 preparation after source admission.
   The current Corpus Forge `requested_mixture` is reporting metadata, not an

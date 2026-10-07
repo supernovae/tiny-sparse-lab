@@ -2,6 +2,14 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D10 — Card 04 bounded local GPU profile approved, 2026-10-07
+
+- Owner decision: After [P2](results/2026-10-07-card04-synthetic-tokenizer.md) produced and verified the exact 32,768-entry synthetic tokenizer, Byron answered **“Approve this bounded GPU profile”** to a question naming the [Card 04 profile proposal](CARD04_PROFILE_PROPOSAL.md) and its exact limits.
+- Fixed input and scope: one local RX 7900 XTX `rocm-7900xtx` BF16/reference-dense profile of [card04-synthetic-profile.yaml](card04-synthetic-profile.yaml) SHA-256 `0a7a04740b822d0f4149bc9ae287981a3c3687667ed7e8ba62e3b4e310b5ea49`, with synthetic tokenizer SHA-256 `f6df298e90e2aca41b4ba66d57e138a96bf864c3d61860972e1bedfbbb778e2e`. Fresh random initialization only; no earlier weights or optimizer state.
+- Exact aggregate ceilings: **120 optimizer updates**, comprising two native stage pilots of 2 smoke and 5 warmup updates plus at most 113 fresh profile updates; one **1,800-second** deadline from one ledger; at most **122,880 target positions**, **20 GiB device memory**, **24 GiB process-tree RSS**, **20 GiB added disk** and **1,000 inodes**. Stop on the first limit, nonfinite numerical result or OOM. No retry/reset, no cloud use or spend. Profile timing uses its last 100 updates after the first 13 warmup updates; stage pilots are distinct initializations.
+- Prerequisites: fixed clean source checkout, registered ROCm interpreter, native `inspect`/workspace preflight, verified tokenizer and prepared inputs, free-space/inode margin, explicit deadline/update ledger and resource monitor. If these do not pass, do not launch the dependent phase. Preserve failed receipts.
+- Boundary: this approves synthetic fit evidence only. It does not admit Card 03 source rows, provide real-data throughput, authorize Card 05 language training or complete Card 04's measured-fit gate before receipts and review.
+
 ## KML-D09 — Card 04 CPU synthetic tokenizer fit approved, 2026-10-07
 
 - Owner decision: In response to an explicit question naming this as a separately reserved runtime step, Byron answered **“Yes, approve those two bounded steps.”** This approves one Card 04 native CPU synthetic tokenizer fit under the unchanged [proposal](CARD04_PROFILE_PROPOSAL.md), separately from the Card 03 acquisition in KML-D08.

@@ -1,17 +1,17 @@
 # Current project status
 
-Record revision: 2026-10-07.15
+Record revision: 2026-10-07.16
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: Card 03 rights-quarantined pilot and Card 04 CPU synthetic tokenizer fit approved, pending fresh preflight; both full-card gates remain BLOCKED.
-Next proposed action: execute only [KML-D08](DECISIONS.md#kml-d08--card-03-rights-quarantined-two-shard-pilot-approved-2026-10-07) and [KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07) within their separate limits, then review receipts; GPU profile remains separately gated
-Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` through owner-acceptance record `3c7f210`)
-Runtime authority: Card 02 [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07) exhausted (89/89); one rights-quarantined source attempt under KML-D08 and one zero-optimizer-update CPU tokenizer fit under KML-D09 approved, not yet exercised
+Current selected work: Card 03 quarantined pilot and Card 04 CPU synthetic tokenizer fit completed within KML-D08/D09; the separately approved Card 04 GPU profile under KML-D10 is next. Both full-card gates remain BLOCKED.
+Next proposed action: complete fixed-checkout preflight and run only the one bounded local Card 04 synthetic GPU profile in [KML-D10](DECISIONS.md#kml-d10--card-04-bounded-local-gpu-profile-approved-2026-10-07), then review measured-fit receipts.
+Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` through code commit `4a117b7`)
+Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot and Card 04 KML-D09 CPU fit exercised; one 120-update, 1,800-second synthetic local GPU profile approved under KML-D10 and not yet exercised
 Last reviewed project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md), P1 preparation accepted by [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07)
-Latest project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md); [C03-R1](results/2026-10-07-card03-acceptance.md) separately accepts S1-S4 design/code scope
-Latest research decision: [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07); [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07) accepts Card 03 bounded steps
+Latest project results: [C03-P1](results/2026-10-07-card03-quarantined-pilot.md) verifies quarantined acquisition; [C04-P2](results/2026-10-07-card04-synthetic-tokenizer.md) verifies synthetic tokenizer; full-card review remains open
+Latest research decision: [KML-D10](DECISIONS.md#kml-d10--card-04-bounded-local-gpu-profile-approved-2026-10-07) approves one synthetic GPU profile; KML-D06/D07 accepted earlier Card 03/04 steps
 Latest project attempt: [KML-20261007-C02-A2](results/2026-10-07-card02-confirmation.md), reviewed in KML-D03; [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
@@ -94,10 +94,17 @@ The owner subsequently approved one exact Card 03 rights-quarantined pilot in
 [KML-D08](DECISIONS.md#kml-d08--card-03-rights-quarantined-two-shard-pilot-approved-2026-10-07)
 and one Card 04 CPU synthetic tokenizer fit in
 [KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07).
-The [source-level rights preflight](CARD03_SOURCE_RIGHTS_PREFLIGHT.md) and
-[native pilot declarations](corpus-pilot/corpus.yaml) are ready for final local
-validation. Neither approved operation has started at this snapshot; no GPU
-profile, main-data tokenizer or record-level rights admission is approved.
+At that approval snapshot, the [source-level rights preflight](CARD03_SOURCE_RIGHTS_PREFLIGHT.md)
+and [native pilot declarations](corpus-pilot/corpus.yaml) were ready for final
+local validation; neither bounded operation had run yet.
+
+The approved [Card 03 pilot](results/2026-10-07-card03-quarantined-pilot.md)
+transferred and verified both pinned shards, retaining 8 Gutenberg and 21
+Wikimedia review rows. The [Card 04 P2 fit](results/2026-10-07-card04-synthetic-tokenizer.md)
+produced and verified a synthetic 32,768-entry tokenizer. These executed steps
+are evidence for their bounded scope; no source row is admitted. The owner then
+approved one bounded local GPU profile in KML-D10. Card 03's full data/evaluation
+gate, Card 04's measured-fit gate and Gate 0 remain unverified.
 
 Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. Only the two-shard rights-quarantined pilot is approved for acquisition; no source row is approved for training or evaluation ingestion.
 
@@ -107,8 +114,8 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | --- | --- | --- | --- |
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
-| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 design/code steps); full gate BLOCKED | [KML-D08](DECISIONS.md#kml-d08--card-03-rights-quarantined-two-shard-pilot-approved-2026-10-07) approves one quarantined pilot; source/row rights admission, actual transfer, realized split/main-tokenizer/evaluation artifacts missing |
-| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1 preparation); measured-fit gate BLOCKED | [KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07) approves CPU tokenizer fit; fresh output/input receipt and exact GPU profile approval missing |
+| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 and quarantined pilot); full gate BLOCKED | [C03-P1](results/2026-10-07-card03-quarantined-pilot.md) verifies two snapshots; zero rows admitted, and PagerDuty rights, family splits, main tokenizer and frozen evaluation artifacts remain missing |
+| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1/P2 preparation); measured-fit gate BLOCKED | [C04-P2](results/2026-10-07-card04-synthetic-tokenizer.md) verifies exact synthetic tokenizer; [KML-D10](DECISIONS.md#kml-d10--card-04-bounded-local-gpu-profile-approved-2026-10-07) approves one profile, with fresh fit receipts pending |
 | 05 | One bounded language training tranche | NOT STARTED | Data, fit receipts and run approval |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |

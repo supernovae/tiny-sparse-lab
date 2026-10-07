@@ -1,5 +1,19 @@
 # Revision and synchronization log
 
+## 2026-10-07.16 — quarantined Card 03 pilot and synthetic tokenizer executed, 7 October 2026
+
+- Retained the first failed Card 03 acquisition invocation and every later
+  metadata/deadline failure in one durable ledger; native fixes for the live
+  urllib response and Hub LFS `oid` metadata were committed separately
+- Completed the owner-approved two-shard transport pilot within its original
+  byte/time/disk bounds; authenticated 8 Gutenberg and 21 Wikimedia review rows
+  in two native snapshots, with zero rows admitted for training or evaluation
+- Completed and verified the approved Card 04 CPU synthetic tokenizer fit at
+  exactly 32,768 entries; recorded KML-D10's later separate approval of one
+  bounded local GPU profile, still pending at this revision
+- Preserved the unrelated broader corpus-suite failure, Card 02 A1 failure,
+  the full Card 03/04 blockers and unverified Gate 0
+
 ## 2026-10-07.15 — bounded Card 03 pilot and Card 04 CPU fit authority, 7 October 2026
 
 - Recorded the owner's explicit approval of one rights-quarantined Card 03
