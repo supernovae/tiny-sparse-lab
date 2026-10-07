@@ -147,6 +147,10 @@ def _mock_launch(
         "    esac\n"
         "    printf '1073741824\\n' ;;\n"
         "  *'sparselab monitor'*)\n"
+        '    if [[ "$MOCK_SCENARIO" == journal_failure ]]; then\n'
+        '      rm "$KML_PROFILE_ROOT/stage-resource-samples.csv"\n'
+        '      mkdir "$KML_PROFILE_ROOT/stage-resource-samples.csv"\n'
+        "    fi\n"
         '    if [[ "$MOCK_SCENARIO" == stubborn_child ]]; then\n'
         '      bash -c \'trap "" TERM; echo $$ > "$KML_PROFILE_ROOT/stubborn.pid"; while :; do /bin/sleep 1; done\' &\n'
         "    fi\n"
@@ -285,7 +289,14 @@ def test_launcher_rejects_unmonitored_attempt_root(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "scenario", ["preflight_hang", "midrun_hang", "watchdog_death", "stubborn_child"]
+    "scenario",
+    [
+        "preflight_hang",
+        "midrun_hang",
+        "watchdog_death",
+        "stubborn_child",
+        "journal_failure",
+    ],
 )
 def test_launcher_stops_on_hung_sensor_or_dead_watchdog(
     tmp_path: Path, scenario: str

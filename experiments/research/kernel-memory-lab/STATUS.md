@@ -17,6 +17,11 @@ Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.m
 
 ## Delivery facts
 
+Sample-evidence correction [C04-S3](results/2026-10-07-card04-sample-log-review.md)
+is READY FOR REVIEW in a follow-up to merged PR #51. It makes failed sample-log
+writes stop supervision and updates Retry2's launcher hash. Runtime approval
+and local idle/no-training verification remain separate pending gates.
+
 Tracked monitor review [C04-S2](results/2026-10-07-card04-tracked-monitor-review.md)
 supersedes S1's missing-source blocker: base `75f9a8d` supplies the scripts.
 Focused timeout, watchdog, cleanup and launch-input corrections are READY FOR
