@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D12 — one Card 04 Retry2 GPU attempt approved and spent, 2026-10-07
+
+- Owner decision: Byron explicitly approved **one attempt** under [CARD04_RETRY2_PROPOSAL.md](CARD04_RETRY2_PROPOSAL.md) at verified `fc75c548c88fb08973e334b805acdf497e3ccfc4`, using the tracked tools and preserving all earlier evidence. The authority was 7 stage plus at most 113 profile updates, 1,800 seconds, 122,880 target positions, 20 GiB VRAM, 24 GiB process-tree RSS, 20 GiB added disk, 1,000 added inodes, zero cloud spend, and no retry or resume. Monitoring failure or the first cap required a stop.
+- Outcome: [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) completed the one fresh synthetic attempt, charging all 120 updates under one ledger. Native stage/profile monitoring and final checkpoint verification passed within the bounds. P3 and P4 remain separate failures. P6 is **READY FOR REVIEW**, not an owner-reviewed promotion of Card 04 or Gate 0.
+- Boundary: no Card 03 content is admitted for model training, and no Card 05 training or further GPU attempt is approved by this decision. The next action is review of P6's receipts and measured-fit interpretation.
+
 ## KML-D11 — one Card 04 replacement GPU attempt approved, 2026-10-07
 
 - Owner decision: After the first GPU attempt [P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and its exact [replacement proposal](CARD04_RETRY_PROPOSAL.md), Byron asked to **“re-try the GPU attempt”** and check whether it works. This approved one fresh attempt under that proposal's existing bounds; it did not revive KML-D10's spent attempt or authorize a series of retries.
