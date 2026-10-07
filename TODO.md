@@ -82,6 +82,22 @@ documented workload need and the required acceptance environment.
   unselected large PDF must not silently consume the pilot allocation. Test a
   repo with large excluded blobs, cap exhaustion, changed revision and partial
   fetch cleanup. Do not claim the proposed bound exists today.
+- [ ] **Admit exact Hub shards with a shared transfer budget.** Activate only
+  after review of Kernel Memory Lab's Card 03 complete-shard pilot proposal.
+  The current bounded Hugging Face path requires config/split strings in a
+  filename and has per-shard byte checks but no attempt-wide retry ledger.
+  Extend the native acquisition declaration/CLI for a pinned dataset revision,
+  exact shard paths, upstream SHA-256/size, authenticated config/split mapping,
+  aggregate source-body and metadata byte/deadline limits and an attempt ID.
+  Preflight the mapping and sizes before source transfer; atomically reserve the
+  full expected size for every transfer/retry in a durable ledger, then count
+  streamed source and metadata bytes and stop before per-file or aggregate
+  limits. Output native receipts with actual
+  and charged bytes, retries, shard hashes, selected-row counts and failures.
+  Reject ambiguous/missing split mapping, changed revision or size, checksum
+  mismatch, exhausted budget, missing/corrupt ledger and reset-on-resume. Test
+  these cases without downloading real corpus files. No proposed operation is
+  shipped or approved for acquisition yet.
 - [ ] **Implement native CUDA sparse attention.** Activate when a planned CUDA
   workload needs this path and NVIDIA hardware is available. Preserve reference
   semantics and add hardware-gated correctness tests and component benchmarks.

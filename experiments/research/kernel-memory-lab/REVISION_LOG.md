@@ -1,5 +1,19 @@
 # Revision and synchronization log
 
+## 2026-10-07.11 — Card 03 complete-shard pilot proposal, 7 October 2026
+
+- Recorded KML-D05 retaining filtered Project Gutenberg and Wikimedia as
+  candidates for a revised plan, without source-acquisition approval
+- Proposed the smallest listed complete shard from each pinned component:
+  843,172,419 first-transfer bytes, 1,323,415,169 source-body bytes including
+  one worst-case retry, plus exact time, disk, row and metadata caps
+- Identified the native filename/config/split and aggregate transfer-ledger
+  prerequisites in `TODO.md`; the plan excludes Git and keeps PagerDuty for a
+  separate bounded source proposal
+- Kept ingestion separate from training-token/update budgets; no source bytes,
+  tokenizer, optimizer updates or GPU work, and no change to the 341M shape,
+  Card 02 A1 failure or unverified Gate 0
+
 ## 2026-10-07.10 — Card 03 metadata audit and pilot correction, 7 October 2026
 
 - Renamed the clean local working branch to rolling `codex/kernel-memory-lab`;

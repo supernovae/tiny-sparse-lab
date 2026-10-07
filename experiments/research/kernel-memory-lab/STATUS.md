@@ -1,17 +1,17 @@
 # Current project status
 
-Record revision: 2026-10-07.10
+Record revision: 2026-10-07.11
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected card: 03 — specification and source metadata READY FOR REVIEW; full acceptance blocked on item rights and feasible acquisition approval
-Next proposed action: review the pinned candidate inventory and make a file-level rights and bounded-transport plan before any source-content pilot
+Current selected card: 03 — complete-shard pilot proposal READY FOR REVIEW; full acceptance blocked on source rights, transport fix and acquisition approval
+Next proposed action: owner review of the exact Card 03 pilot proposal and limits before any source-content transfer
 Working branch: `codex/kernel-memory-lab` (rolling local branch; remote push deferred by owner)
-Runtime authority: [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07) exercised and exhausted (89/89); no further training authority
+Runtime authority: [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07) exercised and exhausted (89/89); no source acquisition or further training authority
 Last reviewed project result: [KML-20261007-C02-A2](results/2026-10-07-card02-confirmation.md), accepted for tiny-fixture scope by [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07)
-Latest project result: [KML-20261007-C03-S2](results/2026-10-07-card03-metadata-audit.md), metadata audit and corrected pilot bound READY FOR REVIEW; full gate blocked
-Latest research decision: [KML-D04](DECISIONS.md#kml-d04--card-03-source-candidates-selected-for-specification-2026-10-07), source candidates for specification only
+Latest project result: [KML-20261007-C03-S3](results/2026-10-07-card03-pilot-proposal.md), bounded complete-shard proposal READY FOR REVIEW; full gate blocked
+Latest research decision: [KML-D05](DECISIONS.md#kml-d05--retain-two-common-pile-candidates-for-pilot-planning-2026-10-07), both Common Pile components retained for planning only
 Latest project attempt: [KML-20261007-C02-A2](results/2026-10-07-card02-confirmation.md), reviewed in KML-D03; [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
@@ -58,6 +58,15 @@ audit](CARD03_SOURCE_METADATA_AUDIT.md) supersedes that pilot request without
 changing S1 or admitting any source. No content, tokenizer or evaluation items
 were acquired. A file-level rights and bounded-transport plan is still needed.
 
+The owner retained both Common Pile components as candidates in
+[KML-D05](DECISIONS.md#kml-d05--retain-two-common-pile-candidates-for-pilot-planning-2026-10-07)
+without approving acquisition. [S3](results/2026-10-07-card03-pilot-proposal.md)
+links the [revised proposal](CARD03_PILOT_PROPOSAL.md): one complete smallest
+shard from each component, an attempt-wide byte allocation including one retry,
+rights quarantine and a focused native transport prerequisite. PagerDuty remains
+the domain candidate outside this pilot. No source bytes or training tokens were
+used. The 341,885,952-parameter architecture is unchanged; Gate 0 is unverified.
+
 Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. Source candidates remain unapproved for acquisition or ingestion.
 
 ## Single current checklist
@@ -66,7 +75,7 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | --- | --- | --- | --- |
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
-| 03 | Data, tokenizer and frozen evaluation contracts | READY FOR REVIEW (specification/metadata); full gate BLOCKED | [Contract](CARD03_DATA_CONTRACT.md), [metadata audit](CARD03_SOURCE_METADATA_AUDIT.md) and [S2](results/2026-10-07-card03-metadata-audit.md); item rights, feasible acquisition decision and realized artifacts missing |
+| 03 | Data, tokenizer and frozen evaluation contracts | READY FOR REVIEW (pilot proposal); full gate BLOCKED | [Contract](CARD03_DATA_CONTRACT.md), [revised pilot](CARD03_PILOT_PROPOSAL.md) and [S3](results/2026-10-07-card03-pilot-proposal.md); acquisition approval, native transport fix, item rights and realized artifacts missing |
 | 04 | Main shape and measured fit | NOT STARTED | Fixtures, inputs and exact profile approval |
 | 05 | One bounded language training tranche | NOT STARTED | Data, fit receipts and run approval |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |

@@ -2,6 +2,16 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D05 — retain two Common Pile candidates for pilot planning, 2026-10-07
+
+- Question: Should Card 03 continue planning around the pinned Project Gutenberg and Wikimedia filtered components after S2 showed the 64 MiB pilot was infeasible?
+- Owner decision: Byron recommended keeping **both** components as candidates and requested the smallest practical rights and bounded-acquisition plan using verified shard sizes.
+- Evidence reviewed: [S2 metadata audit](results/2026-10-07-card03-metadata-audit.md) and its pinned component revisions, file sizes and native transport blockers.
+- Scope: Select these two components for **planning only**. This does not admit any record or authorize a source download, tokenizer fit, model training, GPU/cloud work, spending or a Campaign transition.
+- Consequence: Replace S1's infeasible pilot request with a separately reviewable [Card 03 pilot proposal](CARD03_PILOT_PROPOSAL.md) covering complete, pinned shards and an aggregate transfer budget. Keep PagerDuty as the domain candidate but outside this first Common Pile acquisition pilot.
+- Unchanged: Card 02's failed A1 and accepted A2, Gate 0's unverified status, and the proposed 341,885,952-parameter architecture. A source-ingestion allowance is separate from any later training-token/update budget.
+- Revisit trigger: File/record rights cannot be cleared, a shard identity changes, a bounded native transport cannot be established, or the owner chooses another source.
+
 ## KML-D04 — Card 03 source candidates selected for specification, 2026-10-07
 
 - Question: Which first evidence domain and base-language source should the Card 03 specification cover?
