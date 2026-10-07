@@ -9,6 +9,7 @@ uuid=${KML_EXPECTED_GPU_UUID:?set KML_EXPECTED_GPU_UUID from device inventory}
 export UV_PROJECT_ENVIRONMENT=${UV_PROJECT_ENVIRONMENT:?set UV_PROJECT_ENVIRONMENT to the registered ROCm environment}
 ledger=${SPARSELAB_ATTEMPT_BUDGET_LEDGER:?invoke through the native attempt budget}
 checkout=${KML_CHECKOUT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}
+checkout=$(realpath -e -- "$checkout")
 export KML_CHECKOUT=$checkout
 config=$checkout/experiments/research/kernel-memory-lab/card04-synthetic-profile.yaml
 reader=$checkout/tools/kernel-memory-lab/read-vram-bytes.py
@@ -26,6 +27,7 @@ case "$phase" in stage|train) ;; *) exit 2 ;; esac
 root=$(realpath -e -- "$root")
 task_root=$(realpath -e -- "$task_root")
 ledger=$(realpath -e -- "$ledger")
+export KML_PROFILE_ROOT=$root KML_TASK_ROOT=$task_root SPARSELAB_ATTEMPT_BUDGET_LEDGER=$ledger
 case "$root/" in "$task_root/"*) ;; *)
   printf '%s\n' 'Attempt root must be inside the monitored task root' >&2
   exit 2
@@ -56,8 +58,8 @@ added_inodes_cap=1000
 monitor_pid=
 # Claim before installing cleanup so a rejected replay cannot overwrite evidence.
 mkdir "$root/$phase-launch-claim" || exit 2
-# Native work stays in the attempt runner's group. Each bounded measurement
-# uses timeout's own group so killing uv also kills a stuck Python reader.
+# Native work stays in the attempt runner's group. Measurements use a bounded
+# Linux subreaper and regular output files, never inherited stdout pipes.
 # The leader survives TERM long enough to escalate, even for a TERM-ignoring child.
 cleanup() {
   status=$?
@@ -80,28 +82,33 @@ stop_for_cap() {
   printf '%s\n' "$1" > "$root/$phase-cap-event.txt"
   return 1
 }
-read_vram() {
-  timeout --signal=KILL 5s uv run --locked --no-sync python "$reader" --expected-uuid "$uuid"
+measure() {
+  measurement_file=$root/$phase-launch-claim/measurement-$1.txt
+  timeout --signal=TERM --kill-after=1s 6s uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/bounded-measurement.py" "$1" --phase "$phase" --output "$measurement_file" </dev/null > /dev/null 2>> "$root/$phase-measurement-errors.log"
 }
+
 check_resources() {
   local used_bytes current_bytes current_inodes added_bytes added_inodes
-  if ! used_bytes=$(read_vram 2>> "$root/$phase-device-errors.log"); then
+  if ! measure vram; then
     stop_for_cap 'Device-memory measurement unavailable'
     return 1
   fi
+  used_bytes=$(cat "$measurement_file") || return 1
   if [[ ! "$used_bytes" =~ ^(0|[1-9][0-9]*)$ || ${#used_bytes} -gt 11 ]] || (( used_bytes > vram_cap_bytes )); then
     stop_for_cap "VRAM unavailable or above 20 GiB limit: $used_bytes bytes"
     return 1
   fi
-  if ! current_bytes=$(timeout --signal=KILL 5s du -sbx "$task_root" | awk '{print $1}'); then
+  if ! measure bytes; then
     stop_for_cap 'Disk measurement unavailable'
     return 1
   fi
+  current_bytes=$(awk '{print $1}' "$measurement_file") || return 1
   # Count NUL-delimited entries, so newlines in names cannot change accounting.
-  if ! current_inodes=$(timeout --signal=KILL 5s find "$task_root" -xdev -printf '\0' | wc -c); then
+  if ! measure inodes; then
     stop_for_cap 'Inode measurement unavailable'
     return 1
   fi
+  current_inodes=$(cat "$measurement_file") || return 1
   if [[ ! "$current_bytes" =~ ^(0|[1-9][0-9]*)$ || ! "$current_inodes" =~ ^(0|[1-9][0-9]*)$ || ${#current_bytes} -gt 18 || ${#current_inodes} -gt 18 ]]; then
     stop_for_cap 'Disk or inode measurement invalid'
     return 1
@@ -121,7 +128,7 @@ watchdog() {
   done
 }
 # Validate native accounting and operational policy before any GPU-facing read.
-timeout --signal=KILL 5s uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/validate-profile-phase.py" "$phase"
+measure validate
 check_resources
 
 if [[ "$phase" == stage ]]; then
