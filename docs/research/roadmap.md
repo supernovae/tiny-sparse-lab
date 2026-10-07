@@ -162,3 +162,14 @@ The intended walkthrough makes the feature path explicit:
 `D_T`, key width `K`, value width `V`, and recipient width `D_S` are independent. The teacher is an offline producer; the pack is frozen; the recipient adapter is trainable only where the experiment says so. Explain which components run at pack-build time, student-training time, and inference time. Do not imply the teacher is absent at query time unless the query path actually avoids loading it.
 
 Current source boundaries: `SemanticQueryBatch` in `src/sparselab/engram/semantic.py` accepts pre-encoded vectors; `SemanticRetriever` verifies and retrieves from pack assets; `SemanticMemoryAdapter` applies the retrieved values. `src/sparselab/data/toy_worlds.py` encodes canonical structured keys for deterministic synthetic controls. These are useful interfaces and test fixtures, not a macro-model compiler. See [the current runtime contract](semantic-memory.md) for exact limits and testable behavior.
+
+## Proposed: Kernel Memory Lab
+
+[Kernel Memory Lab](../../experiments/research/kernel-memory-lab/README.md) plans a
+fresh language/comprehension kernel with controlled external-memory experiments.
+All thirteen implementation/runtime cards remain unstarted. The future
+[calibrated expert track](../../experiments/research/kernel-memory-lab/EXPERT_TRACK.md)
+adds task-appropriate uncertainty, evidence, recovery and risk behavior only after
+foundation gates; its source catalog is a review queue, not an ingestion approval.
+No prior MODEL-0 checkpoint or reproduction is a prerequisite, and no baseline is
+promoted. Native Campaign state and verified receipts remain the execution record.

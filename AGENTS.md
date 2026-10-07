@@ -15,6 +15,11 @@ from an agent's confidence or a passing smoke test.
 3. For substantial work, identify whether it changes code, a sample experiment,
    a research experiment, or evidence. Do not quietly turn one into another.
 
+For Kernel Memory Lab tasks, explicitly read
+[the scoped bootstrap](experiments/research/kernel-memory-lab/BOOTSTRAP.md) and
+its current status before acting. Follow the selected card and current authorized
+scope; the planning documents grant no runtime or spending approval.
+
 ## Python environment
 
 - This project uses uv. Run Python, tests, and project commands through the locked
