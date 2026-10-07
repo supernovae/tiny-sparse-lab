@@ -1,17 +1,17 @@
 # Current project status
 
-Record revision: 2026-10-07.13
+Record revision: 2026-10-07.14
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected card: 04 — synthetic shape/profile preparation READY FOR REVIEW; measured fit needs fresh tokenizer and exact runtime approval. Card 03 full gate remains BLOCKED.
-Next proposed action: owner review of the bounded CPU-only synthetic tokenizer preparation for Card 04; no GPU profile or source acquisition yet
-Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` after S4)
+Current selected card: 04 — synthetic shape/profile preparation EVIDENCE VERIFIED; measured fit needs fresh tokenizer and exact runtime approval. Card 03 design/code steps are accepted; its full gate remains BLOCKED.
+Next proposed action: separately approve or revise the bounded CPU-only synthetic tokenizer fit for Card 04; no GPU profile or source acquisition yet
+Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` through Card 04 P1)
 Runtime authority: [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07) exercised and exhausted (89/89); no source acquisition or further training authority
-Last reviewed project result: [KML-20261007-C02-A2](results/2026-10-07-card02-confirmation.md), accepted for tiny-fixture scope by [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07)
-Latest project result: [KML-20261007-C04-P1](results/2026-10-07-card04-shape-preparation.md), synthetic shape/profile preparation READY FOR REVIEW; measured fit blocked
-Latest research decision: [KML-D05](DECISIONS.md#kml-d05--retain-two-common-pile-candidates-for-pilot-planning-2026-10-07), both Common Pile components retained for planning only
+Last reviewed project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md), P1 preparation accepted by [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07)
+Latest project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md); [C03-R1](results/2026-10-07-card03-acceptance.md) separately accepts S1-S4 design/code scope
+Latest research decision: [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07); [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07) accepts Card 03 bounded steps
 Latest project attempt: [KML-20261007-C02-A2](results/2026-10-07-card02-confirmation.md), reviewed in KML-D03; [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
@@ -37,18 +37,20 @@ used exactly 89 charged updates and completed the selected tests and native
 checks within about 36.4 seconds. The owner accepted A2 for Card 02's tiny
 fixture scope in [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07).
 The original A1 attempt remains FAILED; its missing aggregate budget accounting
-was repaired before A2. Gate 0 remains unverified because its provisional
-data/tokenizer decision and hardware inventory are still missing.
+was repaired before A2. Gate 0 remains unverified. Later Card 03 and Card 04
+reviews supply candidate data/tokenizer specifications and read-only hardware
+inventory; Gate 0 has not had its own criterion-by-criterion promotion review.
 
 Card 03 now has a [reviewable specification](CARD03_DATA_CONTRACT.md) for an
 incident-response evidence domain and rights-audited Common Pile language base.
 [KML-D04](DECISIONS.md#kml-d04--card-03-source-candidates-selected-for-specification-2026-10-07)
 records the owner's candidate choice, not source admission. The proposed mixture,
 train-only tokenizer, family splits, overlap checks and 200/400-item rubrics have
-no realized artifacts or scores. Exact source rights/revisions and a bounded
+no realized artifacts or scores. Exact source rights and a bounded
 preparation approval are missing; [S1](results/2026-10-07-card03-specification.md)
-is pending review. Gate 0 still lacks a provisional data/tokenizer decision and
-hardware inventory.
+was pending review when recorded and is now accepted for specification scope in
+KML-D06. The accepted candidate specification is not an admission of main
+training data or tokenizer artifacts.
 
 [S2](results/2026-10-07-card03-metadata-audit.md) pins candidate PagerDuty and
 Common Pile component revisions from remote metadata. It found that the smallest
@@ -71,8 +73,9 @@ used. The 341,885,952-parameter architecture is unchanged; Gate 0 is unverified.
 bounded-Hub transport fix in local code commits `23db56c` and `c77074e`.
 Local/mock tests and the broader corpus suite passed; no real candidate
 metadata or shard was requested by this code task. The code prerequisite is
-ready for review, but the pilot still needs source-level rights evidence,
-explicit acquisition approval and a fresh storage/inode preflight. Card 03
+accepted for reuse by [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07),
+but the pilot still needs source-level rights evidence, explicit acquisition
+approval and a fresh storage/inode preflight. Card 03
 and Gate 0 have no realized data/tokenizer/evaluation evidence yet.
 
 The owner asked to push the rolling branch and proceed to the next card. The
@@ -82,7 +85,10 @@ native inspection of exactly 341,885,952 parameters, and read-only WSL2/ROCm
 inventory. The tokenizer output does not exist and no GPU profile was launched.
 [The bounded Card 04 proposal](CARD04_PROFILE_PROPOSAL.md) requests a CPU-only
 synthetic tokenizer preparation first, then a separate GPU profile decision.
-Card 03's rights/acquisition gate and Gate 0 remain unverified.
+The owner accepted P1's preparation evidence in [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07),
+and accepted Card 03's S1-S4 design/code steps in KML-D06. These reviewed steps
+can be incorporated into subsequent work. Card 03's rights/acquisition gate,
+Card 04's measured-fit gate and Gate 0 remain unverified.
 
 Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. Source candidates remain unapproved for acquisition or ingestion.
 
@@ -92,8 +98,8 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | --- | --- | --- | --- |
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
-| 03 | Data, tokenizer and frozen evaluation contracts | READY FOR REVIEW (transport fix and pilot proposal); full gate BLOCKED | [Contract](CARD03_DATA_CONTRACT.md), [revised pilot](CARD03_PILOT_PROPOSAL.md) and [S4](results/2026-10-07-card03-transport-fix.md); acquisition approval, item rights and realized artifacts missing |
-| 04 | Main shape and measured fit | READY FOR REVIEW (synthetic preparation); measured gate BLOCKED | [P1](results/2026-10-07-card04-shape-preparation.md) and [profile proposal](CARD04_PROFILE_PROPOSAL.md) recount the shape; fresh tokenizer/input receipt and exact GPU profile approval missing |
+| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 design/code steps); full gate BLOCKED | [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07) and [C03-R1](results/2026-10-07-card03-acceptance.md) admit the contract, corrected pilot design and transport fix for reuse; source/row rights, acquisition authority and realized artifacts missing |
+| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1 preparation); measured-fit gate BLOCKED | [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07) and [C04-R1](results/2026-10-07-card04-preparation-acceptance.md) accept shape/inventory; fresh tokenizer/input receipt and exact GPU profile approval missing |
 | 05 | One bounded language training tranche | NOT STARTED | Data, fit receipts and run approval |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
@@ -104,4 +110,4 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | 12 | Same-store RAM/NVMe comparison | NOT STARTED | Useful reader, fixed store and approved caps |
 | 13 | Review and next decision | NOT STARTED | Actual relevant receipts |
 
-These are prerequisite notes, not fabricated failed runs. Use BLOCKED when a real missing input prevents the selected task. After adoption, change this snapshot only from actual results, receipts and review. Append the result first and record the reviewer; a status change never grants approval.
+These are prerequisite notes, not fabricated failed runs. Use BLOCKED when a real missing input prevents the selected task. After adoption, change this snapshot only from actual results, receipts and review. The owner's "proceed" accepts a completed evidenced step for reuse when recorded in a decision/result; it does not complete an unmet full-card gate or grant separately withheld runtime approval.

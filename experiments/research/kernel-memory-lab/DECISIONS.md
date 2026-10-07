@@ -2,6 +2,22 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D07 — Card 04 preparation accepted for reuse, 2026-10-07
+
+- Owner review: Byron clarified that saying "proceed" after a reviewable card step means the completed step is accepted/admitted and may be incorporated into subsequent work. His earlier request to proceed to Card 04 and this clarification accept [P1](results/2026-10-07-card04-shape-preparation.md) for its **synthetic shape and inventory preparation** scope; see the [append-only review](results/2026-10-07-card04-preparation-acceptance.md).
+- Accepted evidence: the two pinned synthetic proposal declarations; native read-only count of **341,885,952** parameters; **4,102,632,296-byte** estimated checkpoint; WSL2/RX 7900 XTX/registered ROCm inventory. The profile may use these as reviewed candidate inputs, subject to verifying their identities at execution.
+- Gate boundary: this is **EVIDENCE VERIFIED for P1 preparation**, not full Card 04 measured fit. No tokenizer output, initializer receipt, finite-loss/gradient test, VRAM/RSS measurement, throughput or profile run exists. The full fit gate stays BLOCKED.
+- Authorization: accepting P1 does not start or approve the separately proposed CPU tokenizer fit, stage pilots, GPU profile, optimizer updates, cloud use or spending. Its 600-second preparation and 120-update/1,800-second profile allocations remain proposed operational ceilings, not spent or executable approval.
+- Consequence: carry the fixed 341M architecture and synthetic profile design forward; the smallest next dependent task remains the separately bounded fresh synthetic tokenizer fit. Card 03's rights/acquisition gate and Gate 0 remain open; Card 02 A1 remains FAILED.
+
+## KML-D06 — Card 03 specification and transport work accepted for reuse, 2026-10-07
+
+- Owner review: Byron clarified that "proceed" accepts the completed card step for incorporation into later work. His prior progression through Card 03 and this clarification accept [S1](results/2026-10-07-card03-specification.md), [S2](results/2026-10-07-card03-metadata-audit.md), [S3](results/2026-10-07-card03-pilot-proposal.md) and [S4](results/2026-10-07-card03-transport-fix.md) for their **specification, metadata, bounded pilot design and native code-prerequisite** scopes; see the [append-only review](results/2026-10-07-card03-acceptance.md).
+- Accepted decisions: incident-response prose remains the evidence-domain candidate; the pinned Project Gutenberg filtered and Wikimedia filtered complete shards are admitted as **candidates for a rights-quarantined pilot design**. S2 supersedes S1's infeasible 64 MiB pilot request. S3's exact shard identities and limits are the reviewed planning baseline, and S4's tested transport fix is the native prerequisite. These may be incorporated into later card design.
+- Gate boundary: no candidate file or record is admitted as training/evaluation material. Source-level and record-level rights checks, live acquisition, content hashes, realized splits, tokenizer and frozen evaluation items are absent. The full Card 03 data gate stays BLOCKED. This decision does not revise S1-S4 historical results or claim their unexecuted steps occurred.
+- Authorization: earlier explicit statements withholding **acquisition approval** remain in force. Acceptance of the S3 design does not authorize its 1,324,463,745-byte combined response-body, 2,700-second, 5 GiB pilot, tokenizer fitting, training, GPU/cloud work or spending. A future acquisition decision must name its exact bounds after source-rights and live preflight checks.
+- Consequence: use the reviewed contract and native path; retain rights quarantine and the separate ingestion-versus-training budgets. Card 02 A1 remains FAILED and Gate 0 remains unverified.
+
 ## KML-D05 — retain two Common Pile candidates for pilot planning, 2026-10-07
 
 - Question: Should Card 03 continue planning around the pinned Project Gutenberg and Wikimedia filtered components after S2 showed the 64 MiB pilot was infeasible?

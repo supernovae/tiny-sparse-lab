@@ -1,5 +1,21 @@
 # Revision and synchronization log
 
+## 2026-10-07.14 — Card 03 and Card 04 owner acceptance, 7 October 2026
+
+- Recorded the owner's clarification that "proceed" accepts a completed,
+  reviewable step for incorporation into later cards; future handoffs must
+  record that acceptance instead of leaving the step pending review
+- Appended [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07)
+  and [C03-R1](results/2026-10-07-card03-acceptance.md), accepting S1-S4
+  specification, corrected pilot design and native transport prerequisite;
+  reconciled the contract, metadata audit and pilot proposal's current wording
+- Appended [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07)
+  and [C04-R1](results/2026-10-07-card04-preparation-acceptance.md), accepting
+  P1's shape/config/inventory preparation; earlier results remain unchanged
+- Kept source-row rights and acquisition, realized Card 03 artifacts, Card 04
+  tokenizer/fit, and Gate 0 open; no download, tokenizer fit, training or GPU
+  work was performed by this review, and Card 02 A1 remains FAILED
+
 ## 2026-10-07.13 — Card 04 synthetic shape preparation, 7 October 2026
 
 - Pushed rolling `codex/kernel-memory-lab` through S4 to GitHub as requested

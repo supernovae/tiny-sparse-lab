@@ -1,6 +1,6 @@
-# Card 04 synthetic shape and fit preparation — proposed
+# Card 04 synthetic shape and fit preparation — preparation accepted, runtime proposed
 
-Status: **PREPARATION READY FOR REVIEW; RUNTIME NOT APPROVED**. Card 03 has no admitted language corpus or 32,768-entry tokenizer, so this Card 04 candidate uses only fresh synthetic inputs. It can test native shape and eventual local fit; it cannot establish real-data throughput, language quality or Gate 0. No tokenizer fit, staging pilot, optimizer update or GPU profile was run for this proposal.
+Status: **P1 PREPARATION ACCEPTED under [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07); RUNTIME NOT APPROVED**. Card 03 has no rights-cleared language corpus or 32,768-entry tokenizer, so this Card 04 candidate uses only fresh synthetic inputs. It can test native shape and eventual local fit; it cannot establish real-data throughput, language quality or Gate 0. No tokenizer fit, staging pilot, optimizer update or GPU profile was run for this proposal.
 
 ## Fixed candidate and observed environment
 
