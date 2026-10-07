@@ -429,7 +429,16 @@ def _hf_pinned_metadata(
         raise ValueError("pinned HF shard size/type mismatch")
     lfs = item.get("lfs")
     if isinstance(lfs, dict):
-        if lfs.get("sha256", "").lower() != shard.expected_sha256.lower():
+        hashes = [value for key in ("sha256", "oid") if (value := lfs.get(key))]
+        if (
+            not hashes
+            or any(
+                not isinstance(value, str)
+                or value.lower() != shard.expected_sha256.lower()
+                for value in hashes
+            )
+            or lfs.get("size", shard.max_shard_bytes) != shard.max_shard_bytes
+        ):
             raise ValueError("pinned HF shard metadata checksum mismatch")
     elif lfs is None:
         # Xet metadata has a CAS hash, not a content SHA-256. The pinned

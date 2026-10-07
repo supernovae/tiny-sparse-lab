@@ -532,6 +532,7 @@ def _mock_budgeted_hf_http(
     fail_http: bool = False,
     tree_size: int | None = None,
     xet: bool = False,
+    lfs_oid: bool = False,
 ) -> tuple[list[str], list[int]]:
     calls: list[str] = []
     reads: list[int] = []
@@ -543,7 +544,11 @@ def _mock_budgeted_hf_http(
                 "path": "complete-0001.json.gz",
                 "type": "file",
                 "size": len(content) if tree_size is None else tree_size,
-                "lfs": None if xet else {"sha256": digest},
+                "lfs": None
+                if xet
+                else {"oid": digest, "size": len(content)}
+                if lfs_oid
+                else {"sha256": digest},
                 **({"xetHash": "a" * 64, "oid": "b" * 40} if xet else {}),
             }
         ]
@@ -743,6 +748,21 @@ def test_hf_xet_metadata_requires_downloaded_sha256(
     _mock_budgeted_hf_http(monkeypatch, content, xet=True, payload=corrupted)
     with pytest.raises(ValueError, match="shard SHA-256 mismatch"):
         acquire(project, bad_root)
+
+
+def test_hf_lfs_oid_is_pinned_content_sha256(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    TransportBudget.initialize(
+        root / "corpora/example/transport-budget.sqlite", project
+    )
+    _mock_budgeted_hf_http(monkeypatch, content, lfs_oid=True)
+    lock = acquire(project, root)
+    assert verify_snapshot(lock["sources"]["one"]["snapshot_path"])["retrieval"]
 
 
 def test_hf_transport_interruption_resume_and_exhaustion(
