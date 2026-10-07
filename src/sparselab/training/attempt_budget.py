@@ -176,13 +176,17 @@ class AttemptBudget:
         process = subprocess.Popen(command, env=environment, start_new_session=True)
         try:
             return process.wait(timeout=self.remaining_seconds())
-        except subprocess.TimeoutExpired, AttemptBudgetError:
+        except BaseException as error:
+            # The child owns a separate session: interrupting this supervisor
+            # does not interrupt it. Never leave it running without a deadline.
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
             process.wait()
-            raise AttemptBudgetError("shared wall-time limit reached") from None
+            if isinstance(error, (subprocess.TimeoutExpired, AttemptBudgetError)):
+                raise AttemptBudgetError("shared wall-time limit reached") from None
+            raise
 
 
 def main(argv: list[str] | None = None) -> int:

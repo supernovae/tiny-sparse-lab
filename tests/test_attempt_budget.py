@@ -114,3 +114,31 @@ def test_command_inherits_budget_and_is_killed_at_deadline(
     assert calls[0][2]["env"]["SPARSELAB_ATTEMPT_BUDGET_LEDGER"] == str(budget.path)
     assert calls[1][0] == "wait"
     assert calls[2] == (42, module.signal.SIGKILL)
+
+
+@pytest.mark.parametrize("failure", [KeyboardInterrupt, SystemExit, OSError])
+def test_command_cleanup_on_interrupted_or_failed_wait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[BaseException]
+) -> None:
+    budget = AttemptBudget.create(
+        tmp_path / "budget.sqlite", max_updates=2, max_wall_seconds=60
+    )
+    error = failure("interrupted supervisor")
+    calls = []
+
+    class FakeProcess:
+        pid = 42
+
+        def wait(self, *, timeout: float | None = None) -> int:
+            calls.append(("wait", timeout))
+            if timeout is not None:
+                raise error
+            return -9
+
+    monkeypatch.setattr(module.subprocess, "Popen", lambda *a, **kw: FakeProcess())
+    monkeypatch.setattr(module.os, "killpg", lambda pid, sig: calls.append((pid, sig)))
+    with pytest.raises(failure) as raised:
+        budget.run(["dummy"], reserve_updates=1)
+    assert raised.value is error
+    assert calls[1:] == [(42, module.signal.SIGKILL), ("wait", None)]
+    assert budget.status()["charged_updates"] == 1

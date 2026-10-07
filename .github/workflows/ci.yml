@@ -80,6 +80,9 @@ jobs:
           tests/test_corpus_acquisition.py
           tests/test_corpus_pipeline.py
           tests/test_hf_auth.py
+          tests/test_attempt_budget.py
+          tests/test_operational_monitor.py
+          tests/test_kml_card04_profile_tools.py
   evidence-macos-arm64:
     runs-on: macos-15
     timeout-minutes: 10

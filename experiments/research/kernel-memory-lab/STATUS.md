@@ -17,6 +17,18 @@ Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.m
 
 ## Delivery facts
 
+Tracked monitor review [C04-S2](results/2026-10-07-card04-tracked-monitor-review.md)
+supersedes S1's missing-source blocker: base `75f9a8d` supplies the scripts.
+Focused timeout, watchdog, cleanup and launch-input corrections are READY FOR
+REVIEW in draft PR #51. Retry2 references the corrected tracked tool hashes;
+local no-training validation and a separate runtime decision remain pending.
+
+Cloud code review [C04-S1](results/2026-10-07-card04-cloud-safety-review.md)
+is READY FOR REVIEW on a separate branch. It fixes budget-runner exception
+cleanup using mocked tests; it does not validate the external AMD SMI wrapper,
+change historical attempt accounting, or approve Retry2. Measured fit remains
+BLOCKED.
+
 The source-release research plan and workbook were synchronized at revision 2026-10-07.1. This repository edition contains documented adoption/privacy edits and a separate future expert track; the Library DOCX snapshots do not include that new track. Repository infrastructure was inspected at the source revision above; see `SOURCE_AUDIT.md`. No project-specific fixture, main config, dataset/tokenizer, trained checkpoint, reader, router, insertion result or offload result was produced by this document task.
 
 The local read-only reconciliation found no Kernel Memory Lab Campaign, run or
