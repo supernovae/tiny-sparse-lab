@@ -1,5 +1,19 @@
 # Revision and synchronization log
 
+## 2026-10-07.18 — Card 03 domain metadata inventory and bounded next gate, 7 October 2026
+
+- Rechecked the immutable PagerDuty Git tree metadata without acquiring any
+  Markdown or license content: 36 selected Markdown blobs, 302,785 raw bytes,
+  plus the pinned LICENSE and README identities
+- Added the exact [file inventory](CARD03_PAGERDUTY_FILE_INVENTORY.md) and a
+  [rights-quarantined next plan](CARD03_PAGERDUTY_NEXT_PLAN.md) separating the
+  native bounded-Git-blob transport code prerequisite from later acquisition
+  approval; neither code mode nor content attempt has started
+- Recorded unavailable expanded-stream/peak-staging counters from C03-P1 as
+  missing evidence rather than inferred measurements; the 29-row screen still
+  excludes nine and admits zero records
+- Kept Card 04 P3 interrupted, both full-card gates and Gate 0 unverified
+
 ## 2026-10-07.17 — Card 04 GPU stage interruption and replacement proposal, 7 October 2026
 
 - Began one fixed-checkout local ROCm attempt under KML-D10 after tokenizer,
