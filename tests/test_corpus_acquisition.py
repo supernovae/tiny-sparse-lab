@@ -531,6 +531,7 @@ def _mock_budgeted_hf_http(
     payload: bytes | None = None,
     fail_http: bool = False,
     tree_size: int | None = None,
+    xet: bool = False,
 ) -> tuple[list[str], list[int]]:
     calls: list[str] = []
     reads: list[int] = []
@@ -542,7 +543,8 @@ def _mock_budgeted_hf_http(
                 "path": "complete-0001.json.gz",
                 "type": "file",
                 "size": len(content) if tree_size is None else tree_size,
-                "lfs": {"sha256": digest},
+                "lfs": None if xet else {"sha256": digest},
+                **({"xetHash": "a" * 64, "oid": "b" * 40} if xet else {}),
             }
         ]
     ).encode()
@@ -716,6 +718,31 @@ def test_hf_exact_length_body_does_not_recheck_closed_socket(tmp_path: Path) -> 
     )
     assert size == 3
     assert digest == hashlib.sha256(b"abc").hexdigest()
+
+
+def test_hf_xet_metadata_requires_downloaded_sha256(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    _mock_budgeted_hf_http(monkeypatch, content, xet=True)
+    lock = acquire(project, root)
+    assert TransportBudget(ledger_path, project).receipt()["source_actual"] == len(
+        content
+    )
+    assert verify_snapshot(lock["sources"]["one"]["snapshot_path"])["retrieval"]
+
+    bad_root = tmp_path / "bad-work"
+    bad_ledger_path = bad_root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(bad_ledger_path, project)
+    corrupted = bytes([content[0] ^ 1]) + content[1:]
+    _mock_budgeted_hf_http(monkeypatch, content, xet=True, payload=corrupted)
+    with pytest.raises(ValueError, match="shard SHA-256 mismatch"):
+        acquire(project, bad_root)
 
 
 def test_hf_transport_interruption_resume_and_exhaustion(

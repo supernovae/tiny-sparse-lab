@@ -404,7 +404,7 @@ def _hf_pinned_metadata(
     records = []
     for url in (tree_url, splits_url):
         data = (
-            urlencode({"paths": shard.path, "expand": "false"}).encode()
+            urlencode({"paths": shard.path, "expand": "true"}).encode()
             if url == tree_url
             else None
         )
@@ -428,11 +428,22 @@ def _hf_pinned_metadata(
     if item.get("type") != "file" or item.get("size") != shard.max_shard_bytes:
         raise ValueError("pinned HF shard size/type mismatch")
     lfs = item.get("lfs")
-    if (
-        not isinstance(lfs, dict)
-        or lfs.get("sha256", "").lower() != shard.expected_sha256.lower()
-    ):
-        raise ValueError("pinned HF shard metadata checksum mismatch")
+    if isinstance(lfs, dict):
+        if lfs.get("sha256", "").lower() != shard.expected_sha256.lower():
+            raise ValueError("pinned HF shard metadata checksum mismatch")
+    elif lfs is None:
+        # Xet metadata has a CAS hash, not a content SHA-256. The pinned
+        # expected SHA-256 is still checked against every downloaded byte.
+        xet_hash, oid = item.get("xetHash"), item.get("oid")
+        if not (
+            isinstance(xet_hash, str)
+            and re.fullmatch(r"[0-9a-fA-F]{64}", xet_hash)
+            and isinstance(oid, str)
+            and re.fullmatch(r"[0-9a-fA-F]{40}", oid)
+        ):
+            raise ValueError("pinned HF shard metadata checksum unavailable")
+    else:
+        raise ValueError("pinned HF shard metadata checksum unavailable")
     entries = splits.get("splits")
     if not isinstance(entries, list):
         raise TypeError("pinned HF config/split metadata missing")
