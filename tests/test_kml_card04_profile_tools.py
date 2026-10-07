@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
 import runpy
 import signal
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -125,9 +127,25 @@ def _mock_launch(
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     calls = root / "mock-calls.txt"
+    holder = root / "pipe-holder.py"
+    holder.write_text(
+        "import json, os, signal, subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "import psutil\n"
+        "child = subprocess.Popen([sys.executable, '-c', "
+        "'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'], "
+        "start_new_session=True)\n"
+        "Path(os.environ['KML_PROFILE_ROOT'], 'pipe-child.json').write_text(json.dumps("
+        "{'pid': child.pid, 'created': psutil.Process(child.pid).create_time()}))\n"
+        "print('1073741824', flush=True)\n"
+        "if sys.argv[1] != 'leader_exit':\n"
+        "    signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "    time.sleep(30)\n"
+    )
     uv = bin_dir / "uv"
     uv.write_text(
         "#!/usr/bin/env bash\n"
+        'case "$*" in *bounded-measurement.py*) shift 4; exec "$MOCK_REAL_PYTHON" "$@" ;; esac\n'
         'printf \'%s\\n\' "$*" >> "$MOCK_UV_CALLS"\n'
         'case "$*" in\n'
         "  *validate-profile-phase.py*) exit 0 ;;\n"
@@ -136,6 +154,7 @@ def _mock_launch(
         "    count=$((count+1))\n"
         '    printf \'%s\\n\' "$count" > "$MOCK_UV_COUNT"\n'
         '    case "$MOCK_SCENARIO" in\n'
+        '      escaped_pipe|leader_exit|term_ignore) exec "$MOCK_REAL_PYTHON" "$MOCK_PIPE_HOLDER" "$MOCK_SCENARIO" ;;\n'
         "      preflight_failure) exit 9 ;;\n"
         "      preflight_hang) /bin/sleep 20 & wait ;;\n"
         "      midrun_hang) if (( count > 1 )); then /bin/sleep 20 & wait; fi ;;\n"
@@ -191,6 +210,8 @@ def _mock_launch(
             "MOCK_SCENARIO": scenario,
             "MOCK_UV_CALLS": str(calls),
             "MOCK_UV_COUNT": str(root / "mock-count.txt"),
+            "MOCK_REAL_PYTHON": sys.executable,
+            "MOCK_PIPE_HOLDER": str(holder),
         }
     )
     process = subprocess.Popen(
@@ -212,12 +233,27 @@ def _mock_launch(
                 not psutil.pid_exists(pid)
                 or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
             )
+        if (root / "pipe-child.json").exists():
+            pid = json.loads((root / "pipe-child.json").read_text())["pid"]
+            assert (
+                not psutil.pid_exists(pid)
+                or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
+            )
     finally:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         process.wait()
+        # Test-only backstop also cleans a detached fixture on the unfixed base.
+        if (root / "pipe-child.json").exists():
+            identity = json.loads((root / "pipe-child.json").read_text())
+            try:
+                child = psutil.Process(identity["pid"])
+                if child.create_time() == identity["created"]:
+                    child.kill()
+            except psutil.NoSuchProcess:
+                pass
     return result, root, calls.read_text().splitlines() if calls.exists() else []
 
 
@@ -382,3 +418,82 @@ def test_native_launch_input_validation(tmp_path: Path, problem: str | None) -> 
             (ValueError, AttemptBudgetError, sqlite3.DatabaseError, FileNotFoundError)
         ):
             module.validate(phase, root, tmp_path, tmp_path, ledger.path)
+
+
+@pytest.mark.parametrize("scenario", ["escaped_pipe", "leader_exit", "term_ignore"])
+def test_launcher_bounds_inherited_output_and_reaps_detached_children(
+    tmp_path: Path, scenario: str
+) -> None:
+    result, root, calls = _mock_launch(tmp_path, scenario)
+    assert result.returncode != 0
+    assert (root / "stage-cap-event.txt").is_file()
+    assert not any("sparselab monitor" in call for call in calls)
+
+
+@pytest.mark.parametrize(
+    "case", ["success", "nonzero", "oversized", "missing", "signal"]
+)
+def test_measurement_helper_exit_and_cleanup_paths(tmp_path: Path, case: str) -> None:
+    if sys.platform != "linux":
+        pytest.skip("measurement subreaper requires Linux/WSL")
+    output = tmp_path / "reading"
+    marker = tmp_path / "child.pid"
+    code = {
+        "success": "print(123)",
+        "nonzero": "raise SystemExit(7)",
+        "oversized": "print('x' * 70000)",
+        "signal": "import os,time; from pathlib import Path; "
+        f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(30)",
+    }
+    command = (
+        [str(tmp_path / "missing-executable")]
+        if case == "missing"
+        else [sys.executable, "-c", code[case]]
+    )
+    script = (
+        "import json,runpy,sys; from pathlib import Path; "
+        "run = runpy.run_path(sys.argv[1])['run']; "
+        "raise SystemExit(run(json.loads(sys.argv[2]), Path(sys.argv[3])))"
+    )
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(TOOLS / "bounded-measurement.py"),
+            json.dumps(command),
+            str(output),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        if case == "signal":
+            deadline = time.monotonic() + 5
+            while (
+                not marker.exists()
+                and process.poll() is None
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.02)
+            assert marker.exists()
+            process.terminate()
+        _, error = process.communicate(timeout=8)
+        if case == "success":
+            assert process.returncode == 0, error
+            assert output.read_text() == "123\n"
+        elif case == "nonzero":
+            assert process.returncode == 7
+        else:
+            assert process.returncode != 0
+        if case == "signal":
+            pid = int(marker.read_text())
+            assert (
+                not psutil.pid_exists(pid)
+                or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
+            )
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=2)

@@ -17,6 +17,12 @@ Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.m
 
 ## Delivery facts
 
+Inherited-output correction [C04-S4](results/2026-10-07-card04-inherited-output-review.md)
+addresses a reproduced sampler descendant/pipe-EOF hang after the owner reported
+local hung-sensor failures. Earlier cloud CI does not clear those local failures.
+The corrected tracked tools require WSL regression verification before a separate
+Retry2 runtime decision; no GPU execution is approved by this code review.
+
 Sample-evidence correction [C04-S3](results/2026-10-07-card04-sample-log-review.md)
 is READY FOR REVIEW in a follow-up to merged PR #51. It makes failed sample-log
 writes stop supervision and updates Retry2's launcher hash. Runtime approval
