@@ -1,0 +1,7 @@
+# Placeholder required by the native project schema; no pilot row is train-admitted.
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  kml_pilot_project_gutenberg: train
+  kml_pilot_wikimedia: train

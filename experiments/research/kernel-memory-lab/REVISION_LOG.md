@@ -1,5 +1,18 @@
 # Revision and synchronization log
 
+## 2026-10-07.15 — bounded Card 03 pilot and Card 04 CPU fit authority, 7 October 2026
+
+- Recorded the owner's explicit approval of one rights-quarantined Card 03
+  two-shard pilot and one Card 04 CPU-only synthetic tokenizer fit in KML-D08/D09
+- Added the source-level rights preflight and a native, pinned Corpus project
+  with shared response-body accounting, distinct expanded/retained/disk caps,
+  review-required source rights and no selected training release view
+- Kept PagerDuty acquisition, individual row admission, main tokenizer,
+  evaluation-item materialization, Card 04 GPU profile and model training
+  outside these approvals; Card 03/04 full gates and Gate 0 remain unverified
+- This revision records authority and prepared declarations, not execution;
+  the historical Card 02 A1 failure is unchanged
+
 ## 2026-10-07.14 — Card 03 and Card 04 owner acceptance, 7 October 2026
 
 - Recorded the owner's clarification that "proceed" accepts a completed,

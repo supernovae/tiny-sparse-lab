@@ -1,6 +1,6 @@
 # Card 04 synthetic shape and fit preparation — preparation accepted, runtime proposed
 
-Status: **P1 PREPARATION ACCEPTED under [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07); RUNTIME NOT APPROVED**. Card 03 has no rights-cleared language corpus or 32,768-entry tokenizer, so this Card 04 candidate uses only fresh synthetic inputs. It can test native shape and eventual local fit; it cannot establish real-data throughput, language quality or Gate 0. No tokenizer fit, staging pilot, optimizer update or GPU profile was run for this proposal.
+Status: **P1 PREPARATION ACCEPTED under [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07); CPU TOKENIZER FIT APPROVED under [KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07); GPU PROFILE NOT APPROVED**. Card 03 has no rights-cleared language corpus or 32,768-entry tokenizer, so this Card 04 candidate uses only fresh synthetic inputs. It can test native shape and eventual local fit; it cannot establish real-data throughput, language quality or Gate 0. No tokenizer fit, staging pilot, optimizer update or GPU profile had run when this proposal was authored.
 
 ## Fixed candidate and observed environment
 
@@ -12,7 +12,7 @@ Status: **P1 PREPARATION ACCEPTED under [KML-D07](DECISIONS.md#kml-d07--card-04-
 
 ## First dependent task: fresh synthetic tokenizer, CPU only
 
-Request a separate approval for one native `sparselab tokenizer train` using the pinned synthetic tokenizer declaration. Bound that preparation to **600 seconds**, **1 GiB additional disk**, **1,000 inodes**, **50,000 train documents**, declared `train_max_tokens` **5,000,000**, **zero optimizer updates**, **zero GPU/cloud use** and **zero spend**. Start a fresh operational deadline before the command; do not retry a failed fit under a reset clock. Verify the output tokenizer's exact 32,768 vocabulary, SHA-256, train-only provenance and round-trip/special-token checks before treating the profile config as executable. This is synthetic instrumentation only, not the Card 03 tokenizer or an admitted language source. The owner has not approved this preparation.
+The owner approved one native `sparselab tokenizer train` using the pinned synthetic tokenizer declaration in KML-D09. Bound that preparation to **600 seconds**, **1 GiB additional disk**, **1,000 inodes**, **50,000 train documents**, declared `train_max_tokens` **5,000,000**, **zero optimizer updates**, **zero GPU/cloud use** and **zero spend**. Start a fresh operational deadline before the command; do not retry a failed fit under a reset clock. Verify the output tokenizer's exact 32,768 vocabulary, SHA-256, train-only provenance and round-trip/special-token checks before treating the profile config as executable. This is synthetic instrumentation only, not the Card 03 tokenizer or an admitted language source.
 
 ## Later bounded GPU profile, contingent on tokenizer and separate approval
 
@@ -22,4 +22,4 @@ Proposed operational ceilings are **20 GiB device-memory budget**, **24 GiB proc
 
 Before that launch, verify the new tokenizer and sealed prepared inputs, run `inspect` again on the fixed source revision, check storage and the registered runtime, then perform the two bounded stage pilots and at most one profile run. Record source commit, config/tokenizer/input hashes, random-initialization and checkpoint receipts, update/target-token counters, selected backend, post-initialization step-time distribution, peak VRAM/RSS and failures. There is no GPU authority from this document or the request to advance to Card 04. Real-data timing still depends on accepted Card 03 artifacts and a later separate profile decision.
 
-The next decision is whether to approve the **CPU-only synthetic tokenizer preparation** above. If its exact-vocabulary and provenance checks pass, return the artifacts and a new reviewable GPU profile request; do not start the GPU profile automatically.
+The CPU-only synthetic tokenizer preparation is approved once under KML-D09. If its exact-vocabulary and provenance checks pass, return the artifacts and a new reviewable GPU profile request; do not start the GPU profile automatically.

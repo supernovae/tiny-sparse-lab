@@ -2,6 +2,20 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D09 — Card 04 CPU synthetic tokenizer fit approved, 2026-10-07
+
+- Owner decision: In response to an explicit question naming this as a separately reserved runtime step, Byron answered **“Yes, approve those two bounded steps.”** This approves one Card 04 native CPU synthetic tokenizer fit under the unchanged [proposal](CARD04_PROFILE_PROPOSAL.md), separately from the Card 03 acquisition in KML-D08.
+- Exact limit: `card04-synthetic-tokenizer.yaml` SHA-256 `fbd8497a7a09ec961bddaa76a3f78523cb123bab42757623b48fb940502e3803`; at most **600 seconds** from process launch, **1 GiB additional disk**, **1,000 inodes**, **50,000 train documents** and declared **5,000,000 train-input bytes**; **zero optimizer updates, zero GPU/cloud work and zero spend**. No retry under a reset deadline. Keep its source, output and cache under the declared external task workspace; stop at the first cap or identity failure.
+- Prerequisites: fresh storage/inode preflight, unchanged declaration digest, no existing output, deadline and disk monitoring. Verify the resulting tokenizer manifest, exact 32,768 vocabulary, special IDs, source provenance and round-trip behavior; a mismatch blocks Card 04 fit rather than changing its architecture.
+- Boundary: this does not approve the later GPU profile, staging pilots or any model optimizer work. Card 04's full measured-fit gate and Gate 0 remain unverified until their own evidence review.
+
+## KML-D08 — Card 03 rights-quarantined two-shard pilot approved, 2026-10-07
+
+- Owner decision: In response to an explicit question naming the earlier separately withheld acquisition, Byron answered **“Yes, approve those two bounded steps.”** This approves one rights-quarantined Card 03 pilot under the accepted [S3 design](CARD03_PILOT_PROPOSAL.md) and [source-level rights preflight](CARD03_SOURCE_RIGHTS_PREFLIGHT.md), subject to fresh native identity/storage checks.
+- Exact limit: only the pinned Project Gutenberg `project_gutenberg-dolma-0014.json.gz` and Wikimedia `wikimedia-0027.json.gz` files in [the native declaration](corpus-pilot/corpus.yaml); **843,172,419** bytes for the first two full transfers, **1,323,415,169** charged source-body bytes including at most one interruption-only retry, **1,048,576** metadata-body bytes, **1,324,463,745** combined response-body bytes, **2,700 seconds**, **5 GiB additional disk**, **1,000 inodes**, at most **4,096 scanned rows and 32 retained rows/32 MiB per shard**, plus a stricter **2 GiB expanded-stream cap per shard**. CPU only; **zero model target tokens, optimizer updates, GPU/cloud jobs and spend**. One durable ledger covers failures, redirects, retries and resumes; do not reset it.
+- Prerequisites: source-level terms must support the restricted review, exact revision/path/size/hash/config/split metadata and storage margin must verify, and local native transport tests must remain valid. Stop and preserve receipts on the first failed check or cap. Acquired rows remain `review_required`, with no selected release view; record-level rights review is still required before any tokenizer/training/evaluation use.
+- Boundary: this pilot does not approve PagerDuty acquisition, a full corpus build, main-tokenizer fit, frozen evaluation materialization or model training. Its sample alone cannot satisfy the full Card 03 gate or Gate 0.
+
 ## KML-D07 — Card 04 preparation accepted for reuse, 2026-10-07
 
 - Owner review: Byron clarified that saying "proceed" after a reviewable card step means the completed step is accepted/admitted and may be incorporated into subsequent work. His earlier request to proceed to Card 04 and this clarification accept [P1](results/2026-10-07-card04-shape-preparation.md) for its **synthetic shape and inventory preparation** scope; see the [append-only review](results/2026-10-07-card04-preparation-acceptance.md).

@@ -1,14 +1,14 @@
 # Current project status
 
-Record revision: 2026-10-07.14
+Record revision: 2026-10-07.15
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected card: 04 — synthetic shape/profile preparation EVIDENCE VERIFIED; measured fit needs fresh tokenizer and exact runtime approval. Card 03 design/code steps are accepted; its full gate remains BLOCKED.
-Next proposed action: separately approve or revise the bounded CPU-only synthetic tokenizer fit for Card 04; no GPU profile or source acquisition yet
-Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` through Card 04 P1)
-Runtime authority: [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07) exercised and exhausted (89/89); no source acquisition or further training authority
+Current selected work: Card 03 rights-quarantined pilot and Card 04 CPU synthetic tokenizer fit approved, pending fresh preflight; both full-card gates remain BLOCKED.
+Next proposed action: execute only [KML-D08](DECISIONS.md#kml-d08--card-03-rights-quarantined-two-shard-pilot-approved-2026-10-07) and [KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07) within their separate limits, then review receipts; GPU profile remains separately gated
+Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` through owner-acceptance record `3c7f210`)
+Runtime authority: Card 02 [KML-D02](DECISIONS.md#kml-d02--bounded-card-02-confirmation-approved-2026-10-07) exhausted (89/89); one rights-quarantined source attempt under KML-D08 and one zero-optimizer-update CPU tokenizer fit under KML-D09 approved, not yet exercised
 Last reviewed project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md), P1 preparation accepted by [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07)
 Latest project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md); [C03-R1](results/2026-10-07-card03-acceptance.md) separately accepts S1-S4 design/code scope
 Latest research decision: [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07); [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07) accepts Card 03 bounded steps
@@ -90,7 +90,16 @@ and accepted Card 03's S1-S4 design/code steps in KML-D06. These reviewed steps
 can be incorporated into subsequent work. Card 03's rights/acquisition gate,
 Card 04's measured-fit gate and Gate 0 remain unverified.
 
-Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. Source candidates remain unapproved for acquisition or ingestion.
+The owner subsequently approved one exact Card 03 rights-quarantined pilot in
+[KML-D08](DECISIONS.md#kml-d08--card-03-rights-quarantined-two-shard-pilot-approved-2026-10-07)
+and one Card 04 CPU synthetic tokenizer fit in
+[KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07).
+The [source-level rights preflight](CARD03_SOURCE_RIGHTS_PREFLIGHT.md) and
+[native pilot declarations](corpus-pilot/corpus.yaml) are ready for final local
+validation. Neither approved operation has started at this snapshot; no GPU
+profile, main-data tokenizer or record-level rights admission is approved.
+
+Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. Only the two-shard rights-quarantined pilot is approved for acquisition; no source row is approved for training or evaluation ingestion.
 
 ## Single current checklist
 
@@ -98,8 +107,8 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | --- | --- | --- | --- |
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
-| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 design/code steps); full gate BLOCKED | [KML-D06](DECISIONS.md#kml-d06--card-03-specification-and-transport-work-accepted-for-reuse-2026-10-07) and [C03-R1](results/2026-10-07-card03-acceptance.md) admit the contract, corrected pilot design and transport fix for reuse; source/row rights, acquisition authority and realized artifacts missing |
-| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1 preparation); measured-fit gate BLOCKED | [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07) and [C04-R1](results/2026-10-07-card04-preparation-acceptance.md) accept shape/inventory; fresh tokenizer/input receipt and exact GPU profile approval missing |
+| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 design/code steps); full gate BLOCKED | [KML-D08](DECISIONS.md#kml-d08--card-03-rights-quarantined-two-shard-pilot-approved-2026-10-07) approves one quarantined pilot; source/row rights admission, actual transfer, realized split/main-tokenizer/evaluation artifacts missing |
+| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1 preparation); measured-fit gate BLOCKED | [KML-D09](DECISIONS.md#kml-d09--card-04-cpu-synthetic-tokenizer-fit-approved-2026-10-07) approves CPU tokenizer fit; fresh output/input receipt and exact GPU profile approval missing |
 | 05 | One bounded language training tranche | NOT STARTED | Data, fit receipts and run approval |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
