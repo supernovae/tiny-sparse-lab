@@ -1,0 +1,14 @@
+# Card 04 synthetic profile input proposal only. Do not fit without approval.
+schema_version: 1
+vocab_size: 32768
+min_frequency: 1
+max_documents: 50000
+output_dir: /srv/sparselab/state/experiments/kernel-memory-lab/card04-synthetic/tokenizer
+dataset:
+  source: synthetic
+  cache_dir: /srv/sparselab/state/experiments/kernel-memory-lab/card04-synthetic/tokenizer-data
+  train_max_documents: 50000
+  validation_max_documents: 100
+  train_max_tokens: 5000000
+  validation_max_tokens: 8192
+  synthetic_seed: 17

@@ -1,5 +1,17 @@
 # Revision and synchronization log
 
+## 2026-10-07.13 — Card 04 synthetic shape preparation, 7 October 2026
+
+- Pushed rolling `codex/kernel-memory-lab` through S4 to GitHub as requested
+- Selected Card 04 for synthetic-only preparation while Card 03 source rights
+  and acquisition remain blocked; added two proposed declarations and the
+  [bounded profile plan](CARD04_PROFILE_PROPOSAL.md)
+- Read-only native inspection recounted 341,885,952 parameters, reported a
+  4,102,632,296-byte checkpoint estimate and marked memory fit UNKNOWN;
+  inventoried the registered RX 7900 XTX/ROCm environment
+- Appended [P1](results/2026-10-07-card04-shape-preparation.md). No tokenizer
+  fit, staging, optimizer update, GPU profile, acquisition or Gate 0 promotion
+
 ## 2026-10-07.12 — Card 03 native transport prerequisite, 7 October 2026
 
 - Implemented exact pinned Hub-shard metadata selection and an explicitly
