@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-07.21 — Card 04 monitor tools tracked for review, 7 October 2026
+
+- Added portable tracked copies of the direct AMD SMI VRAM reader and fail-closed phase launcher under root-level `tools/kernel-memory-lab/`, removing machine paths and device UUID literals while preserving the external originals and P3/P4 failure evidence
+- Added 18 CPU/mock tests for identity, measurement failures, preflight and mid-run caps, storage limits, budget/path guards and native phase command construction; 25 related native monitor/budget tests, Ruff and shell syntax passed
+- Linked the tracked tools from the [new attempt proposal](CARD04_RETRY2_PROPOSAL.md) and [P5 code-preparation result](results/2026-10-07-card04-tracked-monitor-tools.md); no GPU attempt, data acquisition or new runtime authority occurred, and Card 04 measured fit remains blocked
+
 ## 2026-10-07.20 — Card 04 replacement telemetry preflight failed, 7 October 2026
 
 - Recorded KML-D11 approving one replacement GPU attempt under the exact Card 04 retry proposal; its new ledger reserved seven stage updates
