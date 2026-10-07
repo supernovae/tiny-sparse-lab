@@ -1,5 +1,16 @@
 # Revision and synchronization log
 
+## 2026-10-07.23 — P6 accepted and Card 05 prerequisites audited, 7 October 2026
+
+- Recorded the owner's [R2 acceptance](results/2026-10-07-card04-synthetic-fit-acceptance.md) of P6 for Card 04 synthetic measured fit in KML-D13, preserving P3/P4 failures and the synthetic-only limit
+- Audited [Card 05 prerequisites](results/2026-10-07-card05-prerequisite-audit.md): Card 02 is accepted, but Card 03 rights-admitted data/main tokenizer/frozen evaluation and real-data timing or validated forecast are missing; Gate 0 has no promotion review
+- Kept Card 05 training unstarted and proposed the existing bounded PagerDuty rights-quarantined content pilot as the smallest next operational task, subject to its own separate approval
+
+## 2026-10-07.22 — bounded Card 04 synthetic GPU profile, 7 October 2026
+
+- Recorded one owner-approved Retry2 attempt in [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md): seven stage and 113 profile updates completed under the shared deadline/caps, with finite numerical observations, native monitor receipts and a full verified checkpoint
+- Preserved P3/P4 failed attempts and kept synthetic fit READY FOR REVIEW before the later KML-D13 owner decision; no real-data throughput, Card 03 admission or Gate 0 promotion followed from P6 alone
+
 ## 2026-10-07.21 — Card 04 monitor tools tracked for review, 7 October 2026
 
 - Added portable tracked copies of the direct AMD SMI VRAM reader and fail-closed phase launcher under root-level `tools/kernel-memory-lab/`, removing machine paths and device UUID literals while preserving the external originals and P3/P4 failure evidence

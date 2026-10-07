@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D13 — Card 04 P6 synthetic-fit evidence accepted, 2026-10-07
+
+- Owner review: Byron explicitly stated, “I accept P6 as Card 04 synthetic-fit evidence.” The reviewed result is [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md), with the acceptance scope and receipt identity recorded in [R2](results/2026-10-07-card04-synthetic-fit-acceptance.md).
+- Decision: Mark Card 04 **EVIDENCE VERIFIED for synthetic measured fit**. Keep P3 and P4 failed and their external evidence untouched. The sampled-device peak limitation and synthetic-only throughput label remain attached to P6.
+- Boundary: This is not real-data throughput, a validated Card 05 forecast, main-data/tokenizer admission, Gate 0 promotion, approval to use P6's synthetic-trained checkpoint for main language training, or new training/acquisition authority. Proceed to [Card 05 prerequisite planning](results/2026-10-07-card05-prerequisite-audit.md) only.
+
 ## KML-D12 — one Card 04 Retry2 GPU attempt approved and spent, 2026-10-07
 
 - Owner decision: Byron explicitly approved **one attempt** under [CARD04_RETRY2_PROPOSAL.md](CARD04_RETRY2_PROPOSAL.md) at verified `fc75c548c88fb08973e334b805acdf497e3ccfc4`, using the tracked tools and preserving all earlier evidence. The authority was 7 stage plus at most 113 profile updates, 1,800 seconds, 122,880 target positions, 20 GiB VRAM, 24 GiB process-tree RSS, 20 GiB added disk, 1,000 added inodes, zero cloud spend, and no retry or resume. Monitoring failure or the first cap required a stop.
