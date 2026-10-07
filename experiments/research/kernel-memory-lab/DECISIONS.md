@@ -2,6 +2,13 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D11 — one Card 04 replacement GPU attempt approved, 2026-10-07
+
+- Owner decision: After the first GPU attempt [P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and its exact [replacement proposal](CARD04_RETRY_PROPOSAL.md), Byron asked to **“re-try the GPU attempt”** and check whether it works. This approved one fresh attempt under that proposal's existing bounds; it did not revive KML-D10's spent attempt or authorize a series of retries.
+- Fixed scope and allocation: unchanged synthetic Card 04 config SHA-256 `0a7a04740b822d0f4149bc9ae287981a3c3687667ed7e8ba62e3b4e310b5ea49` and tokenizer SHA-256 `f6df298e90e2aca41b4ba66d57e138a96bf864c3d61860972e1bedfbbb778e2e`; one local RX 7900 XTX BF16/reference-dense attempt, 120 aggregate updates (7 stage plus conditionally 113 profile), one 1,800-second deadline, at most 122,880 target positions, 20 GiB VRAM, 24 GiB process-tree RSS, 20 GiB additional disk, 1,000 inodes, zero cloud use/spend, no retry or resume.
+- Outcome: [P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) stopped at its first device-memory preflight before native staging. Its new ledger conservatively charged seven reserved stage updates, with zero observed optimizer updates and no stage/profile receipt. The unallocated 113 updates are not an approved retry. P3 remains interrupted and unchanged; Card 04 measured fit and Gate 0 remain unverified.
+- Next decision: A third attempt needs the new exact [monitor-repair allocation](CARD04_RETRY2_PROPOSAL.md) and explicit owner approval after reviewing P4. No Card 03 content acquisition or Card 05 training is authorized here.
+
 ## KML-D10 — Card 04 bounded local GPU profile approved, 2026-10-07
 
 - Owner decision: After [P2](results/2026-10-07-card04-synthetic-tokenizer.md) produced and verified the exact 32,768-entry synthetic tokenizer, Byron answered **“Approve this bounded GPU profile”** to a question naming the [Card 04 profile proposal](CARD04_PROFILE_PROPOSAL.md) and its exact limits.

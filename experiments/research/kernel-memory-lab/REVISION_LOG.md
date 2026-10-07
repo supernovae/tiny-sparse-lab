@@ -1,5 +1,12 @@
 # Revision and synchronization log
 
+## 2026-10-07.20 — Card 04 replacement telemetry preflight failed, 7 October 2026
+
+- Recorded KML-D11 approving one replacement GPU attempt under the exact Card 04 retry proposal; its new ledger reserved seven stage updates
+- Preserved [P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md): `amd-smi` CLI failed before native staging, so no optimizer update, stage bundle, profile receipt or fit evidence exists; P3 remains unchanged
+- Prepared an installed AMD SMI library reader and fail-closed candidate wrapper; 20 live idle reader invocations, a wrong-UUID rejection, shell syntax and a mocked mid-run reader failure passed without training
+- Added [one new bounded proposal](CARD04_RETRY2_PROPOSAL.md); Card 04 measured fit, Card 03 full gate and Gate 0 remain unverified, with no further GPU authority from KML-D11
+
 ## 2026-10-07.19 — native bounded PagerDuty declaration ready, 7 October 2026
 
 - Implemented optional pinned-Git-blob HTTPS acquisition in the existing native

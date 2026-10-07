@@ -1,17 +1,17 @@
 # Current project status
 
-Record revision: 2026-10-07.19
+Record revision: 2026-10-07.20
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: Card 03 quarantined pilot and Card 04 CPU synthetic tokenizer fit completed; the first Card 04 GPU stage [P3](results/2026-10-07-card04-gpu-profile-interrupted.md) was interrupted on unavailable device-memory monitoring. Both full-card gates remain BLOCKED.
-Next proposed actions: review the exact [replacement Card 04 synthetic GPU allocation](CARD04_RETRY_PROPOSAL.md); no further GPU work under exhausted KML-D10. For Card 03, separately decide whether to approve the [bounded PagerDuty rights-quarantined content attempt](CARD03_PAGERDUTY_NEXT_PLAN.md) using the tested native pinned-Git mode.
-Working branch: `codex/kernel-memory-lab` (rolling branch; pushed to `origin/codex/kernel-memory-lab` through native code commit `ec91e9f`)
-Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot and Card 04 KML-D09 CPU fit exercised; the sole KML-D10 GPU attempt reserved 7/120 updates and failed before stage completion, with no retry or train allocation
+Current selected work: Card 03 quarantined pilot and Card 04 CPU synthetic tokenizer fit completed; Card 04 GPU attempts [P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and [P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) failed on unavailable `amd-smi` CLI telemetry. Both full-card gates remain BLOCKED.
+Next proposed actions: review the [new Card 04 monitor-repair allocation](CARD04_RETRY2_PROPOSAL.md); neither KML-D10 nor KML-D11 grants another GPU attempt. For Card 03, separately decide whether to approve the [bounded PagerDuty rights-quarantined content attempt](CARD03_PAGERDUTY_NEXT_PLAN.md) using the tested native pinned-Git mode.
+Working branch: `codex/kernel-memory-lab` (rolling branch; P4's fixed GPU source checkout was `04f6e478d6b50b5396e64f68bd633ad5acb24aad`)
+Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot and Card 04 KML-D09 CPU fit exercised; KML-D10 and KML-D11 each reserved 7/120 updates in separate failed GPU attempts, with no completed stage or profile and no retry or train allocation
 Last reviewed project result: [KML-20261007-C04-R1](results/2026-10-07-card04-preparation-acceptance.md), P1 preparation accepted by [KML-D07](DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07)
-Latest project results: [C03-P1](results/2026-10-07-card03-quarantined-pilot.md) verifies quarantined acquisition; [C04-P2](results/2026-10-07-card04-synthetic-tokenizer.md) verifies synthetic tokenizer; [C04-P3](results/2026-10-07-card04-gpu-profile-interrupted.md) preserves the interrupted GPU stage
-Latest research decision: [KML-D10](DECISIONS.md#kml-d10--card-04-bounded-local-gpu-profile-approved-2026-10-07) approves one synthetic GPU profile; KML-D06/D07 accepted earlier Card 03/04 steps
+Latest project results: [C03-P1](results/2026-10-07-card03-quarantined-pilot.md) verifies quarantined acquisition; [C04-P2](results/2026-10-07-card04-synthetic-tokenizer.md) verifies synthetic tokenizer; [C04-P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and [C04-P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) preserve failed GPU attempts
+Latest research decision: [KML-D11](DECISIONS.md#kml-d11--one-card-04-replacement-gpu-attempt-approved-2026-10-07) approved the one failed replacement attempt; KML-D06/D07 accepted earlier Card 03/04 steps
 Latest project attempt: [KML-20261007-C02-A2](results/2026-10-07-card02-confirmation.md), reviewed in KML-D03; [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
@@ -117,6 +117,15 @@ and the exact [38-file domain declaration](corpus-domain-pilot/corpus.yaml) pars
 No domain content ledger has been initialized or file acquired; the owner's
 separate content-acquisition decision is pending. S5 does not admit a file.
 
+The owner approved one replacement Card 04 GPU attempt under KML-D11.
+[P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) passed the
+readiness, shape, tokenizer and storage gates, then stopped before native
+staging when the `amd-smi` CLI failed its first device-memory preflight. The
+new ledger charged seven reserved stage updates but no optimizer update was
+observed. A directly called AMD SMI library reader and fail-closed candidate
+wrapper passed idle and mocked tests after P4; [a fresh attempt](CARD04_RETRY2_PROPOSAL.md)
+requires separate approval. Neither P3 nor P4 supplies measured fit.
+
 Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. Only the two-shard rights-quarantined pilot is approved for acquisition; no source row is approved for training or evaluation ingestion.
 
 ## Single current checklist
@@ -126,7 +135,7 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
 | 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 and quarantined pilot); S5 code ready for review; full gate BLOCKED | [C03-P1](results/2026-10-07-card03-quarantined-pilot.md) verifies two snapshots; zero rows admitted. [S5](results/2026-10-07-card03-bounded-git-transport.md) tested bounded Git transport and [the domain declaration](CARD03_PAGERDUTY_NEXT_PLAN.md) is proposed; content approval, family splits, main tokenizer and frozen evaluation artifacts are missing |
-| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1/P2 preparation); measured-fit gate BLOCKED | [C04-P3](results/2026-10-07-card04-gpu-profile-interrupted.md) preserves failed GPU stage; no measured fit, and [replacement allocation](CARD04_RETRY_PROPOSAL.md) needs owner approval |
+| 04 | Main shape and measured fit | EVIDENCE VERIFIED (P1/P2 preparation); measured-fit gate BLOCKED | [C04-P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and [C04-P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) preserve failed GPU attempts; no measured fit, and [new monitor-repair allocation](CARD04_RETRY2_PROPOSAL.md) needs owner approval |
 | 05 | One bounded language training tranche | NOT STARTED | Data, fit receipts and run approval |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
