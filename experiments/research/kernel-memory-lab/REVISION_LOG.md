@@ -1,5 +1,13 @@
 # Revision and synchronization log
 
+## 2026-10-07.7 — bounded Card 02 confirmation completed, 7 October 2026
+
+- Appended A2 with the separate 89-update, approximately 36.4-second CPU
+  confirmation receipts and native checkpoint identities
+- Marked Card 02 READY FOR REVIEW pending acceptance; original A1 remains
+  FAILED for its 57-update cap breach, and Gate 0 remains unverified
+- Exhausted KML-D02 runtime authority and did not select Card 03
+
 ## 2026-10-07.6 — one Card 02 CPU confirmation approved, 7 October 2026
 
 - Recorded KML-D02 from the owner's approval of the exact 89-update,
