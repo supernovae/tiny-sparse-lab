@@ -12,9 +12,11 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import tempfile
+import threading
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
@@ -426,6 +428,35 @@ def _set_response_deadline(response: Any, budget: TransportBudget) -> None:
     raise ValueError("HTTP response socket cannot enforce transport deadline")
 
 
+def _read_with_deadline(response: Any, size: int, budget: TransportBudget) -> bytes:
+    """Bound a urllib read even when its live response hides the socket."""
+    try:
+        _set_response_deadline(response, budget)
+    except ValueError as error:
+        if str(error) != "HTTP response socket cannot enforce transport deadline":
+            raise
+        if threading.current_thread() is not threading.main_thread():
+            raise
+        previous_timer = signal.getitimer(signal.ITIMER_REAL)
+        if previous_timer[0] > 0:
+            raise ValueError(
+                "cannot replace an existing HTTP deadline timer"
+            ) from error
+        previous_handler = signal.getsignal(signal.SIGALRM)
+
+        def deadline_expired(_signal: int, _frame: Any) -> None:
+            raise TimeoutError("HTTP response read exceeded transport deadline")
+
+        signal.signal(signal.SIGALRM, deadline_expired)
+        try:
+            signal.setitimer(signal.ITIMER_REAL, min(30, budget.remaining_seconds()))
+            return response.read(size)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous_handler)
+    return response.read(size)
+
+
 def _read_metadata_body(response: Any, budget: TransportBudget) -> bytes:
     length = _response_length(response)
     if length is not None:
@@ -447,8 +478,7 @@ def _read_metadata_body(response: Any, budget: TransportBudget) -> bytes:
                 raise ValueError("metadata response length is unverified at body cap")
             request_size = min(65536, remaining)
             budget.reserve_metadata(request_size)
-        _set_response_deadline(response, budget)
-        chunk = response.read(request_size)
+        chunk = _read_with_deadline(response, request_size, budget)
         if not chunk:
             if length is not None:
                 raise ValueError("short HTTP metadata body")
@@ -625,9 +655,11 @@ def _copy_hf_body(
                 if length == size:
                     break
                 request_size = min(request_size, length - size)
-            if budget is not None:
-                _set_response_deadline(response, budget)
-            chunk = response.read(request_size)
+            chunk = (
+                _read_with_deadline(response, request_size, budget)
+                if budget is not None
+                else response.read(request_size)
+            )
             if not chunk:
                 if length is not None and size != length:
                     raise ValueError("short HF source body")

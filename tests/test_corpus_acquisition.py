@@ -916,6 +916,39 @@ def test_hf_exact_length_body_does_not_recheck_closed_socket(tmp_path: Path) -> 
     assert digest == hashlib.sha256(b"abc").hexdigest()
 
 
+def test_accounted_reads_bound_hidden_urllib_socket(tmp_path: Path) -> None:
+    content = gzip.compress(b"{}\n", mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+
+    class HiddenSocketResponse:
+        def __init__(self, body: bytes) -> None:
+            self.body = body
+            self.headers = {"Content-Length": str(len(body))}
+            self.fp = object()
+            self.reads: list[int] = []
+
+        def read(self, size: int) -> bytes:
+            self.reads.append(size)
+            chunk, self.body = self.body[:size], self.body[size:]
+            return chunk
+
+    metadata = HiddenSocketResponse(b"x" * 70_000)
+    assert _read_metadata_body(metadata, ledger) == b"x" * 70_000
+    assert metadata.reads == [65_536, 4_464]
+    transfer = ledger.reserve_transfer("one", "complete-0001.json.gz", len(content))
+    source = HiddenSocketResponse(content)
+    target = tmp_path / "source.gz"
+    assert _copy_hf_body(source, target, len(content), ledger, transfer) == (
+        hashlib.sha256(content).hexdigest(),
+        len(content),
+    )
+    assert target.read_bytes() == content
+
+
 def test_hf_xet_metadata_requires_downloaded_sha256(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
