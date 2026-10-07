@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import math
 import secrets
 import shlex
@@ -59,7 +60,7 @@ def add_parser(commands: argparse._SubParsersAction) -> argparse.ArgumentParser:
             command.add_argument(
                 "--recipe", choices=("cuda-cu126-v1",), default="cuda-cu126-v1"
             )
-    hosted.set_defaults(handler=execute)
+    hosted.set_defaults(handler=_execute_command)
     return hosted
 
 
@@ -313,6 +314,10 @@ def setup(request: SetupRequest) -> dict:
     if answer.get("status") != "READY":
         raise ValueError("hosted setup did not return a verified READY receipt")
     return answer
+
+
+def _execute_command(args: argparse.Namespace) -> None:
+    print(json.dumps(execute(args), indent=2, sort_keys=True))
 
 
 def execute(args: argparse.Namespace) -> dict:

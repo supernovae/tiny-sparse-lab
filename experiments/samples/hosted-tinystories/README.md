@@ -11,6 +11,12 @@ microlab declarations. They retain the pinned snapshot revision, bounded
 selection, deduplication policy, and 2,048-token tokenizer identity. Prepare
 those inputs on the local CPU before attaching a hosted worker.
 
+For gcloud authorization, create user ADC once with
+`gcloud auth application-default login`, then pass `colab --auth=adc` to the
+public CLI and `--colab-auth adc` to SparseLab hosted/registration commands.
+Later jobs refresh credentials noninteractively; do not export or log tokens.
+Drive relay authorization is separate; no local Drive mount is required.
+
 For Colab, generate `hosted notebook-cell --root /content/sparselab --output
 ABSOLUTE_PATH --json` and run its fixed enrollment cell manually in a dedicated
 idle notebook before inspection or setup. The sample does not create a session,

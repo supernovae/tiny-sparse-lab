@@ -95,6 +95,16 @@ documented workload need and the required acceptance environment.
   Acceptance must prove bounded transport, foreground execution,
   cancellation-intent delivery, strict host-key handling where SSH is used, and
   explicit recovery after lost runtime before advertising provider support.
+- [ ] **Validate Drive relay across macOS, Linux, Windows and WSL2.** Exercise
+  actual rclone Drive API put/readback, interrupted upload, immutable conflict,
+  checkpoint collection with the executor unavailable, and full-state child
+  resume using private per-host credentials and a dedicated test prefix.
+  Cover case/path rules, permissions, filesystem capacity, and process deadlines.
+  Test WSL2 with Linux-local roots separately from `/mnt/c` and native Windows;
+  retain unavailable lanes. Colab CLI currently advertises Linux/macOS only:
+  define a supported native-Windows execution/transport path before claiming
+  Windows Colab support. Compare Drive-desktop/FUSE file relays only as weaker
+  filesystem-visible copies; do not equate sync completion with API verification.
 - [ ] **Implement a real PyTorch/XLA TPU engine/backend.** Cover XLA graph and
   compilation behavior, supported attention and objectives, data feeding,
   optimizer/RNG state codecs, same-backend full resume, cancellation and

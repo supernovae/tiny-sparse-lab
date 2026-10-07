@@ -98,6 +98,25 @@ The relay is a content-addressed, verified copy protocol. It does not mount
 cloud storage as a live training filesystem, synchronize SQLite/WAL files, or
 trust provider success text, mtimes, sizes, or multipart ETags.
 
+No loopback mount, desktop Drive folder, or Windows share is required. For a
+real Drive test, supply a dedicated test folder/prefix and authorize separate
+controller and VM rclone configurations with only the needed access. The
+controller profile references an absolute config path on that host; the VM
+profile references its own private absolute config path. Install rclone on both
+hosts and verify their bindings with `worker relay check` before training.
+Colab ADC authenticates the Colab API; it does not establish rclone Drive
+authorization or automatically grant Drive scopes.
+
+A macOS/Windows Drive-desktop path can be an explicit `file` relay, but that
+tests filesystem-visible copies, not confirmed Drive API publication or recovery
+after loss of the syncing host. Never use it as a live runtime/training root.
+Use rclone API copies for portable independent recovery. Linux and macOS are
+the Colab CLI's advertised platforms; native Windows is not currently supported.
+Treat WSL2 as a separate Linux installation with its own ADC/rclone authorization
+and private Linux paths, not a silently shared Windows credential directory.
+Cross-platform Drive acceptance remains in `TODO.md`; do not claim a platform
+or mount option verified without its actual transfer/loss-recovery run.
+
 Every attempt also has a controller-private, exact 32-byte HMAC relay key.
 It authenticates immutable commit descriptors but is delivered separately to
 the private worker attempt directory; it is never uploaded to the relay or
@@ -107,23 +126,45 @@ included in a profile, source bundle, scientific declaration, receipt, or log.
 ## Colab: supplied free T4 only
 
 Use the installed public `colab` CLI, not private token files or undocumented
-HTTP APIs. First inspect the authenticated account without creating a session:
+HTTP APIs. Select ADC explicitly: the installed CLI may default to `oauth2`.
+`gcloud auth login` and Application Default Credentials are separate logins.
+Create user ADC once, using the Google account that owns the Colab entitlement:
 
 ```sh
-colab version
-colab sessions
-colab usage
+gcloud auth application-default login
+colab --auth=adc version
+colab --auth=adc sessions
+colab --auth=adc usage
 # SESSION must identify an existing, idle, user-approved free T4 session.
-colab status -s "$SESSION"
+colab --auth=adc status -s "$SESSION"
 ```
+
+The initial Google consent can be interactive; subsequent Colab commands load
+and refresh ADC without the Colab CLI's OAuth prompt. Do not repeatedly log in
+for each job. `GOOGLE_APPLICATION_CREDENTIALS`, when set, can override the local
+user ADC file; a different gcloud configuration does not switch the ADC user.
+Do not assume service-account credentials inherit a personal Colab entitlement.
+Keep ADC/refresh credentials private and outside Git, bundles, profiles and logs;
+never copy the controller's ADC file to a worker.
+
+For an API that explicitly needs a short-lived bearer token, the supported
+generation command is `gcloud auth application-default print-access-token`.
+It prints a secret: do not run it in captured agent logs or paste its output
+into a declaration. Colab's `--auth=adc` needs no manually generated token.
+See Google's [local ADC setup](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment).
+
+The CLI spelling for a standalone Python job is
+`colab --auth=adc run --gpu T4 script.py`, not `--run T4`.
+`run` normally releases the VM when the script finishes; SparseLab acceptance
+uses a named session and `exec` so checkpoint extraction precedes teardown.
 
 If account/CLI information cannot establish a zero-charge allocation, do not
 spend credits or probe repeatedly. In the browser, use **Runtime → Change
 runtime type → T4 GPU**, verify it is a free supplied session, and provide that
 session name. Do not use high-memory, paid upgrades, a paid fallback, or stop an
-unrelated session. `colab new -s sparselab-t4-acceptance --gpu T4` is only an
-exact manual allocation command after free availability is established; a T4
-request alone does not prove it is free.
+unrelated session. `colab --auth=adc new -s sparselab-t4-acceptance --gpu T4`
+is only an allocation command after free availability is established; a T4
+request or the reported compute-unit rate alone does not prove billing status.
 
 Before inspection or setup, enroll the dedicated notebook manually. This creates
 the boot-bound nonce and the event-driven occupancy observer; generating the
@@ -149,9 +190,9 @@ actual host properties before setup:
 git bundle create "$WORK/source.bundle" HEAD
 SHA="$(git rev-parse HEAD)"
 uv run --locked --extra cpu sparselab hosted inspect \
-  --colab-session "$SESSION" --root /content/sparselab --json
+  --colab-session "$SESSION" --colab-auth adc --root /content/sparselab --json
 uv run --locked --extra cpu sparselab hosted setup \
-  --colab-session "$SESSION" --source-bundle "$WORK/source.bundle" \
+  --colab-session "$SESSION" --colab-auth adc --source-bundle "$WORK/source.bundle" \
   --source-commit "$SHA" --root /content/sparselab \
   --runtime-root /content/sparselab-runtimes --recipe cuda-cu126-v1 --json
 ```
@@ -172,7 +213,7 @@ result, register and stage the worker:
 
 ```sh
 uv run --locked --extra cpu sparselab worker register colab-t4-acceptance \
-  --colab-session "$SESSION" --backend cuda --engine pytorch \
+  --colab-session "$SESSION" --colab-auth adc --backend cuda --engine pytorch \
   --python "$REMOTE_PYTHON" --root "$REMOTE_WORKER_ROOT" \
   --relay-profile "$WORK/relay.yaml" --store "$WORK/runs"
 uv run --locked --extra cpu sparselab worker relay check "$WORK/relay.yaml" \
