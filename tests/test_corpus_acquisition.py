@@ -7,11 +7,14 @@ import gzip
 import hashlib
 import io
 import json
+import os
+import signal
 import sqlite3
 import subprocess
 import threading
 import types
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
@@ -22,6 +25,7 @@ import yaml
 from sparselab.corpus.acquisition import (
     _copy_hf_body,
     _read_metadata_body,
+    _read_with_deadline,
     _set_response_deadline,
     acquire,
     declaration_sha256,
@@ -947,6 +951,111 @@ def test_accounted_reads_bound_hidden_urllib_socket(tmp_path: Path) -> None:
         len(content),
     )
     assert target.read_bytes() == content
+
+
+def test_hidden_socket_blocked_read_times_out_and_restores_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = _budgeted_hf_fixture(tmp_path, gzip.compress(b"{}\n", mtime=0))
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+    monkeypatch.setattr(ledger, "remaining_seconds", lambda: 0.2)
+    read_fd, write_fd = os.pipe()
+
+    class BlockedResponse:
+        def __init__(self) -> None:
+            self.headers = {"Content-Length": "1"}
+            self.fp = object()
+
+        def read(self, _size: int) -> bytes:
+            return os.read(read_fd, 1)
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def sentinel_handler(_number: int, _frame: object) -> None:
+        raise AssertionError("previous signal handler ran during bounded read")
+
+    signal.signal(signal.SIGALRM, sentinel_handler)
+    try:
+        with pytest.raises(TimeoutError, match="transport deadline"):
+            _read_metadata_body(BlockedResponse(), ledger)
+        assert signal.getsignal(signal.SIGALRM) is sentinel_handler
+        assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+        assert ledger.receipt()["metadata_actual"] == 0
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_hidden_socket_success_restores_handler(tmp_path: Path) -> None:
+    recipe = _budgeted_hf_fixture(tmp_path, gzip.compress(b"{}\n", mtime=0))
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+
+    class Response:
+        fp = object()
+
+        def read(self, _size: int) -> bytes:
+            return b"ok"
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def sentinel_handler(_number: int, _frame: object) -> None:
+        raise AssertionError("previous handler must not run")
+
+    signal.signal(signal.SIGALRM, sentinel_handler)
+    try:
+        assert _read_with_deadline(Response(), 2, ledger) == b"ok"
+        assert signal.getsignal(signal.SIGALRM) is sentinel_handler
+        assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
+
+def test_hidden_socket_refuses_occupied_timer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe = _budgeted_hf_fixture(tmp_path, gzip.compress(b"{}\n", mtime=0))
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+    monkeypatch.setattr(signal, "getitimer", lambda _kind: (1.0, 0.0))
+
+    class UnreadResponse:
+        fp = object()
+
+        def read(self, _size: int) -> bytes:
+            raise AssertionError("occupied timer must refuse before reading")
+
+    with pytest.raises(ValueError, match="existing HTTP deadline timer"):
+        _read_with_deadline(UnreadResponse(), 1, ledger)
+
+
+def test_hidden_socket_refuses_non_main_thread(tmp_path: Path) -> None:
+    recipe = _budgeted_hf_fixture(tmp_path, gzip.compress(b"{}\n", mtime=0))
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+
+    class UnreadResponse:
+        fp = object()
+
+        def read(self, _size: int) -> bytes:
+            raise AssertionError("worker thread must refuse before reading")
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(_read_with_deadline, UnreadResponse(), 1, ledger)
+        with pytest.raises(ValueError, match="cannot enforce transport deadline"):
+            future.result()
 
 
 def test_hf_xet_metadata_requires_downloaded_sha256(
