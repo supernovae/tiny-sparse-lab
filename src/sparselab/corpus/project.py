@@ -91,6 +91,8 @@ class HFBoundedShard(StrictModel):
     max_scanned_rows: int = Field(gt=0)
     hash_modulus: int = Field(gt=0)
     hash_remainders: tuple[int, ...]
+    declared_config: str | None = None
+    declared_split: str | None = None
 
     @model_validator(mode="after")
     def valid_selection(self) -> HFBoundedShard:
@@ -101,6 +103,11 @@ class HFBoundedShard(StrictModel):
             raise ValueError("bounded HF shard must be Parquet or JSONL stream")
         if not _HEX.fullmatch(self.expected_sha256):
             raise ValueError("bounded HF shard needs a SHA-256 checksum")
+        if (self.declared_config is None) != (self.declared_split is None):
+            raise ValueError("bounded HF shard needs both declared config and split")
+        if self.declared_config is not None:
+            _nonblank(self.declared_config)
+            _nonblank(self.declared_split)
         if (
             not self.hash_remainders
             or len(set(self.hash_remainders)) != len(self.hash_remainders)
@@ -118,6 +125,7 @@ class HuggingFaceAcquisition(StrictModel):
     text_field: str
     max_rows: int = Field(gt=0)
     max_bytes: int = Field(gt=0)
+    max_decompressed_bytes: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def selection_required(self) -> HuggingFaceAcquisition:
@@ -129,7 +137,17 @@ class HuggingFaceAcquisition(StrictModel):
             paths = [shard.path for shard in self.bounded_shards]
             if len(paths) != len(set(paths)):
                 raise ValueError("duplicate bounded HF shard path")
-            for path in paths:
+            for shard in self.bounded_shards:
+                path = shard.path
+                if shard.declared_config is not None:
+                    if (shard.declared_config, shard.declared_split) != (
+                        self.config,
+                        self.split,
+                    ):
+                        raise ValueError(
+                            "bounded HF shard metadata contradicts config/split"
+                        )
+                    continue
                 parts = path.split("/")
                 if self.config not in parts and not Path(path).name.startswith(
                     self.config + "-"
@@ -421,10 +439,16 @@ def source_declaration_payload(source: SourceDeclaration) -> dict[str, Any]:
     if source.schema_version in (1, 2):
         result.pop("explicit_training_restriction")
     if source.kind == "huggingface_dataset":
+        if source.acquisition.max_decompressed_bytes is None:
+            result["acquisition"].pop("max_decompressed_bytes")
         if source.acquisition.bounded_shards is None:
             result["acquisition"].pop("bounded_shards")
         else:
             result["acquisition"].pop("include")
+            for shard in result["acquisition"]["bounded_shards"]:
+                if shard["declared_config"] is None:
+                    shard.pop("declared_config")
+                    shard.pop("declared_split")
     return result
 
 
@@ -583,6 +607,23 @@ def release_declaration_payload(release: ReleaseDeclaration) -> dict[str, Any]:
     return result
 
 
+class TransportBudgetSpec(StrictModel):
+    attempt_id: str
+    max_source_body_bytes: int = Field(gt=0)
+    max_metadata_body_bytes: int = Field(gt=0)
+    max_transfers: int = Field(gt=0)
+    max_retries_per_shard: int = Field(ge=0)
+    max_wall_seconds: int = Field(gt=0)
+    max_disk_bytes: int = Field(gt=0)
+
+    @field_validator("attempt_id")
+    @classmethod
+    def attempt_id_safe(cls, value: str) -> str:
+        if not _ID.fullmatch(value):
+            raise ValueError("invalid transport attempt ID")
+        return value
+
+
 class ProjectConfig(StrictModel):
     schema_version: Literal[1]
     id: str
@@ -590,6 +631,7 @@ class ProjectConfig(StrictModel):
     transforms: tuple[str, ...]
     splits: str
     release: str
+    transport_budget: TransportBudgetSpec | None = None
 
     @field_validator("id")
     @classmethod

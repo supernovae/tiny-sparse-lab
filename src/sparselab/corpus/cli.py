@@ -41,6 +41,15 @@ def _handle(args: argparse.Namespace) -> None:
 
         print(bakeoff(Path(args.declaration), Path(args.output), work_root=root))
         return
+    if command == "budget-init":
+        from sparselab.corpus.transport_budget import TransportBudget
+
+        project = load_project(Path(args.project))
+        ledger = TransportBudget.initialize(
+            root / "corpora" / project.config.id / "transport-budget.sqlite", project
+        )
+        print(json.dumps(ledger.receipt(), sort_keys=True))
+        return
     if command in {"acquire", "build"}:
         project = load_project(Path(args.project))
         result = (
@@ -155,6 +164,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command.add_argument("project")
         command.add_argument("--offline", action="store_true")
         command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "budget-init", help="Start one durable bounded-HF transport attempt"
+    )
+    command.add_argument("project")
+    command.set_defaults(handler=_handle)
     command = sub.add_parser("freeze")
     command.add_argument("build")
     command.set_defaults(handler=_handle)

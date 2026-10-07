@@ -7,21 +7,30 @@ import gzip
 import hashlib
 import io
 import json
+import sqlite3
 import subprocess
 import threading
+import types
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 
 import pytest
 import yaml
 
-from sparselab.corpus.acquisition import acquire, verify_acquisition, verify_snapshot
+from sparselab.corpus.acquisition import (
+    acquire,
+    declaration_sha256,
+    verify_acquisition,
+    verify_snapshot,
+)
 from sparselab.corpus.project import (
     load_project,
     release_declaration_payload,
     source_declaration_payload,
 )
+from sparselab.corpus.transport_budget import TransportBudget
 
 
 def _yaml(path: Path, value: dict) -> None:
@@ -437,6 +446,10 @@ def _mock_hf_stream(monkeypatch: pytest.MonkeyPatch, content: bytes) -> list[str
     class Response(io.BytesIO):
         url = "https://cdn.example.test/pinned-shard"
 
+        def __init__(self, body: bytes):
+            super().__init__(body)
+            self.headers = {"Content-Length": str(len(body))}
+
     class Opener:
         def open(self, request: urllib.request.Request, timeout: int) -> Response:
             calls.append(request.full_url)
@@ -445,6 +458,417 @@ def _mock_hf_stream(monkeypatch: pytest.MonkeyPatch, content: bytes) -> list[str
     monkeypatch.setattr(huggingface_hub, "snapshot_download", no_snapshot)
     monkeypatch.setattr(urllib.request, "build_opener", lambda *_args: Opener())
     return calls
+
+
+def test_hf_legacy_declaration_hash_and_receipt_reuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = b'{"text":"one"}\n'
+    recipe = _bounded_hf_fixture(tmp_path, content, "default/train/data.jsonl", rows=1)
+    project = load_project(recipe)
+    source = project.sources[0]
+    expected = source.model_dump(mode="json")
+    expected.pop("rights")
+    expected.pop("explicit_training_restriction")
+    expected["acquisition"].pop("include")
+    expected["acquisition"].pop("max_decompressed_bytes")
+    for shard in expected["acquisition"]["bounded_shards"]:
+        shard.pop("declared_config")
+        shard.pop("declared_split")
+    assert source_declaration_payload(source) == expected
+    assert (
+        declaration_sha256(source)
+        == hashlib.sha256(
+            json.dumps(expected, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    )
+    assert (
+        declaration_sha256(source)
+        == "feae644fd3f3070beab148748c16f77ccae4654af7e322abedb00c39e8926b25"
+    )
+    calls = _mock_hf_stream(monkeypatch, content)
+    first = acquire(project, tmp_path / "work")
+    manifest = verify_snapshot(first["sources"]["one"]["snapshot_path"])
+    assert manifest["declaration_sha256"] == declaration_sha256(source)
+    assert "transport_budget" not in manifest["retrieval"]
+    assert acquire(project, tmp_path / "work") == first
+    assert len(calls) == 1
+
+
+def _budgeted_hf_fixture(tmp_path: Path, content: bytes) -> Path:
+    recipe = _bounded_hf_fixture(tmp_path, content, "complete-0001.json.gz", rows=1)
+    source_file = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_file.read_text(encoding="utf-8"))
+    shard = source["acquisition"]["bounded_shards"][0]
+    shard["declared_config"] = "default"
+    shard["declared_split"] = "train"
+    source["acquisition"]["max_decompressed_bytes"] = 4096
+    _yaml(source_file, source)
+    config = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    config["transport_budget"] = {
+        "attempt_id": "fixture_attempt",
+        "max_source_body_bytes": len(content) * 2,
+        "max_metadata_body_bytes": 1_000_000,
+        "max_transfers": 2,
+        "max_retries_per_shard": 1,
+        "max_wall_seconds": 120,
+        "max_disk_bytes": 1_000_000,
+    }
+    _yaml(recipe, config)
+    return recipe
+
+
+def _mock_budgeted_hf_http(
+    monkeypatch: pytest.MonkeyPatch,
+    content: bytes,
+    *,
+    interrupt_first: bool = False,
+    checksum: str | None = None,
+    ambiguous: bool = False,
+    payload: bytes | None = None,
+    fail_http: bool = False,
+) -> tuple[list[str], list[int]]:
+    calls: list[str] = []
+    reads: list[int] = []
+    transfers = 0
+    digest = checksum or hashlib.sha256(content).hexdigest()
+    tree = json.dumps(
+        [
+            {
+                "path": "complete-0001.json.gz",
+                "type": "file",
+                "size": len(content),
+                "lfs": {"sha256": digest},
+            }
+        ]
+    ).encode()
+    split_rows = [{"dataset": "org/dataset", "config": "default", "split": "train"}]
+    if ambiguous:
+        split_rows.append(
+            {"dataset": "org/dataset", "config": "other", "split": "train"}
+        )
+    splits = json.dumps({"splits": split_rows}).encode()
+
+    class Response(io.BytesIO):
+        def __init__(
+            self,
+            body: bytes,
+            url: str,
+            *,
+            status: int = 200,
+            location: str | None = None,
+            fail: bool = False,
+        ):
+            super().__init__(body)
+            self.url = url
+            self.status = status
+            self.headers = {"Content-Length": str(len(body))}
+            if location is not None:
+                self.headers["Location"] = location
+            self.fail = fail
+
+        def read(self, size: int = -1) -> bytes:
+            reads.append(size)
+            if (
+                self.url == "https://cdn.example.test/shard"
+                and size > len(self.getbuffer()) - self.tell()
+            ):
+                raise AssertionError("source response was read past its byte cap")
+            if self.fail and self.tell() > 0:
+                raise OSError("simulated interrupted transfer")
+            if self.fail:
+                return super().read(min(size, 4))
+            return super().read(size)
+
+    class Opener:
+        def open(self, request: urllib.request.Request, timeout: float) -> Response:
+            nonlocal transfers
+            url = request.full_url
+            calls.append(url)
+            if "/api/datasets/" in url:
+                assert request.data is not None
+                assert b"paths=complete-0001.json.gz" in request.data
+                return Response(tree, url)
+            if "/splits?" in url:
+                assert request.get_header("Authorization") is None
+                return Response(splits, url)
+            if "huggingface.co/datasets/" in url:
+                return Response(
+                    b"redirect-body",
+                    url,
+                    status=302,
+                    location="https://cdn.example.test/shard",
+                )
+            assert url == "https://cdn.example.test/shard"
+            assert request.get_header("Authorization") is None
+            transfers += 1
+            if fail_http:
+                raise HTTPError(
+                    url,
+                    503,
+                    "unavailable",
+                    {"Content-Length": "9"},
+                    io.BytesIO(b"error-503"),
+                )
+            return Response(
+                payload if payload is not None else content,
+                url,
+                fail=interrupt_first and transfers == 1,
+            )
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_args: Opener())
+    return calls, reads
+
+
+def test_hf_explicit_metadata_redirect_and_budget_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    with pytest.raises(ValueError, match="ledger missing"):
+        acquire(project, root)
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    calls, reads = _mock_budgeted_hf_http(monkeypatch, content)
+    lock = acquire(project, root)
+    assert len(calls) == 4
+    state = TransportBudget(ledger_path, project).receipt()
+    assert state["source_charged"] == len(content)
+    assert state["source_actual"] == len(content)
+    assert state["metadata_actual"] == len(b"redirect-body") + len(
+        json.dumps(
+            [
+                {
+                    "path": "complete-0001.json.gz",
+                    "type": "file",
+                    "size": len(content),
+                    "lfs": {"sha256": hashlib.sha256(content).hexdigest()},
+                }
+            ]
+        ).encode()
+    ) + len(
+        json.dumps(
+            {
+                "splits": [
+                    {"dataset": "org/dataset", "config": "default", "split": "train"}
+                ]
+            }
+        ).encode()
+    )
+    assert state["metadata_charged"] >= state["metadata_actual"]
+    assert all(size <= len(content) or size <= 65536 for size in reads)
+    receipt = verify_snapshot(lock["sources"]["one"]["snapshot_path"])["retrieval"]
+    assert receipt["transport_budget"]["source_actual"] == len(content)
+    assert acquire(project, root) == lock
+    assert len(calls) == 4
+
+
+def test_hf_transport_interruption_resume_and_exhaustion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    calls, reads = _mock_budgeted_hf_http(monkeypatch, content, interrupt_first=True)
+    with pytest.raises(OSError, match="interrupted"):
+        acquire(project, root)
+    state = TransportBudget(ledger_path, project).receipt()
+    assert state["source_charged"] == len(content)
+    assert state["source_actual"] == 4
+    assert state["transfers"][0]["status"] == "interrupted"
+    assert all(size <= len(content) or size <= 65536 for size in reads)
+    acquire(load_project(recipe), root)
+    state = TransportBudget(ledger_path, project).receipt()
+    assert state["source_charged"] == 2 * len(content)
+    assert state["source_actual"] == len(content) + 4
+    assert [item["status"] for item in state["transfers"]] == [
+        "interrupted",
+        "complete",
+    ]
+    assert len(calls) == 8
+    with pytest.raises(ValueError, match="already exists"):
+        TransportBudget.initialize(ledger_path, project)
+
+
+def test_hf_transport_rejects_ambiguous_metadata_checksum_and_caps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    source_file = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_file.read_text(encoding="utf-8"))
+    source["acquisition"]["bounded_shards"][0]["declared_split"] = "test"
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="contradicts"):
+        load_project(recipe)
+    source["acquisition"]["bounded_shards"][0]["declared_split"] = "train"
+    _yaml(source_file, source)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    _mock_budgeted_hf_http(monkeypatch, content, ambiguous=True)
+    with pytest.raises(ValueError, match="ambiguous"):
+        acquire(project, root)
+    assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
+    source["acquisition"]["bounded_shards"][0]["expected_sha256"] = "0" * 64
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="binding changed"):
+        TransportBudget(ledger_path, load_project(recipe))
+    # Restore the declaration, then make the received source differ from its pinned digest.
+    source["acquisition"]["bounded_shards"][0]["expected_sha256"] = hashlib.sha256(
+        content
+    ).hexdigest()
+    _yaml(source_file, source)
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content, payload=content[:-1] + b"x")
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        acquire(load_project(recipe), root)
+    state = TransportBudget(ledger_path, project).receipt()
+    assert state["source_charged"] == len(content)
+    assert state["source_actual"] == len(content)
+    assert state["transfers"][0]["status"] == "failed"
+    with pytest.raises(ValueError, match="terminal"):
+        acquire(project, root)
+    assert len(calls) == 4  # terminal shard is refused before another request
+
+
+def test_hf_transport_caps_stop_before_source_or_redirect_body(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    config = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    config["transport_budget"]["max_source_body_bytes"] = len(content) - 1
+    _yaml(recipe, config)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content)
+    with pytest.raises(ValueError, match="source body allowance exhausted"):
+        acquire(project, root)
+    assert calls == []
+    assert TransportBudget(ledger_path, project).receipt()["source_actual"] == 0
+
+    other_root = tmp_path / "other"
+    config["transport_budget"]["max_source_body_bytes"] = len(content)
+    config["transport_budget"]["max_metadata_body_bytes"] = 241
+    _yaml(recipe, config)
+    project = load_project(recipe)
+    other_ledger = other_root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(other_ledger, project)
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content)
+    with pytest.raises(ValueError, match="metadata body allowance exhausted"):
+        acquire(project, other_root)
+    state = TransportBudget(other_ledger, project).receipt()
+    assert state["metadata_actual"] <= 241
+    assert state["source_actual"] == 0
+    assert not any("cdn.example.test" in url for url in calls)
+
+
+def test_hf_http_error_body_is_charged_and_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(path, project)
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content, fail_http=True)
+    with pytest.raises(HTTPError):
+        acquire(project, root)
+    state = TransportBudget(path, project).receipt()
+    assert state["metadata_actual"] >= len(b"redirect-body") + len(b"error-503")
+    assert state["source_charged"] == len(content)
+    assert state["source_actual"] == 0
+    assert state["transfers"][0]["status"] == "failed"
+    assert len(calls) == 4
+
+
+def test_hf_transport_disk_decompression_and_deadline_are_separate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    config = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    config["transport_budget"]["max_disk_bytes"] = 100
+    _yaml(recipe, config)
+    project = load_project(recipe)
+    root = tmp_path / "disk"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content)
+    with pytest.raises(ValueError, match="disk allowance"):
+        acquire(project, root)
+    assert calls == []
+
+    assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
+
+    config["transport_budget"]["max_disk_bytes"] = 1_000_000
+    _yaml(recipe, config)
+    source_file = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_file.read_text(encoding="utf-8"))
+    source["acquisition"]["max_decompressed_bytes"] = 5
+    _yaml(source_file, source)
+    project = load_project(recipe)
+    root = tmp_path / "decompress"
+    TransportBudget.initialize(
+        root / "corpora/example/transport-budget.sqlite", project
+    )
+    _mock_budgeted_hf_http(monkeypatch, content)
+    with pytest.raises(ValueError, match="max_decompressed_bytes"):
+        acquire(project, root)
+    state = TransportBudget(
+        root / "corpora/example/transport-budget.sqlite", project
+    ).receipt()
+    assert state["source_actual"] == len(content)
+    assert state["failures"][-1]["error_type"] == "ValueError"
+
+    root = tmp_path / "deadline"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger_path, project)
+    created = TransportBudget(ledger_path, project).receipt()["created_at"]
+    import sparselab.corpus.transport_budget as budget_module
+
+    monkeypatch.setattr(
+        budget_module, "time", types.SimpleNamespace(time=lambda: created + 121)
+    )
+    calls, _ = _mock_budgeted_hf_http(monkeypatch, content)
+    with pytest.raises(ValueError, match="deadline"):
+        acquire(project, root)
+    assert calls == []
+
+
+def test_hf_transport_ledger_reopens_and_rejects_exhaustion_or_corruption(
+    tmp_path: Path,
+) -> None:
+    content = gzip.compress(b'{"text":"one"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    project = load_project(recipe)
+    path = tmp_path / "work/corpora/example/transport-budget.sqlite"
+    ledger = TransportBudget.initialize(path, project)
+    first = ledger.reserve_transfer("one", "complete-0001.json.gz", len(content))
+    ledger.charge_transfer_actual(first, 3)
+    ledger.finish_transfer(first, success=False, interrupted=True)
+    reopened = TransportBudget(path, project)
+    second = reopened.reserve_transfer("one", "complete-0001.json.gz", len(content))
+    reopened.finish_transfer(second, success=False, interrupted=True)
+    with pytest.raises(ValueError, match="retry allowance exhausted"):
+        TransportBudget(path, project).reserve_transfer(
+            "one", "complete-0001.json.gz", len(content)
+        )
+    state = reopened.receipt()
+    state["source_charged"] = 0
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE state SET body=? WHERE id=1", (json.dumps(state),))
+    with pytest.raises(ValueError, match="counters are invalid"):
+        TransportBudget(path, project)
 
 
 @pytest.mark.parametrize("format", ["jsonl", "json.gz", "parquet"])

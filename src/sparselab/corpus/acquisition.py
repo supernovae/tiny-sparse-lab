@@ -7,6 +7,7 @@ import fnmatch
 import gzip
 import hashlib
 import html
+import io
 import json
 import os
 import re
@@ -20,7 +21,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 from sparselab.corpus.project import (
     GitAcquisition,
@@ -34,6 +35,7 @@ from sparselab.corpus.project import (
     safe_name,
     source_declaration_payload,
 )
+from sparselab.corpus.transport_budget import TransportBudget
 from sparselab.engram.packs import _rename_noreplace
 from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
 from sparselab.training.manifest import canonical_json, sha256_file
@@ -256,6 +258,239 @@ class _PrivateHubRedirect(urllib.request.HTTPRedirectHandler):
         return redirected
 
 
+class _ManualRedirect(urllib.request.HTTPRedirectHandler):
+    """Return redirects to the caller so their bodies can be charged first."""
+
+    def http_error_302(
+        self, request: Any, fp: Any, code: int, msg: str, headers: Any
+    ) -> Any:
+        return fp
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
+
+def _response_length(response: Any) -> int | None:
+    headers = getattr(response, "headers", None)
+    raw = headers.get("Content-Length") if headers is not None else None
+    if raw is None:
+        return None
+    if not str(raw).isdigit():
+        raise ValueError("invalid HTTP Content-Length")
+    return int(raw)
+
+
+def _set_response_deadline(response: Any, budget: TransportBudget) -> None:
+    remaining = budget.remaining_seconds()
+    if isinstance(response, io.BytesIO):
+        return  # deterministic local fixture
+    stream = getattr(response, "fp", None)
+    if isinstance(stream, io.BytesIO):
+        return  # deterministic local fixture for HTTPError
+    sock = getattr(getattr(stream, "raw", None), "_sock", None)
+    if sock is None:
+        raise ValueError("HTTP response socket cannot enforce transport deadline")
+    sock.settimeout(min(30, remaining))
+
+
+def _read_metadata_body(response: Any, budget: TransportBudget) -> bytes:
+    length = _response_length(response)
+    if length is not None:
+        budget.reserve_metadata(length)
+    chunks: list[bytes] = []
+    received = 0
+    while True:
+        _set_response_deadline(response, budget)
+        if length is not None:
+            allowance = length - received
+            if allowance == 0:
+                break
+            request_size = min(65536, allowance)
+        else:
+            remaining = (
+                budget.spec.max_metadata_body_bytes
+                - budget.receipt()["metadata_charged"]
+            )
+            if remaining <= 0:
+                raise ValueError("metadata response length is unverified at body cap")
+            request_size = min(65536, remaining)
+            budget.reserve_metadata(request_size)
+        chunk = response.read(request_size)
+        if not chunk:
+            if length is not None:
+                raise ValueError("short HTTP metadata body")
+            break
+        if len(chunk) > request_size:
+            raise ValueError("HTTP metadata body exceeded requested read")
+        received += len(chunk)
+        budget.charge_metadata_actual(len(chunk))
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _open_accounted(
+    url: str,
+    headers: dict[str, str],
+    budget: TransportBudget,
+    *,
+    data: bytes | None = None,
+) -> tuple[Any, str]:
+    opener = urllib.request.build_opener(_ManualRedirect())
+    current = url
+    if urlparse(current).hostname != "huggingface.co":
+        headers = {
+            key: value
+            for key, value in headers.items()
+            if key.lower() != "authorization"
+        }
+    for _ in range(6):
+        budget.remaining_seconds()
+        request = urllib.request.Request(current, headers=headers, data=data)
+        try:
+            response = opener.open(request, timeout=min(30, budget.remaining_seconds()))
+        except HTTPError as error:
+            # Even an error response consumes the attempt's metadata allowance.
+            with error:
+                _read_metadata_body(error, budget)
+            raise
+        status = getattr(response, "status", None) or getattr(response, "code", 200)
+        if status not in {301, 302, 303, 307, 308}:
+            if urlparse(response.url).scheme != "https":
+                response.close()
+                raise ValueError("HF response must use HTTPS")
+            return response, current
+        try:
+            _read_metadata_body(response, budget)
+            location = response.headers.get("Location")
+        finally:
+            response.close()
+        if not location:
+            raise ValueError("HTTP redirect lacks Location")
+        next_url = urljoin(current, location)
+        before, after = urlparse(current), urlparse(next_url)
+        if after.scheme != "https":
+            raise ValueError("HF redirect must use HTTPS")
+        if (before.scheme, before.netloc) != (after.scheme, after.netloc):
+            headers = {
+                key: value
+                for key, value in headers.items()
+                if key.lower() != "authorization"
+            }
+            if data is not None:
+                raise ValueError("pinned HF metadata POST redirected across origins")
+        current = next_url
+    raise ValueError("too many HF redirects")
+
+
+def _hf_pinned_metadata(
+    source: SourceDeclaration,
+    spec: HuggingFaceAcquisition,
+    shard: Any,
+    headers: dict[str, str],
+    budget: TransportBudget,
+) -> dict[str, Any]:
+    repo = source.canonical_uri.removeprefix("https://huggingface.co/datasets/")
+    tree_url = (
+        f"https://huggingface.co/api/datasets/{repo}/paths-info/{source.revision}"
+    )
+    splits_url = "https://datasets-server.huggingface.co/splits?" + urlencode(
+        {"dataset": repo, "revision": source.revision}
+    )
+    records = []
+    for url in (tree_url, splits_url):
+        data = (
+            urlencode({"paths": shard.path, "expand": "false"}).encode()
+            if url == tree_url
+            else None
+        )
+        response, _ = _open_accounted(url, headers.copy(), budget, data=data)
+        with response:
+            try:
+                records.append(json.loads(_read_metadata_body(response, budget)))
+            except json.JSONDecodeError as error:
+                raise ValueError("invalid pinned HF metadata") from error
+    tree, splits = records
+    if not isinstance(tree, list) or not isinstance(splits, dict):
+        raise TypeError("invalid pinned HF metadata shape")
+    matches = [
+        item
+        for item in tree
+        if isinstance(item, dict) and item.get("path") == shard.path
+    ]
+    if len(matches) != 1:
+        raise ValueError("pinned HF shard path missing or ambiguous")
+    item = matches[0]
+    if item.get("type") != "file" or item.get("size") != shard.max_shard_bytes:
+        raise ValueError("pinned HF shard size/type mismatch")
+    lfs = item.get("lfs")
+    if (
+        not isinstance(lfs, dict)
+        or lfs.get("sha256", "").lower() != shard.expected_sha256.lower()
+    ):
+        raise ValueError("pinned HF shard metadata checksum mismatch")
+    entries = splits.get("splits")
+    if not isinstance(entries, list):
+        raise TypeError("pinned HF config/split metadata missing")
+    if not entries or any(
+        not isinstance(entry, dict)
+        or entry.get("dataset") != repo
+        or not isinstance(entry.get("config"), str)
+        or not isinstance(entry.get("split"), str)
+        for entry in entries
+    ):
+        raise ValueError("pinned HF config/split metadata missing or ambiguous")
+    pairs = {(entry.get("config"), entry.get("split")) for entry in entries}
+    if pairs != {(spec.config, spec.split)}:
+        raise ValueError("pinned HF config/split metadata missing or ambiguous")
+    return {"tree_url": tree_url, "splits_url": splits_url, "size": item["size"]}
+
+
+def _copy_hf_body(
+    response: Any,
+    target: Path,
+    limit: int,
+    budget: TransportBudget | None,
+    transfer_index: int | None,
+) -> tuple[str, int]:
+    length = _response_length(response)
+    if length is None:
+        raise ValueError("HF source requires Content-Length for strict body cap")
+    if length is not None and length > limit:
+        raise ValueError("HF source exceeds declared max_bytes")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    size = 0
+    with target.open("xb") as output:
+        while True:
+            if budget is not None:
+                _set_response_deadline(response, budget)
+            remaining = limit - size
+            if remaining == 0:
+                if length is None or length == size:
+                    break
+                raise ValueError("HF source exceeds declared max_bytes")
+            request_size = min(1024 * 1024, remaining)
+            if length is not None:
+                if length == size:
+                    break
+                request_size = min(request_size, length - size)
+            chunk = response.read(request_size)
+            if not chunk:
+                if length is not None and size != length:
+                    raise ValueError("short HF source body")
+                break
+            if len(chunk) > request_size:
+                raise ValueError("HF source body exceeded requested read")
+            if budget is not None:
+                assert transfer_index is not None
+                budget.charge_transfer_actual(transfer_index, len(chunk))
+            digest.update(chunk)
+            output.write(chunk)
+            size += len(chunk)
+        output.flush()
+        os.fsync(output.fileno())
+    return digest.hexdigest(), size
+
+
 def _acquire_http(
     source: SourceDeclaration, staging: Path, offline: bool
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -334,7 +569,12 @@ def _validate_hf_rows(path: Path, spec: HuggingFaceAcquisition, available: int) 
 
 
 def _bounded_hf_rows(
-    path: Path, *, limit: int, max_line_bytes: int
+    path: Path,
+    *,
+    limit: int,
+    max_line_bytes: int,
+    max_decompressed_bytes: int | None = None,
+    budget: TransportBudget | None = None,
 ) -> Iterator[tuple[int, dict[str, Any]]]:
     if path.name.endswith(".parquet"):
         import pyarrow.parquet as pq
@@ -348,11 +588,22 @@ def _bounded_hf_rows(
                 index += 1
         return
     stream = gzip.open if path.name.endswith(".gz") else open
+    decompressed = 0
     with stream(path, "rb") as handle:
         for index in range(limit):
+            if budget is not None:
+                budget.remaining_seconds()
             line = handle.readline(max_line_bytes + 1)
             if not line:
                 break
+            decompressed += len(line)
+            if (
+                max_decompressed_bytes is not None
+                and decompressed > max_decompressed_bytes
+            ):
+                raise ValueError(
+                    "HF decompressed stream exceeds max_decompressed_bytes"
+                )
             if len(line) > max_line_bytes:
                 raise ValueError("HF decompressed JSONL row exceeds max_bytes")
             try:
@@ -362,7 +613,10 @@ def _bounded_hf_rows(
 
 
 def _bounded_hf_acquire(
-    source: SourceDeclaration, spec: HuggingFaceAcquisition, staging: Path
+    source: SourceDeclaration,
+    spec: HuggingFaceAcquisition,
+    staging: Path,
+    budget: TransportBudget | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     from huggingface_hub import hf_hub_url
 
@@ -374,6 +628,8 @@ def _bounded_hf_acquire(
     total_bytes = 0
     total_rows = 0
     for shard in spec.bounded_shards:
+        if shard.declared_config is not None and budget is None:
+            raise ValueError("explicit HF shard metadata requires a transport budget")
         url = hf_hub_url(
             repo_id=repo_id,
             filename=shard.path,
@@ -390,19 +646,50 @@ def _bounded_hf_acquire(
             headers["Authorization"] = f"Bearer {auth['token']}"
         request = urllib.request.Request(url, headers=headers)
         input_path = staging / "hf-input" / shard.path
+        transfer_index = None
         try:
-            with urllib.request.build_opener(_PrivateHubRedirect()).open(
-                request, timeout=30
-            ) as response:
+            if budget is not None:
+                budget.assert_transfer_available(
+                    source.id, shard.path, shard.max_shard_bytes
+                )
+                projected = budget.projected_disk_bytes()
+                if projected > budget.spec.max_disk_bytes:
+                    raise ValueError("transport budget disk allowance exhausted")
+                if shutil.disk_usage(staging).free < projected:
+                    raise ValueError("insufficient disk space for bounded HF shard")
+                _hf_pinned_metadata(source, spec, shard, headers, budget)
+                transfer_index = budget.reserve_transfer(
+                    source.id, shard.path, shard.max_shard_bytes
+                )
+                response, _ = _open_accounted(url, headers.copy(), budget)
+            else:
+                response = urllib.request.build_opener(_PrivateHubRedirect()).open(
+                    request, timeout=30
+                )
+            with response:
                 if urlparse(response.url).scheme != "https":
                     raise ValueError("HF shard redirect must use HTTPS")
-                digest, input_bytes = _copy_stream(
-                    response, input_path, shard.max_shard_bytes
+                digest, input_bytes = _copy_hf_body(
+                    response, input_path, shard.max_shard_bytes, budget, transfer_index
                 )
         except (*HUB_ACCESS_ERRORS, HTTPError) as error:
+            if budget is not None and transfer_index is not None:
+                budget.finish_transfer(transfer_index, success=False, interrupted=False)
             raise_for_hub_auth(error, credential_supplied=bool(auth.get("token")))
+        except OSError, TimeoutError, EOFError:
+            if budget is not None and transfer_index is not None:
+                budget.finish_transfer(transfer_index, success=False, interrupted=True)
+            raise
+        except Exception:
+            if budget is not None and transfer_index is not None:
+                budget.finish_transfer(transfer_index, success=False, interrupted=False)
+            raise
         if digest != shard.expected_sha256.lower():
+            if budget is not None and transfer_index is not None:
+                budget.finish_transfer(transfer_index, success=False)
             raise ValueError(f"HF shard SHA-256 mismatch: {shard.path}")
+        if budget is not None and transfer_index is not None:
+            budget.finish_transfer(transfer_index, success=True)
 
         output_name = shard.path + ".sample.jsonl"
         target = staging / "files" / output_name
@@ -413,7 +700,11 @@ def _bounded_hf_acquire(
         scanned = 0
         with target.open("wb") as output:
             for index, row in _bounded_hf_rows(
-                input_path, limit=shard.max_scanned_rows, max_line_bytes=spec.max_bytes
+                input_path,
+                limit=shard.max_scanned_rows,
+                max_line_bytes=spec.max_bytes,
+                max_decompressed_bytes=spec.max_decompressed_bytes,
+                budget=budget,
             ):
                 scanned += 1
                 if not isinstance(row, dict) or spec.text_field not in row:
@@ -507,7 +798,7 @@ def _bounded_hf_acquire(
         )
     if not inventory:
         raise ValueError("HF bounded selection produced no rows")
-    return inventory, {
+    retrieval = {
         "config": spec.config,
         "split": spec.split,
         "text_field": spec.text_field,
@@ -517,10 +808,17 @@ def _bounded_hf_acquire(
         "sampling": "sha256-revision-path-zero-index-modulus-v1",
         "shards": receipts,
     }
+    if budget is not None:
+        retrieval["transport_budget"] = budget.receipt()
+    return inventory, retrieval
 
 
 def _acquire_hf(
-    source: SourceDeclaration, staging: Path, cache_root: Path, offline: bool
+    source: SourceDeclaration,
+    staging: Path,
+    cache_root: Path,
+    offline: bool,
+    budget: TransportBudget | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if offline:
         raise ValueError("offline acquisition cannot fetch Hugging Face")
@@ -528,7 +826,7 @@ def _acquire_hf(
 
     spec = source.acquisition
     if spec.bounded_shards is not None:
-        return _bounded_hf_acquire(source, spec, staging)
+        return _bounded_hf_acquire(source, spec, staging, budget)
     assert isinstance(spec, HuggingFaceAcquisition)
     auth = hub_auth_kwargs()
     try:
@@ -1053,6 +1351,11 @@ def acquire(
         )
     snapshot_root = base / "snapshots"
     snapshot_root.mkdir(parents=True, exist_ok=True)
+    budget = (
+        TransportBudget(base / "transport-budget.sqlite", project)
+        if project.config.transport_budget is not None
+        else None
+    )
     entries = {}
     for source in project.sources:
         declared_digest = declaration_sha256(source)
@@ -1137,7 +1440,7 @@ def acquire(
                 files, retrieval = _acquire_http(source, staging, False)
             elif source.kind == "huggingface_dataset":
                 files, retrieval = _acquire_hf(
-                    source, staging, base / "hf-cache", False
+                    source, staging, base / "hf-cache", False, budget
                 )
             elif source.kind == "wikimedia_dump":
                 files, retrieval = _acquire_wikimedia(source, staging, False)
@@ -1201,6 +1504,10 @@ def acquire(
                     "retrieval": retrieval,
                 },
             }
+        except Exception as error:
+            if budget is not None:
+                budget.record_failure(source.id, error)
+            raise
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
