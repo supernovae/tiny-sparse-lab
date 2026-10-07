@@ -107,6 +107,33 @@ hosts and verify their bindings with `worker relay check` before training.
 Colab ADC authenticates the Colab API; it does not establish rclone Drive
 authorization or automatically grant Drive scopes.
 
+For personal Drive, use a dedicated **Desktop app OAuth client**. Rclone's
+shared Drive client is being retired during 2026; do not build an unattended
+workflow around it. In the [Google API Console](https://console.cloud.google.com/):
+
+1. Select a project and enable **Google Drive API**. Do not enable billing or
+   purchase resources for this test.
+2. Configure **Google Auth Platform** branding and audience. For a personal
+   account, use External and add your account as a test user. Under Data Access,
+   request only `https://www.googleapis.com/auth/drive.file` for this dedicated
+   relay, not whole-Drive access.
+3. Create an OAuth client of type **Desktop app**, then download its client JSON
+   into a private directory outside Git. Keep the file mode `0600`; provide its
+   absolute path, never its contents, to an assistant configuring the relay.
+4. Complete Google's one-time consent for the controller and separately for the
+   VM credentials using the **same OAuth client** and `drive.file` scope.
+   Keep both rclone configs private. Do not capture `rclone authorize` output or
+   a completed config in logs: they contain access/refresh tokens.
+
+With `drive.file`, create the test folder through this rclone client; a folder
+created in the browser or by another app is not automatically visible. A remote
+prefix alone is not an OAuth permission boundary. An External app left in
+Testing has grants that expire after a week; automatic token refresh does not
+remove that limit. Publishing changes the app's lifecycle and is a separate
+operator decision, not an automatic setup step. See rclone's
+[client setup and scope documentation](https://rclone.org/drive/#making-your-own-client-id)
+and [headless authorization workflow](https://rclone.org/remote_setup/).
+
 A macOS/Windows Drive-desktop path can be an explicit `file` relay, but that
 tests filesystem-visible copies, not confirmed Drive API publication or recovery
 after loss of the syncing host. Never use it as a live runtime/training root.
