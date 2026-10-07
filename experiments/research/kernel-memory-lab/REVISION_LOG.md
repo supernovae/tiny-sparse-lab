@@ -1,5 +1,19 @@
 # Revision and synchronization log
 
+## 2026-10-07.12 — Card 03 native transport prerequisite, 7 October 2026
+
+- Implemented exact pinned Hub-shard metadata selection and an explicitly
+  initialized, durable attempt-wide transport ledger in code commits `23db56c`
+  and `c77074e`, separately from this research-record update
+- Passed 26 focused acquisition tests and 293 corpus tests with local/mock
+  inputs; retained the legacy declaration hash and snapshot reuse when the new
+  optional fields are absent
+- Appended [S4](results/2026-10-07-card03-transport-fix.md) and updated the
+  proposal implementation note; no live candidate metadata/shard acquisition,
+  rights admission, optimizer updates or GPU work
+- Kept the S3 pilot limits unapproved, Card 03 full gate blocked, Card 02 A1
+  FAILED and Gate 0 unverified
+
 ## 2026-10-07.11 — Card 03 complete-shard pilot proposal, 7 October 2026
 
 - Recorded KML-D05 retaining filtered Project Gutenberg and Wikimedia as
