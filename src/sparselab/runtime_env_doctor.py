@@ -15,7 +15,7 @@ from sparselab.runtime_profile import RuntimeProfile, probe_runtime_profile
 _OUTPUT_LIMIT = 32768
 
 
-def tiny_config(profile: RuntimeProfile):
+def tiny_config(profile: RuntimeProfile, *, precision: str | None = None):
     """A typed probe-only configuration; none of its paths are ever opened."""
     from sparselab.config.models import RunConfig
 
@@ -28,7 +28,9 @@ def tiny_config(profile: RuntimeProfile):
                 "engine": profile.engine,
                 "backend": profile.backend,
                 "device_index": profile.device_index,
-                "precision": "bf16" if profile.requirements.bf16 is True else "fp32",
+                "precision": precision
+                if precision is not None
+                else ("bf16" if profile.requirements.bf16 is True else "fp32"),
                 "memory": {
                     "activation_checkpointing": {"enabled": False},
                     "activation_offload": {"enabled": False},
@@ -117,13 +119,15 @@ def _failure(result: dict[str, object], error: Exception | str) -> dict[str, obj
     return result
 
 
-def _child(profile: RuntimeProfile) -> dict[str, object]:
+def _child(
+    profile: RuntimeProfile, *, precision: str | None = None
+) -> dict[str, object]:
     result = _envelope(profile)
     try:
         from sparselab.runtime import validate_runtime
         from sparselab.runtime_profile import authorize_profile
 
-        config = tiny_config(profile)
+        config = tiny_config(profile, precision=precision)
         result["probe"] = probe_runtime_profile(profile)
         authorization = authorize_profile(profile, config)
         tested = validate_runtime(config, authorization=authorization)
@@ -145,13 +149,17 @@ def _child(profile: RuntimeProfile) -> dict[str, object]:
     return result
 
 
-def doctor(profile: RuntimeProfile) -> dict[str, object]:
+def doctor(
+    profile: RuntimeProfile, *, precision: str | None = None
+) -> dict[str, object]:
     """Probe local checkout identity and delegate all optimizer work to profile.python."""
     result = _envelope(profile)
     try:
         parent_probe = probe_runtime_profile(profile)
         result["probe"] = parent_probe
-        payload = json.dumps(profile.model_dump(mode="json")).encode("utf-8")
+        payload = json.dumps(
+            {"profile": profile.model_dump(mode="json"), "precision": precision}
+        ).encode("utf-8")
         child = run_bounded(
             [str(profile.python), "-m", "sparselab.runtime_env_doctor", "--child"],
             input=payload,
@@ -184,7 +192,11 @@ def doctor(profile: RuntimeProfile) -> dict[str, object]:
                 tested.get("engine") != profile.engine
                 or tested.get("backend") != profile.backend
                 or tested.get("device_index") != profile.device_index
-                or ("bf16" if profile.requirements.bf16 is True else "fp32")
+                or (
+                    precision
+                    if precision is not None
+                    else ("bf16" if profile.requirements.bf16 is True else "fp32")
+                )
                 not in tested.get("tested_precisions", [])
                 or "forward_backward_optimizer" not in tested.get("tested_features", [])
             ):
@@ -214,8 +226,14 @@ def main() -> None:
         payload = sys.stdin.buffer.read(8193)
         if len(payload) > 8192:
             raise ValueError("doctor profile request exceeds 8192 bytes")
-        profile = RuntimeProfile.model_validate(json.loads(payload))
-        answer = _child(profile)
+        request = json.loads(payload)
+        if not isinstance(request, dict) or set(request) != {"profile", "precision"}:
+            raise ValueError("invalid doctor request")
+        precision = request["precision"]
+        if precision not in {None, "fp32", "bf16", "fp16"}:
+            raise ValueError("unsupported doctor precision")
+        profile = RuntimeProfile.model_validate(request["profile"])
+        answer = _child(profile, precision=precision)
     except Exception as error:  # noqa: BLE001 - report malformed protocol request
         answer = {
             "runtime_env_doctor_version": 1,

@@ -1,0 +1,27 @@
+schema_version: 1
+kind: huggingface
+repo_id: roneneldan/TinyStories
+revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64
+config: default
+splits:
+  train: train
+  validation: validation
+text_field: text
+attribution: "TinyStories, Ronen Eldan and Yuanzhi Li; synthetic stories from GPT-3.5/GPT-4"
+license: CDLA-Sharing-1.0
+license_url: https://huggingface.co/datasets/roneneldan/TinyStories
+selection:
+  mode: bounded
+  documents:
+    train: 2000
+    validation: 100
+dedup:
+  within_split: exclude
+  overlap: exclude
+  priority: [validation, train]
+resources:
+  max_source_records: 20000
+  max_text_bytes: 16777216
+  max_record_bytes: 1048576
+  max_work_bytes: 268435456
+  min_free_bytes: 1073741824

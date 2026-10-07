@@ -1,0 +1,10 @@
+matrix_version: 1
+base_config: run-t4.yaml
+axes:
+  effective_batch:
+    - label: microbatch-8-accumulation-1
+      set: {}
+    - label: microbatch-4-accumulation-2
+      set:
+        training.micro_batch_size: 4
+        training.gradient_accumulation: 2

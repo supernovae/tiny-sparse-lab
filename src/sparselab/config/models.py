@@ -370,6 +370,9 @@ OptimizerConfig = Annotated[AdamWConfig | AdafactorConfig, Field(discriminator="
 
 class AttentionConfig(StrictModel):
     kind: Literal["dense", "sliding_window", "mla", "block_sparse"] = "dense"
+    implementation: Literal["reference", "sdpa"] = Field(
+        default="reference", exclude_if=lambda value: value == "reference"
+    )
     rope_base: float = Field(default=10000.0, gt=0)
     window_size: int | None = Field(default=None, gt=0)
     latent_dim: int | None = Field(default=None, gt=0)
@@ -406,6 +409,8 @@ class AttentionConfig(StrictModel):
             raise ValueError(
                 "block_sparse attention requires block_size and selected_blocks"
             )
+        if self.implementation == "sdpa" and self.kind != "dense":
+            raise ValueError("SDPA implementation requires attention.kind=dense")
         return self
 
 
@@ -492,6 +497,16 @@ class RunConfig(StrictModel):
         ):
             raise ValueError(
                 "grouped-query attention is supported only for PyTorch dense or sliding_window attention"
+            )
+        if self.attention.implementation == "sdpa" and (
+            self.runtime.engine != "pytorch"
+            or (
+                self.model.num_kv_heads is not None
+                and self.model.num_kv_heads != self.model.num_heads
+            )
+        ):
+            raise ValueError(
+                "SDPA requires PyTorch dense attention with equal Q/KV head counts"
             )
         if self.optimizer.warmup_steps >= self.training.max_steps:
             raise ValueError(

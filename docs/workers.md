@@ -148,6 +148,34 @@ from the checkout). Keep the vendor package constraints when resolving other
 dependencies. On Apple arm64, MLX remains opt-in; the full CLI currently needs
 both `--extra mlx` and `--extra cpu` in a managed project environment.
 
+## Supplied Colab workers and relay-backed recovery
+
+Colab is a user-supplied, single foreground notebook kernel, not an SSH host,
+daemon, or scheduler. Before any automatic kernel execution, generate the
+fixed enrollment cell with `sparselab hosted notebook-cell --root
+/content/sparselab --output ABSOLUTE_PATH --json`, then run that cell manually
+in a dedicated notebook. The observer records boot, PID, and process-start
+identity through the Contents API. Unknown or `BUSY` occupancy refuses work; it
+is never queued behind another cell.
+
+Register only the setup-returned absolute interpreter and worker root with
+`worker register NAME --colab-session SESSION --backend cuda --python PYTHON
+--root ROOT --relay-profile PROFILE --store STORE`. Colab requires the relay.
+The local controller starts one official foreground execution only after a
+native prepared receipt; while it is occupied, passive status and relay
+collection make no kernel `exec` call. See the
+[hosted guide](hosted-environments.md) for enrollment, setup, and exact
+provider boundaries.
+
+Relay checkpoint publication is synchronous: the optimizer cannot advance past
+a finalized checkpoint boundary until its immutable, authenticated recovery
+closure has been uploaded and read back. Transfer time is recorded separately.
+Each attempt has a private 32-byte HMAC key outside the relay and scientific
+artifacts; credentials and keys never enter a profile, declaration, manifest,
+or log. Relay is a verified object copy, never a live SQLite/WAL or training
+filesystem.
+
+
 ## Preparation and durable identity
 
 Submission verifies and seals an engine-neutral dispatch bundle before atomically reserving experiment, attempt, and run IDs. It contains exact tokenizer/data/package bytes, configuration and source identities, supported version requirements, and selected continuation artifacts. Original input paths are not needed after successful preparation. Promotion must match the requested tokenizer/package identity before any path is rebased; full resume can prepare from verified parent-owned inputs after the originals are gone.

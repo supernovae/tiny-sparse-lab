@@ -331,8 +331,12 @@ def _caps(
 
     versions = current_required_versions()
     runtime = runtime or _runtime_for_definition(definition)
+    from .hosted_status import instance_identity
+
+    instance = instance_identity(Path(_definition_value(definition, "root")))
     return {
         "schema_version": 1,
+        **({"instance_id": instance} if instance is not None else {}),
         **{
             key: (
                 str(_definition_value(definition, key))
@@ -472,10 +476,49 @@ def _attempt_cold_verify(directory: Path) -> bool:
     return policy["cold_verify"]
 
 
+def install_relay_key(definition: Any, attempt_id: str, source: Path) -> None:
+    """Retain a sensitive control attachment; never add it to artifact inventories."""
+    if source.is_symlink() or source.stat().st_size != 32:
+        raise ValueError("relay key must contain exactly 32 bytes")
+    key = source.read_bytes()
+    with _admission_lock(definition):
+        directory = _attempt_dir(definition, attempt_id)
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if directory.is_symlink():
+            raise ValueError("symlinked attempt directory")
+        path = directory / "relay-key.bin"
+        if path.exists() or path.is_symlink():
+            if (
+                path.is_symlink()
+                or path.stat().st_mode & 0o077
+                or path.read_bytes() != key
+            ):
+                raise ValueError("conflicting or unsafe replay relay key")
+            return
+        with path.open("xb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(key)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+
 def launch_attempt(
     definition: Any, payload: Mapping[str, Any], spec_path: Path
 ) -> dict[str, Any]:
     """Durably prepare then detach exactly one possible executor for an attempt."""
+    return _prepare_attempt(definition, payload, spec_path, spawn=True)
+
+
+def prepare_attempt(
+    definition: Any, payload: Mapping[str, Any], spec_path: Path
+) -> dict[str, Any]:
+    """Commit the identical admission checks without starting an executor."""
+    return _prepare_attempt(definition, payload, spec_path, spawn=False)
+
+
+def _prepare_attempt(
+    definition: Any, payload: Mapping[str, Any], spec_path: Path, *, spawn: bool
+) -> dict[str, Any]:
     cold_verify = payload.get("cold_verify", True)
     if type(cold_verify) is not bool:
         raise ValueError("cold_verify must be a boolean")
@@ -507,7 +550,7 @@ def launch_attempt(
         raise ValueError("experiment required versions do not match worker")
     with _admission_lock(definition):
         directory = _attempt_dir(definition, expected["attempt_id"])
-        directory.mkdir(parents=True, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         target = directory / "spec.json"
         if target.exists():
             stored = _spec_from_path(target)
@@ -538,7 +581,19 @@ def launch_attempt(
         _atomic_json(
             policy_path, {"verification_version": 1, "cold_verify": cold_verify}
         )
-        _spawn_executor(definition, expected["attempt_id"])
+        from .hosted_status import process_cancel_intent, write_hosted_status
+
+        process_cancel_intent(definition, expected["attempt_id"])
+        write_hosted_status(definition, receipt)
+        from .relay_execution import publish_boundary, worker_binding
+
+        if (
+            worker_binding(Path(_definition_value(definition, "root"))) is not None
+            and not (directory / "relay-commit.json").exists()
+        ):
+            publish_boundary(definition, expected["attempt_id"])
+        if spawn:
+            _spawn_executor(definition, expected["attempt_id"])
         return _load_receipt(definition, expected["attempt_id"])
 
 
@@ -656,7 +711,12 @@ def _heartbeat(definition: Any, attempt_id: str, stop: threading.Event) -> None:
                     receipt["heartbeat_at"] = _utc()
                 return receipt
 
-            if _mutate_receipt(definition, attempt_id, touch)["state"] != "RUNNING":
+            from .hosted_status import process_cancel_intent, write_hosted_status
+
+            process_cancel_intent(definition, attempt_id)
+            receipt = _mutate_receipt(definition, attempt_id, touch)
+            write_hosted_status(definition, receipt)
+            if receipt["state"] != "RUNNING":
                 return
         except OSError, ValueError, TypeError:
             _LOGGER.exception("Worker receipt heartbeat failed")
@@ -679,7 +739,24 @@ def _terminal_receipt(
         receipt.update(state=state, phase=phase, finished_at=_utc(), **fields)
         return receipt
 
-    return _mutate_receipt(definition, attempt_id, finish)
+    result = _mutate_receipt(definition, attempt_id, finish)
+    from .hosted_status import write_hosted_status
+
+    write_hosted_status(definition, result)
+    from .relay_execution import publish_boundary
+
+    try:
+        publish_boundary(definition, attempt_id, terminal=True)
+    except (OSError, ValueError, RuntimeError, TimeoutError) as error:
+        _atomic_json(
+            _attempt_dir(definition, attempt_id) / "relay-error.json",
+            {
+                "error": _failure(error),
+                "observed_at": _utc(),
+            },
+        )
+        _LOGGER.error("Terminal relay publication failed: %s", error)
+    return result
 
 
 def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
@@ -782,6 +859,12 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
             )
             beat.start()
             try:
+                from .hosted_status import process_cancel_intent, write_hosted_status
+                from .relay_execution import publish_boundary
+
+                process_cancel_intent(definition, attempt_id)
+                write_hosted_status(definition, receipt)
+                publish_boundary(definition, attempt_id)
                 if _cancelled(directory):
                     return _terminal_receipt(
                         definition,
@@ -932,6 +1015,15 @@ def execute_attempt(definition: Any, attempt_id: str) -> dict[str, Any]:
                         continuation.get("allow_runtime_drift", False)
                     ),
                 }
+                from .relay_execution import publish_boundary, worker_binding
+
+                if (
+                    worker_binding(Path(_definition_value(definition, "root")))
+                    is not None
+                ):
+                    kwargs["checkpoint_committed"] = lambda run, record: (
+                        publish_boundary(definition, attempt_id, checkpoint=record)
+                    )
                 selected = (
                     _continuation_checkpoint(bundle_run) if kind != "FRESH" else None
                 )

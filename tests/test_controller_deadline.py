@@ -42,6 +42,20 @@ def test_expired_tick_preserves_queued_and_terminal_attempts(
 
 
 def test_record_transfer_shares_single_tick_budget(tmp_path, monkeypatch) -> None:
+    import sys
+
+    from sparselab.workers.models import WorkerDefinition
+
+    worker = WorkerDefinition(
+        worker_id="deadline-worker",
+        name="deadline-worker",
+        transport="local",
+        python=Path(sys.executable).absolute(),
+        root=(tmp_path / "worker").absolute(),
+        engine="pytorch",
+        backend="cpu",
+        device_index=0,
+    )
     controller = Controller(tmp_path / "controller")
     remote = ExperimentStore(tmp_path / "remote")
     remote.create_run("run", {"name": "run"}, {})
@@ -63,7 +77,7 @@ def test_record_transfer_shares_single_tick_budget(tmp_path, monkeypatch) -> Non
 
     monkeypatch.setattr("sparselab.workers.transport.call_worker", records)
     with pytest.raises(TimeoutError):
-        controller._ingest_records(object(), origin, drain=True, deadline=110.0)
+        controller._ingest_records(worker, origin, drain=True, deadline=110.0)
     assert controller.store.imported_sequence(origin) == 1
-    controller._ingest_records(object(), origin, drain=True)
+    controller._ingest_records(worker, origin, drain=True)
     assert controller.store.imported_sequence(origin) == 3

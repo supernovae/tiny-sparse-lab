@@ -50,8 +50,14 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--device-index", type=int, default=0)
             command.add_argument("--device-name-regex")
             command.add_argument("--require-bf16", action="store_true")
+        if name == "doctor":
+            command.add_argument("--precision", choices=("fp32", "bf16", "fp16"))
         if name == "provision":
-            command.add_argument("--recipe", choices=["rocm-gfx1100-v1"], required=True)
+            command.add_argument(
+                "--recipe",
+                choices=["rocm-gfx1100-v1", "cuda-cu126-v1"],
+                required=True,
+            )
             command.add_argument("--python", type=Path)
     return root
 
@@ -157,7 +163,10 @@ def execute(args: argparse.Namespace) -> dict:
     profile = profile_for_id(args.id)
     if args.command == "profile":
         return profile.model_dump(mode="json")
-    return doctor(profile)
+    precision = getattr(args, "precision", None)
+    return (
+        doctor(profile) if precision is None else doctor(profile, precision=precision)
+    )
 
 
 def main(argv: list[str] | None = None) -> None:

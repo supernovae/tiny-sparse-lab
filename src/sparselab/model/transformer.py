@@ -74,6 +74,7 @@ class DecoderBlock(nn.Module):
                 attention.rope_base,
                 attention.window_size,
                 model.num_kv_heads,
+                implementation=attention.implementation,
             )
         )
         self.norm2 = RMSNorm(model.hidden_dim, model.rms_norm_eps)

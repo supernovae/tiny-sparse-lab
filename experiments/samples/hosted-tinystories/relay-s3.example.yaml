@@ -1,0 +1,13 @@
+# Copy outside the checkout and replace only local config-path references.
+# Configure the prefix-scoped S3 remote interactively; credentials never belong here.
+relay_version: 1
+namespace: hosted-tinystories
+controller:
+  kind: rclone
+  root: labs3:sparselab-relay
+  config: /absolute/controller/rclone.conf
+worker:
+  kind: rclone
+  root: labs3:sparselab-relay
+  config: /absolute/worker/rclone.conf
+transfer_timeout_seconds: 1800

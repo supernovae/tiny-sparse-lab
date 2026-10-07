@@ -94,7 +94,7 @@ def provision_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(
         provision_module,
         "doctor",
-        lambda profile: {
+        lambda profile, *, precision=None: {
             **doctor,
             "id": profile.id,
             "profile": profile.model_dump(mode="json"),

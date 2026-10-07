@@ -9,13 +9,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
+from typing import Literal
 
 from sparselab.runtime_environments import resolve_runtime_dir
 
 _MIN_BYTES = 20 * 1024**3
 _MIN_INODES = 100_000
 _LOCAL_FILESYSTEMS = frozenset({"ext2", "ext3", "ext4", "xfs", "btrfs", "f2fs", "zfs"})
-_RECIPE_FILE = Path(__file__).resolve().parents[2] / "requirements/rocm-gfx1100.txt"
+_REQUIREMENTS_DIR = Path(__file__).resolve().parents[2] / "requirements"
 
 
 @dataclass(frozen=True)
@@ -27,12 +28,13 @@ class Recipe:
     backend: str
     indexes: tuple[str, ...]
     requirements: Mapping[str, bool | str]
+    test_precision: Literal["fp32", "bf16", "fp16"]
 
 
 _ROCM_GFX1100 = Recipe(
     id="rocm-gfx1100-v1",
     version=1,
-    requirements_file=_RECIPE_FILE,
+    requirements_file=_REQUIREMENTS_DIR / "rocm-gfx1100.txt",
     python_version=(3, 14),
     backend="rocm",
     indexes=(
@@ -46,14 +48,28 @@ _ROCM_GFX1100 = Recipe(
             "device_name_regex": r"Radeon.*7900 XTX",
         }
     ),
+    test_precision="bf16",
+)
+
+_CUDA_CU126 = Recipe(
+    id="cuda-cu126-v1",
+    version=1,
+    requirements_file=_REQUIREMENTS_DIR / "cuda-cu126.txt",
+    python_version=(3, 14),
+    backend="cuda",
+    indexes=("https://download.pytorch.org/whl/cu126",),
+    requirements=MappingProxyType({"torch_hip": False}),
+    test_precision="fp16",
 )
 
 
 def get_recipe(name: str) -> Recipe:
     """Select an explicit vendor recipe; never infer one from host hardware."""
-    if name != _ROCM_GFX1100.id:
-        raise ValueError(f"unknown runtime recipe: {name}")
-    return _ROCM_GFX1100
+    recipes = {_ROCM_GFX1100.id: _ROCM_GFX1100, _CUDA_CU126.id: _CUDA_CU126}
+    try:
+        return recipes[name]
+    except KeyError as error:
+        raise ValueError(f"unknown runtime recipe: {name}") from error
 
 
 def _mount_path(raw: str) -> Path:

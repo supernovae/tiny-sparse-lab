@@ -14,6 +14,7 @@ import socket
 import time
 import uuid
 from collections import deque
+from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -518,6 +519,7 @@ def train(
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
+    checkpoint_committed: Callable[[Path, CheckpointRecord], None] | None = None,
 ) -> str:
     """Run one independent experiment, optionally bound to a stage bundle."""
     require_authorization(config, authorization)
@@ -562,6 +564,7 @@ def train(
         tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
         proof_store=proof_store,
         verification_mode=verification_mode,
+        checkpoint_committed=checkpoint_committed,
     )
     try:
         progress = config.logging.root_dir / completed_run_id / "progress.json"
@@ -609,6 +612,7 @@ def _train_impl(
     tokenizer_batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
+    checkpoint_committed: Callable[[Path, CheckpointRecord], None] | None = None,
 ) -> str:
 
     require_authorization(config, authorization)
@@ -1458,6 +1462,12 @@ def _train_impl(
             finally:
                 add_phase_time("reporting", reporting_started)
             progress()
+            if checkpoint_committed is not None:
+                relay_started = time.perf_counter()
+                try:
+                    checkpoint_committed(run, record)
+                finally:
+                    add_phase_time("relay_transfer", relay_started)
             return record
 
         def finish_run(status: str, reason: str | None = None) -> None:
@@ -1625,6 +1635,7 @@ def _train_impl(
                 "optimizer_update",
                 "validation",
                 "checkpoint",
+                "relay_transfer",
                 "reporting",
             )
             measured = sum(

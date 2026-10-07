@@ -7,7 +7,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from sparselab.config.models import RunConfig
 from sparselab.training.checkpoints import (
@@ -31,6 +31,35 @@ from sparselab.workers.transport import (
 )
 
 _MAX_CHUNK = 4 * 1024 * 1024
+
+
+class ArtifactSource(Protocol):
+    def fetch(
+        self, item: ArtifactIdentity, destination: Path, *, deadline: float | None
+    ) -> None: ...
+
+
+class RPCArtifactSource:
+    def __init__(
+        self, worker: Any, receipt: AttemptReceipt, receive_root: Path, timeout: float
+    ) -> None:
+        self.worker = worker
+        self.receipt = receipt
+        self.receive_root = receive_root
+        self.timeout = timeout
+
+    def fetch(
+        self, item: ArtifactIdentity, destination: Path, *, deadline: float | None
+    ) -> None:
+        _download(
+            self.worker,
+            self.receipt,
+            item,
+            destination,
+            receive_root=self.receive_root,
+            timeout=self.timeout,
+            deadline=deadline,
+        )
 
 
 def _field(value: Any, name: str) -> Any:
@@ -192,6 +221,8 @@ def _verify_complete_run(
     spec: ExperimentSpec,
     bundle: BundleManifest,
     records: ExperimentStore,
+    *,
+    recovery_frontier: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[tuple[object, ...]]]:
     manifest = read_manifest(root / "manifest.json")
     manifest_digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
@@ -336,6 +367,7 @@ def _verify_complete_run(
         if (
             verified_checkpoints
             and receipt.state != "UNKNOWN"
+            and recovery_frontier is None
             and not (checkpoints / "latest.json").is_file()
         ):
             raise ValueError("ingested checkpoints omit the latest pointer")
@@ -394,18 +426,40 @@ def _verify_complete_run(
             or _strict_json_loads(projected_manifest[0][1]) != manifest
         ):
             raise ValueError("replicated manifest differs from verified run artifacts")
-    elif receipt.state != "UNKNOWN":
+    elif receipt.state != "UNKNOWN" and recovery_frontier is None:
         raise ValueError("replicated manifest is absent")
     expected_checkpoints = {row[0]: row for row in verified_checkpoints}
     if any(
         expected_checkpoints.get(row[0]) != row for row in projected_checkpoints
     ) or (
         receipt.state != "UNKNOWN"
+        and recovery_frontier is None
         and len(projected_checkpoints) != len(verified_checkpoints)
     ):
         raise ValueError(
             "replicated checkpoint metadata differs from verified generations"
         )
+    if recovery_frontier is not None:
+        selected = next(
+            (
+                row
+                for row in verified_checkpoints
+                if row[0] == recovery_frontier["generation_id"]
+            ),
+            None,
+        )
+        if selected is None or (selected[1], selected[2], selected[3], selected[4]) != (
+            recovery_frontier["relative_path"],
+            recovery_frontier["manifest_sha256"],
+            recovery_frontier["step"],
+            recovery_frontier["tokens_seen"],
+        ):
+            raise ValueError("recovery frontier differs from full verified checkpoint")
+        if (
+            selected[3] > spec.config.training.max_steps
+            or selected[4] > spec.config.training.max_tokens
+        ):
+            raise ValueError("recovery counters exceed declared budget")
     return manifest, verified_checkpoints
 
 
@@ -413,9 +467,11 @@ def _restore_crash_projection(
     records: ExperimentStore,
     receipt: AttemptReceipt,
     verified: tuple[dict[str, Any], list[tuple[object, ...]]],
+    *,
+    recovery: bool = False,
 ) -> None:
     """Fill only absent metadata after a verified, dead-executor publication."""
-    if receipt.state != "UNKNOWN":
+    if receipt.state != "UNKNOWN" and not recovery:
         return
     manifest, checkpoints = verified
     encoded = canonical_json(manifest)
@@ -516,14 +572,40 @@ def ingest_attempt_artifacts(
     records: ExperimentStore,
     timeout: float = 1800,
     deadline: float | None = None,
+    artifact_source: ArtifactSource | None = None,
+    recovery_frontier: dict[str, Any] | None = None,
+    verified_inventory: list[ArtifactIdentity] | None = None,
 ) -> dict[str, object]:
     """Fetch and atomically publish an entire verified run inventory.
 
     The existing publication is accepted only when every requested byte is identical.
     No half-downloaded checkpoint directory ever becomes visible under ``run_id``.
     """
-    items = _receipt_items(receipt)
+    items = _receipt_items(
+        receipt if verified_inventory is None else {"artifacts": verified_inventory}
+    )
     receipt = AttemptReceipt.model_validate(receipt)
+    if recovery_frontier is not None:
+        with records._connect() as con:
+            recovered = con.execute(
+                "SELECT recovery_observation_json FROM attempts WHERE attempt_id=?",
+                (receipt.attempt_id,),
+            ).fetchone()
+        if recovered is None or recovered[0] is None:
+            raise ValueError(
+                "recovery ingestion requires a confirmed durable observation"
+            )
+    elif verified_inventory is not None:
+        if receipt.state not in {"COMPLETE", "FAILED", "INTERRUPTED", "UNKNOWN"}:
+            raise ValueError(
+                "inventory override requires authenticated terminal or recovery evidence"
+            )
+        inventory_by_path = {item.relative_path: item for item in items}
+        if any(
+            inventory_by_path.get(item.relative_path) != item
+            for item in _receipt_items(receipt)
+        ):
+            raise ValueError("verified relay inventory differs from terminal receipt")
     run_items = [item for item in items if item.relative_path.startswith("run/")]
     if not run_items:
         raise ValueError("receipt has no run-owned artifacts to ingest")
@@ -532,9 +614,18 @@ def ingest_attempt_artifacts(
     target = controller_root / run_id
     if target.exists():
         verified = _verify_complete_run(
-            target, receipt, run_items, worker, spec, bundle, records
+            target,
+            receipt,
+            run_items,
+            worker,
+            spec,
+            bundle,
+            records,
+            recovery_frontier=recovery_frontier,
         )
-        _restore_crash_projection(records, receipt, verified)
+        _restore_crash_projection(
+            records, receipt, verified, recovery=recovery_frontier is not None
+        )
         return {
             "run_id": run_id,
             "published": False,
@@ -550,28 +641,39 @@ def ingest_attempt_artifacts(
         prefix=f".{run_id}.", dir=controller_root
     ) as temporary:
         staging = Path(temporary)
+        source = artifact_source or RPCArtifactSource(
+            worker, receipt, controller_root, timeout
+        )
         for item in run_items:
             path = _target(staging, item.relative_path)
-            _download(
-                worker,
-                receipt,
-                item,
-                path,
-                receive_root=controller_root,
-                timeout=timeout,
-                deadline=deadline,
-            )
+            source.fetch(item, path, deadline=deadline)
         verified = _verify_complete_run(
-            staging, receipt, run_items, worker, spec, bundle, records
+            staging,
+            receipt,
+            run_items,
+            worker,
+            spec,
+            bundle,
+            records,
+            recovery_frontier=recovery_frontier,
         )
         _fsync_directory(staging)
         try:
             os.rename(staging, target)
         except FileExistsError:
             verified = _verify_complete_run(
-                target, receipt, run_items, worker, spec, bundle, records
+                target,
+                receipt,
+                run_items,
+                worker,
+                spec,
+                bundle,
+                records,
+                recovery_frontier=recovery_frontier,
             )
-            _restore_crash_projection(records, receipt, verified)
+            _restore_crash_projection(
+                records, receipt, verified, recovery=recovery_frontier is not None
+            )
             return {
                 "run_id": run_id,
                 "published": False,
@@ -579,7 +681,9 @@ def ingest_attempt_artifacts(
                 "status": "identical",
             }
         _fsync_directory(controller_root)
-    _restore_crash_projection(records, receipt, verified)
+    _restore_crash_projection(
+        records, receipt, verified, recovery=recovery_frontier is not None
+    )
     return {
         "run_id": run_id,
         "published": True,

@@ -663,6 +663,53 @@ def _runtime_status(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
 
 
+def _runtime_attention(args: argparse.Namespace) -> None:
+    from sparselab.runtime_attention import attention_probe
+    from sparselab.runtime_environments import profile_for_id
+
+    config = load_config(Path(args.config))
+    if args.worker is not None:
+        if args.runtime is not None or args.runtime_profile is not None:
+            raise ValueError("--worker cannot be combined with a local runtime profile")
+        from sparselab.workers.controller import Controller
+        from sparselab.workers.transport import call_worker
+
+        controller = Controller(Path(args.store), read_only=True)
+        workers = [
+            controller._model("WorkerDefinition", row["definition"])
+            for row in controller.store.worker_records()
+            if row["definition"]["name"] == args.worker
+        ]
+        if len(workers) != 1:
+            raise ValueError("registered worker unavailable or ambiguous")
+        result = call_worker(
+            workers[0],
+            "attention_probe",
+            {"config": config.model_dump(mode="json")},
+            timeout=1800,
+        ).result
+    else:
+        profile = (
+            profile_for_id(args.runtime)
+            if args.runtime is not None
+            else load_runtime_profile(Path(args.runtime_profile))
+            if args.runtime_profile is not None
+            else None
+        )
+        authorization = None
+        if profile is not None:
+            _ensure_runtime_interpreter(
+                profile.python,
+                hashlib.sha256(
+                    json.dumps(profile.model_dump(mode="json"), sort_keys=True).encode()
+                ).hexdigest(),
+                lambda: probe_runtime_profile(profile),
+            )
+            authorization = authorize_profile(profile, config)
+        result = attention_probe(config, authorization=authorization)
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
 def _runtime_probe(args: argparse.Namespace) -> None:
     profile = load_runtime_profile(Path(args.profile))
     result = probe_runtime_profile(profile)
@@ -2394,6 +2441,15 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     runtime_probe.add_argument("profile", help="Strict runtime profile YAML")
     runtime_probe.add_argument("--json", action="store_true")
     runtime_probe.set_defaults(handler=_runtime_probe)
+    runtime_attention = runtime_commands.add_parser("attention")
+    runtime_attention.add_argument("config")
+    selection = runtime_attention.add_mutually_exclusive_group()
+    selection.add_argument("--runtime")
+    selection.add_argument("--runtime-profile", type=Path)
+    runtime_attention.add_argument("--worker")
+    runtime_attention.add_argument("--store", default=runs_dir_default)
+    runtime_attention.add_argument("--json", action="store_true", required=True)
+    runtime_attention.set_defaults(handler=_runtime_attention)
     tokenizer = commands.add_parser("tokenizer")
     tokenizer_commands = tokenizer.add_subparsers(
         dest="tokenizer_command", required=True
@@ -3143,6 +3199,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     from sparselab.workers.cli import add_commands
 
     add_commands(commands, default_store=Path(runs_dir_default))
+    from sparselab.hosted.cli import add_parser as add_hosted_parser
+
+    add_hosted_parser(commands)
     from sparselab.archive import register_parser as register_archive_parser
     from sparselab.evaluation.cli import register_evaluation_parser
     from sparselab.family.cli import register_parser as register_family_parser

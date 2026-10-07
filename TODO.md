@@ -79,6 +79,28 @@ documented workload need and the required acceptance environment.
   preserving scientific settings. Cover unavailable measurements, insufficient
   capacity, and the separation of operational cadence from scientific identity.
 
+- [ ] **Add managed Runpod and Vast allocation adapters with explicit spending authorization.**
+  Require explicit authorization before any paid action; support price, region,
+  VRAM, CPU, RAM, and disk filters; retain quote expiry; use idempotent
+  create/adopt tags; reconcile partial creation; surface interruption notices;
+  distinguish stop-versus-delete and associated storage billing; and permit
+  teardown only after durable-result verification. Acceptance requires provider
+  fixtures for expired quotes, duplicate/adopted resources, partial-create
+  recovery, interruption, billing-state transitions, and refusal without
+  authorization.
+- [ ] **Add additional SSH-provider acceptance and an optional lifecycle adapter.**
+  Reuse the hosted endpoint-discovery, explicit-bootstrap, byte-transport,
+  lifecycle-observation, synchronous relay, and lost-runtime-recovery contract;
+  do not introduce another scheduler or change prepared-data identity.
+  Acceptance must prove bounded transport, foreground execution,
+  cancellation-intent delivery, strict host-key handling where SSH is used, and
+  explicit recovery after lost runtime before advertising provider support.
+- [ ] **Implement a real PyTorch/XLA TPU engine/backend.** Cover XLA graph and
+  compilation behavior, supported attention and objectives, data feeding,
+  optimizer/RNG state codecs, same-backend full resume, cancellation and
+  preemption, plus real TPU tests. Do not add an inert TPU enum member or claim
+  CPU/CUDA behavior as TPU support.
+
 ## Boundaries and acceptance work
 
 Distributed training is deferred under the

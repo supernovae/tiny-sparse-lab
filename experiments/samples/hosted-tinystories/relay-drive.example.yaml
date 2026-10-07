@@ -1,0 +1,13 @@
+# Copy outside the checkout and replace only local config-path references.
+# Credential contents never belong in this profile or in a run declaration.
+relay_version: 1
+namespace: hosted-tinystories
+controller:
+  kind: rclone
+  root: labdrive:SparseLab
+  config: /absolute/controller/rclone.conf
+worker:
+  kind: rclone
+  root: labdrive:SparseLab
+  config: /absolute/worker/rclone.conf
+transfer_timeout_seconds: 1800
