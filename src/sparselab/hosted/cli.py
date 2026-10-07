@@ -154,13 +154,32 @@ def _remote_json(
         result = run_bounded(
             _ssh_command(target, program), timeout=timeout, output_limit=1024 * 1024
         )
-    if result.returncode:
+    try:
+        answer = strict_json(result.stdout)
+    except (ValueError, UnicodeDecodeError) as error:
         raise ValueError(
-            result.stderr.decode("utf-8", "replace")[:2048] or "hosted operation failed"
-        )
-    answer = strict_json(result.stdout)
+            "hosted operation returned invalid JSON: "
+            + result.stderr.decode("utf-8", "replace")[-2048:]
+        ) from error
     if not isinstance(answer, dict):
         raise ValueError("hosted operation returned non-object JSON")  # noqa: TRY004 — invalid wire data
+    if "hosted_error_version" in answer:
+        if (
+            set(answer) != {"hosted_error_version", "error_type", "message"}
+            or type(answer["hosted_error_version"]) is not int
+            or answer["hosted_error_version"] != 1
+            or not isinstance(answer["error_type"], str)
+            or not isinstance(answer["message"], str)
+        ):
+            raise ValueError("invalid hosted bootstrap error response")
+        raise ValueError(
+            f"hosted bootstrap failed: {answer['error_type']}: {answer['message']}"
+        )
+    if result.returncode:
+        raise ValueError(
+            result.stderr.decode("utf-8", "replace")[-2048:]
+            or "hosted operation failed"
+        )
     return answer
 
 

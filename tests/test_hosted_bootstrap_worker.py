@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from sparselab.hosted import bootstrap_worker
+from sparselab.hosted import bootstrap, bootstrap_worker, cli
+from sparselab.hosted.models import HostedTarget
 
 
 def _request(root: Path, runtime_root: Path, **overrides: object) -> dict[str, object]:
@@ -20,6 +22,23 @@ def _request(root: Path, runtime_root: Path, **overrides: object) -> dict[str, o
     }
     request.update(overrides)
     return request
+
+
+def test_remote_preflight_failure_preserves_cause_and_creates_no_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = tmp_path / "runtime"
+    program = bootstrap.preflight_program(
+        **_request(tmp_path / ".." / "unsafe", runtime), timeout=30
+    )
+    monkeypatch.setattr(
+        cli, "_ssh_command", lambda target, source: [sys.executable, "-c", source]
+    )
+    with pytest.raises(ValueError, match="hosted bootstrap failed: ValueError"):
+        cli._remote_json(
+            HostedTarget(ssh="native-fixture"), program, 30, scratch=tmp_path
+        )
+    assert not runtime.exists()
 
 
 def _linux(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,8 +56,9 @@ def _storage(path: Path) -> dict[str, object]:
 
 
 def test_preflight_refuses_unsupported_platform_before_creating_roots(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(bootstrap_worker.platform, "system", lambda: "Darwin")
     root = tmp_path / "root"
     runtime = tmp_path / "runtime"
 

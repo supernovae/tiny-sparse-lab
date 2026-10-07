@@ -194,6 +194,11 @@ downloads, and keeps its cache/scratch/logs on that filesystem. It exports only
 locked common dependencies, rejects Torch/CPU-index contamination, installs
 the explicit vendor pins, then installs editable SparseLab with `--no-deps`.
 Torch version/path/HIP must be unchanged by that last source-only install.
+Linux overlay mounts are accepted only at a resolved, writable runtime ancestor
+whose actual statvfs is not read-only and has the required byte/inode headroom.
+The receipt records the observed filesystem and mount. This supports ephemeral
+hosted VM storage, not a persistence guarantee; network, Drive/FUSE, Windows
+share and unknown filesystem types remain refused.
 
 The receipt records recipe/file SHA, source commit/SHA, Python/Torch/device,
 package inventory, indexes, commands, profile/probe and tested optimizer

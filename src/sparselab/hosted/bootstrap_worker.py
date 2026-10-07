@@ -94,7 +94,10 @@ def run(command: list[str], *, env=None, cwd: Path | None = None):
     )
     if result.returncode:
         raise RuntimeError(
-            result.stderr.decode("utf-8", "replace")[:2048]
+            (
+                result.stdout.decode("utf-8", "replace")[:2048]
+                + result.stderr.decode("utf-8", "replace")[-2048:]
+            )
             or "bootstrap command failed"
         )
     return result.stdout

@@ -19,11 +19,15 @@ def _program(action: str, payload: dict, timeout: float, *, before: str = "") ->
         + f"exec(compile({bounded!r}, '<sparselab-bounded>', 'exec'), _sparselab_bootstrap)\n"
         + f"exec(compile({worker!r}, '<sparselab-bootstrap>', 'exec'), _sparselab_bootstrap)\n"
         + f"_sparselab_bootstrap['_deadline'] = _sparselab_bootstrap['time'].monotonic() + {timeout!r}\n"
-        + f"exec(compile({before!r}, '<sparselab-transfer>', 'exec'), {{'__name__': 'sparselab_transfer', '_sparselab_deadline': _sparselab_bootstrap['_deadline']}})\n"
-        + f"_sparselab_payload = json.loads({data!r})\n"
-        + "_sparselab_payload['timeout'] = _sparselab_bootstrap['remaining']()\n"
-        + f"_sparselab_result = _sparselab_bootstrap['dispatch']({action!r}, _sparselab_payload)\n"
-        + "print(json.dumps(_sparselab_result, sort_keys=True, allow_nan=False))\n"
+        + "try:\n"
+        + f" exec(compile({before!r}, '<sparselab-transfer>', 'exec'), {{'__name__': 'sparselab_transfer', '_sparselab_deadline': _sparselab_bootstrap['_deadline']}})\n"
+        + f" _sparselab_payload = json.loads({data!r})\n"
+        + " _sparselab_payload['timeout'] = _sparselab_bootstrap['remaining']()\n"
+        + f" _sparselab_result = _sparselab_bootstrap['dispatch']({action!r}, _sparselab_payload)\n"
+        + " print(json.dumps(_sparselab_result, sort_keys=True, allow_nan=False))\n"
+        + "except Exception as _sparselab_error:\n"
+        + " print(json.dumps({'hosted_error_version': 1, 'error_type': type(_sparselab_error).__name__, 'message': str(_sparselab_error)[:4096]}, sort_keys=True))\n"
+        + " raise\n"
     )
 
 

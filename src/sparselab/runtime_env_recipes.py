@@ -15,7 +15,9 @@ from sparselab.runtime_environments import resolve_runtime_dir
 
 _MIN_BYTES = 20 * 1024**3
 _MIN_INODES = 100_000
-_LOCAL_FILESYSTEMS = frozenset({"ext2", "ext3", "ext4", "xfs", "btrfs", "f2fs", "zfs"})
+_LOCAL_FILESYSTEMS = frozenset(
+    {"ext2", "ext3", "ext4", "xfs", "btrfs", "f2fs", "zfs", "overlay"}
+)
 _REQUIREMENTS_DIR = Path(__file__).resolve().parents[2] / "requirements"
 
 
@@ -129,6 +131,8 @@ def preflight_runtime_root(root: Path) -> dict:
         capacity = os.statvfs(ancestor)
     except OSError as exc:
         raise ValueError(f"cannot inspect runtime root capacity: {exc}") from exc
+    if capacity.f_flag & os.ST_RDONLY:
+        raise ValueError(f"runtime root filesystem is read-only at {mount}")
     available_bytes = capacity.f_bavail * capacity.f_frsize
     available_inodes = capacity.f_favail
     if available_bytes < _MIN_BYTES:
