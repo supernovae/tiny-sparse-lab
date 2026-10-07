@@ -1,0 +1,525 @@
+{
+  "policy_id": "kml-card03-source-policy-v1",
+  "policy_sha256": "d5031daf5f0a890995678fbbd1504c9d9f07b50bd71d9d9e29346c67ecc1f088",
+  "schema_version": 1,
+  "sources": [
+    {
+      "license_label": "US public-domain source-policy claim; local research only",
+      "records": [
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            }
+          ],
+          "manual_review": {
+            "evidence_url": "https://www.gutenberg.org/ebooks/7304.txt.utf-8",
+            "finding": "Photograph permission captions refer to images absent from this retained text-only row; upstream ordinary Gutenberg header supports the covered US text use.",
+            "reviewed_on": "2026-10-07",
+            "reviewer": "Codex source-policy audit"
+          },
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 166,
+          "source_row_sha256": "96f9c034aa0d0f2f17a42f0110661936996758a3e4972691636cb5eb86c2ef4b"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 435,
+          "source_row_sha256": "c0edcf493f7b47123aff1463102b6e4ffbd71f6aba0b09cf88fcc98571d0cbba"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "manual_review": {
+            "evidence_url": "https://www.gutenberg.org/ebooks/757.txt.utf-8",
+            "finding": "Historical 1884 reprint-permission footnote is not a present restriction on the covered US text use; upstream Gutenberg header/catalog reviewed.",
+            "reviewed_on": "2026-10-07",
+            "reviewer": "Codex source-policy audit"
+          },
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 791,
+          "source_row_sha256": "8f8108353d35c58ade88e4507b98d86079974bb2c48d88e00dc11882c4df1451"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 1018,
+          "source_row_sha256": "f1c1ce7e38d0a33d6020ea8c59c282733e7d148a497c736f93939af1d757023b"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 1202,
+          "source_row_sha256": "0646309a9cbb51dbe1e35414187f9036d32403217a916f8933dbd33e7e47a048"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 1444,
+          "source_row_sha256": "b3cfde672a0deb02c3463ebcfa03cf92bfa3aa3fda48416ea7846f808cbf33c1"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 2211,
+          "source_row_sha256": "7c2467b8e22f692e421ed5c609829c74dca113d15035b5e2194db94f9fdfccdf"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research; not an admission block.",
+              "field": "metadata.edition",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Resolve edition from source book URL if a later use requires it; retain book ID and pinned row identity."
+            },
+            {
+              "decision_impact": "Optional lineage detail; native shard index and row digest remain authoritative.",
+              "field": "metadata.provenance.line",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain both coordinates and reconcile the filtered-source mapping before cross-corpus joins."
+            }
+          ],
+          "reason": "Covered public-domain-selected text under reviewed source policy; no unresolved material exception.",
+          "source_row_index": 2351,
+          "source_row_sha256": "538fb148ef161f3e949bd83cf6b7c2bc410a519a51b6c984f0c494293da4c628"
+        }
+      ],
+      "rights": {
+        "allowed_boundary_paths": [],
+        "license_references": [
+          "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered",
+          "https://www.gutenberg.org/policy/license.html"
+        ],
+        "nested_metadata_path": null,
+        "notices": [
+          "Text-only US local-research policy; inspect permission/third-party exceptions; Project Gutenberg name and source-text redistribution obligations remain separate."
+        ],
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": null,
+        "training_eligibility": "eligible_with_obligations",
+        "training_restriction": null,
+        "weight_license_status": "separate_analysis_required"
+      },
+      "sample_path": "project_gutenberg-dolma-0014.json.gz.sample.jsonl",
+      "sample_sha256": "4185916d5f3c3c9ea1873eb1f603e1eb557c99f8837c5e38e7a4989d91b862ed",
+      "snapshot_sha256": "eae2d81dba93ab4266fcfba15fed88f4a76a4f7b472561bea2695c2a8ed09412",
+      "source_id": "kml_pilot_project_gutenberg",
+      "source_revision": "3cdf6879c807f4e4e063f2ceb23bc268d8c29ab7",
+      "source_shard_path": "project_gutenberg-dolma-0014.json.gz",
+      "source_shard_sha256": "bdcb5e7e0e48d42489949fe2492b765c71d4eae1e1cd6de34cddfb1b4360b3ee"
+    },
+    {
+      "license_label": "CC-BY-SA-4.0; local research with attribution obligations",
+      "records": [
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 13,
+          "source_row_sha256": "87281f862e05c350f74e88d7b62bc0be2088d9e3b7618325b27e6e239e9255cd"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 153,
+          "source_row_sha256": "9f286ee21371388e868ca9c60133d4f150678927410a42401cb8a2e2498bcda8"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 353,
+          "source_row_sha256": "9608693b5cb45dda472f77899e5e9e8b2d2a11786581c0817d6e5f4776355522"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 922,
+          "source_row_sha256": "84c7674a5485fffe6820adc5d77ec52266afea384bcfbc323b26987b919dfc18"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 1110,
+          "source_row_sha256": "4034e38766735a3ee6c326e63ece7362c72d0aedbe6c5257c3c9893098d0defd"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 1577,
+          "source_row_sha256": "fc39a58d309cd2fac11464946dc1a1f18236580785ba537bad1739b33dab39fd"
+        },
+        {
+          "decision": "quarantine",
+          "issues": [],
+          "reason": "Sensitive biographical family information in retained text; material privacy review unresolved.",
+          "source_row_index": 1850,
+          "source_row_sha256": "b36e564c656d324f825b4371e49b68c127e7f976f723aab2e32d137d144c1027"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 2230,
+          "source_row_sha256": "d5ae9195280062889e3b51dc545ed96419c5799950dc8be68c6b13fafbf75f28"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 2231,
+          "source_row_sha256": "6e3140c20bd0d07f3ba5b27f709ca56ed9e8ee87c8b5ccfd3d7f4dbe72c0ecf5"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 2282,
+          "source_row_sha256": "8651e1cd3841f94c6e05ba705b90fad69d8cc6107afa54edc630cc3cb5d8ab0e"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "manual_review": {
+            "evidence_url": "https://en.wikipedia.org/wiki/Tomares_callimachus",
+            "finding": "Source page credits Seitz 1909 incorporated text and marks it public domain; retain the attribution route.",
+            "reviewed_on": "2026-10-07",
+            "reviewer": "Codex source-policy audit"
+          },
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 2446,
+          "source_row_sha256": "b685c348a3636e1ee0bcec5e526bb1db33ca87ca7ef775098650d701e2b45655"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 2564,
+          "source_row_sha256": "169a7945a2d398a5802f0070877294124704b8ca24cc4c416ee7938c83dcf6f2"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 2773,
+          "source_row_sha256": "cf860cae5951d111a8c10d6191807f808cdc27c55425ffb0723013d47749099e"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 2946,
+          "source_row_sha256": "7436ac9efe73d5bb2430fd3e7e44446b8a8ec72ee5ea57d87dde94c1c3f31dad"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 2950,
+          "source_row_sha256": "272f32b7ea354ac83edd14b7bc403bff63aefc6b600b77f0628beda1d3be0f46"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 2969,
+          "source_row_sha256": "be28c2990493dd4a1a53edcb11b29d6de20170ad13109a1ae3a0c657428f0efd"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 3198,
+          "source_row_sha256": "93138d5a156b4f2a6098183df8f182b5cbd19f1ca90844def66e21d4f2600bcd"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 3652,
+          "source_row_sha256": "a685a77d31f62b2468eb6fe22e6f4b9bf4667048cddee310d0e874af44ff5db6"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 3757,
+          "source_row_sha256": "1c35b54d2cd10714f5a2355bce06ac299d03ad17866fc2b6fd88f880ee8e420f"
+        },
+        {
+          "decision": "exclude",
+          "issues": [],
+          "reason": "Wikimedia non-content namespace outside reviewed policy scope.",
+          "source_row_index": 3851,
+          "source_row_sha256": "bb7eb3ed80de2bd1db7116da63a4a8813cdd35dbfffc81ed45ce9c3df7bd9dfc"
+        },
+        {
+          "decision": "qualify",
+          "issues": [
+            {
+              "decision_impact": "Optional for current local research while the page/history route resolves.",
+              "field": "metadata.authors",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain the canonical page/history attribution route; review full history before source-text redistribution."
+            },
+            {
+              "decision_impact": "Optional for current local research; immutable acquired row identity is present.",
+              "field": "metadata.url.oldid",
+              "owner": "KML Card 03 data steward",
+              "remedy": "Retain pinned dataset/shard/row identity and page/history route; recover exact page revision if later use requires it."
+            }
+          ],
+          "reason": "Covered English content-namespace text under reviewed CC-BY-SA source policy; no unresolved material exception.",
+          "source_row_index": 3971,
+          "source_row_sha256": "6ac9e2607888fc43faa17873ac5d4a4988bee846f790f252c3ae19b273354fcc"
+        }
+      ],
+      "rights": {
+        "allowed_boundary_paths": [],
+        "license_references": [
+          "https://huggingface.co/datasets/common-pile/wikimedia_filtered/blob/0641bb84bd9b7162bcddf8be7836822161a9a342/README.md",
+          "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use"
+        ],
+        "nested_metadata_path": null,
+        "notices": [
+          "Retain canonical article/history attribution route, CC BY-SA notice, imported-text credits and change obligations; source-text redistribution remains separate."
+        ],
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "CC-BY-SA-4.0",
+        "training_eligibility": "eligible_with_obligations",
+        "training_restriction": null,
+        "weight_license_status": "separate_analysis_required"
+      },
+      "sample_path": "wikimedia-0027.json.gz.sample.jsonl",
+      "sample_sha256": "aeccfec9d391b37209037bcd47ef2b8fc909e9966df42ff6b19717b37f486415",
+      "snapshot_sha256": "a88d49f3f7806bdfce070bd866964d3da7a3c8fd35f08b2ec4bc93cdbe6008a4",
+      "source_id": "kml_pilot_wikimedia",
+      "source_revision": "0641bb84bd9b7162bcddf8be7836822161a9a342",
+      "source_shard_path": "wikimedia-0027.json.gz",
+      "source_shard_sha256": "0abe6c9be821ac100c604ac4b799faa00c90e39d139c7dccf9491e693b177ed0"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# Rights-screened pilot inventory only. No LM or chat training view is selected.
+schema_version: 2
+publication_mode: metadata_reconstruction_only
+record_admission:
+  path: admission-v1.json
+  sha256: e81ffd45a17ec7e9c6bc795f1bbc52e60f452c5a4d196f2a167e48b065abee6b
+mixture:
+  general_prose: 0.5
+  explanatory_prose: 0.5
+lm: {selected: false, training_splits: []}
+chat: {selected: false, training_splits: []}
+keep_nonredistributable_local: true

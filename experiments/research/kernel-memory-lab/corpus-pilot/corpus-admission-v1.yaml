@@ -1,0 +1,17 @@
+# Offline build variant over the original verified snapshots; no new acquisition.
+schema_version: 1
+id: kernel-memory-lab-card03-pilot
+sources:
+  - sources/project-gutenberg.yaml
+  - sources/wikimedia.yaml
+transforms: []
+splits: splits.yaml
+release: release-admission-v1.yaml
+transport_budget:
+  attempt_id: kml-card03-pilot-v1
+  max_source_body_bytes: 1323415169
+  max_metadata_body_bytes: 1048576
+  max_transfers: 3
+  max_retries_per_shard: 1
+  max_wall_seconds: 2700
+  max_disk_bytes: 5368709120

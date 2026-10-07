@@ -2,6 +2,13 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D14 — source-level admission policy v1 accepted, 2026-10-07
+
+- Owner decision: Byron accepted the [source-level admission proposal](CARD03_SOURCE_ADMISSION_POLICY_V1.md) **for current local research use** and requested its application to the existing 20 content candidates. A reviewed rule for a pinned source, license and use may cover inherited record provenance; covered records do not each need independent permission evidence. Automated exception checks and a predeclared spot audit apply to all candidate decisions, with manual review of flagged exceptions only.
+- Disposition: Material rights conflicts and genuinely unknown policy coverage remain quarantined. Optional metadata gaps become tracked issues when source-policy coverage, identity and obligations remain established. Source training eligibility and redistribution are separate; private local use does not grant source-text publication. Preserve the original [pilot screen](CARD03_PILOT_ROW_SCREEN.md) as its historical zero-admitted observation and issue a new versioned admission manifest/result for any later qualification.
+- Implementation boundary: Keep the original acquisition declarations, snapshots and receipts immutable. The native path must verify every selected row's policy, source/shard/row provenance and exception decision, and fail closed on missing, conflicting or tampered decisions before any record enters a derived release. The pilot's original `review_required` source rights and unselected training views remain in place.
+- Authorization: This decision permits local policy, code/tests, offline screening/spot audits and a small derived admission artifact from already retained snapshots. It does **not** approve another source download, tokenizer fit, GPU/model work, training release selection, Card 05 run or cloud spend. The tiny pilot is not a sufficient broad-language corpus, and the full Card 03 and Gate 0 gates remain open.
+
 ## KML-D13 — Card 04 P6 synthetic-fit evidence accepted, 2026-10-07
 
 - Owner review: Byron explicitly stated, “I accept P6 as Card 04 synthetic-fit evidence.” The reviewed result is [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md), with the acceptance scope and receipt identity recorded in [R2](results/2026-10-07-card04-synthetic-fit-acceptance.md).

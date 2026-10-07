@@ -1,5 +1,12 @@
 # Revision and synchronization log
 
+## 2026-10-07.24 — source-level admission policy v1 and retained-pilot screen, 7 October 2026
+
+- Recorded the owner's acceptance of proportionate pinned-source/license rules in KML-D14 and updated the Card 03 contract for inherited record provenance, automated exceptions, spot audits and nonblocking optional metadata issues; preserved the earlier rights preflight and zero-admitted pilot screen as historical evidence
+- Added a versioned 29-row admission manifest and an offline Corpus release variant over the original snapshots, with 19 locally qualifying documents, nine non-content exclusions and one privacy quarantine; no LM/chat view selected
+- Extended native v2 corpus build and cold verification to enforce the exact admission inventory and preserve old declaration/release hashes when the optional field is absent; recorded focused/broader offline tests and immutable build/release identities in [C03-A1](results/2026-10-07-card03-source-admission-v1.md)
+- Proposed one consolidated preparation path from source sizing through broad/domain data, family splits, train-only main tokenizer, realized mixture, frozen evaluations and real-data Card 05 forecast, without authorizing new acquisition or training
+
 ## 2026-10-07.23 — P6 accepted and Card 05 prerequisites audited, 7 October 2026
 
 - Recorded the owner's [R2 acceptance](results/2026-10-07-card04-synthetic-fit-acceptance.md) of P6 for Card 04 synthetic measured fit in KML-D13, preserving P3/P4 failures and the synthetic-only limit

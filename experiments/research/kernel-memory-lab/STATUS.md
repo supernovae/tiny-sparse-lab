@@ -1,21 +1,32 @@
 # Current project status
 
-Record revision: 2026-10-07.23
+Record revision: 2026-10-07.24
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: The owner accepted Card 04 [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) as synthetic-fit evidence in [KML-D13](DECISIONS.md#kml-d13--card-04-p6-synthetic-fit-evidence-accepted-2026-10-07). [Card 05 prerequisite planning](results/2026-10-07-card05-prerequisite-audit.md) is complete; its run is BLOCKED by missing Card 03 realized inputs and real-data timing/forecast. [P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and [P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) remain failed and preserved.
-Next proposed action: separately decide on the existing [bounded PagerDuty rights-quarantined content pilot](CARD03_PAGERDUTY_NEXT_PLAN.md), then review file-level admission. No Card 05 runtime or data acquisition is authorized by this planning review.
+Current selected work: The owner accepted Card 03 [source-admission policy v1](CARD03_SOURCE_ADMISSION_POLICY_V1.md) for current local research use in [KML-D14](DECISIONS.md#kml-d14--source-level-admission-policy-v1-accepted-2026-10-07). [C03-A1](results/2026-10-07-card03-source-admission-v1.md) records 19 qualifying retained pilot rows, nine exclusions and one quarantine under a native, metadata-only release; this bounded result is READY FOR REVIEW. Full Card 03 and Card 05 remain BLOCKED by inadequate broad/domain data, main tokenizer/frozen evaluation and real-data timing. Card 04 [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains accepted synthetic-fit evidence; P3/P4 remain failed and preserved.
+Next proposed action: review the [consolidated Card 03-to-05 preparation plan](CARD03_TO_CARD05_PREPARATION_PLAN.md), starting with metadata-only source sizing and rights inventory so a later bounded acquisition/preparation request can name exact limits. The existing [PagerDuty pilot proposal](CARD03_PAGERDUTY_NEXT_PLAN.md) remains unapproved. No new acquisition, tokenizer fit, model training or Card 05 runtime is authorized by this admission result.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
 Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot and Card 04 KML-D09 CPU fit exercised; KML-D10 and KML-D11 each reserved 7/120 in separate failed GPU attempts; KML-D12's one new Card 04 attempt charged 120/120 and completed stage/profile, with no retry or resume authority
 Last reviewed project result: [KML-20261007-C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md), P6 synthetic fit accepted by [KML-D13](DECISIONS.md#kml-d13--card-04-p6-synthetic-fit-evidence-accepted-2026-10-07)
-Latest project results: [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) records missing run inputs; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) accepts P6 synthetic fit; [C04-P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and [C04-P4](results/2026-10-07-card04-gpu-retry-preflight-failed.md) preserve failed GPU attempts
-Latest research decision: [KML-D13](DECISIONS.md#kml-d13--card-04-p6-synthetic-fit-evidence-accepted-2026-10-07) accepts the bounded P6 synthetic fit; KML-D06/D07 accepted earlier Card 03/04 steps
+Latest project results: [C03-A1](results/2026-10-07-card03-source-admission-v1.md) records the versioned local-use admission screen; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is the earlier prerequisite audit; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) accepts P6; C04-P3/P4 preserve failed GPU attempts
+Latest research decision: [KML-D14](DECISIONS.md#kml-d14--source-level-admission-policy-v1-accepted-2026-10-07) accepts Card 03 source-policy v1 for local research; KML-D13 accepts Card 04 synthetic fit
 Latest project attempt: [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md), EVIDENCE VERIFIED for synthetic fit in KML-D13; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
+
+[C03-A1](results/2026-10-07-card03-source-admission-v1.md) applies the owner's
+accepted source-policy v1 to the two already verified pilot snapshots. Native
+offline build and cold release verification retain 19 qualifying documents,
+exclude nine non-content rows and quarantine one biography for privacy review.
+The original source declarations, acquisition receipt and historical
+zero-admitted [screen](CARD03_PILOT_ROW_SCREEN.md) are unchanged. The new release
+is metadata-only and has **no selected LM/chat records**. It is too small for the
+main language mix and does not complete Card 03 or authorize Card 05. The
+[consolidated preparation plan](CARD03_TO_CARD05_PREPARATION_PLAN.md) remains a
+proposal.
 
 [C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) records the one
 owner-approved Retry2 synthetic GPU attempt. Native staging completed seven
@@ -177,9 +188,9 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | --- | --- | --- | --- |
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
-| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (S1-S4 and quarantined pilot); S5 code ready for review; full gate BLOCKED | [C03-P1](results/2026-10-07-card03-quarantined-pilot.md) verifies two snapshots; zero rows admitted. [S5](results/2026-10-07-card03-bounded-git-transport.md) tested bounded Git transport and [the domain declaration](CARD03_PAGERDUTY_NEXT_PLAN.md) is proposed; content approval, family splits, main tokenizer and frozen evaluation artifacts are missing |
+| 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED for S1-S4/pilot; C03-A1 admission READY FOR REVIEW; full gate BLOCKED | [C03-A1](results/2026-10-07-card03-source-admission-v1.md) has 19 local-use qualifying rows in an unselected metadata-only release; the historical pilot screen remains zero-admitted at its time. PagerDuty content, enough broad/domain data, family splits, main tokenizer and frozen evaluation are missing |
 | 04 | Main shape and measured fit | EVIDENCE VERIFIED (synthetic fit) | [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) records owner acceptance of [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md); P3/P4 remain failed; real-data timing is absent |
-| 05 | One bounded language training tranche | PLANNING COMPLETE; RUN BLOCKED | [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) finds no rights-admitted release, main tokenizer, frozen evaluation, real-data timing/validated forecast or run approval; no training started |
+| 05 | One bounded language training tranche | PLANNING COMPLETE; RUN BLOCKED | The tiny [C03-A1](results/2026-10-07-card03-source-admission-v1.md) inventory does not supply main data; no main tokenizer, frozen evaluation, real-data timing/validated forecast or run approval exists. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) remains the historical prereq audit; no training started |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
 | 08 | Explicit dense-to-new-reader transfer | NOT STARTED | Tiny contracts and selected Card 06 origin |
