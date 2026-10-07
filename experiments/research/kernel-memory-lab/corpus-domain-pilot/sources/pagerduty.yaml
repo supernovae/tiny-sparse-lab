@@ -1,0 +1,140 @@
+schema_version: 2
+id: kml_pagerduty_incident_docs
+kind: git
+canonical_uri: https://github.com/PagerDuty/incident-response-docs
+revision: 464fc9d3e47e19e9d8da17cec1a41dc09624e95a
+license: Apache-2.0 repository claim, per-file review required
+license_url: https://github.com/PagerDuty/incident-response-docs/blob/464fc9d3e47e19e9d8da17cec1a41dc09624e95a/LICENSE
+rights:
+  training_eligibility: review_required
+  redistribution_mode: review_required
+  license_references:
+  - https://github.com/PagerDuty/incident-response-docs/blob/464fc9d3e47e19e9d8da17cec1a41dc09624e95a/LICENSE
+  notices:
+  - Review each selected Markdown file for third-party text, notices, personal data
+    and secrets before any training or evaluation use.
+notes: Pinned complete-file domain pilot for private rights screening only; no file
+  admitted.
+domains:
+- incident_response_docs
+document_kinds:
+- markdown
+source_family: kml_pagerduty_incident_docs
+acquisition:
+  max_bytes: 317526
+  tree_oid: 0a6d6a7e05784260ddd649513af6d42f003c5927
+  bounded_blobs:
+  - path: LICENSE
+    git_blob_oid: a63d8296820a88c0314699aa3a95d4604c152b67
+    max_bytes: 11391
+  - path: README.md
+    git_blob_oid: f45b9f0382fe6e7dfadce3ff5aba7d54f680a05e
+    max_bytes: 3350
+  - path: docs/about.md
+    git_blob_oid: 634799821d109bfaa6abd88bb76fc6216f968429
+    max_bytes: 3407
+  - path: docs/after/after_an_incident.md
+    git_blob_oid: 68de7e0f5abc0079411302fdc74aeefc64c3e79f
+    max_bytes: 2849
+  - path: docs/after/effective_post_mortems.md
+    git_blob_oid: f3fa20dfa4f52cab30d011b900cc1b2ddb7d6d4b
+    max_bytes: 4979
+  - path: docs/after/post_mortem_process.md
+    git_blob_oid: af9984910ceccc4220727372634a28d9bec324f9
+    max_bytes: 9783
+  - path: docs/after/post_mortem_template.md
+    git_blob_oid: 52ab733178a52ad32161d1a37d283657296e0247
+    max_bytes: 4207
+  - path: docs/before/call_etiquette.md
+    git_blob_oid: dc49822e9299adb42c5a9a3833b28eeaf95b7d60
+    max_bytes: 4024
+  - path: docs/before/complex_incidents.md
+    git_blob_oid: 8f74df5ba31149cd55cf0729eda87bb4473b43ff
+    max_bytes: 4079
+  - path: docs/before/different_roles.md
+    git_blob_oid: 10f004961aedca35c1f9d67754597dd4c01ad5fa
+    max_bytes: 10812
+  - path: docs/before/severity_levels.md
+    git_blob_oid: 6634334b7aab93a9c7a30091a5c766c17d2b4df1
+    max_bytes: 6361
+  - path: docs/before/what_is_an_incident.md
+    git_blob_oid: 773cf95413a9dc1d3b95d32c2584a366b7bb201b
+    max_bytes: 4671
+  - path: docs/crisis/crisis_intro.md
+    git_blob_oid: eed3157295ab7ce94cba5ff963932f292154b574
+    max_bytes: 2184
+  - path: docs/crisis/leadership.md
+    git_blob_oid: c236d33ba487c0cabb32493f43583cbcb2e4a9b2
+    max_bytes: 10006
+  - path: docs/crisis/operations.md
+    git_blob_oid: 10ee2b4aec9506c9a32a36dee70828ba6f477cfb
+    max_bytes: 6348
+  - path: docs/crisis/pagerduty.md
+    git_blob_oid: 83dfe60616e880dbbf95e38e713b7ef502ff839a
+    max_bytes: 4275
+  - path: docs/crisis/prework.md
+    git_blob_oid: 1092c2d1d6677e1431197637c6c0381e4d279986
+    max_bytes: 2011
+  - path: docs/crisis/terms.md
+    git_blob_oid: bcdcd06330a0dffb4753bf80cac1ad0aab884ea5
+    max_bytes: 3150
+  - path: docs/during/during_an_incident.md
+    git_blob_oid: 88cd526a499e4f69ea19dbaacd8dedee245b03f5
+    max_bytes: 8467
+  - path: docs/during/external_communication_guidelines.md
+    git_blob_oid: 6fb7def0394aeb593a6a15d6c87faae772379ad2
+    max_bytes: 4608
+  - path: docs/during/security_incident_response.md
+    git_blob_oid: 6ecc5bdd347fb013893927442f5e280cab1a3ba3
+    max_bytes: 11056
+  - path: docs/getting_started.md
+    git_blob_oid: 33211506408a1d3ab97df70bbaa001d6425f2ab3
+    max_bytes: 8811
+  - path: docs/index.md
+    git_blob_oid: 0150c35e4d0ef82a7dd72fdc00a4471f180f49b0
+    max_bytes: 6272
+  - path: docs/oncall/alerting_principles.md
+    git_blob_oid: 6a9879b9e57bf7c9d0ab34685a17a3d99c877f52
+    max_bytes: 5297
+  - path: docs/oncall/being_oncall.md
+    git_blob_oid: 49cb6312df1c098b4bcfcc4a861143070deb3a61
+    max_bytes: 9994
+  - path: docs/oncall/whos_oncall.md
+    git_blob_oid: edf3fb13bc490de76b87f6a79d884b650dfd291e
+    max_bytes: 4824
+  - path: docs/resources/anti_patterns.md
+    git_blob_oid: 8943a5eae45cda5d5709a4e87c1a7fc9fca1e05e
+    max_bytes: 15469
+  - path: docs/resources/chatops.md
+    git_blob_oid: 2bd88cf73c507a4f9c018a08ee3d70178f56531a
+    max_bytes: 4787
+  - path: docs/resources/reading.md
+    git_blob_oid: 5e545f3a36a8ef25898cb7210fb0c12a5bd52c82
+    max_bytes: 2702
+  - path: docs/training/courses/incident_response.md
+    git_blob_oid: e9ec98e1e9a1985ba5ef8000c919eb1dac41cb72
+    max_bytes: 76704
+  - path: docs/training/customer_liaison.md
+    git_blob_oid: afafc2fd557f1475c7fdc5ed733c20ad79c7496b
+    max_bytes: 5295
+  - path: docs/training/deputy.md
+    git_blob_oid: 3783c088a9a2864a3bf945e5b61cef5789746d8c
+    max_bytes: 2285
+  - path: docs/training/glossary.md
+    git_blob_oid: dc71c0a0b4830a9056aac4b83e56f8dd3c4df2d4
+    max_bytes: 2686
+  - path: docs/training/incident_commander.md
+    git_blob_oid: 04d744237ec6a1b6e933c8aa93692e097b1fd7ba
+    max_bytes: 25709
+  - path: docs/training/internal_liaison.md
+    git_blob_oid: 77dc2a8d15c48980b9e1bcae892f307c478e3dc5
+    max_bytes: 3575
+  - path: docs/training/overview.md
+    git_blob_oid: b592a01a7e000f0619df2c3b137df432db5fd7fa
+    max_bytes: 9654
+  - path: docs/training/scribe.md
+    git_blob_oid: 31e82d27b9315abd0167c1cbfc604995a0a9ca6d
+    max_bytes: 4956
+  - path: docs/training/subject_matter_expert.md
+    git_blob_oid: cf4b42a39c79a4af89ddf6ac83592a8f31fc6b06
+    max_bytes: 6488

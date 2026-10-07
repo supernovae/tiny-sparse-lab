@@ -1,5 +1,19 @@
 # Revision and synchronization log
 
+## 2026-10-07.19 — native bounded PagerDuty declaration ready, 7 October 2026
+
+- Implemented optional pinned-Git-blob HTTPS acquisition in the existing native
+  Corpus path, with one durable response-body ledger and exact commit/tree/file
+  checks; committed/pushed reusable code as `ec91e9f` before these records
+- Passed 46 focused acquisition/identity tests and Ruff; broader corpus suite
+  had 297 passes and two intermittent proof-reuse failures that both passed
+  individually, so a clean all-corpus pass is not claimed
+- Added [S5](results/2026-10-07-card03-bounded-git-transport.md) and a parsed,
+  exact [38-file domain pilot declaration](corpus-domain-pilot/corpus.yaml),
+  separately from any content attempt; updated the proposal and code TODO
+- Kept PagerDuty content acquisition, individual file admission, Card 03 full
+  gate, Card 04 replacement GPU attempt and Gate 0 pending their own decisions
+
 ## 2026-10-07.18 — Card 03 domain metadata inventory and bounded next gate, 7 October 2026
 
 - Rechecked the immutable PagerDuty Git tree metadata without acquiring any

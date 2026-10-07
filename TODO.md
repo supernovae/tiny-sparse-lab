@@ -76,18 +76,16 @@ documented workload need and the required acceptance environment.
   validation/test family inclusion, impossible required quotas or changed
   tokenizer identity. Keep reporting of requested versus realized tokens distinct;
   do not add a task-specific harness or claim the proposed operation is shipped.
-- [ ] **Bound Git acquisition transfer before selected-file extraction.** Activate
-  for Kernel Memory Lab Card 03 only if the approved PagerDuty source pilot uses
-  native Git acquisition. Current `GitAcquisition.max_bytes` limits selected
-  blobs after `git fetch --depth=1`; it does not cap network or cache growth.
-  Extend the native acquisition declaration/CLI with an explicit transfer/cache
-  ceiling and preflight for a pinned commit, selected paths and actual output
-  root. Return a receipt of selected Git blob IDs/sizes, transferred bytes,
-  cache growth and included/excluded files. Fail before content transfer when a
-  bound cannot be enforced, and stop before exceeding it during transfer; an
-  unselected large PDF must not silently consume the pilot allocation. Test a
-  repo with large excluded blobs, cap exhaustion, changed revision and partial
-  fetch cleanup. Do not claim the proposed bound exists today.
+- [x] **Bound pinned Git blob acquisition without an unbounded fetch.** Native
+  `corpus acquire` now supports optional exact GitHub commit/tree/blob declarations
+  with the shared persistent response-body ledger, pre-transfer identity/size
+  checks, streamed source caps, content SHA-256 and Git object SHA-1 receipts,
+  and conservative retry/resume charges (code commit `ec91e9f`). The legacy
+  pattern-based `git fetch --depth=1` mode remains unbounded and is **not**
+  suitable for the PagerDuty pilot. The new mode never fetches the unselected
+  PDF or builds a Git cache. Added inode and temporary-storage high-water
+  receipts remain the separate monitor/receipt task above; no real PagerDuty
+  content acquisition has been approved or performed.
 - [x] **Admit exact Hub shards with a shared transfer budget.** The native
   bounded-HF declaration and `corpus budget-init` path now accept exact pinned
   shard files with declared config/split metadata, preflight pinned file
