@@ -222,6 +222,12 @@ cuda-cu126-v1 --python /absolute/python --json`, then `runtime env doctor ID
 the hosted bootstrap is the separate, fixed path that installs task-owned
 Python 3.14/tools before calling this recipe. See
 [hosted environments](hosted-environments.md) for the receipt-bound workflow.
+Its Torch wheel is selected through the official CUDA `--find-links` listing;
+other frozen dependencies use PyPI. This avoids uv's first-index package
+shadowing without disabling dependency-confusion protection. The closure is
+resolved for Linux x86_64/Python 3.14 against the locked common dependencies,
+using the selected Torch wheel's actual metadata rather than another release's
+CUDA package versions.
 
 
 ## Executable runtime profiles
