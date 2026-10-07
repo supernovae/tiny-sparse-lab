@@ -20,6 +20,8 @@ import pytest
 import yaml
 
 from sparselab.corpus.acquisition import (
+    _copy_hf_body,
+    _read_metadata_body,
     _set_response_deadline,
     acquire,
     declaration_sha256,
@@ -685,6 +687,35 @@ def test_hf_deadline_reaches_nested_urllib_socket(tmp_path: Path) -> None:
     assert 0 < timeouts[0] <= 30
     with pytest.raises(ValueError, match="cannot enforce transport deadline"):
         _set_response_deadline(types.SimpleNamespace(fp=object()), ledger)
+
+
+def test_hf_exact_length_body_does_not_recheck_closed_socket(tmp_path: Path) -> None:
+    recipe = _budgeted_hf_fixture(tmp_path, gzip.compress(b"{}\n", mtime=0))
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+    socket = types.SimpleNamespace(settimeout=lambda _: None)
+
+    class ClosingResponse:
+        def __init__(self, body: bytes) -> None:
+            self.body = body
+            self.headers = {"Content-Length": str(len(body))}
+            self.fp = types.SimpleNamespace(raw=types.SimpleNamespace(_sock=socket))
+
+        def read(self, size: int) -> bytes:
+            chunk, self.body = self.body[:size], self.body[size:]
+            if not self.body:
+                self.fp = None
+            return chunk
+
+    assert _read_metadata_body(ClosingResponse(b"{}"), ledger) == b"{}"
+    transfer = ledger.reserve_transfer("one", "shard", 3)
+    digest, size = _copy_hf_body(
+        ClosingResponse(b"abc"), tmp_path / "shard", 3, ledger, transfer
+    )
+    assert size == 3
+    assert digest == hashlib.sha256(b"abc").hexdigest()
 
 
 def test_hf_transport_interruption_resume_and_exhaustion(

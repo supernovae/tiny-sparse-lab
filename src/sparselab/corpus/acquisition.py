@@ -305,7 +305,6 @@ def _read_metadata_body(response: Any, budget: TransportBudget) -> bytes:
     chunks: list[bytes] = []
     received = 0
     while True:
-        _set_response_deadline(response, budget)
         if length is not None:
             allowance = length - received
             if allowance == 0:
@@ -320,6 +319,7 @@ def _read_metadata_body(response: Any, budget: TransportBudget) -> bytes:
                 raise ValueError("metadata response length is unverified at body cap")
             request_size = min(65536, remaining)
             budget.reserve_metadata(request_size)
+        _set_response_deadline(response, budget)
         chunk = response.read(request_size)
         if not chunk:
             if length is not None:
@@ -467,8 +467,6 @@ def _copy_hf_body(
     size = 0
     with target.open("xb") as output:
         while True:
-            if budget is not None:
-                _set_response_deadline(response, budget)
             remaining = limit - size
             if remaining == 0:
                 if length is None or length == size:
@@ -479,6 +477,8 @@ def _copy_hf_body(
                 if length == size:
                     break
                 request_size = min(request_size, length - size)
+            if budget is not None:
+                _set_response_deadline(response, budget)
             chunk = response.read(request_size)
             if not chunk:
                 if length is not None and size != length:
