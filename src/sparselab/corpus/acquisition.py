@@ -281,15 +281,21 @@ def _response_length(response: Any) -> int | None:
 
 def _set_response_deadline(response: Any, budget: TransportBudget) -> None:
     remaining = budget.remaining_seconds()
-    if isinstance(response, io.BytesIO):
-        return  # deterministic local fixture
-    stream = getattr(response, "fp", None)
-    if isinstance(stream, io.BytesIO):
-        return  # deterministic local fixture for HTTPError
-    sock = getattr(getattr(stream, "raw", None), "_sock", None)
-    if sock is None:
-        raise ValueError("HTTP response socket cannot enforce transport deadline")
-    sock.settimeout(min(30, remaining))
+    stream = response
+    for _ in range(5):
+        if isinstance(stream, io.BytesIO):
+            return  # deterministic local fixture, including HTTPError bodies
+        sock = getattr(stream, "_sock", None)
+        if sock is not None:
+            sock.settimeout(min(30, remaining))
+            return
+        next_stream = getattr(stream, "fp", None)
+        if next_stream is None:
+            next_stream = getattr(stream, "raw", None)
+        if next_stream is None or next_stream is stream:
+            break
+        stream = next_stream
+    raise ValueError("HTTP response socket cannot enforce transport deadline")
 
 
 def _read_metadata_body(response: Any, budget: TransportBudget) -> bytes:

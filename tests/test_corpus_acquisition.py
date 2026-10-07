@@ -20,6 +20,7 @@ import pytest
 import yaml
 
 from sparselab.corpus.acquisition import (
+    _set_response_deadline,
     acquire,
     declaration_sha256,
     verify_acquisition,
@@ -664,6 +665,26 @@ def test_hf_explicit_metadata_redirect_and_budget_receipt(
     assert receipt["transport_budget"]["source_actual"] == len(content)
     assert acquire(project, root) == lock
     assert len(calls) == 4
+
+
+def test_hf_deadline_reaches_nested_urllib_socket(tmp_path: Path) -> None:
+    recipe = _budgeted_hf_fixture(tmp_path, gzip.compress(b"{}\n", mtime=0))
+    project = load_project(recipe)
+    ledger = TransportBudget.initialize(
+        tmp_path / "work/corpora/example/transport-budget.sqlite", project
+    )
+    timeouts: list[float] = []
+    socket = types.SimpleNamespace(settimeout=timeouts.append)
+    response = types.SimpleNamespace(
+        fp=types.SimpleNamespace(
+            fp=types.SimpleNamespace(raw=types.SimpleNamespace(_sock=socket))
+        )
+    )
+    _set_response_deadline(response, ledger)
+    assert len(timeouts) == 1
+    assert 0 < timeouts[0] <= 30
+    with pytest.raises(ValueError, match="cannot enforce transport deadline"):
+        _set_response_deadline(types.SimpleNamespace(fp=object()), ledger)
 
 
 def test_hf_transport_interruption_resume_and_exhaustion(
