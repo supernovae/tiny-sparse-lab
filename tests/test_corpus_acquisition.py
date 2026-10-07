@@ -255,6 +255,12 @@ def test_git_v2_acquires_pinned_nested_license_metadata(tmp_path: Path) -> None:
     release.update(schema_version=2, publication_mode="metadata_reconstruction_only")
     _yaml(release_path, release)
     lock = acquire(load_project(recipe), tmp_path / "work")
+    source = load_project(recipe).sources[0]
+    legacy_payload = source.model_dump(mode="json")
+    legacy_payload.pop("explicit_training_restriction")
+    legacy_payload["acquisition"].pop("tree_oid")
+    legacy_payload["acquisition"].pop("bounded_blobs")
+    assert source_declaration_payload(source) == legacy_payload
     snapshot = verify_snapshot(Path(lock["sources"]["one"]["snapshot_path"]))
     assert {item["path"] for item in snapshot["files"]} == {
         "docs/guide.md",
@@ -496,6 +502,191 @@ def test_hf_legacy_declaration_hash_and_receipt_reuse(
     assert "transport_budget" not in manifest["retrieval"]
     assert acquire(project, tmp_path / "work") == first
     assert len(calls) == 1
+
+
+def _bounded_git_fixture(tmp_path: Path, content: bytes) -> tuple[Path, str]:
+    oid = hashlib.sha1(f"blob {len(content)}\0".encode() + content).hexdigest()
+    recipe = _fixture(
+        tmp_path,
+        kind="git",
+        uri="https://github.com/org/repo",
+        revision="a" * 40,
+        acquisition={
+            "max_bytes": len(content),
+            "tree_oid": "b" * 40,
+            "bounded_blobs": [
+                {"path": "docs/one.md", "git_blob_oid": oid, "max_bytes": len(content)}
+            ],
+        },
+    )
+    config = yaml.safe_load(recipe.read_text(encoding="utf-8"))
+    config["transport_budget"] = {
+        "attempt_id": "git_fixture",
+        "max_source_body_bytes": len(content) * 2,
+        "max_metadata_body_bytes": 10000,
+        "max_transfers": 2,
+        "max_retries_per_shard": 1,
+        "max_wall_seconds": 120,
+        "max_disk_bytes": 1000000,
+    }
+    _yaml(recipe, config)
+    return recipe, oid
+
+
+def _mock_bounded_git_http(
+    monkeypatch: pytest.MonkeyPatch,
+    content: bytes,
+    oid: str,
+    *,
+    wrong_tree: bool = False,
+    corrupt: bool = False,
+    interrupt: bool = False,
+    extra_body: bool = False,
+) -> None:
+    class Response(io.BytesIO):
+        def __init__(self, body: bytes, url: str):
+            super().__init__(body)
+            self.url = url
+            self.status = 200
+            self.headers = {"Content-Length": str(len(body))}
+
+        def read(self, size: int = -1) -> bytes:
+            if interrupt and "raw.githubusercontent.com" in self.url:
+                if self.tell():
+                    raise OSError("interrupted bounded Git transfer")
+                return super().read(min(2, size))
+            return super().read(size)
+
+    class Opener:
+        def open(self, request: urllib.request.Request, timeout: float) -> Response:
+            url = request.full_url
+            if "/git/commits/" in url:
+                body = {"sha": "a" * 40, "tree": {"sha": "b" * 40}}
+            elif "/git/trees/" in url:
+                body = {
+                    "sha": "b" * 40,
+                    "truncated": False,
+                    "tree": [
+                        {
+                            "path": "docs/wrong.md" if wrong_tree else "docs/one.md",
+                            "type": "blob",
+                            "mode": "100644",
+                            "sha": oid,
+                            "size": len(content),
+                        }
+                    ],
+                }
+            else:
+                assert (
+                    url
+                    == "https://raw.githubusercontent.com/org/repo/"
+                    + "a" * 40
+                    + "/docs/one.md"
+                )
+                return Response(
+                    content + b"x"
+                    if extra_body
+                    else bytes([content[0] ^ 1]) + content[1:]
+                    if corrupt
+                    else content,
+                    url,
+                )
+            return Response(json.dumps(body).encode(), url)
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_args: Opener())
+
+
+def test_bounded_git_blob_metadata_checksum_and_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = b"# Pinned text\n"
+    recipe, oid = _bounded_git_fixture(tmp_path, content)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger_path = root / "corpora/example/transport-budget.sqlite"
+    with pytest.raises(ValueError, match="ledger missing"):
+        acquire(project, root)
+    TransportBudget.initialize(ledger_path, project)
+    _mock_bounded_git_http(monkeypatch, content, oid, wrong_tree=True)
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        acquire(project, root)
+    assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
+    _mock_bounded_git_http(monkeypatch, content, oid, interrupt=True)
+    with pytest.raises(OSError, match="interrupted"):
+        acquire(project, root)
+    _mock_bounded_git_http(monkeypatch, content, oid)
+    lock = acquire(project, root)
+    assert (
+        verify_snapshot(lock["sources"]["one"]["snapshot_path"])["files"][0][
+            "git_blob_id"
+        ]
+        == oid
+    )
+    state = TransportBudget(ledger_path, project).receipt()
+    assert state["source_charged"] == 2 * len(content)
+    assert [item["status"] for item in state["transfers"]] == [
+        "interrupted",
+        "complete",
+    ]
+    assert acquire(project, root) == lock
+
+    # A later file in the same bounded Git source can interrupt after this
+    # one completed; a second invocation must re-fetch verified earlier blobs
+    # within the same shared byte and per-blob retry allowance.
+    replay_root = tmp_path / "replay-work"
+    replay_ledger_path = replay_root / "corpora/example/transport-budget.sqlite"
+    replay = TransportBudget.initialize(replay_ledger_path, project)
+    first = replay.reserve_transfer("one", "docs/one.md", len(content))
+    replay.charge_transfer_actual(first, len(content))
+    replay.finish_transfer(first, success=True)
+    second = replay.reserve_transfer(
+        "one", "docs/one.md", len(content), allow_verified_retry=True
+    )
+    replay.charge_transfer_actual(second, len(content))
+    replay.finish_transfer(second, success=True)
+    with pytest.raises(ValueError, match="retry allowance exhausted"):
+        replay.reserve_transfer(
+            "one", "docs/one.md", len(content), allow_verified_retry=True
+        )
+
+    bad_root = tmp_path / "bad-work"
+    TransportBudget.initialize(
+        bad_root / "corpora/example/transport-budget.sqlite", project
+    )
+    _mock_bounded_git_http(monkeypatch, content, oid, corrupt=True)
+    with pytest.raises(ValueError, match="SHA-1 mismatch"):
+        acquire(project, bad_root)
+
+    oversized_root = tmp_path / "oversized-work"
+    TransportBudget.initialize(
+        oversized_root / "corpora/example/transport-budget.sqlite", project
+    )
+    _mock_bounded_git_http(monkeypatch, content, oid, extra_body=True)
+    with pytest.raises(ValueError, match="Content-Length mismatch"):
+        acquire(project, oversized_root)
+
+    exhausted_root = tmp_path / "exhausted-work"
+    exhausted_ledger = exhausted_root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(exhausted_ledger, project)
+    _mock_bounded_git_http(monkeypatch, content, oid, interrupt=True)
+    for _ in range(2):
+        with pytest.raises(OSError, match="interrupted"):
+            acquire(project, exhausted_root)
+    with pytest.raises(ValueError, match="retry allowance exhausted"):
+        acquire(project, exhausted_root)
+    assert TransportBudget(exhausted_ledger, project).receipt()["source_charged"] == (
+        2 * len(content)
+    )
+
+
+def test_bounded_git_rejects_ambiguous_declaration(tmp_path: Path) -> None:
+    recipe, _ = _bounded_git_fixture(tmp_path, b"# one\n")
+    source_file = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_file.read_text())
+    source["acquisition"]["include"] = ["docs/*.md"]
+    _yaml(source_file, source)
+    with pytest.raises(ValueError, match="bounded Git requires exact blobs"):
+        load_project(recipe)
 
 
 def _budgeted_hf_fixture(tmp_path: Path, content: bytes) -> Path:

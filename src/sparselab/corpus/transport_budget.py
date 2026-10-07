@@ -34,6 +34,20 @@ def _binding(project: Project) -> str:
             for source in project.sources
             if source.kind == "huggingface_dataset"
             and source.acquisition.bounded_shards is not None
+        ]
+        + [
+            {
+                "id": source.id,
+                "uri": source.canonical_uri,
+                "revision": source.revision,
+                "tree_oid": source.acquisition.tree_oid,
+                "blobs": [
+                    blob.model_dump(mode="json")
+                    for blob in source.acquisition.bounded_blobs
+                ],
+            }
+            for source in project.sources
+            if source.kind == "git" and source.acquisition.bounded_blobs is not None
         ],
     }
     return hashlib.sha256(canonical_json(value)).hexdigest()
@@ -47,9 +61,11 @@ def _validate_scope(project: Project) -> None:
             "inference_generator",
         }:
             continue
-        if (
-            source.kind != "huggingface_dataset"
-            or source.acquisition.bounded_shards is None
+        if not (
+            source.kind == "huggingface_dataset"
+            and source.acquisition.bounded_shards is not None
+            or source.kind == "git"
+            and source.acquisition.bounded_blobs is not None
         ):
             raise ValueError(
                 "transport budget cannot cover this unaccounted network source"
@@ -99,19 +115,25 @@ class TransportBudget:
             raise ValueError("transport budget ledger counters are invalid")
 
     def projected_disk_bytes(self) -> int:
-        bounded = [
+        bounded_hf = [
             source.acquisition
             for source in self.project.sources
             if source.kind == "huggingface_dataset"
             and source.acquisition.bounded_shards is not None
         ]
+        bounded_git = [
+            source.acquisition
+            for source in self.project.sources
+            if source.kind == "git" and source.acquisition.bounded_blobs is not None
+        ]
+        largest = [
+            shard.max_shard_bytes
+            for spec in bounded_hf
+            for shard in spec.bounded_shards
+        ] + [blob.max_bytes for spec in bounded_git for blob in spec.bounded_blobs]
         return (
-            sum(spec.max_bytes for spec in bounded)
-            + max(
-                shard.max_shard_bytes
-                for spec in bounded
-                for shard in spec.bounded_shards
-            )
+            sum(spec.max_bytes for spec in (*bounded_hf, *bounded_git))
+            + max(largest)
             + 65_536  # ledger, manifests and small staging metadata
         )
 
@@ -124,9 +146,11 @@ class TransportBudget:
         if not any(
             source.kind == "huggingface_dataset"
             and source.acquisition.bounded_shards is not None
+            or source.kind == "git"
+            and source.acquisition.bounded_blobs is not None
             for source in project.sources
         ):
-            raise ValueError("transport budget requires bounded HF shards")
+            raise ValueError("transport budget requires bounded shards or Git blobs")
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with path.open("xb"):
@@ -193,11 +217,20 @@ class TransportBudget:
             raise ValueError("transport budget deadline exceeded")
         return remaining
 
-    def reserve_transfer(self, source_id: str, path: str, size: int) -> int:
+    def reserve_transfer(
+        self,
+        source_id: str,
+        path: str,
+        size: int,
+        *,
+        allow_verified_retry: bool = False,
+    ) -> int:
         key = f"{source_id}:{path}"
 
         def update(state: dict[str, Any]) -> int:
-            self._check_transfer(state, key, size)
+            self._check_transfer(
+                state, key, size, allow_verified_retry=allow_verified_retry
+            )
             for item in state["transfers"]:
                 if item["key"] == key and item["status"] == "started":
                     item["status"] = "interrupted"
@@ -209,9 +242,21 @@ class TransportBudget:
 
         return self._mutate(update)
 
-    def _check_transfer(self, state: dict[str, Any], key: str, size: int) -> None:
+    def _check_transfer(
+        self,
+        state: dict[str, Any],
+        key: str,
+        size: int,
+        *,
+        allow_verified_retry: bool = False,
+    ) -> None:
         prior = [item for item in state["transfers"] if item["key"] == key]
-        if any(item["status"] in {"complete", "failed"} for item in prior):
+        if any(
+            item["status"] == "failed"
+            or item["status"] == "complete"
+            and (not allow_verified_retry or item.get("sha256_verified") is not True)
+            for item in prior
+        ):
             raise ValueError("transport budget shard is already complete or terminal")
         if len(prior) > self.spec.max_retries_per_shard:
             raise ValueError("transport budget shard retry allowance exhausted")
@@ -220,9 +265,21 @@ class TransportBudget:
         if size > self.spec.max_source_body_bytes - state["source_charged"]:
             raise ValueError("transport budget source body allowance exhausted")
 
-    def assert_transfer_available(self, source_id: str, path: str, size: int) -> None:
+    def assert_transfer_available(
+        self,
+        source_id: str,
+        path: str,
+        size: int,
+        *,
+        allow_verified_retry: bool = False,
+    ) -> None:
         self.remaining_seconds()
-        self._check_transfer(self._read(), f"{source_id}:{path}", size)
+        self._check_transfer(
+            self._read(),
+            f"{source_id}:{path}",
+            size,
+            allow_verified_retry=allow_verified_retry,
+        )
 
     def charge_transfer_actual(self, index: int, amount: int) -> None:
         def update(state: dict[str, Any]) -> None:

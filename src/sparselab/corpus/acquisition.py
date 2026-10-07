@@ -21,7 +21,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
-from urllib.parse import urlencode, urljoin, urlparse
+from urllib.parse import quote, urlencode, urljoin, urlparse
 
 from sparselab.corpus.project import (
     GitAcquisition,
@@ -152,12 +152,20 @@ def _git(args: list[str], *, cwd: Path | None = None) -> bytes:
 
 
 def _acquire_git(
-    source: SourceDeclaration, staging: Path, cache_root: Path, offline: bool
+    source: SourceDeclaration,
+    staging: Path,
+    cache_root: Path,
+    offline: bool,
+    budget: TransportBudget | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if offline:
         raise ValueError("offline acquisition cannot fetch Git")
     spec = source.acquisition
     assert isinstance(spec, GitAcquisition)
+    if spec.bounded_blobs is not None:
+        if budget is None:
+            raise ValueError("bounded Git acquisition requires a transport ledger")
+        return _bounded_git_acquire(source, spec, staging, budget)
     cache_root.mkdir(parents=True, exist_ok=True)
     cache = cache_root / _digest(
         {"uri": source.canonical_uri, "revision": source.revision}
@@ -235,6 +243,126 @@ def _acquire_git(
     if metadata_path and not metadata_seen:
         raise ValueError("pinned Git rights metadata file is missing")
     return sorted(inventory, key=lambda item: item["path"]), {"commit": commit}
+
+
+def _bounded_git_acquire(
+    source: SourceDeclaration,
+    spec: GitAcquisition,
+    staging: Path,
+    budget: TransportBudget,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    origin = urlparse(source.canonical_uri)
+    parts = origin.path.strip("/").removesuffix(".git").split("/")
+    if (
+        origin.scheme != "https"
+        or origin.netloc != "github.com"
+        or origin.query
+        or origin.fragment
+        or len(parts) != 2
+    ):
+        raise ValueError("bounded Git requires an exact GitHub repository URL")
+    owner, repository = parts
+    if not all(
+        re.fullmatch(r"[A-Za-z0-9_.-]+", part) and part not in {".", ".."}
+        for part in parts
+    ):
+        raise ValueError("bounded Git repository path is unsafe")
+    api = f"https://api.github.com/repos/{owner}/{repository}/git"
+    headers = {
+        "User-Agent": "SparseLab-Corpus-Forge/1",
+        "Accept": "application/vnd.github+json",
+    }
+    metadata = []
+    for url in (
+        f"{api}/commits/{source.revision}",
+        f"{api}/trees/{spec.tree_oid}?recursive=1",
+    ):
+        response, _ = _open_accounted(url, headers, budget)
+        with response:
+            if urlparse(response.url).hostname != "api.github.com":
+                raise ValueError("pinned Git metadata changed origin")
+            try:
+                metadata.append(json.loads(_read_metadata_body(response, budget)))
+            except json.JSONDecodeError as error:
+                raise ValueError("invalid pinned Git metadata") from error
+    commit, tree = metadata
+    if (
+        not isinstance(commit, dict)
+        or commit.get("sha", "").lower() != source.revision.lower()
+        or not isinstance(commit.get("tree"), dict)
+        or commit["tree"].get("sha", "").lower() != spec.tree_oid.lower()
+        or not isinstance(tree, dict)
+        or tree.get("sha", "").lower() != spec.tree_oid.lower()
+        or tree.get("truncated") is not False
+        or not isinstance(tree.get("tree"), list)
+    ):
+        raise ValueError("pinned Git commit/tree metadata mismatch or incomplete")
+    for blob in spec.bounded_blobs:
+        matches = [
+            item
+            for item in tree["tree"]
+            if isinstance(item, dict) and item.get("path") == blob.path
+        ]
+        if (
+            len(matches) != 1
+            or matches[0].get("type") != "blob"
+            or matches[0].get("mode") not in {"100644", "100755"}
+            or matches[0].get("sha", "").lower() != blob.git_blob_oid.lower()
+            or matches[0].get("size") != blob.max_bytes
+        ):
+            raise ValueError(f"pinned Git blob missing or ambiguous: {blob.path}")
+    if budget.projected_disk_bytes() > budget.spec.max_disk_bytes:
+        raise ValueError("transport budget disk allowance exhausted")
+    if shutil.disk_usage(staging).free < budget.projected_disk_bytes():
+        raise ValueError("insufficient disk space for bounded Git blobs")
+    files = []
+    for blob in spec.bounded_blobs:
+        budget.assert_transfer_available(
+            source.id, blob.path, blob.max_bytes, allow_verified_retry=True
+        )
+        transfer_index = budget.reserve_transfer(
+            source.id, blob.path, blob.max_bytes, allow_verified_retry=True
+        )
+        url = (
+            f"https://raw.githubusercontent.com/{owner}/{repository}/"
+            f"{source.revision}/{quote(blob.path, safe='/')}"
+        )
+        target = staging / "files" / blob.path
+        try:
+            response, _ = _open_accounted(url, headers, budget)
+            with response:
+                if _response_length(response) != blob.max_bytes:
+                    raise ValueError("pinned Git blob Content-Length mismatch")
+                digest, copied = _copy_hf_body(
+                    response, target, blob.max_bytes, budget, transfer_index
+                )
+            git_hasher = hashlib.sha1(f"blob {copied}\0".encode())
+            with target.open("rb") as copied_blob:
+                for chunk in iter(lambda: copied_blob.read(1024 * 1024), b""):
+                    git_hasher.update(chunk)
+            git_digest = git_hasher.hexdigest()
+            if git_digest.lower() != blob.git_blob_oid.lower():
+                raise ValueError(f"pinned Git blob SHA-1 mismatch: {blob.path}")
+            budget.finish_transfer(transfer_index, success=True)
+        except OSError, TimeoutError, EOFError:
+            budget.finish_transfer(transfer_index, success=False, interrupted=True)
+            raise
+        except Exception:
+            budget.finish_transfer(transfer_index, success=False)
+            raise
+        files.append(
+            {
+                "path": blob.path,
+                "sha256": digest,
+                "size": copied,
+                "git_blob_id": git_digest,
+            }
+        )
+    return files, {
+        "commit": source.revision,
+        "tree": spec.tree_oid,
+        "transport_budget": budget.receipt(),
+    }
 
 
 class _PrivateHubRedirect(urllib.request.HTTPRedirectHandler):
@@ -1460,7 +1588,7 @@ def acquire(
                 files, retrieval = _acquire_local(source, project.root, staging)
             elif source.kind == "git":
                 files, retrieval = _acquire_git(
-                    source, staging, base / "git-cache", False
+                    source, staging, base / "git-cache", False, budget
                 )
             elif source.kind == "http_document":
                 files, retrieval = _acquire_http(source, staging, False)

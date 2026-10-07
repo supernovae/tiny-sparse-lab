@@ -51,10 +51,30 @@ class LocalFile(StrictModel):
         return _nonblank(value)
 
 
+class GitBoundedBlob(StrictModel):
+    path: str
+    git_blob_oid: str
+    max_bytes: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def pinned_file(self) -> GitBoundedBlob:
+        safe_name(self.path)
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", self.git_blob_oid):
+            raise ValueError("bounded Git blob needs a full SHA-1 object ID")
+        if not self.path.endswith((".md", ".markdown", ".txt")) and self.path not in {
+            "LICENSE",
+            "README.md",
+        }:
+            raise ValueError("bounded Git blob must be text/Markdown or rights context")
+        return self
+
+
 class GitAcquisition(StrictModel):
-    include: tuple[str, ...]
+    include: tuple[str, ...] = ()
     exclude: tuple[str, ...] = ()
     max_bytes: int = Field(gt=0)
+    tree_oid: str | None = None
+    bounded_blobs: tuple[GitBoundedBlob, ...] | None = None
 
     @field_validator("include", "exclude")
     @classmethod
@@ -65,8 +85,21 @@ class GitAcquisition(StrictModel):
 
     @model_validator(mode="after")
     def selection_required(self) -> GitAcquisition:
-        if not self.include:
-            raise ValueError("Git include cannot be empty")
+        if self.bounded_blobs is None:
+            if not self.include or self.tree_oid is not None:
+                raise ValueError("Git include cannot be empty")
+        else:
+            if self.include or self.exclude or not self.bounded_blobs:
+                raise ValueError("bounded Git requires exact blobs without patterns")
+            if not isinstance(self.tree_oid, str) or not re.fullmatch(
+                r"[0-9a-fA-F]{40}", self.tree_oid
+            ):
+                raise ValueError("bounded Git requires a full tree object ID")
+            paths = [blob.path for blob in self.bounded_blobs]
+            if paths != sorted(set(paths)):
+                raise ValueError("bounded Git paths must be sorted and unique")
+            if sum(blob.max_bytes for blob in self.bounded_blobs) > self.max_bytes:
+                raise ValueError("bounded Git files exceed max_bytes")
         return self
 
 
@@ -321,6 +354,14 @@ class SourceDeclaration(StrictModel):
             )
         if self.kind == "git" and not _GIT_REV.fullmatch(self.revision):
             raise ValueError("Git revision must be an exact commit hash")
+        if self.kind == "git" and self.acquisition.bounded_blobs is not None:
+            if len(self.revision) != 40:
+                raise ValueError("bounded Git requires a SHA-1 commit ID")
+            metadata_path = self.rights.nested_metadata_path if self.rights else None
+            if metadata_path and metadata_path not in {
+                blob.path for blob in self.acquisition.bounded_blobs
+            }:
+                raise ValueError("bounded Git rights metadata file is missing")
         if self.kind == "huggingface_dataset" and not _GIT_REV.fullmatch(self.revision):
             raise ValueError("HF revision must be a pinned commit hash")
         if self.kind == "wikimedia_dump":
@@ -438,6 +479,9 @@ def source_declaration_payload(source: SourceDeclaration) -> dict[str, Any]:
         result.pop("rights")
     if source.schema_version in (1, 2):
         result.pop("explicit_training_restriction")
+    if source.kind == "git" and source.acquisition.bounded_blobs is None:
+        result["acquisition"].pop("tree_oid")
+        result["acquisition"].pop("bounded_blobs")
     if source.kind == "huggingface_dataset":
         if source.acquisition.max_decompressed_bytes is None:
             result["acquisition"].pop("max_decompressed_bytes")
