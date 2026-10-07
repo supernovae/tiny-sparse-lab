@@ -1,5 +1,37 @@
 # Revision and synchronization log
 
+## 2026-10-07.6 — one Card 02 CPU confirmation approved, 7 October 2026
+
+- Recorded KML-D02 from the owner's approval of the exact 89-update,
+  120-second confirmation and authorization to commit and push a branch
+- Kept the original 200-update ceiling and 257-update A1 failure unchanged;
+  the approved confirmation has a new ledger and no training-bearing retries
+- Card 02 and Gate 0 remain unverified pending the new result and review
+
+## 2026-10-07.5 — Card 02 budget repair proposal, 7 October 2026
+
+- Clarified that Card 02 update and time caps cover the whole approved attempt,
+  including every test, retry and resumed run, and that failed reservations stay
+  charged
+- Added a persistent per-attempt budget ledger and bounded command wrapper,
+  plus a proposed 89-update, 120-second CPU-only confirmation
+- Preserved the original 257-update Card 02 attempt as FAILED and Gate 0 as
+  unverified; this revision grants no confirmation runtime authority
+
+## 2026-10-07.4 — Card 01 acceptance and Card 02 failed attempt, 7 October 2026
+
+- Recorded the owner's Card 01 contract acceptance in `DECISIONS.md` and marked only its documentation scope EVIDENCE VERIFIED
+- Added fresh, bounded CPU fixture tests and a Card 02 result with actual source, tokenizer, run and checkpoint identities
+- Preserved the passed functional observations and the cumulative optimizer-step cap breach (257 against 200); Card 02 is FAILED pending review, and Gate 0 remains unverified
+- No scientific threshold, source acquisition, GPU run, Campaign transition or later card was authorized or completed
+
+## 2026-10-07.3 — Card 01 foundation documentation, 7 October 2026
+
+- Reconciled local `main` at `cf29aff79ec7259f7ec93988cd6a87065f4350e5` with the pinned source audit; intervening tracked changes are guidance and planning documents
+- Added a bounded foundation contract for fresh fixtures, a separately initialized main model, strict same-experiment resume and optional dense-to-reader transfer
+- Recorded unresolved inputs and a pending Card 01 result; updated the single checklist without claiming Gate 0, a runtime receipt or reviewer acceptance
+- Left the source-release DOCX snapshots historical; no theory threshold, card order or runtime authority changed
+
 ## 2026-10-07.2 — repository adoption proposal, 7 October 2026
 
 - Added the complete Markdown research plan and thirteen-card workbook under the existing research namespace, with explicit historical-delivery banners
