@@ -527,6 +527,7 @@ def _mock_budgeted_hf_http(
     ambiguous: bool = False,
     payload: bytes | None = None,
     fail_http: bool = False,
+    tree_size: int | None = None,
 ) -> tuple[list[str], list[int]]:
     calls: list[str] = []
     reads: list[int] = []
@@ -537,7 +538,7 @@ def _mock_budgeted_hf_http(
             {
                 "path": "complete-0001.json.gz",
                 "type": "file",
-                "size": len(content),
+                "size": len(content) if tree_size is None else tree_size,
                 "lfs": {"sha256": digest},
             }
         ]
@@ -714,6 +715,10 @@ def test_hf_transport_rejects_ambiguous_metadata_checksum_and_caps(
     TransportBudget.initialize(ledger_path, project)
     _mock_budgeted_hf_http(monkeypatch, content, ambiguous=True)
     with pytest.raises(ValueError, match="ambiguous"):
+        acquire(project, root)
+    assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
+    _mock_budgeted_hf_http(monkeypatch, content, tree_size=len(content) + 1)
+    with pytest.raises(ValueError, match="size/type mismatch"):
         acquire(project, root)
     assert TransportBudget(ledger_path, project).receipt()["source_charged"] == 0
     source["acquisition"]["bounded_shards"][0]["expected_sha256"] = "0" * 64
