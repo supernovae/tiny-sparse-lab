@@ -1,5 +1,17 @@
 # Revision and synchronization log
 
+## 2026-10-07.10 — Card 03 metadata audit and pilot correction, 7 October 2026
+
+- Renamed the clean local working branch to rolling `codex/kernel-memory-lab`;
+  deferred remote pushes under the owner's current instruction
+- Pinned candidate PagerDuty commit/tree and filtered Project Gutenberg and
+  Wikimedia dataset revisions from metadata; admitted no file or source row
+- Found that the smallest proposed Common Pile shards exceed S1's 64 MiB
+  download cap and native Git selection does not bound its earlier fetch;
+  appended S2 and superseded only the infeasible pilot request
+- Recorded the conditional native Git transfer-bound gap in `TODO.md`; retained
+  S1's original document/hash, Card 02 A1 failure and unverified Gate 0
+
 ## 2026-10-07.9 — Card 03 specification draft, 7 October 2026
 
 - Recorded KML-D04: the owner chose incident-response prose and a rights-audited
