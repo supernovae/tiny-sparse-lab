@@ -1,0 +1,14 @@
+# Card 03 pilot record-level rights screen
+
+Screened 2026-10-07 against the two native, verified snapshots in [C03-P1](results/2026-10-07-card03-quarantined-pilot.md). Each selected record carries its source-shard SHA-256, zero-based `source_row_index` and `source_row_sha256` in `_sparselab_source`; the immutable snapshot manifests retain the full identifiers. This screen inspects only retained record metadata and namespace, not full upstream history, work editions, notices or text. No record is admitted to tokenizer, training or evaluation use.
+
+| Source | Zero-based selected row indices | Decision | Reason and next rights evidence |
+| --- | --- | --- | --- |
+| Project Gutenberg filtered | 166, 435, 791, 1018, 1202, 1444, 2211, 2351 | `REVIEW_REQUIRED` (8) | All eight claim `Public Domain` and have title, URL and shard provenance. For each work, establish work/edition identity, original header and notices, intended-jurisdiction public-domain or permission status, third-party inserts and any Project Gutenberg name/redistribution conditions before a record can be admitted. A dataset-level claim is not individual clearance. |
+| Wikimedia filtered, namespace 0 | 353, 922, 1110, 1850, 2231, 2446, 2773, 2946, 3198, 3652, 3757, 3971 | `REVIEW_REQUIRED` (12) | These are content-namespace rows with a CC BY-SA 4.0 claim, page URL, shard provenance and a one-entry `authors` list. For each, resolve the exact page/revision/history route, full attribution and license, imported or third-party text, changes and privacy before admission. The one-entry list is not proof of complete authorship. |
+| Wikimedia filtered, namespace 1 | 13, 2230 | `EXCLUDE_NONCONTENT` (2) | Talk pages do not meet the declared content-namespace criterion. |
+| Wikimedia filtered, namespace 2 | 153, 2282, 2950, 2969, 3851 | `EXCLUDE_NONCONTENT` (5) | User pages do not meet the content-namespace criterion and require heightened privacy review. |
+| Wikimedia filtered, namespace 4 | 2564 | `EXCLUDE_NONCONTENT` (1) | Project namespace does not meet the content-namespace criterion. |
+| Wikimedia filtered, namespace 14 | 1577 | `EXCLUDE_NONCONTENT` (1) | Category namespace does not meet the content-namespace criterion. |
+
+The checked metadata fields were `license`, `url`, `provenance`, `title`, `namespace` and `authors` where present. All 29 rows had a URL and provenance. All 21 Wikimedia rows carried one author entry; none of the URLs in the retained metadata included a revision query key. This is a conservative screen, not a legal opinion or full content/privacy review. Counts reconcile to **29 acquired = 9 excluded + 20 review-required + 0 admitted**. The source-level [rights preflight](CARD03_SOURCE_RIGHTS_PREFLIGHT.md) remains controlling; neither this screen nor the pilot creates a language release, main tokenizer or frozen evaluation items.

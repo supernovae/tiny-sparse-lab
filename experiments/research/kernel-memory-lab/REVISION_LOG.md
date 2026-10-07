@@ -1,5 +1,19 @@
 # Revision and synchronization log
 
+## 2026-10-07.17 — Card 04 GPU stage interruption and replacement proposal, 7 October 2026
+
+- Began one fixed-checkout local ROCm attempt under KML-D10 after tokenizer,
+  inspect, workspace, research-lint and dense-readiness checks passed
+- Charged all seven stage-pilot updates to its persistent ledger; a transient
+  device-memory sampler failure left no completed stage bundle or profile run,
+  so the owner stopped the attempt and preserved raw monitor/runner evidence
+- Corrected the external sampler wrapper to fail closed on unavailable
+  measurements; shell syntax, repeated idle readings and a mocked mid-run
+  sampler failure passed, without starting another GPU job
+- Added [P3](results/2026-10-07-card04-gpu-profile-interrupted.md) and a
+  [new exact allocation proposal](CARD04_RETRY_PROPOSAL.md). KML-D10 grants no
+  retry; Card 04 measured fit, Card 03 full gate and Gate 0 remain unverified
+
 ## 2026-10-07.16 — quarantined Card 03 pilot and synthetic tokenizer executed, 7 October 2026
 
 - Retained the first failed Card 03 acquisition invocation and every later
