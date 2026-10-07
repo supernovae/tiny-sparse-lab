@@ -11,9 +11,31 @@ from types import SimpleNamespace
 import pytest
 from test_corpus_record_admission import _mixed_fixture
 
-from sparselab.corpus.admission_draft import draft_admission_manifest
+from sparselab.corpus.admission_draft import (
+    _additional_draft_flags,
+    draft_admission_manifest,
+)
 from sparselab.corpus.project import SourceDeclaration
 from sparselab.corpus.rights import verify_record_admission
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ('The review said "copied passage".', ("quoted_text_context",)),
+        (
+            "The author discussed allegations.",
+            ("sensitive_biography_or_allegation_context",),
+        ),
+        ("A plain description.", ()),
+    ],
+)
+def test_scale_audit_patterns_only_narrow_wikimedia_draft(
+    content: str, expected: tuple[str, ...]
+) -> None:
+    row = {"text": content}
+    assert _additional_draft_flags(row, "wikimedia") == expected
+    assert _additional_draft_flags(row, "gutenberg") == ()
 
 
 def _setup(

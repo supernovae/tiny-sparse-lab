@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -75,6 +76,29 @@ def _optional_issues(record: dict[str, Any], profile: str) -> list[dict[str, str
                     )
                 )
     return issues
+
+
+def _additional_draft_flags(record: dict[str, Any], profile: str) -> tuple[str, ...]:
+    """Conservatively hold observed scale-audit patterns for manual review.
+
+    These flags only narrow a draft; they do not change the historical rights
+    verifier or turn a flagged row into an eligible one.
+    """
+    if profile != "wikimedia":
+        return ()
+    content = record.get("text")
+    if not isinstance(content, str):
+        return ()
+    flags: list[str] = []
+    if re.search(r'["“”]', content):
+        flags.append("quoted_text_context")
+    if re.search(
+        r"(?i)\b(?:sexual orientation|coming out|came out|partner|"
+        r"accused|alleged|allegations?|misconduct|scandal)\b",
+        content,
+    ):
+        flags.append("sensitive_biography_or_allegation_context")
+    return tuple(flags)
 
 
 def draft_admission_manifest(
@@ -173,6 +197,11 @@ def draft_admission_manifest(
                     ):
                         raise ValueError("HF row differs from acquisition receipt")
                     conflict, flags = _admission_exceptions(record, profile)
+                    flags = tuple(
+                        sorted(
+                            set(flags) | set(_additional_draft_flags(record, profile))
+                        )
+                    )
                     if conflict is not None:
                         state = (
                             "exclude"
@@ -216,7 +245,7 @@ def draft_admission_manifest(
                     b"\n".join(raw.splitlines()[:30]) + b"\n",
                     prospective_private_research=True,
                 )
-                if path in {"LICENSE", "README.md"}:
+                if path == "LICENSE" or Path(path).name == "README.md":
                     choice = _decision(
                         "exclude", "rights context, not incident training prose"
                     )
