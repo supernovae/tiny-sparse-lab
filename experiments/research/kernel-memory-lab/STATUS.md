@@ -1,21 +1,33 @@
 # Current project status
 
-Record revision: 2026-10-07.27
+Record revision: 2026-10-07.28
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: The owner accepted Card 03 [source-admission policy v1](CARD03_SOURCE_ADMISSION_POLICY_V1.md) in KML-D14 and approved **one fresh scaled preparation retry** under [KML-D16](DECISIONS.md#kml-d16--one-card-03-scaled-preparation-retry-approved-2026-10-07). The prior KML-D15 attempt **stopped on a metadata failure** in [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md); its ledger remains preserved. [C03-A1](results/2026-10-07-card03-source-admission-v1.md) remains the historical tiny metadata-only pilot release with 19 qualifying rows, nine exclusions and one quarantine. Full Card 03 and Card 05 are still BLOCKED by broad/domain data, main tokenizer/frozen evaluation and real-data timing. Card 04 P6 remains accepted synthetic-fit evidence; P3/P4 remain failed and preserved.
-Next action: [C03-S3](results/2026-10-07-card03-scale-retry1-offline-preflight.md) passed KML-D16's four offline deadline tests and the relevant regression suite. From a committed fixed checkout, initialize the new ledger once and acquire through the normal accounted path under the [approved retry-1 allocation](CARD03_SCALE_RETRY1_PROPOSAL.md). A metadata failure stops the attempt. No Card 05 runtime or GPU/model training is authorized.
+Current selected work: Card 03 [source-admission policy v1](CARD03_SOURCE_ADMISSION_POLICY_V1.md) remains accepted, but the one KML-D16 scaled preparation retry is **FAILED** in [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md): a post-ledger passing regression suite executed 10 CPU fixture optimizer updates against a zero-update limit. The retry acquired all four pinned sources within its transport limits and preserved reusable snapshots, audits and intermediate builds, but no release was frozen or admitted. The prior KML-D15 metadata-stop attempt [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) and its ledger remain preserved. [C03-A1](results/2026-10-07-card03-source-admission-v1.md) remains the historical tiny metadata-only pilot release. Full Card 03, Card 05 and Gate 0 remain unverified. Card 04 P6 remains accepted synthetic-fit evidence; P3/P4 remain failed and preserved.
+Next action: Review [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md). Any reuse-only continuation needs a new explicit preparation authorization with aggregate accounting and a nontraining test selection. No new acquisition, tokenizer fitting, GPU/model training or Card 05 runtime is authorized by the failed retry.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
-Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot and Card 04 KML-D09 CPU fit exercised; KML-D10 and KML-D11 each reserved 7/120 in separate failed GPU attempts; KML-D12's one new Card 04 attempt charged 120/120 and completed stage/profile, with no retry or resume authority
+Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot exercised and KML-D16 one retry failed/exhausted on a zero-update breach; Card 04 KML-D09 CPU fit exercised; KML-D10 and KML-D11 each reserved 7/120 in separate failed GPU attempts; KML-D12's one new Card 04 attempt charged 120/120 and completed stage/profile, with no retry or resume authority
 Last reviewed project result: [KML-20261007-C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md), P6 synthetic fit accepted by [KML-D13](DECISIONS.md#kml-d13--card-04-p6-synthetic-fit-evidence-accepted-2026-10-07)
-Latest project results: [C03-S3](results/2026-10-07-card03-scale-retry1-offline-preflight.md) records the passing offline retry preflight; [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) preserves the failed scaled attempt; [C03-A1](results/2026-10-07-card03-source-admission-v1.md) records the tiny local-use admission screen; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is the earlier prerequisite audit; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) accepts P6
+Latest project results: [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) records the failed but acquired retry; [C03-S3](results/2026-10-07-card03-scale-retry1-offline-preflight.md) records its passing offline preflight; [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) preserves the earlier failed attempt; [C03-A1](results/2026-10-07-card03-source-admission-v1.md) records the tiny local-use admission screen; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is the earlier prerequisite audit; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) accepts P6
 Latest research decision: [KML-D16](DECISIONS.md#kml-d16--one-card-03-scaled-preparation-retry-approved-2026-10-07) authorizes one fresh attempt after required offline tests; KML-D15 authorized the earlier attempt now stopped; KML-D14 accepts Card 03 source-policy v1; KML-D13 accepts Card 04 synthetic fit
-Latest project attempt: [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md), FAILED before source transfer; [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains verified synthetic fit; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
+Latest project attempt: [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md), FAILED after bounded acquisition/partial preparation on optimizer-update cap; [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remains FAILED before source transfer; [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains verified synthetic fit; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
+
+[C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) records the one KML-D16
+retry. The durable ledger shows 473 complete transfers and 845,577,448 source
+bytes; PagerDuty commit/tree metadata passed first, and all four pinned snapshots
+were verified. Native admission, spot audits and family splits produced a latest
+offline build with 5,994 kept documents. A full lexical screen found 181
+cross-split candidates in an earlier build; revised admission excluded 5,183
+short Wikimedia stubs and grouped observed families. The repeat screen was
+interrupted when copied CPU test receipts exposed 10 post-ledger optimizer
+updates in a broad regression suite against the approved zero-update cap.
+No Card 03 release, tokenizer, token denominator, mixture or frozen evaluation
+result is accepted. All raw evidence and the earlier failed ledger remain retained.
 
 [C03-A1](results/2026-10-07-card03-source-admission-v1.md) applies the owner's
 accepted source-policy v1 to the two already verified pilot snapshots. Native
