@@ -11,14 +11,18 @@ implicitly from the filesystem.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Mapping
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
+from urllib.parse import unquote, urlsplit
 
 from pydantic import field_validator, model_validator
 
 from sparselab.config.models import StrictModel
+from sparselab.training.manifest import canonical_json, sha256_file
 
 TrainingEligibility = Literal[
     "eligible", "eligible_with_obligations", "review_required", "ineligible"
@@ -114,6 +118,16 @@ class FileRights(StrictModel):
     training_restriction: TrainingRestriction | None
     boundary_flags: tuple[str, ...]
     reason: str
+
+
+def reported_spdx_expression(file: Mapping[str, Any], source_spdx: str | None) -> str:
+    """Report inherited admission SPDX without inventing one for public domain."""
+    return (
+        file["rights"]["detected_spdx_expression"]
+        or file.get("admission_policy_spdx_expression")
+        or source_spdx
+        or "unknown"
+    )
 
 
 # The registry is intentionally finite: absence of recognition is a review, not
@@ -486,3 +500,339 @@ def resolve_file_rights(
         boundary_flags=flags,
         reason="; ".join(reasons),
     )
+
+
+def _admission_profile(source: Mapping[str, Any]) -> str:
+    """This first record policy applies only to the two pinned HF source types."""
+    uri = source["canonical_uri"]
+    if uri == "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered":
+        return "gutenberg"
+    if uri == "https://huggingface.co/datasets/common-pile/wikimedia_filtered":
+        return "wikimedia"
+    raise ValueError("record admission source is outside supported policy scope")
+
+
+def _admission_exceptions(
+    row: Mapping[str, Any], profile: str
+) -> tuple[str | None, tuple[str, ...]]:
+    """Return a material conflict or review flags from the original retained row."""
+    metadata = row.get("metadata")
+    if not isinstance(metadata, dict):
+        return "missing source metadata", ()
+    if not isinstance(metadata.get("title"), str) or not metadata["title"].strip():
+        return "missing source title", ()
+    language = metadata.get("language")
+    if language is not None and language != "en":
+        return "record outside English source policy", ()
+    url = metadata.get("url")
+    if not isinstance(url, str):
+        return "missing source locator", ()
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return "invalid source locator", ()
+    if parsed.scheme != "https" or not host:
+        return "invalid source locator", ()
+    license_claim = metadata.get("license")
+    if not isinstance(license_claim, str):
+        return "missing source license claim", ()
+    if profile == "gutenberg":
+        if host not in {"www.gutenberg.org", "gutenberg.org"} or not re.fullmatch(
+            r"/ebooks/\d+(?:\.txt(?:\.utf-8)?)?", parsed.path
+        ):
+            return "source locator outside Gutenberg work scope", ()
+        if parsed.path.removeprefix("/ebooks/").split(".", 1)[0] != row.get("id"):
+            return "Gutenberg book ID differs from source locator", ()
+        if license_claim.strip().casefold() != "public domain":
+            return "Gutenberg source license conflicts with policy", ()
+    else:
+        if host not in {
+            "wikipedia.com",
+            "www.wikipedia.com",
+            "wikipedia.org",
+            "en.wikipedia.org",
+        } or not parsed.path.startswith("/wiki/"):
+            return "source locator outside Wikimedia page scope", ()
+        if str(metadata.get("namespace")) != "0":
+            return "Wikimedia record outside content namespace", ()
+        if (
+            unquote(parsed.path.removeprefix("/wiki/")).replace("_", " ")
+            != metadata["title"]
+        ):
+            return "Wikimedia title differs from page locator", ()
+        if "creativecommons.org/licenses/by-sa/4.0/" not in license_claim.casefold():
+            return "Wikimedia source license conflicts with policy", ()
+    text = row.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return "empty or nontext source row", ()
+    if _ADMISSION_PRIVATE.search(text):
+        return "private identifier or credential in source row", ()
+    flags: set[str] = set()
+    if profile == "gutenberg" and re.search(
+        r"(?i)\b(?:by permission of|printed from.{0,60}by permission|"
+        r"permission to (?:reprint|reproduce|publish)|copyright notice|"
+        r"all rights reserved)\b",
+        text,
+    ):
+        flags.add("gutenberg_rights_notice_context")
+    if profile == "wikimedia":
+        if re.search(r"(?i)\bpersonal life\b", text) and re.search(
+            r"(?i)\bsuicide\b", text
+        ):
+            return "sensitive biography and self-harm detail", ()
+        if re.search(r"(?i)\b(?:personal life|family life)\b", text):
+            flags.add("biography_privacy_context")
+        if re.search(
+            r"(?i)\b(?:description in seitz|imported text|copied from|public domain text)\b",
+            text,
+        ):
+            flags.add("imported_text_context")
+    return None, tuple(sorted(flags))
+
+
+_ADMISSION_PRIVATE = re.compile(
+    r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    r"|\bAKIA[A-Z0-9]{16}\b"
+    r"|\b(?:ghp|gho|github_pat)_[A-Za-z0-9_]{30,}\b"
+    r"|\b\d{3}-\d{2}-\d{4}\b",
+    re.IGNORECASE,
+)
+
+
+def verify_record_admission(
+    manifest: Mapping[str, Any],
+    sources: Mapping[str, Mapping[str, Any]],
+    snapshots: Mapping[str, Mapping[str, Any]],
+    snapshot_root: Path,
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Recheck a complete admission inventory against immutable selected HF rows.
+
+    The manifest is a release-level review of already acquired rows. It never
+    changes the source declaration or its acquisition receipt.
+    """
+    if (
+        set(manifest) != {"schema_version", "policy_id", "policy_sha256", "sources"}
+        or manifest["schema_version"] != 1
+        or not isinstance(manifest["policy_id"], str)
+        or not manifest["policy_id"].strip()
+        or not isinstance(manifest["policy_sha256"], str)
+        or not re.fullmatch(r"[0-9a-f]{64}", manifest["policy_sha256"])
+        or not isinstance(manifest["sources"], list)
+    ):
+        raise ValueError("invalid versioned record admission manifest")
+    rows = manifest["sources"]
+    if {item.get("source_id") for item in rows if isinstance(item, dict)} != set(
+        sources
+    ) or len(rows) != len(sources):
+        raise ValueError("record admission source inventory mismatch")
+    resolved: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in rows:
+        if not isinstance(item, dict) or set(item) != {
+            "source_id",
+            "snapshot_sha256",
+            "source_revision",
+            "sample_path",
+            "sample_sha256",
+            "source_shard_path",
+            "source_shard_sha256",
+            "license_label",
+            "rights",
+            "records",
+        }:
+            raise ValueError("invalid record admission source entry")
+        source_id = item["source_id"]
+        source = sources[source_id]
+        snapshot = snapshots[source_id]
+        if source["kind"] != "huggingface_dataset" or source["schema_version"] != 2:
+            raise ValueError("record admission requires v2 bounded HF source")
+        profile = _admission_profile(source)
+        if (
+            item["snapshot_sha256"] != snapshot["snapshot_sha256"]
+            or item["source_revision"] != source["revision"]
+            or snapshot["declaration"]["id"] != source_id
+            or snapshot["declaration"]["revision"] != source["revision"]
+            or not isinstance(item["license_label"], str)
+            or not item["license_label"].strip()
+        ):
+            raise ValueError("record admission source provenance mismatch")
+        if profile == "gutenberg" and "public domain" not in item[
+            "license_label"
+        ].casefold().replace("-", " "):
+            raise ValueError("Gutenberg admission lacks public-domain basis")
+        if (
+            profile == "wikimedia"
+            and "cc-by-sa-4.0" not in item["license_label"].casefold()
+        ):
+            raise ValueError("Wikimedia admission lacks license basis")
+        retrieval = snapshot["retrieval"]
+        shards = retrieval.get("shards", [])
+        if len(shards) != 1 or len(snapshot["files"]) != 1:
+            raise ValueError("record admission requires one complete selected shard")
+        shard = shards[0]
+        file = snapshot["files"][0]
+        if any(
+            item[key] != expected
+            for key, expected in (
+                ("sample_path", file["path"]),
+                ("sample_path", shard["output_path"]),
+                ("sample_sha256", file["sha256"]),
+                ("source_shard_path", shard["source_shard_path"]),
+                ("source_shard_sha256", shard["source_shard_sha256"]),
+            )
+        ):
+            raise ValueError("record admission shard provenance mismatch")
+        policy = RightsPolicy.model_validate(item["rights"])
+        if (
+            policy.training_eligibility not in {"eligible", "eligible_with_obligations"}
+            or policy.redistribution_mode != "metadata_reconstruction_only"
+            or not policy.license_references
+            or profile == "gutenberg"
+            and policy.spdx_expression is not None
+            or profile == "wikimedia"
+            and policy.spdx_expression != "CC-BY-SA-4.0"
+        ):
+            raise ValueError("record admission policy is outside local research scope")
+        file_rights = resolve_file_rights(
+            policy, file["path"], b"", prospective_private_research=True
+        )
+        if file_rights.training_eligibility not in {
+            "eligible",
+            "eligible_with_obligations",
+        }:
+            raise ValueError("record admission policy does not qualify its shard")
+        decisions = item["records"]
+        if not isinstance(decisions, list):
+            raise TypeError("record admission decisions must be a list")
+        indexed: dict[int, dict[str, Any]] = {}
+        for decision in decisions:
+            if (
+                not isinstance(decision, dict)
+                or not set(decision).issubset(
+                    {
+                        "source_row_index",
+                        "source_row_sha256",
+                        "decision",
+                        "reason",
+                        "issues",
+                        "manual_review",
+                    }
+                )
+                or not {
+                    "source_row_index",
+                    "source_row_sha256",
+                    "decision",
+                    "reason",
+                    "issues",
+                }.issubset(decision)
+            ):
+                raise ValueError("invalid record admission decision")
+            index = decision["source_row_index"]
+            if type(index) is not int or index < 0 or index in indexed:
+                raise ValueError("duplicate or invalid record admission row index")
+            if (
+                not isinstance(decision["source_row_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", decision["source_row_sha256"])
+                or decision["decision"] not in {"qualify", "exclude", "quarantine"}
+                or not isinstance(decision["reason"], str)
+                or not decision["reason"].strip()
+                or not isinstance(decision["issues"], list)
+                or any(
+                    not isinstance(issue, dict)
+                    or set(issue) != {"field", "owner", "remedy", "decision_impact"}
+                    or any(
+                        not isinstance(value, str) or not value.strip()
+                        for value in issue.values()
+                    )
+                    for issue in decision["issues"]
+                )
+            ):
+                raise ValueError("invalid record admission decision value")
+            manual = decision.get("manual_review")
+            if manual is not None and (
+                not isinstance(manual, dict)
+                or set(manual) != {"reviewer", "reviewed_on", "evidence_url", "finding"}
+                or any(
+                    not isinstance(value, str) or not value.strip()
+                    for value in manual.values()
+                )
+                or not manual["evidence_url"].startswith("https://")
+            ):
+                raise ValueError("invalid record admission manual review")
+            indexed[index] = decision
+        selected = shard["selected_rows"]
+        if len(indexed) != len(selected) or set(indexed) != {
+            row["source_row_index"] for row in selected
+        }:
+            raise ValueError("record admission decisions do not cover selected rows")
+        sample = (
+            snapshot_root
+            / source_id
+            / snapshot["snapshot_sha256"]
+            / "files"
+            / file["path"]
+        )
+        if sample.is_symlink() or sha256_file(sample) != file["sha256"]:
+            raise ValueError("record admission sample bytes differ from snapshot")
+        with sample.open("rb") as stream:
+            sample_rows = [json.loads(line) for line in stream if line.strip()]
+        if len(sample_rows) != len(selected):
+            raise ValueError("record admission sample row count mismatch")
+        for row, receipt in zip(sample_rows, selected, strict=True):
+            if not isinstance(row, dict) or not isinstance(
+                row.get("_sparselab_source"), dict
+            ):
+                raise TypeError("record admission row lacks acquired provenance")
+            envelope = row["_sparselab_source"]
+            original = {
+                key: value for key, value in row.items() if key != "_sparselab_source"
+            }
+            row_hash = hashlib.sha256(canonical_json(original)).hexdigest()
+            index = envelope.get("source_row_index")
+            decision = indexed.get(index)
+            metadata = original.get("metadata")
+            provenance = (
+                metadata.get("provenance") if isinstance(metadata, dict) else None
+            )
+            if (
+                type(index) is not int
+                or index != receipt["source_row_index"]
+                or row_hash != receipt["source_row_sha256"]
+                or row_hash != envelope.get("source_row_sha256")
+                or decision is None
+                or row_hash != decision["source_row_sha256"]
+                or envelope.get("dataset_revision") != source["revision"]
+                or envelope.get("source_shard_path") != item["source_shard_path"]
+                or envelope.get("source_shard_sha256") != item["source_shard_sha256"]
+                or not isinstance(original.get("id"), str)
+                or original["id"] != envelope.get("id")
+                or not isinstance(provenance, str)
+                or re.fullmatch(
+                    re.escape(item["source_shard_path"]) + r":\d+", provenance
+                )
+                is None
+            ):
+                raise ValueError("record admission row provenance mismatch")
+            conflict, flags = _admission_exceptions(original, profile)
+            if decision["decision"] == "qualify":
+                if conflict:
+                    raise ValueError(
+                        f"qualified record has material exception: {conflict}"
+                    )
+                if flags and "manual_review" not in decision:
+                    raise ValueError("qualified flagged record lacks manual review")
+            elif (
+                conflict
+                and decision["decision"] == "exclude"
+                and conflict != "Wikimedia record outside content namespace"
+            ):
+                raise ValueError("material rights exception must be quarantined")
+        resolved[source_id, file["path"]] = {
+            "rights": file_rights,
+            "license_label": item["license_label"],
+            "policy_spdx_expression": policy.spdx_expression,
+            "decisions": indexed,
+            "policy_id": manifest["policy_id"],
+            "policy_sha256": manifest["policy_sha256"],
+        }
+    return resolved

@@ -589,6 +589,20 @@ class FractionDeclaration(StrictModel):
         return self
 
 
+class RecordAdmissionReference(StrictModel):
+    """A reviewed row decision inventory bound to a release, not acquisition."""
+
+    path: str
+    sha256: str
+
+    @model_validator(mode="after")
+    def valid_reference(self) -> RecordAdmissionReference:
+        safe_name(self.path)
+        if not _HEX.fullmatch(self.sha256):
+            raise ValueError("record admission needs a full SHA-256")
+        return self
+
+
 class ReleaseDeclaration(StrictModel):
     schema_version: Literal[1, 2, 3]
     mixture: dict[str, float]
@@ -614,6 +628,7 @@ class ReleaseDeclaration(StrictModel):
         | None
     ) = None
     training_use_policy: Literal["allowed_unless_explicitly_prohibited"] | None = None
+    record_admission: RecordAdmissionReference | None = None
 
     @model_validator(mode="after")
     def weights_valid(self) -> ReleaseDeclaration:
@@ -629,6 +644,8 @@ class ReleaseDeclaration(StrictModel):
             raise ValueError("v2/v3 releases require an explicit publication_mode")
         if (self.schema_version == 3) != (self.training_use_policy is not None):
             raise ValueError("training_use_policy is required only for v3 releases")
+        if self.record_admission is not None and self.schema_version != 2:
+            raise ValueError("record admission currently requires a v2 release")
         from sparselab.corpus.provenance import ORIGINS, SHAPES
 
         for values, allowed, label in (
@@ -648,6 +665,8 @@ def release_declaration_payload(release: ReleaseDeclaration) -> dict[str, Any]:
         result.pop("publication_mode")
     if release.schema_version in (1, 2):
         result.pop("training_use_policy")
+    if release.record_admission is None:
+        result.pop("record_admission")
     return result
 
 

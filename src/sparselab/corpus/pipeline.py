@@ -32,7 +32,12 @@ from sparselab.corpus.provenance import (
     validate_lineage,
     verification,
 )
-from sparselab.corpus.rights import FileRights, resolve_file_rights
+from sparselab.corpus.rights import (
+    FileRights,
+    reported_spdx_expression,
+    resolve_file_rights,
+    verify_record_admission,
+)
 from sparselab.training.manifest import canonical_json, sha256_file
 
 if TYPE_CHECKING:
@@ -437,6 +442,7 @@ def _records_for_file(
     rejected_records: list[dict[str, Any]] | None = None,
     full_file_sha256: str | None = None,
     first_row_index: int = 1,
+    record_admission: dict[str, Any] | None = None,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     suffix = Path(name).suffix.lower()
     streaming_rows = (
@@ -476,6 +482,26 @@ def _records_for_file(
         passages = []
         for n, item in enumerate(itertools.islice(objects, max_rows), first_row_index):
             upstream = item.get("_sparselab_source", {})
+            if record_admission is not None:
+                decision = record_admission["decisions"].get(
+                    upstream.get("source_row_index")
+                )
+                if decision is None:
+                    raise ValueError("record admission lacks selected source row")
+                if decision["decision"] != "qualify":
+                    if rejected_records is not None:
+                        rejected_records.append(
+                            {
+                                "source_id": source.id,
+                                "path": name,
+                                "row": upstream["source_row_index"],
+                                "reason": "record admission "
+                                + decision["decision"]
+                                + ": "
+                                + decision["reason"],
+                            }
+                        )
+                    continue
             metadata = {
                 key: value
                 for key, value in {**item, **upstream}.items()
@@ -537,7 +563,9 @@ def _records_for_file(
     raw_sha = full_file_sha256 or hashlib.sha256(raw).hexdigest()
     rights_payload = file_rights.model_dump(mode="json") if file_rights else None
     file_license = (
-        (
+        record_admission["license_label"]
+        if record_admission is not None
+        else (
             file_rights.detected_spdx_expression
             or source.rights.spdx_expression
             or source.license
@@ -1400,6 +1428,33 @@ def build(
     lock = verify_acquisition(
         project, work_root, proof_store=proof_store, verification_mode=verification_mode
     )
+    record_admission: dict[tuple[str, str], dict[str, Any]] = {}
+    admission_bytes: bytes | None = None
+    if project.release.record_admission is not None:
+        from sparselab.corpus.project import project_path, source_declaration_payload
+
+        reference = project.release.record_admission
+        admission_path = project_path(project.root, reference.path)
+        admission_bytes = admission_path.read_bytes()
+        if hashlib.sha256(admission_bytes).hexdigest() != reference.sha256.lower():
+            raise ValueError("record admission SHA-256 mismatch")
+        admission_manifest = json.loads(admission_bytes)
+        record_admission = verify_record_admission(
+            admission_manifest,
+            {
+                source.id: source_declaration_payload(source)
+                for source in project.sources
+            },
+            {
+                source_id: json.loads(
+                    (Path(row["snapshot_path"]) / "manifest.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                for source_id, row in lock["sources"].items()
+            },
+            Path(work_root) / "corpora" / project.config.id / "snapshots",
+        )
     root = Path(work_root) / "corpora" / project.config.id / "builds"
     root.mkdir(parents=True, exist_ok=True)
     transforms = _ordered_transforms(project)
@@ -1476,6 +1531,8 @@ def build(
             verification_mode=verification_mode,
         )
     with _staged_build(root, build_id) as staging:
+        if admission_bytes is not None:
+            (staging / "record-admission.json").write_bytes(admission_bytes)
         documents: list[dict[str, Any]] = []
         evidence: list[dict[str, Any]] = []
         rejected: list[dict[str, Any]] = []
@@ -1553,6 +1610,9 @@ def build(
                     if source.rights
                     else None
                 )
+                admitted = record_admission.get((source.id, name))
+                if admitted is not None:
+                    decision = admitted["rights"]
                 if decision is not None:
                     rights_files.append(
                         {
@@ -1567,6 +1627,22 @@ def build(
                             "revision": source.revision,
                             "license_url": source.license_url,
                             "rights": decision.model_dump(mode="json"),
+                            **(
+                                {
+                                    "admission_policy_id": admitted["policy_id"],
+                                    "admission_policy_sha256": admitted[
+                                        "policy_sha256"
+                                    ],
+                                    "admission_license_label": admitted[
+                                        "license_label"
+                                    ],
+                                    "admission_policy_spdx_expression": admitted[
+                                        "policy_spdx_expression"
+                                    ],
+                                }
+                                if admitted is not None
+                                else {}
+                            ),
                         }
                     )
                     if decision.training_eligibility not in {
@@ -1595,6 +1671,7 @@ def build(
                         entry["snapshot_sha256"],
                         file_rights=decision,
                         rejected_records=rejected,
+                        record_admission=admitted,
                     )
                     documents.extend(doc for doc, _ in pairs)
                     evidence.extend(span for _, span in pairs)
@@ -1606,6 +1683,25 @@ def build(
                             "reason": str(exc),
                         }
                     )
+        if record_admission:
+            expected_rows = {
+                (source_id, path, index)
+                for (source_id, path), item in record_admission.items()
+                for index, choice in item["decisions"].items()
+                if choice["decision"] == "qualify"
+            }
+            observed_rows = {
+                (
+                    doc["source_id"],
+                    doc["source_location"].split("#", 1)[0],
+                    doc.get("metadata", {}).get("source_row_index"),
+                )
+                for doc in documents
+                if (doc["source_id"], doc["source_location"].split("#", 1)[0])
+                in record_admission
+            }
+            if observed_rows != expected_rows:
+                raise ValueError("admitted source row inventory differs from documents")
         _jsonl(staging / "rejected.jsonl", rejected)
         documents.sort(key=lambda d: d["document_id"])
         policy = _model(project.splits)
@@ -3022,9 +3118,7 @@ def build(
                 decision = item["rights"]
                 bytes_by_state[decision["training_eligibility"]] += item["size"]
                 spdx_counts[
-                    decision["detected_spdx_expression"]
-                    or source_spdx[item["source_id"]]
-                    or "unknown"
+                    reported_spdx_expression(item, source_spdx[item["source_id"]])
                 ] += 1
                 modes[decision["redistribution_mode"]] += 1
             rights_report = {
