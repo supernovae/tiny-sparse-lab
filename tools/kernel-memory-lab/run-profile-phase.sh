@@ -69,7 +69,7 @@ cleanup() {
     fi
     printf '%s\n' 137 > "$root/$phase-exit-code.txt" || true
     kill -TERM -- "-$pgid" 2>/dev/null || true
-    sleep 1
+    sleep 1 || true
     kill -KILL -- "-$pgid"
   fi
 }
@@ -108,7 +108,7 @@ check_resources() {
   fi
   added_bytes=$((current_bytes-baseline_bytes))
   added_inodes=$((current_inodes-baseline_inodes))
-  printf '%s,%s,%s,%s\n' "$(date -u +%FT%TZ)" "$used_bytes" "$added_bytes" "$added_inodes" >> "$root/$phase-resource-samples.csv"
+  printf '%s,%s,%s,%s\n' "$(date -u +%FT%TZ)" "$used_bytes" "$added_bytes" "$added_inodes" >> "$root/$phase-resource-samples.csv" || return 1
   if (( added_bytes > added_bytes_cap || added_inodes > added_inodes_cap )); then
     stop_for_cap "Added disk/inodes cap: $added_bytes bytes, $added_inodes inodes"
     return 1
