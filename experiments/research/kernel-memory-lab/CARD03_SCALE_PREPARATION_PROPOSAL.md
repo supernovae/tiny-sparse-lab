@@ -1,8 +1,10 @@
 # Card 03 scaled preparation proposal — metadata sizing v1
 
-Status: **APPROVED FOR ONE PREPARATION ATTEMPT** under
+Status: **ONE APPROVED ATTEMPT CONSUMED AND STOPPED** under
 [KML-D15](DECISIONS.md#kml-d15--one-scaled-card-03-preparation-attempt-approved-2026-10-07),
-subject to the owner's clarifications recorded there. This is a bounded
+with [failure evidence](results/2026-10-07-card03-scale-metadata-stop.md).
+The separately proposed [retry 1](CARD03_SCALE_RETRY1_PROPOSAL.md) is not approved.
+This was a bounded
 preparation allocation, not model training authority. It preserves the accepted
 source-admission policy v1, 65/25/10 realized target-token mix, 32,768-entry
 train-only byte-level BPE, 80/10/10 independent-family split, 200 language and
