@@ -1,0 +1,6 @@
+# Native train-only source-token denominator for the approved Card 03 retry.
+# This measures distinct admitted train documents after family split and dedup.
+min_unique_train_tokens_by_domain:
+  general_prose: 1625000
+  explanatory_prose: 625000
+  incident_response_docs: 250000
