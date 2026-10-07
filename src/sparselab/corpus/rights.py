@@ -600,7 +600,7 @@ _ADMISSION_PRIVATE = re.compile(
 )
 
 
-def verify_record_admission(
+def _verify_record_admission_v1(
     manifest: Mapping[str, Any],
     sources: Mapping[str, Mapping[str, Any]],
     snapshots: Mapping[str, Mapping[str, Any]],
@@ -835,4 +835,210 @@ def verify_record_admission(
             "policy_id": manifest["policy_id"],
             "policy_sha256": manifest["policy_sha256"],
         }
+    return resolved
+
+
+_GIT_PRIVATE = re.compile(
+    rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    rb"|\bAKIA[A-Z0-9]{16}\b"
+    rb"|\b(?:ghp|gho|github_pat)_[A-Za-z0-9_]{30,}\b"
+    rb"|\b\d{3}-\d{2}-\d{4}\b"
+    rb"|\b(?:password|api[_-]?key|secret[_-]?key)\s*[:=]\s*"
+    rb"['\"]?[A-Za-z0-9/+_=]{24,}",
+    re.IGNORECASE,
+)
+_GIT_THIRD_PARTY = re.compile(
+    rb"\b(?:third[- ]party|copied from|reproduced with permission|"
+    rb"all rights reserved|fair use|copyright|courtesy of)\b",
+    re.IGNORECASE,
+)
+
+
+def _git_file_exceptions(raw: bytes, policy_spdx: str) -> tuple[bool, bool]:
+    """Screen the complete pinned file; return material conflict and review flag."""
+    expressions = {
+        re.sub(r"(?:\s*\*/|\s*-->)\s*$", "", match.group(1)).strip()
+        for line in raw.splitlines()
+        if (match := _SPDX_LINE.search(line.decode("utf-8", errors="replace")))
+    }
+    conflict = bool(_GIT_PRIVATE.search(raw)) or bool(expressions - {policy_spdx})
+    flag = bool(_GIT_THIRD_PARTY.search(raw))
+    return conflict, flag
+
+
+def verify_record_admission(
+    manifest: Mapping[str, Any],
+    sources: Mapping[str, Mapping[str, Any]],
+    snapshots: Mapping[str, Mapping[str, Any]],
+    snapshot_root: Path,
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Verify reviewed HF rows and, in v2, each pinned Git file.
+
+    The v1 path is left intact for historical manifests and release identities.
+    A v2 manifest covers every project source; no unreviewed Git file can fall
+    through to a permissive source default.
+    """
+    if manifest.get("schema_version") == 1:
+        return _verify_record_admission_v1(manifest, sources, snapshots, snapshot_root)
+    if (
+        set(manifest) != {"schema_version", "policy_id", "policy_sha256", "sources"}
+        or manifest.get("schema_version") != 2
+        or not isinstance(manifest.get("policy_id"), str)
+        or not manifest["policy_id"].strip()
+        or not isinstance(manifest.get("policy_sha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", manifest["policy_sha256"]) is None
+        or not isinstance(manifest.get("sources"), list)
+        or set(sources) != set(snapshots)
+    ):
+        raise ValueError("invalid versioned record admission manifest")
+    entries = manifest["sources"]
+    if (
+        len(entries) != len(sources)
+        or any(not isinstance(item, dict) for item in entries)
+        or {item.get("source_id") for item in entries} != set(sources)
+    ):
+        raise ValueError("record admission source inventory mismatch")
+    hf_entries = [
+        item
+        for item in entries
+        if sources[item["source_id"]]["kind"] == "huggingface_dataset"
+    ]
+    git_entries = [
+        item for item in entries if sources[item["source_id"]]["kind"] == "git"
+    ]
+    if len(hf_entries) + len(git_entries) != len(entries):
+        raise ValueError("record admission source kind is unsupported")
+    hf_ids = {item["source_id"] for item in hf_entries}
+    resolved = _verify_record_admission_v1(
+        {**manifest, "schema_version": 1, "sources": hf_entries},
+        {key: sources[key] for key in hf_ids},
+        {key: snapshots[key] for key in hf_ids},
+        snapshot_root,
+    )
+    for item in git_entries:
+        if set(item) != {
+            "source_id",
+            "snapshot_sha256",
+            "source_revision",
+            "license_label",
+            "rights",
+            "files",
+        }:
+            raise ValueError("invalid Git file admission source entry")
+        source_id = item["source_id"]
+        source = sources[source_id]
+        snapshot = snapshots[source_id]
+        if (
+            source["schema_version"] != 2
+            or item["snapshot_sha256"] != snapshot["snapshot_sha256"]
+            or item["source_revision"] != source["revision"]
+            or snapshot["declaration"]["id"] != source_id
+            or snapshot["declaration"]["revision"] != source["revision"]
+            or not isinstance(item["license_label"], str)
+            or not item["license_label"].strip()
+            or not isinstance(item["files"], list)
+        ):
+            raise ValueError("Git file admission source provenance mismatch")
+        policy = RightsPolicy.model_validate(item["rights"])
+        if (
+            policy.training_eligibility not in {"eligible", "eligible_with_obligations"}
+            or policy.redistribution_mode != "metadata_reconstruction_only"
+            or not policy.spdx_expression
+            or not policy.license_references
+            or policy.training_restriction is not None
+            or source["license_url"] not in policy.license_references
+            or policy.spdx_expression not in item["license_label"]
+        ):
+            raise ValueError(
+                "Git file admission policy is outside local research scope"
+            )
+        files = {file["path"]: file for file in snapshot["files"]}
+        decisions = item["files"]
+        if (
+            len(files) != len(snapshot["files"])
+            or len(decisions) != len(files)
+            or any(not isinstance(decision, dict) for decision in decisions)
+            or {decision.get("path") for decision in decisions} != set(files)
+        ):
+            raise ValueError("Git file admission decisions do not cover pinned files")
+        for decision in decisions:
+            if (
+                not set(decision).issubset(
+                    {"path", "sha256", "decision", "reason", "issues", "manual_review"}
+                )
+                or not {"path", "sha256", "decision", "reason", "issues"}.issubset(
+                    decision
+                )
+                or decision["decision"] not in {"qualify", "exclude", "quarantine"}
+                or not isinstance(decision["reason"], str)
+                or not decision["reason"].strip()
+                or not isinstance(decision["issues"], list)
+                or any(
+                    not isinstance(issue, dict)
+                    or set(issue) != {"field", "owner", "remedy", "decision_impact"}
+                    or any(
+                        not isinstance(value, str) or not value.strip()
+                        for value in issue.values()
+                    )
+                    for issue in decision["issues"]
+                )
+            ):
+                raise ValueError("invalid Git file admission decision")
+            path = decision["path"]
+            file = files[path]
+            if decision["sha256"] != file["sha256"]:
+                raise ValueError("Git file admission SHA-256 mismatch")
+            sample = (
+                snapshot_root / source_id / snapshot["snapshot_sha256"] / "files" / path
+            )
+            if sample.is_symlink() or sha256_file(sample) != file["sha256"]:
+                raise ValueError("Git file admission bytes differ from snapshot")
+            raw = sample.read_bytes()
+            header = b"\n".join(raw.splitlines()[:30]) + b"\n"
+            material, flagged = _git_file_exceptions(raw, policy.spdx_expression)
+            checked = resolve_file_rights(
+                policy, path, header, prospective_private_research=True
+            )
+            manual = decision.get("manual_review")
+            if manual is not None and (
+                not isinstance(manual, dict)
+                or set(manual) != {"reviewer", "reviewed_on", "evidence_url", "finding"}
+                or any(
+                    not isinstance(value, str) or not value.strip()
+                    for value in manual.values()
+                )
+                or not manual["evidence_url"].startswith("https://")
+            ):
+                raise ValueError("invalid Git file admission manual review")
+            if decision["decision"] == "qualify":
+                if (
+                    checked.training_eligibility
+                    not in {"eligible", "eligible_with_obligations"}
+                    or checked.boundary_flags
+                    or checked.detected_spdx_expression
+                    not in {None, policy.spdx_expression}
+                    or material
+                ):
+                    raise ValueError("qualified Git file has material rights exception")
+                if flagged and manual is None:
+                    raise ValueError("qualified flagged Git file lacks manual review")
+                file_rights = checked
+            else:
+                source_policy = RightsPolicy.model_validate(source["rights"])
+                file_rights = resolve_file_rights(
+                    source_policy, path, header, prospective_private_research=True
+                )
+                if file_rights.training_eligibility in {
+                    "eligible",
+                    "eligible_with_obligations",
+                }:
+                    raise ValueError("excluded Git file unexpectedly eligible")
+            resolved[source_id, path] = {
+                "rights": file_rights,
+                "license_label": item["license_label"],
+                "policy_spdx_expression": policy.spdx_expression,
+                "decision": decision["decision"],
+                "policy_id": manifest["policy_id"],
+                "policy_sha256": manifest["policy_sha256"],
+            }
     return resolved

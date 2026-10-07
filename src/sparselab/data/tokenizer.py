@@ -173,6 +173,19 @@ def verify_tokenizer_artifact(
     _domain_cold: bool = False,
 ) -> dict[str, object]:
     """Verify the tokenizer and its complete provenance closure."""
+    if source == "local_token_mixture":
+        if dataset is None:
+            raise ValueError(
+                "token mixture tokenizer verification requires its dataset"
+            )
+        if revision != dataset.revision:
+            raise ValueError("token mixture tokenizer revision mismatch")
+        from sparselab.corpus.mixture import verify_mixture_dataset
+
+        verify_mixture_dataset(dataset, path, vocab_size)
+        return json.loads(
+            path.with_name("tokenizer_manifest.json").read_text(encoding="utf-8")
+        )
     from sparselab.corpus.release import _verification_operation
 
     with _verification_operation():

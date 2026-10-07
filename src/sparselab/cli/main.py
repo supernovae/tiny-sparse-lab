@@ -723,13 +723,14 @@ def _data_bakeoff(args: argparse.Namespace) -> None:
 
 def _data_prepare(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
-    verify_tokenizer_artifact(
-        config.tokenizer.path,
-        source=config.dataset.source,
-        revision=config.dataset.revision,
-        vocab_size=config.model.vocab_size,
-        dataset=config.dataset,
-    )
+    if config.dataset.source != "local_token_mixture":
+        verify_tokenizer_artifact(
+            config.tokenizer.path,
+            source=config.dataset.source,
+            revision=config.dataset.revision,
+            vocab_size=config.model.vocab_size,
+            dataset=config.dataset,
+        )
     tokenizer = load_tokenizer(config.tokenizer.path)
     print(
         prepare_data(

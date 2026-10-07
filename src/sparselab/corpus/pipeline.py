@@ -1687,7 +1687,7 @@ def build(
             expected_rows = {
                 (source_id, path, index)
                 for (source_id, path), item in record_admission.items()
-                for index, choice in item["decisions"].items()
+                for index, choice in item.get("decisions", {}).items()
                 if choice["decision"] == "qualify"
             }
             observed_rows = {
@@ -1697,8 +1697,11 @@ def build(
                     doc.get("metadata", {}).get("source_row_index"),
                 )
                 for doc in documents
-                if (doc["source_id"], doc["source_location"].split("#", 1)[0])
-                in record_admission
+                if "decisions"
+                in record_admission.get(
+                    (doc["source_id"], doc["source_location"].split("#", 1)[0]),
+                    {},
+                )
             }
             if observed_rows != expected_rows:
                 raise ValueError("admitted source row inventory differs from documents")

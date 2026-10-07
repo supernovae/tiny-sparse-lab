@@ -369,3 +369,191 @@ def test_optional_admission_reference_preserves_historical_release_payload() -> 
     assert hashlib.sha256(canonical_json(payload)).hexdigest() == (
         "01fab54388883d4218a7c1b1ce5bbbae7755d18a06d706fd5a2788df5bfb40fe"
     )
+
+
+def _mixed_fixture(tmp_path: Path) -> tuple[dict, dict, dict]:
+    manifest, hf_source, hf_snapshot, _, _ = _fixture(tmp_path)
+    git_source = SourceDeclaration.model_validate(
+        {
+            "schema_version": 2,
+            "id": "incident_fixture",
+            "kind": "git",
+            "canonical_uri": "https://github.com/example/incident-docs",
+            "revision": "e" * 40,
+            "license": "Apache-2.0; reviewed local research",
+            "license_url": "https://github.com/example/incident-docs/blob/"
+            + "e" * 40
+            + "/LICENSE",
+            "rights": {
+                "training_eligibility": "review_required",
+                "redistribution_mode": "review_required",
+            },
+            "domains": ["incident_response"],
+            "document_kinds": ["documentation"],
+            "source_family": "incident_fixture",
+            "acquisition": {
+                "max_bytes": 100000,
+                "bounded_blobs": [
+                    {
+                        "path": "docs/covered.md",
+                        "git_blob_oid": "a" * 40,
+                        "max_bytes": 25,
+                    },
+                    {
+                        "path": "docs/exception.md",
+                        "git_blob_oid": "b" * 40,
+                        "max_bytes": 40,
+                    },
+                ],
+                "tree_oid": "c" * 40,
+            },
+        }
+    ).model_dump(mode="json")
+    snapshot_sha = "f" * 64
+    contents = {
+        "docs/covered.md": b"# Covered\nIncident response.\n",
+        "docs/exception.md": b"<!-- SPDX-License-Identifier: MIT -->\nNo.\n",
+    }
+    files = []
+    decisions = []
+    for path, raw in contents.items():
+        target = tmp_path / git_source["id"] / snapshot_sha / "files" / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+        digest = hashlib.sha256(raw).hexdigest()
+        files.append({"path": path, "sha256": digest, "size": len(raw)})
+        decisions.append(
+            {
+                "path": path,
+                "sha256": digest,
+                "decision": "qualify" if path.endswith("covered.md") else "quarantine",
+                "reason": "reviewed source policy"
+                if path.endswith("covered.md")
+                else "file license exception",
+                "issues": [],
+            }
+        )
+    git_snapshot = {
+        "snapshot_sha256": snapshot_sha,
+        "declaration": git_source,
+        "files": files,
+        "retrieval": {"commit": git_source["revision"]},
+    }
+    manifest["schema_version"] = 2
+    manifest["sources"].append(
+        {
+            "source_id": git_source["id"],
+            "snapshot_sha256": snapshot_sha,
+            "source_revision": git_source["revision"],
+            "license_label": "Apache-2.0 reviewed local research",
+            "rights": {
+                "training_eligibility": "eligible_with_obligations",
+                "redistribution_mode": "metadata_reconstruction_only",
+                "spdx_expression": "Apache-2.0",
+                "license_references": [git_source["license_url"]],
+                "notices": ["Retain source attribution"],
+            },
+            "files": decisions,
+        }
+    )
+    return (
+        manifest,
+        {hf_source["id"]: hf_source, git_source["id"]: git_source},
+        {
+            hf_source["id"]: hf_snapshot,
+            git_source["id"]: git_snapshot,
+        },
+    )
+
+
+def test_mixed_admission_qualifies_covered_git_file_and_quarantines_exception(
+    tmp_path: Path,
+) -> None:
+    manifest, sources, snapshots = _mixed_fixture(tmp_path)
+    admitted = verify_record_admission(manifest, sources, snapshots, tmp_path)
+    covered = admitted["incident_fixture", "docs/covered.md"]
+    exception = admitted["incident_fixture", "docs/exception.md"]
+    assert covered["decision"] == "qualify"
+    assert covered["rights"].training_eligibility == "eligible_with_obligations"
+    assert exception["decision"] == "quarantine"
+    assert exception["rights"].training_eligibility == "review_required"
+    assert (
+        admitted[
+            "gutenberg_fixture", "project_gutenberg-dolma-0014.json.gz.sample.jsonl"
+        ]["decisions"][1]["decision"]
+        == "quarantine"
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing", "do not cover pinned files"),
+        ("unknown", "do not cover pinned files"),
+        ("sha", "SHA-256 mismatch"),
+        ("qualify_exception", "material rights exception"),
+        ("tamper", "bytes differ from snapshot"),
+    ],
+)
+def test_mixed_admission_fails_closed_on_git_file_exception(
+    tmp_path: Path, mutation: str, message: str
+) -> None:
+    manifest, sources, snapshots = _mixed_fixture(tmp_path)
+    git = manifest["sources"][1]
+    if mutation == "missing":
+        git["files"].pop()
+    elif mutation == "unknown":
+        git["files"][0]["path"] = "docs/unknown.md"
+    elif mutation == "sha":
+        git["files"][0]["sha256"] = "0" * 64
+    elif mutation == "qualify_exception":
+        git["files"][1]["decision"] = "qualify"
+    else:
+        (
+            tmp_path / "incident_fixture" / ("f" * 64) / "files/docs/covered.md"
+        ).write_bytes(b"tampered")
+    with pytest.raises(ValueError, match=message):
+        verify_record_admission(manifest, sources, snapshots, tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "expected"),
+    [
+        (b"\nCopyright 2024 Third Party\n", "lacks manual review"),
+        (b"\n<!-- SPDX-License-Identifier: MIT -->\n", "material rights exception"),
+        (b"\nAKIAABCDEFGHIJKLMNOP\n", "material rights exception"),
+    ],
+)
+def test_git_exception_screen_reads_beyond_header(
+    tmp_path: Path, suffix: bytes, expected: str
+) -> None:
+    manifest, sources, snapshots = _mixed_fixture(tmp_path)
+    target = tmp_path / "incident_fixture" / ("f" * 64) / "files/docs/covered.md"
+    target.write_bytes(b"ordinary text\n" * 30 + suffix)
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    snapshots["incident_fixture"]["files"][0]["sha256"] = digest
+    manifest["sources"][1]["files"][0]["sha256"] = digest
+    with pytest.raises(ValueError, match=expected):
+        verify_record_admission(manifest, sources, snapshots, tmp_path)
+
+
+def test_flagged_git_file_can_qualify_only_after_documented_review(
+    tmp_path: Path,
+) -> None:
+    manifest, sources, snapshots = _mixed_fixture(tmp_path)
+    target = tmp_path / "incident_fixture" / ("f" * 64) / "files/docs/covered.md"
+    target.write_bytes(b"# Covered\nCopyright 2024 example, repository owner.\n")
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    snapshots["incident_fixture"]["files"][0]["sha256"] = digest
+    decision = manifest["sources"][1]["files"][0]
+    decision["sha256"] = digest
+    decision["manual_review"] = {
+        "reviewer": "Fixture reviewer",
+        "reviewed_on": "2026-10-07",
+        "evidence_url": "https://github.com/example/incident-docs/blob/"
+        + "e" * 40
+        + "/LICENSE",
+        "finding": "Copyright notice belongs to the pinned repository owner.",
+    }
+    result = verify_record_admission(manifest, sources, snapshots, tmp_path)
+    assert result["incident_fixture", "docs/covered.md"]["decision"] == "qualify"

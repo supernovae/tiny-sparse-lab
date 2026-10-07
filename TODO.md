@@ -58,6 +58,17 @@ historical dataset-specific inputs retain their original verifiers.
 These remain implementation gaps, but should not displace P1/P2 without a
 documented workload need and the required acceptance environment.
 
+- [ ] **Expose the Card 03 held-out item freeze through a typed native CLI.**
+  The new `sparselab.evaluation.kml_card03_items.freeze_card03_items` Python
+  API accepts a cold-verifiable corpus release, frozen family-inventory JSONL,
+  reviewed draft JSON and fresh output directory, and returns immutable item,
+  chunk and denominator digests. Add a small `sparselab evaluation
+  freeze-card03 ITEMS --release RELEASE --families INVENTORY --output OUTPUT
+  --json` adapter that reports those identities and fails on changed release,
+  train-family leakage, unbound chunk offsets/digests, unreviewed or missing
+  items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
+  existing output. Do not turn the adapter into a second authoring engine.
+
 - [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
 
 - [ ] **Extend the native operational monitor for accelerator memory and added output caps.** Kernel Memory Lab Card 04 P3's external `amd-smi` sampler failed while the native `sparselab monitor` still tracked RSS and free storage. Add optional typed `max_device_memory_bytes`, `max_added_workspace_bytes` and `max_added_workspace_inodes` policy fields with a registered ROCm sampler and a fail-closed unavailable-reading path. Record every sample, cap event and owned-process termination in the native completion receipt; baseline only the declared task workspace, retain process identity, and avoid interpreting sampled VRAM as an exact peak. Mock a sampler that fails after launch, a cap crossing, absent device, and interrupted monitor; no real GPU test is needed for the adapter. Until then, a corrected external sampler is needed for an approved Card 04 replacement profile.

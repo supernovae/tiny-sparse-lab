@@ -4,18 +4,26 @@ Status: **PROPOSED ONLY** after source-admission policy v1 and the small
 two-shard admission screen. No acquisition, tokenizer fitting, GPU work,
 optimizer updates or Card 05 runtime is authorized by this plan.
 
+The metadata-only sizing step is recorded in the [scaled preparation
+proposal](CARD03_SCALE_PREPARATION_PROPOSAL.md). It recommends a bounded
+5-million-position first candidate using the same two pinned complete shards
+plus two incident-document repositories; the earlier 10-million-position
+capacity target remains an aspiration, not an authorization or measured supply.
+
 ## Output target and sequencing
 
-Prepare one versioned, rights-admitted data and evaluation package capable of
-supporting a **proposed** first Card 05 tranche of up to 10 million model target
-positions. The tranche size itself remains subject to a real-data forecast and
+Prepare one versioned, rights-admitted data and evaluation package. The
+original **10-million-position** candidate remains an eventual capacity
+aspiration; the [sized first proposal](CARD03_SCALE_PREPARATION_PROPOSAL.md)
+uses **5 million** model target positions because incident-source capacity is
+uncertain. Any Card 05 tranche remains subject to a real-data forecast and
 separate approval. Keep the accepted 341,885,952-parameter architecture and the
 [Card 03 contract](CARD03_DATA_CONTRACT.md) unchanged: 65% general, 25%
 explanatory and 10% incident-response prose by *realized training target tokens*;
 train-only 32,768-entry byte-level BPE; 80/10/10 eligible family-count split;
 frozen 200-item closed-book language and 400-item open-book evidence suites.
 
-For a 10-million-position candidate with at most two train exposures per unique
+For the eventual 10-million-position candidate with at most two train exposures per unique
 target position, require measured train-family capacity of at least **3.25
 million unique general**, **1.25 million unique explanatory** and **0.5 million
 unique incident-response** target positions after tokenization, with independent
@@ -85,10 +93,10 @@ reports 5,918,614 general-prose UTF-8 bytes, only 7,308 explanatory-prose
 UTF-8 bytes and zero incident-response bytes, with model-token counts
 unavailable until the main tokenizer exists. The inventory release has no
 selected LM or chat view and does not freeze the full Card 03 inputs.
-PagerDuty content is unacquired. Exact new transport bytes, retained size,
-tokenizer input ceiling, preparation wall/disk limits and eventual Card 05
-updates cannot be fixed honestly before metadata inventory and measured token
-counts. The next separately reviewable operational request is one **metadata-
-only sizing and source-rights inventory**, followed by one consolidated bounded
-preparation authorization with exact data and resource limits. No training
-authority is inherited from source admission.
+PagerDuty content is unacquired. The metadata-only inventory now fixes the
+proposed transport, retention and preparation ceilings in the [scaled
+preparation proposal](CARD03_SCALE_PREPARATION_PROPOSAL.md). Actual unique
+train tokens, independent families and any eventual Card 05 update/time
+allocation still require admitted content, frozen splits, a main tokenizer
+and a real-data forecast. No training authority is inherited from source
+admission or this preparation proposal.

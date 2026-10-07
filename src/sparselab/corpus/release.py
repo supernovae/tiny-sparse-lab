@@ -225,7 +225,10 @@ def _verify_rights_files(
                     )
                 ):
                     raise ValueError("file admission policy attribution mismatch")
-                recorded["_admission_decisions"] = admitted["decisions"]
+                if "decisions" in admitted:
+                    recorded["_admission_decisions"] = admitted["decisions"]
+                else:
+                    recorded["_admission_file_decision"] = admitted["decision"]
             elif any(key.startswith("admission_") for key in recorded):
                 raise ValueError("undeclared file admission policy")
     if admission:
@@ -883,6 +886,8 @@ def _validate_rows(
                 or doc["redistribution"] != decision["redistribution_mode"]
             ):
                 raise ValueError("document rights attribution mismatch")
+            if file.get("_admission_file_decision", "qualify") != "qualify":
+                raise ValueError("document lacks qualifying file admission")
             if "_admission_decisions" in file:
                 metadata = doc.get("metadata") or {}
                 index = metadata.get("source_row_index")

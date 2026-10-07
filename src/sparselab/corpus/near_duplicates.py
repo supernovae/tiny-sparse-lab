@@ -205,11 +205,13 @@ def candidates(
     }
 
 
-def audit_release(path: Path) -> dict[str, Any]:
+def audit_release(path: Path, **caps: int) -> dict[str, Any]:
     """Verify the immutable release, then screen its original normalized text."""
     from sparselab.corpus.release import verify_release
 
     manifest = verify_release(path)
     with (Path(path) / "documents.jsonl").open(encoding="utf-8") as handle:
-        result = candidates(json.loads(line) for line in handle if line.strip())
+        result = candidates(
+            (json.loads(line) for line in handle if line.strip()), **caps
+        )
     return {"release_id": manifest["release_id"], **result}

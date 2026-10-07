@@ -137,6 +137,7 @@ class DatasetConfig(StrictModel):
         "chat_recall",
         "local_chat",
         "local_text",
+        "local_token_mixture",
         "local_stories",
         "snapshot",
         "withheld_facts",
@@ -165,9 +166,35 @@ class DatasetConfig(StrictModel):
     corpus_export_path: Path | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    mixture_declaration_path: Path | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    mixture_output_path: Path | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def validate_source(self) -> DatasetConfig:
+        if self.source == "local_token_mixture":
+            if (
+                self.mixture_declaration_path is None
+                or self.mixture_output_path is None
+            ):
+                raise ValueError(
+                    "local_token_mixture requires mixture declaration and output"
+                )
+            if (
+                self.corpus_release_path is not None
+                or self.corpus_export_path is not None
+            ):
+                raise ValueError(
+                    "local_token_mixture authenticates its own release closure"
+                )
+        elif (
+            self.mixture_declaration_path is not None
+            or self.mixture_output_path is not None
+        ):
+            raise ValueError("mixture paths require source=local_token_mixture")
         if self.allocation_manifest_path is not None and self.source != "local_chat":
             raise ValueError(
                 "dataset.allocation_manifest_path requires source=local_chat"
@@ -239,7 +266,7 @@ class DatasetConfig(StrictModel):
             raise ValueError("dataset.revision is required for remote datasets")
         if self.source in {"fineweb_edu", "cosmopedia"} and not self.dataset_config:
             raise ValueError("dataset.dataset_config is required for this source")
-        if self.source in {"local_chat", "local_text"}:
+        if self.source in {"local_chat", "local_text", "local_token_mixture"}:
             if self.train_path is None or self.validation_path is None:
                 raise ValueError(
                     f"{self.source} requires train_path and validation_path"

@@ -1,0 +1,35 @@
+schema_version: 2
+id: kml_scale_project_gutenberg
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/common-pile/project_gutenberg_filtered
+revision: 3cdf6879c807f4e4e063f2ceb23bc268d8c29ab7
+license: Public Domain claim, per-work review required
+license_url: https://www.gutenberg.org/policy/license
+rights:
+  training_eligibility: review_required
+  redistribution_mode: review_required
+  license_references:
+    - https://huggingface.co/datasets/common-pile/project_gutenberg_filtered
+    - https://www.gutenberg.org/policy/license
+  notices:
+    - Retain book ID, edition, source URL and notices; review each selected work before any tokenizer, training or redistribution use.
+notes: Pinned complete-shard scale selection; rows remain quarantined until the separate versioned policy-v1 admission manifest verifies them.
+domains: [general_prose]
+document_kinds: [prose]
+source_family: kml_scale_project_gutenberg
+acquisition:
+  config: default
+  split: train
+  text_field: text
+  max_rows: 500
+  max_bytes: 268435456
+  max_decompressed_bytes: 4294967296
+  bounded_shards:
+    - path: project_gutenberg-dolma-0014.json.gz
+      expected_sha256: bdcb5e7e0e48d42489949fe2492b765c71d4eae1e1cd6de34cddfb1b4360b3ee
+      max_shard_bytes: 362929669
+      max_scanned_rows: 3000
+      hash_modulus: 16
+      hash_remainders: [0]
+      declared_config: default
+      declared_split: train

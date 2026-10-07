@@ -1,0 +1,10 @@
+# All acquired content remains unselected pending verified admission/splits.
+schema_version: 2
+publication_mode: metadata_reconstruction_only
+mixture:
+  general_prose: 0.65
+  explanatory_prose: 0.25
+  incident_response_docs: 0.10
+lm: {selected: false, training_splits: []}
+chat: {selected: false, training_splits: []}
+keep_nonredistributable_local: true
