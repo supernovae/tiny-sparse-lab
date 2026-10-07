@@ -164,12 +164,12 @@ tracks checkout changes without reinstalling; this command preserves vendor Torc
 Registry IDs and locations never enter plan/science/config digests, CAS or
 checkpoints. Do not copy this host's registry to an SSH worker.
 
-### Versioned gfx1100 provisioning
+### Versioned vendor provisioning
 
-The sole built-in recipe, `rocm-gfx1100-v1`, binds the AMD ROCm 10.0.0/Python 3.14
-pins and indexes in `requirements/rocm-gfx1100.txt`; it is not a portable ROCm
-extra or a global ROCm version. First establish the actual Windows/WSL/Linux
-driver and GPU combination against AMD's
+The built-in `rocm-gfx1100-v1` recipe binds AMD ROCm 10.0.0/Python 3.14 pins
+and indexes in `requirements/rocm-gfx1100.txt`; it is not a portable ROCm extra
+or a global ROCm version. First establish the actual Windows/WSL/Linux driver
+and GPU combination against AMD's
 [compatibility matrix](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html),
 [WSL installation prerequisites](https://rocm.docs.amd.com/en/latest/install/rocm.html?fam=radeon&gpu=amd-radeon-rx-7900-xtx&gfx=gfx1100&os=wsl),
 and [PyTorch installer](https://rocm.docs.amd.com/projects/ai-ecosystem/en/latest/frameworks/pytorch/install.html).
@@ -194,16 +194,40 @@ downloads, and keeps its cache/scratch/logs on that filesystem. It exports only
 locked common dependencies, rejects Torch/CPU-index contamination, installs
 the explicit vendor pins, then installs editable SparseLab with `--no-deps`.
 Torch version/path/HIP must be unchanged by that last source-only install.
+Linux overlay mounts are accepted only at a resolved, writable runtime ancestor
+whose actual statvfs is not read-only and has the required byte/inode headroom.
+The receipt records the observed filesystem and mount. This supports ephemeral
+hosted VM storage, not a persistence guarantee; network, Drive/FUSE, Windows
+share and unknown filesystem types remain refused.
+
+The locked common-dependency export uses the same validated absolute Python as
+environment creation. Installer isolation removes inherited uv interpreter
+settings; it must not rediscover Python or download a substitute.
 
 The receipt records recipe/file SHA, source commit/SHA, Python/Torch/device,
-package inventory, indexes, commands, profile/probe and tested BF16 optimizer
-identity. Registration occurs only after the full import, matching real ROCm
-device and BF16 doctor succeed and `provision-receipt.json` is fsynced.
+package inventory, indexes, commands, profile/probe and tested optimizer
+identity. Registration occurs only after the full import, matching real device
+and recipe-precision doctor succeed and `provision-receipt.json` is fsynced.
 A failed provision retains its environment, logs and `provision-failure.json`,
 unregistered. Choose a fresh ID rather than repurposing it; unregister never
-deletes an environment. NVIDIA, Intel and Apple environments remain explicitly
-user-provisioned; this recipe neither establishes their support nor changes
-the checkout CPU `.venv`.
+deletes an environment.
+
+`cuda-cu126-v1` is the analogous bounded Linux x86_64/Python 3.14 CUDA recipe.
+It pins the CUDA 12.6 Torch closure in
+[`requirements/cuda-cu126.txt`](../requirements/cuda-cu126.txt), requires a
+CUDA—not CPU or HIP—build, and registers only after a real FP16
+forward/backward/GradScaler update. Use `runtime env provision ID --recipe
+cuda-cu126-v1 --python /absolute/python --json`, then `runtime env doctor ID
+--precision fp16 --json`. The provisioner never downloads an interpreter;
+the hosted bootstrap is the separate, fixed path that installs task-owned
+Python 3.14/tools before calling this recipe. See
+[hosted environments](hosted-environments.md) for the receipt-bound workflow.
+Its Torch wheel is selected through the official CUDA `--find-links` listing;
+other frozen dependencies use PyPI. This avoids uv's first-index package
+shadowing without disabling dependency-confusion protection. The closure is
+resolved for Linux x86_64/Python 3.14 against the locked common dependencies,
+using the selected Torch wheel's actual metadata rather than another release's
+CUDA package versions.
 
 
 ## Executable runtime profiles

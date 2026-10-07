@@ -41,7 +41,7 @@ listed below and in the [runtime guide](docs/runtime.md).
 | Instruction objectives | Whole-transcript or assistant-only loss on local conversations | [Instruction training](docs/instruction-training.md); tool transcripts are inert. |
 | Evaluation and review | Held-out loss, capability cards, checkpoint-bound suites, self-blind review | [Evidence](docs/evidence.md); promotion requires review. |
 | Native diagnostics | Supplied-vector semantic probes, continuation overlap, bounded preparation benchmarks and opt-in phase observations | [CLI guide](docs/using-sparselab.md#native-diagnostic-interfaces); mechanism/descriptive/operational evidence, not quality or promotion gates. |
-| Local and SSH execution | Explicit runtime selection, staging and independent worker queues | [Workers](docs/workers.md); no distributed training. |
+| Local, SSH, and supplied hosted execution | Explicit runtime selection, staging, independent worker queues, and optional relay-backed Colab | [Hosted environments](docs/hosted-environments.md); one device per run, no provider allocation or distributed training. |
 | Dashboard | Training telemetry, checkpoints, research catalog and verified reports | [Research views](docs/research/dashboard.md); read-only. |
 | Local model exploration | Raw completion, transcript chat, Streamlit comparisons and a loopback API | [Model guide](docs/tinytext-model-guide.md); [nonstreaming API](docs/local-api.md); verified local run required. |
 
@@ -125,9 +125,10 @@ The [training-program guide](docs/experiment-programs.md) uses native
 
 Register and validate machine-local interpreters with the
 [runtime environment guide](docs/runtime.md#machine-local-runtime-environments).
-For a provisioned accelerator environment, follow the
-[worker setup guide](docs/workers.md#user-provisioned-ssh-workers) and use
-`uv run --locked --no-sync …` to preserve its vendor framework.
+For an already provisioned accelerator or an explicitly supplied Colab session,
+follow the [hosted environment guide](docs/hosted-environments.md). It keeps the
+vendor framework in a separate Python environment; use `uv run --locked --no-sync …`
+there rather than syncing the CPU extra.
 
 ## Experiments as programs
 
@@ -179,7 +180,7 @@ come from the model, data, training and evaluation declarations.
 | Compute | Engine / backend | Lab capability and requirements |
 | --- | --- | --- |
 | **CPU** | PyTorch / `cpu` | CPU execution on Linux, WSL2 and macOS. |
-| **NVIDIA GPU** | PyTorch / `cuda` | Requires a compatible CUDA framework and driver installation. Sparse attention currently uses the reference path; native CUDA sparse kernels remain unimplemented. |
+| **NVIDIA GPU** | PyTorch / `cuda` | Requires a compatible CUDA framework and driver installation. Dense SDPA is opt-in; [probe](docs/hosted-environments.md#boundaries-and-gates) the actual selected kernel rather than assuming FlashAttention. |
 | **AMD GPU** | PyTorch / `rocm` | Requires a compatible ROCm framework and driver installation. A native HIP sparse-attention path is also available within its documented device limits. |
 | **Intel GPU** | PyTorch / `xpu` | Requires a compatible XPU framework and driver installation. |
 | **Apple Silicon GPU** | PyTorch / `mps` | Uses the PyTorch Metal backend on a supported Mac. |

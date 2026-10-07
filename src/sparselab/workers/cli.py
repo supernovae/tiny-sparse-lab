@@ -6,7 +6,9 @@ import argparse
 import hashlib
 import json
 import logging
+import secrets
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,7 @@ from typing import Any
 from sparselab.config.loading import load_config
 from sparselab.experiments.matrix import expand
 from sparselab.training.manifest import config_sha256
+from sparselab.workdir import ensure_scratch_dir
 
 _BACKENDS = ("cpu", "mps", "cuda", "rocm", "xpu", "metal")
 _ENGINES = ("pytorch", "mlx")
@@ -37,6 +40,113 @@ def _absolute(value: str, *, argument: str) -> Path:
     return path
 
 
+def _relay_check(args: argparse.Namespace) -> None:
+    from sparselab.training.manifest import sha256_file
+
+    from .relay import RelayStore
+    from .relay_models import RelayArtifactIdentity, load_relay_profile
+
+    profile = load_relay_profile(args.profile)
+    controller = _controller(Path(args.store))
+    with tempfile.TemporaryDirectory(
+        prefix=".relay-check-", dir=controller.root
+    ) as directory:
+        source = Path(directory) / "challenge.bin"
+        source.write_bytes(secrets.token_bytes(32))
+        identity = RelayArtifactIdentity(
+            relative_path="verification/challenge.bin",
+            sha256=sha256_file(source),
+            size_bytes=32,
+        )
+        relay = RelayStore(profile, scratch_root=controller.root / ".relay" / "scratch")
+        relay.put_verified(source, identity)
+        relay.get_verified(identity, Path(directory) / "controller-readback.bin")
+        if args.worker is not None:
+            definitions = [
+                controller._model("WorkerDefinition", row["definition"])
+                for row in controller.store.worker_records()
+                if row["definition"]["name"] == args.worker
+            ]
+            if len(definitions) != 1:
+                raise ValueError("worker unavailable or ambiguous")
+            result = controller._rpc_result(
+                definitions[0],
+                "configure_relay",
+                {
+                    "binding": profile.binding()
+                    .worker_binding()
+                    .model_dump(mode="json"),
+                    "challenge": identity.model_dump(mode="json"),
+                },
+            )
+        else:
+            worker_store = RelayStore(
+                profile,
+                role="worker",
+                scratch_root=controller.root / ".relay" / "scratch",
+            )
+            worker_store.get_verified(identity, Path(directory) / "worker-readback.bin")
+            result = {"verified_challenge_sha256": identity.sha256}
+        if result["verified_challenge_sha256"] != identity.sha256:
+            raise ValueError("relay bindings do not address the same namespace")
+        receipt = {
+            "relay_check_version": 1,
+            "namespace": profile.namespace,
+            "sha256": identity.sha256,
+            "worker": args.worker,
+            "status": "VERIFIED",
+            "remote_quota": None,
+            "remote_quota_reason": "Not exposed by this binding.",
+        }
+        from .execution import _atomic_json
+
+        _atomic_json(
+            controller.root / ".relay" / "verification" / f"{identity.sha256}.json",
+            receipt,
+        )
+        _json(receipt)
+
+
+def _experiment_collect(args: argparse.Namespace) -> None:
+    controller = _controller(Path(args.store))
+    if args.relay_profile is not None:
+        from .relay_collection import collect_relay
+        from .relay_models import load_relay_profile
+
+        result = collect_relay(
+            controller,
+            args.run_id,
+            load_relay_profile(args.relay_profile),
+            recover=args.recover,
+            confirm_worker_lost=args.confirm_worker_lost,
+        )
+    else:
+        if args.recover or args.confirm_worker_lost:
+            raise ValueError("lost-worker recovery requires --relay-profile")
+        attempt = controller.store.attempt_by_run(args.run_id)
+        if attempt is None:
+            raise KeyError(f"unknown run: {args.run_id}")
+        worker = controller._worker_for_attempt(attempt)
+        if worker is not None and worker.relay is not None:
+            from .relay_collection import collect_relay
+
+            result = collect_relay(controller, args.run_id, worker.relay)
+        else:
+            controller._poll_active(attempt)
+            result = controller.store.attempt_by_run(args.run_id)
+    _json(result)
+
+
+def _collect_dispatch(args: argparse.Namespace) -> None:
+    if Path(args.lock).is_file() and args.relay_profile is None and not args.recover:
+        from sparselab.experiments.cli import _handle
+
+        _handle(args)
+        return
+    args.run_id = args.lock
+    _experiment_collect(args)
+
+
 def _worker_definition(args: argparse.Namespace):
     from sparselab.workers.models import WorkerDefinition
 
@@ -46,12 +156,47 @@ def _worker_definition(args: argparse.Namespace):
         )
     store = Path(args.store).resolve()
     ssh_host = args.ssh
-    if ssh_host is not None:
+    colab_session = args.colab_session
+    relay = None
+    if args.relay_profile is not None:
+        from .relay_models import load_relay_profile
+
+        relay = load_relay_profile(Path(args.relay_profile)).binding()
+    colab = None
+    if ssh_host is not None or colab_session is not None:
         python = _absolute(args.python, argument="--python") if args.python else None
         root = _absolute(args.root, argument="--root") if args.root else None
         if python is None or root is None:
-            raise ValueError("SSH worker registration requires --python and --root")
-        transport = "ssh"
+            raise ValueError("remote worker registration requires --python and --root")
+        transport = "colab" if colab_session is not None else "ssh"
+        if colab_session is not None:
+            from sparselab.hosted.transport import ColabFileTransport
+
+            from .execution import _strict_json
+            from .models import ColabEndpoint
+
+            if relay is None:
+                raise ValueError("Colab worker registration requires --relay-profile")
+            with tempfile.TemporaryDirectory(
+                prefix=".colab-register-", dir=ensure_scratch_dir()
+            ) as directory:
+                path = Path(directory) / "instance.json"
+                ColabFileTransport(
+                    colab_session,
+                    config_path=args.colab_config,
+                    auth=args.colab_auth or "oauth2",
+                    timeout=60,
+                ).download(str(root / "hosted-instance.json"), path)
+                instance = _strict_json(path)
+            if set(instance) != {"instance_id", "boot_id"}:
+                raise ValueError("invalid hosted instance identity")
+            colab = ColabEndpoint(
+                session=colab_session,
+                config_path=args.colab_config,
+                auth=args.colab_auth,
+                instance_id=instance["instance_id"],
+                job_timeout_seconds=args.colab_job_timeout,
+            )
     else:
         transport = "local"
         python = (
@@ -75,6 +220,8 @@ def _worker_definition(args: argparse.Namespace):
         engine=args.engine,
         backend=args.backend,
         device_index=args.device_index,
+        relay=relay,
+        colab=colab,
     )
 
 
@@ -254,6 +401,19 @@ def _wait_for_run(controller: Any, run_id: str) -> dict[str, object]:
                 state[2] in {"COMPLETE", "NOT_REQUIRED"}
             ):
                 return row
+            worker = controller._worker_for_attempt(row)
+            if (
+                worker is not None
+                and worker.transport == "colab"
+                and state[0] == "UNKNOWN"
+            ):
+                print(
+                    f"Colab observation UNKNOWN; do not resubmit. Use experiment collect {run_id} "
+                    "--relay-profile PROFILE --store STORE; confirmed loss requires "
+                    "--recover --confirm-worker-lost.",
+                    file=sys.stderr,
+                )
+                return row
             time.sleep(controller.poll_seconds)
 
 
@@ -300,7 +460,21 @@ def _run(args: argparse.Namespace) -> None:
         tokenizer_batch_documents=args.tokenizer_batch_documents,
         tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
     )
-    result = _wait_for_run(controller, submission.run_id)
+    try:
+        result = _wait_for_run(controller, submission.run_id)
+    except KeyboardInterrupt:
+        from shlex import quote
+
+        run_id = quote(str(submission.run_id))
+        store = quote(str(controller.root))
+        print(
+            "Controller disconnected; no cancellation requested. Worker execution may still be active.\n"
+            f"Reconcile: sparselab experiment collect {run_id} --store {store}\n"
+            f"Cancel explicitly: sparselab experiment cancel {run_id} --store {store}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise
     _json({"submission": submission.model_dump(mode="json"), "result": result})
     if result["status"] != "COMPLETE":
         raise SystemExit(1)
@@ -336,7 +510,13 @@ def add_commands(
     register.add_argument("--backend", choices=_BACKENDS, required=True)
     register.add_argument("--engine", choices=_ENGINES, default="pytorch")
     register.add_argument("--device-index", type=int, default=0)
-    register.add_argument("--ssh")
+    endpoint = register.add_mutually_exclusive_group()
+    endpoint.add_argument("--ssh")
+    endpoint.add_argument("--colab-session")
+    register.add_argument("--colab-config", type=Path)
+    register.add_argument("--colab-auth", choices=("oauth2", "adc"))
+    register.add_argument("--colab-job-timeout", type=float, default=3600)
+    register.add_argument("--relay-profile", type=Path)
     register.add_argument("--python")
     register.add_argument("--root")
     _store_argument(register, default_store)
@@ -353,6 +533,14 @@ def add_commands(
     _endpoint_arguments(execute, attempt=True)
     execute.set_defaults(handler=_execute)
 
+    relay = worker_commands.add_parser("relay")
+    relay_commands = relay.add_subparsers(dest="relay_command", required=True)
+    relay_check = relay_commands.add_parser("check")
+    relay_check.add_argument("profile", type=Path)
+    relay_check.add_argument("--worker")
+    relay_check.add_argument("--json", action="store_true", required=True)
+    _store_argument(relay_check, default_store)
+    relay_check.set_defaults(handler=_relay_check)
     experiment = subparsers.add_parser(
         "experiment", help="Submit and manage independent experiments"
     )
@@ -386,6 +574,12 @@ def add_commands(
     from sparselab.experiments.cli import add_commands as add_plan_commands
 
     add_plan_commands(experiment_commands)
+    collect = experiment_commands.choices["collect"]
+    collect.add_argument("--relay-profile", type=Path)
+    collect.add_argument("--recover", action="store_true")
+    collect.add_argument("--confirm-worker-lost", action="store_true")
+    _store_argument(collect, default_store)
+    collect.set_defaults(handler=_collect_dispatch)
 
     controller = subparsers.add_parser(
         "controller", help="Run the local experiment controller"

@@ -20,7 +20,9 @@ from .execution import (
     discover_worker,
     execute_attempt,
     initialize_worker,
+    install_relay_key,
     launch_attempt,
+    prepare_attempt,
     status_worker,
     validate_worker,
 )
@@ -77,6 +79,37 @@ def _dispatch(
     temporary: Path,
 ) -> tuple[dict[str, Any], dict[str, Path]]:
     payload = validate_operation(op, payload)
+    if op == "attention_probe":
+        from sparselab.runtime_attention import attention_probe
+        from sparselab.runtime_profile import authorize_worker
+
+        from .execution import _effective_config, _runtime_for_definition
+        from .leases import acquire_lease
+
+        config = _effective_config(
+            definition, RunConfig.model_validate(payload["config"])
+        )
+        authorization = authorize_worker(definition, config)
+        runtime = _runtime_for_definition(definition)
+        lease = acquire_lease(
+            worker_id=definition.worker_id,
+            backend=runtime.backend,
+            physical_device_id=runtime.physical_device_id,
+        )
+        if lease is None:
+            raise WorkerBusyError("physical device is leased")
+        try:
+            return attention_probe(config, authorization=authorization), {}
+        finally:
+            lease.close()
+    if op == "configure_relay":
+        from .relay_execution import configure_relay
+
+        return configure_relay(definition, payload), {}
+    if op == "relay_flush":
+        from .relay_execution import flush_terminal
+
+        return flush_terminal(definition, payload["attempt_id"]), {}
     if op == "discover":
         return discover_worker(definition), {}
     if op == "validate":
@@ -111,11 +144,15 @@ def _dispatch(
                 definition.root, cold=payload.get("cold_verify", True)
             ),
         ), {}
-    if op == "launch":
+    if op in {"launch", "prepare"}:
         spec_path = attachments.get("spec.json")
         if spec_path is None:
-            raise ValueError("launch requires spec.json attachment")
-        return launch_attempt(definition, payload, spec_path), {}
+            raise ValueError(f"{op} requires spec.json attachment")
+        key_path = attachments.get("relay-key.bin")
+        if key_path is not None:
+            install_relay_key(definition, payload["attempt_id"], key_path)
+        operation = prepare_attempt if op == "prepare" else launch_attempt
+        return operation(definition, payload, spec_path), {}
     if op == "status":
         status = status_worker(definition, payload["attempt_id"])
         return {

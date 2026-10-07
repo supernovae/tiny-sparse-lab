@@ -63,6 +63,7 @@ from sparselab.runtime import (
     select_device,
     validate_runtime,
 )
+from sparselab.runtime_attention import attention_probe
 from sparselab.runtime_forecasting import (
     runtime_forecast_planning,
     warmup_estimate,
@@ -1145,6 +1146,17 @@ def stage(
                     effective["runtime"]["backend"] = runtime.backend
                     if effective["runtime"]["precision"] == "auto":
                         effective["runtime"]["precision"] = "fp32"
+                    if (
+                        runtime.backend == "cuda"
+                        and config.attention.kind == "dense"
+                        and (
+                            config.model.num_kv_heads is None
+                            or config.model.num_kv_heads == config.model.num_heads
+                        )
+                    ):
+                        report["attention_probe"] = attention_probe(
+                            config, authorization=authorization
+                        )
                     report["effective_config"] = effective
                     if estimate.result == "LIKELY_TO_EXCEED":
                         write_resource_proposal(

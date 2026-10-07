@@ -79,6 +79,76 @@ documented workload need and the required acceptance environment.
   preserving scientific settings. Cover unavailable measurements, insufficient
   capacity, and the separation of operational cadence from scientific identity.
 
+- [ ] **Add managed Runpod and Vast allocation adapters with explicit spending authorization.**
+  Require explicit authorization before any paid action; support price, region,
+  VRAM, CPU, RAM, and disk filters; retain quote expiry; use idempotent
+  create/adopt tags; reconcile partial creation; surface interruption notices;
+  distinguish stop-versus-delete and associated storage billing; and permit
+  teardown only after durable-result verification. Acceptance requires provider
+  fixtures for expired quotes, duplicate/adopted resources, partial-create
+  recovery, interruption, billing-state transitions, and refusal without
+  authorization.
+- [ ] **Add additional SSH-provider acceptance and an optional lifecycle adapter.**
+  Reuse the hosted endpoint-discovery, explicit-bootstrap, byte-transport,
+  lifecycle-observation, synchronous relay, and lost-runtime-recovery contract;
+  do not introduce another scheduler or change prepared-data identity.
+  Acceptance must prove bounded transport, foreground execution,
+  cancellation-intent delivery, strict host-key handling where SSH is used, and
+  explicit recovery after lost runtime before advertising provider support.
+- [ ] **Prioritize live acceptance of provider-neutral S3-compatible relays.**
+  The shared rclone relay and S3 profile example already exist; validate and
+  close any exposed compatibility gaps rather than adding an AWS-only SDK or
+  another storage/orchestration engine. Use S3-compatible storage for the next
+  hosted TinyStories/T4 acceptance before tackling Drive OAuth.
+  Cover Cloudflare R2 first, then representative alternatives such as Backblaze
+  B2's S3 API, Wasabi, DigitalOcean Spaces, and Scaleway Object Storage; retain
+  AWS S3 compatibility without making Amazon an infrastructure requirement.
+  Follow the [rclone S3 provider guidance](https://rclone.org/s3/) for explicit
+  provider, endpoint, region, bucket/prefix, signing and addressing settings.
+  Supply separate private controller/worker credentials scoped as narrowly as
+  the provider supports; document permission limitations, rotation and expiry.
+  No credentials in profiles, bundles, receipts, command logs or Git.
+  Acceptance must exercise native relay preflight, actual object put and cold
+  SHA-256 readback, immutable conflicts, partial/multipart failures, bounded
+  timeouts, authenticated commit publication, collection with the executor
+  unavailable, and full-state child resume from the last verified checkpoint.
+  Preserve unavailable quota and permission observations; do not trust ETags,
+  sizes or provider success text as content identity. Prove the same workflow
+  across macOS, Linux, Windows and WSL2 where supported, recording skipped lanes
+  without claiming native-Windows Colab support.
+  Compare current storage, request, egress, minimum-retention/minimum-billing
+  costs, region and measured upload/readback latency and throughput for the
+  actual workload; do not hardcode a cheapest/fastest provider. Paid resources
+  require explicit authorization. A local rclone filesystem round-trip does
+  not close any cloud-provider or T4 training gate.
+- [ ] **Defer Drive OAuth setup and unattended-credential lifecycle validation.**
+  Keep Drive as an optional relay using the same verified-copy contract, not a
+  required dependency of the S3/T4 path. Complete the dedicated Desktop OAuth
+  client and `drive.file` consent workflow with private, separate per-host
+  configs using the same client; verify app-created folder visibility and
+  actionable failures for missing/revoked consent, expired credentials, and
+  Testing-mode grants that expire after a week. Document safe headless worker
+  enrollment and refresh without interactive Colab login or token logging.
+  Colab ADC is not Drive authorization. The live Drive gate remains open:
+  no authorized client JSON or actual Drive API transfer has been supplied.
+  Never automatically publish an OAuth app, fall back to whole-Drive access,
+  or rely on rclone's retiring shared client to bypass this prerequisite.
+- [ ] **Validate Drive relay across macOS, Linux, Windows and WSL2.** Exercise
+  actual rclone Drive API put/readback, interrupted upload, immutable conflict,
+  checkpoint collection with the executor unavailable, and full-state child
+  resume using private per-host credentials and a dedicated test prefix.
+  Cover case/path rules, permissions, filesystem capacity, and process deadlines.
+  Test WSL2 with Linux-local roots separately from `/mnt/c` and native Windows;
+  retain unavailable lanes. Colab CLI currently advertises Linux/macOS only:
+  define a supported native-Windows execution/transport path before claiming
+  Windows Colab support. Compare Drive-desktop/FUSE file relays only as weaker
+  filesystem-visible copies; do not equate sync completion with API verification.
+- [ ] **Implement a real PyTorch/XLA TPU engine/backend.** Cover XLA graph and
+  compilation behavior, supported attention and objectives, data feeding,
+  optimizer/RNG state codecs, same-backend full resume, cancellation and
+  preemption, plus real TPU tests. Do not add an inert TPU enum member or claim
+  CPU/CUDA behavior as TPU support.
+
 ## Boundaries and acceptance work
 
 Distributed training is deferred under the

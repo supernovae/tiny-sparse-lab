@@ -308,6 +308,7 @@ class ExperimentStore:
             ("terminal_receipt_json", "TEXT"),
             ("ingestion_status", "TEXT NOT NULL DEFAULT 'PENDING'"),
             ("ingestion_error", "TEXT"),
+            ("recovery_observation_json", "TEXT"),
         ):
             if name not in columns:
                 con.execute(f"ALTER TABLE attempts ADD COLUMN {name} {definition}")

@@ -1,0 +1,55 @@
+schema_version: 2
+name: hosted-tinystories-t4
+seed: 42
+model:
+  vocab_size: 2048
+  hidden_dim: 256
+  num_layers: 6
+  num_heads: 4
+  ffn_dim: 704
+  max_seq_len: 256
+attention:
+  kind: dense
+  implementation: sdpa
+tokenizer:
+  path: ../tokenizer/tokenizer.json
+dataset:
+  source: snapshot
+  revision: f54c09fd23315a6f9c86f9dc80f725de7d8f9c64
+  cache_dir: ../data
+  train_path: ../snapshot/train.jsonl
+  validation_path: ../snapshot/validation.jsonl
+  source_manifest_path: ../snapshot/manifest.json
+  license: CDLA-Sharing-1.0
+  train_max_documents: 2000
+  validation_max_documents: 100
+  train_max_tokens: 2000000
+  validation_max_tokens: 200000
+training:
+  seq_len: 128
+  micro_batch_size: 8
+  gradient_accumulation: 1
+  max_steps: 20
+  max_tokens: 20480
+  deterministic: false
+optimizer:
+  name: adamw
+  peak: 0.0003
+  floor: 0.00003
+  warmup_steps: 4
+runtime:
+  engine: pytorch
+  backend: cuda
+  precision: fp16
+checkpoint:
+  every_steps: 5
+  keep_periodic: true
+evaluation:
+  every_steps: 5
+  max_batches: 4
+logging:
+  root_dir: ../runs
+  every_steps: 1
+staging:
+  smoke_steps: 2
+  warmup_steps: 5

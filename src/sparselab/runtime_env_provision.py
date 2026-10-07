@@ -47,7 +47,7 @@ def _validate_python(python: Path) -> dict:
         raise ValueError("cannot inspect provisioning Python")
     value = json.loads(result.stdout)
     if (value.get("major"), value.get("minor")) != (3, 14):
-        raise ValueError("rocm-gfx1100-v1 requires an existing Python 3.14 executable")
+        raise ValueError("selected recipe requires an existing Python 3.14 executable")
     return value
 
 
@@ -134,7 +134,7 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
     validate_id(identifier)
     selected = get_recipe(recipe)
     if platform.system() != "Linux" or platform.machine() != "x86_64":
-        raise ValueError("rocm-gfx1100-v1 requires Linux x86_64")
+        raise ValueError(f"{selected.id} requires Linux x86_64")
     if identifier in read_registry().runtimes:
         raise ValueError(f"runtime id already registered: {identifier}")
     root = resolve_runtime_dir()
@@ -156,7 +156,7 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
     requirements_bytes = selected.requirements_file.read_bytes()
     recipe_sha = hashlib.sha256(requirements_bytes).hexdigest()
     expected_torch = re.search(
-        r"(?m)^torch\[[^]]+\]==([^;\s]+)", requirements_bytes.decode()
+        r"(?m)^torch(?:\[[^]]+\])?==([^;\s]+)", requirements_bytes.decode()
     )
     if expected_torch is None:
         raise ValueError("versioned recipe must pin Torch explicitly")
@@ -205,6 +205,8 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
         common = target / "common-requirements.txt"
         uv(
             "export",
+            "--python",
+            str(interpreter),
             "--locked",
             "--no-default-groups",
             "--no-dev",
@@ -237,9 +239,10 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
         if (
             not before.get("installed")
             or before.get("version") != expected_torch.group(1)
-            or not before.get("hip")
+            or bool(before.get("hip")) != bool(selected.requirements.get("torch_hip"))
+            or (selected.backend == "cuda" and not before.get("cuda"))
         ):
-            raise ValueError(f"recipe Torch/HIP build mismatch: {before}")
+            raise ValueError(f"recipe Torch build mismatch: {before}")
         uv(
             "pip",
             "install",
@@ -255,9 +258,13 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
             raise ValueError(
                 "source-only editable install changed the vendor Torch identity"
             )
-        if observation["status"] != "READY" or "rocm" not in observation["backends"]:
+        if (
+            observation["status"] != "READY"
+            or selected.backend not in observation["backends"]
+        ):
             raise ValueError(
-                f"provisioned interpreter is not executable ROCm: {observation['status']}; {observation.get('reason')}"
+                f"provisioned interpreter is not executable {selected.backend}: "
+                f"{observation['status']}; {observation.get('reason')}"
             )
         imported = run_bounded(
             [
@@ -285,20 +292,20 @@ def provision(identifier: str, *, recipe: str, python: Path | None = None) -> di
             }
         )
         probe = probe_runtime_profile(profile)
-        checked = doctor(profile)
+        checked = doctor(profile, precision=selected.test_precision)
         if checked["status"] != "READY":
             raise ValueError(
                 f"runtime doctor refused provision: {checked['status']}; {checked['reason']}"
             )
         tested = checked.get("tested_runtime")
         if not isinstance(tested, dict) or (
-            tested.get("backend") != "rocm"
+            tested.get("backend") != selected.backend
             or tested.get("device_index") != 0
-            or "bf16" not in tested.get("tested_precisions", [])
+            or selected.test_precision not in tested.get("tested_precisions", [])
             or "forward_backward_optimizer" not in tested.get("tested_features", [])
         ):
             raise ValueError(
-                "provision doctor did not verify the BF16 optimizer update"
+                f"provision doctor did not verify the {selected.test_precision} optimizer update"
             )
         packages = run_bounded(
             [

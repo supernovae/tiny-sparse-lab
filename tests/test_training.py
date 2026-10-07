@@ -394,11 +394,27 @@ def test_mps_interrupted_checkpoint_resumes_locally(tmp_path: Path) -> None:
     mps = original.model_copy(
         update={"runtime": original.runtime.model_copy(update={"backend": "auto"})}
     )
-    train(mps, run_id="part", stop_after_step=2)
+    import sys
+
+    from sparselab.runtime_profile import RuntimeProfile, authorize_profile
+
+    authorization = authorize_profile(
+        RuntimeProfile(
+            runtime_profile_version=1,
+            id="mps-resume-regression",
+            python=Path(sys.executable).absolute(),
+            engine="pytorch",
+            backend="mps",
+            device_index=0,
+        ),
+        mps,
+    )
+    train(mps, run_id="part", stop_after_step=2, authorization=authorization)
     train(
         mps,
         run_id="resumed",
         resume=mps.logging.root_dir / "part/checkpoints/latest.json",
+        authorization=authorization,
     )
 
     resumed = CheckpointManager(mps.logging.root_dir / "resumed").load(

@@ -20,7 +20,10 @@ def _capacity(
     *, bytes_available=recipes._MIN_BYTES, inodes_available=recipes._MIN_INODES
 ):
     return SimpleNamespace(
-        f_bavail=bytes_available // 4096, f_frsize=4096, f_favail=inodes_available
+        f_bavail=bytes_available // 4096,
+        f_frsize=4096,
+        f_favail=inodes_available,
+        f_flag=0,
     )
 
 
@@ -70,15 +73,16 @@ def test_recipe_matches_pinned_vendor_input():
         recipes.get_recipe("rocm-gfx1100-v2")
 
 
-def test_preflight_private_root_is_passive(tmp_path, monkeypatch):
+@pytest.mark.parametrize("filesystem", ["ext4", "overlay"])
+def test_preflight_private_root_is_passive(tmp_path, monkeypatch, filesystem):
     root = tmp_path / "private" / "runtimes"
-    monkeypatch.setattr(recipes, "_filesystem_for", lambda path: ("ext4", tmp_path))
+    monkeypatch.setattr(recipes, "_filesystem_for", lambda path: (filesystem, tmp_path))
     monkeypatch.setattr(recipes.os, "statvfs", lambda path: _capacity())
     result = recipes.preflight_runtime_root(root)
     assert result == {
         "root": str(root),
         "existing_ancestor": str(tmp_path),
-        "filesystem": "ext4",
+        "filesystem": filesystem,
         "mount_point": str(tmp_path),
         "available_bytes": recipes._MIN_BYTES,
         "available_inodes": recipes._MIN_INODES,
@@ -100,13 +104,24 @@ def test_preflight_rejects_unsafe_roots_without_creating(tmp_path, monkeypatch, 
 
 
 @pytest.mark.parametrize(
-    "filesystem", ["nfs", "cifs", "9p", "drvfs", "overlay", "tmpfs", "unknown"]
+    "filesystem", ["nfs", "cifs", "9p", "drvfs", "fuse", "tmpfs", "unknown"]
 )
 def test_preflight_rejects_nonlocal_or_unknown_mounts(
     tmp_path, monkeypatch, filesystem
 ):
     monkeypatch.setattr(recipes, "_filesystem_for", lambda path: (filesystem, tmp_path))
     with pytest.raises(ValueError, match="local filesystem"):
+        recipes.preflight_runtime_root(tmp_path / "private")
+    assert not (tmp_path / "private").exists()
+
+
+@pytest.mark.parametrize("filesystem", ["ext4", "overlay"])
+def test_preflight_rejects_readonly_filesystem(tmp_path, monkeypatch, filesystem):
+    monkeypatch.setattr(recipes, "_filesystem_for", lambda path: (filesystem, tmp_path))
+    capacity = _capacity()
+    capacity.f_flag = recipes.os.ST_RDONLY
+    monkeypatch.setattr(recipes.os, "statvfs", lambda path: capacity)
+    with pytest.raises(ValueError, match="read-only"):
         recipes.preflight_runtime_root(tmp_path / "private")
     assert not (tmp_path / "private").exists()
 

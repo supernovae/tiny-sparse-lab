@@ -117,6 +117,41 @@ class Controller:
         """Run metadata-only RPCs without leaking reply directories into CWD."""
         from sparselab.workers.transport import call_worker
 
+        if worker.transport == "colab" and op in {"status", "discover"}:
+            from .colab import download_hosted_status
+
+            active_delivery = any(
+                row.get("worker_id") == worker.worker_id
+                and row.get("receipt") is not None
+                and row.get("terminal_receipt") is None
+                and row.get("recovery_observation") is None
+                for row in self.store.attempts()
+            )
+            if op == "status" or active_delivery:
+                with TemporaryDirectory(
+                    prefix=".colab-status-", dir=self.root
+                ) as directory:
+                    snapshot = download_hosted_status(
+                        worker,
+                        Path(directory) / "status.json",
+                        timeout=_remaining_timeout(30, deadline),
+                    )
+                if op == "discover":
+                    return snapshot["capability"]
+                receipt = snapshot["receipt"]
+                if payload["attempt_id"] is not None and (
+                    receipt is None
+                    or receipt.get("attempt_id") != payload["attempt_id"]
+                ):
+                    raise ValueError("hosted status attempt mismatch")
+                return {
+                    "capabilities": snapshot["capability"],
+                    "receipt": receipt,
+                    "receipts": []
+                    if payload["attempt_id"]
+                    else ([receipt] if receipt else []),
+                    "origin_id": snapshot["origin_id"],
+                }
         with (
             self._phase(f"controller.rpc.{op}"),
             TemporaryDirectory(prefix=".worker-reply-", dir=self.root) as directory,
@@ -154,7 +189,16 @@ class Controller:
                 raise ValueError(f"worker discovery identity mismatch: {field}")
         data = self._dump(capability)
         data["transport"] = definition.transport
+        if (
+            getattr(definition, "instance_id", None) is not None
+            and capability.instance_id != definition.instance_id
+        ):
+            raise ValueError("worker discovery instance nonce mismatch")
         data["host"] = definition.host
+        for field in ("relay", "colab"):
+            value = getattr(definition, field, None)
+            if value is not None:
+                data[field] = self._dump(value)
         return self._model("WorkerCapabilities", data)
 
     def register(self, worker: Any) -> Any:
@@ -163,6 +207,45 @@ class Controller:
         capabilities = self._capability_for_definition(
             worker, result.get("capabilities", result)
         )
+        if worker.relay is not None:
+            import secrets
+
+            from sparselab.training.manifest import sha256_file
+
+            from .relay import RelayStore
+            from .relay_models import RelayArtifactIdentity
+
+            with TemporaryDirectory(prefix=".relay-check-", dir=self.root) as directory:
+                challenge = Path(directory) / "challenge.bin"
+                challenge.write_bytes(secrets.token_bytes(32))
+                identity = RelayArtifactIdentity(
+                    relative_path="verification/challenge.bin",
+                    sha256=sha256_file(challenge),
+                    size_bytes=32,
+                )
+                relay = RelayStore(
+                    worker.relay, scratch_root=self.root / ".relay" / "scratch"
+                )
+                relay.put_verified(challenge, identity)
+                checked = self._rpc_result(
+                    worker,
+                    "configure_relay",
+                    {
+                        "binding": worker.relay.worker_binding().model_dump(
+                            mode="json"
+                        ),
+                        "challenge": identity.model_dump(mode="json"),
+                    },
+                )
+                if checked["verified_challenge_sha256"] != identity.sha256:
+                    raise ValueError(
+                        "worker relay binding addressed a different namespace"
+                    )
+            result = self._rpc_result(worker, "discover", {})
+            capabilities = self._capability_for_definition(
+                worker, result.get("capabilities", result)
+            )
+            worker = worker.model_copy(update={"instance_id": capabilities.instance_id})
         definition = self._dump(worker)
         record = {"definition": definition, "capabilities": self._dump(capabilities)}
         self.store.save_worker(str(worker.worker_id), record)
@@ -191,11 +274,20 @@ class Controller:
                             definition, answer.get("capabilities", answer)
                         )
                     )
-                except OSError, TimeoutError, RemoteProtocolError, ProtocolError:
+                except (
+                    OSError,
+                    TimeoutError,
+                    RemoteProtocolError,
+                    ProtocolError,
+                    ValueError,
+                ) as error:
+                    _LOGGER.warning(
+                        "Worker %s discovery unavailable: %s", definition.name, error
+                    )
                     if deadline is not None and time.monotonic() >= deadline:
                         return results
-                    # A transport failure only changes availability; it cannot turn an
-                    # executing receipt into failure or completion.
+                    # Rejected discovery changes availability only. Preserve the
+                    # registered nonce and never infer an execution outcome.
                     capabilities_data = {**capabilities_data, "status": "unknown"}
                 self.store.save_worker(
                     str(definition.worker_id),
@@ -369,6 +461,30 @@ class Controller:
             call_worker,
         )
 
+        if worker.transport == "colab":
+            from .colab import read_delivery, upload_cancel_intent
+            from .relay import read_attempt_key
+
+            delivery = read_delivery(self.root, attempt["attempt_id"])
+            if delivery is not None and delivery["state"] != "PREPARED":
+                spec = self._model("ExperimentSpec", attempt["spec"])
+                try:
+                    key = read_attempt_key(
+                        self.root / ".relay" / attempt["attempt_id"] / "relay-key.bin"
+                    )
+                    upload_cancel_intent(
+                        worker,
+                        attempt_id=attempt["attempt_id"],
+                        spec_digest=spec.digest(),
+                        attempt_key=key,
+                        local_root=self.root,
+                        timeout=_remaining_timeout(30, deadline),
+                    )
+                except OSError, TimeoutError, ValueError, ProtocolError:
+                    return result
+                return result
+            # No foreground issue exists: cancel the native PREPARED receipt by
+            # an ordinary idle RPC, rather than waiting for a nonexistent heartbeat.
         try:
             reply = call_worker(
                 worker,
@@ -446,6 +562,8 @@ class Controller:
 
         if spec.bound_worker and capability.name != spec.bound_worker:
             return False, "not hard-bound worker"
+        if capability.transport == "colab" and spec.bound_worker != capability.name:
+            return False, "Colab requires an explicit hard binding"
         if capability.status != "idle":
             return False, "not idle"
         if capability.max_concurrent_runs < 1:
@@ -618,12 +736,12 @@ class Controller:
             or {
                 key: value
                 for key, value in evidence["descriptor"].items()
-                if key not in {"transport", "host"}
+                if key not in {"transport", "host", "colab", "relay", "instance_id"}
             }
             != {
                 key: value
                 for key, value in self._dump(definition).items()
-                if key not in {"transport", "host"}
+                if key not in {"transport", "host", "colab", "relay", "instance_id"}
             }
             or probe.get("source_sha256") != runtime_source_identity()["source_sha256"]
             or probe.get("available") is not True
@@ -682,6 +800,13 @@ class Controller:
         reasons: list[str] = []
         active = self.store.attempts(RECONCILABLE_QUEUE_STATES)
         for capability in self.workers(refresh=True, deadline=deadline):
+            if any(
+                item.get("worker_id") == capability.worker_id
+                and item.get("recovery_observation") is not None
+                for item in active
+            ):
+                reasons.append(f"{capability.name}: confirmed-loss registration fenced")
+                continue
             if any(
                 item.get("worker_id") == capability.worker_id
                 and item.get("terminal_receipt") is None
@@ -743,6 +868,28 @@ class Controller:
         worker = self._worker_for_attempt({"worker_id": capability.worker_id})
         if worker is None:
             raise ValueError("assigned worker registration is unavailable")
+        if worker.transport == "colab":
+            from .colab import (
+                _assert_no_other_delivery,
+                issue_foreground_launch,
+                read_delivery,
+            )
+
+            _assert_no_other_delivery(
+                self.root, attempt["attempt_id"], worker.colab.instance_id
+            )
+            delivery = read_delivery(self.root, attempt["attempt_id"])
+            if delivery is not None:
+                if delivery["state"] == "PREPARED":
+                    issue_foreground_launch(
+                        worker,
+                        attempt_id=attempt["attempt_id"],
+                        spec_digest=self._model(
+                            "ExperimentSpec", attempt["spec"]
+                        ).digest(),
+                        controller_root=self.root,
+                    )
+                return  # ISSUED is ambiguous; never inject another kernel RPC.
         _remaining_timeout(self.transfer_timeout, deadline)
         if attempt["status"] == "QUEUED":
             if not self.store.assign(attempt["attempt_id"], capability.worker_id):
@@ -752,6 +899,10 @@ class Controller:
             or attempt.get("worker_id") != capability.worker_id
         ):
             raise ValueError("only the same assigned attempt may replay launch")
+        if worker.relay is not None:
+            from .relay import record_assignment
+
+            record_assignment(self.root, attempt["attempt_id"], worker)
         spec = self._model("ExperimentSpec", attempt["spec"])
         bundle_root, _ = self._dispatch_bundle(spec)
         manifest = verify_dispatch_bundle(bundle_root)
@@ -799,7 +950,7 @@ class Controller:
             spec_path.write_bytes(canonical_json(self._dump(spec)))
             reply = call_worker(
                 worker,
-                "launch",
+                "prepare" if worker.transport == "colab" else "launch",
                 {
                     "attempt_id": attempt["attempt_id"],
                     "run_id": attempt["run_id"],
@@ -808,7 +959,19 @@ class Controller:
                     "bundle_digest": spec.dispatch_bundle_digest,
                     "cold_verify": self.verification_mode == "cold",
                 },
-                attachments={"spec.json": spec_path},
+                attachments={
+                    "spec.json": spec_path,
+                    **(
+                        {
+                            "relay-key.bin": self.root
+                            / ".relay"
+                            / attempt["attempt_id"]
+                            / "relay-key.bin"
+                        }
+                        if worker.relay is not None
+                        else {}
+                    ),
+                },
                 timeout=_remaining_timeout(30, deadline),
             )
         finally:
@@ -818,6 +981,27 @@ class Controller:
         if not isinstance(receipt, dict):
             raise TypeError("launch response omitted receipt")
         self._reconcile_receipt(attempt, receipt)
+        if worker.transport == "colab" and receipt.get("state") == "PREPARED":
+            from .colab import (
+                issue_foreground_launch,
+                read_delivery,
+                record_prepared_delivery,
+            )
+
+            record_prepared_delivery(
+                worker,
+                attempt_id=attempt["attempt_id"],
+                spec_digest=spec.digest(),
+                controller_root=self.root,
+            )
+            delivery = read_delivery(self.root, attempt["attempt_id"])
+            if delivery["state"] == "PREPARED":
+                issue_foreground_launch(
+                    worker,
+                    attempt_id=attempt["attempt_id"],
+                    spec_digest=spec.digest(),
+                    controller_root=self.root,
+                )
 
     def _reconcile_receipt(
         self, attempt: dict[str, Any], receipt: dict[str, object]
@@ -855,12 +1039,26 @@ class Controller:
         if state == "INTERRUPTED" and receipt.get("cancellation_acknowledged"):
             status = "CANCELLED"
         self.store.set_receipt(attempt["attempt_id"], receipt, status)
+        from .colab import mark_delivery_observed, read_delivery
+
+        delivery = read_delivery(self.root, attempt["attempt_id"])
+        if delivery is not None and state != "PREPARED":
+            if delivery["spec_digest"] != receipt["spec_digest"]:
+                raise ProtocolError("Colab delivery spec differs from receipt")
+            mark_delivery_observed(
+                self.root,
+                attempt["attempt_id"],
+                terminal=state in {"COMPLETE", "FAILED", "INTERRUPTED", "UNKNOWN"},
+            )
 
     def _poll_active(
         self, attempt: dict[str, Any], *, deadline: float | None = None
     ) -> None:
         """Reconcile a durable receipt; only transport failures create UNKNOWN."""
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
+
+        if attempt.get("recovery_observation") is not None:
+            return
 
         worker = self._worker_for_attempt(attempt)
         if worker is None:
@@ -887,6 +1085,13 @@ class Controller:
             self.store.mark_unknown_if_nonterminal(
                 attempt["attempt_id"], f"worker status unavailable: {error}"
             )
+            if worker.relay is not None:
+                from .relay_collection import collect_relay
+
+                try:
+                    collect_relay(self, attempt["run_id"], worker.relay, flush=False)
+                except OSError, TimeoutError, ValueError, RuntimeError:
+                    pass
             return
         origin_id = result.get("origin_id")
         if not isinstance(origin_id, str):
@@ -940,6 +1145,12 @@ class Controller:
     ) -> None:
         from sparselab.workers.artifacts import ingest_attempt_artifacts
 
+        if worker is not None and worker.relay is not None:
+            from .relay_collection import collect_relay
+
+            collect_relay(self, attempt["run_id"], worker.relay, flush=False)
+            return
+
         if self._artifact_free_terminal(receipt):
             self.store.mark_ingestion_not_required(attempt["attempt_id"])
             return
@@ -971,6 +1182,32 @@ class Controller:
         deadline: float | None = None,
     ) -> None:
         from sparselab.workers.transport import call_worker
+
+        if worker.relay is not None:
+            from .relay import RelayStore, read_attempt_key
+            from .relay_collection import (
+                import_commit_records,
+                verify_commit_assignment,
+            )
+
+            attempts = [
+                row
+                for row in self.store.attempts()
+                if row.get("worker_id") == worker.worker_id
+                and row.get("recovery_observation") is None
+            ]
+            relay = RelayStore(
+                worker.relay, scratch_root=self.root / ".relay" / "scratch"
+            )
+            for row in attempts:
+                key = read_attempt_key(
+                    self.root / ".relay" / row["attempt_id"] / "relay-key.bin"
+                )
+                commit = relay.newest_verified_commit(row["attempt_id"], key=key)
+                if commit is not None:
+                    verify_commit_assignment(self, row, worker, commit.descriptor)
+                    import_commit_records(self, relay, commit.descriptor)
+            return
 
         cursor = self.store.imported_sequence(origin_id)
         while True:
@@ -1040,6 +1277,10 @@ class Controller:
             raise ValueError("parent has no resumable terminal state")
         if parent["ingestion_status"] != "COMPLETE":
             raise ValueError("parent checkpoint ingestion is not complete")
+        if "CONFLICT" in str(parent.get("ingestion_error") or ""):
+            raise ValueError(
+                "parent has conflicting recovery evidence requiring reconciliation"
+            )
         with self.store.metrics._connect() as con:
             checkpoint = con.execute(
                 "SELECT digest,relative_path,step,tokens_seen FROM checkpoints WHERE run_id=? "
@@ -1102,9 +1343,18 @@ class Controller:
         """Replay delivery only before an executor has claimed the same receipt."""
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
 
+        if attempt.get("recovery_observation") is not None:
+            return False
+
         worker = self._worker_for_attempt(attempt)
         if worker is None:
             return False
+        if worker.transport == "colab":
+            from .colab import read_delivery
+
+            delivery = read_delivery(self.root, attempt["attempt_id"])
+            if delivery is not None and delivery["state"] != "PREPARED":
+                return False
         try:
             result = self._rpc_result(
                 worker,
@@ -1152,6 +1402,16 @@ class Controller:
         self, attempt: dict[str, Any], *, deadline: float | None = None
     ) -> None:
         from sparselab.workers.transport import ProtocolError, RemoteProtocolError
+
+        relay_worker = self._worker_for_attempt(attempt)
+        if relay_worker is not None and relay_worker.relay is not None:
+            from .relay_collection import collect_relay
+
+            try:
+                collect_relay(self, attempt["run_id"], relay_worker.relay)
+            except (OSError, ValueError, TimeoutError, RuntimeError) as error:
+                self.store.mark_ingestion_error(attempt["attempt_id"], error)
+            return
 
         receipt = attempt["terminal_receipt"]
         if not isinstance(receipt, dict):

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
+from torch.nn import functional
 
 from sparselab.model.cache import AttentionKVCache
 from sparselab.model.rope import RoPE
@@ -20,6 +22,8 @@ class DenseAttention(nn.Module):
         rope_base: float,
         window_size: int | None = None,
         num_kv_heads: int | None = None,
+        *,
+        implementation: Literal["reference", "sdpa"] = "reference",
     ) -> None:
         super().__init__()
         self.num_heads = num_heads
@@ -32,6 +36,9 @@ class DenseAttention(nn.Module):
             raise ValueError(
                 "num_kv_heads must be positive, no greater than num_heads, and divide num_heads"
             )
+        if implementation == "sdpa" and self.num_kv_heads != self.num_heads:
+            raise ValueError("SDPA requires equal Q/KV head counts")
+        self.implementation = implementation
         self.head_dim = hidden_dim // num_heads
         self.window_size = window_size
         self.q_proj = nn.Linear(hidden_dim, hidden_dim, bias=False)
@@ -74,10 +81,15 @@ class DenseAttention(nn.Module):
             self.rope(self._heads(self.k_proj, x, self.num_kv_heads)),
             self._heads(self.v_proj, x, self.num_kv_heads),
         )
-        scores = self._attention(query, key)
-        scores.masked_fill_(self.causal_mask[:length, :length], float("-inf"))
-        probabilities = torch.softmax(scores.float(), dim=-1).to(value.dtype)
-        output = self._attend_values(probabilities, value)
+        if self.implementation == "sdpa":
+            output = functional.scaled_dot_product_attention(
+                query, key, value, dropout_p=0.0, is_causal=True
+            )
+        else:
+            scores = self._attention(query, key)
+            scores.masked_fill_(self.causal_mask[:length, :length], float("-inf"))
+            probabilities = torch.softmax(scores.float(), dim=-1).to(value.dtype)
+            output = self._attend_values(probabilities, value)
         return self.out_proj(
             output.transpose(1, 2).contiguous().view(batch, length, hidden)
         )
@@ -103,6 +115,8 @@ class DenseAttention(nn.Module):
         batch, length, hidden = x.shape
         offset = cache.position
         prior_length = cache.length
+        if offset + length > self.causal_mask.shape[0]:
+            raise ValueError("sequence length exceeds configured attention context")
         query = self.rope(
             self._heads(self.q_proj, x, self.num_heads), position_offset=offset
         )
@@ -122,10 +136,20 @@ class DenseAttention(nn.Module):
             allowed &= (
                 key_positions[None, :] > query_positions[:, None] - self.window_size
             )
-        scores = self._attention(query, keys)
-        scores.masked_fill_(~allowed[None, None], float("-inf"))
-        probabilities = torch.softmax(scores.float(), dim=-1).to(values.dtype)
-        output = self._attend_values(probabilities, values)
+        if self.implementation == "sdpa":
+            output = functional.scaled_dot_product_attention(
+                query,
+                keys,
+                values,
+                attn_mask=allowed[None, None],
+                dropout_p=0.0,
+                is_causal=False,
+            )
+        else:
+            scores = self._attention(query, keys)
+            scores.masked_fill_(~allowed[None, None], float("-inf"))
+            probabilities = torch.softmax(scores.float(), dim=-1).to(values.dtype)
+            output = self._attend_values(probabilities, values)
         return (
             self.out_proj(
                 output.transpose(1, 2).contiguous().view(batch, length, hidden)

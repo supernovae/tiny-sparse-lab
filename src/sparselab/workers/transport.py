@@ -407,6 +407,17 @@ def call_worker(
     """Invoke one finite endpoint under one deadline, including upload hashing."""
     if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("timeout must be finite and positive")
+    if worker.transport == "colab":
+        from .colab import call_colab
+
+        return call_colab(
+            worker,
+            op,
+            payload,
+            attachments=attachments,
+            receive_dir=receive_dir,
+            timeout=timeout,
+        )
     ensure_work_dir()
     deadline = time.monotonic() + float(timeout)
     validate_operation(op, payload)

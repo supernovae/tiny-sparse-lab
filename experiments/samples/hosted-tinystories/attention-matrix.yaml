@@ -1,0 +1,9 @@
+matrix_version: 1
+base_config: run-t4.yaml
+axes:
+  attention_implementation:
+    - label: sdpa
+      set: {}
+    - label: reference
+      set:
+        attention.implementation: reference

@@ -21,6 +21,7 @@ from sparselab.data.encoding import (
 from sparselab.resource_envelope import ResourceEnvelope
 from sparselab.runtime import RuntimeInfo
 from sparselab.training.manifest import canonical_json
+from sparselab.workers.relay_models import RelayBinding
 
 PROTOCOL_VERSION = 1
 SCHEMA_VERSION = 1
@@ -293,12 +294,45 @@ class ArtifactIdentity(WorkerModel):
         return value
 
 
+class ColabEndpoint(WorkerModel):
+    session: str
+    config_path: Path | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    auth: Literal["oauth2", "adc"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    instance_id: str
+    job_timeout_seconds: float = Field(default=3600, gt=0)
+
+    @field_validator("session", "instance_id")
+    @classmethod
+    def safe_endpoint_id(cls, value: str, info: Any) -> str:
+        return _identifier(value, info.field_name)
+
+    @field_validator("config_path")
+    @classmethod
+    def absolute_config(cls, value: Path | None) -> Path | None:
+        if value is not None and not value.is_absolute():
+            raise ValueError("Colab config path must be absolute")
+        return value
+
+
 class WorkerDefinition(WorkerModel):
     schema_version: int = SCHEMA_VERSION
     worker_id: str
     name: str
-    transport: Literal["local", "ssh"]
+    transport: Literal["local", "ssh", "colab"]
     host: str | None = None
+    colab: ColabEndpoint | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    relay: RelayBinding | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    instance_id: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     python: Path
     root: Path
     engine: Literal["pytorch", "mlx"]
@@ -316,6 +350,11 @@ class WorkerDefinition(WorkerModel):
     @classmethod
     def safe_id(cls, value: str, info: Any) -> str:
         return _identifier(value, info.field_name)
+
+    @field_validator("instance_id")
+    @classmethod
+    def safe_instance_id(cls, value: str | None) -> str | None:
+        return None if value is None else _identifier(value, "instance_id")
 
     @field_validator("python", "root")
     @classmethod
@@ -346,8 +385,13 @@ class WorkerDefinition(WorkerModel):
     def transport_fields(self) -> WorkerDefinition:
         if self.transport == "ssh" and self.host is None:
             raise ValueError("SSH workers require host")
-        if self.transport == "local" and self.host is not None:
-            raise ValueError("local workers cannot declare host")
+        if self.transport != "ssh" and self.host is not None:
+            raise ValueError("only SSH workers can declare host")
+        if self.transport == "colab":
+            if self.colab is None or self.relay is None:
+                raise ValueError("Colab workers require endpoint and verified relay")
+        elif self.colab is not None:
+            raise ValueError("only Colab workers can declare a Colab endpoint")
         return self
 
 
@@ -721,10 +765,14 @@ REQUEST_OPERATIONS = frozenset(
         "validate",
         "install_bundle",
         "launch",
+        "prepare",
         "status",
         "records",
         "artifact",
         "cancel",
+        "attention_probe",
+        "configure_relay",
+        "relay_flush",
     }
 )
 
@@ -748,11 +796,22 @@ def validate_operation_attachments(
             raise ValueError("response attachment exceeds 4 MiB")
         return
     payload = validate_operation(op, payload or {})
-    if op == "launch":
-        if names != {"spec.json"}:
-            raise ValueError("launch requires exactly spec.json")
-        if attachments[0].length > 32 * 1024 * 1024:
+    if op in {"launch", "prepare"}:
+        if names not in ({"spec.json"}, {"spec.json", "relay-key.bin"}):
+            raise ValueError(f"{op} requires spec.json and optional relay-key.bin")
+        if (
+            next(item for item in attachments if item.name == "spec.json").length
+            > 32 * 1024 * 1024
+        ):
             raise ValueError("launch metadata exceeds 32 MiB")
+        if (
+            "relay-key.bin" in names
+            and next(
+                item for item in attachments if item.name == "relay-key.bin"
+            ).length
+            != 32
+        ):
+            raise ValueError("relay key must contain exactly 32 bytes")
         return
     if op == "install_bundle":
         if "bundle.json" not in names:
@@ -800,8 +859,14 @@ def validate_operation(
         "records": {"origin_id", "after_sequence", "limit", "max_bytes"},
         "artifact": {"attempt_id", "relative_path", "offset", "max_bytes"},
         "cancel": {"attempt_id", "reason"},
+        "attention_probe": {"config"},
+        "configure_relay": {"binding", "challenge"},
+        "relay_flush": {"attempt_id"},
     }
-    optional = {"cold_verify"} if op in {"install_bundle", "launch"} else set()
+    required["prepare"] = required["launch"]
+    optional = (
+        {"cold_verify"} if op in {"install_bundle", "launch", "prepare"} else set()
+    )
     if not response and (
         not required[op] <= set(value) or set(value) - required[op] - optional
     ):
@@ -809,6 +874,15 @@ def validate_operation(
     if not response:
         if "cold_verify" in value and type(value["cold_verify"]) is not bool:
             raise ValueError("cold_verify must be a boolean")
+        if op == "attention_probe":
+            RunConfig.model_validate(value["config"])
+        elif op == "configure_relay":
+            binding = RelayBinding.model_validate(value["binding"])
+            if binding.controller is not None:
+                raise ValueError("configure_relay accepts only the worker binding")
+            ArtifactIdentity.model_validate(value["challenge"])
+        elif op == "relay_flush":
+            _identifier(value["attempt_id"], "attempt_id")
         if op == "validate":
             RunConfig.model_validate(value["config"])
             if value["bundle_digest"] is not None:
@@ -817,7 +891,7 @@ def validate_operation(
             _sha256(value["manifest_digest"], "manifest_digest")
             if value["mode"] not in {"check", "install"}:
                 raise ValueError("install_bundle mode must be check or install")
-        elif op == "launch":
+        elif op in {"launch", "prepare"}:
             for name in ("attempt_id", "run_id", "experiment_id"):
                 _identifier(value[name], name)
             for name in ("spec_digest", "bundle_digest"):
@@ -860,9 +934,26 @@ def validate_operation_result(op: str, result: Mapping[str, Any]) -> dict[str, A
     if op not in REQUEST_OPERATIONS or not isinstance(result, Mapping):
         raise ValueError("unsupported operation result")
     value = dict(result)
+    if op == "configure_relay":
+        if set(value) != {"binding_sha256", "verified_challenge_sha256"}:
+            raise ValueError("invalid configure_relay result")
+        for digest in value.values():
+            _sha256(digest)
+        return value
+    if op == "relay_flush":
+        if set(value) != {"commit_sha256", "sequence"}:
+            raise ValueError("invalid relay_flush result")
+        _sha256(value["commit_sha256"])
+        if type(value["sequence"]) is not int or value["sequence"] < 0:
+            raise ValueError("invalid relay commit sequence")
+        return value
+    if op == "attention_probe":
+        from .operational_models import AttentionProbeResult
+
+        return AttentionProbeResult.model_validate(value).model_dump(mode="json")
     if op == "discover":
         return WorkerCapabilities.model_validate(value).model_dump(mode="json")
-    if op == "launch":
+    if op in {"launch", "prepare"}:
         return AttemptReceipt.model_validate(value).model_dump(mode="json")
     if op == "validate":
         if set(value) != {

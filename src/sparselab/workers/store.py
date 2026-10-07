@@ -97,10 +97,17 @@ class ControllerStore:
                 )
 
     def attempts(self, statuses: frozenset[str] | None = None) -> list[dict[str, Any]]:
+        with self.metrics._connect() as con:
+            columns = {row[1] for row in con.execute("PRAGMA table_info(attempts)")}
+        recovery = (
+            "a.recovery_observation_json"
+            if "recovery_observation_json" in columns
+            else "NULL"
+        )
         query = (
             "SELECT a.attempt_id,a.experiment_id,a.run_id,a.worker_id,a.status,"
             "a.receipt_json,a.terminal_receipt_json,a.queued_reason,"
-            "a.ingestion_status,a.ingestion_error,e.specification_json,e.submitted_at "
+            f"a.ingestion_status,a.ingestion_error,e.specification_json,e.submitted_at,{recovery} "
             "FROM attempts a JOIN experiments e ON e.experiment_id=a.experiment_id"
         )
         params: tuple[object, ...] = ()
@@ -125,6 +132,7 @@ class ControllerStore:
                 "ingestion_error": row[9],
                 "spec": json.loads(row[10]),
                 "submitted_at": row[11],
+                "recovery_observation": json.loads(row[12]) if row[12] else None,
             }
             for row in rows
         ]
@@ -174,11 +182,22 @@ class ControllerStore:
         terminal = receipt_state in TERMINAL_RECEIPT_STATES
         with self.transaction() as con:
             current = con.execute(
-                "SELECT status,terminal_receipt_json FROM attempts WHERE attempt_id=?",
+                "SELECT status,terminal_receipt_json,recovery_observation_json FROM attempts WHERE attempt_id=?",
                 (attempt_id,),
             ).fetchone()
             if current is None:
                 raise KeyError(f"unknown attempt: {attempt_id}")
+            if current[2] is not None:
+                if terminal:
+                    self.retain_recovery_conflict(attempt_id, dict(receipt))
+                    con.execute(
+                        "UPDATE attempts SET ingestion_error=? WHERE attempt_id=?",
+                        (
+                            "CONFLICT: terminal evidence after confirmed recovery",
+                            attempt_id,
+                        ),
+                    )
+                return
             if current[1] is not None:
                 # Worker terminal receipts are monotonic.  A delayed response
                 # cannot revise the first durable terminal evidence.
@@ -199,11 +218,94 @@ class ControllerStore:
                 (status, attempt_id),
             )
 
+    def retain_recovery_conflict(
+        self, attempt_id: str, evidence: dict[str, Any]
+    ) -> None:
+        """Retain contradictory evidence without revising recovered lineage."""
+        import hashlib
+
+        from .execution import _atomic_json
+        from .models import _identifier
+
+        _identifier(attempt_id, "attempt_id")
+        encoded = self._json(evidence).encode()
+        digest = hashlib.sha256(encoded).hexdigest()
+        path = self.root / ".relay" / attempt_id / "conflicts" / f"{digest}.json"
+        if not path.exists():
+            _atomic_json(path, evidence)
+
+    def record_recovery(
+        self,
+        attempt_id: str,
+        observation: dict[str, Any],
+        *,
+        expected_worker_id: str,
+        expected_spec_digest: str,
+        expected_bundle_digest: str,
+    ) -> None:
+        """Fence a confirmed lost worker without fabricating terminal evidence."""
+        from datetime import datetime
+
+        from .models import ExperimentSpec, _identifier, _sha256
+
+        if (
+            set(observation)
+            != {"reason", "commit_sha256", "confirmed_at", "instance_id"}
+            or observation["reason"] != "HOSTED_WORKER_LOST"
+        ):
+            raise ValueError("invalid recovery observation")
+        _sha256(observation["commit_sha256"])
+        _identifier(observation["instance_id"], "instance_id")
+        confirmed = datetime.fromisoformat(observation["confirmed_at"])
+        if confirmed.tzinfo is None:
+            raise ValueError("recovery confirmation requires a timezone")
+        encoded = self._json(observation)
+        with self.transaction() as con:
+            row = con.execute(
+                "SELECT a.worker_id,a.terminal_receipt_json,a.recovery_observation_json,"
+                "e.specification_json FROM attempts a JOIN experiments e "
+                "ON e.experiment_id=a.experiment_id WHERE a.attempt_id=?",
+                (attempt_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"unknown attempt: {attempt_id}")
+            spec = ExperimentSpec.model_validate(json.loads(row[3]))
+            if (
+                row[0] != expected_worker_id
+                or spec.digest() != expected_spec_digest
+                or spec.dispatch_bundle_digest != expected_bundle_digest
+            ):
+                raise ValueError("recovery assigned identity mismatch")
+            if row[1] is not None:
+                raise ValueError("terminal evidence conflicts with recovery")
+            if row[2] is not None:
+                if row[2] != encoded:
+                    raise ValueError("conflicting recovery observation")
+                return
+            con.execute(
+                "UPDATE attempts SET status='UNKNOWN',recovery_observation_json=?,"
+                "ingestion_status='PENDING',ingestion_error=NULL WHERE attempt_id=?",
+                (encoded, attempt_id),
+            )
+            con.execute(
+                "UPDATE experiments SET status='UNKNOWN' WHERE experiment_id="
+                "(SELECT experiment_id FROM attempts WHERE attempt_id=?)",
+                (attempt_id,),
+            )
+
     def mark_ingestion_complete(self, attempt_id: str) -> None:
         with self.transaction() as con:
+            row = con.execute(
+                "SELECT ingestion_error FROM attempts WHERE attempt_id=?", (attempt_id,)
+            ).fetchone()
+            if row is not None and "CONFLICT" in str(row[0] or ""):
+                raise ValueError(
+                    "conflicting evidence requires explicit reconciliation"
+                )
             con.execute(
                 "UPDATE attempts SET ingestion_status='COMPLETE',ingestion_error=NULL "
-                "WHERE attempt_id=? AND terminal_receipt_json IS NOT NULL",
+                "WHERE attempt_id=? AND (terminal_receipt_json IS NOT NULL "
+                "OR recovery_observation_json IS NOT NULL)",
                 (attempt_id,),
             )
 
@@ -220,7 +322,8 @@ class ControllerStore:
         with self.transaction() as con:
             con.execute(
                 "UPDATE attempts SET ingestion_status='ERROR',ingestion_error=? "
-                "WHERE attempt_id=? AND terminal_receipt_json IS NOT NULL",
+                "WHERE attempt_id=? AND (terminal_receipt_json IS NOT NULL "
+                "OR recovery_observation_json IS NOT NULL)",
                 (message, attempt_id),
             )
 
@@ -228,8 +331,12 @@ class ControllerStore:
         return [
             attempt
             for attempt in self.attempts()
-            if attempt["terminal_receipt"] is not None
+            if (
+                attempt["terminal_receipt"] is not None
+                or attempt["recovery_observation"] is not None
+            )
             and attempt["ingestion_status"] in {"PENDING", "ERROR"}
+            and "CONFLICT" not in str(attempt.get("ingestion_error") or "")
         ]
 
     def mark_unknown_if_nonterminal(self, attempt_id: str, reason: str) -> None:
@@ -257,12 +364,13 @@ class ControllerStore:
     def request_cancel(self, run_id: str) -> dict[str, Any]:
         with self.transaction() as con:
             row = con.execute(
-                "SELECT attempt_id,status,terminal_receipt_json FROM attempts WHERE run_id=?",
+                "SELECT attempt_id,status,terminal_receipt_json,recovery_observation_json "
+                "FROM attempts WHERE run_id=?",
                 (run_id,),
             ).fetchone()
             if row is None:
                 raise KeyError(f"unknown run: {run_id}")
-            attempt_id, status, terminal_receipt = row
+            attempt_id, status, terminal_receipt, recovery_observation = row
             if status == "QUEUED":
                 target = "CANCELLED"
                 con.execute(
@@ -270,7 +378,11 @@ class ControllerStore:
                     "WHERE attempt_id=?",
                     (attempt_id,),
                 )
-            elif status in TERMINAL_QUEUE_STATES or terminal_receipt is not None:
+            elif (
+                status in TERMINAL_QUEUE_STATES
+                or terminal_receipt is not None
+                or recovery_observation is not None
+            ):
                 target = status
             else:
                 target = "CANCEL_REQUESTED"
