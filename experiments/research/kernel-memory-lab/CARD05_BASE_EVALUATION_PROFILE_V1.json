@@ -1,0 +1,595 @@
+{
+  "continuations": [
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 4096,
+      "prompt_tokens": 64,
+      "slice_id": "val-general-01"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 4096,
+      "prompt_tokens": 64,
+      "slice_id": "val-general-02"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 32,
+      "prompt_tokens": 64,
+      "slice_id": "val-explanatory-01"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 32,
+      "prompt_tokens": 64,
+      "slice_id": "val-explanatory-02"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 4096,
+      "prompt_tokens": 64,
+      "slice_id": "tes-general-01"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 4096,
+      "prompt_tokens": 64,
+      "slice_id": "tes-general-02"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 32,
+      "prompt_tokens": 64,
+      "slice_id": "tes-explanatory-01"
+    },
+    {
+      "max_new_tokens": 64,
+      "prompt_start_token": 32,
+      "prompt_tokens": 64,
+      "slice_id": "tes-explanatory-02"
+    }
+  ],
+  "documents_sha256": "ce2534f95d0ceec911b12b0aa7efdf4cb7c83a53f9dc5748a42bf54bb54d1f8b",
+  "loss_slices": [
+    {
+      "content_sha256": "c321077667569928a9ed977b240bbda752b6276138aa3cdead13b3855fa4194d",
+      "document_id": "06dde537afab5712c3594571db05b04a108beb5a605f0760e3a637028b0d9e6d",
+      "document_tokens": 127726,
+      "family_id": "gutenberg-work:7434",
+      "id": "val-general-01",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "validation",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "247d8bb6145ff0cb3b0a1856dcd0d5fffb04d8a9d9d8b2e0b46c5386452d4531",
+      "document_id": "1e469596aa621a82e61f4be38ecd0e28fc61cc6fc122a29d10a865952a1a89a7",
+      "document_tokens": 111756,
+      "family_id": "gutenberg-work:8382",
+      "id": "val-general-02",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "validation",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "44d0e0c85aa501ad162725b8d6487a7aefda0300bed30f19342e889cddedf510",
+      "document_id": "258e7f74b80b4d4816b381b2e2be4a4c14daf04daa5b7b57141ae4115ef09dd8",
+      "document_tokens": 157010,
+      "family_id": "gutenberg-work:9308",
+      "id": "val-general-03",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "validation",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "6008c8d7b35a0d8c4b8a8231e8be08b9d1765e9b28b62d65b7578ff67f399e64",
+      "document_id": "5fb4baf892490e943673ae30123d1b6ac7f511e89170a6c21de1aedcb38403ae",
+      "document_tokens": 130946,
+      "family_id": "gutenberg-work:8716",
+      "id": "val-general-04",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "validation",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "08ce8fc48e5acaabf27a6687cb755a27bfdece0221d906ceb3fdcd16e70e2637",
+      "document_id": "006556d5419fccae5017f521affc50037abf2e3aaa052c8aca7a5fc27dd16903",
+      "document_tokens": 1612,
+      "family_id": "wikimedia-page:wikipedia.com:76th searchlight regiment, royal artillery",
+      "id": "val-explanatory-01",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "2773a3107ca562d945d59c75be628af5a087bfc176037fb3679de2649429cdd9",
+      "document_id": "00b2e4d4f28a0f973eebedf563cf7a472e00850036f51cf4c669a843142c3115",
+      "document_tokens": 897,
+      "family_id": "wikimedia-page:wikipedia.com:arsenios the cappadocian",
+      "id": "val-explanatory-02",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "828fc8db2af136930604a17e8b211e5a0691f4db3674983011b2450835921b71",
+      "document_id": "02923fd60352a168256f53717e3c2c6d3193ba1ab92d8c8164775b6faf901aba",
+      "document_tokens": 588,
+      "family_id": "wikimedia-page:wikipedia.com:nai mazara",
+      "id": "val-explanatory-03",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "a133811f95a30cee1a3fc0f1140db2f5bc70eaeb40b8a4057f106089777fe2b9",
+      "document_id": "0390391f8f111ec6455ce04ae7b5f83515bd7c80bd131019f2e2e4a5256d3209",
+      "document_tokens": 662,
+      "family_id": "wikimedia-page:wikipedia.com:jules hochet",
+      "id": "val-explanatory-04",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "9871e5d3170309ed55e2f2a4e5201964e09e72ec26af8d9c1af38984cd646951",
+      "document_id": "4f4cb8a4ec7dfbdbd94a7514c8e2cb63eee7a215c00ebe5b0bd7be0c8ca42915",
+      "document_tokens": 448,
+      "family_id": "reviewed-family-c107737da1717d0055bf470a",
+      "id": "val-incident_response-01",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_pagerduty",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "e5c0f6c96a29d76aa2db8aa4661f205f57f9ed04ef20bd35ce09d03110209d29",
+      "document_id": "11f09d74b6eb55a147b7323358275b45614c0cdeddbe52e1f0d937fd7e570075",
+      "document_tokens": 346,
+      "family_id": "git-file:kml_scale_scoutflo:K8s Playbooks/04-Workloads/DaemonSetPodsNotDeploying-daemonset.md",
+      "id": "val-incident_response-02",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_scoutflo",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "9dc9823687728080842d216d00a7ba0f9dcb50a17a2e77cd0ff32a9791d37744",
+      "document_id": "2ad60c095e420aabf93a24615e52e678d269ba6b4b8a71764781bcf31deeb90f",
+      "document_tokens": 368,
+      "family_id": "git-file:kml_scale_scoutflo:K8s Playbooks/02-Nodes/KubeletTooManyPods-node.md",
+      "id": "val-incident_response-03",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_scoutflo",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "dc07e9029a5161e34bed9735ee0a36e4c58c46d1f526889e1a34f1cfcbb5ba43",
+      "document_id": "42df7cf32e52b64629acc07bf54f1360d9490b30e389ab5ace764caca56833d5",
+      "document_tokens": 355,
+      "family_id": "git-file:kml_scale_scoutflo:AWS Playbooks/07-CI-CD/Stuck-in-Progress-CodePipeline.md",
+      "id": "val-incident_response-04",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_scoutflo",
+      "split": "validation",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "c8a2ddcee57391e7c68e6d016c4c9a2dad764e90b7291ff5a532753d228712f4",
+      "document_id": "4b3db753a243a540e5f95ce4e540f2a7297bc7a95f033437393d9d83e060ad79",
+      "document_tokens": 14851,
+      "family_id": "gutenberg-work:9248",
+      "id": "tes-general-01",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "test",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "9881f3a7e64128ddb6b1c01ed925ebc98fc8255ebdf27010d60020ce4e409382",
+      "document_id": "618ab475ba1e1c8703ad84bf042feaaedbba3bfe034c9e844dae5ed5509794c8",
+      "document_tokens": 28101,
+      "family_id": "gutenberg-work:7740",
+      "id": "tes-general-02",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "test",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "e75f4518c8fd9ace9046b5236ff2a090fd2d001d7634284c1245c825a24e8aee",
+      "document_id": "66e74da1aa1faeec42a5496d828e23e021bf843edb299db047b74f0b1c16f652",
+      "document_tokens": 520448,
+      "family_id": "gutenberg-work:7467",
+      "id": "tes-general-03",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "test",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "84c11f720a024e57047b97624e3be093e4ef6a855945e7a3df7c5d6fee879a6a",
+      "document_id": "43fb0d66ae44c2b25e3290c4136657642c213b8e47bde462d591dd36eaeb7681",
+      "document_tokens": 45583,
+      "family_id": "gutenberg-work:873",
+      "id": "tes-general-04",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_project_gutenberg",
+      "split": "test",
+      "start_token": 4096,
+      "stratum": "general_prose"
+    },
+    {
+      "content_sha256": "1d41da726e56fadc6d346fdefc9d4d08d0a5bce1a23a4718ec016f10782a1e35",
+      "document_id": "0030b476439656c911a6f7c7552e2d29155478044af073b7a36bddccaf04c35b",
+      "document_tokens": 395,
+      "family_id": "wikimedia-page:wikipedia.com:beyond geek",
+      "id": "tes-explanatory-01",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "43224e607c5b8a7d77c9f6867516d4c5e86d0ea6884eded5bbff21cba343deb0",
+      "document_id": "0105694d90cfe5f3dd4e35b49deacd594f66394adcf467d7d7ce0c2ff70e2347",
+      "document_tokens": 498,
+      "family_id": "wikimedia-page:wikipedia.com:1957 new zealand national party leadership election",
+      "id": "tes-explanatory-02",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "7aef0cb0cb69db33482af9245c212a5254aa80fdf05c1b89a31ebd94ab633d7f",
+      "document_id": "0256df0ad38a70e0dcdf8839fac9bf7ecec3fa687e530b31c07d6fba1af46a40",
+      "document_tokens": 696,
+      "family_id": "wikimedia-page:wikipedia.com:alf kjellman",
+      "id": "tes-explanatory-03",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "2181dd5279aa05e24711c012afafd8058fbfe1ff76adace99fd91125031d0f4c",
+      "document_id": "06359c3a360de48390b27fba0b5a0d3c2b218d0a4b9754267467c49b273f07d6",
+      "document_tokens": 367,
+      "family_id": "wikimedia-page:wikipedia.com:robert t. reives ii",
+      "id": "tes-explanatory-04",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_wikimedia",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "explanatory_prose"
+    },
+    {
+      "content_sha256": "dc9cd1b18db93c55f1b46341a41bef6c968989d653318f4cb5df49737a520280",
+      "document_id": "b5dcdfd671d9292bc9e96b9f73b61b99223439c23cff4d06fdf20eef3dd64a26",
+      "document_tokens": 630,
+      "family_id": "git-file:kml_scale_pagerduty:docs/training/overview.md",
+      "id": "tes-incident_response-01",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_pagerduty",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "799835fe874e70fb3af75478181559ffdff245a58702590fb5978461b1dd328b",
+      "document_id": "00e2b5f087f8a830130a76d887ce0abc8cac4e1728684b5dc06f1f5b0d3994c3",
+      "document_tokens": 392,
+      "family_id": "git-file:kml_scale_scoutflo:K8s Playbooks/03-Pods/PodsNotBeingScheduled-pod.md",
+      "id": "tes-incident_response-02",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_scoutflo",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "78422610eb926d209b49c965ee48a0ae3955bf226fe6f176b500c7cccf9b4484",
+      "document_id": "0c761e5bd1b431daa161c4442c5cd96d702ff172b9ee681629a452a25f8d09d2",
+      "document_tokens": 375,
+      "family_id": "git-file:kml_scale_scoutflo:AWS Playbooks/01-Compute/Exceeds-Memory-Limit-Lambda.md",
+      "id": "tes-incident_response-03",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_scoutflo",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    },
+    {
+      "content_sha256": "1db3b841c452ab4dfe62a24ecc17f26ba0a59f745da7e5f6e9af5515ac12060a",
+      "document_id": "14fd69165f5bc6e4fe4d1927cdc1c4b9a55458ac09eae3145709b2ba253b3613",
+      "document_tokens": 355,
+      "family_id": "git-file:kml_scale_scoutflo:AWS Playbooks/04-Networking/Returning-500-Internal-Server-Error-API-Gateway.md",
+      "id": "tes-incident_response-04",
+      "input_tokens": 257,
+      "scored_targets": 256,
+      "source_id": "kml_scale_scoutflo",
+      "split": "test",
+      "start_token": 0,
+      "stratum": "incident_response_docs"
+    }
+  ],
+  "release_id": "e893cb2e3c65f7f6360f73e4daa159dcec5da1b4c2c6f911ff5d9d549b815818",
+  "release_manifest_sha256": "718a5f1df007e59a32717bc660708ab05e4c5c8b90da963e1e8a960208c4f3ca",
+  "schema_version": 1,
+  "status": "PROPOSED_UNRUN",
+  "tokenization": {
+    "add_special_tokens": false,
+    "padding": false,
+    "truncation": false
+  },
+  "tokenizer_sha256": "308b33a6edbed613f3caf5232b124a7c6105a7a3dc273c999725be51c3ffeaa9",
+  "utility_pairs": [
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "1e469596aa621a82e61f4be38ecd0e28fc61cc6fc122a29d10a865952a1a89a7",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "val-general-01",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "258e7f74b80b4d4816b381b2e2be4a4c14daf04daa5b7b57141ae4115ef09dd8",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "val-general-02",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "5fb4baf892490e943673ae30123d1b6ac7f511e89170a6c21de1aedcb38403ae",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "val-general-03",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "06dde537afab5712c3594571db05b04a108beb5a605f0760e3a637028b0d9e6d",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "val-general-04",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "00b2e4d4f28a0f973eebedf563cf7a472e00850036f51cf4c669a843142c3115",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-explanatory-01",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "02923fd60352a168256f53717e3c2c6d3193ba1ab92d8c8164775b6faf901aba",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-explanatory-02",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "0390391f8f111ec6455ce04ae7b5f83515bd7c80bd131019f2e2e4a5256d3209",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-explanatory-03",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "006556d5419fccae5017f521affc50037abf2e3aaa052c8aca7a5fc27dd16903",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-explanatory-04",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "11f09d74b6eb55a147b7323358275b45614c0cdeddbe52e1f0d937fd7e570075",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-incident_response-01",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "2ad60c095e420aabf93a24615e52e678d269ba6b4b8a71764781bcf31deeb90f",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-incident_response-02",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "42df7cf32e52b64629acc07bf54f1360d9490b30e389ab5ace764caca56833d5",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-incident_response-03",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "4f4cb8a4ec7dfbdbd94a7514c8e2cb63eee7a215c00ebe5b0bd7be0c8ca42915",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "val-incident_response-04",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "618ab475ba1e1c8703ad84bf042feaaedbba3bfe034c9e844dae5ed5509794c8",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "tes-general-01",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "66e74da1aa1faeec42a5496d828e23e021bf843edb299db047b74f0b1c16f652",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "tes-general-02",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "43fb0d66ae44c2b25e3290c4136657642c213b8e47bde462d591dd36eaeb7681",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "tes-general-03",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 4096,
+      "context_tokens": 64,
+      "decoy_document_id": "4b3db753a243a540e5f95ce4e540f2a7297bc7a95f033437393d9d83e060ad79",
+      "decoy_start_token": 4096,
+      "decoy_tokens": 32,
+      "slice_id": "tes-general-04",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "0105694d90cfe5f3dd4e35b49deacd594f66394adcf467d7d7ce0c2ff70e2347",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-explanatory-01",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "0256df0ad38a70e0dcdf8839fac9bf7ecec3fa687e530b31c07d6fba1af46a40",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-explanatory-02",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "06359c3a360de48390b27fba0b5a0d3c2b218d0a4b9754267467c49b273f07d6",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-explanatory-03",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "0030b476439656c911a6f7c7552e2d29155478044af073b7a36bddccaf04c35b",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-explanatory-04",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "00e2b5f087f8a830130a76d887ce0abc8cac4e1728684b5dc06f1f5b0d3994c3",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-incident_response-01",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "0c761e5bd1b431daa161c4442c5cd96d702ff172b9ee681629a452a25f8d09d2",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-incident_response-02",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "14fd69165f5bc6e4fe4d1927cdc1c4b9a55458ac09eae3145709b2ba253b3613",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-incident_response-03",
+      "true_next_tokens": 32
+    },
+    {
+      "context_start_token": 32,
+      "context_tokens": 64,
+      "decoy_document_id": "b5dcdfd671d9292bc9e96b9f73b61b99223439c23cff4d06fdf20eef3dd64a26",
+      "decoy_start_token": 32,
+      "decoy_tokens": 32,
+      "slice_id": "tes-incident_response-04",
+      "true_next_tokens": 32
+    }
+  ]
+}

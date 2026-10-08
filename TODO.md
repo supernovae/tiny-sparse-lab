@@ -194,6 +194,22 @@ experiment or a merge.
   items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
   existing output. Do not turn the adapter into a second authoring engine.
 
+- [ ] **Score fixed source-bound base-language slices through native evaluation.**
+  [C05-B1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-base-pretraining-audit.md)
+  declares 24 exact held-out document/token windows and 24 paired continuation
+  utility items. The current `evaluation suite` `heldout_lm` observation uses
+  the run's packed validation batch and cannot select these exact windows or
+  return the teacher-forced true/decoy likelihoods. Add one small typed source
+  reference to the existing checkpoint-bound suite/API, reusing its verified
+  checkpoint, tokenizer, release, index and immutable receipt paths. Input is
+  the versioned profile plus release/family inventory; output is per-window
+  scored target counts/loss and per-pair normalized likelihood with missing or
+  failed rows explicit. Reject altered source hashes, tokenizer, split/family,
+  offsets, duplicate/omitted IDs and target-count drift before model work.
+  Preserve legacy suite identities when the new field is absent. Inspect and
+  run zero-update/no-generation fixture tests first; any real model scoring or
+  generation needs its own bounded allocation.
+
 - [ ] **Expose prepared-input bundle publication and cold verification through a typed CLI.**
   The native `materialize_prepared_inputs(config, destination)` and
   `verify_prepared_inputs(root, config)` Python APIs can seal and authenticate a

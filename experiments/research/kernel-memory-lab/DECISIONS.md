@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D40 — merged native integration and offline base-pretraining planning, 2026-10-08
+
+- The owner approved PR #54's merge at reviewed head `cfd1d5cd50921958e8eb6875cda5f6df70f0ada7`; merged `main` is `c32381d434dc1c6f0b3bbf1754208f2c38c15725`. This integrates the reviewed native safety/accounting/readiness work, not a qualification of live ROCm, real-panel parity, reviewer independence or the negative Card 05 reader.
+- On new branch `codex/kernel-base-pretraining`, the owner authorized an offline audit of the retained accepted corpus, a prospective base-evaluation declaration and one concrete next training proposal using native paths. [C05-B1](results/2026-10-08-card05-base-pretraining-audit.md) records the measured supply and quality audit; [the proposal](CARD05_BASE_PRETRAINING_PROPOSAL.md) requests a separate conditional allocation. This decision grants **no** acquisition, model generation, optimizer update, GPU work or Card 06 progression.
+- C05-N1 remains 0/200 and NOT ELIGIBLE under the unchanged reader gate. The accepted Card 03 release, its old 65/25/10 bundle, frozen evaluation digest, failed attempts and historical scores are preserved. A better prospective base score would justify review of instruction adaptation, not automatic reader admission.
+
 ## KML-D39 — hosted qualification paused and ordinary PR CI narrowed, 2026-10-08
 
 - The owner paused hosted qualification and footprint work, directed cancellation of any active run, and requested one explicit zero-model-work ordinary PR suite. Optimizer/generation integration and platform qualification are opt-in manual work; broad checks remain available for an explicitly approved release candidate. No automatic tag-triggered model work, training, generation, new download, merge or ready-for-review transition is authorized.
