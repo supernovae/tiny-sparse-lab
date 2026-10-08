@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.14 — panel and reviewed-score readiness slice, 8 October 2026
+
+- Recorded [C05-C3](results/2026-10-08-card05-native-panel-readiness-slice.md): optional cache/context controls, authenticated paired-panel token-ID comparison, and frozen-item/two-reviewer score verification wired into non-promoting readiness and Campaign
+- Passed 28 explicitly selected zero-update tests, Ruff and diff checks; old optional-absent panel, policy and Campaign declaration serialization remains unchanged
+- Kept C05-N1 at 0/200 and NOT ELIGIBLE; real panel parity, optimizer-bearing integration, live ROCm and main merge remain outside this implementation result
+
 ## 2026-10-08.13 — cumulative attempt-contract slice, 8 October 2026
 
 - Recorded [C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md): optional content-pinned plan reference and v2 allocation in the existing SQLite ledger, including zero-update phases and one deadline

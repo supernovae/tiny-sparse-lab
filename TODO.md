@@ -108,6 +108,13 @@ experiment or a merge.
   Card 03 transport-body budget; proposed DSL/CLI behavior is not shipped.
 
 - [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
+  Optional decoder fields, same-index/checkpoint paired token-ID comparison,
+  reviewed-score verification and non-promoting readiness binding are recorded
+  in [C05-C3](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-panel-readiness-slice.md).
+  Keep open until a separately authorized real panel demonstrates parity with
+  the tracked Card 05 scripts, the reviewer process is independently audited,
+  and Campaign/runtime integration is exercised. Existing negative scores
+  remain historical and do not qualify a reader.
   `run_panel` already journals one attempt per prompt at a verified evaluation
   index but hardcodes cache on and permissive context. Add optional
   `PanelDecoder.use_cache` and `PanelDecoder.strict_context`, preserving absent-

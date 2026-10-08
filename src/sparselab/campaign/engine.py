@@ -578,11 +578,17 @@ class CampaignEngine:
                 if stage.review is not None
                 else None
             )
+            expected_scores = (
+                str(self._operational_path(stage.reviewed_scores))
+                if stage.reviewed_scores is not None
+                else None
+            )
             if (
                 result["result_sha256"] != output["sha256"]
                 or result["index_sha256"] != evaluation["outputs"][0]["sha256"]
                 or result["policy_sha256"] != sha256_file(self._path(stage.policy))
                 or result["review"] != expected_review
+                or result.get("reviewed_scores") != expected_scores
             ):
                 raise ValueError("model readiness result binding changed")
         elif kind == "corpus_readiness" and stage.measurement_receipt is not None:
@@ -2347,6 +2353,9 @@ class CampaignEngine:
                 self._path(stage.policy),
                 Path(evaluation["availability"]["path"]),
                 self._operational_path(stage.review) if stage.review else None,
+                self._operational_path(stage.reviewed_scores)
+                if stage.reviewed_scores
+                else None,
             )
             assessed = verify_readiness_result(result_path)
             state = assessed["state"]
@@ -2356,6 +2365,8 @@ class CampaignEngine:
                 "completed_evaluations": assessed["completed_evaluations"],
                 "missing_gates": assessed["missing_gates"],
             }
+            if stage.reviewed_scores is not None:
+                facts["reviewed_score_summary"] = assessed.get("reviewed_score_summary")
             result_state = (
                 "COMPLETE"
                 if state == "READY_FOR_NEXT_STAGE"

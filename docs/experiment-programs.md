@@ -144,6 +144,25 @@ preserves legacy declaration and lock identities. A declaration alone creates
 no ledger, grants no runtime approval, and does not replace the native run's
 actual step and target counters.
 
+The v2 `AttemptBudget` Python API creates one exclusive ledger from the pinned
+contract and charges vector reservations before each monitored phase. It
+supports zero optimizer updates, one shared deadline, and persistent charges
+for failed work. `record_actual` accepts externally verified counters; the
+optimizer/generation receipt importer and public v2 CLI are still pending.
+Do not infer training qualification from the offline contract tests.
+
+Generation panels may now declare `decoder.use_cache` and
+`decoder.strict_context`; omitting both keeps the old declaration digest.
+`verify_panel_pair_parity` compares token IDs from two verified panels with
+one frozen pair manifest and reports match, divergence or unavailable rows.
+Readiness can require `reviewed_scores` thresholds and a separate reviewed
+score receipt. That receipt binds the verified panel and frozen item order,
+two distinct item-level reviewer ledgers, and explicit adjudications; the
+readiness result reopens each source and recomputes totals. Missing scores
+remain inconclusive and a failed threshold blocks progression. Named human
+review remains a separate requirement; descriptive panel output never grants
+readiness by itself.
+
 ### Direct dataset inputs
 
 Generic `dataset.source: snapshot` runs use the same two external artifacts

@@ -19,6 +19,63 @@
       ],
       "title": "LossCriterion",
       "type": "object"
+    },
+    "ReviewedScoreCriterion": {
+      "additionalProperties": false,
+      "description": "Predeclared item and formatting thresholds for independent panel review.",
+      "properties": {
+        "expected_axes": {
+          "exclusiveMinimum": 0,
+          "title": "Expected Axes",
+          "type": "integer"
+        },
+        "expected_items": {
+          "exclusiveMinimum": 0,
+          "title": "Expected Items",
+          "type": "integer"
+        },
+        "frozen_content_sha256": {
+          "title": "Frozen Content Sha256",
+          "type": "string"
+        },
+        "items_per_axis": {
+          "exclusiveMinimum": 0,
+          "title": "Items Per Axis",
+          "type": "integer"
+        },
+        "min_axis_correct": {
+          "minimum": 0,
+          "title": "Min Axis Correct",
+          "type": "integer"
+        },
+        "min_axis_format": {
+          "minimum": 0,
+          "title": "Min Axis Format",
+          "type": "integer"
+        },
+        "min_correct": {
+          "minimum": 0,
+          "title": "Min Correct",
+          "type": "integer"
+        },
+        "min_format": {
+          "minimum": 0,
+          "title": "Min Format",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frozen_content_sha256",
+        "expected_items",
+        "expected_axes",
+        "items_per_axis",
+        "min_correct",
+        "min_axis_correct",
+        "min_format",
+        "min_axis_format"
+      ],
+      "title": "ReviewedScoreCriterion",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -63,6 +120,17 @@
       },
       "title": "Required Gate Ids",
       "type": "array"
+    },
+    "reviewed_scores": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReviewedScoreCriterion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
