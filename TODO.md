@@ -86,6 +86,13 @@ experiment or a merge.
   changed runs. Do not report sampled VRAM as an exact instantaneous peak.
 
 - [ ] **Bind one native attempt contract across phases, including zero-update work.**
+  The optional plan reference, content-pinned v2 SQLite allocation, monitored
+  owned phase runner and 24 selected offline checks are recorded in
+  [C05-C2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-attempt-contract-slice.md).
+  Keep this item open for the public v2 CLI adapter, authenticated native
+  optimizer/generation counters, final-batch masking and separately budgeted
+  update-bearing integration; Python `record_actual` accepts externally verified
+  counters but does not itself authenticate model receipts.
   Reuse `AttemptBudget`, `ExperimentPlan.execution`, Campaign approval and native
   run counters. Add one optional content-addressed `execution.attempt_contract`
   reference; its typed limits include nonnegative optimizer updates (zero must

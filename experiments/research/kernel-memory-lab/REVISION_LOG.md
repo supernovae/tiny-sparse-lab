@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.13 — cumulative attempt-contract slice, 8 October 2026
+
+- Recorded [C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md): optional content-pinned plan reference and v2 allocation in the existing SQLite ledger, including zero-update phases and one deadline
+- Verified 24 explicitly selected offline tests, Ruff and diff checks; old optional-absent execution/lock identities and v1 ledgers remain compatible
+- Kept public v2 CLI, authenticated model counters, update-bearing integration and live ROCm/script parity open; C05-N1 remains negative and Card 06 blocked
+
 ## 2026-10-08.12 — first native consolidation slice, 8 October 2026
 
 - Recorded KML-D26 accepting C05-P4 as an ordered offline implementation plan and [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) as the first monitored-safety/readiness code result

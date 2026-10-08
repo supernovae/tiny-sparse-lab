@@ -299,12 +299,31 @@ class Evaluation(StrictModel):
     cases: str | None = None
 
 
+class AttemptContractReference(StrictModel):
+    """Source-relative, content-pinned operational contract; not a runtime grant."""
+
+    path: str
+    sha256: str
+
+    @model_validator(mode="after")
+    def valid_reference(self) -> AttemptContractReference:
+        from sparselab.campaign.plan import safe_path
+
+        safe_path(Path("."), self.path)
+        if not _HEX.fullmatch(self.sha256):
+            raise ValueError("attempt contract requires a full SHA-256")
+        return self
+
+
 class Execution(StrictModel):
     worker: str | None = None
     backend: Literal["cpu", "cuda", "rocm", "mps", "metal", "xpu"] | None = None
     workspace: str | None = None
     min_free_bytes: int = Field(default=0, ge=0)
     min_free_inodes: int = Field(default=0, ge=0)
+    attempt_contract: AttemptContractReference | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class Retention(StrictModel):

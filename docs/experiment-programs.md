@@ -135,6 +135,15 @@ artifact identities. For edits/repetitions, copy the declaration, choose a new
 plan ID and adjust its file references to their new location before preparing;
 never rewrite a running plan or its artifacts.
 
+An optional `execution.attempt_contract: {path, sha256}` pins a source-relative
+operational allocation. Locking authenticates its exact bytes and requires its
+content identity to match the scientific lock; opening the lock checks both
+again. The contract digest changes the operational plan identity, which Campaign
+approval binds through the existing locked-plan output. Omitting this field
+preserves legacy declaration and lock identities. A declaration alone creates
+no ledger, grants no runtime approval, and does not replace the native run's
+actual step and target counters.
+
 ### Direct dataset inputs
 
 Generic `dataset.source: snapshot` runs use the same two external artifacts

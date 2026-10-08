@@ -1,21 +1,30 @@
 # Current project status
 
-Record revision: 2026-10-08.12
+Record revision: 2026-10-08.13
 Snapshot date: 2026-10-08
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
 Current selected work: Full Card 03 remains accepted and Gate 0 EVIDENCE VERIFIED. [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) completed the one fresh 5-million-target Card 05 tranche and 200-item evaluation under KML-D24, but scored 0/200 and is **NOT ELIGIBLE** under the adopted reader thresholds; its result is READY FOR OWNER REVIEW. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains FAILED, fully charged and unchanged. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with evidence preserved.
-Next action: continue KML-D26's ordered native code work from offline-verified [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) to the cumulative attempt contract. C05-P4 is owner accepted; exploratory [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) remains READY FOR OWNER REVIEW. C05-N1 remains negative and no research runtime, acquisition, GPU work or Card 06 progression is authorized.
+Next action: continue KML-D26's ordered native code work from offline-verified [C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md) to optional panel controls and reviewed-score readiness binding. C05-P4 is owner accepted; exploratory [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) remains READY FOR OWNER REVIEW. C05-N1 remains negative and no research runtime, acquisition, GPU work or Card 06 progression is authorized.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
 Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's 32-update measurement remains consumed. KML-D22's failed full-tranche attempt and KML-D24's fresh attempt each charged 4,883/4,883 updates. KML-D24's stage/train/evaluation authority is spent. KML-D25's one 600-second, zero-update, 18-generation diagnostic completed in C05-X1; no retry or further runtime remains authorized.
 Last reviewed project result: [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) was accepted as a working explanation in KML-D25; [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) and [C05-M1](results/2026-10-08-card05-real-data-timing.md) remain accepted for their scopes; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review.
-Latest project results: [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) records offline native monitor/readiness safety checks, READY FOR OWNER REVIEW, with live ROCm and parity unqualified. [C05-P4](results/2026-10-08-card05-consolidation-planning.md) is owner accepted as the consolidation plan. [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) remains exploratory and READY FOR OWNER REVIEW; [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) is accepted as a working explanation of preserved [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md). [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains the failed first attempt. Card 03/Gate 0 acceptance and earlier evidence remain intact.
+Latest project results: [C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md) records offline cumulative-contract checks, READY FOR OWNER REVIEW, with model-counter authentication unqualified. [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) records offline native monitor/readiness safety checks, READY FOR OWNER REVIEW, with live ROCm and parity unqualified. [C05-P4](results/2026-10-08-card05-consolidation-planning.md) is owner accepted as the consolidation plan. [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) remains exploratory and READY FOR OWNER REVIEW; [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) is accepted as a working explanation of preserved [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md). [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains the failed first attempt. Card 03/Gate 0 acceptance and earlier evidence remain intact.
 Latest research decision: [KML-D26](DECISIONS.md#kml-d26--c05-p4-accepted-native-consolidation-code-scope-authorized-2026-10-08) accepts C05-P4 and authorizes bounded offline native code work only. KML-D25 accepts C05-I1 for working use and authorized the completed C05-X1; KML-D24's fresh full-run authority is spent.
 Latest project attempt: [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) completed exploratory inference with zero optimizer updates; it does not change C05-N1's failed reader eligibility at 0/200 or C05-F1's earlier FAILED monitoring stop. Earlier accepted timing, preparation and synthetic-fit results remain intact.
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
+
+[C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md) adds a
+content-pinned optional plan reference and v2 allocation in the existing
+attempt ledger. It reserves cumulative optimizer, target, generation-call and
+generated-token maxima before monitored phases, including zero-update work,
+under one immutable deadline and baseline. Selected offline checks preserve
+legacy absent-field lock identities and v1 ledger behavior. Authenticated
+model-run counters and update-bearing integration remain open; no new
+research runtime or reader eligibility follows.
 
 [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) implements and
 offline-tests the first native monitor/readiness slice under KML-D26. Legacy

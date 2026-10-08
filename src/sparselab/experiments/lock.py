@@ -743,6 +743,17 @@ def resolve_plan(
         path.relative_to(declaration_root).as_posix(): sha256_file(path)
         for path in declaration_paths(source, "experiment")
     }
+    if plan.execution.attempt_contract is not None:
+        from sparselab.campaign.plan import safe_path
+        from sparselab.training.attempt_budget import load_attempt_contract
+
+        reference = plan.execution.attempt_contract
+        contract_path = safe_path(source.parent, reference.path)
+        load_attempt_contract(contract_path, reference.sha256)
+        availability["attempt_contract"] = {
+            "path": str(contract_path),
+            "sha256": reference.sha256,
+        }
     for name, artifact in plan.artifacts.items():
         if artifact.from_phase is not None:
             if artifact.from_phase not in {phase.id for phase in phases}:
@@ -1121,6 +1132,14 @@ def resolve_plan(
         **data, scientific_sha256="", plan_sha256=""
     ).model_dump(mode="json")
     scientific, full = _identities(raw)
+    if plan.execution.attempt_contract is not None:
+        from sparselab.training.attempt_budget import load_attempt_contract
+
+        reference = plan.execution.attempt_contract
+        contract_path = Path(availability["attempt_contract"]["path"])
+        contract = load_attempt_contract(contract_path, reference.sha256)
+        if contract.content_identity_sha256 != scientific:
+            raise ValueError("attempt contract scientific identity differs from lock")
     resolved = ResolvedExperimentPlan.model_validate(
         {**raw, "scientific_sha256": scientific, "plan_sha256": full}
     )
@@ -1321,6 +1340,20 @@ def _open_lock(
 
         if load_suite(suite_path).id != lock.evaluation_suite["id"]:
             raise ValueError("experiment evaluation suite ID changed")
+    contract_reference = lock.execution.get("attempt_contract")
+    if contract_reference is not None:
+        from sparselab.experiments.plan import AttemptContractReference
+        from sparselab.training.attempt_budget import load_attempt_contract
+
+        reference = AttemptContractReference.model_validate(contract_reference)
+        location = availability.get("attempt_contract")
+        if not isinstance(location, dict) or location.get("sha256") != reference.sha256:
+            raise ValueError("experiment attempt contract availability changed")
+        contract = load_attempt_contract(Path(location["path"]), reference.sha256)
+        if contract.content_identity_sha256 != lock.scientific_sha256:
+            raise ValueError("experiment attempt contract scientific identity changed")
+    elif "attempt_contract" in availability:
+        raise ValueError("unexpected experiment attempt contract availability")
     for name, identity in lock.artifacts.items():
         if identity.get("from_phase") is not None:
             if identity["from_phase"] not in {phase.id for phase in lock.phases}:

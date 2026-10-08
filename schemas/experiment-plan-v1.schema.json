@@ -299,6 +299,26 @@
       "title": "Artifact",
       "type": "object"
     },
+    "AttemptContractReference": {
+      "additionalProperties": false,
+      "description": "Source-relative, content-pinned operational contract; not a runtime grant.",
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "AttemptContractReference",
+      "type": "object"
+    },
     "AttentionConfig": {
       "additionalProperties": false,
       "properties": {
@@ -314,6 +334,15 @@
           ],
           "default": null,
           "title": "Block Size"
+        },
+        "implementation": {
+          "default": "reference",
+          "enum": [
+            "reference",
+            "sdpa"
+          ],
+          "title": "Implementation",
+          "type": "string"
         },
         "kind": {
           "default": "dense",
@@ -692,6 +721,32 @@
           "default": null,
           "title": "License"
         },
+        "mixture_declaration_path": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mixture Declaration Path"
+        },
+        "mixture_output_path": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mixture Output Path"
+        },
         "revision": {
           "anyOf": [
             {
@@ -712,6 +767,7 @@
             "chat_recall",
             "local_chat",
             "local_text",
+            "local_token_mixture",
             "local_stories",
             "snapshot",
             "withheld_facts",
@@ -896,6 +952,17 @@
     "Execution": {
       "additionalProperties": false,
       "properties": {
+        "attempt_contract": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptContractReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "backend": {
           "anyOf": [
             {
