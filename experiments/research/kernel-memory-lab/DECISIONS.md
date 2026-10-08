@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D41 — conditional base-pretraining attempt approved, 2026-10-08
+
+- The owner approved one conditional preparation, fresh seed-17 25,000,000-target base-training tranche and prospective base evaluation under [the proposal](CARD05_BASE_PRETRAINING_PROPOSAL.md) at `02ed16709bbffc4328312bf8e5e6814d6eecc8f3`. Before acquisition, the native fixed-slice adapter and inspected zero-update/no-generation tests must pass. Acquisition remains the two pinned complete Common Pile shards, the unchanged tokenizer and architecture, 81/18/1 mixture, accepted source rights and original held-out data. No training may start unless the measured post-cleaning 20.0M/2.5M/0.20M unique-position floors, family split separation, and two-exposure limit pass. No retry, substituted data, cloud use or Card 06 progression is approved.
+- The owner clarified evaluation accounting: 55,000 fixed-profile scoring forward-input positions, eleven operational one-batch validations, and full generation-context processing are all inside one 170,000 nontraining forward-input-position cap. The separate 16-call/1,024-requested-output-token limits remain. [C05-B2](results/2026-10-08-card05-base-preflight.md) records the reviewed arithmetic, pinned declaration, native adapter and preservation preflight before any ledger or acquisition. All other proposal limits remain unchanged.
+- C05-N1's historical **0/200** reader result and the Card 06 block are unchanged. This is a combined data/recipe experiment, not an acceptance of base learning or reader eligibility.
+
 ## KML-D40 — merged native integration and offline base-pretraining planning, 2026-10-08
 
 - The owner approved PR #54's merge at reviewed head `cfd1d5cd50921958e8eb6875cda5f6df70f0ada7`; merged `main` is `c32381d434dc1c6f0b3bbf1754208f2c38c15725`. This integrates the reviewed native safety/accounting/readiness work, not a qualification of live ROCm, real-panel parity, reviewer independence or the negative Card 05 reader.

@@ -138,10 +138,162 @@ def test_freeze_splits_is_deterministic_and_validates_integer_family_counts(
         for line in Path(report["family_candidates"]).read_text().splitlines()
     ]
     assert len(candidates) == 30
+    assert set(json.loads(Path(report["receipt"]).read_text())) == {
+        "schema_version",
+        "split_sha256",
+        "family_candidate_sha256",
+        "inventory_sha256",
+        "admission_sha256",
+        "cluster_sha256",
+        "family_counts",
+    }
     assert all(
         set(row) == {"document_id", "family_id", "split", "stratum", "content_sha256"}
         for row in candidates
     )
+
+
+def test_freeze_splits_preserves_authenticated_prior_families_with_new_document_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project, inventory, clusters_path, rows, _ = _fixture(tmp_path, monkeypatch)
+    release = tmp_path / ("a" * 64)
+    release.mkdir()
+    previous = []
+    old_docs = []
+    strata = {
+        "books": "general_prose",
+        "pages": "explanatory_prose",
+        "incidents": "incident_response_docs",
+    }
+    expected = {}
+    for row in rows:
+        index = int(row["document_id"].rsplit("-", 1)[1])
+        if index >= 3:
+            continue
+        split = ("test", "validation", "train")[index]
+        old_id = "old-" + row["document_id"]
+        old_docs.append(
+            {
+                "document_id": old_id,
+                "drop_reason": None,
+                "split": split,
+                "content_sha256": row["content_sha256"],
+                "domains": [strata[row["source_id"]]],
+            }
+        )
+        previous.append(
+            {
+                "document_id": old_id,
+                "family_id": row["family_hint"],
+                "split": split,
+                "stratum": strata[row["source_id"]],
+                "content_sha256": row["content_sha256"],
+            }
+        )
+        expected[row["document_id"]] = split
+    (release / "documents.jsonl").write_bytes(
+        b"".join(canonical_json(row) + b"\n" for row in old_docs)
+    )
+    prior_path = tmp_path / "prior-families.jsonl"
+    prior_path.write_bytes(b"".join(canonical_json(row) + b"\n" for row in previous))
+    clusters = json.loads(clusters_path.read_text())
+    clusters["prior_family_inventory"] = {
+        "path": str(prior_path),
+        "sha256": sha256_file(prior_path),
+        "release_path": str(release),
+    }
+    clusters_path.write_bytes(canonical_json(clusters))
+    monkeypatch.setattr(
+        split_freeze,
+        "verify_release",
+        lambda *a, **kw: {"release_id": release.name},
+    )
+    output = tmp_path / "preserved.yaml"
+    report = split_freeze.freeze_splits(
+        project, tmp_path, inventory, clusters_path, output
+    )
+    actual = yaml.safe_load(output.read_text())["assignments"]
+    assert {key: actual[key] for key in expected} == expected
+    assert json.loads(Path(report["receipt"]).read_text())[
+        "prior_family_inventory_sha256"
+    ] == sha256_file(prior_path)
+
+
+def test_prior_family_inventory_changed_bytes_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project, inventory, clusters_path, _, _ = _fixture(tmp_path, monkeypatch)
+    prior = tmp_path / "prior.jsonl"
+    prior.write_text("{}\n")
+    clusters = json.loads(clusters_path.read_text())
+    clusters["prior_family_inventory"] = {
+        "path": str(prior),
+        "sha256": "0" * 64,
+        "release_path": str(tmp_path / ("a" * 64)),
+    }
+    clusters_path.write_bytes(canonical_json(clusters))
+    with pytest.raises(ValueError, match="digest mismatch"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters_path, tmp_path / "rejected.yaml"
+        )
+
+
+def test_prior_content_cannot_be_renamed_into_another_family(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project, inventory, clusters_path, rows, _ = _fixture(tmp_path, monkeypatch)
+    source = rows[0]
+    release = tmp_path / ("b" * 64)
+    release.mkdir()
+    old_id = "old-" + source["document_id"]
+    (release / "documents.jsonl").write_bytes(
+        canonical_json(
+            {
+                "document_id": old_id,
+                "drop_reason": None,
+                "split": "test",
+                "content_sha256": source["content_sha256"],
+                "domains": ["general_prose"],
+            }
+        )
+        + b"\n"
+    )
+    prior = tmp_path / "old-families.jsonl"
+    prior.write_bytes(
+        canonical_json(
+            {
+                "document_id": old_id,
+                "family_id": source["family_hint"],
+                "split": "test",
+                "stratum": "general_prose",
+                "content_sha256": source["content_sha256"],
+            }
+        )
+        + b"\n"
+    )
+    clusters = json.loads(clusters_path.read_text())
+    clusters["prior_family_inventory"] = {
+        "path": str(prior),
+        "sha256": sha256_file(prior),
+        "release_path": str(release),
+    }
+    clusters["merges"] = [
+        {
+            "family_id": "renamed-family",
+            "member_hints": [source["family_hint"], rows[1]["family_hint"]],
+        }
+    ]
+    clusters_path.write_bytes(canonical_json(clusters))
+    monkeypatch.setattr(
+        split_freeze,
+        "verify_release",
+        lambda *a, **kw: {"release_id": release.name},
+    )
+    with pytest.raises(ValueError, match="changed reviewed family"):
+        split_freeze.freeze_splits(
+            project, tmp_path, inventory, clusters_path, tmp_path / "rejected.yaml"
+        )
 
 
 def test_finalized_family_inventory_matches_kept_release_documents(

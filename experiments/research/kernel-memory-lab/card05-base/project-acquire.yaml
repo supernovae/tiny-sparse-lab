@@ -1,0 +1,20 @@
+# Pinned acquisition-only declaration; admission and family splits are frozen
+# separately after the two complete shards are authenticated and screened.
+schema_version: 1
+id: kernel-memory-lab-card05-base-v1
+sources:
+  - sources/pagerduty.yaml
+  - sources/project-gutenberg.yaml
+  - sources/scoutflo.yaml
+  - sources/wikimedia.yaml
+transforms: []
+splits: splits-acquire.yaml
+release: release-quarantine.yaml
+transport_budget:
+  attempt_id: kml-card05-base-v1
+  max_source_body_bytes: 1686344838
+  max_metadata_body_bytes: 4194304
+  max_transfers: 946
+  max_retries_per_shard: 1
+  max_wall_seconds: 7200
+  max_disk_bytes: 8589934592
