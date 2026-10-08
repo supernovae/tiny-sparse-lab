@@ -69,7 +69,9 @@ def validate_partition(
     blind_rows = _by_id(blind, expected, "blind solutions")
     review_rows = _by_id(reviews, expected, "review decisions")
     final_rows = _by_id(final, expected, "reviewed items")
-    if not (authors.keys() == blind_rows.keys() == review_rows.keys() == final_rows.keys()):
+    if not (
+        authors.keys() == blind_rows.keys() == review_rows.keys() == final_rows.keys()
+    ):
         raise ValueError("item IDs differ between author, blind and review files")
     categories: Counter[str] = Counter()
     for item_id, draft in authors.items():
@@ -79,7 +81,8 @@ def validate_partition(
         if (
             draft.get("review_status") != "draft"
             or draft.get("reviewer") != "PENDING-INDEPENDENT-REVIEW"
-            or draft.get("content_sha256") != _sha(
+            or draft.get("content_sha256")
+            != _sha(
                 {key: value for key, value in draft.items() if key != "content_sha256"}
             )
         ):
@@ -115,15 +118,20 @@ def validate_partition(
             or len(set(solved["support_used"])) < 2
         ):
             raise ValueError(f"two-source necessity not reviewed: {item_id}")
-        if draft["category"] == "missing_ambiguous_evidence" and review["checks"].get(
-            "whole_parent_absence_checked"
-        ) is not True:
+        if (
+            draft["category"] == "missing_ambiguous_evidence"
+            and review["checks"].get("whole_parent_absence_checked") is not True
+        ):
             raise ValueError(f"whole-parent absence not reviewed: {item_id}")
         expected_final = dict(draft)
         expected_final["reviewer"] = reviewer
         expected_final["review_status"] = "reviewed"
         expected_final["content_sha256"] = _sha(
-            {key: value for key, value in expected_final.items() if key != "content_sha256"}
+            {
+                key: value
+                for key, value in expected_final.items()
+                if key != "content_sha256"
+            }
         )
         if (
             reviewed != expected_final
@@ -151,10 +159,14 @@ def main() -> None:
     parser.add_argument("--reviewer", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    authored = json.loads(args.author_items.read_text(encoding="utf-8"), object_pairs_hook=_unique)
+    authored = json.loads(
+        args.author_items.read_text(encoding="utf-8"), object_pairs_hook=_unique
+    )
     if isinstance(authored, dict):
         authored = authored["items"]
-    final = json.loads(args.reviewed_items.read_text(encoding="utf-8"), object_pairs_hook=_unique)
+    final = json.loads(
+        args.reviewed_items.read_text(encoding="utf-8"), object_pairs_hook=_unique
+    )
     if isinstance(final, dict):
         final = final["items"]
     result = validate_partition(

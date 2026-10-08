@@ -33,7 +33,10 @@ def train_overlap_flags(items: list[dict], train_text: str) -> dict[int, set[str
         for label, phrase in (
             ("question", item["question"]),
             *(("required_claim", value) for value in item["required_claims"]),
-            *(("acceptable_paraphrase", value) for value in item["acceptable_paraphrases"]),
+            *(
+                ("acceptable_paraphrase", value)
+                for value in item["acceptable_paraphrases"]
+            ),
         ):
             words = re.findall(r"\w+", normalized(phrase))
             for start in range(len(words) - 7):
@@ -50,25 +53,30 @@ def train_overlap_flags(items: list[dict], train_text: str) -> dict[int, set[str
     return hits
 
 
-def prompt(question: str, selected: list[str], chunks: dict, docs: dict) -> tuple[str, str]:
+def prompt(
+    question: str, selected: list[str], chunks: dict, docs: dict
+) -> tuple[str, str]:
     if selected:
         evidence = "\n".join(
-            f"[{index}] {docs[chunks[chunk_id]['document_id']]['text'][chunks[chunk_id]['start']:chunks[chunk_id]['end']]}"
+            f"[{index}] {docs[chunks[chunk_id]['document_id']]['text'][chunks[chunk_id]['start'] : chunks[chunk_id]['end']]}"
             for index, chunk_id in enumerate(selected, 1)
         )
         return f"Question: {question}\nEvidence:\n{evidence}\nAnswer:", evidence
     return f"Question: {question}\nEvidence:\n(none)\nAnswer:", "(none)"
 
 
-def measure(draft: dict, release: Path, family_inventory: Path, tokenizer_path: Path) -> dict:
+def measure(
+    draft: dict, release: Path, family_inventory: Path, tokenizer_path: Path
+) -> dict:
     release_manifest = verify_release(release)
     if draft.get("release_id") != release_manifest["release_id"]:
         raise ValueError("draft release ID differs from cold-verified release")
     if draft.get("family_inventory_sha256") != sha256_file(family_inventory):
         raise ValueError("draft family inventory differs")
-    if draft.get("evidence_token_budget") != 512 or draft.get("decoder", {}).get(
-        "max_output_tokens"
-    ) != 128:
+    if (
+        draft.get("evidence_token_budget") != 512
+        or draft.get("decoder", {}).get("max_output_tokens") != 128
+    ):
         raise ValueError("draft differs from bound 512/128 context policy")
     docs = {
         row["document_id"]: row
@@ -99,10 +107,17 @@ def measure(draft: dict, release: Path, family_inventory: Path, tokenizer_path: 
         for label, phrase in (
             ("question", question),
             *(("required_claim", value) for value in item["required_claims"]),
-            *(("acceptable_paraphrase", value) for value in item["acceptable_paraphrases"]),
+            *(
+                ("acceptable_paraphrase", value)
+                for value in item["acceptable_paraphrases"]
+            ),
         ):
             searchable = normalized(phrase)
-            if len(searchable) >= 32 and len(searchable.split()) >= 6 and searchable in train_text:
+            if (
+                len(searchable) >= 32
+                and len(searchable.split()) >= 6
+                and searchable in train_text
+            ):
                 flags.append(f"literal_train_overlap:{label}")
         for phrase in (*item["required_claims"], *item["acceptable_paraphrases"]):
             if token_count(tokenizer, phrase) > 128:
@@ -123,7 +138,11 @@ def measure(draft: dict, release: Path, family_inventory: Path, tokenizer_path: 
             ):
                 flags.append("wrong_and_absent_controls_identical")
             selected_conditions = (
-                {name: selected for name, selected in controls.items() if selected is not None}
+                {
+                    name: selected
+                    for name, selected in controls.items()
+                    if selected is not None
+                }
                 if item["answerability"] == "answerable"
                 else {"unanswerable": item["support_chunk_ids"]}
             )

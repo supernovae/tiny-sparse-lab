@@ -25,4 +25,5 @@ directly. The third context node swaps only its synthetic train text to check
 partial phrase overlap. The two review-receipt nodes import only the pure offline receipt
 validator and build one synthetic item in memory. They launch no subprocess or
 model entry point. The separate Ruff check targets only the changed scripts
-and their exact test files.
+and their exact test files. A read-only `ruff format --check` over those same
+five exact paths is also allowed; it does not import or execute their code.

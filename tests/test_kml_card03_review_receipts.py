@@ -79,20 +79,35 @@ def test_review_receipt_requires_other_reviewer_and_exact_final_semantics() -> N
     validator = _validator()
     draft, solved, decision, reviewed = _sample()
     result = validator.validate_partition(
-        [draft], [solved], [decision], [reviewed],
-        author="author-a", reviewer="reviewer-b", expected=1,
+        [draft],
+        [solved],
+        [decision],
+        [reviewed],
+        author="author-a",
+        reviewer="reviewer-b",
+        expected=1,
     )
     assert result["item_count"] == 1
     with pytest.raises(ValueError, match="must differ"):
         validator.validate_partition(
-            [draft], [solved], [decision], [reviewed],
-            author="author-a", reviewer="author-a", expected=1,
+            [draft],
+            [solved],
+            [decision],
+            [reviewed],
+            author="author-a",
+            reviewer="author-a",
+            expected=1,
         )
     reviewed["question"] = "Changed after review?"
     with pytest.raises(ValueError, match="changed semantic content"):
         validator.validate_partition(
-            [draft], [solved], [decision], [reviewed],
-            author="author-a", reviewer="reviewer-b", expected=1,
+            [draft],
+            [solved],
+            [decision],
+            [reviewed],
+            author="author-a",
+            reviewer="reviewer-b",
+            expected=1,
         )
 
 
@@ -102,6 +117,11 @@ def test_review_receipt_rejects_stale_blind_solution() -> None:
     solved["draft_item_sha256"] = "older-version"
     with pytest.raises(ValueError, match="invalid gold-blind solution"):
         validator.validate_partition(
-            [draft], [solved], [decision], [reviewed],
-            author="author-a", reviewer="reviewer-b", expected=1,
+            [draft],
+            [solved],
+            [decision],
+            [reviewed],
+            author="author-a",
+            reviewer="reviewer-b",
+            expected=1,
         )

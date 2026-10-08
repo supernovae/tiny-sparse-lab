@@ -80,9 +80,13 @@ def main() -> None:
         "family_inventory_sha256": sha256_file(args.families),
         "worksheet_sha256": sha256_file(args.output),
         "item_count": len(rows),
-        "ids_sha256": hashlib.sha256(canonical_json([row["id"] for row in rows])).hexdigest(),
+        "ids_sha256": hashlib.sha256(
+            canonical_json([row["id"] for row in rows])
+        ).hexdigest(),
     }
-    with args.output.with_suffix(args.output.suffix + ".manifest.json").open("xb") as stream:
+    with args.output.with_suffix(args.output.suffix + ".manifest.json").open(
+        "xb"
+    ) as stream:
         stream.write(canonical_json(manifest) + b"\n")
     print(json.dumps(manifest, sort_keys=True))
 

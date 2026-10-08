@@ -41,9 +41,11 @@ def _inputs(tmp_path, monkeypatch):
     monkeypatch.setattr(
         checker,
         "_rows",
-        lambda path: [{"text": "unrelated training text"}]
-        if path.name == "train.jsonl"
-        else list(docs.values()),
+        lambda path: (
+            [{"text": "unrelated training text"}]
+            if path.name == "train.jsonl"
+            else list(docs.values())
+        ),
     )
     monkeypatch.setattr(
         checker,
@@ -129,9 +131,11 @@ def test_context_screen_flags_partial_train_phrase_overlap(
     monkeypatch.setattr(
         checker,
         "_rows",
-        lambda path: [{"text": "prefix alpha beta gamma delta epsilon zeta eta theta suffix"}]
-        if path.name == "train.jsonl"
-        else original_rows(path),
+        lambda path: (
+            [{"text": "prefix alpha beta gamma delta epsilon zeta eta theta suffix"}]
+            if path.name == "train.jsonl"
+            else original_rows(path)
+        ),
     )
     result = checker.measure(draft, tmp_path, families, tokenizer)
     assert "train_8gram_overlap:question" in result["items"][0]["review_flags"]

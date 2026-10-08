@@ -2,6 +2,13 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D18 — Card 03 partial preparation accepted; evaluation-only continuation approved, 2026-10-07
+
+- Owner review: Byron accepted [C03-C1](results/2026-10-07-card03-offline-continuation.md) as completed corpus, train-only tokenizer and 5-million-position mixture preparation evidence. This accepts those artifacts for reuse; it does **not** declare full Card 03 complete. C03-S4 and C03-S2 remain failed, and the unreviewed 600-item C03-C1 candidate is not a frozen suite.
+- New authority: one offline, CPU-only evaluation authoring and independent-review continuation from `2366df7`, reusing the verified release, tokenizer and prepared bundle. Review all 600 candidate IDs, preserve the accepted 200 language/400 evidence counts and categories, correct semantic defects, independently solve and review each exact final item with a different reviewer, check held-out lineage, leakage, all control conditions and tokenizer-measured context fit including generation, then freeze only if every item passes.
+- Exact limits: one new 28,800-second aggregate deadline including tests, retries and subprocesses; 20 aggregate agent-assisted author/reviewer hours; 24 GiB process-tree RSS; all old and new artifacts within the existing combined 8 GiB added-disk and 100,000-inode ceilings. Only positively reviewed nontraining validation may run under the fail-before-training guard. Zero optimizer updates, GPU use, acquisition/source-metadata requests and cloud spend. Preserve all earlier ledgers and failed evidence.
+- Boundary: no corpus re-preparation or Card 05 run is authorized. An incomplete review or a hard-cap failure must be recorded without relaxing denominators or limits. Commit and push the reviewable evaluation evidence and status, then stop for owner review of full Card 03 release.
+
 ## KML-D17 — reuse-only Card 03 offline continuation approved, 2026-10-07
 
 - Owner decision: Byron approved **one new offline, CPU-only preparation continuation** from verified `908a0f2` and the retained C03-S4 snapshots/admission/splits/build. Preserve every earlier failure and ledger. This is a new continuation record, not a reset or correction of the failed KML-D16 attempt.
