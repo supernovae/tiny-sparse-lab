@@ -1,21 +1,31 @@
 # Current project status
 
-Record revision: 2026-10-08.9
+Record revision: 2026-10-08.10
 Snapshot date: 2026-10-08
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
 Current selected work: Full Card 03 remains accepted and Gate 0 EVIDENCE VERIFIED. [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) completed the one fresh 5-million-target Card 05 tranche and 200-item evaluation under KML-D24, but scored 0/200 and is **NOT ELIGIBLE** under the adopted reader thresholds; its result is READY FOR OWNER REVIEW. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains FAILED, fully charged and unchanged. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with evidence preserved.
-Next action: one owner-authorized, zero-update, bounded matched-prompt diagnostic using the exact selected v2 checkpoint. C05-I1 is accepted as a working explanation, not a causal finding; C05-N1 remains a negative result. No training, acquisition, retry, frozen-suite change or Card 06 progression is authorized.
+Next action: owner review of exploratory [C05-X1](results/2026-10-08-card05-matched-diagnostic.md). C05-I1 is accepted as a working explanation, not a causal finding; C05-N1 remains a negative result. No further inference, training, acquisition, retry, frozen-suite change or Card 06 progression is authorized.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
-Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's 32-update measurement remains consumed. KML-D22's failed full-tranche attempt and KML-D24's fresh attempt each charged 4,883/4,883 updates. KML-D24's one-time stage/train/evaluation authority is spent. The owner now authorizes only one 600-second, zero-update, 18-generation/1,152-token matched-prompt diagnostic under 20 GiB VRAM, 24 GiB RSS, 1 GiB added disk and 100 added inodes, with no retry.
-Last reviewed project result: [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) was accepted in KML-D24; [C05-M1](results/2026-10-08-card05-real-data-timing.md) remains accepted for timing only; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review.
-Latest project results: [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) is accepted as a working explanation of the preserved [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) negative result, which remains ready for owner review. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) preserves the failed first attempt; C05-P3 is the unchanged approved contract and C05-M1 remains accepted timing evidence. Card 03/Gate 0 acceptance and all earlier failed attempts remain intact.
-Latest research decision: [KML-D24](DECISIONS.md#kml-d24--c05-r1-accepted-and-one-fresh-card-05-attempt-authorized-2026-10-08) accepts C05-R1 and authorizes one conditional fresh attempt; KML-D22's full-run allocation remains exhausted, KML-D21 accepts C05-M1 timing, and KML-D19 accepts Card 03/Gate 0.
-Latest project attempt: [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) completed training and evaluation but failed reader eligibility at 0/200. C05-F1 remains an earlier FAILED monitoring stop with no evaluation. Earlier accepted timing, preparation and synthetic-fit results remain intact.
+Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's 32-update measurement remains consumed. KML-D22's failed full-tranche attempt and KML-D24's fresh attempt each charged 4,883/4,883 updates. KML-D24's stage/train/evaluation authority is spent. KML-D25's one 600-second, zero-update, 18-generation diagnostic completed in C05-X1; no retry or further runtime remains authorized.
+Last reviewed project result: [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) was accepted as a working explanation in KML-D25; [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) and [C05-M1](results/2026-10-08-card05-real-data-timing.md) remain accepted for their scopes; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review.
+Latest project results: [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) records one zero-update, 18-generation matched-prompt diagnostic with two exact token-ID parity checks, READY FOR OWNER REVIEW. [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) is accepted as a working explanation of the preserved [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) negative result. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) preserves the failed first attempt; C05-P3 is the unchanged approved contract. Card 03/Gate 0 acceptance and all earlier failed attempts remain intact.
+Latest research decision: [KML-D25](DECISIONS.md#kml-d25--card-05-offline-diagnosis-accepted-for-working-use-one-matched-diagnostic-authorized-2026-10-08) accepts C05-I1 for working use and authorized the now-completed C05-X1. KML-D24's fresh full-run authority is spent; KML-D21 accepts C05-M1 timing, and KML-D19 accepts Card 03/Gate 0.
+Latest project attempt: [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) completed exploratory inference with zero optimizer updates; it does not change C05-N1's failed reader eligibility at 0/200 or C05-F1's earlier FAILED monitoring stop. Earlier accepted timing, preparation and synthetic-fit results remain intact.
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
+
+[C05-X1](results/2026-10-08-card05-matched-diagnostic.md) froze eight distinct
+held-out passage/question pairs before one bounded inference run. Eighteen of
+eighteen generations completed with 1,048 retained completion IDs against 1,152
+reserved positions; the two preselected uncached reruns matched cached token IDs
+exactly. All eight short questions were unanswered despite answer-bearing
+contexts. The repaired native monitor and subreaper reported no violations and
+zero live descendants. This exploratory result does not isolate a cause or
+establish reader eligibility. Full raw prompts and completions remain in the
+private external task root; the frozen 200-item suite is unchanged.
 
 [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) inspects the v2
 loss and raw-panel trajectories without model work. One-batch held-out loss fell
@@ -23,8 +33,8 @@ from 10.668 at initialization to 6.461 at step 4,883, but all 200 language
 items remained incorrect and format-noncompliant. Retained packing and token-ID
 checks found no shift, mask, context-fit or display-decoding defect. Raw prose
 fluency versus instruction following is not isolated by this panel; a new
-zero-update matched-prompt diagnostic was proposed and is now separately approved
-for one bounded exploratory run.
+zero-update matched-prompt diagnostic was separately approved and has completed
+as C05-X1.
 
 [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) ran once from
 clean pushed `88095de` after 113 passing offline tests and cold preflight. Its
@@ -303,7 +313,7 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
 | 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (exact local-research release) | [KML-D19](DECISIONS.md#kml-d19--full-card-03-accepted-gate-0-reviewed-card-05-measurement-proposed-2026-10-08) accepts [C03-C1](results/2026-10-07-card03-offline-continuation.md) and [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) together; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED |
 | 04 | Main shape and measured fit | EVIDENCE VERIFIED (synthetic fit) | [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) records owner acceptance of [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md); P3/P4 remain failed; separate real-data timing is now accepted in C05-M1 |
-| 05 | One bounded language training tranche | TRANCHE COMPLETED; READER ELIGIBILITY NOT MET (owner review pending) | [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) completed 4,883 updates / exactly 5,000,000 targets and 200/200 frozen items, scoring 0/200; [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) diagnoses the negative result without new model work. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains a separate FAILED first attempt with its full reservation charged; [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) is owner accepted. No runtime authority remains; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical |
+| 05 | One bounded language training tranche | TRANCHE COMPLETED; READER ELIGIBILITY NOT MET (owner review pending) | [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) completed 4,883 updates / exactly 5,000,000 targets and 200/200 frozen items, scoring 0/200; [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) is owner accepted as a working explanation, and exploratory [C05-X1](results/2026-10-08-card05-matched-diagnostic.md) found 0/8 answered matched questions with two exact cache-parity checks. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains a separate FAILED first attempt with its full reservation charged. No runtime authority remains; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical |
 | 06 | Raw-text oracle evidence baseline | BLOCKED (not started) | The accepted Card 03 suite exists, but C05-N1's fresh checkpoint failed the adopted Card 05 reader-eligibility gate; no qualified checkpoint or Card 06 runtime authority exists |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
 | 08 | Explicit dense-to-new-reader transfer | NOT STARTED | Tiny contracts and selected Card 06 origin |

@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D25 — Card 05 offline diagnosis accepted for working use; one matched diagnostic authorized, 2026-10-08
+
+- The owner accepted [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) as a **working explanation**, preserving [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) as a negative 0/200 Card 05 result and C05-F1 as the earlier failed attempt. This is not a causal proof or reader-eligibility promotion.
+- The owner authorized one zero-optimizer-update exploratory diagnostic at the exact selected v2 checkpoint: eight distinct held-out passage families, each with one prose continuation and one answerable question using the same excerpt, then two preselected uncached reruns. Freeze pairs before inference. At most **18 greedy generations, 64 new tokens each and 1,152 generated tokens total**, under one **600-second deadline** from the ledger, **20 GiB whole-device VRAM**, **24 GiB process-tree RSS**, **1 GiB added disk**, **100 added inodes**, with repaired monitoring and owned shutdown. No retry, training, download, cloud spend, frozen-evaluation change or Card 06 progression.
+- The one diagnostic completed and is recorded as [C05-X1](results/2026-10-08-card05-matched-diagnostic.md), READY FOR OWNER REVIEW. Its observed outputs and cache-parity result are exploratory; they do not isolate the cause or authorize more language pretraining or instruction adaptation.
+
 ## KML-D24 — C05-R1 accepted and one fresh Card 05 attempt authorized, 2026-10-08
 
 - Owner accepted [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) at `2ac860e`, including repair `16cfa8b`, and authorized **one fresh** Card 05 attempt under the unchanged [full-tranche contract](CARD05_FULL_TRANCHE_PROPOSAL.md) originally fixed at `1663321`. The [new execution binding](CARD05_FRESH_ATTEMPT_BINDING.md) declares unused `kml-card05-full-tranche-v2` and `card05-full-tranche-v2` names. C05-F1 remains FAILED, its 4,883-update ledger fully charged and all its evidence unchanged.
