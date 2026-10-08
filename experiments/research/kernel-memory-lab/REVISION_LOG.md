@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.16 — native CPU qualification preledger stop, 8 October 2026
+
+- Pushed the inspected test-local CPU allocation harness at `b330b21` before collection; [C05-Q1](results/2026-10-08-card05-native-cpu-qualification-stop.md) records the one approved run and preserved external receipts
+- The 21-node zero-update precheck passed, then config validation rejected a misplaced checkpoint cadence field before ledger creation, model initialization or optimizer work; outer monitor recorded no cap violation and zero surviving descendants
+- Marked the one-attempt authority consumed without inventing a nonexistent ledger charge. C05-C4 native model reconciliation and final-batch masking remain unqualified; C05-N1 and Card 06 status are unchanged
+
 ## 2026-10-08.15 — native binding corrections and execution adapter, 8 October 2026
 
 - Recorded KML-D27 accepting C05-C1/C2 for their offline scope while withholding C05-C3 coverage/binding acceptance pending corrections; [C05-C4](results/2026-10-08-card05-native-binding-corrections.md) records the corrected verifier, native v2 CLI/Campaign phase adapter, cold receipt-derived actual counters and zero-update checks

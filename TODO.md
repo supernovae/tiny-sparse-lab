@@ -93,7 +93,11 @@ experiment or a merge.
   checkpoint/panel counters and private verified-actual reconciliation are
   recorded in [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md).
   Keep this item open for separately budgeted optimizer-bearing final-batch
-  masking and ledger integration, plus live runtime qualification.
+  masking and ledger integration, plus live runtime qualification. The first
+  authorized CPU node [C05-Q1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-stop.md)
+  stopped before its ledger: fix the test-local `logging.checkpoint_every_steps`
+  schema error by using `checkpoint.every_steps`, validate the corrected
+  declaration offline, and seek a new bounded allocation before running it.
   Reuse `AttemptBudget`, `ExperimentPlan.execution`, Campaign approval and native
   run counters. Add one optional content-addressed `execution.attempt_contract`
   reference; its typed limits include nonnegative optimizer updates (zero must

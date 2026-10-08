@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D28 — one native CPU qualification approved and stopped preledger, 2026-10-08
+
+- The owner approved one conditional attempt under [the C05 native CPU proposal](CARD05_NATIVE_INTEGRATION_QUALIFICATION_PROPOSAL.md) at `b9883d3`: a pushed inspected test/harness first, one 600-second aggregate supervisor, a separate 480-second v2 ledger, at most 3 optimizer updates/77 nonmasked targets, zero generation, 4 GiB RSS, 1 GiB disk, 1,000 inodes, CPU only, no network/cloud, retry or resume. The test/harness was pushed at `b330b21` before execution.
+- [C05-Q1](results/2026-10-08-card05-native-cpu-qualification-stop.md) records the sole attempted execution. It FAILED before ledger creation or model launch because the test-local config used an invalid `logging.checkpoint_every_steps` field. The 21-node zero-update precheck passed; the outer monitor verified a bounded stop and no living descendants. The **one-attempt authority is spent**. There is no ledger charge because no ledger exists; retain the full approved 3-update/77-target allocation as administratively consumed and do not reuse it.
+- No new research training, GPU/network/cloud use or Card 06 progression was authorized or performed. C05-N1 remains 0/200 and NOT ELIGIBLE. A corrected test and any optimizer-bearing rerun require a separately reviewed scope and fresh allocation.
+
 ## KML-D27 — C05-C1/C2 accepted offline; C05-C3 corrections requested, 2026-10-08
 
 - The owner accepted [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) and [C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md) as **scoped offline implementation evidence**. C05-C3's coverage and prompt-binding guarantees were **not accepted** without unique exact frozen-suite coverage and verification of each actual prompt through a declared renderer. The owner authorized those corrections, zero-update negative fixtures, native v2 CLI/Campaign wiring and verified receipt/counter reconciliation within the existing three slices.
