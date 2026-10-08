@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D37 — one owned-root hosted dispatch approved and stopped, 2026-10-08
+
+- The owner approved exactly one `serving_only=true` dispatch under [the owned-root proposal](CARD05_HOSTED_OWNED_ROOT_DISPATCH_PROPOSAL.md), pinned to `03aeccd7a2f4dcf13563510a2845bb70edc98325`, with unchanged non-transferable quotas and caps, first-failure cancellation, no retry/resume, and PR #54 held draft. No full CPU suite, GPU work, PR-ready transition or merge was authorized.
+- [C05-I11](results/2026-10-08-card05-hosted-owned-root-stop.md) records Actions run 37843829587 and the **FAILED** pre-test inode-cap stop: all five jobs exceeded 50,000 measured live inodes during guarded dependency setup or ledger initialization. The attempted cancellation found the run already completed. Only the macOS archive initialized a ledger; its relocated copy has zero raw reservations/counters but cannot pass native path-bound status verification. No optimizer update or generation is observed.
+- This allocation is spent in full administratively. Hosted model-path qualification remains open; macOS cleanup/finalization and dependency-footprint fit also remain open. C05-I6/I8, historical Card 05 scientific results, reader eligibility and Card 06 block are unchanged.
+
 ## KML-D36 — owned-root policy accepted for offline implementation, 2026-10-08
 
 - The owner accepted [the materially narrower hosted resource policy](CARD05_HOSTED_OWNED_ROOT_POLICY_PROPOSAL.md) at `9673fc3e` for **one offline implementation pass** across the five selected qualification jobs. The instruction includes a fixture/write-path audit, inspected zero-model-work tests, commit/push, and one fresh hosted allocation request. It does **not** authorize a hosted dispatch, model work, source downloads, GPU work, retry, PR-ready transition or merge.

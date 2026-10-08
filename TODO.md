@@ -99,10 +99,15 @@ experiment or a merge.
   is now implemented for offline review in
   [C05-I10](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-implementation.md):
   five-job workflow phase split, the selected [write-path audit](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_AUDIT.md),
-  and inspected zero-model checks. A fresh hosted allocation and observed
-  Linux/macOS receipts are still needed before model-path qualification. It narrows the storage claim;
-  do not equate free-space observations with added-byte/inode accounting. Both
-  hosted allocations are spent, and model-path qualification remains open.
+  and inspected zero-model checks. The separately approved
+  [C05-I11](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-stop.md)
+  dispatch observed the locked dependency setup exceed 50,000 live inodes in
+  all five jobs before model tests. Reassess the dependency footprint or seek
+  a separately reviewed cap change; diagnose the macOS phase-cleanup
+  `PermissionError` and missing finalization receipt offline. The policy
+  narrows the storage claim; do not equate free-space observations with
+  added-byte/inode accounting. All three hosted allocations are spent, and
+  model-path qualification remains open.
 
 - [ ] **Bind one native attempt contract across phases, including zero-update work.**
   The optional plan reference, content-pinned v2 SQLite allocation, monitored
