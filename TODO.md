@@ -92,12 +92,13 @@ experiment or a merge.
   The public v2 CLI, selected Campaign phase binding, cold native terminal
   checkpoint/panel counters and private verified-actual reconciliation are
   recorded in [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md).
-  Keep this item open for separately budgeted optimizer-bearing final-batch
-  masking and ledger integration, plus live runtime qualification. The first
+  [C05-Q2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-q2.md)
+  qualifies one separately budgeted CPU/fp32 final-batch masking and cold
+  receipt–ledger integration with 3 updates and 77 targets. The first
   authorized CPU node [C05-Q1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-stop.md)
-  stopped before its ledger: fix the test-local `logging.checkpoint_every_steps`
-  schema error by using `checkpoint.every_steps`, validate the corrected
-  declaration offline, and seek a new bounded allocation before running it.
+  remains a preserved preledger failure. Keep this item open for live runtime
+  qualification and remaining end-to-end integration; Q2 is not ROCm or
+  real-panel/script parity evidence.
   Reuse `AttemptBudget`, `ExperimentPlan.execution`, Campaign approval and native
   run counters. Add one optional content-addressed `execution.attempt_contract`
   reference; its typed limits include nonnegative optimizer updates (zero must
@@ -110,8 +111,8 @@ experiment or a merge.
   edges, clock rollback, identity drift, duplicate launches, timeout and
   descendant shutdown before any update-bearing integration test. This is an
   execution contract, separate from the P2 historical ledger projection and
-  Card 03 transport-body budget. The adapter is shipped but model integration
-  remains unqualified.
+  Card 03 transport-body budget. The adapter is shipped; model integration is
+  qualified only for Q2's tiny CPU fixture.
 
 - [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
   Optional decoder fields, same-index/checkpoint paired token-ID comparison,

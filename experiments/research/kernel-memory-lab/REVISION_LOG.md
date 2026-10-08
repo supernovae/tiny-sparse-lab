@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.17 — corrected native CPU integration qualification, 8 October 2026
+
+- Pushed `850b9ea` with `checkpoint.every_steps = 1`, a real `load_config` round-trip preflight of the exact CPU/fp32 3-update/77-target config, and fresh Q2 identity before execution
+- [C05-Q2](results/2026-10-08-card05-native-cpu-qualification-q2.md) records 22/22 zero-update prechecks and one successful bounded CPU integration node: 3 updates, 77 targets in 32/32/13, zero generation, cold receipt–ledger agreement and zero surviving descendants
+- Preserved C05-Q1's failure and all research outcomes; live ROCm, real-panel parity, reviewer independence, Card 05 eligibility and Card 06 remain unqualified
+
 ## 2026-10-08.16 — native CPU qualification preledger stop, 8 October 2026
 
 - Pushed the inspected test-local CPU allocation harness at `b330b21` before collection; [C05-Q1](results/2026-10-08-card05-native-cpu-qualification-stop.md) records the one approved run and preserved external receipts

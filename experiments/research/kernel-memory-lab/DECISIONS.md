@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D29 — one corrected native CPU qualification approved and completed, 2026-10-08
+
+- The owner authorized correction and a zero-update config round-trip preflight, then **one fresh** CPU attempt with new `kml-c05-native-cpu-q2` identity/root under the unchanged C05-Q1 limits. The corrected test/harness was pushed at clean `850b9ea` before execution. The 600-second aggregate supervisor included the 22-node preledger check; the separate 480-second v2 ledger was initialized only after that check passed.
+- [C05-Q2](results/2026-10-08-card05-native-cpu-qualification-q2.md) records 3/3 updates, 77/77 actual targets in 32/32/13, zero generation, cold native receipt–ledger agreement, no cap violation and no surviving owned descendants. This one allocation is spent. C05-Q1's failed preledger attempt is unchanged; Q2 is **READY FOR OWNER REVIEW**, not automatic acceptance of C05-C3/C4 or the Card 05 reader.
+- No research training, acquisition, GPU/network/cloud use or Card 06 progression was authorized. Live ROCm, real-panel/script parity and reviewer independence remain unqualified; C05-N1 remains 0/200 and NOT ELIGIBLE.
+
 ## KML-D28 — one native CPU qualification approved and stopped preledger, 2026-10-08
 
 - The owner approved one conditional attempt under [the C05 native CPU proposal](CARD05_NATIVE_INTEGRATION_QUALIFICATION_PROPOSAL.md) at `b9883d3`: a pushed inspected test/harness first, one 600-second aggregate supervisor, a separate 480-second v2 ledger, at most 3 optimizer updates/77 nonmasked targets, zero generation, 4 GiB RSS, 1 GiB disk, 1,000 inodes, CPU only, no network/cloud, retry or resume. The test/harness was pushed at `b330b21` before execution.
