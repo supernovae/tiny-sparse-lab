@@ -1,4 +1,4 @@
-"""One explicitly budgeted CPU integration node; never include in zero-update globs."""
+"""One opt-in, explicitly budgeted CPU integration node."""
 
 from __future__ import annotations
 
@@ -21,6 +21,21 @@ from sparselab.training.manifest import sha256_file
 
 RUN_ID = "kml-c05-native-cpu-q2"
 GIB = 1024**3
+QUALIFICATION_OPT_IN = "KML_NATIVE_CPU_QUALIFICATION"
+
+
+def _qualification_context_enabled() -> bool:
+    """Require the named harness opt-in and its already-captured allocation root."""
+    root_text = os.environ.get("KML_QUAL_ROOT")
+    if os.environ.get(QUALIFICATION_OPT_IN) != "1" or not root_text:
+        return False
+    root = Path(root_text)
+    return (
+        root.is_absolute()
+        and root.is_dir()
+        and (root / "baseline.json").is_file()
+        and (root / "outer-policy.json").is_file()
+    )
 
 
 def _save(path: Path, payload: dict) -> str:
@@ -85,6 +100,10 @@ def test_exact_cpu_config_roundtrip_without_model_or_ledger(tmp_path: Path) -> N
     assert not (tmp_path / "ledger.sqlite").exists()
 
 
+@pytest.mark.skipif(
+    not _qualification_context_enabled(),
+    reason="optimizer qualification requires the explicit bounded harness context",
+)
 def test_bounded_cpu_final_mask_and_ledger() -> None:
     root = Path(os.environ["KML_QUAL_ROOT"]).resolve(strict=True)
     assert root.is_absolute() and root.is_dir()

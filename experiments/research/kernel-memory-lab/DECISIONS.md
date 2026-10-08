@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D30 — Q2 accepted narrowly; integration PR blocked by automatic CI, 2026-10-08
+
+- The owner accepted [C05-Q2](results/2026-10-08-card05-native-cpu-qualification-q2.md) at `4b5976b` as **narrow CPU/fp32 integration evidence**. This does not accept live ROCm, real-panel/script parity, reviewer independence or reader eligibility. Q1 remains FAILED and preserved; C05-N1 remains 0/200 and Card 06 BLOCKED.
+- The owner requested an opt-in safety guard, zero-update checks, documentation reconciliation and a draft integration PR. [C05-I2](results/2026-10-08-card05-integration-pr-preflight.md) records those checks and the PR workflow audit. The automatic PR jobs include optimizer-bearing and real-generation fixtures without a shared contract, so the draft PR was prepared but **not opened** pending a separate bounded CI allocation or reviewed zero-update PR lane. No new training, generation, GPU, acquisition, paid cloud compute or merge is authorized by this decision.
+
 ## KML-D29 — one corrected native CPU qualification approved and completed, 2026-10-08
 
 - The owner authorized correction and a zero-update config round-trip preflight, then **one fresh** CPU attempt with new `kml-c05-native-cpu-q2` identity/root under the unchanged C05-Q1 limits. The corrected test/harness was pushed at clean `850b9ea` before execution. The 600-second aggregate supervisor included the 22-node preledger check; the separate 480-second v2 ledger was initialized only after that check passed.

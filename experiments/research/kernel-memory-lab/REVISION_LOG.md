@@ -1,5 +1,12 @@
 # Revision and synchronization log
 
+## 2026-10-08.18 — Q2 accepted; integration PR preflight, 8 October 2026
+
+- Recorded KML-D30 accepting Q2 only for its tiny CPU/fp32 path; kept Q1 failed, C05-N1 negative and Card 06 blocked
+- Made the optimizer-bearing Q2 fixture opt-in under a harness baseline/policy context; three selected zero-update/no-generation checks, Ruff and diff checks passed without rerunning Q2
+- [C05-I2](results/2026-10-08-card05-integration-pr-preflight.md) audits automatic PR CI and preserves a [draft PR description](CARD05_INTEGRATION_PR_DRAFT.md); PR creation stopped before hosted optimizer/generation tests pending a new bounded allocation or reviewed zero-update PR lane
+- Research lint was also run locally and failed on three unchanged tracked historical KML artifacts; C05-I2 records the exact paths, with no evidence deletion or silent waiver
+
 ## 2026-10-08.17 — corrected native CPU integration qualification, 8 October 2026
 
 - Pushed `850b9ea` with `checkpoint.every_steps = 1`, a real `load_config` round-trip preflight of the exact CPU/fp32 3-update/77-target config, and fresh Q2 identity before execution

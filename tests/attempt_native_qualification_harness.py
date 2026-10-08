@@ -1,4 +1,4 @@
-"""Test-local enclosing CPU allocation; run only under the approved C05-Q2 scope."""
+"""Test-local enclosing CPU allocation; requires separate approval per run."""
 
 from __future__ import annotations
 
@@ -67,7 +67,11 @@ def _worker(root: Path) -> int:
         "tests/test_attempt_native_integration.py::test_bounded_cpu_final_mask_and_ledger",
     ]
     for name, command in (("precheck", precheck), ("integration", integration)):
-        result = subprocess.run(command, cwd=checkout, check=False)
+        command_env = os.environ.copy()
+        command_env.pop("KML_NATIVE_CPU_QUALIFICATION", None)
+        if name == "integration":
+            command_env["KML_NATIVE_CPU_QUALIFICATION"] = "1"
+        result = subprocess.run(command, cwd=checkout, env=command_env, check=False)
         _save(
             root / f"{name}-command.json",
             {"argv": command, "returncode": result.returncode},

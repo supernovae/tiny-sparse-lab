@@ -93,7 +93,7 @@ experiment or a merge.
   checkpoint/panel counters and private verified-actual reconciliation are
   recorded in [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md).
   [C05-Q2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-q2.md)
-  qualifies one separately budgeted CPU/fp32 final-batch masking and cold
+  is owner accepted as one separately budgeted CPU/fp32 final-batch masking and cold
   receipt–ledger integration with 3 updates and 77 targets. The first
   authorized CPU node [C05-Q1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-stop.md)
   remains a preserved preledger failure. Keep this item open for live runtime
@@ -113,6 +113,17 @@ experiment or a merge.
   execution contract, separate from the P2 historical ledger projection and
   Card 03 transport-body budget. The adapter is shipped; model integration is
   qualified only for Q2's tiny CPU fixture.
+  [C05-I2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-integration-pr-preflight.md)
+  makes the optimizer fixture opt-in for ordinary pytest; automatic PR CI still
+  runs other training and generation fixtures and needs a separate bounded
+  allocation or a reviewed zero-update lane before the integration PR opens.
+
+- [ ] **Reconcile preserved KML evidence with research lint before integration.**
+  The current linter rejects the already tracked Card 03 continuation script,
+  Card 03 review-index JSONL and Card 05 final-scores JSONL. Preserve their
+  bytes and scientific references; adopt a narrowly reviewed archival-location
+  or format rule with zero-update tests. [C05-I2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-integration-pr-preflight.md)
+  records the exact paths and local lint failure. Do not waive unrelated payloads.
 
 - [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
   Optional decoder fields, same-index/checkpoint paired token-ID comparison,
