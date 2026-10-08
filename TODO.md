@@ -69,24 +69,29 @@ documented workload need and the required acceptance environment.
   items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
   existing output. Do not turn the adapter into a second authoring engine.
 
+- [ ] **Expose prepared-input bundle publication and cold verification through a typed CLI.**
+  The native `materialize_prepared_inputs(config, destination)` and
+  `verify_prepared_inputs(root, config)` Python APIs can seal and authenticate a
+  data-only bundle, but `sparselab data prepare` publishes only the cache.
+  Add a small CLI adapter taking a validated run config and exclusive output
+  path, returning the bundle manifest digest and supervised-target counters.
+  Verification must reject altered assets, config/source-identity drift, a
+  missing supervision mask, or a target count different from the verified
+  mixture receipt. Card 03 used the existing APIs directly; this command is
+  not shipped yet.
+
 - [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
 
 - [ ] **Extend the native operational monitor for accelerator memory and added output caps.** Kernel Memory Lab Card 04 P3's external `amd-smi` sampler failed while the native `sparselab monitor` still tracked RSS and free storage. Add optional typed `max_device_memory_bytes`, `max_added_workspace_bytes` and `max_added_workspace_inodes` policy fields with a registered ROCm sampler and a fail-closed unavailable-reading path. Record every sample, cap event and owned-process termination in the native completion receipt; baseline only the declared task workspace, retain process identity, and avoid interpreting sampled VRAM as an exact peak. Mock a sampler that fails after launch, a cap crossing, absent device, and interrupted monitor; no real GPU test is needed for the adapter. Until then, a corrected external sampler is needed for an approved Card 04 replacement profile.
 
 - [ ] **Retain bounded corpus decompression and temporary-storage high-water counters.** Kernel Memory Lab Card 03 P1 enforced the distinct expanded-stream and projected disk caps, but the native receipt does not report actual decompressed bytes or peak staging occupancy. Extend the existing bounded acquisition receipt, without changing legacy hashes when no new fields are present, to report per-shard bytes consumed from the expanded stream and peak task-owned staging bytes/inodes. Fail closed if a required reading is unavailable and preserve raw counters on interrupted transfers; test exact caps, overlong lines and resumed attempts with mocked HTTP. Do not backfill P1 with inferred measurements or require reacquisition only to fill historical optional fields.
 
-- [ ] **Materialize and verify a deterministic multi-source training mixture.**
-  Activate for Kernel Memory Lab Card 03 preparation after source admission.
-  The current Corpus Forge `requested_mixture` is reporting metadata, not an
-  enacted sampler. Extend the native release/export CLI or DSL with a small typed
-  operation whose inputs are a verified rights-tracked release, pinned tokenizer,
-  source strata, ordered document-family inventories, target-token quotas and a
-  seed. Output an immutable ordered train export and receipt with per-source
-  document IDs, encoded targets, repeats, exclusions, actual shares and quota
-  shortfalls. Fail before publication on tampered inputs, inadmissible rights,
-  validation/test family inclusion, impossible required quotas or changed
-  tokenizer identity. Keep reporting of requested versus realized tokens distinct;
-  do not add a task-specific harness or claim the proposed operation is shipped.
+- [x] **Materialize and verify a deterministic multi-source training mixture.**
+  The native `corpus materialize-mixture` and `corpus verify-mixture` operations
+  bind a verified release, tokenizer, family inventory and per-stratum quotas;
+  they reject rights or split leakage, quota shortfall and changed inputs. Card
+  03's 5,000,000-position output and cold replay are recorded in its offline
+  continuation result. Requested metadata remains separate from realized tokens.
 - [x] **Bound pinned Git blob acquisition without an unbounded fetch.** Native
   `corpus acquire` now supports optional exact GitHub commit/tree/blob declarations
   with the shared persistent response-body ledger, pre-transfer identity/size

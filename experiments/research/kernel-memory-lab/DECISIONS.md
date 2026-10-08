@@ -2,6 +2,13 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D17 — reuse-only Card 03 offline continuation approved, 2026-10-07
+
+- Owner decision: Byron approved **one new offline, CPU-only preparation continuation** from verified `908a0f2` and the retained C03-S4 snapshots/admission/splits/build. Preserve every earlier failure and ledger. This is a new continuation record, not a reset or correction of the failed KML-D16 attempt.
+- Exact allocation: one aggregate **28,800-second** deadline covering tests, retries and subprocesses; **24 GiB process-tree RSS**, **516 MiB tokenizer input**, and **20 aggregate agent-assisted reviewer-hours**. All old and new artifacts share the original combined **8 GiB added-disk and 100,000-inode** ceilings. Zero optimizer updates, GPU use, cloud spend, acquisition and source/metadata network requests.
+- Required sequence: positively review exact nontraining test nodes, fixtures and subprocesses; block model train/stage/warmup entry points; reverify retained identities offline; finish latest-build leakage review; fit the train-only tokenizer; measure unique train supply; materialize the 65/25/10, 5-million-position mixture only if all source-position and independent-family floors pass; verify the frozen evaluation and prepared bundle. Stop and report a hard-cap or release-requirement failure without increasing a target. Commit and push evidence, then stop for owner release review before Card 05.
+- Outcome boundary: [C03-C1](results/2026-10-07-card03-offline-continuation.md) prepared a verified release, tokenizer, mixture and sealed bundle within limits, but the evaluation candidate bank failed sampled semantic review and remained unreviewed. Thus KML-D17 does **not** accept a complete Card 03 release or approve Card 05/runtime profiling. The owner has not yet reviewed C03-C1.
+
 ## KML-D16 — one Card 03 scaled preparation retry approved, 2026-10-07
 
 - Owner decision: Byron approved **one fresh attempt** under [CARD03_SCALE_RETRY1_PROPOSAL.md](CARD03_SCALE_RETRY1_PROPOSAL.md), with the same four pinned sources, exact limits and conditional release requirements as KML-D15. The [failed KML-D15 ledger and traces](results/2026-10-07-card03-scale-metadata-stop.md) remain preserved and are not reset or resumed.
