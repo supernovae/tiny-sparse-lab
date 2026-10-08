@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import io
 import json
@@ -10,6 +11,8 @@ import signal
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -19,6 +22,10 @@ import yaml
 from sparselab.training.attempt_budget import AttemptBudget
 
 ROOT = Path(__file__).resolve().parents[1] / "tools/kernel-memory-lab/ci-guard"
+
+
+def test_pre_setup_guard_bootstrap_parses_as_python_312() -> None:
+    ast.parse((ROOT / "run_job.py").read_text(), feature_version=(3, 12))
 
 
 def _module(name: str, file: str):
@@ -294,17 +301,151 @@ def test_sampler_fails_closed_on_real_io_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = _module("kml_ci_runner", "run_job.py")
-    original = Path.lstat
+    original = os.scandir
+    child = tmp_path / "child"
+    child.mkdir()
 
-    def forbidden(path: Path):
-        if path == tmp_path / "file":
-            raise PermissionError("blocked")
+    def forbidden(path):
+        if os.fspath(path) == os.fspath(child):
+            raise PermissionError("blocked child")
         return original(path)
 
-    (tmp_path / "file").write_text("data")
-    monkeypatch.setattr(Path, "lstat", forbidden)
-    with pytest.raises(PermissionError, match="blocked"):
+    monkeypatch.setattr(os, "scandir", forbidden)
+    with pytest.raises(PermissionError, match="blocked child"):
         runner.sample_tree(tmp_path)
+
+
+def test_sampler_does_not_swallow_io_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    child = tmp_path / "child"
+    child.mkdir()
+    original = os.scandir
+
+    def broken(path):
+        if os.fspath(path) == os.fspath(child):
+            raise OSError(5, "fixture I/O fault")
+        return original(path)
+
+    monkeypatch.setattr(os, "scandir", broken)
+    with pytest.raises(OSError, match="fixture I/O fault"):
+        runner.sample_tree(tmp_path)
+
+
+def test_sampler_large_tree_keeps_live_sqlite_and_hardlink_count(
+    tmp_path: Path,
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    for number in range(10_000):
+        (tmp_path / f"row-{number:05d}").write_bytes(b"x")
+    (tmp_path / "attempt.sqlite").write_bytes(b"ledger")
+    os.link(tmp_path / "attempt.sqlite", tmp_path / "attempt-copy.sqlite")
+    progress: dict = {}
+    byte_count, inodes = runner.sample_tree(tmp_path, progress=progress)
+    assert inodes == 10_003
+    assert byte_count >= 10_006
+    assert progress["vanished_entries"] == 0
+
+
+def test_sampler_skips_only_vanished_entry_and_counts_live_sqlite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    removed = tmp_path / "a-removed"
+    removed.write_bytes(b"old")
+    live = tmp_path / "z-attempt.sqlite"
+    live.write_bytes(b"live-ledger")
+    original = os.scandir
+
+    def transient(path):
+        if os.fspath(path) == os.fspath(tmp_path):
+            with original(path) as listing:
+                entries = list(listing)
+            removed.unlink()
+            return nullcontext(iter(entries))
+        return original(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "scandir", transient)
+        progress: dict = {}
+        byte_count, inodes = runner.sample_tree(tmp_path, progress=progress)
+    assert inodes == 2
+    assert byte_count >= len(b"live-ledger")
+    assert progress["vanished_entries"] == 1
+
+
+def test_sampler_deadline_reports_root_and_last_path(tmp_path: Path) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    progress: dict = {}
+    with pytest.raises(TimeoutError, match="deadline exhausted") as failure:
+        runner.sample_declared_root(
+            tmp_path,
+            phase="startup-ambient-baseline",
+            deadline=time.monotonic() - 1,
+            required=True,
+            progress=progress,
+        )
+    receipt = runner.sample_failure(progress, failure.value)
+    assert receipt["root"] == str(tmp_path)
+    assert receipt["phase"] == "startup-ambient-baseline"
+    assert receipt["last_inspected_path"] == str(tmp_path)
+    assert receipt["elapsed_seconds"] >= 0
+    assert receipt["exception"].startswith("TimeoutError:")
+
+
+def test_sampler_interrupts_blocked_read_and_restores_signal_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    previous = signal.getsignal(signal.SIGALRM)
+    original = os.scandir
+
+    def blocked(path):
+        if os.fspath(path) == os.fspath(tmp_path):
+            time.sleep(10)
+        return original(path)
+
+    monkeypatch.setattr(os, "scandir", blocked)
+    with pytest.raises(TimeoutError, match="deadline exhausted"):
+        runner.sample_tree(tmp_path, seconds=0.05)
+    assert signal.getsignal(signal.SIGALRM) is previous
+    assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+
+
+def test_optional_root_stat_is_inside_sampling_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    original = Path.lstat
+
+    def blocked(path):
+        if path == tmp_path:
+            time.sleep(10)
+        return original(path)
+
+    monkeypatch.setattr(Path, "lstat", blocked)
+    with pytest.raises(TimeoutError, match="deadline exhausted"):
+        runner.sample_optional_root(tmp_path, required=True, seconds=0.05)
+    assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+
+
+def test_sampler_refuses_occupied_timer_and_nonmain_thread(tmp_path: Path) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    previous = signal.getsignal(signal.SIGALRM)
+    signal.setitimer(signal.ITIMER_REAL, 5)
+    try:
+        with pytest.raises(RuntimeError, match="occupied timer"):
+            runner.sample_tree(tmp_path)
+        assert signal.getitimer(signal.ITIMER_REAL)[0] > 0
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+    with (
+        ThreadPoolExecutor(max_workers=1) as pool,
+        pytest.raises(RuntimeError, match="main thread"),
+    ):
+        pool.submit(runner.sample_tree, tmp_path).result(timeout=5)
 
 
 def test_supervisor_mac_path_cleans_same_group_worker(
@@ -366,11 +507,8 @@ def test_supervisor_storage_cap_stops_worker_before_return(
         os.kill(int(pid_file.read_text()), 0)
 
 
-def test_supervisor_deadline_includes_term_to_kill(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_supervisor_deadline_reserves_term_to_kill(tmp_path: Path) -> None:
     runner = _module("kml_ci_runner", "run_job.py")
-    monkeypatch.setattr(runner, "SHUTDOWN_RESERVE_SECONDS", 0)
     root, workspace = tmp_path / "output", tmp_path / "checkout"
     root.mkdir()
     workspace.mkdir()
@@ -381,14 +519,14 @@ def test_supervisor_deadline_includes_term_to_kill(
         f"open({str(pid_file)!r},'w').write(str(os.getpid())); "
         "time.sleep(20)"
     )
-    with pytest.raises(RuntimeError, match="aggregate 30-minute shutdown reserve"):
+    with pytest.raises((RuntimeError, TimeoutError), match="deadline|reserve"):
         runner.run_phase(
             [sys.executable, "-c", script],
             cwd=workspace,
             root=root,
             workspace=workspace,
             environment=os.environ.copy(),
-            deadline_ns=time.time_ns() + 400_000_000,
+            deadline_ns=time.time_ns() + 16_000_000_000,
             name="deadline",
         )
     with pytest.raises(ProcessLookupError):
@@ -537,6 +675,87 @@ def test_watchdog_survives_step_boundary_and_records_completion(
         ):
             os.kill(record["pid"], signal.SIGKILL)
             pytest.fail("watcher survived expected shutdown")
+
+
+def test_startup_retains_failed_root_and_finalizes_without_watcher_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    (checkout / "file").write_text("fixture")
+    subprocess.run(["git", "-C", str(checkout), "add", "file"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(checkout),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "fixture",
+        ],
+        check=True,
+    )
+    commit = subprocess.check_output(
+        ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True
+    ).strip()
+    ambient = tmp_path / "ambient"
+    ambient.mkdir()
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
+    monkeypatch.setenv("RUNNER_TEMP", str(ambient))
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(
+        runner, "hosted_deadline_ns", lambda: time.time_ns() + 60_000_000_000
+    )
+    monkeypatch.setattr(
+        runner, "_runner_worker", lambda rows: (os.getpid(), rows[os.getpid()][4])
+    )
+
+    def fail(path, *, phase, deadline, required, progress):
+        progress.update(
+            root=str(path),
+            phase=phase,
+            last_path=str(path / "last-file"),
+            started_ns=time.monotonic_ns(),
+            vanished_entries=0,
+        )
+        raise TimeoutError("fixture traversal expired")
+
+    monkeypatch.setattr(runner, "sample_declared_root", fail)
+    root = tmp_path / "watch"
+    with pytest.raises(TimeoutError, match="fixture traversal expired"):
+        runner.start_watcher(root, commit)
+    startup = json.loads((root / "startup.json").read_text())
+    failure = json.loads((root / "startup-failure.json").read_text())
+    assert startup["ambient_roots"] == [str(ambient)]
+    assert failure["root"] == str(ambient)
+    assert failure["phase"] == "startup-ambient-baseline"
+    assert failure["last_inspected_path"] == str(ambient / "last-file")
+    assert failure["elapsed_seconds"] >= 0
+    assert failure["exception"] == "TimeoutError: fixture traversal expired"
+    assert not (root / "watch-pid.json").exists()
+    runner.stop_watcher(root)
+    assert (
+        json.loads((root / "finalization.json").read_text())["state"]
+        == "startup-failed"
+    )
+
+
+def test_finalization_records_incomplete_startup_without_pid(tmp_path: Path) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "watch"
+    root.mkdir()
+    (root / "startup.json").write_text('{"state":"started"}\n')
+    runner.stop_watcher(root)
+    assert (
+        json.loads((root / "finalization.json").read_text())["state"]
+        == "startup-incomplete"
+    )
 
 
 def test_uv_run_preserves_guard_in_python_child(tmp_path: Path) -> None:

@@ -16,8 +16,10 @@ import signal
 import stat
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 
 LIMIT_RSS = 8 * 1024**3
@@ -27,6 +29,13 @@ LIMIT_SECONDS = 1_800
 SHUTDOWN_RESERVE_SECONDS = 15
 POLL_SECONDS = 0.1
 GRACE_SECONDS = 1.0
+SAMPLE_SECONDS = 15.0
+
+
+class StorageRootMissing(RuntimeError):
+    """A declared storage root disappeared during a bounded sample."""
+
+
 TESTS = {
     "fast": (
         "tests/test_research_lint.py",
@@ -95,45 +104,155 @@ def verify_frozen_decoding(workspace: Path) -> None:
         raise RuntimeError("frozen decoding test digest changed")
 
 
-def sample_tree(root: Path, *, seconds: float = 3.0) -> tuple[int, int]:
-    """Restart a vanished-entry traversal; never discard other I/O errors."""
-    deadline = time.monotonic() + seconds
-    while True:
-        try:
-            stack = [root]
-            seen: set[tuple[int, int]] = set()
-            total = entries = 0
-            while stack:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("CI storage sample deadline exhausted")
-                path = stack.pop()
-                info = path.lstat()
-                entries += 1
-                identity = (info.st_dev, info.st_ino)
-                if not stat.S_ISREG(info.st_mode) or identity not in seen:
-                    total += info.st_size
-                if stat.S_ISREG(info.st_mode) and info.st_nlink > 1:
-                    seen.add(identity)
-                if stat.S_ISDIR(info.st_mode):
-                    with os.scandir(path) as listing:
-                        stack.extend(Path(item.path) for item in listing)
-            return total, entries
-        except FileNotFoundError as error:
-            if time.monotonic() >= deadline:
-                raise TimeoutError("CI storage sample deadline exhausted") from error
-            time.sleep(0.01)
+@contextmanager
+def sample_timer(seconds: float):
+    """Interrupt a blocked local traversal as well as a slow iteration."""
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("CI storage sampling requires the main thread")
+    if signal.getitimer(signal.ITIMER_REAL)[0] > 0:
+        raise RuntimeError("CI storage sampling cannot replace an occupied timer")
+    previous = signal.getsignal(signal.SIGALRM)
 
+    def expired(_number, _frame):
+        raise TimeoutError("CI storage sample deadline exhausted")
 
-def sample_optional_root(path: Path, *, required: bool) -> tuple[int, int]:
+    signal.signal(signal.SIGALRM, expired)
     try:
-        info = path.lstat()
-    except FileNotFoundError:
+        signal.setitimer(signal.ITIMER_REAL, seconds)
+    except BaseException:
+        signal.signal(signal.SIGALRM, previous)
+        raise
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def sample_tree(
+    root: Path, *, seconds: float = SAMPLE_SECONDS, progress: dict | None = None
+) -> tuple[int, int]:
+    if seconds <= 0:
+        raise TimeoutError("CI storage sample deadline exhausted")
+    with sample_timer(seconds):
+        return _sample_tree(root, seconds=seconds, progress=progress)
+
+
+def _sample_tree(
+    root: Path, *, seconds: float, progress: dict | None
+) -> tuple[int, int]:
+    """Count a live tree in one pass, skipping only entries already removed."""
+    deadline = time.monotonic() + seconds
+    stack: list[Path | os.DirEntry] = [root]
+    root_path = os.fspath(root)
+    seen: set[tuple[int, int]] = set()
+    total = entries = 0
+    if progress is not None:
+        progress.update(root=str(root), last_path=str(root), vanished_entries=0)
+    while stack:
+        if time.monotonic() >= deadline:
+            raise TimeoutError("CI storage sample deadline exhausted")
+        item = stack.pop()
+        path = item.path if isinstance(item, os.DirEntry) else os.fspath(item)
+        if progress is not None:
+            progress["last_path"] = str(path)
+        try:
+            info = (
+                item.stat(follow_symlinks=False)
+                if isinstance(item, os.DirEntry)
+                else item.lstat()
+            )
+        except FileNotFoundError:
+            if path == root_path:
+                raise StorageRootMissing(
+                    f"CI storage root disappeared: {root}"
+                ) from None
+            if progress is not None:
+                progress["vanished_entries"] += 1
+            continue
+        entries += 1
+        if path == root_path and not stat.S_ISDIR(info.st_mode):
+            raise RuntimeError(f"CI storage root is not a directory: {root}")
+        identity = (info.st_dev, info.st_ino)
+        if not stat.S_ISREG(info.st_mode) or identity not in seen:
+            total += info.st_size
+        if stat.S_ISREG(info.st_mode) and info.st_nlink > 1:
+            seen.add(identity)
+        if stat.S_ISDIR(info.st_mode):
+            try:
+                with os.scandir(path) as listing:
+                    for child in listing:
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError("CI storage sample deadline exhausted")
+                        stack.append(child)
+            except FileNotFoundError:
+                if path == root_path:
+                    raise StorageRootMissing(
+                        f"CI storage root disappeared: {root}"
+                    ) from None
+                if progress is not None:
+                    progress["vanished_entries"] += 1
+    return total, entries
+
+
+def sample_optional_root(
+    path: Path,
+    *,
+    required: bool,
+    seconds: float = SAMPLE_SECONDS,
+    progress: dict | None = None,
+) -> tuple[int, int]:
+    try:
+        return sample_tree(path, seconds=seconds, progress=progress)
+    except StorageRootMissing:
         if required:
-            raise RuntimeError(f"CI storage root disappeared: {path}") from None
+            raise
         return 0, 0
-    if not stat.S_ISDIR(info.st_mode):
-        raise RuntimeError(f"CI storage root is not a directory: {path}")
-    return sample_tree(path)
+
+
+def sample_declared_root(
+    path: Path,
+    *,
+    phase: str,
+    deadline: float,
+    required: bool,
+    progress: dict,
+) -> tuple[int, int]:
+    progress.clear()
+    progress.update(
+        root=str(path),
+        phase=phase,
+        last_path=str(path),
+        started_ns=time.monotonic_ns(),
+        vanished_entries=0,
+    )
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("CI storage sample deadline exhausted")
+    result = sample_optional_root(
+        path, required=required, seconds=remaining, progress=progress
+    )
+    progress["elapsed_seconds"] = (time.monotonic_ns() - progress["started_ns"]) / 1e9
+    return result
+
+
+def sample_failure(progress: dict, error: BaseException) -> dict[str, object]:
+    started = progress.get("started_ns")
+    return {
+        "root": progress.get("root"),
+        "phase": progress.get("phase"),
+        "last_inspected_path": progress.get("last_path"),
+        "elapsed_seconds": (
+            (time.monotonic_ns() - started) / 1e9 if started is not None else 0.0
+        ),
+        "exception": f"{type(error).__name__}: {error}",
+        "vanished_entries": progress.get("vanished_entries", 0),
+    }
+
+
+def sweep_deadline(workflow_deadline_ns: int) -> float:
+    remaining = (workflow_deadline_ns - time.time_ns()) / 1e9 - SHUTDOWN_RESERVE_SECONDS
+    return time.monotonic() + min(SAMPLE_SECONDS, max(0.0, remaining))
 
 
 def process_rows() -> dict[int, tuple[int, int, int, str, str, str]]:
@@ -220,56 +339,131 @@ def start_watcher(root: Path, commit: str) -> None:
         if os.environ.get("RUNNER_TOOL_CACHE"):
             extra_paths.append(Path(os.environ["RUNNER_TOOL_CACHE"]).resolve())
         extra_paths.append(Path.home() / ".cache")
-    extras = []
-    for path in dict.fromkeys(extra_paths):
-        baseline = sample_optional_root(path, required=False)
-        extras.append(
-            {
-                "path": str(path),
-                "bytes": baseline[0],
-                "inodes": baseline[1],
-                "required": baseline[1] > 0,
-            }
-        )
-    (root / "watch-config.json").write_text(
+    extra_paths = list(dict.fromkeys(extra_paths))
+    (root / "startup.json").write_text(
         json.dumps(
             {
-                "worker_pid": worker_pid,
-                "worker_birth": worker_birth,
+                "state": "started",
+                "phase": "startup-ambient-baseline",
+                "commit": commit,
                 "workspace": str(workspace),
-                "deadline_ns": deadline_ns,
-                "extra_storage": extras,
+                "ambient_roots": [str(path) for path in extra_paths],
+                "sample_deadline_seconds": SAMPLE_SECONDS,
+                "workflow_deadline_ns": deadline_ns,
             },
             sort_keys=True,
         )
         + "\n"
     )
-    with (
-        (root / "watch.stdout.log").open("xb") as stdout,
-        (root / "watch.stderr.log").open("xb") as stderr,
-    ):
-        process = subprocess.Popen(
-            [sys.executable, str(Path(__file__)), "--watch-loop", "--root", str(root)],
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-            start_new_session=True,
+    progress: dict = {}
+    baselines = []
+    process = None
+    try:
+        extras = []
+        baseline_deadline = sweep_deadline(deadline_ns)
+        for path in extra_paths:
+            baseline = sample_declared_root(
+                path,
+                phase="startup-ambient-baseline",
+                deadline=baseline_deadline,
+                required=False,
+                progress=progress,
+            )
+            baselines.append(
+                {
+                    "root": str(path),
+                    "bytes": baseline[0],
+                    "inodes": baseline[1],
+                    "elapsed_seconds": progress["elapsed_seconds"],
+                    "vanished_entries": progress["vanished_entries"],
+                }
+            )
+            extras.append(
+                {
+                    "path": str(path),
+                    "bytes": baseline[0],
+                    "inodes": baseline[1],
+                    "required": baseline[1] > 0,
+                }
+            )
+        (root / "startup-baselines.json").write_text(
+            json.dumps(baselines, sort_keys=True) + "\n"
         )
-    rows = process_rows()
-    if process.pid not in rows:
-        raise RuntimeError("watcher exited during start")
-    (root / "watch-pid.json").write_text(
-        json.dumps({"pid": process.pid, "birth": rows[process.pid][4]}) + "\n"
-    )
-    ready_deadline = time.monotonic() + 5
-    while time.monotonic() < ready_deadline:
-        if (root / "watch-ready.json").exists():
-            _watcher_identity(root)
-            return
-        if process.poll() is not None:
-            break
-        time.sleep(0.05)
-    raise RuntimeError("resource watcher failed to become ready")
+        progress.update(
+            root=str(root),
+            phase="startup-watcher-launch",
+            last_path=str(root),
+            started_ns=time.monotonic_ns(),
+        )
+        (root / "watch-config.json").write_text(
+            json.dumps(
+                {
+                    "worker_pid": worker_pid,
+                    "worker_birth": worker_birth,
+                    "workspace": str(workspace),
+                    "deadline_ns": deadline_ns,
+                    "extra_storage": extras,
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        )
+        with (
+            (root / "watch.stdout.log").open("xb") as stdout,
+            (root / "watch.stderr.log").open("xb") as stderr,
+        ):
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(Path(__file__)),
+                    "--watch-loop",
+                    "--root",
+                    str(root),
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+                start_new_session=True,
+            )
+        rows = process_rows()
+        if process.pid not in rows:
+            raise RuntimeError("watcher exited during start")
+        (root / "watch-pid.json").write_text(
+            json.dumps({"pid": process.pid, "birth": rows[process.pid][4]}) + "\n"
+        )
+        ready_deadline = time.monotonic() + 5
+        while time.monotonic() < ready_deadline:
+            if (root / "watch-ready.json").exists():
+                _watcher_identity(root)
+                return
+            if process.poll() is not None:
+                break
+            time.sleep(0.05)
+        raise RuntimeError("resource watcher failed to become ready")
+    except BaseException as error:
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=2)
+            except (OSError, subprocess.TimeoutExpired) as terminate_error:
+                print(
+                    f"watcher TERM cleanup failed: {terminate_error}", file=sys.stderr
+                )
+                try:
+                    process.kill()
+                    process.wait(timeout=2)
+                except (OSError, subprocess.TimeoutExpired) as cleanup_error:
+                    print(f"watcher cleanup failed: {cleanup_error}", file=sys.stderr)
+        try:
+            (root / "startup-failure.json").write_text(
+                json.dumps(sample_failure(progress, error), sort_keys=True) + "\n"
+            )
+        except OSError as receipt_error:
+            print(
+                f"could not retain startup failure receipt: {receipt_error}",
+                file=sys.stderr,
+            )
+        raise
 
 
 def watch_loop(root: Path) -> None:
@@ -278,10 +472,20 @@ def watch_loop(root: Path) -> None:
     workspace = Path(config["workspace"])
     deadline_ns = config["deadline_ns"]
     peak_rss = peak_disk = peak_inodes = 0
+    sample_count = 0
+    sample_seconds = max_sample_seconds = 0.0
+    progress: dict = {}
     (root / "watch-ready.json").write_text(json.dumps({"pid": os.getpid()}) + "\n")
     reason = "completed"
     try:
         while not (root / "watch-stop").exists():
+            progress.clear()
+            progress.update(
+                root=None,
+                phase="watch-process-inventory",
+                last_path=None,
+                started_ns=time.monotonic_ns(),
+            )
             rows = process_rows()
             if worker_pid not in rows or rows[worker_pid][4] != birth:
                 raise RuntimeError("hosted runner worker identity changed")
@@ -289,12 +493,30 @@ def watch_loop(root: Path) -> None:
             rss = sum(
                 rows[pid][2] for pid in owned_pids if not rows[pid][3].startswith("Z")
             )
-            disk, inodes = sample_tree(workspace)
+            sweep_started = time.monotonic()
+            storage_deadline = sweep_deadline(deadline_ns)
+            disk, inodes = sample_declared_root(
+                workspace,
+                phase="watch-workspace",
+                deadline=storage_deadline,
+                required=True,
+                progress=progress,
+            )
             for extra in config["extra_storage"]:
                 path = Path(extra["path"])
-                current = sample_optional_root(path, required=extra["required"])
+                current = sample_declared_root(
+                    path,
+                    phase="watch-ambient",
+                    deadline=storage_deadline,
+                    required=extra["required"],
+                    progress=progress,
+                )
                 disk += max(0, current[0] - extra["bytes"])
                 inodes += max(0, current[1] - extra["inodes"])
+            duration = time.monotonic() - sweep_started
+            sample_count += 1
+            sample_seconds += duration
+            max_sample_seconds = max(max_sample_seconds, duration)
             peak_rss, peak_disk, peak_inodes = (
                 max(peak_rss, rss),
                 max(peak_disk, disk),
@@ -310,7 +532,10 @@ def watch_loop(root: Path) -> None:
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
         reason = f"{type(error).__name__}: {error}"
         (root / "watch-violation.json").write_text(
-            json.dumps({"reason": reason}) + "\n"
+            json.dumps(
+                {"reason": reason, **sample_failure(progress, error)}, sort_keys=True
+            )
+            + "\n"
         )
         rows = process_rows()
         if worker_pid in rows and rows[worker_pid][4] == birth:
@@ -338,6 +563,9 @@ def watch_loop(root: Path) -> None:
                     "peak_rss_bytes": peak_rss,
                     "peak_disk_bytes": peak_disk,
                     "peak_inodes": peak_inodes,
+                    "sample_count": sample_count,
+                    "sample_seconds": sample_seconds,
+                    "max_sample_seconds": max_sample_seconds,
                 },
                 sort_keys=True,
             )
@@ -346,6 +574,25 @@ def watch_loop(root: Path) -> None:
 
 
 def stop_watcher(root: Path) -> None:
+    if (root / "startup-failure.json").exists() or not (
+        root / "watch-pid.json"
+    ).exists():
+        state = (
+            "startup-failed"
+            if (root / "startup-failure.json").exists()
+            else "startup-incomplete"
+        )
+        if root.is_dir():
+            try:
+                (root / "finalization.json").write_text(
+                    json.dumps({"state": state, "watcher_started": False}) + "\n"
+                )
+            except OSError as error:
+                print(
+                    f"could not retain finalization receipt: {error}", file=sys.stderr
+                )
+        print(f"CI watcher finalization: {state}; original startup result retained")
+        return
     pid, birth = _watcher_identity(root)
     (root / "watch-stop").write_text("stop\n")
     deadline = time.monotonic() + 10
@@ -470,6 +717,8 @@ def run_phase(
         known: dict[int, str] = {}
         peak_rss = peak_disk = peak_inodes = 0
         reason = ""
+        progress: dict = {}
+        sampling_failure: dict | None = None
         try:
             while True:
                 if watcher_root is not None:
@@ -485,8 +734,21 @@ def run_phase(
                 for pid in living:
                     known.setdefault(pid, rows[pid][4])
                 rss = sum(rows[pid][2] for pid in living)
-                a_bytes, a_inodes = sample_tree(root)
-                b_bytes, b_inodes = sample_tree(workspace)
+                storage_deadline = sweep_deadline(deadline_ns)
+                a_bytes, a_inodes = sample_declared_root(
+                    root,
+                    phase=f"{name}-output",
+                    deadline=storage_deadline,
+                    required=True,
+                    progress=progress,
+                )
+                b_bytes, b_inodes = sample_declared_root(
+                    workspace,
+                    phase=f"{name}-workspace",
+                    deadline=storage_deadline,
+                    required=True,
+                    progress=progress,
+                )
                 disk, inodes = a_bytes + b_bytes, a_inodes + b_inodes
                 peak_rss = max(peak_rss, rss)
                 peak_disk = max(peak_disk, disk)
@@ -517,6 +779,7 @@ def run_phase(
                 time.sleep(POLL_SECONDS)
         except BaseException as error:
             reason = f"monitor failure: {type(error).__name__}: {error}"
+            sampling_failure = sample_failure(progress, error)
             raise
         finally:
             stop_owned(process, known, terminate=reason != "completed")
@@ -530,6 +793,7 @@ def run_phase(
                 "peak_inodes": peak_inodes,
                 "observed_pids": sorted(known),
                 "living_descendants": 0,
+                "sampling_failure": sampling_failure,
             }
             (root / f"{name}.monitor.json").write_text(
                 json.dumps(receipt, sort_keys=True) + "\n"

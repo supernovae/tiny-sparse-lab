@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D33 — focused offline hosted guard startup repair authorized, 2026-10-08
+
+- The owner authorized a focused offline repair after C05-I6, requiring a startup record and failure receipt before/after ambient traversal, incomplete-initialization finalization, bounded large/transient/error/deadline tests and a justified sampling deadline. The scope excludes hosted dispatch, optimizer updates, generation, PR-ready transition and merge. Preserve C05-I6's consumed allocation and external logs.
+- [C05-I7](results/2026-10-08-card05-hosted-guard-sampler-repair.md) records the one-pass, 15-second whole-sweep implementation, selected offline checks and local traversal costs. [The next hosted proposal](CARD05_HOSTED_RETRY1_PROPOSAL.md) is **not authorized** by this decision; it requires a fresh owner allocation.
+
 ## KML-D32 — one guarded hosted serving-only validation authorized, 2026-10-08
 
 - The owner approved offline guard/preflight implementation followed conditionally by **one** `serving_only=true` hosted dispatch from a clean, pushed, exact SHA. PR #54 remains draft. [C05-I5](results/2026-10-08-card05-hosted-ci-guard-preflight.md) records the preflight implementation and its zero-update offline checks.
