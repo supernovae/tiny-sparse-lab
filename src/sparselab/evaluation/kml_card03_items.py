@@ -206,11 +206,23 @@ def _items(
         ):
             raise ValueError("evaluation item requires distinct parent documents")
         if any(
-            doc_id not in families
-            or families[doc_id]["split"] != "test"
-            or families[doc_id]["family_id"] != item["parent_family"]
+            doc_id not in families or families[doc_id]["split"] != "test"
             for doc_id in parents
         ):
+            raise ValueError("evaluation item parent is not held-out")
+        parent_families = {families[doc_id]["family_id"] for doc_id in parents}
+        declared_family = item["parent_family"]
+        if isinstance(declared_family, str):
+            if not declared_family or parent_families != {declared_family}:
+                raise ValueError("evaluation item parent is not one held-out family")
+        elif suite == "open_book" and item["category"] == "two_source_inference":
+            if (
+                not isinstance(declared_family, list)
+                or len(declared_family) < 2
+                or declared_family != sorted(parent_families)
+            ):
+                raise ValueError("two-source parents need sorted held-out families")
+        else:
             raise ValueError("evaluation item parent is not one held-out family")
         expected_versions = {
             doc_id: {
@@ -230,6 +242,16 @@ def _items(
             for chunk_id in support
         ):
             raise ValueError("support chunk is not a bound parent chunk")
+        if (
+            isinstance(declared_family, list)
+            and item["answerability"] == "answerable"
+            and {
+                families[chunks[chunk_id]["document_id"]]["family_id"]
+                for chunk_id in support
+            }
+            != parent_families
+        ):
+            raise ValueError("two-source support must cover both parent families")
         if (
             not isinstance(item["question"], str)
             or not item["question"].strip()

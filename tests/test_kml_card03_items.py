@@ -51,6 +51,15 @@ def _fixture(tmp_path, monkeypatch):
             "split": "train",
             "drop_reason": None,
         },
+        {
+            "document_id": "test-3",
+            "source_id": "source",
+            "source_revision": "rev",
+            "content_sha256": hashlib.sha256(b"The alarm was green.").hexdigest(),
+            "text": "The alarm was green.",
+            "split": "test",
+            "drop_reason": None,
+        },
     ]
     with (release / "documents.jsonl").open("w", encoding="utf-8") as stream:
         for doc in docs:
@@ -135,6 +144,37 @@ def _fixture(tmp_path, monkeypatch):
     return release, families, draft
 
 
+def _two_source_draft(data):
+    item = data["items"][0]
+    item["category"] = "two_source_inference"
+    item["parent_family"] = ["test-1", "test-2"]
+    item["parent_document_ids"] = ["test-1", "test-2"]
+    item["source_versions"]["test-2"] = dict(item["source_versions"]["test-1"])
+    item["question"] = "What colors were the two alarms?"
+    item["required_claims"] = ["The first alarm was red.", "The second was blue."]
+    item["prohibited_claims"] = ["An alarm was green."]
+    item["acceptable_paraphrases"] = ["red and blue"]
+    item["support_chunk_ids"] = [chunk["id"] for chunk in data["chunks"]]
+    distractor = {
+        "document_id": "test-3",
+        "start": 0,
+        "end": len("The alarm was green."),
+        "text_sha256": hashlib.sha256(b"The alarm was green.").hexdigest(),
+    }
+    distractor["id"] = authoring._sha(distractor)
+    data["chunks"].append(distractor)
+    item["controls"] = {
+        "no_evidence": [],
+        "gold": item["support_chunk_ids"],
+        "plausible_wrong": [distractor["id"]],
+        "shuffled_absent": [distractor["id"]],
+    }
+    item["content_sha256"] = authoring._sha(
+        {key: value for key, value in item.items() if key != "content_sha256"}
+    )
+    return data
+
+
 def test_reviewed_heldout_draft_binds_content_and_reports_incomplete(
     tmp_path, monkeypatch
 ):
@@ -157,6 +197,50 @@ def test_reviewed_heldout_draft_binds_content_and_reports_incomplete(
         )
     with pytest.raises(ValueError, match="200 closed-book and 400 open-book"):
         authoring.freeze_card03_items(release, families, draft, tmp_path / "full.json")
+
+
+def test_two_source_inference_accepts_distinct_heldout_families(tmp_path, monkeypatch):
+    release, families, data = _fixture(tmp_path, monkeypatch)
+    draft = tmp_path / "two-source.json"
+    _write(draft, _two_source_draft(data))
+    result = authoring.freeze_card03_items(
+        release, families, draft, tmp_path / "frozen.json", require_complete=False
+    )
+    assert result["category_denominators"] == {"open_book/two_source_inference": 1}
+    assert result["items"][0]["parent_family"] == ["test-1", "test-2"]
+
+
+def test_two_source_rejects_other_category_and_mixed_split(tmp_path, monkeypatch):
+    release, families, data = _fixture(tmp_path, monkeypatch)
+    valid = _two_source_draft(data)
+    for name, change, message in (
+        (
+            "other-category",
+            lambda item: item.update(category="direct_extraction"),
+            "one held-out family",
+        ),
+        (
+            "train-parent",
+            lambda item: item["parent_document_ids"].append("train-1"),
+            "not held-out",
+        ),
+    ):
+        candidate = deepcopy(valid)
+        item = candidate["items"][0]
+        change(item)
+        item["content_sha256"] = authoring._sha(
+            {key: value for key, value in item.items() if key != "content_sha256"}
+        )
+        draft = tmp_path / f"{name}.json"
+        _write(draft, candidate)
+        with pytest.raises(ValueError, match=message):
+            authoring.freeze_card03_items(
+                release,
+                families,
+                draft,
+                tmp_path / f"{name}-frozen.json",
+                require_complete=False,
+            )
 
 
 @pytest.mark.parametrize(

@@ -157,6 +157,7 @@ def _handle(args: argparse.Namespace) -> None:
                 Path(args.base_run_config),
                 args.vocab_size,
                 root,
+                min_frequency=args.min_frequency,
                 **verification,
             )
         )
@@ -336,6 +337,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--view", choices=("lm", "chat"), required=True)
             command.add_argument("--base-run-config", required=True)
             command.add_argument("--vocab-size", required=True, type=int)
+            command.add_argument("--min-frequency", type=int, default=1)
         if name == "near-duplicates":
             for flag in (
                 "max-documents",

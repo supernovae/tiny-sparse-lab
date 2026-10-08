@@ -39,6 +39,7 @@ class MixtureDeclaration(BaseModel):
     target_quotas: dict[str, int]
     seed: int
     max_exposures: Literal[2]
+    order_policy: Literal["kml-card03-v1"] | None = None
 
     @model_validator(mode="after")
     def valid(self) -> MixtureDeclaration:
@@ -151,7 +152,13 @@ def _tokenizer(spec: MixtureDeclaration, release: Path, release_id: str):
     return load_tokenizer(path), manifest["sha256"]
 
 
-def _rank(seed: int, stratum: str, family: str, doc_id: str) -> str:
+def _rank(
+    seed: int, stratum: str, family: str, doc_id: str, order_policy: str | None = None
+) -> str:
+    if order_policy == "kml-card03-v1":
+        return hashlib.sha256(
+            f"kml-card03-v1 | {stratum} | {doc_id}".encode()
+        ).hexdigest()
     return hashlib.sha256(canonical_json([seed, stratum, family, doc_id])).hexdigest()
 
 
@@ -234,6 +241,7 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
                         stratum,
                         inventory[doc["document_id"]]["family_id"],
                         doc["document_id"],
+                        spec.order_policy,
                     ),
                 )
                 seen_content: set[str] = set()
@@ -310,6 +318,7 @@ def _materialize_mixture(declaration: Path, output: Path) -> dict:
             "declaration_sha256": hashlib.sha256(raw).hexdigest(),
             "family_inventory_sha256": sha256_file(spec.family_inventory),
             "seed": spec.seed,
+            **({"order_policy": spec.order_policy} if spec.order_policy else {}),
             "requested_target_quotas": spec.target_quotas,
             "actual_target_tokens": dict(totals),
             "unique_target_positions": dict(unique),

@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from sparselab.config.loading import load_tokenizer_config
 from sparselab.corpus.release import _digest, _verification_operation, verify_release
 from sparselab.data.tokenizer import (
     _verify_tokenizer_manifest,
@@ -44,6 +45,27 @@ def _safe_path(path: Path) -> Path:
         if component.is_symlink():
             raise ValueError(f"symlinked input or ancestor: {component}")
     return absolute.resolve()
+
+
+def _dataset_for_tokenizer(release: Path, tokenizer: Path, metadata: dict):
+    """Recover only the export configuration adjacent to a bound tokenizer."""
+    if metadata.get("corpus_export") is None:
+        return None
+    export = _safe_path(tokenizer.parent.parent)
+    config = load_tokenizer_config(_safe_path(export / "tokenizer.yaml"))
+    dataset = config.dataset
+    if (
+        _safe_path(config.output_dir) != tokenizer.parent
+        or dataset.corpus_release_path is None
+        or _safe_path(dataset.corpus_release_path) != release
+        or dataset.corpus_export_path is None
+        or _safe_path(dataset.corpus_export_path) != export
+        or dataset.source != metadata.get("source")
+        or dataset.revision != metadata.get("revision")
+        or config.vocab_size != metadata.get("vocab_size")
+    ):
+        raise ValueError("tokenizer export configuration differs from measured inputs")
+    return dataset
 
 
 def _git(*args: str) -> bytes:
@@ -286,6 +308,7 @@ def _authenticate_inputs(
             source=metadata["source"],
             revision=metadata.get("revision"),
             vocab_size=metadata["vocab_size"],
+            dataset=_dataset_for_tokenizer(release, tokenizer, metadata),
         )
         if verified != metadata:
             raise ValueError("tokenizer verifier returned inconsistent manifest")

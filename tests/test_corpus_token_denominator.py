@@ -266,6 +266,23 @@ def test_strict_single_document_and_batch_limits(tmp_path: Path) -> None:
         _measure_source_domains(release, tokenizer, policy, batch_documents=0)
 
 
+def test_explicit_four_mib_document_bound_counts_one_large_document(
+    tmp_path: Path,
+) -> None:
+    tokenizer = _tokenizer(tmp_path / "tokenizer")
+    policy = CorpusReadinessPolicy(min_unique_train_tokens_by_domain={"a": 1})
+    release = _synthetic(tmp_path, [_row("hello " * 200_000, ["a"])])
+    result = _measure_source_domains(
+        release,
+        tokenizer,
+        policy,
+        scratch=tmp_path / "scratch",
+        batch_source_bytes=4_194_304,
+        max_document_source_bytes=4_194_304,
+    )
+    assert result["domains"]["a"]["source_tokens"] == 200_000
+
+
 def test_public_api_requires_token_domain_policy(
     frozen: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
