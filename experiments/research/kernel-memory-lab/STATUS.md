@@ -1,33 +1,44 @@
 # Current project status
 
-Record revision: 2026-10-08.2
+Record revision: 2026-10-08.3
 Snapshot date: 2026-10-08
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: Full Card 03 is accepted for the exact frozen local-research release under KML-D19; Gate 0 is EVIDENCE VERIFIED for its starting-point scope. The owner approved **one** Card 05 real-data timing measurement under [KML-D20](DECISIONS.md#kml-d20--one-card-05-real-data-timing-measurement-approved-2026-10-08). [C05-S1](results/2026-10-08-card05-monitor-adaptation.md) records the passing CPU/mock launcher adaptation before any runtime ledger or model activity. Card 05 has no real-data timing result or full-tranche training authority. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with their evidence preserved.
-Next action: pin and push the clean C05-S1 code checkout, then perform the approved preflight and single ledger-bounded zero-update stage/32-update measurement. Stop for review after recording its receipts; no full Card 05 run is authorized.
+Current selected work: Full Card 03 is accepted for the exact frozen local-research release under KML-D19; Gate 0 is EVIDENCE VERIFIED for its starting-point scope. The one approved Card 05 real-data timing measurement [C05-M1](results/2026-10-08-card05-real-data-timing.md) is complete and READY FOR OWNER REVIEW with 32/32 charged updates and a verified terminal checkpoint. Card 05 has no full-tranche training authority. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with their evidence preserved.
+Next action: owner review of C05-M1 timing, receipts, forecast assumptions and unmeasured full-suite costs before any separate full Card 05 runtime decision. No new staging, GPU work or optimizer run is authorized.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
-Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20 approves **one unstarted Card 05 measurement** with a 32-update/1,800-second ledger and no retry; no full Card 05 training authority exists.
-Last reviewed project result: [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) P6 synthetic fit remains accepted
-Latest project results: [C05-S1](results/2026-10-08-card05-monitor-adaptation.md) is passing code-only preparation; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03/Gate 0 review; [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) and [C03-C1](results/2026-10-07-card03-offline-continuation.md) together supply accepted Card 03; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) preserve failed attempts; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical
+Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's single Card 05 measurement is consumed: 32/32 updates charged under its 1,800-second ledger; no retry, resume or full Card 05 training authority exists.
+Last reviewed project result: [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) P6 synthetic fit remains accepted. C05-M1 awaits owner review.
+Latest project results: [C05-M1](results/2026-10-08-card05-real-data-timing.md) records the measured real-data timing, counters, monitors and forecast for review; [C05-S1](results/2026-10-08-card05-monitor-adaptation.md) is passing code preparation; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03/Gate 0 review; [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) and [C03-C1](results/2026-10-07-card03-offline-continuation.md) together supply accepted Card 03; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) preserve failed attempts; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical
 Latest research decision: [KML-D20](DECISIONS.md#kml-d20--one-card-05-real-data-timing-measurement-approved-2026-10-08) approves one exact real-data timing measurement; KML-D19 accepts full Card 03 and Gate 0, while KML-D14 source-policy v1 and KML-D13 synthetic fit remain accepted
-Latest project attempt: [C03-C2](results/2026-10-07-card03-evaluation-continuation.md), completed evaluation component accepted under KML-D19; [C03-C1](results/2026-10-07-card03-offline-continuation.md), accepted preparation; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED; [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains verified synthetic fit; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
+Latest project attempt: [C05-M1](results/2026-10-08-card05-real-data-timing.md), one completed 32-update real-data measurement pending owner review; [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) and [C03-C1](results/2026-10-07-card03-offline-continuation.md) remain accepted preparation; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED; [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains verified synthetic fit; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
 
+[C05-M1](results/2026-10-08-card05-real-data-timing.md) used the pushed clean
+`ec1651f` checkout and one persistent ledger to validate-stage the accepted
+prepared bundle with zero updates, then run one fresh 32-update/32,768-target
+measurement. The terminal checkpoint verified fully and stage/train monitors
+reported no cap violation. Its measured 20-update steady window and separated
+overhead yield a 1,353-second raw forecast plus a stated 20% planning
+allowance for 5 million positions under an assumed every-500 checkpoint and
+validation cadence. Full-suite evaluation cost remains unmeasured; the result
+is pending owner review and grants no full-tranche runtime authority.
+
 [C05-S1](results/2026-10-08-card05-monitor-adaptation.md) implements and
 CPU/mock-tests the exact Card 05 stage/train launcher and validator under the
-owner's KML-D20 approval. It has not initialized a runtime ledger, stage, model
-or GPU run. Its fixed checkout must be pushed and preflighted before execution.
+owner's KML-D20 approval. It was committed and pushed as `ec1651f` before the
+runtime ledger or model activity; C05-M1 then used that fixed checkout.
 
 [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md)
 records the owner's full Card 03 acceptance for the exact frozen local-research
 release and read-only cold verification of release/prepared identities. It maps
 all original Gate 0 criteria to accepted evidence and marks that starting-point
 gate EVIDENCE VERIFIED. It supersedes C05-P1's dated acquisition/preparation
-blockers, but real-data timing and a Card 05 runtime allocation remain open.
+blockers. C05-M1 now supplies real-data timing for review; a full Card 05 runtime
+allocation remains open.
 
 [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) used the verified C03-C1 release, tokenizer and prepared bundle with no new source request or model update. Three author partitions recorded decisions for all 600 original candidate IDs. Different reviewers blind-solved and checked every exact final item version, retaining negative earlier decisions. The final cold screen found zero hard errors, and native `require_complete=True` freeze published a 200/400-item manifest with all 20 category denominators and 20 clarification plus 20 unanswerable evidence items. The three language boilerplate-overlap flags were individually adjudicated as different held-out facts. The owner accepted C03-C2 together with C03-C1 under KML-D19; C03-C2 alone is not a model result.
 
@@ -85,9 +96,9 @@ reviewed and verified for its separate starting-point criteria in C03-R1/G00-R1.
 
 [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) was the historical
 preparation audit. C03-C1 and C03-C2 now supply the owner-accepted full Card 03
-release; its prior acquisition/preparation blockers are superseded. A real-data
-throughput profile and validated forecast remain missing. C03-R1/G00-R1 maps
-every Gate 0 criterion. No Card 05 runtime allocation has been approved.
+release; its prior acquisition/preparation blockers are superseded. C03-R1/G00-R1
+maps every Gate 0 criterion. Its formerly missing real-data timing evidence is
+now supplied by C05-M1 for review; the full Card 05 run is still unapproved.
 
 Inherited-output correction [C04-S4](results/2026-10-07-card04-inherited-output-review.md)
 addresses a reproduced sampler descendant/pipe-EOF hang after the owner reported
@@ -238,8 +249,8 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); separate Gate 0 review completed in [G00-R1](results/2026-10-08-card03-acceptance-gate0-card05-review.md) |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
 | 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (exact local-research release) | [KML-D19](DECISIONS.md#kml-d19--full-card-03-accepted-gate-0-reviewed-card-05-measurement-proposed-2026-10-08) accepts [C03-C1](results/2026-10-07-card03-offline-continuation.md) and [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) together; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED |
-| 04 | Main shape and measured fit | EVIDENCE VERIFIED (synthetic fit) | [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) records owner acceptance of [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md); P3/P4 remain failed; real-data timing is absent |
-| 05 | One bounded language training tranche | TIMING MEASUREMENT APPROVED; FULL RUN BLOCKED | Full Card 03 and Gate 0 are accepted/verified; KML-D20 approves one real-data timing attempt under [C05-P2](CARD05_REAL_DATA_MEASUREMENT_PROPOSAL.md), with [C05-S1](results/2026-10-08-card05-monitor-adaptation.md) code tests passed. No runtime ledger or real-data training exists yet; forecast and full-run approval remain missing. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical |
+| 04 | Main shape and measured fit | EVIDENCE VERIFIED (synthetic fit) | [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) records owner acceptance of [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md); P3/P4 remain failed; separate real-data timing is now recorded in C05-M1 for review |
+| 05 | One bounded language training tranche | TIMING EVIDENCE READY FOR REVIEW; FULL RUN BLOCKED | Full Card 03 and Gate 0 are accepted/verified. KML-D20's single [C05-M1](results/2026-10-08-card05-real-data-timing.md) timing attempt completed at 32/32 updates under all caps, with a verified checkpoint and raw forecast; owner review, full-run cadence/config, unmeasured full-suite costs and separate full-run approval remain open. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and owner-accepted frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
 | 08 | Explicit dense-to-new-reader transfer | NOT STARTED | Tiny contracts and selected Card 06 origin |

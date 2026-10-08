@@ -1,5 +1,12 @@
 # Revision and synchronization log
 
+## 2026-10-08.3 — bounded Card 05 real-data timing measurement, 8 October 2026
+
+- Pushed passing launcher adaptation as fixed clean `ec1651f`, cold-verified the accepted prepared inputs and stage/run configuration, and completed the one KML-D20 ledger-bounded attempt: zero-update validate stage followed by one fresh 32-update/32,768-target train stop
+- Recorded [C05-M1](results/2026-10-08-card05-real-data-timing.md) with full checkpoint verification, stage/train monitor receipts, resource deltas, 20 valid steady timing updates, overhead and a 1,353-second raw five-million-position forecast plus a separately labeled 20% planning allowance
+- Preserved the auxiliary observational resource-check failure and correction, all earlier failed evidence, and the unchanged sealed release; no frozen-suite scoring, acquisition, retry, resume or full Card 05 training occurred
+- Marked timing evidence READY FOR OWNER REVIEW; the single runtime allocation is consumed and a full Card 05 optimizer run requires a separate decision
+
 ## 2026-10-08.2 — Card 05 timing allocation and monitored launcher, 8 October 2026
 
 - Recorded the owner's exact KML-D20 one-attempt real-data timing approval, including zero-update validation stage, 32-update/32,768-position train limit, aggregate deadline, common-root storage baseline, one-batch initial/terminal validation and no frozen-suite run
