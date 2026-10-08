@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D23 — focused offline Card 05 monitor repair authorized, 2026-10-08
+
+- The owner authorized a focused **offline** repair of C05-F1's storage sampling and owned-process shutdown, explicitly preserving the failed attempt, ledger, baseline, partial files and all evidence. Scientific settings and resource caps stay fixed. This is code and test authority only: no model initialization, GPU work, training, evaluation generation, retry or resume.
+- [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) records the pushed repair at `16cfa8b` and 112 passing focused offline tests. The new sampler restarts a full bounded traversal after an entry vanishes, still counts live SQLite files, and fails on genuine I/O/access errors or deadline exhaustion. The launcher now supervises the timeout/monitor/worker topology through an owner-tracked Linux subreaper and verifies zero survivors. The failed C05-F1 receipts remain unchanged.
+- Review status: C05-R1 is READY FOR OWNER REVIEW, not a reviewed runtime result. C05-F1 remains FAILED with all 4,883 updates charged; Card 05 eligibility remains unestablished. A later attempt would require a new declaration, baseline, ledger and separate explicit runtime approval.
+
 ## KML-D22 — one conditional Card 05 full-tranche attempt approved and stopped, 2026-10-08
 
 - The owner approved one conditional local attempt exactly under [the full-tranche declaration](CARD05_FULL_TRANCHE_PROPOSAL.md) at `1663321`, including its proposed language eligibility criteria. The prerequisite was a focused offline launcher adaptation, passing CPU/mock tests, a pushed clean checkout, and verified preflight before any runtime ledger. The tested adaptation was pushed at `428e9b1`.

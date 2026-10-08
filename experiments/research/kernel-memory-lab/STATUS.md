@@ -1,21 +1,30 @@
 # Current project status
 
-Record revision: 2026-10-08.5
+Record revision: 2026-10-08.6
 Snapshot date: 2026-10-08
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: Full Card 03 remains accepted and Gate 0 EVIDENCE VERIFIED. The owner accepted C05-M1 as timing evidence and approved one Card 05 full-tranche attempt under KML-D22. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) is FAILED after a monitoring stop at 500 observed updates / 512,000 targets; the 4,883-update reservation is charged, the run is incomplete, and the 200-item evaluation never started. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with their evidence preserved.
-Next action: owner review of C05-F1 and the two operational defects it exposed. No Card 05 retry, resume, evaluation or Card 06 progression is authorized.
+Current selected work: Full Card 03 remains accepted and Gate 0 EVIDENCE VERIFIED. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains FAILED after 500 observed updates / 512,000 targets, with its 4,883-update reservation charged and no evaluation. The owner authorized only an offline fix; [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) is pushed and READY FOR REVIEW after 112 passing focused tests. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with evidence preserved.
+Next action: owner review of C05-R1. No Card 05 retry, resume, evaluation or Card 06 progression is authorized; any new runtime attempt needs separate approval.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
 Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's 32-update measurement remains consumed. KML-D22's single full-tranche attempt is stopped with 4,883/4,883 updates charged; no retry, resume or further evaluation authority remains.
 Last reviewed project result: [C05-M1](results/2026-10-08-card05-real-data-timing.md) is accepted for timing only in KML-D21; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) P6 synthetic fit remains accepted.
-Latest project results: [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) preserves the failed full-tranche attempt; [C05-P3](results/2026-10-08-card05-full-tranche-planning.md) is its approved historical proposal; [C05-M1](results/2026-10-08-card05-real-data-timing.md) remains accepted timing evidence; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03/Gate 0 review; C03-C2/C1 remain accepted, while C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed.
-Latest research decision: [KML-D22](DECISIONS.md#kml-d22--one-conditional-card-05-full-tranche-attempt-approved-and-stopped-2026-10-08) records the exhausted full-tranche authority and failed attempt; KML-D21 accepts C05-M1 timing, KML-D19 accepts full Card 03 and Gate 0.
+Latest project results: [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) records the offline monitor repair ready for review; [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) preserves the failed full-tranche attempt; C05-P3 is its approved historical proposal and C05-M1 remains accepted timing evidence. Card 03/Gate 0 acceptance and all earlier failed attempts remain intact.
+Latest research decision: [KML-D23](DECISIONS.md#kml-d23--focused-offline-card-05-monitor-repair-authorized-2026-10-08) records offline repair authority and C05-R1 review status; KML-D22's full-run allocation remains exhausted, KML-D21 accepts C05-M1 timing, and KML-D19 accepts Card 03/Gate 0.
 Latest project attempt: [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) FAILED with a monitoring stop; no evaluation. Earlier accepted timing, preparation and synthetic-fit results remain intact.
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
+
+[C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) repairs only the
+monitoring path after C05-F1. Bounded fresh-pass byte/inode traversal includes
+live SQLite WAL/SHM files while genuine errors and exhausted deadlines fail
+closed. An owner-tracked subreaper now stops timeout, monitor and worker
+descendants across process groups before reporting completion. Code commit
+`16cfa8b` is pushed; 112 focused CPU/mock tests passed. The failed ledger,
+baseline and partial run were not modified. C05-R1 is READY FOR REVIEW and
+grants no runtime authority.
 
 [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) used the owner-approved
 KML-D22 allocation from clean pushed `428e9b1`. Offline adaptation passed 101
@@ -273,7 +282,7 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
 | 03 | Data, tokenizer and frozen evaluation contracts | EVIDENCE VERIFIED (exact local-research release) | [KML-D19](DECISIONS.md#kml-d19--full-card-03-accepted-gate-0-reviewed-card-05-measurement-proposed-2026-10-08) accepts [C03-C1](results/2026-10-07-card03-offline-continuation.md) and [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) together; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED |
 | 04 | Main shape and measured fit | EVIDENCE VERIFIED (synthetic fit) | [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) records owner acceptance of [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md); P3/P4 remain failed; separate real-data timing is now accepted in C05-M1 |
-| 05 | One bounded language training tranche | FAILED ATTEMPT; ELIGIBILITY UNESTABLISHED | KML-D22 approved one full run; [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) stopped on a disk-measurement failure after 500 observed updates / 512,000 targets, with 4,883/4,883 updates charged and no evaluation. C05-M1 remains accepted timing evidence; Card 03/Gate 0 remain accepted/verified. No retry or resume authority remains. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical |
+| 05 | One bounded language training tranche | FAILED ATTEMPT; ELIGIBILITY UNESTABLISHED | [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) stopped after 500 observed updates / 512,000 targets, with 4,883/4,883 charged and no evaluation. [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) repairs the monitor offline and is ready for review; it is not a retry. C05-M1 timing and Card 03/Gate 0 acceptance remain intact. No runtime authority remains. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is historical |
 | 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and owner-accepted frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
 | 08 | Explicit dense-to-new-reader transfer | NOT STARTED | Tiny contracts and selected Card 06 origin |
