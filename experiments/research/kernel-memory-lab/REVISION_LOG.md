@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.15 — native binding corrections and execution adapter, 8 October 2026
+
+- Recorded KML-D27 accepting C05-C1/C2 for their offline scope while withholding C05-C3 coverage/binding acceptance pending corrections; [C05-C4](results/2026-10-08-card05-native-binding-corrections.md) records the corrected verifier, native v2 CLI/Campaign phase adapter, cold receipt-derived actual counters and zero-update checks
+- Required exact unique frozen-suite coverage and a content-pinned renderer that reproduces each verified panel prompt; no old score or legacy declaration was rewritten
+- Proposed one separate [3-update/77-target CPU qualification](CARD05_NATIVE_INTEGRATION_QUALIFICATION_PROPOSAL.md); did not run it. C05-N1 remains 0/200, Card 06 blocked, live ROCm/real-panel parity/reviewer independence unqualified
+
 ## 2026-10-08.14 — panel and reviewed-score readiness slice, 8 October 2026
 
 - Recorded [C05-C3](results/2026-10-08-card05-native-panel-readiness-slice.md): optional cache/context controls, authenticated paired-panel token-ID comparison, and frozen-item/two-reviewer score verification wired into non-promoting readiness and Campaign

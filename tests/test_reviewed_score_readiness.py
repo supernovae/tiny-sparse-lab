@@ -24,7 +24,7 @@ def _scores_fixture(
     checkpoint_sha = "b" * 64
     panel_path = tmp_path / "panel.json"
     panel_path.write_text("mocked")
-    prompts = [f"question {i}" for i in range(200)]
+    prompts = [f"Question: question {i}\nAnswer:" for i in range(200)]
     panel = {
         "record_sha256": "d" * 64,
         "evaluation_index_sha256": index_sha,
@@ -43,6 +43,7 @@ def _scores_fixture(
                 "suite": "closed_book",
                 "split": "test",
                 "category": f"axis_{i // 20}",
+                "question": f"question {i}",
             }
             for i in range(200)
         ],
@@ -58,6 +59,14 @@ def _scores_fixture(
         ],
     }
     order_path.write_text(json.dumps(order))
+    renderer_path = tmp_path / "renderer.json"
+    _write_canonical(
+        renderer_path,
+        {
+            "format": "frozen-question-prompt-renderer-v1",
+            "template": "Question: {question}\nAnswer:",
+        },
+    )
     review_paths = [tmp_path / "review_a.jsonl", tmp_path / "review_b.jsonl"]
     for reviewer, source in zip(("author", "checker"), review_paths, strict=True):
         rows = [
@@ -85,6 +94,8 @@ def _scores_fixture(
         "order_path": str(order_path),
         "frozen_items_path": str(frozen_path),
         "order_file_sha256": sha256_file(order_path),
+        "renderer_path": str(renderer_path),
+        "renderer_file_sha256": sha256_file(renderer_path),
         "review_paths": [str(path) for path in review_paths],
         "review_file_sha256": [sha256_file(path) for path in review_paths],
         "reviewers": ["author", "checker"],
@@ -140,6 +151,74 @@ def test_missing_panel_row_or_changed_order_fails_closed(
     }
     monkeypatch.setattr(reviewed_scores, "verify_panel_result", lambda _p: panel)
     with pytest.raises(ValueError, match="coverage differs"):
+        reviewed_scores.verify_reviewed_scores(path, **kwargs)
+
+
+def test_duplicate_or_substituted_order_ids_fail_even_with_rehashed_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, kwargs, receipt = _scores_fixture(tmp_path, monkeypatch)
+    order_path = Path(receipt["order_path"])
+    original = json.loads(order_path.read_text())
+    for replacement in (original["item_ids"][0], "invented-item"):
+        changed = json.loads(json.dumps(original))
+        changed["item_ids"][1] = replacement
+        order_path.write_text(json.dumps(changed))
+        receipt["order_file_sha256"] = sha256_file(order_path)
+        _write_canonical(path, receipt)
+        with pytest.raises(ValueError, match="coverage differs|accepted suite"):
+            reviewed_scores.verify_reviewed_scores(path, **kwargs)
+
+
+def test_omitted_frozen_item_fails_even_with_rehashed_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, kwargs, receipt = _scores_fixture(tmp_path, monkeypatch)
+    order_path = Path(receipt["order_path"])
+    order = json.loads(order_path.read_text())
+    order["item_ids"].pop()
+    order["item_content_sha256"].pop()
+    order_path.write_text(json.dumps(order))
+    receipt["order_file_sha256"] = sha256_file(order_path)
+    _write_canonical(path, receipt)
+    with pytest.raises(ValueError, match="coverage differs"):
+        reviewed_scores.verify_reviewed_scores(path, **kwargs)
+
+
+def test_renderer_and_exact_frozen_question_prompt_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, kwargs, receipt = _scores_fixture(tmp_path, monkeypatch)
+    renderer = Path(receipt["renderer_path"])
+    renderer.write_text(renderer.read_text() + " ")
+    with pytest.raises(ValueError, match="renderer identity changed"):
+        reviewed_scores.verify_reviewed_scores(path, **kwargs)
+    renderer.write_text(renderer.read_text().rstrip())
+    receipt.pop("renderer_path")
+    receipt.pop("renderer_file_sha256")
+    _write_canonical(path, receipt)
+    with pytest.raises(TypeError, match="renderer required"):
+        reviewed_scores.verify_reviewed_scores(path, **kwargs)
+
+
+@pytest.mark.parametrize("change", ["substitute", "reorder"])
+def test_panel_prompt_substitution_or_reordering_fails_before_scoring(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    path, kwargs, receipt = _scores_fixture(tmp_path, monkeypatch)
+    prompts = [f"Question: question {i}\nAnswer:" for i in range(200)]
+    if change == "substitute":
+        prompts[0] = "Question: unrelated question\nAnswer:"
+    else:
+        prompts[0], prompts[1] = prompts[1], prompts[0]
+    panel = {
+        "record_sha256": receipt["panel_record_sha256"],
+        "evaluation_index_sha256": kwargs["index_sha256"],
+        "checkpoint_sha256": kwargs["checkpoint_sha256"],
+        "rows": [{"status": "COMPLETED", "prompt": prompt} for prompt in prompts],
+    }
+    monkeypatch.setattr(reviewed_scores, "verify_panel_result", lambda _p: panel)
+    with pytest.raises(ValueError, match="rendered frozen question"):
         reviewed_scores.verify_reviewed_scores(path, **kwargs)
 
 

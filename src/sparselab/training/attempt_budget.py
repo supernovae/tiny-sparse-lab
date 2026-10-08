@@ -434,7 +434,7 @@ class AttemptBudget:
             )
         )
 
-    def record_actual(
+    def _record_verified_actual(
         self,
         label: str,
         *,
@@ -444,7 +444,7 @@ class AttemptBudget:
         generated_tokens: int,
         content_identity_sha256: str,
     ) -> None:
-        """Store externally verified counters once, never refunding reservations."""
+        """Store counters obtained from a native verifier; never refund charges."""
         actual = (updates, target_positions, generation_calls, generated_tokens)
         if not label.strip() or any(
             type(value) is not int or value < 0 for value in actual
@@ -603,6 +603,18 @@ class AttemptBudget:
         generation_calls: int = 0,
         generated_tokens: int = 0,
         grace_seconds: float = 1.0,
+        native_receipt_kind: Literal[
+            "train",
+            "panel",
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+            "none",
+        ] = "none",
+        native_receipt_path: Path | None = None,
+        campaign_stage: str | None = None,
+        campaign_work_dir: Path | None = None,
+        parent_checkpoint_path: Path | None = None,
     ) -> int:
         """Reserve before work, then run one phase under the owned supervisor."""
         if not command or not completion.is_absolute() or completion.exists():
@@ -646,8 +658,83 @@ class AttemptBudget:
             raise AttemptBudgetError(
                 "nontraining activity cannot reserve optimizer updates"
             )
+        reserved = (updates, target_positions, generation_calls, generated_tokens)
+        if native_receipt_kind == "none" and any(reserved):
+            raise AttemptBudgetError("nonzero reservation requires a native receipt")
+        if native_receipt_kind == "none" and not self._approved_counter_free_command(
+            command
+        ):
+            raise AttemptBudgetError(
+                "counter-free phase requires a safe native read-only command"
+            )
+        if activity in ("train", "warmup") and native_receipt_kind not in {
+            "train",
+            "campaign_run",
+        }:
+            raise AttemptBudgetError("training requires a native run receipt")
+        if (generation_calls or generated_tokens) and native_receipt_kind not in {
+            "panel",
+            "campaign_panel",
+        }:
+            raise AttemptBudgetError("generation requires a native panel receipt")
+        if native_receipt_kind in {"train", "panel"}:
+            if native_receipt_path is None or native_receipt_path.exists():
+                raise AttemptBudgetError("direct native receipt must be a fresh path")
+            receipt_parent = native_receipt_path.parent.resolve(strict=True)
+            if (
+                receipt_parent != resolved_root
+                and resolved_root not in receipt_parent.parents
+            ):
+                raise AttemptBudgetError("native receipt must be inside common root")
+        if native_receipt_kind in {
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+        }:
+            if (
+                campaign_stage is None
+                or campaign_work_dir is None
+                or native_receipt_path is None
+            ):
+                raise AttemptBudgetError("Campaign receipt binding is incomplete")
+            campaign_root = campaign_work_dir.resolve(strict=True)
+            if (
+                campaign_root != resolved_root
+                and resolved_root not in campaign_root.parents
+            ):
+                raise AttemptBudgetError(
+                    "Campaign work directory is outside common root"
+                )
+            stage_limits = self._preflight_campaign_receipt(
+                native_receipt_path,
+                campaign_work_dir,
+                campaign_stage,
+                expected_kind=(
+                    "experiment_run"
+                    if native_receipt_kind == "campaign_run"
+                    else "generation_panel"
+                    if native_receipt_kind == "campaign_panel"
+                    else "evaluation"
+                ),
+                content_identity_sha256=content_identity_sha256,
+                contract_sha256=self.status()["contract_sha256"],
+            )
+        else:
+            stage_limits = None
+        if native_receipt_kind != "none":
+            self._preflight_native_command(
+                command,
+                native_receipt_kind=native_receipt_kind,
+                native_receipt_path=native_receipt_path,
+                campaign_stage=campaign_stage,
+                stage_limits=stage_limits,
+                reserved=reserved,
+                parent_checkpoint_path=parent_checkpoint_path,
+                content_identity_sha256=content_identity_sha256,
+            )
         if (
             contract.max_optimizer_updates == 0
+            and native_receipt_kind not in {"campaign_panel", "campaign_evaluation"}
             and not self._approved_zero_update_command(command)
         ):
             raise AttemptBudgetError(
@@ -696,6 +783,8 @@ class AttemptBudget:
         environment["SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256"] = (
             content_identity_sha256
         )
+        environment["SPARSELAB_ATTEMPT_PHASE_LABEL"] = label
+        environment["SPARSELAB_ATTEMPT_ACTIVITY"] = activity
         invocation = [
             sys.executable,
             "-m",
@@ -801,6 +890,57 @@ class AttemptBudget:
             != contract.workspace_baseline_sha256
         ):
             raise AttemptBudgetError("workspace baseline changed during phase")
+        actual: tuple[int, int, int, int] | None = None
+        if rc == 0:
+            from sparselab.training.attempt_receipts import verify_native_phase_counters
+            from sparselab.training.manifest import sha256_file
+
+            try:
+                if native_receipt_kind == "train":
+                    config_source = Path(self._native_command_args(command)[1])
+                    if (
+                        config_source.is_symlink()
+                        or sha256_file(config_source) != content_identity_sha256
+                    ):
+                        raise ValueError("direct train config changed during phase")
+                actual = verify_native_phase_counters(
+                    native_receipt_kind,
+                    native_receipt_path,
+                    campaign_stage=campaign_stage,
+                    campaign_work_dir=campaign_work_dir,
+                    parent_checkpoint_path=parent_checkpoint_path,
+                    expected_content_sha256=content_identity_sha256,
+                )
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                self._final_storage_receipt(
+                    completion=completion,
+                    workspace_root=workspace_root,
+                    baseline=baseline,
+                    policy=policy,
+                    label=label,
+                    native_status="UNVERIFIED",
+                )
+                raise AttemptBudgetError("native phase counters unverified") from error
+            try:
+                self._record_verified_actual(
+                    label,
+                    updates=actual[0],
+                    target_positions=actual[1],
+                    generation_calls=actual[2],
+                    generated_tokens=actual[3],
+                    content_identity_sha256=content_identity_sha256,
+                )
+            except AttemptBudgetError:
+                self._final_storage_receipt(
+                    completion=completion,
+                    workspace_root=workspace_root,
+                    baseline=baseline,
+                    policy=policy,
+                    label=label,
+                    native_status="COUNTER_CAP_EXCEEDED",
+                )
+                raise
+        self.remaining_seconds()
         self._final_storage_receipt(
             completion=completion,
             workspace_root=workspace_root,
@@ -809,8 +949,216 @@ class AttemptBudget:
             label=label,
             native_status=native["status"],
         )
-        self.remaining_seconds()
+        self._check_final_deadline()
         return rc
+
+    def _check_final_deadline(self) -> None:
+        """Read-only terminal check, after the storage receipt has been counted."""
+        with self._connect() as connection:
+            _, _, _, deadline_ns, last_checked_ns = self._row_v2(connection)
+        now_ns = time.time_ns()
+        if now_ns < last_checked_ns:
+            raise AttemptBudgetError("clock moved backwards; budget fails closed")
+        if now_ns >= deadline_ns:
+            raise AttemptBudgetError("shared wall-time limit reached")
+
+    @staticmethod
+    def _preflight_campaign_receipt(
+        source: Path,
+        work_dir: Path,
+        stage_id: str,
+        *,
+        expected_kind: str,
+        content_identity_sha256: str,
+        contract_sha256: str,
+    ) -> tuple[int, int]:
+        from sparselab.campaign.engine import CampaignEngine
+
+        engine = CampaignEngine(source, work_dir, cold_verify=True)
+        projection = engine.inspect("next")
+        action = projection["next_action"]
+        if (
+            action.get("stage") != stage_id
+            or action.get("action") not in {"apply", "resume"}
+            or engine.stages[stage_id].kind != expected_kind
+        ):
+            raise AttemptBudgetError("Campaign stage is not the next unused action")
+        rows = {row["id"]: row for row in projection["stages"]}
+        stage = engine.stages[stage_id]
+        run_stage = (
+            stage
+            if expected_kind == "experiment_run"
+            else engine.stages[engine.stages[stage.collect].run]
+        )
+        lock = engine._lock(rows, run_stage.plan)
+        if lock.scientific_sha256 != content_identity_sha256:
+            raise AttemptBudgetError("Campaign scientific lock differs from contract")
+        reference = lock.execution.get("attempt_contract")
+        if (
+            not isinstance(reference, dict)
+            or reference.get("sha256") != contract_sha256
+        ):
+            raise AttemptBudgetError("Campaign lock lacks the pinned attempt contract")
+        if expected_kind == "experiment_run":
+            runtime = engine.stages[stage.runtime]
+            if runtime.worker is not None:
+                raise AttemptBudgetError(
+                    "contracted Campaign run requires an owned local runtime profile"
+                )
+            cells = [cell for cell in lock.cells if cell.id == stage.cell]
+            if len(cells) != 1:
+                raise AttemptBudgetError("Campaign run cell selection is ambiguous")
+            training = cells[0].config.training
+            return training.max_steps, training.max_tokens
+        if expected_kind == "generation_panel":
+            from sparselab.evaluation.panel import load_panel
+
+            panel = load_panel(engine._path(stage.panel))
+            return len(panel.prompts), len(panel.prompts) * panel.decoder.max_new_tokens
+        from sparselab.evaluation.suite import load_suite
+
+        suite = load_suite(engine._path(stage.suite))
+        if any(
+            item.kind not in {"heldout_lm", "surface_review"}
+            for item in suite.evaluations
+        ):
+            raise AttemptBudgetError("Campaign evaluation has unaccounted generation")
+        return 0, 0
+
+    @staticmethod
+    def _native_command_args(command: list[str]) -> list[str]:
+        if (
+            len(command) >= 3
+            and Path(command[0]).resolve() == Path(sys.executable).resolve()
+            and command[1:3] == ["-m", "sparselab"]
+        ):
+            return command[3:]
+        if command and Path(command[0]).name == "sparselab":
+            return command[1:]
+        raise AttemptBudgetError("native receipt requires a direct sparselab command")
+
+    @classmethod
+    def _preflight_native_command(
+        cls,
+        command: list[str],
+        *,
+        native_receipt_kind: str,
+        native_receipt_path: Path | None,
+        campaign_stage: str | None,
+        stage_limits: tuple[int, int] | None,
+        reserved: tuple[int, int, int, int],
+        parent_checkpoint_path: Path | None,
+        content_identity_sha256: str,
+    ) -> None:
+        args = cls._native_command_args(command)
+        if native_receipt_kind in {
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+        }:
+            if (
+                len(args) < 3
+                or args[:2] != ["campaign", "apply"]
+                or Path(args[2]).resolve() != native_receipt_path.resolve()
+                or args.count("--only-stage") != 1
+                or args[args.index("--only-stage") + 1 : args.index("--only-stage") + 2]
+                != [campaign_stage]
+                or stage_limits is None
+            ):
+                raise AttemptBudgetError("Campaign command differs from phase binding")
+            if native_receipt_kind == "campaign_run":
+                if (
+                    "--execute-runs" not in args
+                    or reserved[0] < stage_limits[0]
+                    or reserved[1] < stage_limits[1]
+                    or reserved[2] != 0
+                    or reserved[3] != 0
+                ):
+                    raise AttemptBudgetError(
+                        "Campaign run exceeds reserved native config"
+                    )
+            elif native_receipt_kind == "campaign_panel" and (
+                "--execute-runs" in args
+                or reserved[0] != 0
+                or reserved[1] != 0
+                or reserved[2] < stage_limits[0]
+                or reserved[3] < stage_limits[1]
+            ):
+                raise AttemptBudgetError("Campaign panel exceeds reserved declaration")
+            elif native_receipt_kind == "campaign_evaluation" and (
+                "--execute-runs" in args or any(reserved)
+            ):
+                raise AttemptBudgetError("Campaign evaluation must have zero counters")
+            return
+        if native_receipt_kind == "panel":
+            raise AttemptBudgetError("direct panel execution has no native CLI binding")
+        if native_receipt_kind != "train" or len(args) < 2 or args[0] != "train":
+            raise AttemptBudgetError("native run receipt requires sparselab train")
+        if args.count("--run-id") != 1 or args.count("--runs-dir") != 1:
+            raise AttemptBudgetError("native train requires explicit run ID and store")
+        run_id = args[args.index("--run-id") + 1 : args.index("--run-id") + 2]
+        runs_dir = args[args.index("--runs-dir") + 1 : args.index("--runs-dir") + 2]
+        if (
+            not run_id
+            or not runs_dir
+            or native_receipt_path is None
+            or (Path(runs_dir[0]).resolve() / run_id[0])
+            != native_receipt_path.resolve()
+        ):
+            raise AttemptBudgetError("native train command differs from receipt path")
+        from sparselab.config.loading import load_config
+        from sparselab.training.manifest import sha256_file
+
+        config_source = Path(args[1])
+        if (
+            config_source.is_symlink()
+            or sha256_file(config_source) != content_identity_sha256
+        ):
+            raise AttemptBudgetError(
+                "direct train config differs from contract identity"
+            )
+        config = load_config(config_source)
+        if sha256_file(config_source) != content_identity_sha256:
+            raise AttemptBudgetError("direct train config changed during preflight")
+        if (
+            reserved[0] < config.training.max_steps
+            or reserved[1] < config.training.max_tokens
+            or reserved[2] != 0
+            or reserved[3] != 0
+        ):
+            raise AttemptBudgetError("native train config exceeds phase reservation")
+        parent_flags = [
+            name
+            for name in ("--resume", "--extend-budget", "--promote")
+            if name in args
+        ]
+        if len(parent_flags) > 1 or "--recover" in args:
+            raise AttemptBudgetError("ambiguous native training continuation")
+        if parent_flags:
+            flag = parent_flags[0]
+            if parent_checkpoint_path is None or args[
+                args.index(flag) + 1 : args.index(flag) + 2
+            ] != [str(parent_checkpoint_path)]:
+                raise AttemptBudgetError("training parent differs from receipt binding")
+        elif parent_checkpoint_path is not None:
+            raise AttemptBudgetError("fresh native training cannot claim a parent")
+
+    @staticmethod
+    def _approved_counter_free_command(command: list[str]) -> bool:
+        try:
+            args = AttemptBudget._native_command_args(command)
+        except AttemptBudgetError:
+            return False
+        if not args:
+            return False
+        if args[0] in {"inspect", "triage", "evidence"}:
+            return True
+        return (
+            args[0] == "stage"
+            and args.count("--through") == 1
+            and args[args.index("--through") + 1 : args.index("--through") + 2]
+            == ["validate"]
+        )
 
     @staticmethod
     def _approved_zero_update_command(command: list[str]) -> bool:

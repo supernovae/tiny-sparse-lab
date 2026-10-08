@@ -102,6 +102,7 @@ def _handle(args: argparse.Namespace) -> None:
                         max_wait_seconds=args.max_wait_seconds,
                         execute_runs=args.execute_runs,
                         allow_uncommitted_declaration=args.allow_uncommitted_declaration,
+                        only_stage=args.only_stage,
                     )
             if args.campaign_command == "explain":
                 declarations = {
@@ -187,6 +188,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         if name in {"apply", "resume"}:
             command.add_argument("--max-wait-seconds", type=_wait_seconds, default=120)
             command.add_argument("--execute-runs", action="store_true")
+            command.add_argument("--only-stage")
             runtime_source = command.add_mutually_exclusive_group()
             runtime_source.add_argument("--runtime-profile", type=Path)
             runtime_source.add_argument("--runtime", metavar="ID")

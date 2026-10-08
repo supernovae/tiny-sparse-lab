@@ -73,15 +73,15 @@ def _fixture(
 
 def _run_args(paths: dict[str, Path | str], completion: Path) -> dict[str, object]:
     return {
-        "activity": "evaluate",
+        "activity": "inspect",
         "label": "evaluation",
         "content_identity_sha256": paths["identity"],
         "monitor_policy_path": paths["policy"],
         "workspace_baseline_path": paths["baseline"],
         "workspace_root": paths["root"],
         "completion": completion,
-        "generation_calls": 1,
-        "generated_tokens": 64,
+        "generation_calls": 0,
+        "generated_tokens": 0,
         "grace_seconds": 0.05,
     }
 
@@ -147,7 +147,7 @@ def test_vector_failure_is_atomic_and_actual_targets_are_charged(
     assert budget.status()["charged_updates"] == 1
     assert budget.status()["charged_generation_calls"] == 1
     assert budget.status()["charged_actual_target_positions"] == 700
-    budget.record_actual(
+    budget._record_verified_actual(
         "first",
         updates=1,
         target_positions=699,
@@ -155,7 +155,7 @@ def test_vector_failure_is_atomic_and_actual_targets_are_charged(
         generated_tokens=60,
         content_identity_sha256=paths["identity"],
     )
-    budget.record_actual(
+    budget._record_verified_actual(
         "first",
         updates=1,
         target_positions=699,
@@ -164,7 +164,7 @@ def test_vector_failure_is_atomic_and_actual_targets_are_charged(
         content_identity_sha256=paths["identity"],
     )
     with pytest.raises(AttemptBudgetError, match="differ from recorded"):
-        budget.record_actual(
+        budget._record_verified_actual(
             "first",
             updates=1,
             target_positions=698,
@@ -173,7 +173,7 @@ def test_vector_failure_is_atomic_and_actual_targets_are_charged(
             content_identity_sha256=paths["identity"],
         )
     with pytest.raises(AttemptBudgetError, match="exceeds phase reservation"):
-        budget.record_actual(
+        budget._record_verified_actual(
             "first",
             updates=2,
             target_positions=699,
@@ -234,9 +234,11 @@ def test_zero_update_training_and_warmup_are_refused_before_spawn(
     with pytest.raises(AttemptBudgetError, match="zero-update"):
         budget.run_contract(
             ["sparselab", "stage", "--through", "warmup"],
-            **_run_args(paths, paths["root"] / "warmup.json"),
+            **(
+                _run_args(paths, paths["root"] / "warmup.json") | {"activity": "warmup"}
+            ),
         )
-    with pytest.raises(AttemptBudgetError, match="zero-update"):
+    with pytest.raises(AttemptBudgetError, match="counter-free"):
         budget.run_contract(
             ["bash", "-c", "sparselab train"],
             **_run_args(paths, paths["root"] / "wrapped.json"),
@@ -253,8 +255,11 @@ def _alive(pid: int) -> bool:
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
 def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(
+        AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
+    )
     budget, paths = _fixture(tmp_path, updates=1)
     worker_pid = tmp_path / "worker.pid"
     worker = (
@@ -279,14 +284,19 @@ def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
         assert not _alive(int(worker_pid.read_text()))
         assert sentinel.poll() is None
         assert json.loads(completion.read_text())["living_descendants"] == 0
-        assert budget.status()["charged_generation_calls"] == 1
+        assert budget.status()["charged_generation_calls"] == 0
     finally:
         sentinel.kill()
         sentinel.wait(timeout=2)
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
-def test_runtime_deadline_keeps_charge_and_zero_survivors(tmp_path: Path) -> None:
+def test_runtime_deadline_keeps_charge_and_zero_survivors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
+    )
     budget, paths = _fixture(tmp_path, updates=1, seconds=0.5)
     completion = paths["root"] / "owned.json"
     with pytest.raises(AttemptBudgetError, match="wall-time limit"):
@@ -294,13 +304,19 @@ def test_runtime_deadline_keeps_charge_and_zero_survivors(tmp_path: Path) -> Non
             [sys.executable, "-c", "import time;time.sleep(30)"],
             **_run_args(paths, completion),
         )
-    assert budget.status()["charged_generation_calls"] == 1
+    assert len(budget.status()["reservations"]) == 1
     assert json.loads(completion.read_text())["living_descendants"] == 0
     assert (paths["root"] / "owned.json.attempt.json").exists()
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
-def test_outer_receipts_crossing_cap_cannot_return_success(tmp_path: Path) -> None:
+def test_outer_receipts_crossing_cap_cannot_return_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
+    )
+
     def run(
         name: str, cap: int
     ) -> tuple[int | None, dict[str, object], dict[str, object]]:
@@ -344,6 +360,9 @@ def test_outer_receipts_crossing_cap_cannot_return_success(tmp_path: Path) -> No
 def test_policy_change_at_child_boundary_prevents_native_launch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(
+        AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
+    )
     budget, paths = _fixture(tmp_path, updates=1)
     completion = paths["root"] / "owned.json"
     original = subprocess.Popen
@@ -361,7 +380,7 @@ def test_policy_change_at_child_boundary_prevents_native_launch(
         budget.run_contract(
             [sys.executable, "-c", "pass"], **_run_args(paths, completion)
         )
-    assert budget.status()["charged_generation_calls"] == 1
+    assert len(budget.status()["reservations"]) == 1
     assert json.loads(completion.read_text())["living_descendants"] == 0
     assert not (paths["root"] / "owned.json.monitor").exists()
     assert (paths["root"] / "owned.json.attempt.json").exists()

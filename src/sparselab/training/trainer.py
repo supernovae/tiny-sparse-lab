@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import shutil
 import signal
 import socket
@@ -568,6 +569,8 @@ def train(
         verification_mode=verification_mode,
         checkpoint_committed=checkpoint_committed,
     )
+    if _attempt_contract_suppresses_triage():
+        return completed_run_id
     try:
         progress = config.logging.root_dir / completed_run_id / "progress.json"
         if progress.is_symlink():
@@ -587,6 +590,13 @@ def train(
     except Exception as error:  # noqa: BLE001 - diagnostics must not fail completed training
         _LOGGER.warning("POST-TRAIN TRIAGE UNKNOWN for %s: %s", completed_run_id, error)
     return completed_run_id
+
+
+def _attempt_contract_suppresses_triage() -> bool:
+    """A train-phase reservation has no budget for implicit diagnostic generations."""
+    return bool(os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")) and (
+        os.environ.get("SPARSELAB_ATTEMPT_ACTIVITY") == "train"
+    )
 
 
 def _train_impl(

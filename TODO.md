@@ -89,10 +89,11 @@ experiment or a merge.
   The optional plan reference, content-pinned v2 SQLite allocation, monitored
   owned phase runner and 24 selected offline checks are recorded in
   [C05-C2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-attempt-contract-slice.md).
-  Keep this item open for the public v2 CLI adapter, authenticated native
-  optimizer/generation counters, final-batch masking and separately budgeted
-  update-bearing integration; Python `record_actual` accepts externally verified
-  counters but does not itself authenticate model receipts.
+  The public v2 CLI, selected Campaign phase binding, cold native terminal
+  checkpoint/panel counters and private verified-actual reconciliation are
+  recorded in [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md).
+  Keep this item open for separately budgeted optimizer-bearing final-batch
+  masking and ledger integration, plus live runtime qualification.
   Reuse `AttemptBudget`, `ExperimentPlan.execution`, Campaign approval and native
   run counters. Add one optional content-addressed `execution.attempt_contract`
   reference; its typed limits include nonnegative optimizer updates (zero must
@@ -105,12 +106,16 @@ experiment or a merge.
   edges, clock rollback, identity drift, duplicate launches, timeout and
   descendant shutdown before any update-bearing integration test. This is an
   execution contract, separate from the P2 historical ledger projection and
-  Card 03 transport-body budget; proposed DSL/CLI behavior is not shipped.
+  Card 03 transport-body budget. The adapter is shipped but model integration
+  remains unqualified.
 
 - [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
   Optional decoder fields, same-index/checkpoint paired token-ID comparison,
   reviewed-score verification and non-promoting readiness binding are recorded
   in [C05-C3](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-panel-readiness-slice.md).
+  [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md)
+  corrects exact frozen-suite coverage and rendered-question prompt binding;
+  its corrected guarantee awaits owner review.
   Keep open until a separately authorized real panel demonstrates parity with
   the tracked Card 05 scripts, the reviewer process is independently audited,
   and Campaign/runtime integration is exercised. Existing negative scores

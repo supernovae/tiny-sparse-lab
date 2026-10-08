@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D27 — C05-C1/C2 accepted offline; C05-C3 corrections requested, 2026-10-08
+
+- The owner accepted [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) and [C05-C2](results/2026-10-08-card05-native-attempt-contract-slice.md) as **scoped offline implementation evidence**. C05-C3's coverage and prompt-binding guarantees were **not accepted** without unique exact frozen-suite coverage and verification of each actual prompt through a declared renderer. The owner authorized those corrections, zero-update negative fixtures, native v2 CLI/Campaign wiring and verified receipt/counter reconciliation within the existing three slices.
+- [C05-C4](results/2026-10-08-card05-native-binding-corrections.md) records the corrective implementation for review. The owner authorized inspected CPU-only zero-update checks, commit and push; no optimizer-bearing integration, research training, acquisition, corpus/cache work, GPU, real generation, cloud spend or merge. [The bounded CPU integration proposal](CARD05_NATIVE_INTEGRATION_QUALIFICATION_PROPOSAL.md) is an approval request only.
+- Historical C05-N1 remains 0/200 and NOT ELIGIBLE, C05-F1 remains FAILED and fully charged, and Card 06 remains BLOCKED. Live ROCm, real-panel parity and reviewer independence remain unqualified.
+
 ## KML-D26 — C05-P4 accepted; native consolidation code scope authorized, 2026-10-08
 
 - The owner accepted [C05-P4](results/2026-10-08-card05-consolidation-planning.md) at `0c1786bcbb0423eb7b34e4991411c85761bf2b16` as the plan for three native implementation slices in dependency order: monitor/baseline/owned shutdown and non-promoting readiness observations; one cumulative attempt contract including zero-update work; and optional panel controls with independently reviewed-score readiness binding.

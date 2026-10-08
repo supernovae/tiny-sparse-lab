@@ -27,6 +27,31 @@ def _review_file(
     return rows
 
 
+def _load_prompt_renderer(path: Path, expected_sha: str) -> str:
+    if not _SHA.fullmatch(expected_sha) or sha256_file(path) != expected_sha:
+        raise ValueError("prompt renderer identity changed")
+    renderer = read_canonical(path)
+    if sha256_file(path) != expected_sha:
+        raise ValueError("prompt renderer changed while reading")
+    if (
+        not isinstance(renderer, dict)
+        or set(renderer) != {"format", "template"}
+        or renderer["format"] != "frozen-question-prompt-renderer-v1"
+        or not isinstance(renderer["template"], str)
+    ):
+        raise ValueError("invalid frozen-question prompt renderer")
+    template = renderer["template"]
+    remainder = template.replace("{question}", "")
+    if (
+        template.count("{question}") != 1
+        or not template.strip()
+        or "{" in remainder
+        or "}" in remainder
+    ):
+        raise ValueError("prompt renderer must contain exactly one question field")
+    return template
+
+
 def verify_reviewed_scores(
     path: Path,
     *,
@@ -66,10 +91,13 @@ def verify_reviewed_scores(
     if sha256_file(order_path) != receipt.get("order_file_sha256"):
         raise ValueError("frozen item order changed")
     order = json.loads(order_path.read_text())
+    if sha256_file(order_path) != receipt.get("order_file_sha256"):
+        raise ValueError("frozen item order changed while reading")
     if (
         order.get("frozen_content_sha256") != frozen_content_sha256
         or len(order.get("item_ids", [])) != expected_items
         or len(order.get("item_content_sha256", [])) != expected_items
+        or len(set(order["item_ids"])) != expected_items
         or len(panel["rows"]) != expected_items
     ):
         raise ValueError("frozen item or panel coverage differs")
@@ -85,18 +113,36 @@ def verify_reviewed_scores(
         != frozen_content_sha256
     ):
         raise ValueError("frozen evaluation manifest identity changed")
-    items = {
-        item["id"]: item for item in frozen["items"] if item["suite"] == "closed_book"
-    }
-    if len(items) != expected_items or any(
-        item_id not in items
-        or items[item_id]["content_sha256"] != digest
-        or items[item_id]["split"] != "test"
-        for item_id, digest in zip(
-            order["item_ids"], order["item_content_sha256"], strict=True
+    closed_items = [item for item in frozen["items"] if item["suite"] == "closed_book"]
+    items = {item["id"]: item for item in closed_items}
+    if (
+        len(closed_items) != expected_items
+        or len(items) != expected_items
+        or set(order["item_ids"]) != set(items)
+        or any(
+            item_id not in items
+            or items[item_id]["content_sha256"] != digest
+            or items[item_id]["split"] != "test"
+            for item_id, digest in zip(
+                order["item_ids"], order["item_content_sha256"], strict=True
+            )
         )
     ):
         raise ValueError("frozen item order or content differs from accepted suite")
+    renderer_path = receipt.get("renderer_path")
+    renderer_sha = receipt.get("renderer_file_sha256")
+    if not isinstance(renderer_path, str) or not isinstance(renderer_sha, str):
+        raise TypeError("content-pinned prompt renderer required for readiness")
+    template = _load_prompt_renderer(Path(renderer_path), renderer_sha)
+    for ordinal, item_id in enumerate(order["item_ids"]):
+        question = items[item_id].get("question")
+        observed = panel["rows"][ordinal]
+        if (
+            not isinstance(question, str)
+            or not question.strip()
+            or observed.get("prompt") != template.replace("{question}", question)
+        ):
+            raise ValueError("panel prompt differs from rendered frozen question")
     reviewer_paths = [Path(value) for value in receipt["review_paths"]]
     reviewer_shas = receipt["review_file_sha256"]
     reviewers = receipt["reviewers"]
