@@ -84,6 +84,12 @@ experiment or a merge.
   workers and early parent exit; assert zero survivors and unrelated-process
   survival. C05-F1 and C05-X1 are regression evidence, not retroactively
   changed runs. Do not report sampled VRAM as an exact instantaneous peak.
+  [C05-I6](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-ci-qualification-stop.md)
+  also exposes a hosted CI preflight defect: the guard's ambient runner-root
+  baseline traversal exhausted its three-second sample deadline before setup on
+  Linux and macOS. Repair bounded, fail-closed sampling with the offending root
+  in the receipt and offline large/transient-tree tests before proposing any
+  second hosted dispatch. The failed run has no retry authority.
 
 - [ ] **Bind one native attempt contract across phases, including zero-update work.**
   The optional plan reference, content-pinned v2 SQLite allocation, monitored
