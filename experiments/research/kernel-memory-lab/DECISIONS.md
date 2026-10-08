@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D34 — one fresh hosted serving-only retry authorized and stopped, 2026-10-08
+
+- The owner approved exactly one `serving_only=true` hosted dispatch under [CARD05_HOSTED_RETRY1_PROPOSAL.md](CARD05_HOSTED_RETRY1_PROPOSAL.md), pinned to `d3f4b33a928ade4c9fae561dc875ca457a26f1a2`. The fixed aggregate allocation was at most 42 updates, 1,312 targets, 226 generation calls and 710 requested generated tokens, with per-job 8 GiB RSS, 4 GiB added bytes and 50,000 added inodes, 45 total runner-minutes and 1,800 seconds elapsed including queue. PR #54 was to remain draft; no rerun or resume was approved.
+- [C05-I8](results/2026-10-08-card05-hosted-retry1-stop.md) records the one dispatch, Actions run 37836444734. Its workflow head matched the pinned SHA. Linux ambient storage sampling exhausted the 15-second deadline before setup; macOS setup failed before fixture/model work. The workflow was cancelled at the first observed failure. No ledger or model counters were produced, so no optimizer or generation work is observed. The one allocation is **spent**, without transfer of unused quotas to another run.
+- C05-I6, its spent KML-D32 authority, and all previous Card 05 scientific results remain unchanged. Hosted CPU model-path qualification is not established. A future offline guard repair or hosted retry requires its own decision; this authorization grants neither. Full CPU suites, GPU work, ready-for-review and merge remain excluded.
+
 ## KML-D33 — focused offline hosted guard startup repair authorized, 2026-10-08
 
 - The owner authorized a focused offline repair after C05-I6, requiring a startup record and failure receipt before/after ambient traversal, incomplete-initialization finalization, bounded large/transient/error/deadline tests and a justified sampling deadline. The scope excludes hosted dispatch, optimizer updates, generation, PR-ready transition and merge. Preserve C05-I6's consumed allocation and external logs.

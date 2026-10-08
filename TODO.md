@@ -89,8 +89,13 @@ experiment or a merge.
   exhausted the old three-second sample deadline before setup on Linux and
   macOS. [C05-I7](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-guard-sampler-repair.md)
   repairs startup receipts, one-pass bounded sampling and incomplete
-  finalization offline. Keep hosted behavior open until a separately approved
-  fresh dispatch verifies it; C05-I6 has no retry authority.
+  finalization offline. The separately approved [C05-I8](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-retry1-stop.md)
+  dispatch still exhausted 15 seconds baselining Linux `/opt/hostedtoolcache`;
+  macOS passed startup but failed during guarded `uv sync` setup (owned
+  descendants on archive, an unlocalized permission error on serving). Repair
+  and test these hosted guard/setup paths without losing ambient-root coverage
+  or fail-closed process and storage limits. Both hosted allocations are spent;
+  model-path qualification still needs separate authority.
 
 - [ ] **Bind one native attempt contract across phases, including zero-update work.**
   The optional plan reference, content-pinned v2 SQLite allocation, monitored
