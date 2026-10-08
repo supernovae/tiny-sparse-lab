@@ -39,6 +39,14 @@ def write_json(path: Path, value: dict | list) -> None:
     path.write_text(json.dumps(value, sort_keys=True) + "\n")
 
 
+def write_json_atomic(path: Path, value: dict) -> None:
+    pending = path.with_name(path.name + ".pending")
+    with pending.open("x") as handle:
+        json.dump(value, handle, sort_keys=True)
+        handle.write("\n")
+    os.replace(pending, path)
+
+
 def capacity_observation(workspace: Path, temp_root: Path, *, phase: str) -> dict:
     """Observe free capacity; do not infer exact writes from free-space deltas."""
     filesystems = []
@@ -204,7 +212,12 @@ def sample_tree(
 def _sample_tree(
     root: Path, *, seconds: float, progress: dict | None
 ) -> tuple[int, int]:
-    """Count a live tree in one pass, skipping only entries already removed."""
+    """Count live bytes and path entries, skipping only entries already removed.
+
+    The legacy receipt field is named ``inodes``; its limit counts directory
+    entries (including the root), not unique filesystem inode identities.
+    Hard-linked file bytes are deduplicated, while each hard-link path counts.
+    """
     deadline = time.monotonic() + seconds
     stack: list[Path | os.DirEntry] = [root]
     root_path = os.fspath(root)
@@ -585,52 +598,132 @@ def enter_lab(root: Path, commit: str) -> None:
         raise
 
 
-def _terminate_worker_descendants(worker_pid: int, birth: str) -> dict:
-    """Bounded TERM-to-KILL of this runner job, excluding the worker and watcher."""
-    errors: list[str] = []
-    rows = process_rows()
-    if worker_pid not in rows or rows[worker_pid][4] != birth:
-        return {
-            "verified": False,
-            "errors": ["runner worker identity changed"],
-            "living": None,
+def active_phase(root: Path) -> dict | None:
+    path = root / "active-phase.json"
+    if not path.exists():
+        return None
+    record = json.loads(path.read_text())
+    if (
+        not isinstance(record, dict)
+        or not isinstance(record.get("phase"), str)
+        or not isinstance(record.get("leader_pid"), int)
+        or not isinstance(record.get("leader_birth"), str)
+        or record.get("pgid") != record["leader_pid"]
+        or not isinstance(record.get("started_ns"), int)
+    ):
+        raise RuntimeError("invalid active CI phase identity")
+    return record
+
+
+def phase_members(rows: dict, record: dict) -> dict[int, str]:
+    leader = record["leader_pid"]
+    if leader not in rows or rows[leader][4] != record["leader_birth"]:
+        return {}
+    if rows[leader][1] != record["pgid"]:
+        raise RuntimeError("active CI phase group identity changed")
+    return {
+        pid: rows[pid][4] for pid in owned(rows, record["pgid"]) if pid != os.getpid()
+    }
+
+
+def terminate_phase_workload(
+    root: Path, record: dict | None, known: dict[int, str]
+) -> dict:
+    """Stop only the identified phase, never later Runner.Worker steps."""
+    if record is None:
+        result = {
+            "scope": "no-active-phase",
+            "verified": None,
+            "errors": [],
+            "living": [],
         }
-    targets: dict[int, str] = {}
+        write_json(root / "watch-cleanup.json", result)
+        return result
+    result = {
+        "scope": "active-phase",
+        "phase": record["phase"],
+        "leader_pid": record["leader_pid"],
+        "leader_birth": record["leader_birth"],
+        "pgid": record["pgid"],
+        "verified": False,
+        "errors": [],
+        "living": None,
+    }
+    write_json(root / "watch-cleanup.json", result)
+    targets = known.copy()
+    errors: list[str] = []
 
     def inventory() -> tuple[dict, list[int]]:
-        current = process_rows()
-        if worker_pid not in current or current[worker_pid][4] != birth:
-            raise RuntimeError("runner worker identity changed during cleanup")
-        for pid in descendants(current, worker_pid) - {worker_pid, os.getpid()}:
-            if not current[pid][3].startswith("Z"):
-                targets.setdefault(pid, current[pid][4])
+        try:
+            rows = process_rows()
+        except OSError as error:
+            raise type(error)(
+                f"process_rows ps phase={record['phase']} leader_pid={record['leader_pid']} "
+                f"leader_birth={record['leader_birth']}: {error}"
+            ) from error
+        current = active_phase(root)
+        if current is not None and current["started_ns"] == record["started_ns"]:
+            targets.update(phase_members(rows, record))
         living = [
             pid
-            for pid, started in targets.items()
-            if pid in current
-            and current[pid][4] == started
-            and not current[pid][3].startswith("Z")
+            for pid, birth in targets.items()
+            if pid in rows and rows[pid][4] == birth
         ]
-        return current, living
+        return rows, living
 
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        _, living = inventory()
-        for pid in living:
-            try:
-                os.kill(pid, sig)
-            except ProcessLookupError:
-                pass
-            except OSError as error:
-                errors.append(f"{pid}: {type(error).__name__}: {error}")
-        if sig == signal.SIGTERM:
-            time.sleep(GRACE_SECONDS)
-    deadline = time.monotonic() + 5
-    while True:
-        _, living = inventory()
-        if not living or time.monotonic() >= deadline:
-            break
-        time.sleep(POLL_SECONDS)
-    return {"verified": not living and not errors, "errors": errors, "living": living}
+    try:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            rows, living = inventory()
+            leader = record["leader_pid"]
+            if (
+                leader in rows
+                and rows[leader][4] == record["leader_birth"]
+                and rows[leader][1] == record["pgid"]
+            ):
+                try:
+                    os.killpg(record["pgid"], sig)
+                except ProcessLookupError:
+                    pass
+                except OSError as error:
+                    errors.append(
+                        f"os.killpg pgid={record['pgid']} leader_birth={record['leader_birth']} "
+                        f"signal={sig.name}: {type(error).__name__}: {error}"
+                    )
+            for pid in living:
+                if pid not in rows or rows[pid][4] != targets[pid]:
+                    continue
+                try:
+                    os.kill(pid, sig)
+                except ProcessLookupError:
+                    pass
+                except OSError as error:
+                    errors.append(
+                        f"os.kill pid={pid} birth={targets[pid]} signal={sig.name}: "
+                        f"{type(error).__name__}: {error}"
+                    )
+            if sig == signal.SIGTERM:
+                time.sleep(GRACE_SECONDS)
+        deadline = time.monotonic() + 5
+        while True:
+            _, living = inventory()
+            if not living or time.monotonic() >= deadline:
+                break
+            time.sleep(POLL_SECONDS)
+        result.update(verified=not living and not errors, errors=errors, living=living)
+    except BaseException as error:
+        result["errors"] = [*errors, f"inventory: {type(error).__name__}: {error}"]
+        result["living"] = None
+        raise
+    finally:
+        primary_error = sys.exc_info()[1]
+        try:
+            write_json(root / "watch-cleanup.json", result)
+        except OSError as receipt_error:
+            if primary_error is not None:
+                primary_error.add_note(f"watch cleanup receipt failed: {receipt_error}")
+            else:
+                raise
+    return result
 
 
 def watch_loop(root: Path) -> None:
@@ -647,6 +740,8 @@ def watch_loop(root: Path) -> None:
     reason = "completed"
     phase = "bootstrap"
     cleanup: dict | None = None
+    known_phase_pids: dict[int, str] = {}
+    phase_key: int | None = None
     failure: BaseException | None = None
     receipt_error: BaseException | None = None
     try:
@@ -671,6 +766,15 @@ def watch_loop(root: Path) -> None:
             if phase == "bootstrap":
                 time.sleep(POLL_SECONDS)
                 continue
+            current_phase = active_phase(root)
+            if current_phase is None:
+                known_phase_pids.clear()
+                phase_key = None
+            else:
+                if phase_key != current_phase["started_ns"]:
+                    known_phase_pids.clear()
+                    phase_key = current_phase["started_ns"]
+                known_phase_pids.update(phase_members(rows, current_phase))
             owned_pids = descendants(rows, worker_pid) - {os.getpid()}
             rss = sum(
                 rows[pid][2] for pid in owned_pids if not rows[pid][3].startswith("Z")
@@ -726,14 +830,22 @@ def watch_loop(root: Path) -> None:
         except OSError as receipt_error:
             error.add_note(f"watch violation receipt failed: {receipt_error}")
         try:
-            cleanup = _terminate_worker_descendants(worker_pid, birth)
+            current_phase = active_phase(root)
+            if current_phase is None or current_phase["started_ns"] != phase_key:
+                known_phase_pids.clear()
+            cleanup = terminate_phase_workload(root, current_phase, known_phase_pids)
         except BaseException as cleanup_error:  # noqa: BLE001 - retain cleanup uncertainty
             cleanup = {
+                "scope": "unverified",
                 "verified": False,
                 "errors": [f"{type(cleanup_error).__name__}: {cleanup_error}"],
                 "living": None,
             }
             error.add_note(f"watcher cleanup failed: {cleanup_error}")
+            try:
+                write_json(root / "watch-cleanup.json", cleanup)
+            except OSError as receipt_error:
+                error.add_note(f"watch cleanup receipt failed: {receipt_error}")
     finally:
         try:
             write_json(
@@ -831,24 +943,56 @@ def stop_owned(
     process: subprocess.Popen[bytes], known: dict[int, str], *, terminate: bool
 ) -> None:
     """TERM then KILL the dedicated session and observed detached descendants."""
+
+    def failed(operation: str, target: str, error: OSError) -> None:
+        message = f"{operation} {target}: {type(error).__name__}: {error}"
+        if isinstance(error, PermissionError):
+            raise PermissionError(message) from error
+        raise OSError(message) from error
+
+    def inventory() -> dict[int, tuple]:
+        try:
+            return process_rows()
+        except OSError as error:
+            failed(
+                "process_rows ps",
+                f"phase_leader_pid={process.pid} birth={known.get(process.pid, 'unobserved')}",
+                error,
+            )
+
     if terminate:
         end = time.monotonic() + GRACE_SECONDS
         for sig in (signal.SIGTERM, signal.SIGKILL):
-            rows = process_rows()
-            if any(row[1] == process.pid for row in rows.values()):
+            rows = inventory()
+            if any(row[1] == process.pid for row in rows.values()) and (
+                process.pid not in known
+                or (process.pid in rows and rows[process.pid][4] == known[process.pid])
+            ):
                 try:
                     os.killpg(process.pid, sig)
                 except ProcessLookupError:
                     pass
+                except OSError as error:
+                    failed(
+                        "os.killpg",
+                        f"pgid={process.pid} leader_birth={known.get(process.pid, 'unobserved')} signal={sig.name}",
+                        error,
+                    )
             for pid, birth in known.items():
                 if pid != process.pid and pid in rows and rows[pid][4] == birth:
                     try:
                         os.kill(pid, sig)
                     except ProcessLookupError:
                         pass
+                    except OSError as error:
+                        failed(
+                            "os.kill",
+                            f"pid={pid} birth={birth} signal={sig.name}",
+                            error,
+                        )
             if sig == signal.SIGTERM:
                 while time.monotonic() < end:
-                    rows = process_rows()
+                    rows = inventory()
                     living = owned(rows, process.pid) | {
                         pid
                         for pid, birth in known.items()
@@ -859,16 +1003,24 @@ def stop_owned(
                     if not living:
                         break
                     time.sleep(POLL_SECONDS)
-    process.wait(timeout=5)
+    try:
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(
+            f"process.wait pid={process.pid} birth={known.get(process.pid, 'unobserved')}: "
+            f"{type(error).__name__}: {error}"
+        ) from error
     exit_deadline = time.monotonic() + 5
     while True:
-        for pid in known:
+        for pid, birth in known.items():
             if pid != process.pid:
                 try:
                     os.waitpid(pid, os.WNOHANG)
                 except ChildProcessError:
                     pass
-        rows = process_rows()
+                except OSError as error:
+                    failed("os.waitpid", f"pid={pid} birth={birth}", error)
+        rows = inventory()
         # A stopped child can remain as a zombie until reaped. Keep waiting
         # for its PID to disappear; a zero-survivor receipt needs that proof.
         living = owned(rows, process.pid) | {
@@ -923,6 +1075,8 @@ def run_phase(
             raise OSError(ctypes.get_errno(), "cannot establish CI subreaper")
     if time.time_ns() >= deadline_ns - SHUTDOWN_RESERVE_SECONDS * 1_000_000_000:
         raise TimeoutError("aggregate CI shutdown reserve reached before phase")
+    if watcher_root is not None:
+        _watcher_identity(watcher_root)
     stdout_path, stderr_path = root / f"{name}.stdout.log", root / f"{name}.stderr.log"
     with stdout_path.open("xb") as stdout, stderr_path.open("xb") as stderr:
         process = subprocess.Popen(
@@ -942,7 +1096,23 @@ def run_phase(
         phase_error: BaseException | None = None
         cleanup_error: BaseException | None = None
         receipt_error: BaseException | None = None
+        phase_record: dict | None = None
         try:
+            if watcher_root is not None:
+                if (root / "active-phase.json").exists():
+                    raise RuntimeError("previous CI phase identity remains active")
+                rows = process_rows()
+                if process.pid not in rows or rows[process.pid][1] != process.pid:
+                    raise RuntimeError("CI phase leader identity is unavailable")
+                known[process.pid] = rows[process.pid][4]
+                phase_record = {
+                    "phase": name,
+                    "leader_pid": process.pid,
+                    "leader_birth": rows[process.pid][4],
+                    "pgid": process.pid,
+                    "started_ns": time.time_ns(),
+                }
+                write_json_atomic(root / "active-phase.json", phase_record)
             while True:
                 if watcher_root is not None:
                     _watcher_identity(watcher_root)
@@ -1040,6 +1210,23 @@ def run_phase(
                 )
             except BaseException as error:  # noqa: BLE001 - preserve the original failure
                 receipt_error = error
+            if phase_record is not None and cleanup_error is None:
+                try:
+                    current = active_phase(root)
+                    if current != phase_record:
+                        raise RuntimeError(
+                            "CI phase identity changed before finalization"
+                        )
+                    (root / "active-phase.json").unlink()
+                except BaseException as error:  # noqa: BLE001 - retain primary phase fault
+                    if phase_error is not None:
+                        phase_error.add_note(f"phase identity cleanup failed: {error}")
+                    elif receipt_error is not None:
+                        receipt_error.add_note(
+                            f"phase identity cleanup failed: {error}"
+                        )
+                    else:
+                        receipt_error = error
         if phase_error is not None:
             if cleanup_error is not None:
                 phase_error.add_note(

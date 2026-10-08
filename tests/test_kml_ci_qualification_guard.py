@@ -466,8 +466,11 @@ def test_stop_owned_propagates_kill_permission_error(
         raise PermissionError("kill denied")
 
     monkeypatch.setattr(runner.os, "killpg", denied)
-    with pytest.raises(PermissionError, match="kill denied"):
-        runner.stop_owned(Process(), {}, terminate=True)
+    with pytest.raises(
+        PermissionError,
+        match="os.killpg pgid=4242 leader_birth=leader-birth signal=SIGTERM",
+    ):
+        runner.stop_owned(Process(), {4242: "leader-birth"}, terminate=True)
 
 
 def test_cleanup_error_does_not_mask_original_sweep_failure(
@@ -1194,17 +1197,14 @@ def test_bootstrap_watcher_deadline_expires_without_storage_sweep(
         "sample_declared_root",
         lambda *a, **k: pytest.fail("bootstrap traversed storage"),
     )
-    monkeypatch.setattr(
-        runner,
-        "_terminate_worker_descendants",
-        lambda pid, birth: {"verified": True, "errors": [], "living": []},
-    )
     with pytest.raises(TimeoutError, match="shutdown reserve"):
         runner.watch_loop(root)
     receipt = json.loads((root / "watch-receipt.json").read_text())
     assert receipt["phase"] == "bootstrap"
     assert receipt["sample_count"] == 0
-    assert receipt["cleanup"]["verified"] is True
+    assert receipt["cleanup"]["scope"] == "no-active-phase"
+    assert receipt["cleanup"]["verified"] is None
+    assert json.loads((root / "watch-cleanup.json").read_text()) == receipt["cleanup"]
 
 
 def test_postflight_watcher_loss_stops_before_lab_execution(
@@ -1288,17 +1288,14 @@ def test_lab_watcher_fails_closed_on_each_resource_cap(
         return (10, runner.LIMIT_INODES) if cap == "inodes" else (10, 1)
 
     monkeypatch.setattr(runner, "sample_declared_root", sample)
-    monkeypatch.setattr(
-        runner,
-        "_terminate_worker_descendants",
-        lambda pid, birth: {"verified": True, "errors": [], "living": []},
-    )
     with pytest.raises(RuntimeError, match="lab cap"):
         runner.watch_loop(root)
     receipt = json.loads((root / "watch-receipt.json").read_text())
     assert receipt["phase"] == "lab"
     assert receipt["sample_count"] == 1
-    assert receipt["cleanup"]["verified"] is True
+    assert receipt["cleanup"]["scope"] == "no-active-phase"
+    assert receipt["cleanup"]["verified"] is None
+    assert (root / "watch-cleanup.json").exists()
     assert (root / "watch-violation.json").exists()
     assert not (root / "lab-active.json").exists()
 
@@ -1324,6 +1321,16 @@ def test_watcher_cleanup_permission_error_keeps_original_resource_failure(
         },
     )
     runner.write_json(root / "lab-enabled.json", {"commit": commit})
+    runner.write_json(
+        root / "active-phase.json",
+        {
+            "phase": "setup",
+            "leader_pid": 1000,
+            "leader_birth": "phase-birth",
+            "pgid": 1000,
+            "started_ns": 1,
+        },
+    )
     monkeypatch.setattr(
         runner,
         "process_rows",
@@ -1336,8 +1343,10 @@ def test_watcher_cleanup_permission_error_keeps_original_resource_failure(
     )
     monkeypatch.setattr(
         runner,
-        "_terminate_worker_descendants",
-        lambda pid, birth: (_ for _ in ()).throw(PermissionError("cleanup denied")),
+        "terminate_phase_workload",
+        lambda path, phase, known: (_ for _ in ()).throw(
+            PermissionError("cleanup denied")
+        ),
     )
     with pytest.raises(RuntimeError, match="lab cap") as caught:
         runner.watch_loop(root)
@@ -1346,19 +1355,32 @@ def test_watcher_cleanup_permission_error_keeps_original_resource_failure(
     assert receipt["cleanup"]["verified"] is False
     assert receipt["cleanup"]["living"] is None
     assert "PermissionError" in receipt["cleanup"]["errors"][0]
+    assert json.loads((root / "watch-cleanup.json").read_text()) == receipt["cleanup"]
 
 
-def test_watcher_cleanup_reinventories_descendants_before_verifying(
+def test_watcher_cleanup_reinventories_only_phase_descendants(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    root.mkdir()
+    phase = {
+        "phase": "setup",
+        "leader_pid": 102,
+        "leader_birth": "leader-birth",
+        "pgid": 102,
+        "started_ns": 1,
+    }
+    runner.write_json(root / "active-phase.json", phase)
     state = {"spawned": False, "killed": False, "signals": []}
 
     def rows():
         result = {100: (1, 100, 1, "S", "worker-birth", "Runner.Worker")}
+        result[105] = (100, 105, 1, "S", "later-birth", "upload artifact")
         if not state["killed"]:
             result[101] = (100, 101, 1, "S", "guard-birth", "run_job.py --job")
-            result[102] = (101, 102, 1, "S", "child-birth", "fixture")
+            result[102] = (101, 102, 1, "S", "leader-birth", "fixture")
             if state["spawned"]:
                 result[103] = (102, 103, 1, "S", "new-birth", "fixture")
         return result
@@ -1372,11 +1394,269 @@ def test_watcher_cleanup_reinventories_descendants_before_verifying(
 
     monkeypatch.setattr(runner, "process_rows", rows)
     monkeypatch.setattr(runner.os, "kill", kill)
+    monkeypatch.setattr(runner.os, "killpg", kill)
     monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
-    receipt = runner._terminate_worker_descendants(100, "worker-birth")
-    assert receipt == {"verified": True, "errors": [], "living": []}
-    assert (101, signal.SIGTERM) in state["signals"]
+    receipt = runner.terminate_phase_workload(root, phase, {102: "leader-birth"})
+    assert receipt["verified"] is True
+    assert receipt["living"] == []
+    assert (102, signal.SIGTERM) in state["signals"]
     assert (103, signal.SIGKILL) in state["signals"]
+    assert not any(pid in {100, 101, 105} for pid, _ in state["signals"])
+
+
+def test_watcher_cap_passes_only_active_phase_identity_to_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root, checkout = tmp_path / "job", tmp_path / "checkout"
+    root.mkdir()
+    checkout.mkdir()
+    phase = {
+        "phase": "setup",
+        "leader_pid": 102,
+        "leader_birth": "leader-birth",
+        "pgid": 102,
+        "started_ns": 1,
+    }
+    runner.write_json(
+        root / "watch-config.json",
+        {
+            "worker_pid": 100,
+            "worker_birth": "worker-birth",
+            "workspace": str(checkout),
+            "job_root": str(root),
+            "commit": "a" * 40,
+            "deadline_ns": time.time_ns() + 60_000_000_000,
+        },
+    )
+    runner.write_json(root / "lab-enabled.json", {"commit": "a" * 40})
+    runner.write_json(root / "active-phase.json", phase)
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: {
+            100: (1, 100, 1, "S", "worker-birth", "Runner.Worker"),
+            101: (100, 101, 1, "S", "guard-birth", "run_job.py --job"),
+            102: (101, 102, 1, "S", "leader-birth", "fixture"),
+            103: (100, 103, 1, "S", "upload-birth", "upload artifact"),
+        },
+    )
+    monkeypatch.setattr(
+        runner,
+        "sample_declared_root",
+        lambda path, **kw: (runner.LIMIT_DISK + 1, 1) if path == checkout else (1, 1),
+    )
+    captured = {}
+
+    def cleanup(path, selected, known):
+        captured.update(path=path, phase=selected, known=known.copy())
+        return {"scope": "active-phase", "verified": True, "errors": [], "living": []}
+
+    monkeypatch.setattr(runner, "terminate_phase_workload", cleanup)
+    with pytest.raises(RuntimeError, match="lab cap"):
+        runner.watch_loop(root)
+    assert captured["path"] == root
+    assert captured["phase"] == phase
+    assert captured["known"] == {102: "leader-birth"}
+
+
+def test_phase_cleanup_rejects_reused_pid_birth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    root.mkdir()
+    phase = {
+        "phase": "setup",
+        "leader_pid": 102,
+        "leader_birth": "old-birth",
+        "pgid": 102,
+        "started_ns": 1,
+    }
+    runner.write_json(root / "active-phase.json", phase)
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: {102: (1, 102, 1, "S", "new-birth", "unrelated")},
+    )
+    monkeypatch.setattr(
+        runner.os,
+        "kill",
+        lambda *a: pytest.fail("reused PID was signaled"),
+    )
+    monkeypatch.setattr(
+        runner.os,
+        "killpg",
+        lambda *a: pytest.fail("reused process group was signaled"),
+    )
+    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    receipt = runner.terminate_phase_workload(root, phase, {102: "old-birth"})
+    assert receipt["verified"] is True
+    assert receipt["living"] == []
+
+
+def test_watcher_permission_receipt_names_operation_and_process_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    root.mkdir()
+    phase = {
+        "phase": "setup",
+        "leader_pid": 102,
+        "leader_birth": "leader-birth",
+        "pgid": 102,
+        "started_ns": 1,
+    }
+    runner.write_json(root / "active-phase.json", phase)
+    state = {"killed": False}
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: (
+            {}
+            if state["killed"]
+            else {102: (1, 102, 1, "S", "leader-birth", "fixture")}
+        ),
+    )
+
+    def denied(group, sig):
+        raise PermissionError("permission denied")
+
+    def kill(pid, sig):
+        state["killed"] = True
+
+    monkeypatch.setattr(runner.os, "killpg", denied)
+    monkeypatch.setattr(runner.os, "kill", kill)
+    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    receipt = runner.terminate_phase_workload(root, phase, {102: "leader-birth"})
+    assert receipt["verified"] is False
+    assert receipt["living"] == []
+    assert receipt["errors"] == [
+        "os.killpg pgid=102 leader_birth=leader-birth signal=SIGTERM: PermissionError: permission denied"
+    ]
+    assert json.loads((root / "watch-cleanup.json").read_text()) == receipt
+
+
+def test_hosted_phase_publishes_identity_before_work_and_clears_after_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root, workspace = tmp_path / "job", tmp_path / "checkout"
+    root.mkdir()
+    workspace.mkdir()
+    monkeypatch.setattr(runner, "_watcher_identity", lambda path: (999, "watch"))
+    script = (
+        "import pathlib,time; "
+        f"p=pathlib.Path({str(root / 'active-phase.json')!r}); "
+        "end=time.monotonic()+3; "
+        "exec('while not p.exists() and time.monotonic()<end: time.sleep(0.01)'); "
+        "assert p.exists()"
+    )
+    assert (
+        runner.run_phase(
+            [sys.executable, "-c", script],
+            cwd=workspace,
+            root=root,
+            workspace=workspace,
+            environment=os.environ.copy(),
+            deadline_ns=time.time_ns() + 25_000_000_000,
+            name="fixture",
+            watcher_root=root,
+        )
+        == 0
+    )
+    assert not (root / "active-phase.json").exists()
+    receipt = json.loads((root / "fixture.monitor.json").read_text())
+    assert receipt["cleanup_verified"] is True
+
+
+def test_phase_cleanup_preserves_later_finalization_and_upload_processes(
+    tmp_path: Path,
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    root.mkdir()
+    ready = root / "ready"
+    leader = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import pathlib,signal,time; "
+                "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                f"pathlib.Path({str(ready)!r}).write_text('ready'); time.sleep(20)"
+            ),
+        ],
+        start_new_session=True,
+    )
+    sentinel = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(20)"],
+        start_new_session=True,
+    )
+    later: list[subprocess.Popen] = []
+    try:
+        deadline = time.monotonic() + 5
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert ready.exists(), "harmless phase worker did not become ready"
+        rows = runner.process_rows()
+        phase = {
+            "phase": "setup",
+            "leader_pid": leader.pid,
+            "leader_birth": rows[leader.pid][4],
+            "pgid": leader.pid,
+            "started_ns": time.time_ns(),
+        }
+        runner.write_json(root / "active-phase.json", phase)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                runner.terminate_phase_workload,
+                root,
+                phase,
+                {leader.pid: phase["leader_birth"]},
+            )
+            deadline = time.monotonic() + 5
+            while (
+                not (root / "watch-cleanup.json").exists()
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.02)
+            assert (root / "watch-cleanup.json").exists()
+            later = [
+                subprocess.Popen(
+                    [sys.executable, "-c", "import time; time.sleep(20)"],
+                    start_new_session=True,
+                )
+                for _ in range(2)
+            ]
+            leader.wait(timeout=8)
+            receipt = future.result(timeout=8)
+        assert receipt["verified"] is True, receipt
+        assert receipt["living"] == []
+        assert sentinel.poll() is None
+        assert all(process.poll() is None for process in later)
+        runner.write_json(
+            root / "watch-pid.json", {"pid": leader.pid, "birth": phase["leader_birth"]}
+        )
+        runner.write_json(
+            root / "watch-receipt.json", {"reason": "lab entry cap", "cleanup": receipt}
+        )
+        with pytest.raises(RuntimeError, match="resource watcher failed"):
+            runner.stop_watcher(root)
+        assert (
+            json.loads((root / "finalization.json").read_text())["state"]
+            == "watcher-failed"
+        )
+        assert all(process.poll() is None for process in later)
+    finally:
+        phase_survived = leader.poll() is None
+        for process in (leader, sentinel, *later):
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+        if phase_survived:
+            pytest.fail("qualification phase survived cleanup before test teardown")
 
 
 def test_uv_run_preserves_guard_in_python_child(tmp_path: Path) -> None:

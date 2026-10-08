@@ -101,10 +101,14 @@ experiment or a merge.
   five-job workflow phase split, the selected [write-path audit](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_AUDIT.md),
   and inspected zero-model checks. The separately approved
   [C05-I11](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-stop.md)
-  dispatch observed the locked dependency setup exceed 50,000 live inodes in
-  all five jobs before model tests. Reassess the dependency footprint or seek
-  a separately reviewed cap change; diagnose the macOS phase-cleanup
-  `PermissionError` and missing finalization receipt offline. The policy
+  dispatch observed the locked dependency setup exceed 50,000 live **path
+  entries** in all five jobs before model tests. [C05-I12](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-repair.md)
+  publishes the retained inventory, narrows watcher cleanup to the active
+  phase, records exact cleanup-operation identity, and audits the relocated
+  ledger read-only. Its offline tests do not qualify hosted finalization or
+  establish a full dependency footprint. Obtain a bounded complete-install
+  subtree/package inventory before choosing a leaner install or seeking a
+  separately reviewed entry-cap change. The policy
   narrows the storage claim; do not equate free-space observations with
   added-byte/inode accounting. All three hosted allocations are spent, and
   model-path qualification remains open.

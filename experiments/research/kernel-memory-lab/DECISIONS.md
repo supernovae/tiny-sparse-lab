@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D38 — stopped-run publication and offline cleanup correction authorized, 2026-10-08
+
+- The owner requested publication of C05-I11's original evidence inventory and receipt-specific stopped-run wording, phase-scoped cleanup ownership with PID identity and bounded escalation, exact operation/process identity for permission errors, a read-only relocated-ledger audit, and a bounded plan to measure the full locked dependency footprint. Only inspected zero-model-work offline tests, commit and push are authorized. No hosted dispatch, dependency downloads, model work, ready-for-review or merge is authorized.
+- [C05-I12](results/2026-10-08-card05-hosted-owned-root-repair.md) records the repair, forensic ledger audit and one separately approvable setup-only footprint measurement. It corrects KML-D37's colloquial “inode” description: the lab cap measures 50,000 **path entries**, while the prelab `statvfs` margin observes actual free filesystem inodes. The original 50,000 cap and all model quotas remain unchanged.
+- C05-I11 remains FAILED and spent; its original artifacts and inventory are retained byte-for-byte. The new offline tests do not qualify live hosted cleanup, complete dependency fit or any model path. PR #54 stays draft.
+
 ## KML-D37 — one owned-root hosted dispatch approved and stopped, 2026-10-08
 
 - The owner approved exactly one `serving_only=true` dispatch under [the owned-root proposal](CARD05_HOSTED_OWNED_ROOT_DISPATCH_PROPOSAL.md), pinned to `03aeccd7a2f4dcf13563510a2845bb70edc98325`, with unchanged non-transferable quotas and caps, first-failure cancellation, no retry/resume, and PR #54 held draft. No full CPU suite, GPU work, PR-ready transition or merge was authorized.
