@@ -21,6 +21,8 @@ artifact identities.
 
 ## Experiment ergonomics
 
+- [ ] **Make bounded whole-attempt storage sampling and termination robust under active SQLite writes.** The failed [Kernel Memory Lab C05-F1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-full-tranche-stop.md) watchdog's `du -sbx` exited when short-lived `experiments.sqlite3-wal`/`-shm` files disappeared during its walk; the wrapper then killed its own group while a nested `timeout` group and training child continued until separately terminated. Keep one common-root apparent-byte/inode baseline and strict caps, but handle only proven transient disappearance with bounded, fail-closed resampling and preserve measurement errors. On any persistent sensor failure or cap, terminate and reap every owned descendant and process group before returning. Add offline race, over-cap, sensor-loss and TERM-resistant-child regressions; do not infer authorization to resume the failed run.
+
 ### Rapid iteration
 
 The workload is baseline → exposure extension → one-field contrast and repeated

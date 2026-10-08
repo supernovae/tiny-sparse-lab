@@ -2,6 +2,13 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D22 — one conditional Card 05 full-tranche attempt approved and stopped, 2026-10-08
+
+- The owner approved one conditional local attempt exactly under [the full-tranche declaration](CARD05_FULL_TRANCHE_PROPOSAL.md) at `1663321`, including its proposed language eligibility criteria. The prerequisite was a focused offline launcher adaptation, passing CPU/mock tests, a pushed clean checkout, and verified preflight before any runtime ledger. The tested adaptation was pushed at `428e9b1`.
+- This authorized one 10,800-second ledger, zero-update validation stage, one fresh seed-17 run with all 4,883 updates reserved before training and exactly 5,000,000 nonmasked targets as the success condition, then at most one bounded 200-item language evaluation. The declaration's 3,000-second training phase, 7,200-second evaluation phase, 20 GiB whole-device VRAM, 24 GiB process-tree RSS, 64 GiB added disk, 2,000 added inodes and 64 MiB evaluation-output limits applied. No retry, resume, acquisition, cloud use or Card 06 progression was authorized.
+- [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) records the one attempt's **FAILED** monitoring stop. A `du` measurement raced transient SQLite WAL files after 500 observed updates; the full 4,883-update reservation remains charged. Training was halted and no language evaluation ran. This is neither a successful 5-million-position tranche nor a reviewed Card 05 eligibility result. The original C05-P3 proposal and all earlier evidence remain unchanged.
+- Next decision: review the failed evidence and a separate focused repair for transient-file-safe disk accounting and complete process-group termination. No remaining authority in this allocation permits another model command.
+
 ## KML-D21 — C05-M1 real-data timing accepted; full-tranche declaration proposed, 2026-10-08
 
 - Owner explicitly accepted [C05-M1](results/2026-10-08-card05-real-data-timing.md) at pushed `01184e8` **as real-data timing evidence**. The accepted scope is one 32-update/32,768-target measurement, its verified checkpoint, monitors, separated overhead and labeled forecast. This is not acceptance of model quality or authorization to resume its checkpoint.
