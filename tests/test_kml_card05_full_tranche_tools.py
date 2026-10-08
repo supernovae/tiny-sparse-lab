@@ -32,7 +32,10 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
     (root / "profile-resource-envelope.yaml").write_text("resource_envelope_version: 1\n")
     (root / "attempt-budget.sqlite").write_text("mock only\n")
     (tmp_path / "fake-rocm").mkdir()
-    (task / "card04-synthetic/runs/kml-card05-full-tranche-v1/evaluations").mkdir(parents=True)
+    (task / "card04-synthetic/runs/kml-card05-full-tranche-v2/evaluations").mkdir(parents=True)
+    failed_run = task / "card04-synthetic/runs/kml-card05-full-tranche-v1"
+    failed_run.mkdir(parents=True)
+    (failed_run / "failed-evidence.txt").write_text("retain failed attempt\n")
     if scenario == "disk_cap":
         with (root / "oversize.bin").open("wb") as stream:
             stream.truncate(68_719_476_737)
@@ -143,11 +146,29 @@ def test_declared_phase_commands(tmp_path: Path, phase: str) -> None:
         assert f"--through validate --output {root}/stage-validate" in command
         assert "--prepared-inputs" not in command
     elif phase == "train":
-        assert "--run-id kml-card05-full-tranche-v1" in command
+        assert "--run-id kml-card05-full-tranche-v2" in command
         assert "--stop-after-step" not in command and "--resume" not in command
         assert len(monitors) == 2
     else:
         assert "run-full-tranche-evaluation.py" in command
+    failed_run = root.parent / "card04-synthetic/runs/kml-card05-full-tranche-v1/failed-evidence.txt"
+    assert failed_run.read_text() == "retain failed attempt\n"
+
+
+def test_fresh_run_binding_agrees_across_tools() -> None:
+    import runpy
+
+    run_id = "kml-card05-full-tranche-v2"
+    for name in (
+        "validate-full-tranche-phase.py",
+        "select-full-tranche-checkpoint.py",
+        "run-full-tranche-evaluation.py",
+    ):
+        assert runpy.run_path(str(TOOLS / name))["RUN_ID"] == run_id
+    launcher = LAUNCHER.read_text()
+    assert f"--run-id {run_id}" in launcher
+    assert f"/runs/{run_id}/evaluations" in launcher
+    assert "--run-id kml-card05-full-tranche-v1" not in launcher
 
 
 @pytest.mark.parametrize("scenario", ["over_vram", "sensor_loss", "disk_cap", "inode_cap"])
@@ -211,7 +232,7 @@ def test_partial_generation_preserved_without_success_receipt(tmp_path: Path, mo
     root = tmp_path / "attempt"
     root.mkdir()
     (root / "selected-checkpoint.json").write_text(json.dumps({
-        "run_id": "kml-card05-full-tranche-v1", "selected_step": 0,
+        "run_id": "kml-card05-full-tranche-v2", "selected_step": 0,
         "checkpoint": "step_00000000_gen_000001", "checkpoint_sha256": "sealed",
     }))
     evaluate = runpy.run_path(str(TOOLS / "run-full-tranche-evaluation.py"))["evaluate"]
@@ -221,7 +242,7 @@ def test_partial_generation_preserved_without_success_receipt(tmp_path: Path, mo
         "profile_for_id": lambda *_: object(),
         "authorize_profile": lambda *_: object(),
         "run_suite": lambda *_args, **_kwargs: tmp_path / "index.json",
-        "verify_evaluation_index": lambda *_: {"run_id": "kml-card05-full-tranche-v1", "checkpoint_sha256": "sealed"},
+        "verify_evaluation_index": lambda *_: {"run_id": "kml-card05-full-tranche-v2", "checkpoint_sha256": "sealed"},
         "run_panel": lambda *_args, **_kwargs: tmp_path / "panel.json",
         "verify_panel_result": lambda *_: {"rows": [{"status": "COMPLETED"}] * 199 + [{"status": "FAILED"}]},
     }.items():
@@ -291,6 +312,10 @@ def test_supervisor_reaps_worker_when_launcher_group_exits_early(tmp_path: Path)
         assert not leaked, f"worker {worker_pid} survived owner death"
         assert sentinel.poll() is None, "unrelated sentinel was affected"
         receipt = root / "stage-launch-claim/owned-completion.json"
+        until = time.monotonic() + 5
+        while not receipt.is_file() and time.monotonic() < until:
+            time.sleep(0.02)
+        assert receipt.is_file(), "supervisor did not durably report owned-process exit"
         assert '"living_descendants": 0' in receipt.read_text()
         assert "launcher owner exited" in receipt.read_text()
     finally:

@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D24 — C05-R1 accepted and one fresh Card 05 attempt authorized, 2026-10-08
+
+- Owner accepted [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) at `2ac860e`, including repair `16cfa8b`, and authorized **one fresh** Card 05 attempt under the unchanged [full-tranche contract](CARD05_FULL_TRANCHE_PROPOSAL.md) originally fixed at `1663321`. The [new execution binding](CARD05_FRESH_ATTEMPT_BINDING.md) declares unused `kml-card05-full-tranche-v2` and `card05-full-tranche-v2` names. C05-F1 remains FAILED, its 4,883-update ledger fully charged and all its evidence unchanged.
+- Required order: update and CPU/mock-test all launcher, validator, checkpoint-selection and evaluation bindings; commit and push; pin a clean checkout. Reverify the original preflight and use the repaired sampler/supervisor. Only then take one fresh common-root baseline, initialize one independent 10,800-second/4,883-update ledger, stage with zero updates, train once from seed 17, and conditionally perform the declared 200-item evaluation. Stop on the first declared failure, with no retry or resume.
+- The original 5,000,000 nonmasked target success condition, 3,000-second training phase, 7,200-second evaluation phase, 20 GiB VRAM, 24 GiB RSS, 64 GiB added disk, 2,000 inodes, evaluation-output and scoring limits, eligibility thresholds and zero acquisition/cloud/Card 06 boundaries remain unchanged. This approval is a new allocation, not a reset or extension of KML-D22.
+
 ## KML-D23 — focused offline Card 05 monitor repair authorized, 2026-10-08
 
 - The owner authorized a focused **offline** repair of C05-F1's storage sampling and owned-process shutdown, explicitly preserving the failed attempt, ledger, baseline, partial files and all evidence. Scientific settings and resource caps stay fixed. This is code and test authority only: no model initialization, GPU work, training, evaluation generation, retry or resume.

@@ -95,7 +95,7 @@ phase_deadline_ns=$(uv run --locked --no-sync python "$checkout/tools/kernel-mem
 [[ "$phase_deadline_ns" =~ ^[0-9]{18,19}$ ]] || exit 2
 printf '%s\n' "$phase_deadline_ns" > "$root/$phase-launch-claim/deadline-ns.txt"
 if [[ "$phase" == evaluate ]]; then
-  eval_dir=$task_root/card04-synthetic/runs/kml-card05-full-tranche-v1/evaluations
+  eval_dir=$task_root/card04-synthetic/runs/kml-card05-full-tranche-v2/evaluations
   [[ -d "$eval_dir" ]] || exit 2
   eval_start_bytes=$(timeout --signal=TERM --kill-after=1s 6s uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/sample-task-root.py" --root "$eval_dir" --kind bytes)
   [[ "$eval_start_bytes" =~ ^[0-9]+$ ]] || exit 2
@@ -175,7 +175,7 @@ supervisor=(uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/
 if [[ "$phase" == stage ]]; then
   setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-stage" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab stage "$config" --through validate --output "$root/stage-validate" --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/stage-monitor-result.json" 2> "$root/stage-monitor-error.log" &
 elif [[ "$phase" == train ]]; then
-  setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-train" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab train "$config" --stage-bundle "$root/stage-validate" --run-id kml-card05-full-tranche-v1 --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/train-monitor-result.json" 2> "$root/train-monitor-error.log" &
+  setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-train" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab train "$config" --stage-bundle "$root/stage-validate" --run-id kml-card05-full-tranche-v2 --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/train-monitor-result.json" 2> "$root/train-monitor-error.log" &
 else
   setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-evaluate" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/run-full-tranche-evaluation.py" > "$root/evaluate-monitor-result.json" 2> "$root/evaluate-monitor-error.log" &
 fi

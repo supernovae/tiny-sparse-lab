@@ -13,7 +13,7 @@ from sparselab.training.checkpoints import CheckpointManager
 from sparselab.training.manifest import canonical_json, read_manifest, sha256_file
 
 STEPS = (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 4883)
-RUN_ID = "kml-card05-full-tranche-v1"
+RUN_ID = "kml-card05-full-tranche-v2"
 
 
 def select(root: Path, checkout: Path) -> dict[str, object]:

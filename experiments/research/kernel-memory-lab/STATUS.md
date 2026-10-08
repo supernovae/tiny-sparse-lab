@@ -1,30 +1,30 @@
 # Current project status
 
-Record revision: 2026-10-08.6
+Record revision: 2026-10-08.7
 Snapshot date: 2026-10-08
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: Full Card 03 remains accepted and Gate 0 EVIDENCE VERIFIED. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains FAILED after 500 observed updates / 512,000 targets, with its 4,883-update reservation charged and no evaluation. The owner authorized only an offline fix; [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) is pushed and READY FOR REVIEW after 112 passing focused tests. C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with evidence preserved.
-Next action: owner review of C05-R1. No Card 05 retry, resume, evaluation or Card 06 progression is authorized; any new runtime attempt needs separate approval.
+Current selected work: Full Card 03 remains accepted and Gate 0 EVIDENCE VERIFIED. [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) remains FAILED after 500 observed updates / 512,000 targets, with its 4,883-update reservation charged and no evaluation. The owner accepted [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) and authorized exactly one fresh conditional Card 05 attempt in [KML-D24](DECISIONS.md#kml-d24--c05-r1-accepted-and-one-fresh-card-05-attempt-authorized-2026-10-08). C03-S4/S2, Card 02 A1 and Card 04 P3/P4 remain failed with evidence preserved.
+Next action: complete/push the offline fresh-run binding adaptation, then original preflight, one fresh ledger and conditional attempt under [the new binding](CARD05_FRESH_ATTEMPT_BINDING.md). No resume, further attempt or Card 06 progression is authorized.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
-Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's 32-update measurement remains consumed. KML-D22's single full-tranche attempt is stopped with 4,883/4,883 updates charged; no retry, resume or further evaluation authority remains.
+Runtime authority: Earlier Card 02/03/04 allocations remain exhausted or completed as recorded. KML-D20's 32-update measurement remains consumed. KML-D22's single full-tranche attempt is stopped with 4,883/4,883 updates charged. KML-D24 separately authorizes one fresh conditional Card 05 attempt, with no retry or resume.
 Last reviewed project result: [C05-M1](results/2026-10-08-card05-real-data-timing.md) is accepted for timing only in KML-D21; [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) records Card 03 owner acceptance and Gate 0 review; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) P6 synthetic fit remains accepted.
 Latest project results: [C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) records the offline monitor repair ready for review; [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) preserves the failed full-tranche attempt; C05-P3 is its approved historical proposal and C05-M1 remains accepted timing evidence. Card 03/Gate 0 acceptance and all earlier failed attempts remain intact.
-Latest research decision: [KML-D23](DECISIONS.md#kml-d23--focused-offline-card-05-monitor-repair-authorized-2026-10-08) records offline repair authority and C05-R1 review status; KML-D22's full-run allocation remains exhausted, KML-D21 accepts C05-M1 timing, and KML-D19 accepts Card 03/Gate 0.
+Latest research decision: [KML-D24](DECISIONS.md#kml-d24--c05-r1-accepted-and-one-fresh-card-05-attempt-authorized-2026-10-08) accepts C05-R1 and authorizes one conditional fresh attempt; KML-D22's full-run allocation remains exhausted, KML-D21 accepts C05-M1 timing, and KML-D19 accepts Card 03/Gate 0.
 Latest project attempt: [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) FAILED with a monitoring stop; no evaluation. Earlier accepted timing, preparation and synthetic-fit results remain intact.
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
 
-[C05-R1](results/2026-10-08-card05-offline-monitor-repair.md) repairs only the
+[C05-R1](results/2026-10-08-card05-offline-monitor-repair.md), accepted by the owner in KML-D24, repairs only the
 monitoring path after C05-F1. Bounded fresh-pass byte/inode traversal includes
 live SQLite WAL/SHM files while genuine errors and exhausted deadlines fail
 closed. An owner-tracked subreaper now stops timeout, monitor and worker
 descendants across process groups before reporting completion. Code commit
 `16cfa8b` is pushed; 112 focused CPU/mock tests passed. The failed ledger,
-baseline and partial run were not modified. C05-R1 is READY FOR REVIEW and
-grants no runtime authority.
+baseline and partial run were not modified. C05-R1 itself grants no runtime
+authority; KML-D24 separately authorizes one fresh conditional attempt.
 
 [C05-F1](results/2026-10-08-card05-full-tranche-stop.md) used the owner-approved
 KML-D22 allocation from clean pushed `428e9b1`. Offline adaptation passed 101

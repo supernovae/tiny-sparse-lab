@@ -13,7 +13,7 @@ from sparselab.runtime_environments import profile_for_id
 from sparselab.runtime_profile import authorize_profile
 from sparselab.training.manifest import sha256_file
 
-RUN_ID = "kml-card05-full-tranche-v1"
+RUN_ID = "kml-card05-full-tranche-v2"
 
 
 def evaluate(root: Path, checkout: Path) -> dict[str, object]:
