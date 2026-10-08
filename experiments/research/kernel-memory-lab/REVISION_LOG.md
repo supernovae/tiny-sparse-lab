@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.11 — Card 05 consolidation proposal, 8 October 2026
+
+- Recorded [C05-P4](results/2026-10-08-card05-consolidation-planning.md) and a [prospective plan](CARD05_CONSOLIDATION_PLAN.md) from the completed C05-N1 tranche and C05-X1 matched diagnostic, keeping their negative/exploratory results and Card 06 reader block intact
+- Reconciled `TODO.md` without duplicate monitor work; mapped reusable monitor, attempt-contract and panel paths to native APIs, ordered safety/readiness fixes, and separated zero-update validation from tests and fixtures that train
+- Defined future base, instruction, evidence-reader and agentic evaluation boundaries without revising adopted Card 05 thresholds or pre-adopting Card 06's provisional numerical target; no runtime, acquisition, core implementation or merge occurred
+
 ## 2026-10-08.4 — C05-M1 accepted and one full-tranche/evaluation request, 8 October 2026
 
 - Recorded KML-D21 accepting C05-M1 at `01184e8` for real-data timing evidence only; the measured checkpoint, old failures, Card 03 release and Gate 0 assessment remain unchanged

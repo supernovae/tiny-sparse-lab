@@ -59,6 +59,59 @@ historical dataset-specific inputs retain their original verifiers.
 These remain implementation gaps, but should not displace P1/P2 without a
 documented workload need and the required acceptance environment.
 
+The proposed [Card 05 consolidation](experiments/research/kernel-memory-lab/CARD05_CONSOLIDATION_PLAN.md)
+activates the three native safety/readiness items below **in order** before a
+new base-language experiment. They are code work, not authorization for that
+experiment or a merge.
+
+- [ ] **Consolidate device/added-use monitoring and owned shutdown in the native monitor.**
+  `sparselab monitor` already owns process-tree RSS, free-space and projected
+  reserve checks; Kernel Memory Lab's tracked `read-vram-bytes.py`,
+  `sample-task-root.py`, `bounded-measurement.py` and
+  `run-owned-phase-command.py` supply the missing UUID-bound device read,
+  vanished-entry-safe live-tree byte/inode counts and zero-survivor shutdown.
+  Extend `MonitorPolicy` with optional `max_device_memory_bytes`,
+  `max_added_workspace_bytes` and `max_added_workspace_inodes`. Bind one
+  immutable task-root baseline and accepted device UUID across phases, with
+  fail-closed missing/stale/wrong-device readings and retained sample/cap/
+  descendant receipts. Preserve legacy policy/receipt identities when fields
+  are absent. Mock a failed or capped sensor, transient WAL/SHM files, genuine
+  access/I/O failure, exhausted sample deadline, detached groups, TERM-ignoring
+  workers and early parent exit; assert zero survivors and unrelated-process
+  survival. C05-F1 and C05-X1 are regression evidence, not retroactively
+  changed runs. Do not report sampled VRAM as an exact instantaneous peak.
+
+- [ ] **Bind one native attempt contract across phases, including zero-update work.**
+  Reuse `AttemptBudget`, `ExperimentPlan.execution`, Campaign approval and native
+  run counters. Add one optional content-addressed `execution.attempt_contract`
+  reference; its typed limits include nonnegative optimizer updates (zero must
+  block train/warmup entry points), actual target positions, generation calls/
+  tokens and one wall deadline, while the monitor policy owns memory/storage.
+  Reserve the full possible charge before each phase; count failed, interrupted,
+  retried and resumed work cumulatively, with no reset/refund. Bind config,
+  source, checkpoint, policy and common-root baseline identities. Reconcile
+  ledger reservations with actual counters and final-batch masking. Mock cap
+  edges, clock rollback, identity drift, duplicate launches, timeout and
+  descendant shutdown before any update-bearing integration test. This is an
+  execution contract, separate from the P2 historical ledger projection and
+  Card 03 transport-body budget; proposed DSL/CLI behavior is not shipped.
+
+- [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
+  `run_panel` already journals one attempt per prompt at a verified evaluation
+  index but hardcodes cache on and permissive context. Add optional
+  `PanelDecoder.use_cache` and `PanelDecoder.strict_context`, preserving absent-
+  field declaration/receipt hashes. Under one attempt contract, permit a cached
+  panel and a tiny uncached panel bound to the same checkpoint/index; a separate
+  immutable prompt-set manifest supplies pair ordinals, held-out lineage and
+  golds. Bind independent item-level score imports to existing capability-card/
+  readiness evidence; a descriptive panel or clean monitor receipt alone must
+  never pass the Card 05 gate. Test exact token-ID parity, empty/failed rows,
+  one-shot replay, aggregate generation/output caps, changed bindings, 200/200
+  scored completeness, every axis denominator, disagreement resolution and
+  negative/unavailable verdicts. `tests/test_generation_panel.py` and related
+  integration fixtures perform optimizer updates; use mocked zero-update tests
+  first and reserve a separate update budget for those integration tests.
+
 - [ ] **Expose the Card 03 held-out item freeze through a typed native CLI.**
   The new `sparselab.evaluation.kml_card03_items.freeze_card03_items` Python
   API accepts a cold-verifiable corpus release, frozen family-inventory JSONL,
@@ -82,8 +135,6 @@ documented workload need and the required acceptance environment.
   not shipped yet.
 
 - [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
-
-- [ ] **Extend the native operational monitor for accelerator memory and added output caps.** Kernel Memory Lab Card 04 P3's external `amd-smi` sampler failed while the native `sparselab monitor` still tracked RSS and free storage. Add optional typed `max_device_memory_bytes`, `max_added_workspace_bytes` and `max_added_workspace_inodes` policy fields with a registered ROCm sampler and a fail-closed unavailable-reading path. Record every sample, cap event and owned-process termination in the native completion receipt; baseline only the declared task workspace, retain process identity, and avoid interpreting sampled VRAM as an exact peak. Mock a sampler that fails after launch, a cap crossing, absent device, and interrupted monitor; no real GPU test is needed for the adapter. Until then, a corrected external sampler is needed for an approved Card 04 replacement profile.
 
 - [ ] **Retain bounded corpus decompression and temporary-storage high-water counters.** Kernel Memory Lab Card 03 P1 enforced the distinct expanded-stream and projected disk caps, but the native receipt does not report actual decompressed bytes or peak staging occupancy. Extend the existing bounded acquisition receipt, without changing legacy hashes when no new fields are present, to report per-shard bytes consumed from the expanded stream and peak task-owned staging bytes/inodes. Fail closed if a required reading is unavailable and preserve raw counters on interrupted transfers; test exact caps, overlong lines and resumed attempts with mocked HTTP. Do not backfill P1 with inferred measurements or require reacquisition only to fill historical optional fields.
 
