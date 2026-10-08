@@ -1,11 +1,14 @@
 # Card 03 evaluation authoring workflow
 
-Status: **tooling only; zero authored or frozen project items**. The owner-approved
-preparation attempt includes item authoring and review within an aggregate
-20-agent-reviewer-hour ceiling. A complete 600-item suite is conditional on
-actual, rights-admitted, family-separated held-out content and review. At 600
-items, that ceiling averages two minutes per item before chunk/rubric checks;
-stop and report an incomplete suite if review cannot be completed honestly.
+Status: **600 independently reviewed items frozen in C03-C2; full Card 03 owner
+release review pending**. The earlier C03-C1 candidate bank was unreviewed and
+semantically defective. The separately authorized offline [C03-C2
+continuation](results/2026-10-07-card03-evaluation-continuation.md) preserved
+those failures, corrected and independently checked every exact final item,
+then used the native freeze with complete denominators. Its shared settings
+are 512 evidence tokens, greedy decoding and 128 output tokens. The frozen
+suite is an evaluation contract, not a score or an owner admission of full
+Card 03.
 
 Use `sparselab.evaluation.kml_card03_items.freeze_card03_items` after a cold
 verified corpus release and frozen `family_inventory` exist. Its input is a

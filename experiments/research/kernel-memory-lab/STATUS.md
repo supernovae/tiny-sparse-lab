@@ -1,21 +1,23 @@
 # Current project status
 
-Record revision: 2026-10-07.29
+Record revision: 2026-10-07.30
 Snapshot date: 2026-10-07
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
 Actual WSL checkout revision at Card 01 start: cf29aff79ec7259f7ec93988cd6a87065f4350e5 (`main`, clean before edits)
 Repository documentation path: `experiments/research/kernel-memory-lab` (present in local `main`)
-Current selected work: Card 03 [source-admission policy v1](CARD03_SOURCE_ADMISSION_POLICY_V1.md) remains accepted. The owner-approved reuse-only [C03-C1](results/2026-10-07-card03-offline-continuation.md) continuation prepared a cold-verified release, main tokenizer, measured unique supply, 5-million-position 65/25/10 mixture and sealed input bundle. Its 600-item evaluation candidate bank failed sampled semantic review and remains unreviewed; **no frozen evaluation suite or full Card 03 release is accepted**. The KML-D16 scaled retry [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) stays FAILED for ten CPU fixture optimizer updates against a zero-update cap; the earlier [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) metadata-stop ledger also remains. Card 05 and Gate 0 remain unverified. Card 04 P6 remains accepted synthetic-fit evidence; P3/P4 remain failed.
-Next action: Owner review of [C03-C1](results/2026-10-07-card03-offline-continuation.md) and a separate decision on focused evaluation rewriting and independent review. No new acquisition, GPU/model training or Card 05 runtime is authorized by this partial preparation.
+Current selected work: Card 03 [source-admission policy v1](CARD03_SOURCE_ADMISSION_POLICY_V1.md) remains accepted. The owner accepted [C03-C1](results/2026-10-07-card03-offline-continuation.md) corpus, tokenizer and mixture preparation for reuse in KML-D18. The offline [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) continuation independently reviewed all 600 original evaluation IDs and natively froze the complete suite; it is **READY FOR OWNER RELEASE REVIEW, not yet accepted as full Card 03**. The KML-D16 scaled retry [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) stays FAILED for ten CPU fixture optimizer updates against a zero-update cap; the earlier [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) metadata-stop ledger also remains. Card 05 and Gate 0 remain unverified. Card 04 P6 remains accepted synthetic-fit evidence; P3/P4 remain failed.
+Next action: Owner review of [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) with accepted C03-C1 preparation against the full Card 03 release contract. No new acquisition, GPU/model training or Card 05 runtime is authorized by this evaluation continuation.
 Working branch: `codex/kernel-memory-lab` (rolling branch; P6's fixed GPU source checkout was `fc75c548c88fb08973e334b805acdf497e3ccfc4`)
-Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot exercised, KML-D16 retry failed/exhausted on a zero-update breach, and KML-D17 reuse-only offline continuation stopped at the evaluation release gate; Card 04 KML-D09 CPU fit exercised; KML-D10 and KML-D11 each reserved 7/120 in separate failed GPU attempts; KML-D12's one new Card 04 attempt charged 120/120 and completed stage/profile, with no retry or resume authority
-Last reviewed project result: [KML-20261007-C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md), P6 synthetic fit accepted by [KML-D13](DECISIONS.md#kml-d13--card-04-p6-synthetic-fit-evidence-accepted-2026-10-07)
-Latest project results: [C03-C1](results/2026-10-07-card03-offline-continuation.md) records verified partial preparation and the unreviewed evaluation stop; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) records the failed but acquired retry; [C03-S3](results/2026-10-07-card03-scale-retry1-offline-preflight.md) records its passing offline preflight; [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) preserves the earlier failed attempt; [C03-A1](results/2026-10-07-card03-source-admission-v1.md) records the tiny local-use admission screen; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is the earlier prerequisite audit; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) accepts P6
-Latest research decision: [KML-D17](DECISIONS.md#kml-d17--reuse-only-card-03-offline-continuation-approved-2026-10-07) authorized the stopped reuse-only continuation; KML-D16 authorized the failed scaled retry; KML-D14 accepts Card 03 source-policy v1; KML-D13 accepts Card 04 synthetic fit
-Latest project attempt: [C03-C1](results/2026-10-07-card03-offline-continuation.md), PARTIAL PREPARATION with evaluation release BLOCKED; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED; [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains verified synthetic fit; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
+Runtime authority: Card 02 KML-D02 exhausted (89/89); Card 03 KML-D08 pilot exercised, KML-D16 retry failed/exhausted on a zero-update breach, KML-D17 reuse-only offline preparation completed partially, and KML-D18 evaluation-only continuation exercised without training; Card 04 KML-D09 CPU fit exercised; KML-D10 and KML-D11 each reserved 7/120 in separate failed GPU attempts; KML-D12's one new Card 04 attempt charged 120/120 and completed stage/profile, with no retry or resume authority
+Last reviewed project result: [C03-C1](results/2026-10-07-card03-offline-continuation.md) corpus/tokenizer/mixture preparation accepted for reuse in [KML-D18](DECISIONS.md#kml-d18--card-03-partial-preparation-accepted-evaluation-only-continuation-approved-2026-10-07); [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) P6 synthetic fit remains accepted in KML-D13
+Latest project results: [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) records the reviewed frozen suite awaiting full Card 03 owner release review; [C03-C1](results/2026-10-07-card03-offline-continuation.md) records accepted corpus/tokenizer/mixture preparation; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) preserve failed attempts; [C03-A1](results/2026-10-07-card03-source-admission-v1.md) records the tiny local-use admission screen; [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) is the earlier prerequisite audit; [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) accepts P6
+Latest research decision: [KML-D18](DECISIONS.md#kml-d18--card-03-partial-preparation-accepted-evaluation-only-continuation-approved-2026-10-07) accepts C03-C1 preparation and authorizes C03-C2 evaluation work, not full Card 03 admission; KML-D14 accepts Card 03 source-policy v1; KML-D13 accepts Card 04 synthetic fit
+Latest project attempt: [C03-C2](results/2026-10-07-card03-evaluation-continuation.md), REVIEWED FROZEN EVALUATION READY FOR OWNER RELEASE REVIEW; [C03-C1](results/2026-10-07-card03-offline-continuation.md) remains accepted partial preparation; [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED; [KML-20261007-C04-P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md) remains verified synthetic fit; Card 02 [A2](results/2026-10-07-card02-confirmation.md) remains reviewed in KML-D03, and [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED
 Budget code fix: [KML-20261007-C02-P1](results/2026-10-07-card02-budget-repair.md), committed in `77ec6e7` and confirmed by A2
 
 ## Delivery facts
+
+[C03-C2](results/2026-10-07-card03-evaluation-continuation.md) used the verified C03-C1 release, tokenizer and prepared bundle with no new source request or model update. Three author partitions recorded decisions for all 600 original candidate IDs. Different reviewers blind-solved and checked every exact final item version, retaining negative earlier decisions. The final cold screen found zero hard errors, and native `require_complete=True` freeze published a 200/400-item manifest with all 20 category denominators and 20 clarification plus 20 unanswerable evidence items. The three language boilerplate-overlap flags were individually adjudicated as different held-out facts. The full Card 03 release awaits owner review; C03-C2 by itself is not an owner admission or a model result.
 
 [C03-C1](results/2026-10-07-card03-offline-continuation.md) used the retained
 four-source snapshots without network activity. A revised family grouping and
@@ -23,9 +25,11 @@ full lexical recheck preceded a cold-verified 5,994-document release. The
 train-only 32,768-entry tokenizer and measured unique positions clear all three
 accepted source and family floors. The native mixture and sealed bundle verify
 exactly 5,000,000 supervised targets at 65/25/10, at most two exposures and
-zero optimizer updates. An unreviewed 600-item candidate bank exists, but
-sampled semantic errors block the frozen evaluation requirement. These data
-artifacts are READY FOR OWNER REVIEW, not a complete Card 03 admission.
+zero optimizer updates. At C03-C1's stop, its unreviewed 600-item candidate
+bank had sampled semantic errors and blocked the frozen evaluation requirement.
+KML-D18 later accepted these preparation artifacts for reuse; C03-C2 separately
+corrected and froze the evaluation suite. C03-C1 alone was not a complete Card
+03 admission.
 
 [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) records the one KML-D16
 retry. The durable ledger shows 473 complete transfers and 845,577,448 source
@@ -38,8 +42,8 @@ interrupted when copied CPU test receipts exposed 10 post-ledger optimizer
 updates in a broad regression suite against the approved zero-update cap.
 At C03-S4's stop, no Card 03 release, tokenizer, denominator, mixture or frozen
 evaluation existed. C03-C1 later prepared the first four within separate
-authorization; frozen evaluation remains missing. All earlier raw evidence and
-failed ledgers remain retained.
+authorization, and C03-C2 prepared the frozen evaluation for owner review. All
+earlier raw evidence and failed ledgers remain retained.
 
 [C03-A1](results/2026-10-07-card03-source-admission-v1.md) applies the owner's
 accepted source-policy v1 to the two already verified pilot snapshots. Native
@@ -67,11 +71,11 @@ accepts this synthetic-fit scope; older P3/P4 failures remain unchanged.
 Synthetic throughput is not a real-data forecast, and Gate 0 remains unverified.
 
 [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) was the historical
-preparation audit. C03-C1 now supplies candidate release/tokenizer/bundle
-evidence for review, while the semantically reviewed frozen evaluation and
-real-data throughput/validated forecast remain missing. Gate 0 has supporting
-evidence but no criterion-by-criterion promotion review. No Card 05 runtime
-allocation has been approved.
+preparation audit. C03-C1 now supplies owner-accepted release/tokenizer/bundle
+preparation, and C03-C2 supplies a reviewed frozen evaluation for full Card 03
+owner release review. A real-data throughput profile and validated forecast
+remain missing. Gate 0 has supporting evidence but no criterion-by-criterion
+promotion review. No Card 05 runtime allocation has been approved.
 
 Inherited-output correction [C04-S4](results/2026-10-07-card04-inherited-output-review.md)
 addresses a reproduced sampler descendant/pipe-EOF hang after the owner reported
@@ -211,7 +215,7 @@ CPU/mock tests. This preserves the external originals and makes the proposed
 monitor repair reviewable in Git. P5 itself ran no GPU attempt; P6 later used
 these tracked tools under KML-D12.
 
-Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. KML-D16's later scaled acquisition completed four pinned source snapshots, and C03-C1 prepared an unaccepted local-use release from them. The earlier two-shard pilot and all stopped attempts retain their own identities. KML-D12's single Card 04 GPU authority is spent.
+Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additional runtime card is selected. KML-D16's later scaled acquisition completed four pinned source snapshots, C03-C1 prepared a local-use release accepted for reuse, and C03-C2 froze evaluation for full Card 03 owner review. The earlier two-shard pilot and all stopped attempts retain their own identities. KML-D12's single Card 04 GPU authority is spent.
 
 ## Single current checklist
 
@@ -219,10 +223,10 @@ Future expert/sensemaking track: PLANNED ONLY; see `EXPERT_TRACK.md`. No additio
 | --- | --- | --- | --- |
 | 01 | Foundation protocol and minimal missing scaffolding | EVIDENCE VERIFIED (documentation scope) | Owner accepted [foundation contract](FOUNDATION.md) in [KML-D01](DECISIONS.md#kml-d01--foundation-contract-accepted-2026-10-07); Gate 0 remains unverified |
 | 02 | Fresh tiny correctness fixtures using native controls | EVIDENCE VERIFIED (done with notes) | [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07) accepted [A2](results/2026-10-07-card02-confirmation.md); [A1](results/2026-10-07-card02-tiny-fixtures.md) remains FAILED for its 57-update cap breach |
-| 03 | Data, tokenizer and frozen evaluation contracts | C03-C1 partial preparation READY FOR REVIEW; full gate BLOCKED | [C03-C1](results/2026-10-07-card03-offline-continuation.md) verifies a four-source release candidate, family splits, 32,768-entry tokenizer, unique-position floors, 5-million-position mixture and sealed bundle. Its 600 evaluation candidates are unreviewed and semantically defective; no frozen suite exists. [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED; [C03-A1](results/2026-10-07-card03-source-admission-v1.md) remains the historical tiny metadata-only screen |
+| 03 | Data, tokenizer and frozen evaluation contracts | C03-C1 preparation ACCEPTED FOR REUSE; C03-C2 frozen evaluation READY FOR OWNER RELEASE REVIEW | [KML-D18](DECISIONS.md#kml-d18--card-03-partial-preparation-accepted-evaluation-only-continuation-approved-2026-10-07) accepts [C03-C1](results/2026-10-07-card03-offline-continuation.md) corpus/tokenizer/mixture preparation. [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) verifies item-level independent review and a complete native frozen suite; full Card 03 admission is pending owner review. [C03-S4](results/2026-10-07-card03-scale-retry1-stop.md) and [C03-S2](results/2026-10-07-card03-scale-metadata-stop.md) remain FAILED |
 | 04 | Main shape and measured fit | EVIDENCE VERIFIED (synthetic fit) | [C04-R2](results/2026-10-07-card04-synthetic-fit-acceptance.md) records owner acceptance of [P6](results/2026-10-07-card04-gpu-retry2-measured-fit.md); P3/P4 remain failed; real-data timing is absent |
-| 05 | One bounded language training tranche | PLANNING COMPLETE; RUN BLOCKED | [C03-C1](results/2026-10-07-card03-offline-continuation.md) supplies reviewable main data/tokenizer/bundle candidates, but no accepted frozen evaluation, real-data timing/validated forecast or run approval exists. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) remains the historical prereq audit; no real-data training started |
-| 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and frozen suite |
+| 05 | One bounded language training tranche | PLANNING COMPLETE; RUN BLOCKED | C03-C1 preparation is accepted for reuse and [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) frozen evaluation awaits full Card 03 owner release review. Real-data timing/validated forecast and a separate Card 05 run approval remain missing. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) remains the historical prereq audit; no real-data training started |
+| 06 | Raw-text oracle evidence baseline | NOT STARTED | Qualified fresh checkpoint and owner-accepted frozen suite |
 | 07 | Lexical retrieval baseline | NOT STARTED | Card 06 and approved versioned store |
 | 08 | Explicit dense-to-new-reader transfer | NOT STARTED | Tiny contracts and selected Card 06 origin |
 | 09 | One integrated reader | NOT STARTED | Cards 06, 07, 08 and bounded approval |
