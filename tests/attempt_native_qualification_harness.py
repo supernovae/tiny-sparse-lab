@@ -1,4 +1,4 @@
-"""Test-local enclosing CPU allocation; run only under the approved C05-Q1 scope."""
+"""Test-local enclosing CPU allocation; run only under the approved C05-Q2 scope."""
 
 from __future__ import annotations
 
@@ -50,6 +50,7 @@ def _worker(root: Path) -> int:
         "tests/test_attempt_campaign_guard.py",
         "tests/test_attempt_native_receipts.py",
         "tests/test_attempt_contract_cli.py",
+        "tests/test_attempt_native_integration.py::test_exact_cpu_config_roundtrip_without_model_or_ledger",
     ]
     integration = [
         "uv",

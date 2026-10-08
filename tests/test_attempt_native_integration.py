@@ -12,13 +12,14 @@ from pathlib import Path
 import pytest
 from test_training import config as small_cpu_config
 
+from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.operational_monitor import load_workspace_baseline
 from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
 from sparselab.training.attempt_receipts import verify_native_phase_counters
 from sparselab.training.manifest import sha256_file
 
-RUN_ID = "kml-c05-native-cpu-q1"
+RUN_ID = "kml-c05-native-cpu-q2"
 GIB = 1024**3
 
 
@@ -41,11 +42,7 @@ def _invoke(path: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
     return result
 
 
-def test_bounded_cpu_final_mask_and_ledger() -> None:
-    root = Path(os.environ["KML_QUAL_ROOT"]).resolve(strict=True)
-    assert root.is_absolute() and root.is_dir()
-    baseline_path = root / "baseline.json"
-    baseline = load_workspace_baseline(baseline_path, root)
+def _exact_integration_config(root: Path) -> tuple[RunConfig, Path, str]:
     fixture = root / "fixture"
     fixture.mkdir(exist_ok=False)
 
@@ -59,22 +56,48 @@ def test_bounded_cpu_final_mask_and_ledger() -> None:
         max_steps=3,
         max_tokens=77,
     )
-    payload["logging"]["checkpoint_every_steps"] = 1
+    payload["checkpoint"]["every_steps"] = 1
     bounded = RunConfig.model_validate(payload)
+    config_path = root / "bounded-config.json"
+    config_sha = _save(config_path, bounded.model_dump(mode="json"))
+    return bounded, config_path, config_sha
+
+
+def test_exact_cpu_config_roundtrip_without_model_or_ledger(tmp_path: Path) -> None:
+    bounded, config_path, config_sha = _exact_integration_config(tmp_path)
+    loaded = load_config(config_path)
+    assert loaded.model_dump(mode="json") == bounded.model_dump(mode="json")
+    assert sha256_file(config_path) == config_sha
+    assert (loaded.runtime.backend, loaded.runtime.precision) == ("cpu", "fp32")
+    assert loaded.checkpoint.every_steps == 1
     assert (
-        bounded.training.max_steps,
-        bounded.training.max_tokens,
-        bounded.training.micro_batch_size,
-        bounded.training.gradient_accumulation,
-        bounded.training.seq_len,
+        loaded.training.max_steps,
+        loaded.training.max_tokens,
+        loaded.training.micro_batch_size,
+        loaded.training.gradient_accumulation,
+        loaded.training.seq_len,
     ) == (3, 77, 2, 1, 16)
     assert [min(32, 77 - 32 * step) for step in range(3)] == [32, 32, 13]
+    assert loaded.tokenizer.path.is_relative_to(tmp_path)
+    assert loaded.dataset.cache_dir.is_relative_to(tmp_path)
+    assert loaded.logging.root_dir.is_relative_to(tmp_path)
+    assert not (loaded.logging.root_dir / RUN_ID).exists()
+    assert not (tmp_path / "ledger.sqlite").exists()
+
+
+def test_bounded_cpu_final_mask_and_ledger() -> None:
+    root = Path(os.environ["KML_QUAL_ROOT"]).resolve(strict=True)
+    assert root.is_absolute() and root.is_dir()
+    baseline_path = root / "baseline.json"
+    baseline = load_workspace_baseline(baseline_path, root)
+    bounded, config_path, config_sha = _exact_integration_config(root)
+    assert load_config(config_path).model_dump(mode="json") == bounded.model_dump(
+        mode="json"
+    )
     runs = bounded.logging.root_dir
     runs.mkdir(parents=True, exist_ok=True)
     run = runs / RUN_ID
     assert not run.exists()
-    config_path = root / "bounded-config.json"
-    config_sha = _save(config_path, bounded.model_dump(mode="json"))
 
     inner_policy_path = root / "inner-policy.json"
     inner_policy_sha = _save(
