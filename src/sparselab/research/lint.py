@@ -64,6 +64,14 @@ _FORBIDDEN_SUFFIXES = {
 }
 _RECORD_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".json", ".jsonl"}
 _MUTABLE_NAMES = {"metrics.jsonl", "events.jsonl", "stdout", "stderr", "run.db"}
+# Historical KML records are retained byte-for-byte. These bindings bypass only
+# the unsupported-suffix/JSONL-panel classification below, never path safety,
+# tracked-file, mutable-output, size, or declaration validation for other files.
+_LEGACY_RECORD_SHA256 = {
+    "experiments/research/kernel-memory-lab/corpus-scale/run-offline-continuation.sh": "7dd86e3701c76a1de1b5a7a10c635100b044fbfae21dd647b59897980f1f1260",
+    "experiments/research/kernel-memory-lab/results/2026-10-07-card03-review-index.jsonl": "eaeca027b321913ea59a938d01e1b878c80d7a54ee9a3201e2173360c81dbb5d",
+    "experiments/research/kernel-memory-lab/results/evidence/card05-v2-language-final-scores.jsonl": "5a5b76046ddc7a670bf4f386e94ad17c9260185cf3290fcb23538d66fce41f43",
+}
 
 
 def _sha(value: Any) -> str:
@@ -378,13 +386,18 @@ def lint_research(root: Path) -> dict[str, Any]:
                 raise ValueError(
                     "forbidden mutable output or payload in research records"
                 )
-            if source.suffix.lower() not in _RECORD_SUFFIXES:
-                raise ValueError(
-                    "unsupported research record format; payloads belong outside the checkout"
-                )
             if source.stat().st_size > 1024 * 1024:
                 raise ValueError(
                     "research record exceeds the 1 MiB durable-record limit"
+                )
+            expected_legacy = _LEGACY_RECORD_SHA256.get(name)
+            if expected_legacy is not None:
+                if hashlib.sha256(source.read_bytes()).hexdigest() != expected_legacy:
+                    raise ValueError("pinned legacy research record digest mismatch")
+                continue
+            if source.suffix.lower() not in _RECORD_SUFFIXES:
+                raise ValueError(
+                    "unsupported research record format; payloads belong outside the checkout"
                 )
             if source.suffix.lower() == ".json":
                 raw = json.loads(source.read_text(encoding="utf-8"))

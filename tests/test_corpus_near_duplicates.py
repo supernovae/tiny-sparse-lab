@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
+from pathlib import Path
 
 import pytest
 
-from sparselab.corpus.near_duplicates import candidates
+from sparselab.corpus.cli import add_commands
+from sparselab.corpus.near_duplicates import audit_release, candidates
 
 
 def _document(identifier: str, split: str, text: str) -> dict[str, str]:
@@ -80,3 +84,43 @@ def test_near_duplicate_stream_fails_before_materializing_unbounded_text() -> No
     with pytest.raises(ValueError, match="text byte cap"):
         candidates(documents(), max_input_text_bytes=2_500)
     assert consumed == 3
+
+
+def test_native_cli_exposes_fail_closed_scale_caps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parser = argparse.ArgumentParser()
+    add_commands(parser.add_subparsers(dest="command", required=True))
+    arguments = parser.parse_args(
+        [
+            "corpus",
+            "near-duplicates",
+            str(tmp_path),
+            "--max-documents",
+            "2",
+            "--max-input-text-bytes",
+            "4096",
+            "--max-total-shingles",
+            "100",
+            "--max-comparisons",
+            "5",
+            "--max-candidates",
+            "5",
+        ]
+    )
+    assert arguments.max_documents == 2
+    assert arguments.max_input_text_bytes == 4096
+    assert arguments.max_total_shingles == 100
+    rows = [
+        _document("a", "train", "one two three four"),
+        _document("b", "validation", "one two three four"),
+        _document("c", "test", "one two three four"),
+    ]
+    (tmp_path / "documents.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows)
+    )
+    monkeypatch.setattr(
+        "sparselab.corpus.release.verify_release", lambda _: {"release_id": "fixture"}
+    )
+    with pytest.raises(ValueError, match="document cap"):
+        audit_release(tmp_path, max_documents=arguments.max_documents)

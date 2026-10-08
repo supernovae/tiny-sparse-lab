@@ -1,0 +1,1373 @@
+"""Persistent, conservative update and wall-time limits for bounded test attempts.
+
+Reservations charge the full declared maximum before work starts. Failed or
+interrupted attempts keep that charge, so retries cannot regain uncertain updates.
+This does not replace native run counters or checkpoint verification.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import re
+import signal
+import sqlite3
+import subprocess
+import sys
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+
+
+class AttemptContract(BaseModel):
+    """One immutable, content-pinned v2 allocation across all phases and retries."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+    contract_version: Literal[1]
+    max_optimizer_updates: int = Field(strict=True, ge=0)
+    max_actual_target_positions: int = Field(strict=True, ge=0)
+    max_generation_calls: int = Field(strict=True, ge=0)
+    max_generated_tokens: int = Field(strict=True, ge=0)
+    max_wall_seconds: float = Field(gt=0)
+    content_identity_sha256: str
+    monitor_policy_sha256: str
+    workspace_baseline_sha256: str
+
+    @field_validator(
+        "content_identity_sha256",
+        "monitor_policy_sha256",
+        "workspace_baseline_sha256",
+    )
+    @classmethod
+    def valid_sha256(cls, value: str) -> str:
+        if not _SHA256.fullmatch(value):
+            raise ValueError("contract identities must be lowercase SHA-256 digests")
+        return value
+
+
+def load_attempt_contract(
+    path: Path, expected_sha256: str | None = None
+) -> AttemptContract:
+    if not path.is_absolute() or path.is_symlink():
+        raise AttemptBudgetError("contract path must be absolute and not a symlink")
+    try:
+        raw = path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        if expected_sha256 is not None and digest != expected_sha256:
+            raise AttemptBudgetError("attempt contract digest mismatch")
+        return AttemptContract.model_validate_json(raw)
+    except (OSError, ValidationError) as error:
+        raise AttemptBudgetError(f"invalid attempt contract: {error}") from error
+
+
+class AttemptBudgetError(RuntimeError):
+    """The shared attempt budget is missing, invalid, or exhausted."""
+
+
+class AttemptBudget:
+    def __init__(self, path: Path) -> None:
+        if not path.is_absolute() or path.is_symlink():
+            raise AttemptBudgetError("budget path must be absolute and not a symlink")
+        self.path = path
+
+    @classmethod
+    def create(
+        cls, path: Path, *, max_updates: int, max_wall_seconds: float
+    ) -> AttemptBudget:
+        if type(max_updates) is not int or max_updates <= 0:
+            raise ValueError("max_updates must be a positive integer")
+        if (
+            isinstance(max_wall_seconds, bool)
+            or not isinstance(max_wall_seconds, (int, float))
+            or not math.isfinite(max_wall_seconds)
+            or max_wall_seconds <= 0
+        ):
+            raise ValueError("max_wall_seconds must be positive and finite")
+        budget = cls(path)
+        if not path.parent.is_dir():
+            raise AttemptBudgetError("budget parent directory must already exist")
+        started_ns = time.time_ns()
+        deadline_ns = started_ns + int(max_wall_seconds * 1_000_000_000)
+        if deadline_ns <= started_ns or deadline_ns > 2**63 - 1:
+            raise ValueError("max_wall_seconds is outside the ledger clock range")
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+        os.close(descriptor)
+        with budget._connect() as connection:
+            connection.execute(
+                "CREATE TABLE budget ("
+                "id INTEGER PRIMARY KEY CHECK (id = 1), "
+                "version INTEGER NOT NULL, max_updates INTEGER NOT NULL, "
+                "used_updates INTEGER NOT NULL, started_ns INTEGER NOT NULL, "
+                "deadline_ns INTEGER NOT NULL, last_checked_ns INTEGER NOT NULL)"
+            )
+            connection.execute(
+                "CREATE TABLE reservations ("
+                "id INTEGER PRIMARY KEY, label TEXT NOT NULL, "
+                "updates INTEGER NOT NULL, reserved_ns INTEGER NOT NULL)"
+            )
+            connection.execute(
+                "INSERT INTO budget VALUES (1, 1, ?, 0, ?, ?, ?)",
+                (max_updates, started_ns, deadline_ns, started_ns),
+            )
+        return budget
+
+    @classmethod
+    def create_contract(
+        cls, path: Path, *, contract_path: Path, expected_sha256: str
+    ) -> AttemptBudget:
+        """Create an exclusive v2 ledger from exact authenticated contract bytes."""
+        contract = load_attempt_contract(contract_path, expected_sha256)
+        raw = contract_path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != expected_sha256:
+            raise AttemptBudgetError("attempt contract changed during initialization")
+        try:
+            raw_text = raw.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise AttemptBudgetError("attempt contract is not UTF-8") from error
+        budget = cls(path)
+        if not path.parent.is_dir():
+            raise AttemptBudgetError("budget parent directory must already exist")
+        started_ns = time.time_ns()
+        deadline_ns = started_ns + int(contract.max_wall_seconds * 1_000_000_000)
+        if deadline_ns <= started_ns or deadline_ns > 2**63 - 1:
+            raise ValueError("max_wall_seconds is outside the ledger clock range")
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+        os.close(descriptor)
+        with budget._connect() as connection:
+            connection.execute(
+                "CREATE TABLE budget ("
+                "id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL, "
+                "max_updates INTEGER NOT NULL, used_updates INTEGER NOT NULL, "
+                "started_ns INTEGER NOT NULL, deadline_ns INTEGER NOT NULL, "
+                "last_checked_ns INTEGER NOT NULL, "
+                "max_targets INTEGER NOT NULL, used_targets INTEGER NOT NULL, "
+                "max_calls INTEGER NOT NULL, used_calls INTEGER NOT NULL, "
+                "max_tokens INTEGER NOT NULL, used_tokens INTEGER NOT NULL, "
+                "contract_path TEXT NOT NULL, contract_sha256 TEXT NOT NULL, "
+                "contract_json TEXT NOT NULL)"
+            )
+            connection.execute(
+                "CREATE TABLE reservations ("
+                "id INTEGER PRIMARY KEY, label TEXT NOT NULL UNIQUE, "
+                "updates INTEGER NOT NULL, target_positions INTEGER NOT NULL, "
+                "generation_calls INTEGER NOT NULL, generated_tokens INTEGER NOT NULL, "
+                "content_identity_sha256 TEXT NOT NULL, reserved_ns INTEGER NOT NULL, "
+                "actual_updates INTEGER, actual_targets INTEGER, actual_calls INTEGER, "
+                "actual_tokens INTEGER, completed_ns INTEGER)"
+            )
+            connection.execute(
+                "INSERT INTO budget VALUES (1, 2, ?, 0, ?, ?, ?, ?, 0, ?, 0, ?, 0, ?, ?, ?)",
+                (
+                    contract.max_optimizer_updates,
+                    started_ns,
+                    deadline_ns,
+                    started_ns,
+                    contract.max_actual_target_positions,
+                    contract.max_generation_calls,
+                    contract.max_generated_tokens,
+                    str(contract_path),
+                    expected_sha256,
+                    raw_text,
+                ),
+            )
+        return budget
+
+    @staticmethod
+    def _version(connection: sqlite3.Connection) -> int:
+        try:
+            row = connection.execute(
+                "SELECT version FROM budget WHERE id = 1"
+            ).fetchone()
+        except sqlite3.DatabaseError as error:
+            raise AttemptBudgetError("invalid budget ledger") from error
+        if row is None or row[0] not in (1, 2):
+            raise AttemptBudgetError("unsupported budget ledger version")
+        return row[0]
+
+    @staticmethod
+    def _row_v2(
+        connection: sqlite3.Connection,
+    ) -> tuple[
+        AttemptContract, tuple[int, int, int, int], tuple[int, int, int, int], int, int
+    ]:
+        try:
+            row = connection.execute(
+                "SELECT version, max_updates, used_updates, started_ns, deadline_ns, last_checked_ns, "
+                "max_targets, used_targets, max_calls, used_calls, max_tokens, used_tokens, "
+                "contract_path, contract_sha256, contract_json FROM budget WHERE id = 1"
+            ).fetchone()
+            charges = connection.execute(
+                "SELECT COALESCE(SUM(updates), 0), COALESCE(SUM(target_positions), 0), "
+                "COALESCE(SUM(generation_calls), 0), COALESCE(SUM(generated_tokens), 0) "
+                "FROM reservations"
+            ).fetchone()
+            reservation_rows = connection.execute(
+                "SELECT updates, target_positions, generation_calls, generated_tokens, "
+                "content_identity_sha256, actual_updates, actual_targets, actual_calls, "
+                "actual_tokens, completed_ns FROM reservations"
+            ).fetchall()
+        except sqlite3.DatabaseError as error:
+            raise AttemptBudgetError("invalid budget ledger") from error
+        if (
+            row is None
+            or len(row) != 15
+            or any(type(row[i]) is not int for i in range(12))
+            or row[0] != 2
+            or not all(isinstance(row[i], str) for i in (12, 13, 14))
+            or row[4] <= row[5]
+        ):
+            raise AttemptBudgetError("invalid or expired v2 budget ledger")
+        maximum = (row[1], row[6], row[8], row[10])
+        used = (row[2], row[7], row[9], row[11])
+        if any(
+            limit < 0 or not 0 <= charged <= limit
+            for limit, charged in zip(maximum, used)
+        ):
+            raise AttemptBudgetError("invalid v2 budget counters")
+        try:
+            raw = row[14].encode("utf-8")
+            if hashlib.sha256(raw).hexdigest() != row[13]:
+                raise AttemptBudgetError("stored attempt contract digest mismatch")
+            contract = AttemptContract.model_validate_json(raw)
+            if load_attempt_contract(Path(row[12]), row[13]) != contract:
+                raise AttemptBudgetError("attempt contract content changed")
+        except (UnicodeError, ValidationError) as error:
+            raise AttemptBudgetError("invalid stored attempt contract") from error
+        if maximum != (
+            contract.max_optimizer_updates,
+            contract.max_actual_target_positions,
+            contract.max_generation_calls,
+            contract.max_generated_tokens,
+        ):
+            raise AttemptBudgetError("contract limits disagree with ledger")
+        if row[4] - row[3] != int(contract.max_wall_seconds * 1_000_000_000):
+            raise AttemptBudgetError("contract deadline disagrees with ledger")
+        if charges != used or any(
+            any(type(value) is not int or value < 0 for value in reservation[:4])
+            or reservation[4] != contract.content_identity_sha256
+            or (
+                any(value is not None for value in reservation[5:9])
+                and (
+                    any(type(value) is not int for value in reservation[5:9])
+                    or any(
+                        not 0 <= actual <= reserved
+                        for actual, reserved in zip(reservation[5:9], reservation[:4])
+                    )
+                    or type(reservation[9]) is not int
+                )
+            )
+            or (
+                all(value is None for value in reservation[5:9])
+                and reservation[9] is not None
+            )
+            for reservation in reservation_rows
+        ):
+            raise AttemptBudgetError(
+                "reservation total or identity disagrees with ledger"
+            )
+        return contract, maximum, used, row[4], row[5]
+
+    def _connect(self) -> sqlite3.Connection:
+        if not self.path.is_file() or self.path.is_symlink():
+            raise AttemptBudgetError("budget ledger is missing or is a symlink")
+        connection = sqlite3.connect(self.path, timeout=5)
+        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute("PRAGMA synchronous = FULL")
+        return connection
+
+    @staticmethod
+    def _row(connection: sqlite3.Connection) -> tuple[int, int, int, int, int]:
+        try:
+            row = connection.execute(
+                "SELECT version, max_updates, used_updates, deadline_ns, "
+                "last_checked_ns FROM budget WHERE id = 1"
+            ).fetchone()
+        except sqlite3.DatabaseError as error:
+            raise AttemptBudgetError("invalid budget ledger") from error
+        if (
+            row is None
+            or len(row) != 5
+            or any(type(item) is not int for item in row)
+            or row[0] != 1
+            or row[1] <= 0
+            or not 0 <= row[2] <= row[1]
+            or row[3] <= row[4]
+        ):
+            raise AttemptBudgetError("invalid or expired budget ledger")
+        charged = connection.execute(
+            "SELECT COALESCE(SUM(updates), 0) FROM reservations"
+        ).fetchone()
+        if charged is None or charged[0] != row[2]:
+            raise AttemptBudgetError("reservation total disagrees with budget ledger")
+        return row
+
+    def _check(self, connection: sqlite3.Connection) -> tuple[int, int, int]:
+        _, maximum, used, deadline_ns, last_checked_ns = self._row(connection)
+        now_ns = time.time_ns()
+        if now_ns < last_checked_ns:
+            raise AttemptBudgetError("clock moved backwards; budget fails closed")
+        if now_ns >= deadline_ns:
+            raise AttemptBudgetError("shared wall-time limit reached")
+        connection.execute(
+            "UPDATE budget SET last_checked_ns = ? WHERE id = 1", (now_ns,)
+        )
+        return maximum, used, deadline_ns - now_ns
+
+    def _check_v2(
+        self, connection: sqlite3.Connection
+    ) -> tuple[
+        AttemptContract, tuple[int, int, int, int], tuple[int, int, int, int], int
+    ]:
+        contract, maximum, used, deadline_ns, last_checked_ns = self._row_v2(connection)
+        now_ns = time.time_ns()
+        if now_ns < last_checked_ns:
+            raise AttemptBudgetError("clock moved backwards; budget fails closed")
+        if now_ns >= deadline_ns:
+            raise AttemptBudgetError("shared wall-time limit reached")
+        connection.execute(
+            "UPDATE budget SET last_checked_ns = ? WHERE id = 1", (now_ns,)
+        )
+        return contract, maximum, used, deadline_ns - now_ns
+
+    def remaining_seconds(self) -> float:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if self._version(connection) == 1:
+                _, _, remaining_ns = self._check(connection)
+            else:
+                _, _, _, remaining_ns = self._check_v2(connection)
+        return remaining_ns / 1_000_000_000
+
+    def reserve(self, label: str, updates: int) -> int:
+        if not label.strip() or type(updates) is not int or updates < 0:
+            raise ValueError("reservation requires a label and nonnegative updates")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if self._version(connection) != 1:
+                raise AttemptBudgetError("v2 ledger requires reserve_vector")
+            maximum, used, _ = self._check(connection)
+            if used + updates > maximum:
+                raise AttemptBudgetError(
+                    f"shared update limit: {used} charged + {updates} requested "
+                    f"> {maximum} approved"
+                )
+            connection.execute(
+                "UPDATE budget SET used_updates = ? WHERE id = 1", (used + updates,)
+            )
+            connection.execute(
+                "INSERT INTO reservations (label, updates, reserved_ns) "
+                "VALUES (?, ?, ?)",
+                (label, updates, time.time_ns()),
+            )
+        return maximum - used - updates
+
+    def reserve_vector(
+        self,
+        label: str,
+        *,
+        updates: int = 0,
+        target_positions: int = 0,
+        generation_calls: int = 0,
+        generated_tokens: int = 0,
+        content_identity_sha256: str,
+    ) -> dict[str, int]:
+        if not label.strip() or any(
+            type(value) is not int or value < 0
+            for value in (updates, target_positions, generation_calls, generated_tokens)
+        ):
+            raise ValueError(
+                "vector reservation requires a label and nonnegative integer counters"
+            )
+        requested = (updates, target_positions, generation_calls, generated_tokens)
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if self._version(connection) != 2:
+                raise AttemptBudgetError("vector reservations require a v2 ledger")
+            contract, maximum, used, _ = self._check_v2(connection)
+            if content_identity_sha256 != contract.content_identity_sha256:
+                raise AttemptBudgetError(
+                    "content identity differs from attempt contract"
+                )
+            if connection.execute(
+                "SELECT 1 FROM reservations WHERE label = ?", (label,)
+            ).fetchone():
+                raise AttemptBudgetError("duplicate phase reservation label")
+            for name, requested_value, used_value, maximum_value in zip(
+                (
+                    "optimizer updates",
+                    "actual target positions",
+                    "generation calls",
+                    "generated tokens",
+                ),
+                requested,
+                used,
+                maximum,
+            ):
+                if used_value + requested_value > maximum_value:
+                    raise AttemptBudgetError(
+                        f"shared {name} limit: {used_value} charged + {requested_value} requested > {maximum_value} approved"
+                    )
+            next_used = tuple(prior + amount for prior, amount in zip(used, requested))
+            connection.execute(
+                "UPDATE budget SET used_updates = ?, used_targets = ?, used_calls = ?, "
+                "used_tokens = ? WHERE id = 1",
+                next_used,
+            )
+            connection.execute(
+                "INSERT INTO reservations (label, updates, target_positions, "
+                "generation_calls, generated_tokens, content_identity_sha256, reserved_ns) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (label, *requested, content_identity_sha256, time.time_ns()),
+            )
+        return dict(
+            zip(
+                ("updates", "target_positions", "generation_calls", "generated_tokens"),
+                (limit - charged for limit, charged in zip(maximum, next_used)),
+            )
+        )
+
+    def _record_verified_actual(
+        self,
+        label: str,
+        *,
+        updates: int,
+        target_positions: int,
+        generation_calls: int,
+        generated_tokens: int,
+        content_identity_sha256: str,
+    ) -> None:
+        """Store counters obtained from a native verifier; never refund charges."""
+        actual = (updates, target_positions, generation_calls, generated_tokens)
+        if not label.strip() or any(
+            type(value) is not int or value < 0 for value in actual
+        ):
+            raise ValueError("actual counters must be nonnegative integers")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if self._version(connection) != 2:
+                raise AttemptBudgetError("actual counters require a v2 ledger")
+            contract, _, _, _ = self._check_v2(connection)
+            if content_identity_sha256 != contract.content_identity_sha256:
+                raise AttemptBudgetError(
+                    "content identity differs from attempt contract"
+                )
+            row = connection.execute(
+                "SELECT updates, target_positions, generation_calls, generated_tokens, "
+                "actual_updates, actual_targets, actual_calls, actual_tokens "
+                "FROM reservations WHERE label = ?",
+                (label,),
+            ).fetchone()
+            if row is None:
+                raise AttemptBudgetError("phase reservation is missing")
+            if any(observed > reserved for observed, reserved in zip(actual, row[:4])):
+                raise AttemptBudgetError("actual counter exceeds phase reservation")
+            if any(value is not None for value in row[4:]):
+                if tuple(row[4:]) != actual:
+                    raise AttemptBudgetError(
+                        "actual counters differ from recorded result"
+                    )
+                return
+            connection.execute(
+                "UPDATE reservations SET actual_updates = ?, actual_targets = ?, "
+                "actual_calls = ?, actual_tokens = ?, completed_ns = ? WHERE label = ?",
+                (*actual, time.time_ns(), label),
+            )
+
+    def status(self) -> dict[str, object]:
+        with self._connect() as connection:
+            if self._version(connection) == 2:
+                contract, maximum, used, deadline_ns, _ = self._row_v2(connection)
+                started_ns = connection.execute(
+                    "SELECT started_ns FROM budget WHERE id = 1"
+                ).fetchone()[0]
+                rows = connection.execute(
+                    "SELECT label, updates, target_positions, generation_calls, "
+                    "generated_tokens, actual_updates, actual_targets, actual_calls, "
+                    "actual_tokens FROM reservations ORDER BY id"
+                ).fetchall()
+                return {
+                    "version": 2,
+                    "contract_sha256": connection.execute(
+                        "SELECT contract_sha256 FROM budget WHERE id = 1"
+                    ).fetchone()[0],
+                    "content_identity_sha256": contract.content_identity_sha256,
+                    "max_updates": maximum[0],
+                    "charged_updates": used[0],
+                    "max_actual_target_positions": maximum[1],
+                    "charged_actual_target_positions": used[1],
+                    "max_generation_calls": maximum[2],
+                    "charged_generation_calls": used[2],
+                    "max_generated_tokens": maximum[3],
+                    "charged_generated_tokens": used[3],
+                    "max_wall_seconds": contract.max_wall_seconds,
+                    "started_at_utc": datetime.fromtimestamp(
+                        started_ns / 1e9, UTC
+                    ).isoformat(),
+                    "deadline_utc": datetime.fromtimestamp(
+                        deadline_ns / 1e9, UTC
+                    ).isoformat(),
+                    "remaining_wall_seconds": max(
+                        0.0, (deadline_ns - time.time_ns()) / 1e9
+                    ),
+                    "reservations": [
+                        {
+                            "label": label,
+                            "updates": updates,
+                            "target_positions": target_positions,
+                            "generation_calls": calls,
+                            "generated_tokens": tokens,
+                            "actual_updates": actual_updates,
+                            "actual_target_positions": actual_targets,
+                            "actual_generation_calls": actual_calls,
+                            "actual_generated_tokens": actual_tokens,
+                        }
+                        for (
+                            label,
+                            updates,
+                            target_positions,
+                            calls,
+                            tokens,
+                            actual_updates,
+                            actual_targets,
+                            actual_calls,
+                            actual_tokens,
+                        ) in rows
+                    ],
+                }
+            _, maximum, used, deadline_ns, _ = self._row(connection)
+            started_ns = connection.execute(
+                "SELECT started_ns FROM budget WHERE id = 1"
+            ).fetchone()[0]
+            rows = connection.execute(
+                "SELECT label, updates FROM reservations ORDER BY id"
+            ).fetchall()
+        return {
+            "max_updates": maximum,
+            "charged_updates": used,
+            "remaining_updates": maximum - used,
+            "max_wall_seconds": (deadline_ns - started_ns) / 1e9,
+            "started_at_utc": datetime.fromtimestamp(started_ns / 1e9, UTC).isoformat(),
+            "deadline_utc": datetime.fromtimestamp(deadline_ns / 1e9, UTC).isoformat(),
+            "remaining_wall_seconds": max(0.0, (deadline_ns - time.time_ns()) / 1e9),
+            "reservations": [
+                {"label": label, "updates": updates} for label, updates in rows
+            ],
+        }
+
+    def run(self, command: list[str], *, reserve_updates: int = 0) -> int:
+        if not command:
+            raise ValueError("command is required")
+        with self._connect() as connection:
+            if self._version(connection) != 1:
+                raise AttemptBudgetError("v2 ledger requires run_contract")
+        self.reserve("command: " + " ".join(command), reserve_updates)
+        self.remaining_seconds()
+        environment = os.environ.copy()
+        environment["SPARSELAB_ATTEMPT_BUDGET_LEDGER"] = str(self.path)
+        process = subprocess.Popen(command, env=environment, start_new_session=True)
+        try:
+            return process.wait(timeout=self.remaining_seconds())
+        except BaseException as error:
+            # The child owns a separate session: interrupting this supervisor
+            # does not interrupt it. Never leave it running without a deadline.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+            if isinstance(error, (subprocess.TimeoutExpired, AttemptBudgetError)):
+                raise AttemptBudgetError("shared wall-time limit reached") from None
+            raise
+
+    def run_contract(
+        self,
+        command: list[str],
+        *,
+        activity: Literal["train", "warmup", "validate", "evaluate", "inspect"],
+        label: str,
+        content_identity_sha256: str,
+        monitor_policy_path: Path,
+        workspace_baseline_path: Path,
+        workspace_root: Path,
+        completion: Path,
+        updates: int = 0,
+        target_positions: int = 0,
+        generation_calls: int = 0,
+        generated_tokens: int = 0,
+        grace_seconds: float = 1.0,
+        native_receipt_kind: Literal[
+            "train",
+            "panel",
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+            "none",
+        ] = "none",
+        native_receipt_path: Path | None = None,
+        campaign_stage: str | None = None,
+        campaign_work_dir: Path | None = None,
+        parent_checkpoint_path: Path | None = None,
+    ) -> int:
+        """Reserve before work, then run one phase under the owned supervisor."""
+        if not command or not completion.is_absolute() or completion.exists():
+            raise ValueError("command and unused absolute completion path required")
+        resolved_root = workspace_root.resolve(strict=True)
+        resolved_parent = completion.parent.resolve(strict=True)
+        if not resolved_root.is_dir() or not (
+            resolved_parent == resolved_root or resolved_root in resolved_parent.parents
+        ):
+            raise ValueError(
+                "completion must be inside the existing common workspace root"
+            )
+        monitor_log_dir = completion.with_name(completion.name + ".monitor")
+        if monitor_log_dir.exists():
+            raise AttemptBudgetError("native monitor log directory already exists")
+        if not 0 <= grace_seconds <= 10 or not math.isfinite(grace_seconds):
+            raise ValueError("invalid owned-process grace")
+        with self._connect() as connection:
+            if self._version(connection) != 2:
+                raise AttemptBudgetError("run_contract requires a v2 ledger")
+            contract, _, _, _, _ = self._row_v2(connection)
+        if content_identity_sha256 != contract.content_identity_sha256:
+            raise AttemptBudgetError("content identity differs from attempt contract")
+        if activity not in {"train", "warmup", "validate", "evaluate", "inspect"}:
+            raise ValueError("unknown attempt activity")
+        if contract.max_optimizer_updates == 0 and activity in ("train", "warmup"):
+            raise AttemptBudgetError("zero-update contract refuses training or warmup")
+        if activity in ("train", "warmup") and updates == 0:
+            raise AttemptBudgetError(
+                "training or warmup requires a positive update reservation"
+            )
+        if activity in ("train", "warmup") and target_positions == 0:
+            raise AttemptBudgetError(
+                "training or warmup requires a positive target-position reservation"
+            )
+        if generated_tokens > 0 and generation_calls == 0:
+            raise AttemptBudgetError(
+                "generated tokens require reserved generation calls"
+            )
+        if activity in ("validate", "evaluate", "inspect") and updates != 0:
+            raise AttemptBudgetError(
+                "nontraining activity cannot reserve optimizer updates"
+            )
+        reserved = (updates, target_positions, generation_calls, generated_tokens)
+        if native_receipt_kind == "none" and any(reserved):
+            raise AttemptBudgetError("nonzero reservation requires a native receipt")
+        if native_receipt_kind == "none" and not self._approved_counter_free_command(
+            command
+        ):
+            raise AttemptBudgetError(
+                "counter-free phase requires a safe native read-only command"
+            )
+        if activity in ("train", "warmup") and native_receipt_kind not in {
+            "train",
+            "campaign_run",
+        }:
+            raise AttemptBudgetError("training requires a native run receipt")
+        if (generation_calls or generated_tokens) and native_receipt_kind not in {
+            "panel",
+            "campaign_panel",
+        }:
+            raise AttemptBudgetError("generation requires a native panel receipt")
+        if native_receipt_kind in {"train", "panel"}:
+            if native_receipt_path is None or native_receipt_path.exists():
+                raise AttemptBudgetError("direct native receipt must be a fresh path")
+            receipt_parent = native_receipt_path.parent.resolve(strict=True)
+            if (
+                receipt_parent != resolved_root
+                and resolved_root not in receipt_parent.parents
+            ):
+                raise AttemptBudgetError("native receipt must be inside common root")
+        if native_receipt_kind in {
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+        }:
+            if (
+                campaign_stage is None
+                or campaign_work_dir is None
+                or native_receipt_path is None
+            ):
+                raise AttemptBudgetError("Campaign receipt binding is incomplete")
+            campaign_root = campaign_work_dir.resolve(strict=True)
+            if (
+                campaign_root != resolved_root
+                and resolved_root not in campaign_root.parents
+            ):
+                raise AttemptBudgetError(
+                    "Campaign work directory is outside common root"
+                )
+            stage_limits = self._preflight_campaign_receipt(
+                native_receipt_path,
+                campaign_work_dir,
+                campaign_stage,
+                expected_kind=(
+                    "experiment_run"
+                    if native_receipt_kind == "campaign_run"
+                    else "generation_panel"
+                    if native_receipt_kind == "campaign_panel"
+                    else "evaluation"
+                ),
+                content_identity_sha256=content_identity_sha256,
+                contract_sha256=self.status()["contract_sha256"],
+            )
+        else:
+            stage_limits = None
+        if native_receipt_kind != "none":
+            self._preflight_native_command(
+                command,
+                native_receipt_kind=native_receipt_kind,
+                native_receipt_path=native_receipt_path,
+                campaign_stage=campaign_stage,
+                stage_limits=stage_limits,
+                reserved=reserved,
+                parent_checkpoint_path=parent_checkpoint_path,
+                content_identity_sha256=content_identity_sha256,
+            )
+        if (
+            contract.max_optimizer_updates == 0
+            and native_receipt_kind not in {"campaign_panel", "campaign_evaluation"}
+            and not self._approved_zero_update_command(command)
+        ):
+            raise AttemptBudgetError(
+                "zero-update contract refuses unknown or training entry point"
+            )
+        from sparselab import operational_monitor, owned_process
+        from sparselab.operational_monitor import (
+            load_monitor_policy,
+            load_workspace_baseline,
+        )
+
+        try:
+            if (
+                hashlib.sha256(monitor_policy_path.read_bytes()).hexdigest()
+                != contract.monitor_policy_sha256
+            ):
+                raise AttemptBudgetError(
+                    "monitor policy identity differs from contract"
+                )
+            baseline = load_workspace_baseline(workspace_baseline_path, workspace_root)
+            policy = load_monitor_policy(monitor_policy_path)
+            if baseline.sha256 != contract.workspace_baseline_sha256:
+                raise AttemptBudgetError(
+                    "workspace baseline identity differs from contract"
+                )
+        except OSError as error:
+            raise AttemptBudgetError(f"contract input unavailable: {error}") from error
+        ready = completion.with_name(completion.name + ".ready")
+        if ready.exists():
+            raise AttemptBudgetError("owned readiness path already exists")
+        self.reserve_vector(
+            label,
+            updates=updates,
+            target_positions=target_positions,
+            generation_calls=generation_calls,
+            generated_tokens=generated_tokens,
+            content_identity_sha256=content_identity_sha256,
+        )
+        remaining = self.remaining_seconds()
+        deadline = time.monotonic() + remaining
+        environment = os.environ.copy()
+        environment["SPARSELAB_ATTEMPT_BUDGET_LEDGER"] = str(self.path)
+        environment["SPARSELAB_ATTEMPT_CONTRACT_SHA256"] = self.status()[
+            "contract_sha256"
+        ]
+        environment["SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256"] = (
+            content_identity_sha256
+        )
+        environment["SPARSELAB_ATTEMPT_PHASE_LABEL"] = label
+        environment["SPARSELAB_ATTEMPT_ACTIVITY"] = activity
+        invocation = [
+            sys.executable,
+            "-m",
+            "sparselab.owned_process",
+            "--deadline",
+            repr(deadline),
+            "--completion",
+            str(completion),
+            "--grace",
+            str(grace_seconds),
+            "--ready",
+            str(ready),
+            "--",
+            sys.executable,
+            "-m",
+            "sparselab.training.attempt_budget",
+            "_monitored_phase",
+            "--policy",
+            str(monitor_policy_path),
+            "--policy-sha256",
+            contract.monitor_policy_sha256,
+            "--baseline",
+            str(workspace_baseline_path),
+            "--baseline-sha256",
+            contract.workspace_baseline_sha256,
+            "--workspace",
+            str(workspace_root),
+            "--log-dir",
+            str(monitor_log_dir),
+            "--",
+            *command,
+        ]
+        process = subprocess.Popen(invocation, env=environment)
+        timed_out = False
+        try:
+            rc = process.wait(timeout=max(0.001, self.remaining_seconds()))
+        except BaseException as error:
+            timed_out = isinstance(
+                error, (subprocess.TimeoutExpired, AttemptBudgetError)
+            )
+            if process.poll() is None:
+                process.terminate()  # The isolated subreaper owns TERM-to-KILL cleanup.
+            try:
+                rc = process.wait(timeout=grace_seconds + 4)
+            except subprocess.TimeoutExpired as cleanup_error:
+                raise AttemptBudgetError(
+                    "owned-process shutdown deadline exhausted"
+                ) from cleanup_error
+            self._verify_owned_completion(completion, rc)
+            storage_error: AttemptBudgetError | None = None
+            try:
+                self._final_storage_receipt(
+                    completion=completion,
+                    workspace_root=workspace_root,
+                    baseline=baseline,
+                    policy=policy,
+                    label=label,
+                    native_status="INTERRUPTED",
+                )
+            except AttemptBudgetError as final_error:
+                storage_error = final_error
+            if timed_out:
+                raise AttemptBudgetError("shared wall-time limit reached") from None
+            if storage_error is not None:
+                raise storage_error
+            raise
+        self._verify_owned_completion(completion, rc)
+        try:
+            native = json.loads((monitor_log_dir / "completion.json").read_text())
+            if (
+                native["kind"] != "completion"
+                or native["launch"]["command"] != command
+                or native["launch"]["baseline_sha256"]
+                != contract.workspace_baseline_sha256
+                or native["launch"]["policy_sha256"] != contract.monitor_policy_sha256
+                or native["launch"]["source_sha256"]
+                != hashlib.sha256(
+                    Path(operational_monitor.__file__).read_bytes()
+                ).hexdigest()
+                or native["launch"]["owned_source_sha256"]
+                != hashlib.sha256(Path(owned_process.__file__).read_bytes()).hexdigest()
+                or (native["status"] == "COMPLETE") != (rc == 0)
+            ):
+                raise ValueError("native monitor completion differs from phase binding")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            self._final_storage_receipt(
+                completion=completion,
+                workspace_root=workspace_root,
+                baseline=baseline,
+                policy=policy,
+                label=label,
+                native_status="UNVERIFIED",
+            )
+            raise AttemptBudgetError("native monitor completion unverified") from error
+        # Identity drift after the phase cannot turn a receipt into a valid success.
+        if (
+            hashlib.sha256(monitor_policy_path.read_bytes()).hexdigest()
+            != contract.monitor_policy_sha256
+        ):
+            raise AttemptBudgetError("monitor policy changed during phase")
+        if (
+            load_workspace_baseline(workspace_baseline_path, workspace_root).sha256
+            != contract.workspace_baseline_sha256
+        ):
+            raise AttemptBudgetError("workspace baseline changed during phase")
+        actual: tuple[int, int, int, int] | None = None
+        if rc == 0:
+            from sparselab.training.attempt_receipts import verify_native_phase_counters
+            from sparselab.training.manifest import sha256_file
+
+            try:
+                if native_receipt_kind == "train":
+                    config_source = Path(self._native_command_args(command)[1])
+                    if (
+                        config_source.is_symlink()
+                        or sha256_file(config_source) != content_identity_sha256
+                    ):
+                        raise ValueError("direct train config changed during phase")
+                actual = verify_native_phase_counters(
+                    native_receipt_kind,
+                    native_receipt_path,
+                    campaign_stage=campaign_stage,
+                    campaign_work_dir=campaign_work_dir,
+                    parent_checkpoint_path=parent_checkpoint_path,
+                    expected_content_sha256=content_identity_sha256,
+                )
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                self._final_storage_receipt(
+                    completion=completion,
+                    workspace_root=workspace_root,
+                    baseline=baseline,
+                    policy=policy,
+                    label=label,
+                    native_status="UNVERIFIED",
+                )
+                raise AttemptBudgetError("native phase counters unverified") from error
+            try:
+                self._record_verified_actual(
+                    label,
+                    updates=actual[0],
+                    target_positions=actual[1],
+                    generation_calls=actual[2],
+                    generated_tokens=actual[3],
+                    content_identity_sha256=content_identity_sha256,
+                )
+            except AttemptBudgetError:
+                self._final_storage_receipt(
+                    completion=completion,
+                    workspace_root=workspace_root,
+                    baseline=baseline,
+                    policy=policy,
+                    label=label,
+                    native_status="COUNTER_CAP_EXCEEDED",
+                )
+                raise
+        self.remaining_seconds()
+        self._final_storage_receipt(
+            completion=completion,
+            workspace_root=workspace_root,
+            baseline=baseline,
+            policy=policy,
+            label=label,
+            native_status=native["status"],
+        )
+        self._check_final_deadline()
+        return rc
+
+    def _check_final_deadline(self) -> None:
+        """Read-only terminal check, after the storage receipt has been counted."""
+        with self._connect() as connection:
+            _, _, _, deadline_ns, last_checked_ns = self._row_v2(connection)
+        now_ns = time.time_ns()
+        if now_ns < last_checked_ns:
+            raise AttemptBudgetError("clock moved backwards; budget fails closed")
+        if now_ns >= deadline_ns:
+            raise AttemptBudgetError("shared wall-time limit reached")
+
+    @staticmethod
+    def _preflight_campaign_receipt(
+        source: Path,
+        work_dir: Path,
+        stage_id: str,
+        *,
+        expected_kind: str,
+        content_identity_sha256: str,
+        contract_sha256: str,
+    ) -> tuple[int, int]:
+        from sparselab.campaign.engine import CampaignEngine
+
+        engine = CampaignEngine(source, work_dir, cold_verify=True)
+        projection = engine.inspect("next")
+        action = projection["next_action"]
+        if (
+            action.get("stage") != stage_id
+            or action.get("action") not in {"apply", "resume"}
+            or engine.stages[stage_id].kind != expected_kind
+        ):
+            raise AttemptBudgetError("Campaign stage is not the next unused action")
+        rows = {row["id"]: row for row in projection["stages"]}
+        stage = engine.stages[stage_id]
+        run_stage = (
+            stage
+            if expected_kind == "experiment_run"
+            else engine.stages[engine.stages[stage.collect].run]
+        )
+        lock = engine._lock(rows, run_stage.plan)
+        if lock.scientific_sha256 != content_identity_sha256:
+            raise AttemptBudgetError("Campaign scientific lock differs from contract")
+        reference = lock.execution.get("attempt_contract")
+        if (
+            not isinstance(reference, dict)
+            or reference.get("sha256") != contract_sha256
+        ):
+            raise AttemptBudgetError("Campaign lock lacks the pinned attempt contract")
+        if expected_kind == "experiment_run":
+            runtime = engine.stages[stage.runtime]
+            if runtime.worker is not None:
+                raise AttemptBudgetError(
+                    "contracted Campaign run requires an owned local runtime profile"
+                )
+            cells = [cell for cell in lock.cells if cell.id == stage.cell]
+            if len(cells) != 1:
+                raise AttemptBudgetError("Campaign run cell selection is ambiguous")
+            training = cells[0].config.training
+            return training.max_steps, training.max_tokens
+        if expected_kind == "generation_panel":
+            from sparselab.evaluation.panel import load_panel
+
+            panel = load_panel(engine._path(stage.panel))
+            return len(panel.prompts), len(panel.prompts) * panel.decoder.max_new_tokens
+        from sparselab.evaluation.suite import load_suite
+
+        suite = load_suite(engine._path(stage.suite))
+        if any(
+            item.kind not in {"heldout_lm", "surface_review"}
+            for item in suite.evaluations
+        ):
+            raise AttemptBudgetError("Campaign evaluation has unaccounted generation")
+        return 0, 0
+
+    @staticmethod
+    def _native_command_args(command: list[str]) -> list[str]:
+        if (
+            len(command) >= 3
+            and Path(command[0]).resolve() == Path(sys.executable).resolve()
+            and command[1:3] == ["-m", "sparselab"]
+        ):
+            return command[3:]
+        if command and Path(command[0]).name == "sparselab":
+            return command[1:]
+        raise AttemptBudgetError("native receipt requires a direct sparselab command")
+
+    @classmethod
+    def _preflight_native_command(
+        cls,
+        command: list[str],
+        *,
+        native_receipt_kind: str,
+        native_receipt_path: Path | None,
+        campaign_stage: str | None,
+        stage_limits: tuple[int, int] | None,
+        reserved: tuple[int, int, int, int],
+        parent_checkpoint_path: Path | None,
+        content_identity_sha256: str,
+    ) -> None:
+        args = cls._native_command_args(command)
+        if native_receipt_kind in {
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+        }:
+            if (
+                len(args) < 3
+                or args[:2] != ["campaign", "apply"]
+                or Path(args[2]).resolve() != native_receipt_path.resolve()
+                or args.count("--only-stage") != 1
+                or args[args.index("--only-stage") + 1 : args.index("--only-stage") + 2]
+                != [campaign_stage]
+                or stage_limits is None
+            ):
+                raise AttemptBudgetError("Campaign command differs from phase binding")
+            if native_receipt_kind == "campaign_run":
+                if (
+                    "--execute-runs" not in args
+                    or reserved[0] < stage_limits[0]
+                    or reserved[1] < stage_limits[1]
+                    or reserved[2] != 0
+                    or reserved[3] != 0
+                ):
+                    raise AttemptBudgetError(
+                        "Campaign run exceeds reserved native config"
+                    )
+            elif native_receipt_kind == "campaign_panel" and (
+                "--execute-runs" in args
+                or reserved[0] != 0
+                or reserved[1] != 0
+                or reserved[2] < stage_limits[0]
+                or reserved[3] < stage_limits[1]
+            ):
+                raise AttemptBudgetError("Campaign panel exceeds reserved declaration")
+            elif native_receipt_kind == "campaign_evaluation" and (
+                "--execute-runs" in args or any(reserved)
+            ):
+                raise AttemptBudgetError("Campaign evaluation must have zero counters")
+            return
+        if native_receipt_kind == "panel":
+            raise AttemptBudgetError("direct panel execution has no native CLI binding")
+        if native_receipt_kind != "train" or len(args) < 2 or args[0] != "train":
+            raise AttemptBudgetError("native run receipt requires sparselab train")
+        if args.count("--run-id") != 1 or args.count("--runs-dir") != 1:
+            raise AttemptBudgetError("native train requires explicit run ID and store")
+        run_id = args[args.index("--run-id") + 1 : args.index("--run-id") + 2]
+        runs_dir = args[args.index("--runs-dir") + 1 : args.index("--runs-dir") + 2]
+        if (
+            not run_id
+            or not runs_dir
+            or native_receipt_path is None
+            or (Path(runs_dir[0]).resolve() / run_id[0])
+            != native_receipt_path.resolve()
+        ):
+            raise AttemptBudgetError("native train command differs from receipt path")
+        from sparselab.config.loading import load_config
+        from sparselab.training.manifest import sha256_file
+
+        config_source = Path(args[1])
+        if (
+            config_source.is_symlink()
+            or sha256_file(config_source) != content_identity_sha256
+        ):
+            raise AttemptBudgetError(
+                "direct train config differs from contract identity"
+            )
+        config = load_config(config_source)
+        if sha256_file(config_source) != content_identity_sha256:
+            raise AttemptBudgetError("direct train config changed during preflight")
+        if (
+            reserved[0] < config.training.max_steps
+            or reserved[1] < config.training.max_tokens
+            or reserved[2] != 0
+            or reserved[3] != 0
+        ):
+            raise AttemptBudgetError("native train config exceeds phase reservation")
+        parent_flags = [
+            name
+            for name in ("--resume", "--extend-budget", "--promote")
+            if name in args
+        ]
+        if len(parent_flags) > 1 or "--recover" in args:
+            raise AttemptBudgetError("ambiguous native training continuation")
+        if parent_flags:
+            flag = parent_flags[0]
+            if parent_checkpoint_path is None or args[
+                args.index(flag) + 1 : args.index(flag) + 2
+            ] != [str(parent_checkpoint_path)]:
+                raise AttemptBudgetError("training parent differs from receipt binding")
+        elif parent_checkpoint_path is not None:
+            raise AttemptBudgetError("fresh native training cannot claim a parent")
+
+    @staticmethod
+    def _approved_counter_free_command(command: list[str]) -> bool:
+        try:
+            args = AttemptBudget._native_command_args(command)
+        except AttemptBudgetError:
+            return False
+        if not args:
+            return False
+        if args[0] in {"inspect", "triage", "evidence"}:
+            return True
+        return (
+            args[0] == "stage"
+            and args.count("--through") == 1
+            and args[args.index("--through") + 1 : args.index("--through") + 2]
+            == ["validate"]
+        )
+
+    @staticmethod
+    def _approved_zero_update_command(command: list[str]) -> bool:
+        words = [Path(part).name.lower() for part in command]
+        for index, word in enumerate(words):
+            if word == "sparselab" and index + 1 < len(words):
+                prefix = words[:index]
+                if prefix and not (
+                    prefix[0] == "uv"
+                    and "run" in prefix
+                    or prefix[0].startswith("python")
+                    and prefix[-1] == "-m"
+                ):
+                    return False
+                action = words[index + 1]
+                if action in {"inspect", "eval", "generate", "triage", "evidence"}:
+                    return True
+                if action == "stage":
+                    return "--through" in words and words[
+                        words.index("--through") + 1 : words.index("--through") + 2
+                    ] == ["validate"]
+                return False
+        return False
+
+    @staticmethod
+    def _verify_owned_completion(path: Path, returncode: int) -> None:
+        try:
+            receipt = json.loads(path.read_text())
+            if (
+                receipt["format"] != "sparselab-owned-completion-v1"
+                or receipt["returncode"] != returncode
+                or receipt["living_descendants"] != 0
+            ):
+                raise ValueError("invalid owned-process completion")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise AttemptBudgetError("owned shutdown unverified") from error
+
+    @staticmethod
+    def _final_storage_receipt(
+        *,
+        completion: Path,
+        workspace_root: Path,
+        baseline: object,
+        policy: object,
+        label: str,
+        native_status: str,
+    ) -> dict[str, object]:
+        """Count the outer owned receipt and this final receipt in the same root."""
+        from sparselab.operational_monitor import (
+            MonitorPolicy,
+            WorkspaceBaseline,
+            sample_workspace_tree,
+        )
+
+        if not isinstance(baseline, WorkspaceBaseline) or not isinstance(
+            policy, MonitorPolicy
+        ):
+            raise TypeError("typed native baseline and monitor policy required")
+        path = completion.with_name(completion.name + ".attempt.json")
+        if path.exists():
+            raise AttemptBudgetError("attempt final receipt already exists")
+        record: dict[str, object] = {
+            "format": "sparselab-attempt-phase-storage-v1",
+            "label": label,
+            "native_monitor_status": native_status,
+            "baseline_sha256": baseline.sha256,
+            "status": "WITHIN_CAP",
+            "final_added_workspace_bytes": None,
+            "final_added_workspace_inodes": None,
+        }
+        try:
+            current_bytes, current_inodes = sample_workspace_tree(workspace_root)
+            identity = workspace_root.stat()
+            if (identity.st_dev, identity.st_ino) != (
+                baseline.device,
+                baseline.root_inode,
+            ):
+                raise ValueError("common-root identity changed before final receipt")
+            for _ in range(16):
+                pending = len(
+                    (
+                        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+                    ).encode()
+                )
+                added_bytes = max(0, current_bytes + pending - baseline.apparent_bytes)
+                added_inodes = max(0, current_inodes + 1 - baseline.inodes)
+                exceeded = (
+                    policy.max_added_workspace_bytes is not None
+                    and added_bytes > policy.max_added_workspace_bytes
+                ) or (
+                    policy.max_added_workspace_inodes is not None
+                    and added_inodes > policy.max_added_workspace_inodes
+                )
+                updated = {
+                    **record,
+                    "status": "VIOLATED" if exceeded else "WITHIN_CAP",
+                    "final_added_workspace_bytes": added_bytes,
+                    "final_added_workspace_inodes": added_inodes,
+                }
+                if updated == record:
+                    break
+                record = updated
+            else:
+                raise RuntimeError("attempt receipt byte projection did not converge")
+        except (OSError, RuntimeError, ValueError) as error:
+            record["status"] = "UNAVAILABLE"
+            record["reason"] = str(error)
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+            )
+            stream.flush()
+            os.fsync(stream.fileno())
+        if record["status"] != "WITHIN_CAP":
+            raise AttemptBudgetError(f"final common-root storage {record['status']}")
+        return record
+
+
+def _monitored_phase(
+    command: list[str],
+    *,
+    policy: Path,
+    policy_sha256: str,
+    baseline: Path,
+    baseline_sha256: str,
+    workspace: Path,
+    log_dir: Path,
+) -> int:
+    """Private child adapter: always route contract work through native monitor."""
+    from sparselab.operational_monitor import (
+        load_monitor_policy,
+        load_workspace_baseline,
+        monitor_command,
+    )
+
+    if hashlib.sha256(policy.read_bytes()).hexdigest() != policy_sha256:
+        raise AttemptBudgetError("monitor policy changed before native launch")
+    if load_workspace_baseline(baseline, workspace).sha256 != baseline_sha256:
+        raise AttemptBudgetError("workspace baseline changed before native launch")
+
+    result = monitor_command(
+        command,
+        load_monitor_policy(policy),
+        workspace=workspace,
+        log_dir=log_dir,
+        policy_path=policy,
+        baseline_path=baseline,
+    )
+    return 0 if result.status == "COMPLETE" else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="action", required=True)
+    initialize = commands.add_parser("init")
+    initialize.add_argument("--path", type=Path, required=True)
+    initialize.add_argument("--max-updates", type=int, required=True)
+    initialize.add_argument("--max-wall-seconds", type=float, required=True)
+    inspect = commands.add_parser("status")
+    inspect.add_argument("--path", type=Path, required=True)
+    execute = commands.add_parser("run")
+    execute.add_argument("--path", type=Path, required=True)
+    execute.add_argument("--reserve-updates", type=int, default=0)
+    execute.add_argument("command", nargs=argparse.REMAINDER)
+    private = commands.add_parser("_monitored_phase", help=argparse.SUPPRESS)
+    private.add_argument("--policy", type=Path, required=True)
+    private.add_argument("--policy-sha256", required=True)
+    private.add_argument("--baseline", type=Path, required=True)
+    private.add_argument("--baseline-sha256", required=True)
+    private.add_argument("--workspace", type=Path, required=True)
+    private.add_argument("--log-dir", type=Path, required=True)
+    private.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+    try:
+        if args.action == "_monitored_phase":
+            command = args.command[1:] if args.command[:1] == ["--"] else args.command
+            if not command:
+                raise ValueError("monitored phase command is required")
+            return _monitored_phase(
+                command,
+                policy=args.policy,
+                policy_sha256=args.policy_sha256,
+                baseline=args.baseline,
+                baseline_sha256=args.baseline_sha256,
+                workspace=args.workspace,
+                log_dir=args.log_dir,
+            )
+        if args.action == "init":
+            budget = AttemptBudget.create(
+                args.path,
+                max_updates=args.max_updates,
+                max_wall_seconds=args.max_wall_seconds,
+            )
+        else:
+            budget = AttemptBudget(args.path)
+        if args.action == "run":
+            command = args.command[1:] if args.command[:1] == ["--"] else args.command
+            return budget.run(command, reserve_updates=args.reserve_updates)
+        print(json.dumps(budget.status(), sort_keys=True))
+        return 0
+    except (
+        AttemptBudgetError,
+        OSError,
+        sqlite3.DatabaseError,
+        ValueError,
+    ) as error:
+        print(f"attempt budget: {error}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

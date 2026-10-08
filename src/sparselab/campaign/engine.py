@@ -578,11 +578,17 @@ class CampaignEngine:
                 if stage.review is not None
                 else None
             )
+            expected_scores = (
+                str(self._operational_path(stage.reviewed_scores))
+                if stage.reviewed_scores is not None
+                else None
+            )
             if (
                 result["result_sha256"] != output["sha256"]
                 or result["index_sha256"] != evaluation["outputs"][0]["sha256"]
                 or result["policy_sha256"] != sha256_file(self._path(stage.policy))
                 or result["review"] != expected_review
+                or result.get("reviewed_scores") != expected_scores
             ):
                 raise ValueError("model readiness result binding changed")
         elif kind == "corpus_readiness" and stage.measurement_receipt is not None:
@@ -1246,11 +1252,14 @@ class CampaignEngine:
         *,
         execute_runs: bool = False,
         allow_uncommitted_declaration: bool = False,
+        only_stage: str | None = None,
     ) -> dict:
         from sparselab.recovery.provenance import declaration_preflight
 
         if max_wait_seconds < 0 or not math.isfinite(max_wait_seconds):
             raise ValueError("max wait seconds must be finite and nonnegative")
+        if only_stage is not None and only_stage not in self.stages:
+            raise ValueError("selected Campaign stage does not exist")
         provenance = declaration_preflight(
             self.source, "campaign", allow_uncommitted=allow_uncommitted_declaration
         )
@@ -1281,8 +1290,11 @@ class CampaignEngine:
                         "storage_checks": checks,
                     }
                 stage = self.stages[action["stage"]]
+                if only_stage is not None and stage.id != only_stage:
+                    raise ValueError("Campaign next action differs from selected stage")
                 rows = self._rows(state)
                 row = rows[stage.id]
+                self._require_attempt_contract(stage, rows, only_stage=only_stage)
                 if (
                     stage.kind == "dataset_snapshot"
                     and row["state"] in {"RUNNING", "INTERRUPTED"}
@@ -1402,6 +1414,96 @@ class CampaignEngine:
                         "declaration_provenance": provenance,
                         "storage_checks": checks,
                     }
+                if only_stage is not None:
+                    return {
+                        **self._project(state),
+                        "declaration_provenance": provenance,
+                        "storage_checks": checks,
+                    }
+
+    def _require_attempt_contract(
+        self, stage: Any, rows: dict[str, dict], *, only_stage: str | None
+    ) -> None:
+        """Fail before dispatch unless a declared plan uses its charged v2 phase."""
+        if stage.kind == "experiment_run":
+            plan_name = stage.plan
+        elif stage.kind in {"evaluation", "generation_panel"}:
+            plan_name = self.stages[stage.collect].plan
+        else:
+            return
+        lock = self._lock(rows, plan_name)
+        reference = lock.execution.get("attempt_contract")
+        if reference is None:
+            return
+        if only_stage != stage.id:
+            raise ValueError("contracted Campaign execution requires --only-stage")
+        from sparselab.training.attempt_budget import AttemptBudget
+
+        path = os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")
+        label = os.environ.get("SPARSELAB_ATTEMPT_PHASE_LABEL")
+        if not path or not label:
+            raise ValueError("contracted Campaign stage lacks an active v2 ledger")
+        status = AttemptBudget(Path(path)).status()
+        if (
+            status.get("version") != 2
+            or status.get("contract_sha256") != reference["sha256"]
+            or status.get("contract_sha256")
+            != os.environ.get("SPARSELAB_ATTEMPT_CONTRACT_SHA256")
+            or status.get("content_identity_sha256") != lock.scientific_sha256
+            or status.get("content_identity_sha256")
+            != os.environ.get("SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256")
+        ):
+            raise ValueError("Campaign phase differs from pinned attempt contract")
+        reservations = [
+            item for item in status["reservations"] if item["label"] == label
+        ]
+        if len(reservations) != 1 or reservations[0]["actual_updates"] is not None:
+            raise ValueError("Campaign phase lacks one unused ledger reservation")
+        reserved = reservations[0]
+        if stage.kind == "experiment_run":
+            if self.stages[stage.runtime].worker is not None:
+                raise ValueError(
+                    "contracted Campaign run requires an owned local runtime profile"
+                )
+            cells = [cell for cell in lock.cells if cell.id == stage.cell]
+            if len(cells) != 1 or (
+                reserved["updates"] < cells[0].config.training.max_steps
+                or reserved["target_positions"] < cells[0].config.training.max_tokens
+                or os.environ.get("SPARSELAB_ATTEMPT_ACTIVITY") != "train"
+            ):
+                raise ValueError("Campaign run exceeds attempt reservation")
+        elif stage.kind == "generation_panel":
+            from sparselab.evaluation.panel import load_panel
+
+            panel = load_panel(self._path(stage.panel))
+            if (
+                reserved["generation_calls"] < len(panel.prompts)
+                or reserved["generated_tokens"]
+                < len(panel.prompts) * panel.decoder.max_new_tokens
+                or os.environ.get("SPARSELAB_ATTEMPT_ACTIVITY") != "evaluate"
+            ):
+                raise ValueError("Campaign panel exceeds attempt reservation")
+        else:
+            from sparselab.evaluation.suite import load_suite
+
+            suite = load_suite(self._path(stage.suite))
+            if (
+                any(
+                    reserved[key]
+                    for key in (
+                        "updates",
+                        "target_positions",
+                        "generation_calls",
+                        "generated_tokens",
+                    )
+                )
+                or os.environ.get("SPARSELAB_ATTEMPT_ACTIVITY") != "evaluate"
+                or any(
+                    item.kind not in {"heldout_lm", "surface_review"}
+                    for item in suite.evaluations
+                )
+            ):
+                raise ValueError("Campaign evaluation requires a zero-counter suite")
 
     @_verified_operation
     def approve(
@@ -2347,6 +2449,9 @@ class CampaignEngine:
                 self._path(stage.policy),
                 Path(evaluation["availability"]["path"]),
                 self._operational_path(stage.review) if stage.review else None,
+                self._operational_path(stage.reviewed_scores)
+                if stage.reviewed_scores
+                else None,
             )
             assessed = verify_readiness_result(result_path)
             state = assessed["state"]
@@ -2356,6 +2461,8 @@ class CampaignEngine:
                 "completed_evaluations": assessed["completed_evaluations"],
                 "missing_gates": assessed["missing_gates"],
             }
+            if stage.reviewed_scores is not None:
+                facts["reviewed_score_summary"] = assessed.get("reviewed_score_summary")
             result_state = (
                 "COMPLETE"
                 if state == "READY_FOR_NEXT_STAGE"

@@ -1,0 +1,17 @@
+{
+  "binding": "1e2dc5e6aa17747494e5ea1116a1d39532119ae66aab959636dead0259c4e90d",
+  "created_at": 1791412322.1976955,
+  "deadline": 1791419522.1976955,
+  "failures": [
+    {
+      "error_type": "ValueError",
+      "message": "HTTP response socket cannot enforce transport deadline",
+      "source_id": "kml_scale_pagerduty"
+    }
+  ],
+  "metadata_actual": 66430,
+  "metadata_charged": 133427,
+  "source_actual": 0,
+  "source_charged": 0,
+  "transfers": []
+}

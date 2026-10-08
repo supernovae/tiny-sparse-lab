@@ -193,6 +193,24 @@ Current status: NOT STARTED
 
 New synthetic fixtures only, at most 1 MiB generated text and 64 test cases; maximum 200 optimizer steps and 20 CPU minutes, first cap stops. No external corpus.
 
+The update and time ceilings apply to the **entire approved Card 02 attempt**,
+including every selected test, native full run, interrupted parent, resumed
+child and retry. They are not per pytest invocation or per run ID. Before any
+optimizer work, create one fresh ledger under the external project work root
+with the approved total update and wall-time limits. Run all training-bearing
+commands through `sparselab.training.attempt_budget`; Card 02 tests require
+its ledger environment variable and reserve their full update maxima before
+work starts. A separately selected legacy sidecar test needs its own up-front
+reservation. Reservations remain charged after a failure or interruption;
+neither rerunning pytest nor using a new run ID resets the allowance. The
+deadline starts when the ledger is created and covers setup, preparation,
+training, validation and confirmation checks across commands. The wrapper
+terminates its process group at the deadline. Missing ledger, exhausted
+allowance or expired deadline stops the task before more work. Preserve the
+ledger, failed outputs and native counters, then request a new bounded decision
+if a complete confirmation no longer fits. Do not initialize a replacement
+ledger under the same approval.
+
 Deterministic generator; tiny model and fixture tokenizer specs; expected labels/masks; overfit, gradients, disabled-memory and resume tests; receipts.
 
 ### Acceptance gate
@@ -202,6 +220,19 @@ Deterministic fixture bytes match real hashes; target masks are hand-checked; lo
 ### Prompt to paste with context and envelope
 
 Build only fresh tiny correctness fixtures within the approved protocol and CPU bounds. Use an independently initialized tiny model and deterministic fixture tokenizer; never use its weights for the main core. Reuse native semantic probe declarations for supplied-vector no-memory, oracle and wrong-vector inference controls. Trainer code already builds SemanticQueryBatch from verified FP32 query and boolean-mask sidecars; test that path rather than reimplementing it. Cover label shift, masks, batching, gradients/optimizer membership, repeated-batch overfit and strict save/resume with RNG/scheduler/counters. Use the training-state digest API only for its exact supported comparison; retain artifact hashes and separate numerical-equivalence checks. These are vector/plumbing tests, not natural-language chunk reading. Stop at the first approved CPU/time/step cap; retain failures and return receipts.
+
+For any confirmation after `KML-20261007-C02-A1`, keep that original attempt
+FAILED and append a separate result. Use a new approval and one new persistent
+ledger; preallocate the sum of every planned optimizer update, including any
+legacy regression, before execution. Check the ledger before each active
+command and record charged and observed updates separately. A passing rerun
+cannot erase the original limit breach or complete Gate 0 automatically.
+
+Reviewed outcome: [KML-D03](DECISIONS.md#kml-d03--card-02-accepted-with-failed-attempt-note-2026-10-07)
+accepts the separate [A2](results/2026-10-07-card02-confirmation.md) tiny-fixture
+confirmation as Card 02 EVIDENCE VERIFIED. The [A1](results/2026-10-07-card02-tiny-fixtures.md)
+200-update cap breach remains FAILED. The aggregate budget code fix is in
+`77ec6e7`; Gate 0 retains its other unmet requirements.
 
 ### Close the card
 

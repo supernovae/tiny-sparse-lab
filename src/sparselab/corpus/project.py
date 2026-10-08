@@ -51,10 +51,30 @@ class LocalFile(StrictModel):
         return _nonblank(value)
 
 
+class GitBoundedBlob(StrictModel):
+    path: str
+    git_blob_oid: str
+    max_bytes: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def pinned_file(self) -> GitBoundedBlob:
+        safe_name(self.path)
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", self.git_blob_oid):
+            raise ValueError("bounded Git blob needs a full SHA-1 object ID")
+        if not self.path.endswith((".md", ".markdown", ".txt")) and self.path not in {
+            "LICENSE",
+            "README.md",
+        }:
+            raise ValueError("bounded Git blob must be text/Markdown or rights context")
+        return self
+
+
 class GitAcquisition(StrictModel):
-    include: tuple[str, ...]
+    include: tuple[str, ...] = ()
     exclude: tuple[str, ...] = ()
     max_bytes: int = Field(gt=0)
+    tree_oid: str | None = None
+    bounded_blobs: tuple[GitBoundedBlob, ...] | None = None
 
     @field_validator("include", "exclude")
     @classmethod
@@ -65,8 +85,21 @@ class GitAcquisition(StrictModel):
 
     @model_validator(mode="after")
     def selection_required(self) -> GitAcquisition:
-        if not self.include:
-            raise ValueError("Git include cannot be empty")
+        if self.bounded_blobs is None:
+            if not self.include or self.tree_oid is not None:
+                raise ValueError("Git include cannot be empty")
+        else:
+            if self.include or self.exclude or not self.bounded_blobs:
+                raise ValueError("bounded Git requires exact blobs without patterns")
+            if not isinstance(self.tree_oid, str) or not re.fullmatch(
+                r"[0-9a-fA-F]{40}", self.tree_oid
+            ):
+                raise ValueError("bounded Git requires a full tree object ID")
+            paths = [blob.path for blob in self.bounded_blobs]
+            if paths != sorted(set(paths)):
+                raise ValueError("bounded Git paths must be sorted and unique")
+            if sum(blob.max_bytes for blob in self.bounded_blobs) > self.max_bytes:
+                raise ValueError("bounded Git files exceed max_bytes")
         return self
 
 
@@ -91,6 +124,8 @@ class HFBoundedShard(StrictModel):
     max_scanned_rows: int = Field(gt=0)
     hash_modulus: int = Field(gt=0)
     hash_remainders: tuple[int, ...]
+    declared_config: str | None = None
+    declared_split: str | None = None
 
     @model_validator(mode="after")
     def valid_selection(self) -> HFBoundedShard:
@@ -101,6 +136,11 @@ class HFBoundedShard(StrictModel):
             raise ValueError("bounded HF shard must be Parquet or JSONL stream")
         if not _HEX.fullmatch(self.expected_sha256):
             raise ValueError("bounded HF shard needs a SHA-256 checksum")
+        if (self.declared_config is None) != (self.declared_split is None):
+            raise ValueError("bounded HF shard needs both declared config and split")
+        if self.declared_config is not None:
+            _nonblank(self.declared_config)
+            _nonblank(self.declared_split)
         if (
             not self.hash_remainders
             or len(set(self.hash_remainders)) != len(self.hash_remainders)
@@ -118,6 +158,7 @@ class HuggingFaceAcquisition(StrictModel):
     text_field: str
     max_rows: int = Field(gt=0)
     max_bytes: int = Field(gt=0)
+    max_decompressed_bytes: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def selection_required(self) -> HuggingFaceAcquisition:
@@ -129,7 +170,17 @@ class HuggingFaceAcquisition(StrictModel):
             paths = [shard.path for shard in self.bounded_shards]
             if len(paths) != len(set(paths)):
                 raise ValueError("duplicate bounded HF shard path")
-            for path in paths:
+            for shard in self.bounded_shards:
+                path = shard.path
+                if shard.declared_config is not None:
+                    if (shard.declared_config, shard.declared_split) != (
+                        self.config,
+                        self.split,
+                    ):
+                        raise ValueError(
+                            "bounded HF shard metadata contradicts config/split"
+                        )
+                    continue
                 parts = path.split("/")
                 if self.config not in parts and not Path(path).name.startswith(
                     self.config + "-"
@@ -303,6 +354,14 @@ class SourceDeclaration(StrictModel):
             )
         if self.kind == "git" and not _GIT_REV.fullmatch(self.revision):
             raise ValueError("Git revision must be an exact commit hash")
+        if self.kind == "git" and self.acquisition.bounded_blobs is not None:
+            if len(self.revision) != 40:
+                raise ValueError("bounded Git requires a SHA-1 commit ID")
+            metadata_path = self.rights.nested_metadata_path if self.rights else None
+            if metadata_path and metadata_path not in {
+                blob.path for blob in self.acquisition.bounded_blobs
+            }:
+                raise ValueError("bounded Git rights metadata file is missing")
         if self.kind == "huggingface_dataset" and not _GIT_REV.fullmatch(self.revision):
             raise ValueError("HF revision must be a pinned commit hash")
         if self.kind == "wikimedia_dump":
@@ -420,11 +479,20 @@ def source_declaration_payload(source: SourceDeclaration) -> dict[str, Any]:
         result.pop("rights")
     if source.schema_version in (1, 2):
         result.pop("explicit_training_restriction")
+    if source.kind == "git" and source.acquisition.bounded_blobs is None:
+        result["acquisition"].pop("tree_oid")
+        result["acquisition"].pop("bounded_blobs")
     if source.kind == "huggingface_dataset":
+        if source.acquisition.max_decompressed_bytes is None:
+            result["acquisition"].pop("max_decompressed_bytes")
         if source.acquisition.bounded_shards is None:
             result["acquisition"].pop("bounded_shards")
         else:
             result["acquisition"].pop("include")
+            for shard in result["acquisition"]["bounded_shards"]:
+                if shard["declared_config"] is None:
+                    shard.pop("declared_config")
+                    shard.pop("declared_split")
     return result
 
 
@@ -521,6 +589,20 @@ class FractionDeclaration(StrictModel):
         return self
 
 
+class RecordAdmissionReference(StrictModel):
+    """A reviewed row decision inventory bound to a release, not acquisition."""
+
+    path: str
+    sha256: str
+
+    @model_validator(mode="after")
+    def valid_reference(self) -> RecordAdmissionReference:
+        safe_name(self.path)
+        if not _HEX.fullmatch(self.sha256):
+            raise ValueError("record admission needs a full SHA-256")
+        return self
+
+
 class ReleaseDeclaration(StrictModel):
     schema_version: Literal[1, 2, 3]
     mixture: dict[str, float]
@@ -546,6 +628,7 @@ class ReleaseDeclaration(StrictModel):
         | None
     ) = None
     training_use_policy: Literal["allowed_unless_explicitly_prohibited"] | None = None
+    record_admission: RecordAdmissionReference | None = None
 
     @model_validator(mode="after")
     def weights_valid(self) -> ReleaseDeclaration:
@@ -561,6 +644,8 @@ class ReleaseDeclaration(StrictModel):
             raise ValueError("v2/v3 releases require an explicit publication_mode")
         if (self.schema_version == 3) != (self.training_use_policy is not None):
             raise ValueError("training_use_policy is required only for v3 releases")
+        if self.record_admission is not None and self.schema_version != 2:
+            raise ValueError("record admission currently requires a v2 release")
         from sparselab.corpus.provenance import ORIGINS, SHAPES
 
         for values, allowed, label in (
@@ -580,7 +665,26 @@ def release_declaration_payload(release: ReleaseDeclaration) -> dict[str, Any]:
         result.pop("publication_mode")
     if release.schema_version in (1, 2):
         result.pop("training_use_policy")
+    if release.record_admission is None:
+        result.pop("record_admission")
     return result
+
+
+class TransportBudgetSpec(StrictModel):
+    attempt_id: str
+    max_source_body_bytes: int = Field(gt=0)
+    max_metadata_body_bytes: int = Field(gt=0)
+    max_transfers: int = Field(gt=0)
+    max_retries_per_shard: int = Field(ge=0)
+    max_wall_seconds: int = Field(gt=0)
+    max_disk_bytes: int = Field(gt=0)
+
+    @field_validator("attempt_id")
+    @classmethod
+    def attempt_id_safe(cls, value: str) -> str:
+        if not _ID.fullmatch(value):
+            raise ValueError("invalid transport attempt ID")
+        return value
 
 
 class ProjectConfig(StrictModel):
@@ -590,6 +694,7 @@ class ProjectConfig(StrictModel):
     transforms: tuple[str, ...]
     splits: str
     release: str
+    transport_budget: TransportBudgetSpec | None = None
 
     @field_validator("id")
     @classmethod

@@ -530,6 +530,7 @@ def measure_source_tokens(
             policy,
             batch_documents=batch_documents,
             batch_source_bytes=batch_source_bytes,
+            max_document_source_bytes=batch_source_bytes,
             progress=report,
             scratch=output.parent / "scratch" / "source-token-denominator",
         )

@@ -1,0 +1,75 @@
+{
+  "adjudication": "language-adjudication.json",
+  "axes": {
+    "ambiguity_clarification": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "answer_constraints": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "compositional_inference": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "conditional_reasoning": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "contradiction_insufficient": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "negation": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "paraphrase": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "quantifier_scope": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "reference_coreference": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    },
+    "temporal_ordering": {
+      "correct": 0,
+      "format_ok": 0,
+      "items": 20
+    }
+  },
+  "correct_items": 0,
+  "eligibility": "NOT_ELIGIBLE",
+  "format": "kml-card05-language-score-summary-v1",
+  "format_ok_items": 0,
+  "frozen_content_sha256": "49576570d5f490055d2c378a17cfb6094368bdd0877b0687d1d4f8b38f275907",
+  "panel_file_sha256": "01abf0698e0a7f1c251e01ef44f88522a624cab7561a90274601ee50efee1eda",
+  "reasons": [
+    "overall correctness below 120/200",
+    "each axis below 10/20",
+    "stable instruction formatting below 190/200 and 18/20 on each axis"
+  ],
+  "review_a_sha256": "6b7ee52916b2b71a4d5bf7ec903f9d7fca85653271d440830e3ac0c98eb60f0a",
+  "review_b_sha256": "6fa3fe54d53eb7d3ddf8500c0ef84c39a3a91d6d491ed8f427411e0df4c10a90",
+  "reviewer_format_disagreements": 1,
+  "reviewer_semantic_disagreements": 0,
+  "run_id": "kml-card05-full-tranche-v2",
+  "scored_at_utc": "2026-10-08T15:28:13.202919+00:00",
+  "scored_items": 200,
+  "selected_checkpoint_receipt_sha256": "b30a749aea63681743149f062a5647219b5660fdf673274c402a6af5dadbee2e",
+  "selected_heldout_loss": 6.461394309997559
+}

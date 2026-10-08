@@ -41,6 +41,69 @@ def _handle(args: argparse.Namespace) -> None:
 
         print(bakeoff(Path(args.declaration), Path(args.output), work_root=root))
         return
+    if command == "budget-init":
+        from sparselab.corpus.transport_budget import TransportBudget
+
+        project = load_project(Path(args.project))
+        ledger = TransportBudget.initialize(
+            root / "corpora" / project.config.id / "transport-budget.sqlite", project
+        )
+        print(json.dumps(ledger.receipt(), sort_keys=True))
+        return
+    if command == "admission-draft":
+        from sparselab.corpus.admission_draft import draft_admission_manifest
+
+        project = load_project(Path(args.project))
+        result = draft_admission_manifest(
+            project,
+            root,
+            Path(args.template),
+            Path(args.policy_document),
+            Path(args.output),
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
+    if command == "split-inventory":
+        from sparselab.corpus.split_inventory import write_split_inventory
+
+        project = load_project(Path(args.project))
+        print(
+            json.dumps(
+                write_split_inventory(project, root, Path(args.output)), sort_keys=True
+            )
+        )
+        return
+    if command == "freeze-splits":
+        from sparselab.corpus.split_freeze import freeze_splits
+
+        project = load_project(Path(args.project))
+        result = freeze_splits(
+            project,
+            root,
+            Path(args.inventory),
+            Path(args.clusters),
+            Path(args.output),
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
+    if command == "finalize-family-inventory":
+        from sparselab.corpus.split_freeze import finalize_family_inventory
+
+        result = finalize_family_inventory(
+            Path(args.release), Path(args.splits), Path(args.output)
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
+    if command in {"materialize-mixture", "verify-mixture"}:
+        from sparselab.corpus.mixture import materialize_mixture, verify_mixture
+
+        result = (
+            materialize_mixture(Path(args.declaration), Path(args.output))
+            if command == "materialize-mixture"
+            else verify_mixture(Path(args.declaration), Path(args.output))
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
     if command in {"acquire", "build"}:
         project = load_project(Path(args.project))
         result = (
@@ -94,6 +157,7 @@ def _handle(args: argparse.Namespace) -> None:
                 Path(args.base_run_config),
                 args.vocab_size,
                 root,
+                min_frequency=args.min_frequency,
                 **verification,
             )
         )
@@ -139,7 +203,18 @@ def _handle(args: argparse.Namespace) -> None:
     elif command == "near-duplicates":
         from sparselab.corpus.near_duplicates import audit_release
 
-        result = audit_release(release)
+        caps = {
+            name: value
+            for name, value in (
+                ("max_documents", args.max_documents),
+                ("max_input_text_bytes", args.max_input_text_bytes),
+                ("max_total_shingles", args.max_total_shingles),
+                ("max_comparisons", args.max_comparisons),
+                ("max_candidates", args.max_candidates),
+            )
+            if value is not None
+        }
+        result = audit_release(release, **caps)
     else:
         result = publication.consumers(release, args.runs_dir)
     print(json.dumps(result, sort_keys=True))
@@ -155,6 +230,45 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         command.add_argument("project")
         command.add_argument("--offline", action="store_true")
         command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "budget-init", help="Start one durable bounded-HF transport attempt"
+    )
+    command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "admission-draft",
+        help="Draft complete conservative decisions from verified acquired snapshots",
+    )
+    command.add_argument("project")
+    command.add_argument("--template", required=True)
+    command.add_argument("--policy-document", required=True)
+    command.add_argument("--output", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "split-inventory", help="Record pre-build IDs from verified source snapshots"
+    )
+    command.add_argument("project")
+    command.add_argument("--output", required=True)
+    command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "finalize-family-inventory",
+        help="Bind kept release documents to frozen family assignments",
+    )
+    command.add_argument("release")
+    command.add_argument("--splits", required=True)
+    command.add_argument("--output", required=True)
+    command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "freeze-splits", help="Freeze reviewed admission-aware family assignments"
+    )
+    command.add_argument("project")
+    command.add_argument("--inventory", required=True)
+    command.add_argument("--clusters", required=True)
+    command.add_argument("--output", required=True)
+    command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
     command = sub.add_parser("freeze")
     command.add_argument("build")
     command.set_defaults(handler=_handle)
@@ -162,6 +276,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("declaration")
     command.add_argument("--output", required=True)
     command.set_defaults(handler=_handle)
+    for name in ("materialize-mixture", "verify-mixture"):
+        command = sub.add_parser(
+            name, help="Materialize or authenticate an exact token-ID source mixture"
+        )
+        command.add_argument("declaration")
+        command.add_argument("--output", required=True)
+        command.add_argument("--json", action="store_true")
+        command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "measure-tokens", help="Measure authenticated distinct source-domain tokens"
     )
@@ -215,4 +337,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--view", choices=("lm", "chat"), required=True)
             command.add_argument("--base-run-config", required=True)
             command.add_argument("--vocab-size", required=True, type=int)
+            command.add_argument("--min-frequency", type=int, default=1)
+        if name == "near-duplicates":
+            for flag in (
+                "max-documents",
+                "max-input-text-bytes",
+                "max-total-shingles",
+                "max-comparisons",
+                "max-candidates",
+            ):
+                command.add_argument("--" + flag, type=int)
         command.set_defaults(handler=_handle)

@@ -7,7 +7,14 @@ import re
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, StrictFloat, StrictInt, field_validator
+from pydantic import (
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    field_validator,
+    model_serializer,
+)
 
 from sparselab.campaign.state import publish_immutable, read_canonical
 from sparselab.config.models import StrictModel
@@ -26,6 +33,16 @@ class PanelDecoder(StrictModel):
     top_k: StrictInt = Field(ge=0)
     max_new_tokens: StrictInt = Field(ge=0)
     seed: StrictInt = Field(ge=0, lt=2**64)
+    use_cache: StrictBool = True
+    strict_context: StrictBool = False
+
+    @model_serializer(mode="wrap")
+    def serialize_compatibly(self, handler: Any) -> dict[str, Any]:
+        data = handler(self)
+        for field in ("use_cache", "strict_context"):
+            if field not in self.model_fields_set:
+                data.pop(field, None)
+        return data
 
 
 class GenerationPanel(StrictModel):
@@ -42,6 +59,113 @@ class GenerationPanel(StrictModel):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", value):
             raise ValueError("panel ID must be safe and nonempty")
         return value
+
+
+class PanelPair(StrictModel):
+    id: str
+    cached_index: int = Field(ge=0)
+    uncached_index: int = Field(ge=0)
+    item_content_sha256: str
+    source_family_id: str
+    gold_answer: str = Field(min_length=1)
+    prompt_sha256: str
+
+    @field_validator("id", "source_family_id")
+    @classmethod
+    def safe_identity(cls, value: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", value):
+            raise ValueError("pair and family IDs must be safe")
+        return value
+
+    @field_validator("item_content_sha256", "prompt_sha256")
+    @classmethod
+    def valid_digest(cls, value: str) -> str:
+        if not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise ValueError("pair digests must be SHA-256")
+        return value
+
+
+class PanelPairManifest(StrictModel):
+    panel_pair_version: Literal[1]
+    frozen_content_sha256: str
+    pairs: tuple[PanelPair, ...] = Field(min_length=1)
+
+    @field_validator("frozen_content_sha256")
+    @classmethod
+    def valid_frozen_digest(cls, value: str) -> str:
+        if not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise ValueError("frozen item digest must be SHA-256")
+        return value
+
+
+def verify_panel_pair_parity(
+    cached_result: Path, uncached_result: Path, pair_manifest: Path
+) -> dict[str, Any]:
+    """Compare exact token IDs; a match is diagnostic, never model readiness."""
+    cached = verify_panel_result(cached_result)
+    uncached = verify_panel_result(uncached_result)
+    if (
+        cached["evaluation_index_sha256"] != uncached["evaluation_index_sha256"]
+        or cached["checkpoint_sha256"] != uncached["checkpoint_sha256"]
+        or cached["identity"]["tokenizer_sha256"]
+        != uncached["identity"]["tokenizer_sha256"]
+    ):
+        raise ValueError("paired panels identify different model inputs")
+    cached_decoder = cached["declaration"]["decoder"]
+    uncached_decoder = uncached["declaration"]["decoder"]
+    if (
+        cached_decoder.get("use_cache", True) is not True
+        or uncached_decoder.get("use_cache", True) is not False
+        or {key: value for key, value in cached_decoder.items() if key != "use_cache"}
+        != {key: value for key, value in uncached_decoder.items() if key != "use_cache"}
+    ):
+        raise ValueError("paired panels differ beyond cache setting")
+    manifest = PanelPairManifest.model_validate(read_document(pair_manifest))
+    pairs = manifest.pairs
+    if (
+        len({pair.id for pair in pairs}) != len(pairs)
+        or len({pair.cached_index for pair in pairs}) != len(pairs)
+        or len({pair.uncached_index for pair in pairs}) != len(pairs)
+    ):
+        raise ValueError("duplicate paired prompt ID or ordinal")
+    results = []
+    for pair in pairs:
+        if pair.cached_index >= len(cached["rows"]) or pair.uncached_index >= len(
+            uncached["rows"]
+        ):
+            raise ValueError("paired prompt ordinal outside panel")
+        left = cached["rows"][pair.cached_index]
+        right = uncached["rows"][pair.uncached_index]
+        if (
+            left["prompt"] != right["prompt"]
+            or hashlib.sha256(left["prompt"].encode()).hexdigest() != pair.prompt_sha256
+        ):
+            raise ValueError("paired prompt content changed")
+        status = (
+            "UNAVAILABLE"
+            if left["status"] != "COMPLETED" or right["status"] != "COMPLETED"
+            else "MATCH"
+            if left["token_ids"] == right["token_ids"]
+            else "DIVERGED"
+        )
+        results.append(
+            {
+                "id": pair.id,
+                "cached_index": pair.cached_index,
+                "uncached_index": pair.uncached_index,
+                "source_family_id": pair.source_family_id,
+                "item_content_sha256": pair.item_content_sha256,
+                "status": status,
+            }
+        )
+    return {
+        "role": "descriptive_not_quality_gate",
+        "cached_record_sha256": cached["record_sha256"],
+        "uncached_record_sha256": uncached["record_sha256"],
+        "pair_manifest_sha256": sha256_file(pair_manifest),
+        "frozen_content_sha256": manifest.frozen_content_sha256,
+        "pairs": results,
+    }
 
 
 def load_panel(source: Path) -> GenerationPanel:
@@ -202,8 +326,8 @@ def run_panel(
                     top_k=panel.decoder.top_k,
                     seed=panel.decoder.seed,
                     stop_sequences=(),
-                    strict_context=False,
-                    use_cache=True,
+                    strict_context=panel.decoder.strict_context,
+                    use_cache=panel.decoder.use_cache,
                     engine=loaded.engine,
                 )
                 row.update(

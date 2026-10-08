@@ -10,6 +10,7 @@ import shutil
 import sys
 import tempfile
 import time
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
@@ -592,6 +593,70 @@ def _collect(
     )
 
 
+def _collect_token_mixture(
+    config: RunConfig, tokenizer: Tokenizer, receipt: dict[str, object]
+) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
+    """Pack exact scheduled targets with BOS and masked block-end padding."""
+    dataset = config.dataset
+    assert dataset.train_path is not None
+    target_count = sum(receipt["actual_target_tokens"].values())
+    seq_len = config.training.seq_len
+    padded_targets = ((target_count + seq_len - 1) // seq_len) * seq_len
+    bos = tokenizer.token_to_id("<bos>")
+    eos = tokenizer.token_to_id("<eos>")
+    pad = tokenizer.token_to_id("<pad>")
+    if any(value is None for value in (bos, eos, pad)):
+        raise ValueError("token mixture tokenizer requires BOS, EOS and PAD")
+    ids = np.full(padded_targets + 1, pad, dtype=np.int32)
+    mask = np.zeros(padded_targets + 1, dtype=bool)
+    ids[0] = bos
+    cursor = 1
+    records = 0
+    stream_digest = hashlib.sha256()
+    by_stratum: Counter[str] = Counter()
+    with dataset.train_path.open("rb") as stream:
+        for line in stream:
+            if not line.strip():
+                raise ValueError("empty token mixture JSONL row")
+            stream_digest.update(line)
+            row = json.loads(line)
+            tokens = row["token_ids"]
+            if (
+                not isinstance(tokens, list)
+                or not tokens
+                or tokens[-1] != eos
+                or any(
+                    type(value) is not int or not 0 <= value < config.model.vocab_size
+                    for value in tokens
+                )
+                or cursor + len(tokens) > target_count + 1
+            ):
+                raise ValueError("invalid token mixture target row")
+            ids[cursor : cursor + len(tokens)] = tokens
+            mask[cursor : cursor + len(tokens)] = True
+            cursor += len(tokens)
+            records += 1
+            by_stratum[row["stratum"]] += len(tokens)
+    if (
+        cursor != target_count + 1
+        or records != receipt["records"]
+        or dict(by_stratum) != receipt["actual_target_tokens"]
+        or stream_digest.hexdigest() != receipt["train_tokens_sha256"]
+    ):
+        raise ValueError("token mixture target count differs from verified receipt")
+    stats = {
+        "acquired_documents": records,
+        "retained_documents": records,
+        "skipped_documents": 0,
+        "truncated_documents": 0,
+        "scheduled_target_positions": target_count,
+        "supervised_target_positions": int(mask[1:].sum()),
+        "supervised_target_positions_by_stratum": receipt["actual_target_tokens"],
+        "masked_padding_positions": padded_targets - target_count,
+    }
+    return ids, mask, stats
+
+
 class _ArraySpool:
     """Bounded in-memory chunks with a disk-backed, exactly sized final array."""
 
@@ -1125,6 +1190,22 @@ def _prepare_data(
         else None
     )
     generic_snapshot = None
+    token_mixture = None
+    if config.dataset.source == "local_token_mixture":
+        from sparselab.corpus.mixture import verify_mixture_dataset
+
+        if config.model.memory in {"byte", "portable"}:
+            raise ValueError("token-ID mixture has no verified byte-address sidecar")
+        token_mixture = verify_mixture_dataset(
+            config.dataset, config.tokenizer.path, config.model.vocab_size
+        )
+        if (
+            tokenizer.to_str()
+            != Tokenizer.from_file(str(config.tokenizer.path)).to_str()
+        ):
+            raise ValueError(
+                "supplied tokenizer differs from verified token mixture tokenizer"
+            )
     if config.dataset.source == "snapshot":
         from sparselab.data.sources import verify_snapshot as verify_generic_snapshot
         from sparselab.data.tokenizer import verify_tokenizer_artifact
@@ -1191,9 +1272,20 @@ def _prepare_data(
                 "source_manifest_path",
                 "corpus_release_path",
                 "corpus_export_path",
+                "mixture_declaration_path",
+                "mixture_output_path",
             }
         },
         "local_chat_source": local_chat,
+        **(
+            {
+                "token_mixture_receipt_sha256": _sha256(
+                    config.dataset.mixture_output_path / "receipt.json"
+                )
+            }
+            if token_mixture is not None
+            else {}
+        ),
         **({"corpus_export": corpus_export} if corpus_export is not None else {}),
         **(
             {
@@ -1490,6 +1582,14 @@ def _prepare_data(
         validation = np.load(
             temporary_root / "validation.npy", mmap_mode="r", allow_pickle=False
         )
+    elif token_mixture is not None:
+        train, train_supervision, train_stats = _collect_token_mixture(
+            config, tokenizer, token_mixture
+        )
+        train_byte = None
+        validation, validation_supervision, validation_byte, validation_stats = (
+            _collect(config.dataset, tokenizer, "validation", **settings)
+        )
     else:
         train, train_supervision, train_byte, train_stats = _collect(
             config.dataset, tokenizer, "train", **settings
@@ -1502,8 +1602,12 @@ def _prepare_data(
         or len(validation) < config.training.seq_len + 1
     ):
         raise ValueError("prepared split lacks a full next-token block")
-    mask_enabled = config.dataset.source == "local_chat" and (
-        not bool(np.all(train_supervision)) or not bool(np.all(validation_supervision))
+    mask_enabled = config.dataset.source == "local_token_mixture" or (
+        config.dataset.source == "local_chat"
+        and (
+            not bool(np.all(train_supervision))
+            or not bool(np.all(validation_supervision))
+        )
     )
     allocation_sides = None
     if allocation is not None:
@@ -1561,6 +1665,10 @@ def _prepare_data(
             "license": config.dataset.license,
             "source_attribution": "frozen corpus local_text export",
         },
+        "local_token_mixture": {
+            "license": config.dataset.license,
+            "source_attribution": "verified frozen corpus token mixture",
+        },
         "snapshot": {
             "license": config.dataset.license,
             "source_attribution": "declarative pinned dataset snapshot",
@@ -1616,6 +1724,7 @@ def _prepare_data(
         "source": config.dataset.source,
         "revision": config.dataset.revision,
         "dataset_config": config.dataset.dataset_config,
+        **({"token_mixture": token_mixture} if token_mixture is not None else {}),
         **attributions[config.dataset.source],
         **({"corpus_export": corpus_export} if corpus_export is not None else {}),
         "tokenizer_sha256": _tokenizer_sha256(tokenizer),

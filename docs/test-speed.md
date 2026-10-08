@@ -19,14 +19,17 @@ uv run --locked --extra cpu pytest -q tests/test_surface_overlay.py tests/test_s
 uv run --locked --extra cpu pytest -q tests/test_hf_auth.py
 ```
 
-Pushes and PRs run lint, the focused Linux checks, the smaller macOS
-evidence checks, and bounded serving/CLI checks on Linux and macOS. The full
-Linux and macOS CPU jobs are paused for automatic builds; they run only when
-CI is started with **Run workflow** (`workflow_dispatch`) and `serving_only`
-is left unchecked. Check `serving_only` to skip both full CPU suites during
-a manual dispatch. No tests are deleted. This trades broad automatic
-regression coverage for bounded build feedback; focused jobs do not certify
-the full suite.
+Pushes to `main` and all PRs run one explicit Linux zero-model-work job:
+Ruff, the frozen decoding test hash, research lint, and selected safety,
+compatibility, packing, panel and readiness nodes. The selected nodes include
+no optimizer update or model generation. The hosted qualification guard is
+retained as experimental tooling but is not part of ordinary CI. The
+`workflow_dispatch` **Run workflow** menu defaults to `safe`; its
+`integration-linux`, `platform-macos` and `release-candidate` choices are
+manual model-bearing checks and require a separately reviewed allocation.
+No tag automatically starts model work. The release-candidate choice runs the
+broader Linux and macOS CPU suites. No tests were deleted; ordinary PR success
+does not certify optimizer/generation integration or macOS behavior.
 
 For an explicit local full-suite run, use two workers, distributing whole test
 files so module-scoped fixtures remain together. Pytest's `tmp_path` and

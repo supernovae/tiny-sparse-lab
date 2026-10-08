@@ -859,6 +859,18 @@
           ],
           "default": null,
           "title": "Review"
+        },
+        "reviewed_scores": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed Scores"
         }
       },
       "required": [

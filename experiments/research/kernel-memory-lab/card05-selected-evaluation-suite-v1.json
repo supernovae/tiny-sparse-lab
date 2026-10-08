@@ -1,0 +1,11 @@
+{
+  "evaluation_suite_version": 1,
+  "evaluations": [
+    {
+      "id": "selected-heldout-one-batch",
+      "kind": "heldout_lm",
+      "role": "diagnostic"
+    }
+  ],
+  "id": "kml-card05-selected-heldout-v1"
+}

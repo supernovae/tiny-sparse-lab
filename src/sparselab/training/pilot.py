@@ -32,6 +32,7 @@ from sparselab.training.pilot_progress import (
     activate_pilot_progress,
     pilot_phase,
 )
+from sparselab.training.preparation_guard import require_model_runtime_allowed
 from sparselab.training.trainer import _train_impl
 from sparselab.verification_proofs import verification_options
 from sparselab.workdir import ensure_work_dir
@@ -48,6 +49,7 @@ def run_pilot(
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
 ) -> Path:
+    require_model_runtime_allowed()
     with pilot_phase("input_validation"):
         inputs = _read_sealed(root / "inputs.json")
         config = pilot_config(
@@ -252,6 +254,7 @@ def run_pilot(
 
 
 def main() -> None:
+    require_model_runtime_allowed()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("purpose", choices=("smoke", "warmup"))

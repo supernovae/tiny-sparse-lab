@@ -100,6 +100,20 @@ def _write_yaml(path: Path, value: object) -> None:
         os.fsync(handle.fileno())
 
 
+def _export_request(
+    release_id: str, view: str, base_digest: str, vocab_size: int, min_frequency: int
+) -> dict[str, object]:
+    if type(min_frequency) is not int or min_frequency < 1:
+        raise ValueError("min_frequency must be a positive integer")
+    return {
+        "release_id": release_id,
+        "view": view,
+        "base_config_sha256": base_digest,
+        "vocab_size": vocab_size,
+        **({"min_frequency": min_frequency} if min_frequency != 1 else {}),
+    }
+
+
 def _export_metadata(
     release_dir: Path,
     manifest: dict[str, object],
@@ -149,6 +163,7 @@ def export_release(
     vocab_size: int,
     work_root: Path,
     *,
+    min_frequency: int = 1,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> Path:
@@ -165,16 +180,8 @@ def export_release(
     base = load_config(Path(base_run_config))
     base_digest = sha256_file(Path(base_run_config))
     release_id = str(manifest["release_id"])
-    identity = hashlib.sha256(
-        canonical_json(
-            {
-                "release_id": release_id,
-                "view": view,
-                "base_config_sha256": base_digest,
-                "vocab_size": vocab_size,
-            }
-        )
-    ).hexdigest()
+    request = _export_request(release_id, view, base_digest, vocab_size, min_frequency)
+    identity = hashlib.sha256(canonical_json(request)).hexdigest()
     destination = (
         Path(work_root).resolve()
         / "corpora"
@@ -227,7 +234,7 @@ def export_release(
     tokenizer = {
         "schema_version": 1,
         "vocab_size": vocab_size,
-        "min_frequency": 1,
+        "min_frequency": min_frequency,
         "max_documents": counts[0][0],
         "output_dir": str(destination / "tokenizer"),
         "dataset": dataset.model_dump(mode="json"),
@@ -240,12 +247,7 @@ def export_release(
     sidecar = _export_metadata(
         release_dir,
         manifest,
-        {
-            "release_id": release_id,
-            "view": view,
-            "base_config_sha256": base_digest,
-            "vocab_size": vocab_size,
-        },
+        request,
         counts,
         run_sha256=hashlib.sha256(run_bytes).hexdigest(),
         tokenizer_sha256=hashlib.sha256(tokenizer_bytes).hexdigest(),
@@ -378,12 +380,13 @@ def _verify_release_export_cold(
         "local_text" if view == "lm" else "local_chat"
     ):
         raise ValueError("corpus export view mismatch")
-    request = {
-        "release_id": manifest["release_id"],
-        "view": view,
-        "base_config_sha256": export.get("base_config_sha256"),
-        "vocab_size": export.get("vocab_size"),
-    }
+    request = _export_request(
+        str(manifest["release_id"]),
+        view,
+        export.get("base_config_sha256"),
+        export.get("vocab_size"),
+        export.get("min_frequency", 1),
+    )
     if (
         not isinstance(request["base_config_sha256"], str)
         or re.fullmatch(r"[0-9a-f]{64}", request["base_config_sha256"]) is None
@@ -414,6 +417,7 @@ def _verify_release_export_cold(
         or exported_tokenizer.dataset != dataset
         or exported_run.model.vocab_size != request["vocab_size"]
         or exported_tokenizer.vocab_size != request["vocab_size"]
+        or exported_tokenizer.min_frequency != request.get("min_frequency", 1)
     ):
         raise ValueError("corpus export generated dataset or vocabulary mismatch")
     counts = []

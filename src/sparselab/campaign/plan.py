@@ -321,8 +321,11 @@ class ModelReadiness(Stage):
     evaluation: str
     policy: str
     review: str | None = None
+    reviewed_scores: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
-    @field_validator("review")
+    @field_validator("review", "reviewed_scores")
     @classmethod
     def valid_review(cls, value: str | None) -> str | None:
         if value is not None:

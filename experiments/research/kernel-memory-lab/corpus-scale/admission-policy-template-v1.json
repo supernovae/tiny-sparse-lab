@@ -1,0 +1,49 @@
+{
+  "policy_id": "kml-card03-scale-source-policy-v1",
+  "policy_sha256": "8a71c7f576d4ea631647e5e2ad7fe61123e59ff7b85c632fe97da5d55b957f34",
+  "sources": [
+    {
+      "source_id": "kml_scale_pagerduty",
+      "license_label": "Apache-2.0; private local US research with notice obligations",
+      "rights": {
+        "training_eligibility": "eligible_with_obligations",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "Apache-2.0",
+        "license_references": ["https://github.com/PagerDuty/incident-response-docs/blob/464fc9d3e47e19e9d8da17cec1a41dc09624e95a/LICENSE"],
+        "notices": ["Retain the pinned Apache-2.0 LICENSE, copyright, source path and change/NOTICE obligations for any later redistribution decision; local text publication is not approved."]
+      }
+    },
+    {
+      "source_id": "kml_scale_project_gutenberg",
+      "license_label": "US public-domain selected component; private local research only",
+      "rights": {
+        "training_eligibility": "eligible_with_obligations",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "license_references": ["https://huggingface.co/datasets/common-pile/project_gutenberg_filtered", "https://www.gutenberg.org/policy/license"],
+        "notices": ["Retain work ID, source URL, pinned row identity and Project Gutenberg name/header treatment; exceptions and any text redistribution require separate review."]
+      }
+    },
+    {
+      "source_id": "kml_scale_scoutflo",
+      "license_label": "MIT; private local US research with notice obligations",
+      "rights": {
+        "training_eligibility": "eligible_with_obligations",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "MIT",
+        "license_references": ["https://github.com/Scoutflo/Scoutflo-SRE-Playbooks/blob/acc55da0224fda5eda580939a15bc60990e8e69f/LICENSE"],
+        "notices": ["Retain the pinned Scoutflo copyright and complete MIT permission notice for any later copies/substantial portions; local text publication is not approved."]
+      }
+    },
+    {
+      "source_id": "kml_scale_wikimedia",
+      "license_label": "CC-BY-SA-4.0; private local research with attribution obligations",
+      "rights": {
+        "training_eligibility": "eligible_with_obligations",
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "CC-BY-SA-4.0",
+        "license_references": ["https://huggingface.co/datasets/common-pile/wikimedia_filtered", "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use"],
+        "notices": ["Retain pinned page/title and row identity, usable page/history attribution route, CC BY-SA 4.0 and later change/share-alike obligations; local text publication is not approved."]
+      }
+    }
+  ]
+}

@@ -47,7 +47,11 @@ def iter_documents(
         assert path is not None
         yield from iter_conversations(path)
         return
-    if config.source == "local_text":
+    if config.source in {"local_text", "local_token_mixture"}:
+        if config.source == "local_token_mixture" and split == "train":
+            raise ValueError(
+                "token mixture training IDs must use the verified native packing path"
+            )
         path = config.train_path if split == "train" else config.validation_path
         assert path is not None
         with path.open("rb") as handle:

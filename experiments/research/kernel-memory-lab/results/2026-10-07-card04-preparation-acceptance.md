@@ -1,0 +1,14 @@
+# KML-20261007-C04-R1 — owner acceptance of Card 04 preparation
+
+- Record ID and UTC timestamp: `KML-20261007-C04-R1`, 2026-10-07 18:17 UTC.
+- Card and bounded action: Review the read-only synthetic shape/profile preparation P1. No tokenizer fit, staging or GPU profile action.
+- Operator and reviewer: Codex records the review; Byron is the project owner/reviewer.
+- Starting status and decision reference: [P1](2026-10-07-card04-shape-preparation.md) was READY FOR REVIEW after the owner's earlier request to proceed to Card 04. The owner now clarified that "proceed" accepts a completed, reviewable step.
+- Repository revision, branch and diff: review started from clean `e2cbfbab51574f8d02bacae92eac4decc45d6b51` on rolling `codex/kernel-memory-lab`; this documentation revision adds [KML-D07](../DECISIONS.md#kml-d07--card-04-preparation-accepted-for-reuse-2026-10-07), this record and status/wording updates. No config, code or prior result record changed.
+- Evidence reviewed: [P1](2026-10-07-card04-shape-preparation.md) and [proposal](../CARD04_PROFILE_PROPOSAL.md); profile config SHA-256 `0a7a04740b822d0f4149bc9ae287981a3c3687667ed7e8ba62e3b4e310b5ea49`; tokenizer declaration SHA-256 `fbd8497a7a09ec961bddaa76a3f78523cb123bab42757623b48fb940502e3803`. Native read-only inspection found **341,885,952** parameters, **4,102,632,296-byte** estimated checkpoint and **UNKNOWN** measured fit; WSL2/RX 7900 XTX/registered ROCm inventory was read-only.
+- Native Campaign/run/receipt IDs: NOT APPLICABLE to this owner review. No tokenizer, prepared input, initializer, stage, profile or checkpoint receipt exists.
+- Approval and resource use: Owner accepts P1 **preparation evidence and candidate declarations** for reuse. No CPU tokenizer fit or GPU profile runtime is approved by this review. Zero optimizer updates, model target tokens, GPU time and spend were used.
+- Gate assessment: **EVIDENCE VERIFIED for P1 preparation**. **Full Card 04 measured-fit gate BLOCKED**: exact synthetic tokenizer, initializer/input receipt, finite numerical test, measured VRAM/RSS, post-warmup timing and an approved bounded profile are missing. No real-data throughput or Gate 0 claim follows.
+- Known limits: The CPU-only tokenizer proposal of 600 seconds/1 GiB/1,000 inodes and later GPU proposal of 120 aggregate updates/1,800 seconds remain unexecuted proposals. The candidate tokenizer may not reach the required 32,768 entries. Card 03 full gate, Card 02 A1 failure and Gate 0 state remain unchanged.
+- One next decision: Decide separately on the exact CPU-only synthetic tokenizer fit in the accepted [Card 04 proposal](../CARD04_PROFILE_PROPOSAL.md), then review its receipt before any GPU profile decision.
+- Correction to earlier record: P1 remains an unchanged append-only historical result. This review closes its owner-review state for preparation scope without claiming that an unrun fit was performed.

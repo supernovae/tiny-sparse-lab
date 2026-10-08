@@ -1,0 +1,35 @@
+schema_version: 2
+id: kml_pilot_wikimedia
+kind: huggingface_dataset
+canonical_uri: https://huggingface.co/datasets/common-pile/wikimedia_filtered
+revision: 0641bb84bd9b7162bcddf8be7836822161a9a342
+license: CC-BY-SA-4.0 claim, per-page review required
+license_url: https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use
+rights:
+  training_eligibility: review_required
+  redistribution_mode: review_required
+  license_references:
+    - https://huggingface.co/datasets/common-pile/wikimedia_filtered
+    - https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use
+  notices:
+    - Retain page, revision, namespace and author-history route; review imported text and attribution before any tokenizer, training or redistribution use.
+notes: Pinned complete-shard transport and rights sample only; retained rows are quarantined.
+domains: [explanatory_prose]
+document_kinds: [prose]
+source_family: kml_pilot_wikimedia
+acquisition:
+  config: default
+  split: train
+  text_field: text
+  max_rows: 32
+  max_bytes: 33554432
+  max_decompressed_bytes: 2147483648
+  bounded_shards:
+    - path: wikimedia-0027.json.gz
+      expected_sha256: 0abe6c9be821ac100c604ac4b799faa00c90e39d139c7dccf9491e693b177ed0
+      max_shard_bytes: 480242750
+      max_scanned_rows: 4096
+      hash_modulus: 256
+      hash_remainders: [0]
+      declared_config: default
+      declared_split: train

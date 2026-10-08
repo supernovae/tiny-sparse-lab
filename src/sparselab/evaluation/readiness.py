@@ -32,6 +32,38 @@ class LossCriterion(StrictModel):
         return value
 
 
+class ReviewedScoreCriterion(StrictModel):
+    """Predeclared item and formatting thresholds for independent panel review."""
+
+    frozen_content_sha256: str
+    expected_items: int = Field(gt=0)
+    expected_axes: int = Field(gt=0)
+    items_per_axis: int = Field(gt=0)
+    min_correct: int = Field(ge=0)
+    min_axis_correct: int = Field(ge=0)
+    min_format: int = Field(ge=0)
+    min_axis_format: int = Field(ge=0)
+
+    @field_validator("frozen_content_sha256")
+    @classmethod
+    def valid_digest(cls, value: str) -> str:
+        if not _SHA.fullmatch(value):
+            raise ValueError("frozen item digest must be SHA-256")
+        return value
+
+    @model_validator(mode="after")
+    def valid_denominators(self) -> ReviewedScoreCriterion:
+        if (
+            self.expected_axes * self.items_per_axis != self.expected_items
+            or self.min_correct > self.expected_items
+            or self.min_format > self.expected_items
+            or self.min_axis_correct > self.items_per_axis
+            or self.min_axis_format > self.items_per_axis
+        ):
+            raise ValueError("reviewed-score thresholds exceed denominators")
+        return self
+
+
 class ModelReadinessPolicy(StrictModel):
     readiness_version: Literal[1]
     id: str
@@ -40,6 +72,9 @@ class ModelReadinessPolicy(StrictModel):
     min_completed_evaluations: int = Field(gt=0)
     max_heldout_loss: LossCriterion | None = None
     require_human_review: bool
+    reviewed_scores: ReviewedScoreCriterion | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @field_validator("id")
     @classmethod
@@ -72,6 +107,46 @@ def _index_path(index: dict[str, Any] | Path) -> Path:
     if not isinstance(index, dict) or "run" not in index or "index_sha256" not in index:
         raise ValueError("invalid evaluation index")
     return Path(index["run"]) / "evaluations" / f"suite-{index['index_sha256']}.json"
+
+
+def inspect_observation_coverage(
+    verified_index: Path, panel_result: Path | None = None
+) -> dict[str, Any]:
+    """Report execution coverage without granting model readiness.
+
+    A completed suite or descriptive generation panel contains no independently
+    reviewed item scores. This check deliberately has no promotion state; the
+    reviewed-score criterion and named human review are separate evidence.
+    """
+    index = verify_evaluation_index(Path(verified_index))
+    evaluations = index["evaluations"]
+    completed = sum(row["status"] == "COMPLETED" for row in evaluations)
+    observation: dict[str, Any] = {
+        "index_sha256": index["index_sha256"],
+        "checkpoint_sha256": index["checkpoint_sha256"],
+        "suite_completed": completed,
+        "suite_total": len(evaluations),
+        "panel_completed": None,
+        "panel_total": None,
+        "reviewed_scores": "MISSING",
+        "reader_eligibility": "UNESTABLISHED",
+    }
+    if panel_result is not None:
+        from sparselab.evaluation.panel import verify_panel_result
+
+        panel = verify_panel_result(Path(panel_result))
+        if (
+            panel["evaluation_index_sha256"] != index["index_sha256"]
+            or panel["checkpoint_sha256"] != index["checkpoint_sha256"]
+        ):
+            raise ValueError(
+                "panel and evaluation index identify different checkpoints"
+            )
+        observation["panel_completed"] = sum(
+            row["status"] == "COMPLETED" for row in panel["rows"]
+        )
+        observation["panel_total"] = len(panel["rows"])
+    return observation
 
 
 def _review_identity(record: dict[str, Any]) -> str:
@@ -192,7 +267,10 @@ def _validate_policy(policy: ModelReadinessPolicy, index: dict[str, Any]) -> Non
 
 
 def _decision(
-    policy: ModelReadinessPolicy, index: dict[str, Any], review: dict[str, Any] | None
+    policy: ModelReadinessPolicy,
+    index: dict[str, Any],
+    review: dict[str, Any] | None,
+    scores: dict[str, Any] | None = None,
 ) -> tuple[str, list[str], int]:
     rows = {row["id"]: row for row in index["evaluations"]}
     missing = [
@@ -220,6 +298,10 @@ def _decision(
         state = "INCONCLUSIVE"
     elif breached:
         state = "DO_NOT_ADVANCE"
+    elif policy.reviewed_scores is not None and scores is None:
+        state = "INCONCLUSIVE"
+    elif scores is not None and not scores["passed"]:
+        state = "DO_NOT_ADVANCE"
     elif policy.require_human_review and review is None:
         state = "NEEDS_REVIEW"
     else:
@@ -231,6 +313,7 @@ def assess_readiness(
     policy: Path | ModelReadinessPolicy,
     verified_index: Path | dict[str, Any],
     human_review_receipt: Path | None = None,
+    reviewed_score_receipt: Path | None = None,
 ) -> Path:
     """Verify all bindings before publishing a content-addressed model decision."""
     policy_source = Path(policy).resolve() if isinstance(policy, (str, Path)) else None
@@ -248,7 +331,8 @@ def assess_readiness(
         raise ValueError(
             "review decision bound to a different evaluation or checkpoint"
         )
-    state, missing, completed = _decision(declaration, index, review)
+    scores = _scores_for_readiness(declaration, index, reviewed_score_receipt)
+    state, missing, completed = _decision(declaration, index, review, scores)
     body = {
         "format": "model-readiness-result-v1",
         "policy": str(policy_source) if policy_source else None,
@@ -267,6 +351,18 @@ def assess_readiness(
         "missing_gates": missing,
         "completed_evaluations": completed,
     }
+    if declaration.reviewed_scores is not None:
+        body["reviewed_scores"] = (
+            str(Path(reviewed_score_receipt).resolve())
+            if reviewed_score_receipt is not None
+            else None
+        )
+        body["reviewed_scores_sha256"] = scores["receipt_sha256"] if scores else None
+        body["reviewed_score_summary"] = (
+            {key: scores[key] for key in ("correct", "format_ok", "axes", "passed")}
+            if scores
+            else None
+        )
     identity = _readiness_identity(body)
     output = index_path.parent / f"readiness-{identity}.json"
     if output.exists():
@@ -324,10 +420,50 @@ def verify_readiness_result(path: Path) -> dict[str, Any]:
     ):
         raise ValueError("readiness review changed")
     _validate_policy(declaration, index)
+    scores = _scores_for_readiness(
+        declaration,
+        index,
+        Path(result["reviewed_scores"])
+        if result.get("reviewed_scores") is not None
+        else None,
+    )
+    if declaration.reviewed_scores is not None and (
+        result.get("reviewed_scores_sha256")
+        != (scores["receipt_sha256"] if scores else None)
+        or result.get("reviewed_score_summary")
+        != (
+            {key: scores[key] for key in ("correct", "format_ok", "axes", "passed")}
+            if scores
+            else None
+        )
+    ):
+        raise ValueError("reviewed-score readiness evidence changed")
     if (
         result["state"],
         result["missing_gates"],
         result["completed_evaluations"],
-    ) != _decision(declaration, index, receipt):
+    ) != _decision(declaration, index, receipt, scores):
         raise ValueError("readiness decision does not follow policy")
     return result
+
+
+def _scores_for_readiness(
+    policy: ModelReadinessPolicy,
+    index: dict[str, Any],
+    receipt: Path | None,
+) -> dict[str, Any] | None:
+    criterion = policy.reviewed_scores
+    if criterion is None:
+        if receipt is not None:
+            raise ValueError("reviewed scores supplied without a policy criterion")
+        return None
+    if receipt is None:
+        return None
+    from sparselab.evaluation.reviewed_scores import verify_reviewed_scores
+
+    return verify_reviewed_scores(
+        Path(receipt),
+        index_sha256=index["index_sha256"],
+        checkpoint_sha256=index["checkpoint_sha256"],
+        **criterion.model_dump(),
+    )

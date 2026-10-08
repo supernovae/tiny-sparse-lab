@@ -723,13 +723,14 @@ def _data_bakeoff(args: argparse.Namespace) -> None:
 
 def _data_prepare(args: argparse.Namespace) -> None:
     config = load_config(Path(args.config))
-    verify_tokenizer_artifact(
-        config.tokenizer.path,
-        source=config.dataset.source,
-        revision=config.dataset.revision,
-        vocab_size=config.model.vocab_size,
-        dataset=config.dataset,
-    )
+    if config.dataset.source != "local_token_mixture":
+        verify_tokenizer_artifact(
+            config.tokenizer.path,
+            source=config.dataset.source,
+            revision=config.dataset.revision,
+            vocab_size=config.model.vocab_size,
+            dataset=config.dataset,
+        )
     tokenizer = load_tokenizer(config.tokenizer.path)
     print(
         prepare_data(
@@ -2346,8 +2347,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     commands = parser.add_subparsers(dest="command", required=True)
     from sparselab.operational_monitor_cli import register_monitor_parser
+    from sparselab.training.attempt_contract_cli import register_attempt_parser
 
     register_monitor_parser(commands)
+    register_attempt_parser(commands)
     weights = commands.add_parser("weights")
     weight_commands = weights.add_subparsers(dest="weights_command", required=True)
     weight_import = weight_commands.add_parser("import")
@@ -3491,6 +3494,8 @@ def _read_only_command(args: argparse.Namespace) -> bool:
         }
     if args.command == "runtime":
         return args.runtime_command in {"probe", "status"}
+    if args.command == "attempt":
+        return args.attempt_command == "status"
     if args.command == "corpus":
         return args.corpus_command not in {
             "acquire",
@@ -3612,7 +3617,7 @@ def main() -> None:
     args.storage_checks = _command_storage_checks(args)
     read_only = _read_only_command(args)
     deferred = (
-        args.command in {"campaign", "recovery", "archive"}
+        args.command in {"campaign", "recovery", "archive", "attempt"}
         or (
             args.command == "experiment"
             and args.experiment_command in {"prepare", "run"}

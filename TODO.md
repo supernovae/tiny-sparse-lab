@@ -21,6 +21,7 @@ artifact identities.
 
 ## Experiment ergonomics
 
+
 ### Rapid iteration
 
 The workload is baseline → exposure extension → one-field contrast and repeated
@@ -58,6 +59,183 @@ historical dataset-specific inputs retain their original verifiers.
 These remain implementation gaps, but should not displace P1/P2 without a
 documented workload need and the required acceptance environment.
 
+The proposed [Card 05 consolidation](experiments/research/kernel-memory-lab/CARD05_CONSOLIDATION_PLAN.md)
+activates the three native safety/readiness items below **in order** before a
+new base-language experiment. They are code work, not authorization for that
+experiment or a merge.
+
+- [ ] **Consolidate device/added-use monitoring and owned shutdown in the native monitor.**
+  Offline implementation and 36 selected zero-update checks are recorded in
+  [C05-C1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-monitor-slice.md).
+  Keep this item open until separately approved live ROCm and Card 05-script
+  parity checks establish the relevant runtime behavior.
+  `sparselab monitor` already owns process-tree RSS, free-space and projected
+  reserve checks; Kernel Memory Lab's tracked `read-vram-bytes.py`,
+  `sample-task-root.py`, `bounded-measurement.py` and
+  `run-owned-phase-command.py` supply the missing UUID-bound device read,
+  vanished-entry-safe live-tree byte/inode counts and zero-survivor shutdown.
+  Extend `MonitorPolicy` with optional `max_device_memory_bytes`,
+  `max_added_workspace_bytes` and `max_added_workspace_inodes`. Bind one
+  immutable task-root baseline and accepted device UUID across phases, with
+  fail-closed missing/stale/wrong-device readings and retained sample/cap/
+  descendant receipts. Preserve legacy policy/receipt identities when fields
+  are absent. Mock a failed or capped sensor, transient WAL/SHM files, genuine
+  access/I/O failure, exhausted sample deadline, detached groups, TERM-ignoring
+  workers and early parent exit; assert zero survivors and unrelated-process
+  survival. C05-F1 and C05-X1 are regression evidence, not retroactively
+  changed runs. Do not report sampled VRAM as an exact instantaneous peak.
+  [C05-I6](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-ci-qualification-stop.md)
+  exposed a hosted CI preflight defect: its ambient runner-root baseline scan
+  exhausted the old three-second sample deadline before setup on Linux and
+  macOS. [C05-I7](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-guard-sampler-repair.md)
+  repairs startup receipts, one-pass bounded sampling and incomplete
+  finalization offline. The separately approved [C05-I8](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-retry1-stop.md)
+  dispatch still exhausted 15 seconds baselining Linux `/opt/hostedtoolcache`;
+  macOS passed startup but failed during guarded `uv sync` setup (owned
+  descendants on archive, an unlocalized permission error on serving).
+  [C05-I9](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-guard-exit-repair.md)
+  repairs stale exit detection and receipt ordering offline. The separate
+  [owned-root policy proposal](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_POLICY_PROPOSAL.md)
+  is now implemented for offline review in
+  [C05-I10](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-implementation.md):
+  five-job workflow phase split, the selected [write-path audit](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_AUDIT.md),
+  and inspected zero-model checks. The separately approved
+  [C05-I11](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-stop.md)
+  dispatch observed the locked dependency setup exceed 50,000 live **path
+  entries** in all five jobs before model tests. [C05-I12](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-repair.md)
+  publishes the retained inventory, narrows watcher cleanup to the active
+  phase, records exact cleanup-operation identity, and audits the relocated
+  ledger read-only. Its offline tests do not qualify hosted finalization or
+  establish a full dependency footprint. Obtain a bounded complete-install
+  subtree/package inventory before choosing a leaner install or seeking a
+  separately reviewed entry-cap change if this qualification effort resumes.
+  KML-D39 pauses hosted qualification and footprint work; its guard remains
+  isolated from ordinary PR CI. The policy
+  narrows the storage claim; do not equate free-space observations with
+  added-byte/inode accounting. All three hosted allocations are spent, and
+  model-path qualification remains open.
+
+- [ ] **Bind one native attempt contract across phases, including zero-update work.**
+  The optional plan reference, content-pinned v2 SQLite allocation, monitored
+  owned phase runner and 24 selected offline checks are recorded in
+  [C05-C2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-attempt-contract-slice.md).
+  The public v2 CLI, selected Campaign phase binding, cold native terminal
+  checkpoint/panel counters and private verified-actual reconciliation are
+  recorded in [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md).
+  [C05-Q2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-q2.md)
+  is owner accepted as one separately budgeted CPU/fp32 final-batch masking and cold
+  receipt–ledger integration with 3 updates and 77 targets. The first
+  authorized CPU node [C05-Q1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-cpu-qualification-stop.md)
+  remains a preserved preledger failure. Keep this item open for live runtime
+  qualification and remaining end-to-end integration; Q2 is not ROCm or
+  real-panel/script parity evidence.
+  Reuse `AttemptBudget`, `ExperimentPlan.execution`, Campaign approval and native
+  run counters. Add one optional content-addressed `execution.attempt_contract`
+  reference; its typed limits include nonnegative optimizer updates (zero must
+  block train/warmup entry points), actual target positions, generation calls/
+  tokens and one wall deadline, while the monitor policy owns memory/storage.
+  Reserve the full possible charge before each phase; count failed, interrupted,
+  retried and resumed work cumulatively, with no reset/refund. Bind config,
+  source, checkpoint, policy and common-root baseline identities. Reconcile
+  ledger reservations with actual counters and final-batch masking. Mock cap
+  edges, clock rollback, identity drift, duplicate launches, timeout and
+  descendant shutdown before any update-bearing integration test. This is an
+  execution contract, separate from the P2 historical ledger projection and
+  Card 03 transport-body budget. The adapter is shipped; model integration is
+  qualified only for Q2's tiny CPU fixture.
+  [C05-I2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-integration-pr-preflight.md)
+  makes the optimizer fixture opt-in for ordinary pytest; automatic PR CI still
+  runs other training and generation fixtures and needs a separate bounded
+  allocation or a reviewed zero-update lane before the integration PR opens.
+
+- [x] **Reconcile preserved KML evidence with research lint before integration.**
+  The current linter rejects the already tracked Card 03 continuation script,
+  Card 03 review-index JSONL and Card 05 final-scores JSONL. Preserve their
+  bytes and scientific references; adopt a narrowly reviewed archival-location
+  or format rule with zero-update tests. [C05-I2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-integration-pr-preflight.md)
+  records the exact paths and earlier local lint failure. [C05-I3](experiments/research/kernel-memory-lab/results/2026-10-08-card05-draft-pr-safety-lane.md)
+  pins the three paths and SHA-256 digests and passes changed-byte, alternate-path
+  and extra-artifact negatives; unrelated payloads remain rejected.
+
+- [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
+  Optional decoder fields, same-index/checkpoint paired token-ID comparison,
+  reviewed-score verification and non-promoting readiness binding are recorded
+  in [C05-C3](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-panel-readiness-slice.md).
+  [C05-C4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-binding-corrections.md)
+  corrects exact frozen-suite coverage and rendered-question prompt binding;
+  its corrected guarantee awaits owner review.
+  Keep open until a separately authorized real panel demonstrates parity with
+  the tracked Card 05 scripts, the reviewer process is independently audited,
+  and Campaign/runtime integration is exercised. Existing negative scores
+  remain historical and do not qualify a reader.
+  `run_panel` already journals one attempt per prompt at a verified evaluation
+  index but hardcodes cache on and permissive context. Add optional
+  `PanelDecoder.use_cache` and `PanelDecoder.strict_context`, preserving absent-
+  field declaration/receipt hashes. Under one attempt contract, permit a cached
+  panel and a tiny uncached panel bound to the same checkpoint/index; a separate
+  immutable prompt-set manifest supplies pair ordinals, held-out lineage and
+  golds. Bind independent item-level score imports to existing capability-card/
+  readiness evidence; a descriptive panel or clean monitor receipt alone must
+  never pass the Card 05 gate. Test exact token-ID parity, empty/failed rows,
+  one-shot replay, aggregate generation/output caps, changed bindings, 200/200
+  scored completeness, every axis denominator, disagreement resolution and
+  negative/unavailable verdicts. `tests/test_generation_panel.py` and related
+  integration fixtures perform optimizer updates; use mocked zero-update tests
+  first and reserve a separate update budget for those integration tests.
+
+- [ ] **Expose the Card 03 held-out item freeze through a typed native CLI.**
+  The new `sparselab.evaluation.kml_card03_items.freeze_card03_items` Python
+  API accepts a cold-verifiable corpus release, frozen family-inventory JSONL,
+  reviewed draft JSON and fresh output directory, and returns immutable item,
+  chunk and denominator digests. Add a small `sparselab evaluation
+  freeze-card03 ITEMS --release RELEASE --families INVENTORY --output OUTPUT
+  --json` adapter that reports those identities and fails on changed release,
+  train-family leakage, unbound chunk offsets/digests, unreviewed or missing
+  items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
+  existing output. Do not turn the adapter into a second authoring engine.
+
+- [ ] **Expose prepared-input bundle publication and cold verification through a typed CLI.**
+  The native `materialize_prepared_inputs(config, destination)` and
+  `verify_prepared_inputs(root, config)` Python APIs can seal and authenticate a
+  data-only bundle, but `sparselab data prepare` publishes only the cache.
+  Add a small CLI adapter taking a validated run config and exclusive output
+  path, returning the bundle manifest digest and supervised-target counters.
+  Verification must reject altered assets, config/source-identity drift, a
+  missing supervision mask, or a target count different from the verified
+  mixture receipt. Card 03 used the existing APIs directly; this command is
+  not shipped yet.
+
+- [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
+
+- [ ] **Retain bounded corpus decompression and temporary-storage high-water counters.** Kernel Memory Lab Card 03 P1 enforced the distinct expanded-stream and projected disk caps, but the native receipt does not report actual decompressed bytes or peak staging occupancy. Extend the existing bounded acquisition receipt, without changing legacy hashes when no new fields are present, to report per-shard bytes consumed from the expanded stream and peak task-owned staging bytes/inodes. Fail closed if a required reading is unavailable and preserve raw counters on interrupted transfers; test exact caps, overlong lines and resumed attempts with mocked HTTP. Do not backfill P1 with inferred measurements or require reacquisition only to fill historical optional fields.
+
+- [x] **Materialize and verify a deterministic multi-source training mixture.**
+  The native `corpus materialize-mixture` and `corpus verify-mixture` operations
+  bind a verified release, tokenizer, family inventory and per-stratum quotas;
+  they reject rights or split leakage, quota shortfall and changed inputs. Card
+  03's 5,000,000-position output and cold replay are recorded in its offline
+  continuation result. Requested metadata remains separate from realized tokens.
+- [x] **Bound pinned Git blob acquisition without an unbounded fetch.** Native
+  `corpus acquire` now supports optional exact GitHub commit/tree/blob declarations
+  with the shared persistent response-body ledger, pre-transfer identity/size
+  checks, streamed source caps, content SHA-256 and Git object SHA-1 receipts,
+  and conservative retry/resume charges (code commit `ec91e9f`). The legacy
+  pattern-based `git fetch --depth=1` mode remains unbounded and is **not**
+  suitable for the PagerDuty pilot. The new mode never fetches the unselected
+  PDF or builds a Git cache. Added inode and temporary-storage high-water
+  receipts remain the separate monitor/receipt task above; no real PagerDuty
+  content acquisition has been approved or performed.
+- [x] **Admit exact Hub shards with a shared transfer budget.** The native
+  bounded-HF declaration and `corpus budget-init` path now accept exact pinned
+  shard files with declared config/split metadata, preflight pinned file
+  size/SHA-256 and the sole reported config/split, and enforce a durable,
+  attempt-bound source/metadata response-body ledger across retries and resumes.
+  Redirect and HTTP-error bodies count; source reads never request an extra byte
+  beyond the declared cap. Local/mock tests cover invalid selections, changed
+  size/checksum, partial transfer, exhausted/corrupt budgets and legacy hash/
+  receipt reuse. See `23db56c`/`c77074e` and Kernel Memory Lab [S4](experiments/research/kernel-memory-lab/results/2026-10-07-card03-transport-fix.md).
+  This code completion does not approve acquisition or authenticate live source
+  rights; Card 03 retains those separate gates.
 - [ ] **Implement native CUDA sparse attention.** Activate when a planned CUDA
   workload needs this path and NVIDIA hardware is available. Preserve reference
   semantics and add hardware-gated correctness tests and component benchmarks.

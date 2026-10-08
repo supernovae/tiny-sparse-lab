@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+from collections import Counter
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -99,7 +100,12 @@ def _verify_rights_files(
     snapshots: dict[str, dict[str, Any]],
 ) -> dict[tuple[str, str], dict[str, Any]]:
     """Bind prospective file decisions to the pinned bytes and metadata."""
-    from sparselab.corpus.rights import RightsPolicy, resolve_file_rights
+    from sparselab.corpus.rights import (
+        RightsPolicy,
+        reported_spdx_expression,
+        resolve_file_rights,
+        verify_record_admission,
+    )
 
     report = _load(root / "license-report.json")
     if report.get("schema_version") not in (2, 3) or report.get("sources") != list(
@@ -121,6 +127,30 @@ def _verify_rights_files(
     }
     if set(indexed) != expected:
         raise ValueError("rights file inventory differs from pinned snapshots")
+    identity = _load(
+        root / ("build.json" if (root / "build.json").exists() else "manifest.json")
+    ).get("identity")
+    if identity is None:
+        identity = _load(root / "manifest.json")["build_identity"]
+    admission_reference = identity["release"].get("record_admission")
+    admission: dict[tuple[str, str], dict[str, Any]] = {}
+    if admission_reference is not None:
+        admission_path = root / "record-admission.json"
+        admission_bytes = admission_path.read_bytes()
+        if (
+            admission_path.is_symlink()
+            or hashlib.sha256(admission_bytes).hexdigest()
+            != admission_reference["sha256"].lower()
+        ):
+            raise ValueError("record admission reference differs from frozen bytes")
+        admission = verify_record_admission(
+            json.loads(admission_bytes),
+            {source_id: snapshots[source_id]["declaration"] for source_id in sources},
+            snapshots,
+            root.parent.parent / "snapshots",
+        )
+    elif (root / "record-admission.json").exists():
+        raise ValueError("undeclared record admission artifact")
     for source_id, snapshot in snapshots.items():
         source = sources[source_id]
         policy = RightsPolicy.model_validate(source["rights_policy"])
@@ -162,18 +192,55 @@ def _verify_rights_files(
                     if path.endswith((".jsonl", ".json", ".parquet"))
                     else b"".join(stream.readline() for _ in range(30))
                 )
-            resolved = resolve_file_rights(
-                policy,
-                path,
-                raw,
-                nested_metadata=metadata,
-                prospective_private_research=source.get("explicit_training_restriction")
-                == "none_found",
+            admitted = admission.get((source_id, path))
+            resolved = (
+                admitted["rights"]
+                if admitted is not None
+                else resolve_file_rights(
+                    policy,
+                    path,
+                    raw,
+                    nested_metadata=metadata,
+                    prospective_private_research=source.get(
+                        "explicit_training_restriction"
+                    )
+                    == "none_found",
+                )
             )
             if recorded["rights"] != resolved.model_dump(mode="json") or (
                 recorded.get("license_url") != source["license_url"]
             ):
                 raise ValueError("rights decision differs from pinned file evidence")
+            if admitted is not None:
+                if "admission_policy_spdx_expression" not in recorded or any(
+                    recorded.get(key) != value
+                    for key, value in (
+                        ("admission_policy_id", admitted["policy_id"]),
+                        ("admission_policy_sha256", admitted["policy_sha256"]),
+                        ("admission_license_label", admitted["license_label"]),
+                        (
+                            "admission_policy_spdx_expression",
+                            admitted["policy_spdx_expression"],
+                        ),
+                    )
+                ):
+                    raise ValueError("file admission policy attribution mismatch")
+                if "decisions" in admitted:
+                    recorded["_admission_decisions"] = admitted["decisions"]
+                else:
+                    recorded["_admission_file_decision"] = admitted["decision"]
+            elif any(key.startswith("admission_") for key in recorded):
+                raise ValueError("undeclared file admission policy")
+    if admission:
+        expected_spdx = Counter(
+            reported_spdx_expression(
+                row, sources[row["source_id"]]["rights_policy"]["spdx_expression"]
+            )
+            for row in rows
+            if row["role"] == "document"
+        )
+        if report.get("spdx_expressions") != dict(expected_spdx):
+            raise ValueError("admission SPDX summary differs from reviewed file policy")
     return indexed
 
 
@@ -780,6 +847,7 @@ def _validate_rows(
     raw = b""
     raw_sha = ""
     offsets: list[int] = []
+    observed_admission: set[tuple[str, str, int]] = set()
     for doc in sorted(
         documents,
         key=lambda item: (item["source_id"], spans[item["document_id"]]["raw_path"]),
@@ -810,13 +878,31 @@ def _validate_rows(
                 or doc.get("file_sha256") != file["sha256"]
                 or doc["license"]
                 != (
-                    decision["detected_spdx_expression"]
+                    file.get("admission_license_label")
+                    or decision["detected_spdx_expression"]
                     or source["rights_policy"]["spdx_expression"]
                     or source["license"]
                 )
                 or doc["redistribution"] != decision["redistribution_mode"]
             ):
                 raise ValueError("document rights attribution mismatch")
+            if file.get("_admission_file_decision", "qualify") != "qualify":
+                raise ValueError("document lacks qualifying file admission")
+            if "_admission_decisions" in file:
+                metadata = doc.get("metadata") or {}
+                index = metadata.get("source_row_index")
+                choice = file["_admission_decisions"].get(index)
+                if (
+                    type(index) is not int
+                    or choice is None
+                    or choice["decision"] != "qualify"
+                    or metadata.get("source_row_sha256") != choice["source_row_sha256"]
+                ):
+                    raise ValueError("document lacks qualifying record admission")
+                key = (doc["source_id"], span["raw_path"], index)
+                if key in observed_admission:
+                    raise ValueError("duplicate admitted source row")
+                observed_admission.add(key)
         elif (
             doc["license"] != source["license"]
             or doc["redistribution"] != source["redistribution"]
@@ -844,6 +930,21 @@ def _validate_rows(
             or span["raw_content_sha256"] != doc["raw_content_sha256"]
         ):
             raise ValueError("document snapshot span mismatch")
+        if prospective and "_admission_decisions" in file:
+            from sparselab.corpus.pipeline import _normalized
+
+            line_number = span["line_start"]
+            sample_lines = raw.splitlines()
+            if (
+                type(line_number) is not int
+                or line_number < 1
+                or line_number > len(sample_lines)
+                or span["line_end"] != line_number
+                or doc["source_location"] != f"{span['raw_path']}#row={line_number}"
+                or _normalized(json.loads(sample_lines[line_number - 1])["text"])
+                != doc["text"]
+            ):
+                raise ValueError("admitted document differs from selected source row")
         if "#lines=" in doc["source_location"]:
             start, end = span["line_start"], span["line_end"]
             if start < 1 or end < start or end >= len(offsets):
@@ -856,6 +957,14 @@ def _validate_rows(
                 != doc["raw_content_sha256"]
             ):
                 raise ValueError("document raw byte range mismatch")
+    expected_admission = {
+        (source_id, path, index)
+        for (source_id, path), file in rights_files.items()
+        for index, choice in file.get("_admission_decisions", {}).items()
+        if choice["decision"] == "qualify"
+    }
+    if observed_admission != expected_admission:
+        raise ValueError("admitted source row inventory differs from documents")
     lineages = _rows(root / "lineage.jsonl")
     lineage_map = {row["record_id"]: row for row in lineages}
     if len(lineage_map) != len(lineages):

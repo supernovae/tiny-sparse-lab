@@ -1,0 +1,61 @@
+# Card 04 proposal only. The tokenizer path is unresolved; do not run or stage.
+schema_version: 2
+name: kernel-memory-lab-card04-synthetic-profile
+seed: 17
+runtime:
+  engine: pytorch
+  backend: rocm
+  device_index: 0
+  precision: bf16
+  memory:
+    policy: balanced
+    max_device_memory_fraction: 0.90
+    budget_bytes: 21474836480
+    activation_checkpointing: {enabled: true, strategy: transformer_block}
+    activation_offload: {enabled: false}
+model:
+  vocab_size: 32768
+  hidden_dim: 1024
+  num_layers: 24
+  num_heads: 16
+  ffn_dim: 2816
+  max_seq_len: 1024
+  tie_embeddings: true
+  ffn: dense
+  memory: none
+tokenizer:
+  path: /srv/sparselab/state/experiments/kernel-memory-lab/card04-synthetic/tokenizer/tokenizer.json
+dataset:
+  source: synthetic
+  cache_dir: /srv/sparselab/state/experiments/kernel-memory-lab/card04-synthetic/prepared
+  train_max_documents: 4096
+  validation_max_documents: 128
+  train_max_tokens: 131072
+  validation_max_tokens: 8192
+  synthetic_seed: 17
+training:
+  micro_batch_size: 1
+  gradient_accumulation: 1
+  seq_len: 1024
+  max_steps: 113
+  max_tokens: 115712
+  grad_clip_norm: 1.0
+  deterministic: true
+optimizer:
+  name: adamw
+  peak: 0.0003
+  floor: 0.00003
+  warmup_steps: 10
+  decay_steps: 113
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 0.00000001
+attention:
+  kind: dense
+  implementation: reference
+evaluation: {every_steps: 113, max_batches: 1}
+checkpoint: {every_steps: 113, keep_periodic: false}
+staging: {smoke_steps: 2, warmup_steps: 5}
+logging:
+  root_dir: /srv/sparselab/state/experiments/kernel-memory-lab/card04-synthetic/runs
+  every_steps: 1

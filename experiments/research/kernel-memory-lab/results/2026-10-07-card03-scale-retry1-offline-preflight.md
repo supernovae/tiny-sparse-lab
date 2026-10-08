@@ -1,0 +1,10 @@
+# C03-S3 — retry 1 offline deadline preflight
+
+- Record ID and UTC date: C03-S3, 2026-10-07.
+- Card and bounded action: Card 03 retry 1 offline prerequisites under [KML-D16](../DECISIONS.md#kml-d16--one-card-03-scaled-preparation-retry-approved-2026-10-07); no new transport ledger was opened during these checks.
+- Operator and reviewer: Codex; owner release review pending.
+- Starting evidence: [C03-S2](2026-10-07-card03-scale-metadata-stop.md) stopped the prior attempt with its ledger and traces preserved. The `d996633` fallback had not yet been tested against a blocked live-like hidden-socket read.
+- Change: `tests/test_corpus_acquisition.py` now exercises a genuinely blocked pipe read interrupted by the per-read deadline, restoration of the prior signal handler after timeout and success, refusal to replace an occupied timer, and refusal to use the fallback from a non-main thread. These are offline fixtures; they make no network request and do not claim successful acquisition.
+- Verification: the four named cases passed 4/4 with `uv run --locked --no-sync pytest -vv --tb=long tests/test_corpus_acquisition.py -k ...`; the relevant corpus/budget/Scoutflo regression suite passed **359/359** with `uv run --locked --no-sync pytest -q tests/test_corpus_*.py tests/test_attempt_budget.py tests/test_kml_scoutflo_scale.py`. Ruff check/format and `git diff --check` passed. The readiness smoke was omitted because it performs optimizer updates prohibited by KML-D16.
+- Resource use: zero acquired source-body bytes, new metadata-body bytes, GPU use, optimizer updates or cloud spend; the retry-1 ledger was not initialized during the offline preflight.
+- Gate assessment: **OFFLINE PREREQUISITES PASSED**. The next dependent action is to initialize one new retry ledger from a clean fixed checkout and begin normal accounted acquisition with pinned PagerDuty commit/tree metadata under the active outer deadline guard. Any metadata failure stops the attempt without reset or unaccounted probe.

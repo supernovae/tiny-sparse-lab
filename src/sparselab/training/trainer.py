@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import shutil
 import signal
 import socket
@@ -95,6 +96,7 @@ from sparselab.training.pilot_progress import (
     emit_pilot_progress,
     pilot_phase,
 )
+from sparselab.training.preparation_guard import require_model_runtime_allowed
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.training.throughput import summarize_training_progress
 
@@ -522,6 +524,7 @@ def train(
     checkpoint_committed: Callable[[Path, CheckpointRecord], None] | None = None,
 ) -> str:
     """Run one independent experiment, optionally bound to a stage bundle."""
+    require_model_runtime_allowed()
     require_authorization(config, authorization)
     validate_tokenizer_batch_limits(
         tokenizer_batch_documents, tokenizer_batch_source_bytes
@@ -566,6 +569,8 @@ def train(
         verification_mode=verification_mode,
         checkpoint_committed=checkpoint_committed,
     )
+    if _attempt_contract_suppresses_triage():
+        return completed_run_id
     try:
         progress = config.logging.root_dir / completed_run_id / "progress.json"
         if progress.is_symlink():
@@ -585,6 +590,13 @@ def train(
     except Exception as error:  # noqa: BLE001 - diagnostics must not fail completed training
         _LOGGER.warning("POST-TRAIN TRIAGE UNKNOWN for %s: %s", completed_run_id, error)
     return completed_run_id
+
+
+def _attempt_contract_suppresses_triage() -> bool:
+    """A train-phase reservation has no budget for implicit diagnostic generations."""
+    return bool(os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")) and (
+        os.environ.get("SPARSELAB_ATTEMPT_ACTIVITY") == "train"
+    )
 
 
 def _train_impl(
@@ -615,6 +627,7 @@ def _train_impl(
     checkpoint_committed: Callable[[Path, CheckpointRecord], None] | None = None,
 ) -> str:
 
+    require_model_runtime_allowed()
     require_authorization(config, authorization)
     validate_tokenizer_batch_limits(
         tokenizer_batch_documents, tokenizer_batch_source_bytes

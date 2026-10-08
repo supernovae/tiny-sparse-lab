@@ -1,0 +1,9 @@
+# No release view is selected; retained pilot rows require individual review.
+schema_version: 2
+publication_mode: metadata_reconstruction_only
+mixture:
+  general_prose: 0.5
+  explanatory_prose: 0.5
+lm: {selected: false, training_splits: []}
+chat: {selected: false, training_splits: []}
+keep_nonredistributable_local: true

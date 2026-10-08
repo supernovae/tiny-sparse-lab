@@ -84,6 +84,7 @@ from sparselab.training.pilot_deadline import (
     PilotSupervisorError,
     supervise_pilot,
 )
+from sparselab.training.preparation_guard import require_model_runtime_allowed
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.verification_proofs import file_binding
 from sparselab.workdir import ensure_work_dir
@@ -953,6 +954,7 @@ def stage(
     copy_observations: list[dict[str, object]] | None = None,
     observer: BottleneckObserver | None = None,
 ) -> Path:
+    require_model_runtime_allowed()
     if through not in _LEVELS:
         raise ValueError("through must be inspect, validate, smoke, or warmup")
     if prepared_inputs is not None and allow_runtime_drift:

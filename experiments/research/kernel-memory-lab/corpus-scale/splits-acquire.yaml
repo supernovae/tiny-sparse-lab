@@ -1,0 +1,9 @@
+# Schema placeholder for verified acquisition; never use as the Card 03 split.
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  kml_scale_pagerduty: train
+  kml_scale_project_gutenberg: train
+  kml_scale_scoutflo: train
+  kml_scale_wikimedia: train

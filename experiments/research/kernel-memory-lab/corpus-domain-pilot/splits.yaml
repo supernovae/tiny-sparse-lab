@@ -1,0 +1,6 @@
+# Schema placeholder only: zero files are admitted to this split.
+schema_version: 1
+unit: source_document_family
+family_key: source_family
+assignments:
+  kml_pagerduty_incident_docs: train
