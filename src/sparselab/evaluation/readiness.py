@@ -74,6 +74,46 @@ def _index_path(index: dict[str, Any] | Path) -> Path:
     return Path(index["run"]) / "evaluations" / f"suite-{index['index_sha256']}.json"
 
 
+def inspect_observation_coverage(
+    verified_index: Path, panel_result: Path | None = None
+) -> dict[str, Any]:
+    """Report execution coverage without granting model readiness.
+
+    A completed suite or descriptive generation panel contains no independently
+    reviewed item scores. This check deliberately has no promotion state; the
+    reviewed-score criterion and named human review are separate evidence.
+    """
+    index = verify_evaluation_index(Path(verified_index))
+    evaluations = index["evaluations"]
+    completed = sum(row["status"] == "COMPLETED" for row in evaluations)
+    observation: dict[str, Any] = {
+        "index_sha256": index["index_sha256"],
+        "checkpoint_sha256": index["checkpoint_sha256"],
+        "suite_completed": completed,
+        "suite_total": len(evaluations),
+        "panel_completed": None,
+        "panel_total": None,
+        "reviewed_scores": "MISSING",
+        "reader_eligibility": "UNESTABLISHED",
+    }
+    if panel_result is not None:
+        from sparselab.evaluation.panel import verify_panel_result
+
+        panel = verify_panel_result(Path(panel_result))
+        if (
+            panel["evaluation_index_sha256"] != index["index_sha256"]
+            or panel["checkpoint_sha256"] != index["checkpoint_sha256"]
+        ):
+            raise ValueError(
+                "panel and evaluation index identify different checkpoints"
+            )
+        observation["panel_completed"] = sum(
+            row["status"] == "COMPLETED" for row in panel["rows"]
+        )
+        observation["panel_total"] = len(panel["rows"])
+    return observation
+
+
 def _review_identity(record: dict[str, Any]) -> str:
     science = {
         key: value

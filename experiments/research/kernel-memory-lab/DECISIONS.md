@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D26 — C05-P4 accepted; native consolidation code scope authorized, 2026-10-08
+
+- The owner accepted [C05-P4](results/2026-10-08-card05-consolidation-planning.md) at `0c1786bcbb0423eb7b34e4991411c85761bf2b16` as the plan for three native implementation slices in dependency order: monitor/baseline/owned shutdown and non-promoting readiness observations; one cumulative attempt contract including zero-update work; and optional panel controls with independently reviewed-score readiness binding.
+- Authority covers code, positively inspected CPU-only zero-update fixtures/mocks/harmless bounded subprocess tests, documentation, evidence, commit and push on `codex/kernel-memory-lab`. Each slice must be verified and recorded before the next. Preserve absent-field legacy declarations and hashes, historical results, and the tracked Card 05 scripts until native parity is shown. Stop on a failed safety invariant or genuine incompatibility.
+- This decision grants **zero** research optimizer updates, model initialization, warmup, real generation, acquisition, GPU/cloud work or merge. Any update-bearing integration test needs a separate bounded allocation. C05-N1 remains a negative 0/200 result, C05-X1 exploratory, and Card 06 blocked.
+
 ## KML-D25 — Card 05 offline diagnosis accepted for working use; one matched diagnostic authorized, 2026-10-08
 
 - The owner accepted [C05-I1](results/2026-10-08-card05-v2-offline-diagnosis.md) as a **working explanation**, preserving [C05-N1](results/2026-10-08-card05-fresh-tranche-negative-language.md) as a negative 0/200 Card 05 result and C05-F1 as the earlier failed attempt. This is not a causal proof or reader-eligibility promotion.

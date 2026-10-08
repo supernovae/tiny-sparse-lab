@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.12 — first native consolidation slice, 8 October 2026
+
+- Recorded KML-D26 accepting C05-P4 as an ordered offline implementation plan and [C05-C1](results/2026-10-08-card05-native-monitor-slice.md) as the first monitored-safety/readiness code result
+- Added native optional UUID-bound VRAM and common-root added-use caps, persistent baseline and complete owned shutdown; final projected monitor writes are counted before a successful receipt, with legacy absent-field JSON preserved
+- Passed 36 explicitly selected zero-update CPU/mock/subprocess tests, Ruff and diff checks; live ROCm, existing-script parity and all update-bearing integration remain unqualified
+
 ## 2026-10-08.11 — Card 05 consolidation proposal, 8 October 2026
 
 - Recorded [C05-P4](results/2026-10-08-card05-consolidation-planning.md) and a [prospective plan](CARD05_CONSOLIDATION_PLAN.md) from the completed C05-N1 tranche and C05-X1 matched diagnostic, keeping their negative/exploratory results and Card 06 reader block intact

@@ -65,6 +65,10 @@ new base-language experiment. They are code work, not authorization for that
 experiment or a merge.
 
 - [ ] **Consolidate device/added-use monitoring and owned shutdown in the native monitor.**
+  Offline implementation and 36 selected zero-update checks are recorded in
+  [C05-C1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-native-monitor-slice.md).
+  Keep this item open until separately approved live ROCm and Card 05-script
+  parity checks establish the relevant runtime behavior.
   `sparselab monitor` already owns process-tree RSS, free-space and projected
   reserve checks; Kernel Memory Lab's tracked `read-vram-bytes.py`,
   `sample-task-root.py`, `bounded-measurement.py` and
