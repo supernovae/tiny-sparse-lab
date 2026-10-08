@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D21 — C05-M1 real-data timing accepted; full-tranche declaration proposed, 2026-10-08
+
+- Owner explicitly accepted [C05-M1](results/2026-10-08-card05-real-data-timing.md) at pushed `01184e8` **as real-data timing evidence**. The accepted scope is one 32-update/32,768-target measurement, its verified checkpoint, monitors, separated overhead and labeled forecast. This is not acceptance of model quality or authorization to resume its checkpoint.
+- [C05-P3](results/2026-10-08-card05-full-tranche-planning.md) records an offline, zero-training [full-tranche-and-language-diagnostic proposal](CARD05_FULL_TRANCHE_PROPOSAL.md), with a separately derived 4,883-step seed-17 config and frozen 200-language-item declarations. It retains the accepted Card 03 release and Gate 0 assessment, plus all historical failures and timing artifacts.
+- No Card 05 full-run runtime allocation has been approved. The proposal's exact training/evaluation limits, threshold policy, preledger launcher adaptation and owner review remain decisions for the next approval. No acquisition, staging, model initialization, GPU work, optimizer update, cloud spend or Card 06 progression follows from this entry.
+
 ## KML-D20 — one Card 05 real-data timing measurement approved, 2026-10-08
 
 - Owner approved **one** local real-data timing measurement under [C05-P2](CARD05_REAL_DATA_MEASUREMENT_PROPOSAL.md) from `54c55b3`, with the exact accepted Card 03 release/bundle/config, fresh random seed 17 and unique run ID. This approval does **not** authorize the full 5-million-position Card 05 tranche.

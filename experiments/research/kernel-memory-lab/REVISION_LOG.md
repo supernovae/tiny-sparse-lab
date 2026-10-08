@@ -1,5 +1,12 @@
 # Revision and synchronization log
 
+## 2026-10-08.4 — C05-M1 accepted and one full-tranche/evaluation request, 8 October 2026
+
+- Recorded KML-D21 accepting C05-M1 at `01184e8` for real-data timing evidence only; the measured checkpoint, old failures, Card 03 release and Gate 0 assessment remain unchanged
+- Derived a new seed-17 4,883-step/5,000,000-target full-run config with 100-step warmup, full-horizon cosine decay and every-500 one-batch validation/checkpoint retention; authored fixed 200-language-item prompt order, generation panel and selected-checkpoint evaluation suite
+- Validated the declarations offline against the frozen 600-item content digest, ten 20-item language axes, native config/parser, exact tokenizer context fit and conservative checkpoint/storage math; [C05-P3](results/2026-10-08-card05-full-tranche-planning.md) records the evidence and [the single proposal](CARD05_FULL_TRANCHE_PROPOSAL.md) states exact limits and thresholds
+- No staging, model initialization, GPU execution, optimizer updates, acquisition, evaluation generation, cloud spend or Card 06 progression occurred; full Card 05 runtime still needs owner approval and a focused offline launcher adaptation before ledger creation
+
 ## 2026-10-08.3 — bounded Card 05 real-data timing measurement, 8 October 2026
 
 - Pushed passing launcher adaptation as fixed clean `ec1651f`, cold-verified the accepted prepared inputs and stage/run configuration, and completed the one KML-D20 ledger-bounded attempt: zero-update validate stage followed by one fresh 32-update/32,768-target train stop
