@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D32 — one guarded hosted serving-only validation authorized, 2026-10-08
+
+- The owner approved offline guard/preflight implementation followed conditionally by **one** `serving_only=true` hosted dispatch from a clean, pushed, exact SHA. PR #54 remains draft. [C05-I5](results/2026-10-08-card05-hosted-ci-guard-preflight.md) records the preflight implementation and its zero-update offline checks.
+- Non-transferable job quotas: Linux serving 20 optimizer updates, 640 actual targets, 113 generation calls and 355 requested-token allowance; macOS serving the same; macOS archive 2 updates/32 targets/zero generation; lint and fast zero model work. Aggregate maxima: **42 updates, 1,312 targets, 226 calls, 710 requested generated tokens**. A persistent job ledger precharges requests before work, shares accounting with Python children, retains failed charges and reports actual work separately. Fixture/parameter drift and unmetered entry points must fail closed.
+- Each job has an 8 GiB process-tree RSS, 4 GiB added-storage and 50,000-added-inode cap across setup, caches, temporary files, logs and descendants. The five job timeout maxima sum to 45 runner-minutes; the 30-minute aggregate elapsed deadline includes queueing. No automatic retry or resume. Preserve logs and receipts on failure. Full CPU suites, GPU work, new scientific data or model research, paid runner upgrades, ready-for-review and merge remain outside this authority.
+
 ## KML-D31 — pinned legacy lint and limited draft PR lane authorized, 2026-10-08
 
 - The owner approved one draft-PR preparation/opening step with three byte-identical historical artifacts, exact path/SHA-256 lint exceptions, zero-update negative tests, and a same-repository branch-scoped draft-only CI lane with five-minute lint and ten-minute inspected check jobs. Normal PR checks must return on `ready_for_review`; main-push/manual behavior and branch protection remain unchanged.

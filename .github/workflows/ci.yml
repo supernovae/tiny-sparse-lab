@@ -11,6 +11,10 @@ on:
         description: "Run bounded serving checks without the full CPU suites"
         type: boolean
         default: false
+      qualification_sha:
+        description: "Exact reviewed commit for a serving-only KML dispatch"
+        type: string
+        required: false
 
 # PR updates replace obsolete work; main remains covered after merge.
 concurrency:
@@ -19,6 +23,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 # Tiny CPU fixtures benefit from parallel pytest workers, not nested BLAS pools.
 env:
@@ -43,11 +48,58 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || '' }}
+      - name: Start bounded qualification watcher
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-lint"
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        with:
+          version: "0.12.19"
+          enable-cache: false
+      - uses: actions/setup-python@v7
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        with:
+          python-version: "3.14"
+      - name: Run bounded qualification lint
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job lint
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-lint"
+      - name: Finalize qualification watcher
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
+          --root "$RUNNER_TEMP/kml-ci-lint"
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        with:
+          name: kml-ci-lint-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kml-ci-lint/*.json
+            ${{ runner.temp }}/kml-ci-lint/*.log
+            ${{ runner.temp }}/kml-ci-lint/*.sqlite*
+            ${{ runner.temp }}/kml-ci-lint/events/*.json
+          if-no-files-found: error
+          retention-days: 7
       - uses: astral-sh/ruff-action@v4.1.0
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         with:
           version: "0.16.8"
           args: check .
       - name: Verify frozen decoding test identity
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: |
           python3 - <<'PY'
           import hashlib
@@ -62,6 +114,7 @@ jobs:
               raise SystemExit(f"{test}: frozen preregistration digest changed")
           PY
       - uses: astral-sh/ruff-action@v4.1.0
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         with:
           version: "0.16.8"
           args: format --check .
@@ -76,16 +129,29 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || '' }}
+      - name: Start bounded qualification watcher
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-fast"
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
-          enable-cache: true
+          enable-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.serving_only }}
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - name: Lint tracked research declarations and evidence references
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: uv run --locked --extra cpu python -m sparselab.research.lint --json
       - name: Focused configuration, corpus, and ingestion checks
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: >-
           uv run --locked --extra cpu pytest -q
           tests/test_research_lint.py
@@ -98,6 +164,31 @@ jobs:
           tests/test_attempt_budget.py
           tests/test_operational_monitor.py
           tests/test_kml_card04_profile_tools.py
+      - name: Run bounded qualification fast checks
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job fast
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-fast"
+      - name: Finalize qualification watcher
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
+          --root "$RUNNER_TEMP/kml-ci-fast"
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        with:
+          name: kml-ci-fast-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kml-ci-fast/*.json
+            ${{ runner.temp }}/kml-ci-fast/*.log
+            ${{ runner.temp }}/kml-ci-fast/*.sqlite*
+            ${{ runner.temp }}/kml-ci-fast/events/*.json
+          if-no-files-found: error
+          retention-days: 7
   evidence-macos-arm64:
     if: >-
       github.event_name != 'pull_request' ||
@@ -109,19 +200,56 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || '' }}
+      - name: Start bounded qualification watcher
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-archive"
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
-          enable-cache: true
+          enable-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.serving_only }}
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - name: Offline research lint and corpus archive acceptance (macOS)
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: |
           uv run --locked --extra cpu python -m sparselab.research.lint --json
           uv run --locked --extra cpu pytest -q \
             tests/test_research_lint.py tests/test_declaration_preflight.py \
             tests/test_corpus_pipeline.py tests/test_corpus_identity.py tests/test_archive.py
+      - name: Run bounded qualification archive checks
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job archive
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-archive"
+      - name: Finalize qualification watcher
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
+          --root "$RUNNER_TEMP/kml-ci-archive"
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        with:
+          name: kml-ci-archive-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kml-ci-archive/*.json
+            ${{ runner.temp }}/kml-ci-archive/*.log
+            ${{ runner.temp }}/kml-ci-archive/*.sqlite*
+            ${{ runner.temp }}/kml-ci-archive/events/*.json
+          if-no-files-found: error
+          retention-days: 7
   serving-smoke:
     if: >-
       github.event_name != 'pull_request' ||
@@ -140,16 +268,27 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # Report an exact PR head, independently of the full-suite merge run.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || github.event.pull_request.head.sha || github.sha }}
+      - name: Start bounded qualification watcher
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-serving"
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
-          enable-cache: true
+          enable-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.serving_only }}
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - run: uv sync --locked --extra cpu --dev
+      - if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
+        run: uv sync --locked --extra cpu --dev
       - name: Bounded offline serving and CLI regression checks
+        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: |
           export SPARSELAB_WORK_DIR="$RUNNER_TEMP/serving-work"
           git rev-parse HEAD
@@ -160,6 +299,31 @@ jobs:
             tests/test_generation_result.py tests/test_runtime_id_selection.py \
             tests/test_snapshot_inference.py tests/test_snapshot_artifact_bindings.py \
             tests/test_snapshot_authority.py
+      - name: Run bounded qualification serving checks
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job serving
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-serving"
+      - name: Finalize qualification watcher
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
+          --root "$RUNNER_TEMP/kml-ci-serving"
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
+        with:
+          name: kml-ci-serving-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kml-ci-serving/*.json
+            ${{ runner.temp }}/kml-ci-serving/*.log
+            ${{ runner.temp }}/kml-ci-serving/*.sqlite*
+            ${{ runner.temp }}/kml-ci-serving/events/*.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Retain CLI startup diagnostics in the job log
         if: always()
         run: |
