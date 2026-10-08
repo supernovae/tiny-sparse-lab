@@ -92,10 +92,15 @@ experiment or a merge.
   finalization offline. The separately approved [C05-I8](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-retry1-stop.md)
   dispatch still exhausted 15 seconds baselining Linux `/opt/hostedtoolcache`;
   macOS passed startup but failed during guarded `uv sync` setup (owned
-  descendants on archive, an unlocalized permission error on serving). Repair
-  and test these hosted guard/setup paths without losing ambient-root coverage
-  or fail-closed process and storage limits. Both hosted allocations are spent;
-  model-path qualification still needs separate authority.
+  descendants on archive, an unlocalized permission error on serving).
+  [C05-I9](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-guard-exit-repair.md)
+  repairs stale exit detection and receipt ordering offline. The separate
+  [owned-root policy proposal](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_POLICY_PROPOSAL.md)
+  has offline-tested owned-environment binding but still needs the workflow
+  phase split, fixture path audit and offline verification before any hosted
+  retry. It narrows the storage claim;
+  do not equate free-space observations with added-byte/inode accounting. Both
+  hosted allocations are spent, and model-path qualification remains open.
 
 - [ ] **Bind one native attempt contract across phases, including zero-update work.**
   The optional plan reference, content-pinned v2 SQLite allocation, monitored

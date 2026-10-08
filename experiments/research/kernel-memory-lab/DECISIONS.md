@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D35 — hosted retries paused and offline guard correction authorized, 2026-10-08
+
+- The owner paused hosted retries after C05-I8 and authorized a focused offline correction to stale-process detection and failure-receipt ordering, with synthetic leader-exit, surviving-descendant, cleanup-permission and original-exception tests. No hosted dispatch, model work, ready-for-review transition or merge was authorized.
+- [C05-I9](results/2026-10-08-card05-hosted-guard-exit-repair.md) records the correction and inspected zero-model-work tests. [The owned-root policy](CARD05_HOSTED_OWNED_ROOT_POLICY_PROPOSAL.md) is a proposed, materially narrower resource boundary: provider setup is observational for storage, while lab-owned execution would retain explicit hard caps. Neither this document nor the code repair changes the active workflow's storage policy or authorizes a dispatch.
+- C05-I6 and C05-I8 remain failed and spent, and all earlier scientific results and reader gates remain unchanged. A future workflow/policy implementation, path audit and hosted allocation require separate decisions. PR #54 remains draft.
+
 ## KML-D34 — one fresh hosted serving-only retry authorized and stopped, 2026-10-08
 
 - The owner approved exactly one `serving_only=true` hosted dispatch under [CARD05_HOSTED_RETRY1_PROPOSAL.md](CARD05_HOSTED_RETRY1_PROPOSAL.md), pinned to `d3f4b33a928ade4c9fae561dc875ca457a26f1a2`. The fixed aggregate allocation was at most 42 updates, 1,312 targets, 226 generation calls and 710 requested generated tokens, with per-job 8 GiB RSS, 4 GiB added bytes and 50,000 added inodes, 45 total runner-minutes and 1,800 seconds elapsed including queue. PR #54 was to remain draft; no rerun or resume was approved.

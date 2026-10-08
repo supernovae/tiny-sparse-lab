@@ -651,6 +651,8 @@ def stop_owned(
                 except ChildProcessError:
                     pass
         rows = process_rows()
+        # A stopped child can remain as a zombie until reaped. Keep waiting
+        # for its PID to disappear; a zero-survivor receipt needs that proof.
         living = owned(rows, process.pid) | {
             pid for pid, birth in known.items() if pid in rows and rows[pid][4] == birth
         }
@@ -719,6 +721,9 @@ def run_phase(
         reason = ""
         progress: dict = {}
         sampling_failure: dict | None = None
+        phase_error: BaseException | None = None
+        cleanup_error: BaseException | None = None
+        receipt_error: BaseException | None = None
         try:
             while True:
                 if watcher_root is not None:
@@ -764,12 +769,15 @@ def run_phase(
                     break
                 rc = process.poll()
                 if rc is not None:
-                    lingering = living | {
+                    # The storage sweep can outlast the process. The earlier
+                    # inventory is only a peak sample, not exit evidence.
+                    exit_rows = process_rows()
+                    lingering = owned(exit_rows, process.pid) | {
                         pid
                         for pid, birth in known.items()
-                        if pid in rows
-                        and rows[pid][4] == birth
-                        and not rows[pid][3].startswith("Z")
+                        if pid in exit_rows
+                        and exit_rows[pid][4] == birth
+                        and not exit_rows[pid][3].startswith("Z")
                     }
                     if lingering:
                         reason = "leader exited with owned descendants"
@@ -777,30 +785,102 @@ def run_phase(
                     reason = "completed" if rc == 0 else f"command exited {rc}"
                     break
                 time.sleep(POLL_SECONDS)
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001 - retain even interrupts for cleanup
+            phase_error = error
             reason = f"monitor failure: {type(error).__name__}: {error}"
             sampling_failure = sample_failure(progress, error)
-            raise
         finally:
-            stop_owned(process, known, terminate=reason != "completed")
+            try:
+                stop_owned(process, known, terminate=reason != "completed")
+            except BaseException as error:  # noqa: BLE001 - receipt must record cleanup failure
+                cleanup_error = error
             receipt = {
                 "phase": name,
                 "command": command,
-                "reason": reason,
+                "reason": (
+                    f"cleanup failure: {type(cleanup_error).__name__}: {cleanup_error}"
+                    if reason == "completed" and cleanup_error is not None
+                    else reason
+                ),
                 "returncode": process.returncode,
                 "peak_rss_bytes": peak_rss,
                 "peak_disk_bytes": peak_disk,
                 "peak_inodes": peak_inodes,
                 "observed_pids": sorted(known),
-                "living_descendants": 0,
+                "living_descendants": 0 if cleanup_error is None else None,
+                "cleanup_verified": cleanup_error is None,
+                "cleanup_error": (
+                    f"{type(cleanup_error).__name__}: {cleanup_error}"
+                    if cleanup_error is not None
+                    else None
+                ),
                 "sampling_failure": sampling_failure,
             }
-            (root / f"{name}.monitor.json").write_text(
-                json.dumps(receipt, sort_keys=True) + "\n"
-            )
+            try:
+                (root / f"{name}.monitor.json").write_text(
+                    json.dumps(receipt, sort_keys=True) + "\n"
+                )
+            except BaseException as error:  # noqa: BLE001 - preserve the original failure
+                receipt_error = error
+        if phase_error is not None:
+            if cleanup_error is not None:
+                phase_error.add_note(
+                    f"cleanup also failed: {type(cleanup_error).__name__}: {cleanup_error}"
+                )
+            if receipt_error is not None:
+                phase_error.add_note(
+                    f"receipt write also failed: {type(receipt_error).__name__}: {receipt_error}"
+                )
+            raise phase_error
+        if cleanup_error is not None:
+            if receipt_error is not None:
+                cleanup_error.add_note(
+                    f"receipt write also failed: {type(receipt_error).__name__}: {receipt_error}"
+                )
+            raise cleanup_error
+        if receipt_error is not None:
+            raise receipt_error
     if reason != "completed":
         raise RuntimeError(f"{name}: {reason}; see {stdout_path} and {stderr_path}")
     return process.returncode or 0
+
+
+def owned_environment(root: Path) -> dict[str, str]:
+    """Route controllable lab subprocess writes into the measured job root."""
+    paths = {
+        "UV_CACHE_DIR": root / "cache",
+        "UV_PROJECT_ENVIRONMENT": root / "venv",
+        "UV_PYTHON_INSTALL_DIR": root / "python",
+        "TMPDIR": root / "tmp",
+        "TMP": root / "tmp",
+        "TEMP": root / "tmp",
+        "HOME": root / "home",
+        "XDG_CACHE_HOME": root / "cache",
+        "XDG_CONFIG_HOME": root / "config",
+        "XDG_DATA_HOME": root / "data",
+        "PYTHONPYCACHEPREFIX": root / "pycache",
+        "PIP_CACHE_DIR": root / "cache/pip",
+        "HF_HOME": root / "cache/hf",
+        "TORCH_HOME": root / "cache/torch",
+        "MPLCONFIGDIR": root / "cache/mpl",
+        "SPARSELAB_WORK_DIR": root / "work",
+    }
+    for name, path in paths.items():
+        if name != "UV_PROJECT_ENVIRONMENT":
+            path.mkdir(parents=True, exist_ok=True)
+    environment = os.environ.copy()
+    environment.update({name: str(path) for name, path in paths.items()})
+    environment.update(
+        UV_PYTHON_DOWNLOADS="never",
+        HF_HUB_OFFLINE="1",
+        HF_DATASETS_OFFLINE="1",
+        TRANSFORMERS_OFFLINE="1",
+        CUDA_VISIBLE_DEVICES="",
+        HIP_VISIBLE_DEVICES="",
+        ROCR_VISIBLE_DEVICES="",
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
+    )
+    return environment
 
 
 def run_job(job: str, commit: str, root: Path, deadline_ns: int) -> None:
@@ -820,24 +900,7 @@ def run_job(job: str, commit: str, root: Path, deadline_ns: int) -> None:
         _watcher_identity(root)
     else:
         root.mkdir(parents=True, exist_ok=False)
-    for name in ("tmp", "cache", "work", "pycache"):
-        (root / name).mkdir(exist_ok=True)
-    environment = os.environ.copy()
-    environment.update(
-        UV_CACHE_DIR=str(root / "cache"),
-        UV_PROJECT_ENVIRONMENT=str(root / "venv"),
-        TMPDIR=str(root / "tmp"),
-        XDG_CACHE_HOME=str(root / "cache"),
-        PYTHONPYCACHEPREFIX=str(root / "pycache"),
-        SPARSELAB_WORK_DIR=str(root / "work"),
-        HF_HUB_OFFLINE="1",
-        HF_DATASETS_OFFLINE="1",
-        TRANSFORMERS_OFFLINE="1",
-        CUDA_VISIBLE_DEVICES="",
-        HIP_VISIBLE_DEVICES="",
-        ROCR_VISIBLE_DEVICES="",
-        PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
-    )
+    environment = owned_environment(root)
     (root / "storage-baseline.json").write_text(
         json.dumps(
             {"root": str(root), "workspace": str(workspace), "charged_from_zero": True}

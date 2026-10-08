@@ -28,6 +28,38 @@ def test_pre_setup_guard_bootstrap_parses_as_python_312() -> None:
     ast.parse((ROOT / "run_job.py").read_text(), feature_version=(3, 12))
 
 
+def test_lab_environment_routes_controllable_writes_to_owned_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    monkeypatch.setenv("HOME", str(tmp_path / "provider-home"))
+    root = tmp_path / "owned"
+    environment = runner.owned_environment(root)
+    for name in (
+        "UV_CACHE_DIR",
+        "UV_PROJECT_ENVIRONMENT",
+        "UV_PYTHON_INSTALL_DIR",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "HOME",
+        "XDG_CACHE_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+        "PYTHONPYCACHEPREFIX",
+        "PIP_CACHE_DIR",
+        "HF_HOME",
+        "TORCH_HOME",
+        "MPLCONFIGDIR",
+        "SPARSELAB_WORK_DIR",
+    ):
+        assert Path(environment[name]).is_relative_to(root)
+        assert Path(environment[name]).is_dir() or name == "UV_PROJECT_ENVIRONMENT"
+    assert environment["UV_PYTHON_DOWNLOADS"] == "never"
+    assert environment["HOME"] != os.environ["HOME"]
+    assert not (root / "venv").exists()
+
+
 def _module(name: str, file: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / file)
     assert spec is not None and spec.loader is not None
@@ -295,6 +327,178 @@ def test_supervisor_kills_detached_term_ignoring_child_and_preserves_sentinel(
     finally:
         sentinel.send_signal(signal.SIGKILL)
         sentinel.wait(timeout=5)
+
+
+def _synthetic_phase(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    surviving_child: bool = False,
+    sweep_error: BaseException | None = None,
+    cleanup_error: BaseException | None = None,
+):
+    """Model a leader exit during a slow sweep without launching a model."""
+    runner = _module("kml_ci_runner", "run_job.py")
+    monkeypatch.setattr(runner.sys, "platform", "darwin")
+    root, workspace = tmp_path / "output", tmp_path / "checkout"
+    root.mkdir()
+    workspace.mkdir()
+    state = {"exited": False, "terminate": None}
+    leader = (1, 4242, 1024, "S", "leader-birth", "fixture")
+    child = (1, 4242, 1024, "S", "child-birth", "fixture")
+
+    class Process:
+        pid = 4242
+        returncode = None
+
+        def poll(self):
+            if state["exited"]:
+                self.returncode = 0
+            return self.returncode
+
+    monkeypatch.setattr(runner.subprocess, "Popen", lambda *a, **k: Process())
+
+    def rows():
+        if not state["exited"]:
+            return {4242: leader, **({4243: child} if surviving_child else {})}
+        return {4243: child} if surviving_child else {}
+
+    def sample(path, *, phase, deadline, required, progress):
+        if path == workspace:
+            if sweep_error is not None:
+                raise sweep_error
+            state["exited"] = True
+        return 0, 0
+
+    def cleanup(process, known, *, terminate):
+        state["terminate"] = terminate
+        if cleanup_error is not None:
+            raise cleanup_error
+
+    monkeypatch.setattr(runner, "process_rows", rows)
+    monkeypatch.setattr(runner, "sample_declared_root", sample)
+    monkeypatch.setattr(runner, "stop_owned", cleanup)
+    return runner, root, workspace, state
+
+
+def test_leader_exit_during_storage_sweep_uses_fresh_process_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, root, workspace, state = _synthetic_phase(tmp_path, monkeypatch)
+    assert (
+        runner.run_phase(
+            ["fixture"],
+            cwd=workspace,
+            root=root,
+            workspace=workspace,
+            environment={},
+            deadline_ns=time.time_ns() + 30_000_000_000,
+            name="exit",
+        )
+        == 0
+    )
+    receipt = json.loads((root / "exit.monitor.json").read_text())
+    assert receipt["reason"] == "completed"
+    assert receipt["cleanup_verified"] is True
+    assert receipt["living_descendants"] == 0
+    assert state["terminate"] is False
+
+
+def test_leader_exit_with_surviving_descendant_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, root, workspace, state = _synthetic_phase(
+        tmp_path, monkeypatch, surviving_child=True
+    )
+    with pytest.raises(RuntimeError, match="leader exited with owned descendants"):
+        runner.run_phase(
+            ["fixture"],
+            cwd=workspace,
+            root=root,
+            workspace=workspace,
+            environment={},
+            deadline_ns=time.time_ns() + 30_000_000_000,
+            name="survivor",
+        )
+    receipt = json.loads((root / "survivor.monitor.json").read_text())
+    assert receipt["reason"] == "leader exited with owned descendants"
+    assert state["terminate"] is True
+
+
+def test_cleanup_permission_error_retains_unverified_failure_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, root, workspace, _ = _synthetic_phase(
+        tmp_path, monkeypatch, cleanup_error=PermissionError("fixture denied")
+    )
+    with pytest.raises(PermissionError, match="fixture denied"):
+        runner.run_phase(
+            ["fixture"],
+            cwd=workspace,
+            root=root,
+            workspace=workspace,
+            environment={},
+            deadline_ns=time.time_ns() + 30_000_000_000,
+            name="permission",
+        )
+    receipt = json.loads((root / "permission.monitor.json").read_text())
+    assert receipt["reason"].startswith("cleanup failure: PermissionError:")
+    assert receipt["cleanup_verified"] is False
+    assert receipt["living_descendants"] is None
+    assert receipt["cleanup_error"] == "PermissionError: fixture denied"
+
+
+def test_stop_owned_propagates_kill_permission_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+
+    class Process:
+        pid = 4242
+
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: {4242: (1, 4242, 1024, "S", "leader-birth", "fixture")},
+    )
+
+    def denied(_pid, _signal):
+        raise PermissionError("kill denied")
+
+    monkeypatch.setattr(runner.os, "killpg", denied)
+    with pytest.raises(PermissionError, match="kill denied"):
+        runner.stop_owned(Process(), {}, terminate=True)
+
+
+def test_cleanup_error_does_not_mask_original_sweep_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = OSError(5, "original sweep fault")
+    runner, root, workspace, _ = _synthetic_phase(
+        tmp_path,
+        monkeypatch,
+        sweep_error=original,
+        cleanup_error=PermissionError("cleanup denied"),
+    )
+    with pytest.raises(OSError, match="original sweep fault") as caught:
+        runner.run_phase(
+            ["fixture"],
+            cwd=workspace,
+            root=root,
+            workspace=workspace,
+            environment={},
+            deadline_ns=time.time_ns() + 30_000_000_000,
+            name="both",
+        )
+    assert caught.value is original
+    assert any(
+        "cleanup also failed: PermissionError" in note for note in original.__notes__
+    )
+    receipt = json.loads((root / "both.monitor.json").read_text())
+    assert receipt["reason"].startswith("monitor failure: OSError:")
+    assert receipt["cleanup_verified"] is False
+    assert receipt["living_descendants"] is None
+    assert receipt["cleanup_error"] == "PermissionError: cleanup denied"
 
 
 def test_sampler_fails_closed_on_real_io_error(
