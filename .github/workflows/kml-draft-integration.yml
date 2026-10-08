@@ -1,0 +1,112 @@
+name: KML Draft Integration CI (limited)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kml-draft-integration-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  HF_HUB_OFFLINE: "1"
+  HF_DATASETS_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  CUDA_VISIBLE_DEVICES: ""
+  HIP_VISIBLE_DEVICES: ""
+  ROCR_VISIBLE_DEVICES: ""
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  kml-draft-lint:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'codex/kernel-memory-lab' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --extra cpu --dev
+      - name: Static format, frozen test identity, and research declarations
+        env:
+          UV_OFFLINE: "1"
+        run: |
+          uv run --locked --no-sync ruff check .
+          uv run --locked --no-sync ruff format --check \
+            src/sparselab/research/lint.py \
+            tests/test_research_lint.py tests/test_kml_draft_ci.py \
+            tests/test_attempt_native_integration.py \
+            tests/test_attempt_native_integration_optin.py \
+            tests/attempt_native_qualification_harness.py
+          uv run --locked --no-sync python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          frozen = json.loads(Path("experiments/research/dense-lm-decoding-v1/preregistration.json").read_text())
+          test = Path("tests/test_generation.py")
+          expected = frozen["frozen_sha256"][test.as_posix()]
+          actual = hashlib.sha256(test.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"{test}: frozen preregistration digest changed")
+          PY
+          uv run --locked --no-sync python -m sparselab.research.lint --json
+
+  kml-draft-zero-update:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'codex/kernel-memory-lab' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --extra cpu --dev
+      - name: Inspected offline zero-update and zero-generation nodes only
+        env:
+          UV_OFFLINE: "1"
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          SPARSELAB_WORK_DIR: ${{ runner.temp }}/kml-draft-work
+        run: |
+          uv run --locked --no-sync pytest -q -p no:cacheprovider \
+            --basetemp "$RUNNER_TEMP/kml-draft-pytest" \
+            tests/test_research_lint.py::test_actual_tracked_research_records \
+            tests/test_research_lint.py::test_exact_pinned_legacy_records_are_retained \
+            tests/test_research_lint.py::test_changed_legacy_bytes_are_rejected \
+            tests/test_research_lint.py::test_same_legacy_bytes_at_different_path_are_rejected \
+            tests/test_research_lint.py::test_additional_unapproved_legacy_artifact_is_rejected \
+            tests/test_attempt_native_integration_optin.py::test_ordinary_pytest_skips_optimizer_node_before_setup \
+            tests/test_attempt_native_integration_optin.py::test_harness_context_selects_node_without_running_it \
+            tests/test_attempt_native_receipts.py::test_ledger_bound_train_suppresses_unaccounted_diagnostic_generation \
+            tests/test_kml_draft_ci.py::test_draft_workflow_routes_only_selected_zero_update_nodes

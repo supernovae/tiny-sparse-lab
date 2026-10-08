@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D31 — pinned legacy lint and limited draft PR lane authorized, 2026-10-08
+
+- The owner approved one draft-PR preparation/opening step with three byte-identical historical artifacts, exact path/SHA-256 lint exceptions, zero-update negative tests, and a same-repository branch-scoped draft-only CI lane with five-minute lint and ten-minute inspected check jobs. Normal PR checks must return on `ready_for_review`; main-push/manual behavior and branch protection remain unchanged.
+- [C05-I3](results/2026-10-08-card05-draft-pr-safety-lane.md) records the implementation and local verification. No new research runtime, model update, generation, GPU, acquisition, paid runner upgrade, merge or Card 06 progression is authorized. Broader optimizer-bearing CI still requires a separate allocation before the draft is marked ready.
+
 ## KML-D30 — Q2 accepted narrowly; integration PR blocked by automatic CI, 2026-10-08
 
 - The owner accepted [C05-Q2](results/2026-10-08-card05-native-cpu-qualification-q2.md) at `4b5976b` as **narrow CPU/fp32 integration evidence**. This does not accept live ROCm, real-panel/script parity, reviewer independence or reader eligibility. Q1 remains FAILED and preserved; C05-N1 remains 0/200 and Card 06 BLOCKED.

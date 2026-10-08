@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from sparselab.research.lint import lint_research
+
+_LEGACY_NAMES = (
+    "experiments/research/kernel-memory-lab/corpus-scale/run-offline-continuation.sh",
+    "experiments/research/kernel-memory-lab/results/2026-10-07-card03-review-index.jsonl",
+    "experiments/research/kernel-memory-lab/results/evidence/card05-v2-language-final-scores.jsonl",
+)
 
 
 def _write(root: Path, name: str, content: str | dict) -> Path:
@@ -72,6 +79,55 @@ def _errors(root: Path) -> str:
     report = lint_research(root)
     assert report["valid"] is False
     return json.dumps(report["errors"])
+
+
+@pytest.fixture
+def legacy_repository(tmp_path: Path) -> Path:
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    checkout = Path(__file__).resolve().parents[1]
+    for name in _LEGACY_NAMES:
+        destination = tmp_path / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(checkout / name, destination)
+    _track(tmp_path)
+    return tmp_path
+
+
+def test_exact_pinned_legacy_records_are_retained(legacy_repository: Path) -> None:
+    report = lint_research(legacy_repository)
+    assert report["valid"], report["errors"]
+    assert report["checked_files"] == 3
+
+
+@pytest.mark.parametrize("name", _LEGACY_NAMES)
+def test_changed_legacy_bytes_are_rejected(legacy_repository: Path, name: str) -> None:
+    path = legacy_repository / name
+    path.write_bytes(path.read_bytes() + b"\nchanged\n")
+    assert "pinned legacy research record digest mismatch" in _errors(legacy_repository)
+
+
+@pytest.mark.parametrize("name", _LEGACY_NAMES)
+def test_same_legacy_bytes_at_different_path_are_rejected(
+    legacy_repository: Path, name: str
+) -> None:
+    original = legacy_repository / name
+    alternate = original.with_name("unapproved-" + original.name)
+    original.rename(alternate)
+    _track(legacy_repository)
+    errors = _errors(legacy_repository)
+    assert alternate.relative_to(legacy_repository).as_posix() in errors
+
+
+@pytest.mark.parametrize("name", _LEGACY_NAMES)
+def test_additional_unapproved_legacy_artifact_is_rejected(
+    legacy_repository: Path, name: str
+) -> None:
+    original = legacy_repository / name
+    extra = original.with_name("additional-" + original.name)
+    shutil.copyfile(original, extra)
+    _track(legacy_repository)
+    errors = _errors(legacy_repository)
+    assert extra.relative_to(legacy_repository).as_posix() in errors
 
 
 def test_valid_offline_research_records_and_untracked_outputs(repository: Path) -> None:

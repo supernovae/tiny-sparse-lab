@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.19 — bounded draft integration lane, 8 October 2026
+
+- Recorded KML-D31 and [C05-I3](results/2026-10-08-card05-draft-pr-safety-lane.md): three exact path/digest legacy lint bindings preserve historical bytes and reject changed, moved or extra artifacts
+- Added a separately named, same-repository branch-scoped draft CI lane with five-minute lint and ten-minute explicit-node offline checks; normal PR checks return on `ready_for_review`, while main-push and manual suites remain intact
+- Verified workflow routing and reviewed subprocess paths with zero model updates/generations; full Ruff rule checks and research lint pass, while the pre-existing 13-file full-format gap remains visible for later integration
+
 ## 2026-10-08.18 — Q2 accepted; integration PR preflight, 8 October 2026
 
 - Recorded KML-D30 accepting Q2 only for its tiny CPU/fp32 path; kept Q1 failed, C05-N1 negative and Card 06 blocked

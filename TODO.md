@@ -118,12 +118,14 @@ experiment or a merge.
   runs other training and generation fixtures and needs a separate bounded
   allocation or a reviewed zero-update lane before the integration PR opens.
 
-- [ ] **Reconcile preserved KML evidence with research lint before integration.**
+- [x] **Reconcile preserved KML evidence with research lint before integration.**
   The current linter rejects the already tracked Card 03 continuation script,
   Card 03 review-index JSONL and Card 05 final-scores JSONL. Preserve their
   bytes and scientific references; adopt a narrowly reviewed archival-location
   or format rule with zero-update tests. [C05-I2](experiments/research/kernel-memory-lab/results/2026-10-08-card05-integration-pr-preflight.md)
-  records the exact paths and local lint failure. Do not waive unrelated payloads.
+  records the exact paths and earlier local lint failure. [C05-I3](experiments/research/kernel-memory-lab/results/2026-10-08-card05-draft-pr-safety-lane.md)
+  pins the three paths and SHA-256 digests and passes changed-byte, alternate-path
+  and extra-artifact negatives; unrelated payloads remain rejected.
 
 - [ ] **Add minimal native panel controls and reviewed-score readiness binding.**
   Optional decoder fields, same-index/checkpoint paired token-ID comparison,

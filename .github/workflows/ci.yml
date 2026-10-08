@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
   workflow_dispatch:
     inputs:
       serving_only:
@@ -30,6 +31,14 @@ jobs:
   # Pin supported images: Linux x64 and macOS arm64 CPU coverage.
   # https://github.com/actions/runner-images#available-images
   lint:
+    # Only this same-repo draft integration branch uses the separate KML lane.
+    # ready_for_review has draft=false and returns to the normal PR checks.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft != true ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
+      github.event.pull_request.base.ref != 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -57,6 +66,12 @@ jobs:
           version: "0.16.8"
           args: format --check .
   fast:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft != true ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
+      github.event.pull_request.base.ref != 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -84,6 +99,12 @@ jobs:
           tests/test_operational_monitor.py
           tests/test_kml_card04_profile_tools.py
   evidence-macos-arm64:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft != true ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
+      github.event.pull_request.base.ref != 'main'
     runs-on: macos-15
     timeout-minutes: 10
     steps:
@@ -102,6 +123,12 @@ jobs:
             tests/test_research_lint.py tests/test_declaration_preflight.py \
             tests/test_corpus_pipeline.py tests/test_corpus_identity.py tests/test_archive.py
   serving-smoke:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft != true ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
+      github.event.pull_request.base.ref != 'main'
     name: Serving and CLI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
