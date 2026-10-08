@@ -7,374 +7,144 @@ on:
     types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
   workflow_dispatch:
     inputs:
-      serving_only:
-        description: "Run bounded serving checks without the full CPU suites"
-        type: boolean
-        default: false
-      qualification_sha:
-        description: "Exact reviewed commit for a serving-only KML dispatch"
-        type: string
-        required: false
+      suite:
+        description: "Manual scope; model suites require a separate reviewed allocation"
+        type: choice
+        options: [safe, integration-linux, platform-macos, release-candidate]
+        default: safe
 
-# PR updates replace obsolete work; main remains covered after merge.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: read
 
-# Tiny CPU fixtures benefit from parallel pytest workers, not nested BLAS pools.
 env:
   OMP_NUM_THREADS: "1"
   MKL_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
   VECLIB_MAXIMUM_THREADS: "1"
+  HF_HUB_OFFLINE: "1"
+  HF_DATASETS_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  CUDA_VISIBLE_DEVICES: ""
+  HIP_VISIBLE_DEVICES: ""
+  ROCR_VISIBLE_DEVICES: ""
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
-  # Pin supported images: Linux x64 and macOS arm64 CPU coverage.
-  # https://github.com/actions/runner-images#available-images
-  lint:
-    # Only this same-repo draft integration branch uses the separate KML lane.
-    # ready_for_review has draft=false and returns to the normal PR checks.
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.draft != true ||
-      github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
-      github.event.pull_request.base.ref != 'main'
+  safe:
+    # The same small zero-model suite runs for every PR, draft or ready, and main.
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || '' }}
-      - name: Start bounded qualification watcher
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-lint"
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v10.2.0
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
         with:
           version: "0.12.19"
-          enable-cache: false
+          enable-cache: true
       - uses: actions/setup-python@v7
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
         with:
           python-version: "3.14"
-      - name: Enter bounded lab phase
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+      - run: uv sync --locked --extra cpu --dev
+      - name: Static format, frozen identity and research records
         env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-lint"
-      - name: Run bounded qualification lint
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job lint
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-lint"
-      - name: Finalize qualification watcher
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
-          --root "$RUNNER_TEMP/kml-ci-lint"
-      - uses: actions/upload-artifact@v4
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        with:
-          name: kml-ci-lint-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/kml-ci-lint/*.json
-            ${{ runner.temp }}/kml-ci-lint/*.log
-            ${{ runner.temp }}/kml-ci-lint/*.sqlite*
-            ${{ runner.temp }}/kml-ci-lint/events/*.json
-          if-no-files-found: error
-          retention-days: 7
-      - uses: astral-sh/ruff-action@v4.1.0
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
-        with:
-          version: "0.16.8"
-          args: check .
-      - name: Verify frozen decoding test identity
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
+          UV_OFFLINE: "1"
         run: |
-          python3 - <<'PY'
+          uv run --locked --no-sync ruff check .
+          uv run --locked --no-sync ruff format --check .
+          uv run --locked --no-sync python - <<'PY'
           import hashlib
           import json
           from pathlib import Path
 
           frozen = json.loads(Path("experiments/research/dense-lm-decoding-v1/preregistration.json").read_text())
           test = Path("tests/test_generation.py")
-          expected = frozen["frozen_sha256"][test.as_posix()]
-          actual = hashlib.sha256(test.read_bytes()).hexdigest()
-          if actual != expected:
+          if hashlib.sha256(test.read_bytes()).hexdigest() != frozen["frozen_sha256"][test.as_posix()]:
               raise SystemExit(f"{test}: frozen preregistration digest changed")
           PY
-      - uses: astral-sh/ruff-action@v4.1.0
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
-        with:
-          version: "0.16.8"
-          args: format --check .
-  fast:
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.draft != true ||
-      github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
-      github.event.pull_request.base.ref != 'main'
+          uv run --locked --no-sync python -m sparselab.research.lint --json
+      - name: Explicit zero-model-work regressions
+        env:
+          UV_OFFLINE: "1"
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          SPARSELAB_WORK_DIR: ${{ runner.temp }}/pr-safe-work
+        run: |
+          uv run --locked --no-sync pytest -q -p no:cacheprovider \
+            --basetemp "$RUNNER_TEMP/pr-safe-pytest" \
+            tests/test_research_lint.py::test_actual_tracked_research_records \
+            tests/test_research_lint.py::test_exact_pinned_legacy_records_are_retained \
+            tests/test_research_lint.py::test_changed_legacy_bytes_are_rejected \
+            tests/test_research_lint.py::test_same_legacy_bytes_at_different_path_are_rejected \
+            tests/test_research_lint.py::test_additional_unapproved_legacy_artifact_is_rejected \
+            tests/test_attempt_budget.py::test_updates_persist_across_attempts_and_never_refund \
+            tests/test_attempt_contract.py::test_zero_update_vector_reservations_persist_without_refund \
+            tests/test_operational_monitor_safety.py::test_absent_optional_fields_preserve_legacy_policy_and_receipt_serialization \
+            tests/test_corpus_mixture.py::test_native_packing_supervises_exact_exported_quota \
+            tests/test_panel_decoder_controls.py::test_absent_controls_preserve_legacy_declaration_and_hash \
+            tests/test_reviewed_score_readiness.py::test_renderer_and_exact_frozen_question_prompt_binding \
+            tests/test_reviewed_score_readiness.py::test_threshold_failure_and_missing_scores_cannot_promote \
+            tests/test_attempt_native_integration_optin.py::test_ordinary_pytest_skips_optimizer_node_before_setup \
+            tests/test_ci_routing.py::test_ordinary_ci_selects_only_explicit_zero_model_nodes
+
+  integration-linux:
+    # Model work is manual-only. Dispatch requires its own reviewed allocation.
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'integration-linux'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || '' }}
-      - name: Start bounded qualification watcher
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-fast"
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
-          enable-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.serving_only }}
+          enable-cache: true
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - name: Enter bounded lab phase
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-fast"
-      - name: Lint tracked research declarations and evidence references
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
-        run: uv run --locked --extra cpu python -m sparselab.research.lint --json
-      - name: Focused configuration, corpus, and ingestion checks
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
+      - run: uv sync --locked --extra cpu --dev
+      - name: Manual optimizer and generation integration
         run: >-
           uv run --locked --extra cpu pytest -q
-          tests/test_research_lint.py
-          tests/test_corpus_identity.py
-          tests/test_config.py
-          tests/test_conversations.py
-          tests/test_corpus_acquisition.py
-          tests/test_corpus_pipeline.py
-          tests/test_hf_auth.py
-          tests/test_attempt_budget.py
-          tests/test_operational_monitor.py
-          tests/test_kml_card04_profile_tools.py
-      - name: Run bounded qualification fast checks
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job fast
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-fast"
-      - name: Finalize qualification watcher
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
-          --root "$RUNNER_TEMP/kml-ci-fast"
-      - uses: actions/upload-artifact@v4
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        with:
-          name: kml-ci-fast-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/kml-ci-fast/*.json
-            ${{ runner.temp }}/kml-ci-fast/*.log
-            ${{ runner.temp }}/kml-ci-fast/*.sqlite*
-            ${{ runner.temp }}/kml-ci-fast/events/*.json
-          if-no-files-found: error
-          retention-days: 7
-  evidence-macos-arm64:
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.draft != true ||
-      github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
-      github.event.pull_request.base.ref != 'main'
+          tests/test_training.py tests/test_generation.py
+          tests/test_generation_panel.py tests/test_serving.py
+
+  platform-macos:
+    # Platform model behavior is not inferred from the Linux PR checks.
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'platform-macos'
     runs-on: macos-15
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || '' }}
-      - name: Start bounded qualification watcher
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-archive"
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
-          enable-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.serving_only }}
+          enable-cache: true
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - name: Enter bounded lab phase
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+      - run: uv sync --locked --extra cpu --dev
+      - name: Manual macOS optimizer and generation integration
         run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-archive"
-      - name: Offline research lint and corpus archive acceptance (macOS)
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
-        run: |
-          uv run --locked --extra cpu python -m sparselab.research.lint --json
-          uv run --locked --extra cpu pytest -q \
-            tests/test_research_lint.py tests/test_declaration_preflight.py \
-            tests/test_corpus_pipeline.py tests/test_corpus_identity.py tests/test_archive.py
-      - name: Run bounded qualification archive checks
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job archive
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-archive"
-      - name: Finalize qualification watcher
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
-          --root "$RUNNER_TEMP/kml-ci-archive"
-      - uses: actions/upload-artifact@v4
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        with:
-          name: kml-ci-archive-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/kml-ci-archive/*.json
-            ${{ runner.temp }}/kml-ci-archive/*.log
-            ${{ runner.temp }}/kml-ci-archive/*.sqlite*
-            ${{ runner.temp }}/kml-ci-archive/events/*.json
-          if-no-files-found: error
-          retention-days: 7
-  serving-smoke:
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.draft != true ||
-      github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.head.ref != 'codex/kernel-memory-lab' ||
-      github.event.pull_request.base.ref != 'main'
-    name: Serving and CLI (${{ matrix.os }})
+          uv run --locked --extra cpu pytest -q
+          tests/test_training.py tests/test_generation.py
+          tests/test_generation_panel.py tests/test_serving.py
+
+  release-candidate:
+    # Broad suites are available only through explicit manual selection.
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'release-candidate'
+    name: Full CPU suite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15]
     steps:
       - uses: actions/checkout@v7
-        with:
-          # Report an exact PR head, independently of the full-suite merge run.
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.serving_only && inputs.qualification_sha || github.event.pull_request.head.sha || github.sha }}
-      - name: Start bounded qualification watcher
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --start-watch
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-serving"
-      - uses: astral-sh/setup-uv@v10.2.0
-        with:
-          version: "0.12.19"
-          enable-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.serving_only }}
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - name: Enter bounded lab phase
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-serving"
-      - if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
-        run: uv sync --locked --extra cpu --dev
-      - name: Bounded offline serving and CLI regression checks
-        if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
-        run: |
-          export SPARSELAB_WORK_DIR="$RUNNER_TEMP/serving-work"
-          git rev-parse HEAD
-          uv run --locked --extra cpu python --version
-          uv run --locked --extra cpu pytest -vv -ra --tb=long --durations=15 \
-            -o faulthandler_timeout=90 --basetemp "$RUNNER_TEMP/serving-pytest" \
-            tests/test_serving.py tests/test_inference_debug.py \
-            tests/test_generation_result.py tests/test_runtime_id_selection.py \
-            tests/test_snapshot_inference.py tests/test_snapshot_artifact_bindings.py \
-            tests/test_snapshot_authority.py
-      - name: Run bounded qualification serving checks
-        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
-        env:
-          KML_CI_GITHUB_TOKEN: ${{ github.token }}
-          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --job serving
-          --expected-sha "$KML_CI_EXPECTED_SHA"
-          --root "$RUNNER_TEMP/kml-ci-serving"
-      - name: Finalize qualification watcher
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        run: >-
-          python3 tools/kernel-memory-lab/ci-guard/run_job.py --stop-watch
-          --root "$RUNNER_TEMP/kml-ci-serving"
-      - uses: actions/upload-artifact@v4
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.serving_only
-        with:
-          name: kml-ci-serving-${{ matrix.os }}-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/kml-ci-serving/*.json
-            ${{ runner.temp }}/kml-ci-serving/*.log
-            ${{ runner.temp }}/kml-ci-serving/*.sqlite*
-            ${{ runner.temp }}/kml-ci-serving/events/*.json
-          if-no-files-found: error
-          retention-days: 7
-      - name: Retain CLI startup diagnostics in the job log
-        if: always()
-        run: |
-          if [ -d "$RUNNER_TEMP/serving-pytest" ]; then
-            find "$RUNNER_TEMP/serving-pytest" -type f \
-              \( -name 'serve.stdout.log' -o -name 'serve.stderr.log' \) \
-              -print -exec tail -c 16384 {} \;
-          fi
-  test:
-    # Long native integrations are manual-only; serving-only dispatch skips them.
-    if: github.event_name == 'workflow_dispatch' && !inputs.serving_only
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "0.12.19"
@@ -383,28 +153,7 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
-      - name: Full CPU suite (Linux)
-        run: >-
-          uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4
-          --dist worksteal --durations=25
-          -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
-      - run: uv run --locked --extra cpu sparselab --help
-      - run: uv run --locked --extra cpu sparselab inspect configs/micro_dense.yaml --json
-  test-macos-arm64:
-    if: github.event_name == 'workflow_dispatch' && !inputs.serving_only
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
-        with:
-          version: "0.12.19"
-          enable-cache: true
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - run: uv sync --locked --extra cpu --dev
-      - name: Full CPU suite (macOS)
+      - name: Manual release-candidate CPU suite
         run: >-
           uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4
           --dist worksteal --durations=25

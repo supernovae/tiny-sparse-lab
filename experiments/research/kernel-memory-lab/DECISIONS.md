@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D39 — hosted qualification paused and ordinary PR CI narrowed, 2026-10-08
+
+- The owner paused hosted qualification and footprint work, directed cancellation of any active run, and requested one explicit zero-model-work ordinary PR suite. Optimizer/generation integration and platform qualification are opt-in manual work; broad checks remain available for an explicitly approved release candidate. No automatic tag-triggered model work, training, generation, new download, merge or ready-for-review transition is authorized.
+- [C05-I13](results/2026-10-08-card05-pr-ci-simplification-review.md) records the absence of active/queued branch runs, the simplified CI routing and focused shared-library merge assessment. The isolated experimental hosted guard and C05-I6/I8/I11 evidence are retained without becoming dependencies of ordinary CI or `src/sparselab`.
+- Any future hosted qualification or footprint attempt requires a new owner decision. Its previously proposed measurement is paused rather than pending as the current next task. Card 05's negative scientific result and Card 06 block are unchanged; PR #54 stays draft.
+
 ## KML-D38 — stopped-run publication and offline cleanup correction authorized, 2026-10-08
 
 - The owner requested publication of C05-I11's original evidence inventory and receipt-specific stopped-run wording, phase-scoped cleanup ownership with PID identity and bounded escalation, exact operation/process identity for permission errors, a read-only relocated-ledger audit, and a bounded plan to measure the full locked dependency footprint. Only inspected zero-model-work offline tests, commit and push are authorized. No hosted dispatch, dependency downloads, model work, ready-for-review or merge is authorized.

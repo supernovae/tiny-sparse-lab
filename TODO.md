@@ -108,7 +108,9 @@ experiment or a merge.
   ledger read-only. Its offline tests do not qualify hosted finalization or
   establish a full dependency footprint. Obtain a bounded complete-install
   subtree/package inventory before choosing a leaner install or seeking a
-  separately reviewed entry-cap change. The policy
+  separately reviewed entry-cap change if this qualification effort resumes.
+  KML-D39 pauses hosted qualification and footprint work; its guard remains
+  isolated from ordinary PR CI. The policy
   narrows the storage claim; do not equate free-space observations with
   added-byte/inode accounting. All three hosted allocations are spent, and
   model-path qualification remains open.

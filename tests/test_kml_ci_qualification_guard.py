@@ -17,7 +17,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-import yaml
 
 from sparselab.training.attempt_budget import AttemptBudget
 
@@ -762,50 +761,13 @@ def test_shutdown_reserve_rejects_phase_before_start(tmp_path: Path) -> None:
     assert not (root / "reserve.stdout.log").exists()
 
 
-def test_workflow_dispatch_is_pinned_guarded_and_full_cpu_is_skipped() -> None:
-    workflow = yaml.safe_load(
-        (ROOT.parents[2] / ".github/workflows/ci.yml").read_text()
-    )
-    trigger = workflow.get("on", workflow.get(True))
-    inputs = trigger["workflow_dispatch"]["inputs"]
-    assert inputs["serving_only"]["default"] is False
-    assert "qualification_sha" in inputs
-    jobs = workflow["jobs"]
-    for name in ("lint", "fast", "evidence-macos-arm64", "serving-smoke"):
-        steps = jobs[name]["steps"]
-        text = json.dumps(steps)
-        assert "--start-watch" in text
-        assert "--enter-lab" in text
-        assert "--stop-watch" in text
-        assert "qualification_sha" in text
-        assert "run_job.py --job" in text
-        assert "upload-artifact@v4" in text
-        names = [step.get("name", step.get("uses", "")) for step in steps]
-        assert names.index("Start bounded qualification watcher") < names.index(
-            "astral-sh/setup-uv@v10.2.0"
-        )
-        assert (
-            names.index("actions/setup-python@v7")
-            < names.index("Enter bounded lab phase")
-            < next(
-                index
-                for index, item in enumerate(names)
-                if item.startswith("Run bounded qualification ")
-            )
-        )
-    assert (
-        jobs["test"]["if"]
-        == "github.event_name == 'workflow_dispatch' && !inputs.serving_only"
-    )
-    assert jobs["test-macos-arm64"]["if"] == jobs["test"]["if"]
-    assert (
-        sum(
-            jobs[name]["timeout-minutes"]
-            for name in ("lint", "fast", "evidence-macos-arm64")
-        )
-        + 2 * jobs["serving-smoke"]["timeout-minutes"]
-        == 45
-    )
+def test_experimental_hosted_guard_is_not_in_default_ci() -> None:
+    workflow = (ROOT.parents[2] / ".github/workflows/ci.yml").read_text()
+    assert "tools/kernel-memory-lab/ci-guard/" not in workflow
+    assert "qualification_sha" not in workflow
+    assert "serving_only" not in workflow
+    assert (ROOT / "run_job.py").is_file()
+    assert (ROOT / "init_budget.py").is_file()
 
 
 def test_guarded_collection_has_no_model_charge_and_detects_omission(
