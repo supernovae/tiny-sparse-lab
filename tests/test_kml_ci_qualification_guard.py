@@ -689,7 +689,11 @@ def test_supervisor_storage_cap_stops_worker_before_return(
     root, workspace = tmp_path / "output", tmp_path / "checkout"
     root.mkdir()
     workspace.mkdir()
-    monkeypatch.setattr(runner, "LIMIT_DISK", 4096)
+    baseline = sum(
+        runner.sample_optional_root(path, required=True)[0]
+        for path in (root, workspace)
+    )
+    monkeypatch.setattr(runner, "LIMIT_DISK", baseline + 4096)
     pid_file = root / "worker.pid"
     script = (
         "import os,time; "
@@ -765,12 +769,27 @@ def test_workflow_dispatch_is_pinned_guarded_and_full_cpu_is_skipped() -> None:
     assert "qualification_sha" in inputs
     jobs = workflow["jobs"]
     for name in ("lint", "fast", "evidence-macos-arm64", "serving-smoke"):
-        text = json.dumps(jobs[name]["steps"])
+        steps = jobs[name]["steps"]
+        text = json.dumps(steps)
         assert "--start-watch" in text
+        assert "--enter-lab" in text
         assert "--stop-watch" in text
         assert "qualification_sha" in text
         assert "run_job.py --job" in text
         assert "upload-artifact@v4" in text
+        names = [step.get("name", step.get("uses", "")) for step in steps]
+        assert names.index("Start bounded qualification watcher") < names.index(
+            "astral-sh/setup-uv@v10.2.0"
+        )
+        assert (
+            names.index("actions/setup-python@v7")
+            < names.index("Enter bounded lab phase")
+            < next(
+                index
+                for index, item in enumerate(names)
+                if item.startswith("Run bounded qualification ")
+            )
+        )
     assert (
         jobs["test"]["if"]
         == "github.event_name == 'workflow_dispatch' && !inputs.serving_only"
@@ -854,6 +873,8 @@ def test_watchdog_survives_step_boundary_and_records_completion(
         ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True
     ).strip()
     monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("KML_CI_EXPECTED_SHA", commit)
     monkeypatch.setattr(
         runner, "hosted_deadline_ns", lambda: time.time_ns() + 30_000_000_000
     )
@@ -912,6 +933,7 @@ def test_startup_retains_failed_root_and_finalizes_without_watcher_pid(
     ambient.mkdir()
     monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
     monkeypatch.setenv("RUNNER_TEMP", str(ambient))
+    monkeypatch.setenv("KML_CI_EXPECTED_SHA", commit)
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setattr(
         runner, "hosted_deadline_ns", lambda: time.time_ns() + 60_000_000_000
@@ -920,28 +942,22 @@ def test_startup_retains_failed_root_and_finalizes_without_watcher_pid(
         runner, "_runner_worker", lambda rows: (os.getpid(), rows[os.getpid()][4])
     )
 
-    def fail(path, *, phase, deadline, required, progress):
-        progress.update(
-            root=str(path),
-            phase=phase,
-            last_path=str(path / "last-file"),
-            started_ns=time.monotonic_ns(),
-            vanished_entries=0,
-        )
-        raise TimeoutError("fixture traversal expired")
+    def fail(workspace, temp_root, *, phase):
+        raise TimeoutError("fixture capacity observation expired")
 
-    monkeypatch.setattr(runner, "sample_declared_root", fail)
-    root = tmp_path / "watch"
-    with pytest.raises(TimeoutError, match="fixture traversal expired"):
+    monkeypatch.setattr(runner, "capacity_observation", fail)
+    root = ambient / "watch"
+    with pytest.raises(TimeoutError, match="fixture capacity observation expired"):
         runner.start_watcher(root, commit)
     startup = json.loads((root / "startup.json").read_text())
     failure = json.loads((root / "startup-failure.json").read_text())
-    assert startup["ambient_roots"] == [str(ambient)]
-    assert failure["root"] == str(ambient)
-    assert failure["phase"] == "startup-ambient-baseline"
-    assert failure["last_inspected_path"] == str(ambient / "last-file")
+    assert startup["phase"] == "provider-bootstrap"
+    assert startup["runner_temp"] == str(ambient)
+    assert failure["root"] == str(root)
+    assert failure["phase"] == "provider-bootstrap"
+    assert failure["last_inspected_path"] == str(root)
     assert failure["elapsed_seconds"] >= 0
-    assert failure["exception"] == "TimeoutError: fixture traversal expired"
+    assert failure["exception"] == "TimeoutError: fixture capacity observation expired"
     assert not (root / "watch-pid.json").exists()
     runner.stop_watcher(root)
     assert (
@@ -960,6 +976,407 @@ def test_finalization_records_incomplete_startup_without_pid(tmp_path: Path) -> 
         json.loads((root / "finalization.json").read_text())["state"]
         == "startup-incomplete"
     )
+
+
+def test_finalization_rejects_failed_watcher_after_command_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "watch"
+    root.mkdir()
+    runner.write_json(root / "watch-pid.json", {"pid": 999, "birth": "old"})
+    runner.write_json(root / "watch-receipt.json", {"reason": "storage I/O failed"})
+    monkeypatch.setattr(runner, "process_rows", dict)
+    with pytest.raises(RuntimeError, match="resource watcher failed"):
+        runner.stop_watcher(root)
+    assert json.loads((root / "finalization.json").read_text())["state"] == (
+        "watcher-failed"
+    )
+
+
+@pytest.mark.parametrize("host", ["linux", "macos"])
+def test_provider_observation_never_walks_preinstalled_toolcache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: str
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    prefix = tmp_path / ("opt/runner" if host == "linux" else "Users/runner")
+    checkout = prefix / "work/checkout"
+    temp_root = prefix / "work/_temp"
+    toolcache = prefix / "hostedtoolcache"
+    for path in (checkout, temp_root, toolcache):
+        path.mkdir(parents=True)
+    monkeypatch.setenv("RUNNER_TOOL_CACHE", str(toolcache))
+    monkeypatch.setenv("RUNNER_TEMP", str(temp_root))
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
+
+    def forbidden(_path):
+        raise AssertionError("provider toolcache was traversed")
+
+    monkeypatch.setattr(runner, "sample_tree", forbidden)
+    assert runner.hosted_paths(temp_root / "kml-ci-fast") == (checkout, temp_root)
+    observation = runner.capacity_observation(
+        checkout, temp_root, phase="before-provider-setup"
+    )
+    assert observation["kind"] == "capacity_observation_not_added_storage_accounting"
+    assert observation["provider_paths"]["runner_tool_cache"] == str(toolcache)
+    assert {entry["name"] for entry in observation["filesystems"]} == {
+        "checkout",
+        "runner_temp",
+    }
+
+
+def _postflight_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    runner = _module("kml_ci_runner", "run_job.py")
+    checkout = tmp_path / "checkout"
+    temp_root = tmp_path / "runner-temp"
+    root = temp_root / "kml-ci-fast"
+    checkout.mkdir()
+    root.mkdir(parents=True)
+    commit = "a" * 40
+    deadline = time.time_ns() + 60_000_000_000
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
+    monkeypatch.setenv("RUNNER_TEMP", str(temp_root))
+    monkeypatch.setattr(runner, "checkout_identity", lambda path, sha: None)
+    monkeypatch.setattr(runner, "hosted_deadline_ns", lambda: deadline)
+    runner.write_json(
+        root / "watch-config.json",
+        {
+            "commit": commit,
+            "workspace": str(checkout),
+            "job_root": str(root),
+            "deadline_ns": deadline,
+        },
+    )
+    observation = {
+        "tools": {"uv": {"path": "/fixture/uv", "version": "uv fixture"}},
+        "filesystems": [
+            {
+                "name": "checkout",
+                "free_bytes_observed": 16 * 1024**3,
+                "free_inodes_observed": 200_000,
+            },
+            {
+                "name": "runner_temp",
+                "free_bytes_observed": 16 * 1024**3,
+                "free_inodes_observed": 200_000,
+            },
+        ],
+    }
+    monkeypatch.setattr(runner, "capacity_observation", lambda *a, **k: observation)
+
+    def alive(path):
+        if (path / "lab-enabled.json").exists() and not (
+            path / "lab-active.json"
+        ).exists():
+            runner.write_json(
+                path / "lab-active.json",
+                {"commit": commit, "roots": [str(checkout), str(root)]},
+            )
+        return 100, "birth"
+
+    monkeypatch.setattr(runner, "_watcher_identity", alive)
+    return runner, checkout, root, commit, observation
+
+
+def test_postflight_checks_capacity_and_owned_roots_before_enabling_lab(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, checkout, root, commit, _ = _postflight_fixture(tmp_path, monkeypatch)
+    checked = []
+
+    def sample(path, *, phase, deadline, required, progress):
+        assert not (root / "lab-enabled.json").exists()
+        checked.append((path, phase, required))
+        return (10, 1) if path == checkout else (20, 2)
+
+    monkeypatch.setattr(runner, "sample_declared_root", sample)
+    runner.enter_lab(root, commit)
+    assert checked == [
+        (checkout, "prelab-checkout", True),
+        (root, "prelab-job-root", True),
+    ]
+    assert json.loads((root / "prelab-storage.json").read_text())["live_bytes"] == 30
+    assert (root / "lab-active.json").exists()
+    assert not (root / "bootstrap-failure.json").exists()
+
+
+def test_postflight_rejects_low_free_capacity_before_storage_sweep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, _, root, commit, observation = _postflight_fixture(tmp_path, monkeypatch)
+    observation["filesystems"][0]["free_bytes_observed"] = runner.MIN_FREE_BYTES - 1
+    monkeypatch.setattr(
+        runner,
+        "sample_declared_root",
+        lambda *a, **k: pytest.fail("prelab sweep ran despite low capacity"),
+    )
+    with pytest.raises(RuntimeError, match="insufficient free capacity"):
+        runner.enter_lab(root, commit)
+    assert (root / "provider-after.json").exists()
+    assert not (root / "lab-enabled.json").exists()
+    assert (
+        "insufficient free capacity"
+        in json.loads((root / "bootstrap-failure.json").read_text())["exception"]
+    )
+
+
+def test_postflight_rejects_aggregate_owned_storage_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, checkout, root, commit, _ = _postflight_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        runner,
+        "sample_declared_root",
+        lambda path, **k: (runner.LIMIT_DISK, 1) if path == checkout else (1, 1),
+    )
+    with pytest.raises(RuntimeError, match="owned-root storage cap"):
+        runner.enter_lab(root, commit)
+    assert not (root / "lab-enabled.json").exists()
+    assert json.loads((root / "prelab-storage.json").read_text())["live_bytes"] == (
+        runner.LIMIT_DISK + 1
+    )
+
+
+def test_queue_deadline_expires_before_provider_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    checkout = tmp_path / "checkout"
+    temp_root = tmp_path / "runner-temp"
+    checkout.mkdir()
+    temp_root.mkdir()
+    root = temp_root / "kml-ci-fast"
+    commit = "a" * 40
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
+    monkeypatch.setenv("RUNNER_TEMP", str(temp_root))
+    monkeypatch.setattr(runner, "checkout_identity", lambda path, sha: None)
+    monkeypatch.setattr(runner, "hosted_deadline_ns", lambda: time.time_ns() - 1)
+    monkeypatch.setattr(
+        runner,
+        "capacity_observation",
+        lambda *a, **k: pytest.fail("provider setup preflight ran after deadline"),
+    )
+    with pytest.raises(TimeoutError, match="hosted queue"):
+        runner.start_watcher(root, commit)
+    assert (root / "startup-failure.json").exists()
+    assert not (root / "provider-before.json").exists()
+    runner.stop_watcher(root)
+    assert (
+        json.loads((root / "finalization.json").read_text())["state"]
+        == "startup-failed"
+    )
+
+
+def test_bootstrap_watcher_deadline_expires_without_storage_sweep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    root.mkdir()
+    runner.write_json(
+        root / "watch-config.json",
+        {
+            "worker_pid": 999,
+            "worker_birth": "birth",
+            "workspace": str(tmp_path / "checkout"),
+            "job_root": str(root),
+            "commit": "a" * 40,
+            "deadline_ns": time.time_ns() - 1,
+        },
+    )
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: {999: (1, 999, 1, "S", "birth", "worker")},
+    )
+    monkeypatch.setattr(
+        runner,
+        "sample_declared_root",
+        lambda *a, **k: pytest.fail("bootstrap traversed storage"),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_terminate_worker_descendants",
+        lambda pid, birth: {"verified": True, "errors": [], "living": []},
+    )
+    with pytest.raises(TimeoutError, match="shutdown reserve"):
+        runner.watch_loop(root)
+    receipt = json.loads((root / "watch-receipt.json").read_text())
+    assert receipt["phase"] == "bootstrap"
+    assert receipt["sample_count"] == 0
+    assert receipt["cleanup"]["verified"] is True
+
+
+def test_postflight_watcher_loss_stops_before_lab_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, _, root, commit, _ = _postflight_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        runner,
+        "_watcher_identity",
+        lambda path: (_ for _ in ()).throw(RuntimeError("watcher lost")),
+    )
+    with pytest.raises(RuntimeError, match="watcher lost"):
+        runner.enter_lab(root, commit)
+    assert not (root / "lab-enabled.json").exists()
+    assert (
+        "watcher lost"
+        in json.loads((root / "bootstrap-failure.json").read_text())["exception"]
+    )
+
+
+def test_job_refuses_lost_watcher_before_lab_dependency_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    checkout = tmp_path / "checkout"
+    root = tmp_path / "job"
+    checkout.mkdir()
+    root.mkdir()
+    commit = "a" * 40
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(checkout))
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    monkeypatch.setattr(runner.subprocess, "check_output", lambda *a, **k: commit)
+    monkeypatch.setattr(runner, "verify_frozen_decoding", lambda path: None)
+    monkeypatch.setattr(
+        runner,
+        "_watcher_identity",
+        lambda path: (_ for _ in ()).throw(RuntimeError("watcher lost")),
+    )
+    monkeypatch.setattr(
+        runner,
+        "owned_environment",
+        lambda path: pytest.fail("lab environment created without watcher"),
+    )
+    with pytest.raises(RuntimeError, match="watcher lost"):
+        runner.run_job("fast", commit, root, time.time_ns() + 60_000_000_000)
+    assert not (root / "storage-baseline.json").exists()
+
+
+@pytest.mark.parametrize("cap", ["rss", "bytes", "inodes"])
+def test_lab_watcher_fails_closed_on_each_resource_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cap: str
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    checkout = tmp_path / "checkout"
+    root.mkdir()
+    checkout.mkdir()
+    commit = "a" * 40
+    runner.write_json(
+        root / "watch-config.json",
+        {
+            "worker_pid": 999,
+            "worker_birth": "birth",
+            "workspace": str(checkout),
+            "job_root": str(root),
+            "commit": commit,
+            "deadline_ns": time.time_ns() + 60_000_000_000,
+        },
+    )
+    runner.write_json(root / "lab-enabled.json", {"commit": commit})
+    rss = runner.LIMIT_RSS + 1 if cap == "rss" else 1024
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: {999: (1, 999, rss, "S", "birth", "worker")},
+    )
+
+    def sample(path, **kw):
+        if path == checkout:
+            return (runner.LIMIT_DISK + 1, 1) if cap == "bytes" else (10, 1)
+        return (10, runner.LIMIT_INODES) if cap == "inodes" else (10, 1)
+
+    monkeypatch.setattr(runner, "sample_declared_root", sample)
+    monkeypatch.setattr(
+        runner,
+        "_terminate_worker_descendants",
+        lambda pid, birth: {"verified": True, "errors": [], "living": []},
+    )
+    with pytest.raises(RuntimeError, match="lab cap"):
+        runner.watch_loop(root)
+    receipt = json.loads((root / "watch-receipt.json").read_text())
+    assert receipt["phase"] == "lab"
+    assert receipt["sample_count"] == 1
+    assert receipt["cleanup"]["verified"] is True
+    assert (root / "watch-violation.json").exists()
+    assert not (root / "lab-active.json").exists()
+
+
+def test_watcher_cleanup_permission_error_keeps_original_resource_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    root = tmp_path / "job"
+    checkout = tmp_path / "checkout"
+    root.mkdir()
+    checkout.mkdir()
+    commit = "a" * 40
+    runner.write_json(
+        root / "watch-config.json",
+        {
+            "worker_pid": 999,
+            "worker_birth": "birth",
+            "workspace": str(checkout),
+            "job_root": str(root),
+            "commit": commit,
+            "deadline_ns": time.time_ns() + 60_000_000_000,
+        },
+    )
+    runner.write_json(root / "lab-enabled.json", {"commit": commit})
+    monkeypatch.setattr(
+        runner,
+        "process_rows",
+        lambda: {999: (1, 999, 1024, "S", "birth", "worker")},
+    )
+    monkeypatch.setattr(
+        runner,
+        "sample_declared_root",
+        lambda path, **kw: (runner.LIMIT_DISK + 1, 1) if path == checkout else (1, 1),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_terminate_worker_descendants",
+        lambda pid, birth: (_ for _ in ()).throw(PermissionError("cleanup denied")),
+    )
+    with pytest.raises(RuntimeError, match="lab cap") as caught:
+        runner.watch_loop(root)
+    assert any("watcher cleanup failed" in note for note in caught.value.__notes__)
+    receipt = json.loads((root / "watch-receipt.json").read_text())
+    assert receipt["cleanup"]["verified"] is False
+    assert receipt["cleanup"]["living"] is None
+    assert "PermissionError" in receipt["cleanup"]["errors"][0]
+
+
+def test_watcher_cleanup_reinventories_descendants_before_verifying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _module("kml_ci_runner", "run_job.py")
+    state = {"spawned": False, "killed": False, "signals": []}
+
+    def rows():
+        result = {100: (1, 100, 1, "S", "worker-birth", "Runner.Worker")}
+        if not state["killed"]:
+            result[101] = (100, 101, 1, "S", "guard-birth", "run_job.py --job")
+            result[102] = (101, 102, 1, "S", "child-birth", "fixture")
+            if state["spawned"]:
+                result[103] = (102, 103, 1, "S", "new-birth", "fixture")
+        return result
+
+    def kill(pid, sig):
+        state["signals"].append((pid, sig))
+        if sig == signal.SIGTERM:
+            state["spawned"] = True
+        if sig == signal.SIGKILL:
+            state["killed"] = True
+
+    monkeypatch.setattr(runner, "process_rows", rows)
+    monkeypatch.setattr(runner.os, "kill", kill)
+    monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
+    receipt = runner._terminate_worker_descendants(100, "worker-birth")
+    assert receipt == {"verified": True, "errors": [], "living": []}
+    assert (101, signal.SIGTERM) in state["signals"]
+    assert (103, signal.SIGKILL) in state["signals"]
 
 
 def test_uv_run_preserves_guard_in_python_child(tmp_path: Path) -> None:

@@ -1,8 +1,4 @@
-"""Run one reviewed KML CI job under a deadline and whole-job resource sampler.
-
-This bootstrap uses only the standard library, so package installation is inside
-the same cap as collection, fixtures, tests, logs and child processes.
-"""
+"""Bound provider bootstrap time, then measure owned KML CI execution roots."""
 
 from __future__ import annotations
 
@@ -12,6 +8,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shutil
 import signal
 import stat
 import subprocess
@@ -30,10 +27,76 @@ SHUTDOWN_RESERVE_SECONDS = 15
 POLL_SECONDS = 0.1
 GRACE_SECONDS = 1.0
 SAMPLE_SECONDS = 15.0
+MIN_FREE_BYTES = 8 * 1024**3
+MIN_FREE_INODES = 100_000
 
 
 class StorageRootMissing(RuntimeError):
     """A declared storage root disappeared during a bounded sample."""
+
+
+def write_json(path: Path, value: dict | list) -> None:
+    path.write_text(json.dumps(value, sort_keys=True) + "\n")
+
+
+def capacity_observation(workspace: Path, temp_root: Path, *, phase: str) -> dict:
+    """Observe free capacity; do not infer exact writes from free-space deltas."""
+    filesystems = []
+    for name, path in (("checkout", workspace), ("runner_temp", temp_root)):
+        info = os.statvfs(path)
+        filesystems.append(
+            {
+                "name": name,
+                "path": str(path),
+                "free_bytes_observed": info.f_bavail * info.f_frsize,
+                "free_inodes_observed": info.f_favail,
+            }
+        )
+    provider_paths = {
+        "runner_tool_cache": os.environ.get("RUNNER_TOOL_CACHE"),
+        "runner_temp": os.environ.get("RUNNER_TEMP"),
+        "provider_home": os.environ.get("HOME"),
+        "uv_python_install_dir": os.environ.get("UV_PYTHON_INSTALL_DIR"),
+        "checkout": str(workspace),
+    }
+    tools = {}
+    for name in ("python3", "uv"):
+        executable = shutil.which(name)
+        if executable is None:
+            tools[name] = {"path": None, "version": None}
+            continue
+        version = subprocess.run(
+            [executable, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=True,
+        )
+        tools[name] = {
+            "path": executable,
+            "version": (version.stdout or version.stderr).strip(),
+        }
+    return {
+        "phase": phase,
+        "kind": "capacity_observation_not_added_storage_accounting",
+        "observed_at_ns": time.time_ns(),
+        "filesystems": filesystems,
+        "provider_paths": provider_paths,
+        "tools": tools,
+        "runner_os": os.environ.get("RUNNER_OS"),
+        "image_version": os.environ.get("ImageVersion"),
+    }
+
+
+def require_capacity(observation: dict) -> None:
+    for entry in observation["filesystems"]:
+        if (
+            entry["free_bytes_observed"] < MIN_FREE_BYTES
+            or entry["free_inodes_observed"] < MIN_FREE_INODES
+        ):
+            raise RuntimeError(
+                f"insufficient free capacity before lab execution: {entry['name']}"
+            )
 
 
 TESTS = {
@@ -320,94 +383,77 @@ def _watcher_identity(root: Path) -> tuple[int, str]:
     return pid, birth
 
 
-def start_watcher(root: Path, commit: str) -> None:
+def hosted_paths(root: Path) -> tuple[Path, Path]:
     workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+    temp_root = Path(os.environ["RUNNER_TEMP"]).resolve()
+    resolved_root = root.resolve()
     if (
-        subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=workspace, text=True
-        ).strip()
-        != commit
+        not root.is_absolute()
+        or root.parent.resolve() != temp_root
+        or resolved_root.is_relative_to(workspace)
+        or workspace.is_relative_to(resolved_root)
     ):
-        raise RuntimeError("watcher checkout identity differs from approved SHA")
-    deadline_ns = hosted_deadline_ns()
-    if time.time_ns() >= deadline_ns:
-        raise TimeoutError("aggregate deadline exhausted in hosted queue")
-    worker_pid, worker_birth = _runner_worker(process_rows())
-    root.mkdir(parents=True, exist_ok=False)
-    extra_paths = [Path(os.environ.get("RUNNER_TEMP", str(root))).resolve()]
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        if os.environ.get("RUNNER_TOOL_CACHE"):
-            extra_paths.append(Path(os.environ["RUNNER_TOOL_CACHE"]).resolve())
-        extra_paths.append(Path.home() / ".cache")
-    extra_paths = list(dict.fromkeys(extra_paths))
-    (root / "startup.json").write_text(
-        json.dumps(
-            {
-                "state": "started",
-                "phase": "startup-ambient-baseline",
-                "commit": commit,
-                "workspace": str(workspace),
-                "ambient_roots": [str(path) for path in extra_paths],
-                "sample_deadline_seconds": SAMPLE_SECONDS,
-                "workflow_deadline_ns": deadline_ns,
-            },
-            sort_keys=True,
+        raise ValueError(
+            "CI job root must be a direct child of runner temp, disjoint from checkout"
         )
-        + "\n"
+    return workspace, temp_root
+
+
+def checkout_identity(workspace: Path, commit: str) -> None:
+    if len(commit) != 40 or int(commit, 16) < 0:
+        raise ValueError("exact 40-character commit SHA required")
+    if os.environ.get("KML_CI_EXPECTED_SHA") != commit:
+        raise RuntimeError("workflow expected SHA differs from requested checkout")
+    head = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=workspace, text=True
+    ).strip()
+    if head != commit:
+        raise RuntimeError("checkout identity differs from approved SHA")
+
+
+def start_watcher(root: Path, commit: str) -> None:
+    workspace, temp_root = hosted_paths(root)
+    root.mkdir(parents=True, exist_ok=False)
+    write_json(
+        root / "startup.json",
+        {
+            "state": "started",
+            "phase": "provider-bootstrap",
+            "commit": commit,
+            "workspace": str(workspace),
+            "runner_temp": str(temp_root),
+        },
     )
-    progress: dict = {}
-    baselines = []
+    progress: dict = {
+        "root": str(root),
+        "phase": "provider-bootstrap",
+        "last_path": str(root),
+        "started_ns": time.monotonic_ns(),
+        "vanished_entries": 0,
+    }
     process = None
     try:
-        extras = []
-        baseline_deadline = sweep_deadline(deadline_ns)
-        for path in extra_paths:
-            baseline = sample_declared_root(
-                path,
-                phase="startup-ambient-baseline",
-                deadline=baseline_deadline,
-                required=False,
-                progress=progress,
-            )
-            baselines.append(
-                {
-                    "root": str(path),
-                    "bytes": baseline[0],
-                    "inodes": baseline[1],
-                    "elapsed_seconds": progress["elapsed_seconds"],
-                    "vanished_entries": progress["vanished_entries"],
-                }
-            )
-            extras.append(
-                {
-                    "path": str(path),
-                    "bytes": baseline[0],
-                    "inodes": baseline[1],
-                    "required": baseline[1] > 0,
-                }
-            )
-        (root / "startup-baselines.json").write_text(
-            json.dumps(baselines, sort_keys=True) + "\n"
+        checkout_identity(workspace, commit)
+        deadline_ns = hosted_deadline_ns()
+        if time.time_ns() >= deadline_ns - SHUTDOWN_RESERVE_SECONDS * 1_000_000_000:
+            raise TimeoutError("aggregate deadline exhausted in hosted queue")
+        worker_pid, worker_birth = _runner_worker(process_rows())
+        write_json(
+            root / "provider-before.json",
+            capacity_observation(workspace, temp_root, phase="before-provider-setup"),
         )
-        progress.update(
-            root=str(root),
-            phase="startup-watcher-launch",
-            last_path=str(root),
-            started_ns=time.monotonic_ns(),
+        write_json(
+            root / "watch-config.json",
+            {
+                "worker_pid": worker_pid,
+                "worker_birth": worker_birth,
+                "workspace": str(workspace),
+                "job_root": str(root),
+                "commit": commit,
+                "deadline_ns": deadline_ns,
+            },
         )
-        (root / "watch-config.json").write_text(
-            json.dumps(
-                {
-                    "worker_pid": worker_pid,
-                    "worker_birth": worker_birth,
-                    "workspace": str(workspace),
-                    "deadline_ns": deadline_ns,
-                    "extra_storage": extras,
-                },
-                sort_keys=True,
-            )
-            + "\n"
-        )
+        progress["phase"] = "startup-watcher-launch"
         with (
             (root / "watch.stdout.log").open("xb") as stdout,
             (root / "watch.stderr.log").open("xb") as stderr,
@@ -428,8 +474,8 @@ def start_watcher(root: Path, commit: str) -> None:
         rows = process_rows()
         if process.pid not in rows:
             raise RuntimeError("watcher exited during start")
-        (root / "watch-pid.json").write_text(
-            json.dumps({"pid": process.pid, "birth": rows[process.pid][4]}) + "\n"
+        write_json(
+            root / "watch-pid.json", {"pid": process.pid, "birth": rows[process.pid][4]}
         )
         ready_deadline = time.monotonic() + 5
         while time.monotonic() < ready_deadline:
@@ -446,73 +492,206 @@ def start_watcher(root: Path, commit: str) -> None:
                 process.terminate()
                 process.wait(timeout=2)
             except (OSError, subprocess.TimeoutExpired) as terminate_error:
-                print(
-                    f"watcher TERM cleanup failed: {terminate_error}", file=sys.stderr
-                )
+                error.add_note(f"watcher TERM cleanup failed: {terminate_error}")
                 try:
                     process.kill()
                     process.wait(timeout=2)
                 except (OSError, subprocess.TimeoutExpired) as cleanup_error:
-                    print(f"watcher cleanup failed: {cleanup_error}", file=sys.stderr)
+                    error.add_note(f"watcher cleanup failed: {cleanup_error}")
         try:
-            (root / "startup-failure.json").write_text(
-                json.dumps(sample_failure(progress, error), sort_keys=True) + "\n"
-            )
+            write_json(root / "startup-failure.json", sample_failure(progress, error))
         except OSError as receipt_error:
-            print(
-                f"could not retain startup failure receipt: {receipt_error}",
-                file=sys.stderr,
-            )
+            error.add_note(f"startup receipt failed: {receipt_error}")
         raise
+
+
+def enter_lab(root: Path, commit: str) -> None:
+    workspace, temp_root = hosted_paths(root)
+    progress: dict = {
+        "root": str(root),
+        "phase": "provider-postflight",
+        "last_path": str(root),
+        "started_ns": time.monotonic_ns(),
+        "vanished_entries": 0,
+    }
+    try:
+        _watcher_identity(root)
+        checkout_identity(workspace, commit)
+        config = json.loads((root / "watch-config.json").read_text())
+        if config["commit"] != commit or config["workspace"] != str(workspace):
+            raise RuntimeError("provider postflight binding changed")
+        if hosted_deadline_ns() != config["deadline_ns"]:
+            raise RuntimeError("workflow deadline binding changed")
+        if (
+            time.time_ns()
+            >= config["deadline_ns"] - SHUTDOWN_RESERVE_SECONDS * 1_000_000_000
+        ):
+            raise TimeoutError("aggregate deadline exhausted during provider setup")
+        observation = capacity_observation(
+            workspace, temp_root, phase="after-provider-setup"
+        )
+        write_json(root / "provider-after.json", observation)
+        if observation["tools"]["uv"]["path"] is None:
+            raise RuntimeError("provider setup did not supply uv")
+        require_capacity(observation)
+        deadline = sweep_deadline(config["deadline_ns"])
+        checkout_bytes, checkout_inodes = sample_declared_root(
+            workspace,
+            phase="prelab-checkout",
+            deadline=deadline,
+            required=True,
+            progress=progress,
+        )
+        job_bytes, job_inodes = sample_declared_root(
+            root,
+            phase="prelab-job-root",
+            deadline=deadline,
+            required=True,
+            progress=progress,
+        )
+        total_bytes = checkout_bytes + job_bytes
+        total_inodes = checkout_inodes + job_inodes
+        write_json(
+            root / "prelab-storage.json",
+            {
+                "roots": [str(workspace), str(root)],
+                "live_bytes": total_bytes,
+                "live_inodes": total_inodes,
+                "max_bytes": LIMIT_DISK,
+                "max_inodes": LIMIT_INODES,
+            },
+        )
+        if total_bytes > LIMIT_DISK or total_inodes > LIMIT_INODES:
+            raise RuntimeError("owned-root storage cap exceeded before lab execution")
+        _watcher_identity(root)
+        if (
+            time.time_ns()
+            >= config["deadline_ns"] - SHUTDOWN_RESERVE_SECONDS * 1_000_000_000
+        ):
+            raise TimeoutError("aggregate deadline exhausted before lab execution")
+        write_json(root / "lab-enabled.json", {"commit": commit})
+        ready_deadline = time.monotonic() + SAMPLE_SECONDS + 5
+        while time.monotonic() < ready_deadline:
+            _watcher_identity(root)
+            if (root / "lab-active.json").exists():
+                return
+            time.sleep(0.05)
+        raise RuntimeError("resource watcher did not confirm lab phase")
+    except BaseException as error:
+        try:
+            write_json(root / "bootstrap-failure.json", sample_failure(progress, error))
+        except OSError as receipt_error:
+            error.add_note(f"bootstrap failure receipt failed: {receipt_error}")
+        raise
+
+
+def _terminate_worker_descendants(worker_pid: int, birth: str) -> dict:
+    """Bounded TERM-to-KILL of this runner job, excluding the worker and watcher."""
+    errors: list[str] = []
+    rows = process_rows()
+    if worker_pid not in rows or rows[worker_pid][4] != birth:
+        return {
+            "verified": False,
+            "errors": ["runner worker identity changed"],
+            "living": None,
+        }
+    targets: dict[int, str] = {}
+
+    def inventory() -> tuple[dict, list[int]]:
+        current = process_rows()
+        if worker_pid not in current or current[worker_pid][4] != birth:
+            raise RuntimeError("runner worker identity changed during cleanup")
+        for pid in descendants(current, worker_pid) - {worker_pid, os.getpid()}:
+            if not current[pid][3].startswith("Z"):
+                targets.setdefault(pid, current[pid][4])
+        living = [
+            pid
+            for pid, started in targets.items()
+            if pid in current
+            and current[pid][4] == started
+            and not current[pid][3].startswith("Z")
+        ]
+        return current, living
+
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        _, living = inventory()
+        for pid in living:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
+            except OSError as error:
+                errors.append(f"{pid}: {type(error).__name__}: {error}")
+        if sig == signal.SIGTERM:
+            time.sleep(GRACE_SECONDS)
+    deadline = time.monotonic() + 5
+    while True:
+        _, living = inventory()
+        if not living or time.monotonic() >= deadline:
+            break
+        time.sleep(POLL_SECONDS)
+    return {"verified": not living and not errors, "errors": errors, "living": living}
 
 
 def watch_loop(root: Path) -> None:
     config = json.loads((root / "watch-config.json").read_text())
     worker_pid, birth = config["worker_pid"], config["worker_birth"]
     workspace = Path(config["workspace"])
+    job_root = Path(config["job_root"])
     deadline_ns = config["deadline_ns"]
     peak_rss = peak_disk = peak_inodes = 0
     sample_count = 0
     sample_seconds = max_sample_seconds = 0.0
     progress: dict = {}
-    (root / "watch-ready.json").write_text(json.dumps({"pid": os.getpid()}) + "\n")
+    write_json(root / "watch-ready.json", {"pid": os.getpid(), "phase": "bootstrap"})
     reason = "completed"
+    phase = "bootstrap"
+    cleanup: dict | None = None
+    failure: BaseException | None = None
+    receipt_error: BaseException | None = None
     try:
         while not (root / "watch-stop").exists():
             progress.clear()
             progress.update(
                 root=None,
-                phase="watch-process-inventory",
+                phase=f"watch-{phase}-process-inventory",
                 last_path=None,
                 started_ns=time.monotonic_ns(),
             )
             rows = process_rows()
             if worker_pid not in rows or rows[worker_pid][4] != birth:
                 raise RuntimeError("hosted runner worker identity changed")
+            if time.time_ns() >= deadline_ns - SHUTDOWN_RESERVE_SECONDS * 1_000_000_000:
+                raise TimeoutError("aggregate shutdown reserve reached")
+            if (root / "lab-enabled.json").exists():
+                enabled = json.loads((root / "lab-enabled.json").read_text())
+                if enabled.get("commit") != config["commit"]:
+                    raise RuntimeError("lab phase identity differs from bootstrap")
+                phase = "lab"
+            if phase == "bootstrap":
+                time.sleep(POLL_SECONDS)
+                continue
             owned_pids = descendants(rows, worker_pid) - {os.getpid()}
             rss = sum(
                 rows[pid][2] for pid in owned_pids if not rows[pid][3].startswith("Z")
             )
             sweep_started = time.monotonic()
             storage_deadline = sweep_deadline(deadline_ns)
-            disk, inodes = sample_declared_root(
+            checkout_bytes, checkout_inodes = sample_declared_root(
                 workspace,
-                phase="watch-workspace",
+                phase="watch-checkout",
                 deadline=storage_deadline,
                 required=True,
                 progress=progress,
             )
-            for extra in config["extra_storage"]:
-                path = Path(extra["path"])
-                current = sample_declared_root(
-                    path,
-                    phase="watch-ambient",
-                    deadline=storage_deadline,
-                    required=extra["required"],
-                    progress=progress,
-                )
-                disk += max(0, current[0] - extra["bytes"])
-                inodes += max(0, current[1] - extra["inodes"])
+            job_bytes, job_inodes = sample_declared_root(
+                job_root,
+                phase="watch-job-root",
+                deadline=storage_deadline,
+                required=True,
+                progress=progress,
+            )
+            disk, inodes = checkout_bytes + job_bytes, checkout_inodes + job_inodes
             duration = time.monotonic() - sweep_started
             sample_count += 1
             sample_seconds += duration
@@ -523,54 +702,62 @@ def watch_loop(root: Path) -> None:
                 max(peak_inodes, inodes),
             )
             if rss > LIMIT_RSS or disk > LIMIT_DISK or inodes > LIMIT_INODES:
-                raise RuntimeError(
-                    f"whole-job cap: rss={rss} disk={disk} inodes={inodes}"
+                raise RuntimeError(f"lab cap: rss={rss} disk={disk} inodes={inodes}")
+            if not (root / "lab-active.json").exists():
+                write_json(
+                    root / "lab-active.json",
+                    {
+                        "commit": config["commit"],
+                        "roots": [str(workspace), str(job_root)],
+                        "first_rss_bytes": rss,
+                        "first_live_bytes": disk,
+                        "first_live_inodes": inodes,
+                    },
                 )
-            if time.time_ns() >= deadline_ns - SHUTDOWN_RESERVE_SECONDS * 1_000_000_000:
-                raise TimeoutError("aggregate shutdown reserve reached")
             time.sleep(POLL_SECONDS)
-    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+    except BaseException as error:  # noqa: BLE001 - retain primary watcher fault
+        failure = error
         reason = f"{type(error).__name__}: {error}"
-        (root / "watch-violation.json").write_text(
-            json.dumps(
-                {"reason": reason, **sample_failure(progress, error)}, sort_keys=True
+        try:
+            write_json(
+                root / "watch-violation.json",
+                {"reason": reason, **sample_failure(progress, error)},
             )
-            + "\n"
-        )
-        rows = process_rows()
-        if worker_pid in rows and rows[worker_pid][4] == birth:
-            targets = {
-                pid
-                for pid in descendants(rows, worker_pid) - {worker_pid, os.getpid()}
-                if "run_job.py" not in rows[pid][5]
+        except OSError as receipt_error:
+            error.add_note(f"watch violation receipt failed: {receipt_error}")
+        try:
+            cleanup = _terminate_worker_descendants(worker_pid, birth)
+        except BaseException as cleanup_error:  # noqa: BLE001 - retain cleanup uncertainty
+            cleanup = {
+                "verified": False,
+                "errors": [f"{type(cleanup_error).__name__}: {cleanup_error}"],
+                "living": None,
             }
-            identities = {pid: rows[pid][4] for pid in targets}
-            for sig in (signal.SIGTERM, signal.SIGKILL):
-                current = process_rows()
-                for pid, started in identities.items():
-                    if pid in current and current[pid][4] == started:
-                        try:
-                            os.kill(pid, sig)
-                        except ProcessLookupError:
-                            pass
-                if sig == signal.SIGTERM:
-                    time.sleep(GRACE_SECONDS)
+            error.add_note(f"watcher cleanup failed: {cleanup_error}")
     finally:
-        (root / "watch-receipt.json").write_text(
-            json.dumps(
+        try:
+            write_json(
+                root / "watch-receipt.json",
                 {
                     "reason": reason,
+                    "phase": phase,
                     "peak_rss_bytes": peak_rss,
                     "peak_disk_bytes": peak_disk,
                     "peak_inodes": peak_inodes,
                     "sample_count": sample_count,
                     "sample_seconds": sample_seconds,
                     "max_sample_seconds": max_sample_seconds,
+                    "cleanup": cleanup,
                 },
-                sort_keys=True,
             )
-            + "\n"
-        )
+        except BaseException as error:  # noqa: BLE001 - preserve the watcher fault
+            receipt_error = error
+    if failure is not None:
+        if receipt_error is not None:
+            failure.add_note(f"watch receipt failed: {receipt_error}")
+        raise failure
+    if receipt_error is not None:
+        raise receipt_error
 
 
 def stop_watcher(root: Path) -> None:
@@ -593,19 +780,50 @@ def stop_watcher(root: Path) -> None:
                 )
         print(f"CI watcher finalization: {state}; original startup result retained")
         return
-    pid, birth = _watcher_identity(root)
-    (root / "watch-stop").write_text("stop\n")
+    record = json.loads((root / "watch-pid.json").read_text())
+    pid, birth = record["pid"], record["birth"]
+    rows = process_rows()
+    alive = pid in rows and rows[pid][4] == birth and not rows[pid][3].startswith("Z")
+    if alive:
+        (root / "watch-stop").write_text("stop\n")
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         if (root / "watch-receipt.json").exists():
             receipt = json.loads((root / "watch-receipt.json").read_text())
-            if receipt["reason"] != "completed":
-                raise RuntimeError(f"CI watcher failed: {receipt['reason']}")
+            state = (
+                "watcher-failed"
+                if receipt["reason"] != "completed"
+                else "bootstrap-failed"
+                if (root / "bootstrap-failure.json").exists()
+                else "completed"
+            )
+            write_json(
+                root / "finalization.json",
+                {
+                    "state": state,
+                    "watcher_started": True,
+                    "watcher_reason": receipt["reason"],
+                    "cleanup": receipt.get("cleanup"),
+                },
+            )
+            if state == "watcher-failed":
+                print(
+                    f"CI watcher finalization: {receipt['reason']}; original failure retained"
+                )
+                raise RuntimeError(f"CI resource watcher failed: {receipt['reason']}")
             return
         rows = process_rows()
-        if pid not in rows or rows[pid][4] != birth:
+        if pid not in rows or rows[pid][4] != birth or rows[pid][3].startswith("Z"):
             break
         time.sleep(0.1)
+    write_json(
+        root / "finalization.json",
+        {
+            "state": "watcher-unverified",
+            "watcher_started": True,
+            "watcher_reason": "completion receipt missing",
+        },
+    )
     raise RuntimeError("CI watcher did not produce a completion receipt")
 
 
@@ -898,6 +1116,9 @@ def run_job(job: str, commit: str, root: Path, deadline_ns: int) -> None:
     hosted = "GITHUB_RUN_ID" in os.environ
     if hosted:
         _watcher_identity(root)
+        active = json.loads((root / "lab-active.json").read_text())
+        if active["commit"] != commit or active["roots"] != [str(workspace), str(root)]:
+            raise RuntimeError("lab watcher is not bound to this checkout and job root")
     else:
         root.mkdir(parents=True, exist_ok=False)
     environment = owned_environment(root)
@@ -1041,6 +1262,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--test-deadline-ns", type=int)
     parser.add_argument("--start-watch", action="store_true")
+    parser.add_argument("--enter-lab", action="store_true")
     parser.add_argument("--watch-loop", action="store_true")
     parser.add_argument("--stop-watch", action="store_true")
     args = parser.parse_args()
@@ -1051,6 +1273,11 @@ def main() -> int:
         if args.expected_sha is None:
             parser.error("start-watch requires --expected-sha")
         start_watcher(args.root, args.expected_sha)
+        return 0
+    if args.enter_lab:
+        if args.expected_sha is None:
+            parser.error("enter-lab requires --expected-sha")
+        enter_lab(args.root, args.expected_sha)
         return 0
     if args.stop_watch:
         stop_watcher(args.root)

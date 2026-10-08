@@ -96,9 +96,11 @@ experiment or a merge.
   [C05-I9](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-guard-exit-repair.md)
   repairs stale exit detection and receipt ordering offline. The separate
   [owned-root policy proposal](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_POLICY_PROPOSAL.md)
-  has offline-tested owned-environment binding but still needs the workflow
-  phase split, fixture path audit and offline verification before any hosted
-  retry. It narrows the storage claim;
+  is now implemented for offline review in
+  [C05-I10](experiments/research/kernel-memory-lab/results/2026-10-08-card05-hosted-owned-root-implementation.md):
+  five-job workflow phase split, the selected [write-path audit](experiments/research/kernel-memory-lab/CARD05_HOSTED_OWNED_ROOT_AUDIT.md),
+  and inspected zero-model checks. A fresh hosted allocation and observed
+  Linux/macOS receipts are still needed before model-path qualification. It narrows the storage claim;
   do not equate free-space observations with added-byte/inode accounting. Both
   hosted allocations are spent, and model-path qualification remains open.
 

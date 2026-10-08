@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D36 — owned-root policy accepted for offline implementation, 2026-10-08
+
+- The owner accepted [the materially narrower hosted resource policy](CARD05_HOSTED_OWNED_ROOT_POLICY_PROPOSAL.md) at `9673fc3e` for **one offline implementation pass** across the five selected qualification jobs. The instruction includes a fixture/write-path audit, inspected zero-model-work tests, commit/push, and one fresh hosted allocation request. It does **not** authorize a hosted dispatch, model work, source downloads, GPU work, retry, PR-ready transition or merge.
+- [C05-I10](results/2026-10-08-card05-hosted-owned-root-implementation.md) records the implementation and offline checks; [the path audit](CARD05_HOSTED_OWNED_ROOT_AUDIT.md) names the provider setup exception and measured lab roots. The [fresh dispatch proposal](CARD05_HOSTED_OWNED_ROOT_DISPATCH_PROPOSAL.md) is a separate approval request, not a transfer of C05-I6/C05-I8 allocation.
+- Earlier failed hosted attempts, historical scientific scores and reader gates remain unchanged. PR #54 stays draft. Hosted Linux/macOS qualification remains open.
+
 ## KML-D35 — hosted retries paused and offline guard correction authorized, 2026-10-08
 
 - The owner paused hosted retries after C05-I8 and authorized a focused offline correction to stale-process detection and failure-receipt ordering, with synthetic leader-exit, surviving-descendant, cleanup-permission and original-exception tests. No hosted dispatch, model work, ready-for-review transition or merge was authorized.

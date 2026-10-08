@@ -68,6 +68,15 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.serving_only
         with:
           python-version: "3.14"
+      - name: Enter bounded lab phase
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-lint"
       - name: Run bounded qualification lint
         if: github.event_name == 'workflow_dispatch' && inputs.serving_only
         env:
@@ -147,6 +156,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+      - name: Enter bounded lab phase
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-fast"
       - name: Lint tracked research declarations and evidence references
         if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: uv run --locked --extra cpu python -m sparselab.research.lint --json
@@ -218,6 +236,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+      - name: Enter bounded lab phase
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-archive"
       - name: Offline research lint and corpus archive acceptance (macOS)
         if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: |
@@ -285,6 +312,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+      - name: Enter bounded lab phase
+        if: github.event_name == 'workflow_dispatch' && inputs.serving_only
+        env:
+          KML_CI_GITHUB_TOKEN: ${{ github.token }}
+          KML_CI_EXPECTED_SHA: ${{ inputs.qualification_sha }}
+        run: >-
+          python3 tools/kernel-memory-lab/ci-guard/run_job.py --enter-lab
+          --expected-sha "$KML_CI_EXPECTED_SHA"
+          --root "$RUNNER_TEMP/kml-ci-serving"
       - if: github.event_name != 'workflow_dispatch' || !inputs.serving_only
         run: uv sync --locked --extra cpu --dev
       - name: Bounded offline serving and CLI regression checks
