@@ -62,39 +62,46 @@ vram_cap_bytes=21474836480
 added_bytes_cap=68719476736
 added_inodes_cap=2000
 monitor_pid=
+watchdog_pid=
 # Claim before installing cleanup so a rejected replay cannot overwrite evidence.
 mkdir "$root/$phase-launch-claim" || exit 2
+stop_file=$root/$phase-launch-claim/stop
+abort_file=$root/$phase-launch-claim/abort
+# A future baseline must come from the same live-tree sampler used below.
+[[ "$(cat "$root/profile-baseline-sampler.txt")" == sample-task-root-v1 ]] || exit 2
+cleanup() {
+  status=$?
+  trap - EXIT
+  if (( status != 0 )); then
+    trap '' TERM INT HUP
+    (set -C; printf '%s\n' 'Supervisor, watchdog, or native command failed' > "$root/$phase-cap-event.txt") 2>/dev/null || true
+    printf '%s\n' 137 > "$root/$phase-exit-code.txt" || true
+    touch "$abort_file" || true
+  fi
+  touch "$stop_file" || true
+  # The owner supervisor adopts monitor/worker orphans across process groups.
+  # Wait for its zero-survivor receipt before this launcher can return.
+  if [[ -n "$monitor_pid" ]]; then
+    wait "$monitor_pid" || true
+    if [[ ! -s "$root/$phase-launch-claim/owned-completion.json" ]]; then
+      printf '%s\n' 'Owned-process exit verification is missing' > "$root/$phase-shutdown-unverified.txt" || true
+    fi
+  fi
+  if [[ -n "$watchdog_pid" ]]; then wait "$watchdog_pid" || true; fi
+}
+trap cleanup EXIT
+trap 'exit 143' TERM INT HUP
 phase_deadline_ns=$(uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/full-tranche-phase-deadline.py" "$phase")
 [[ "$phase_deadline_ns" =~ ^[0-9]{18,19}$ ]] || exit 2
 printf '%s\n' "$phase_deadline_ns" > "$root/$phase-launch-claim/deadline-ns.txt"
 if [[ "$phase" == evaluate ]]; then
   eval_dir=$task_root/card04-synthetic/runs/kml-card05-full-tranche-v1/evaluations
   [[ -d "$eval_dir" ]] || exit 2
-  eval_start_bytes=$(du -sb -- "$eval_dir" | awk '{print $1}')
+  eval_start_bytes=$(timeout --signal=TERM --kill-after=1s 6s uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/sample-task-root.py" --root "$eval_dir" --kind bytes)
   [[ "$eval_start_bytes" =~ ^[0-9]+$ ]] || exit 2
 fi
-# Native work stays in the attempt runner's group. Measurements use a bounded
-# Linux subreaper and regular output files, never inherited stdout pipes.
-# The leader survives TERM long enough to escalate, even for a TERM-ignoring child.
-cleanup() {
-  status=$?
-  trap - EXIT
-  if (( status != 0 )); then
-    trap '' TERM INT HUP
-    if [[ ! -e "$root/$phase-cap-event.txt" ]]; then
-      printf '%s\n' 'Supervisor, watchdog, or native command failed' > "$root/$phase-cap-event.txt" || true
-    fi
-    printf '%s\n' 137 > "$root/$phase-exit-code.txt" || true
-    kill -TERM -- "-$pgid" 2>/dev/null || true
-    sleep 1 || true
-    kill -KILL -- "-$pgid"
-  fi
-}
-trap cleanup EXIT
-trap 'exit 143' TERM INT HUP
-stop_file=$root/$phase-launch-claim/stop
 stop_for_cap() {
-  printf '%s\n' "$1" > "$root/$phase-cap-event.txt"
+  (set -C; printf '%s\n' "$1" > "$root/$phase-cap-event.txt") 2>/dev/null || true
   return 1
 }
 measure() {
@@ -141,7 +148,10 @@ check_resources() {
     return 1
   fi
   if [[ "$phase" == evaluate ]]; then
-    eval_bytes=$(du -sb -- "$eval_dir" | awk '{print $1}') || return 1
+    if ! eval_bytes=$(timeout --signal=TERM --kill-after=1s 6s uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/sample-task-root.py" --root "$eval_dir" --kind bytes); then
+      stop_for_cap 'Evaluation output measurement unavailable'
+      return 1
+    fi
     if [[ ! "$eval_bytes" =~ ^[0-9]+$ ]] || (( eval_bytes - eval_start_bytes > 67108864 )); then
       stop_for_cap "Evaluation output exceeds 64 MiB: $eval_bytes bytes"
       return 1
@@ -160,13 +170,14 @@ check_resources
 remaining_ns=$((phase_deadline_ns-$(date +%s%N)))
 (( remaining_ns > 1000000000 )) || exit 1
 phase_seconds=$((remaining_ns/1000000000))
+supervisor=(uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/run-owned-phase-command.py" --deadline-ns "$phase_deadline_ns" --stop-file "$abort_file" --owner-pid "$$" --completion "$root/$phase-launch-claim/owned-completion.json" --)
 
 if [[ "$phase" == stage ]]; then
-  timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-stage" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab stage "$config" --through validate --output "$root/stage-validate" --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/stage-monitor-result.json" 2> "$root/stage-monitor-error.log" &
+  setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-stage" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab stage "$config" --through validate --output "$root/stage-validate" --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/stage-monitor-result.json" 2> "$root/stage-monitor-error.log" &
 elif [[ "$phase" == train ]]; then
-  timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-train" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab train "$config" --stage-bundle "$root/stage-validate" --run-id kml-card05-full-tranche-v1 --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/train-monitor-result.json" 2> "$root/train-monitor-error.log" &
+  setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-train" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync sparselab train "$config" --stage-bundle "$root/stage-validate" --run-id kml-card05-full-tranche-v1 --runtime rocm-7900xtx --resource-envelope "$root/profile-resource-envelope.yaml" > "$root/train-monitor-result.json" 2> "$root/train-monitor-error.log" &
 else
-  timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-evaluate" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/run-full-tranche-evaluation.py" > "$root/evaluate-monitor-result.json" 2> "$root/evaluate-monitor-error.log" &
+  setsid --wait "${supervisor[@]}" timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-evaluate" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/run-full-tranche-evaluation.py" > "$root/evaluate-monitor-result.json" 2> "$root/evaluate-monitor-error.log" &
 fi
 monitor_pid=$!
 watchdog &
@@ -189,7 +200,7 @@ if [[ "$phase" == train ]]; then
   remaining_ns=$((phase_deadline_ns-$(date +%s%N)))
   (( remaining_ns > 1000000000 )) || exit 1
   phase_seconds=$((remaining_ns/1000000000))
-  timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-select" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/select-full-tranche-checkpoint.py" > "$root/select-monitor-result.json" 2> "$root/select-monitor-error.log" || exit 1
+  setsid --wait uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/run-owned-phase-command.py" --deadline-ns "$phase_deadline_ns" --stop-file "$abort_file" --owner-pid "$$" --completion "$root/$phase-launch-claim/select-owned-completion.json" -- timeout --signal=TERM --kill-after=2s "${phase_seconds}s" uv run --locked --no-sync sparselab monitor --policy "$root/profile-monitor-policy.yaml" --log-dir "$root/monitor-select" --workspace "$task_root" --reserve-bytes 68719476736 --reserve-inodes 2000 --json -- uv run --locked --no-sync python "$checkout/tools/kernel-memory-lab/select-full-tranche-checkpoint.py" > "$root/select-monitor-result.json" 2> "$root/select-monitor-error.log" || exit 1
   check_resources
 fi
 printf '%s\n' 0 > "$root/$phase-exit-code.txt"

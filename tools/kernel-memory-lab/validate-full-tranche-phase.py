@@ -77,6 +77,8 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
     digest = hashlib.sha256(f"{baseline[0]}\n{baseline[1]}\n".encode()).hexdigest()
     if (root / "profile-baseline-sha256.txt").read_text().strip() != digest:
         raise ValueError("common-root baseline changed")
+    if (root / "profile-baseline-sampler.txt").read_text().strip() != "sample-task-root-v1":
+        raise ValueError("common-root baseline was not captured by the live-tree sampler")
     policy = load_monitor_policy(root / "profile-monitor-policy.yaml")
     envelope = load_resource_envelope(root / "profile-resource-envelope.yaml")
     if (

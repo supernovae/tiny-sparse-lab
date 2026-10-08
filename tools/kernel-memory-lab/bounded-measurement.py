@@ -119,6 +119,14 @@ def main() -> int:
             'find "$KML_TASK_ROOT" -xdev -printf "\\0" | wc -c',
         ],
     }
+    if kind == "card05_full" and args.kind in {"bytes", "inodes"}:
+        commands[args.kind] = uv + [
+            str(checkout / "tools/kernel-memory-lab/sample-task-root.py"),
+            "--root",
+            os.environ["KML_TASK_ROOT"],
+            "--kind",
+            args.kind,
+        ]
     return run(commands[args.kind], args.output)
 
 

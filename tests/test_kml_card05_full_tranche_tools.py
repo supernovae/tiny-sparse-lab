@@ -7,8 +7,10 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
+import psutil
 import pytest
 
 TOOLS = Path(__file__).resolve().parents[1] / "tools/kernel-memory-lab"
@@ -24,6 +26,8 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
     (root / "profile-baseline-bytes.txt").write_text("0\n")
     (root / "profile-baseline-inodes.txt").write_text("0\n")
     (root / "profile-baseline-sha256.txt").write_text(hashlib.sha256(b"0\n0\n").hexdigest() + "\n")
+    if scenario != "missing_sampler_marker":
+        (root / "profile-baseline-sampler.txt").write_text("sample-task-root-v1\n")
     (root / "profile-monitor-policy.yaml").write_text("monitor_policy_version: 1\n")
     (root / "profile-resource-envelope.yaml").write_text("resource_envelope_version: 1\n")
     (root / "attempt-budget.sqlite").write_text("mock only\n")
@@ -32,6 +36,9 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
     if scenario == "disk_cap":
         with (root / "oversize.bin").open("wb") as stream:
             stream.truncate(68_719_476_737)
+    if scenario == "inode_cap":
+        for index in range(2001):
+            (root / f"inode-{index}").touch()
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     calls = root / "calls.txt"
@@ -39,6 +46,8 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
     fake_uv.write_text(
         "#!/usr/bin/env bash\n"
         'case "$*" in *bounded-measurement.py*) shift 4; exec "$MOCK_PYTHON" "$@" ;; esac\n'
+        'case "$*" in *sample-task-root.py*) shift 4; exec "$MOCK_PYTHON" "$@" ;; esac\n'
+        'case "$*" in *run-owned-phase-command.py*) shift 4; exec "$MOCK_PYTHON" "$@" ;; esac\n'
         'printf "%s\\n" "$*" >> "$MOCK_CALLS"\n'
         'case "$*" in\n'
         '  *full-tranche-phase-deadline.py*) printf "%s\\n" "$(($(date +%s)+60))000000000" ;;\n'
@@ -46,14 +55,26 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
         '  *read-vram-bytes.py*)\n'
         '    count=$(cat "$MOCK_COUNT" 2>/dev/null || printf 0)\n'
         '    count=$((count+1)); printf "%s\\n" "$count" > "$MOCK_COUNT"\n'
-        '    if [[ "$MOCK_SCENARIO" == sensor_loss && "$count" -gt 1 ]]; then exit 9; fi\n'
+        '    if [[ "$MOCK_SCENARIO" == sensor_loss || "$MOCK_SCENARIO" == sensor_loss_worker ]] && [[ "$count" -gt 1 ]]; then exit 9; fi\n'
         '    if [[ "$MOCK_SCENARIO" == over_vram ]]; then printf "21474836481\\n"; else printf "1073741824\\n"; fi ;;\n'
         '  *"sparselab monitor"*)\n'
+        '    if [[ "$MOCK_SCENARIO" == orphan_worker ]]; then exec "$MOCK_PYTHON" "$MOCK_ORPHAN_SCRIPT"; fi\n'
+        '    if [[ "$MOCK_SCENARIO" == sensor_loss_worker || "$MOCK_SCENARIO" == owner_dies ]]; then exec "$MOCK_PYTHON" "$MOCK_LIVE_SCRIPT"; fi\n'
         '    if [[ "$MOCK_SCENARIO" == sensor_loss ]]; then /bin/sleep 20; fi ;;\n'
         '  *) exit 8 ;;\n'
         'esac\n'
     )
     fake_uv.chmod(0o700)
+    orphan_script = tmp_path / "orphan-parent.py"
+    orphan_script.write_text(
+        "import os, subprocess, sys\n"
+        "p = subprocess.Popen([sys.executable, '-c', "
+        "'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)'], "
+        "start_new_session=True)\n"
+        "open(os.environ['MOCK_WORKER_PID'], 'w').write(str(p.pid))\n"
+    )
+    live_script = tmp_path / "live-parent.py"
+    live_script.write_text(orphan_script.read_text() + "import time; time.sleep(30)\n")
     env = os.environ.copy()
     env.update(
         PATH=f"{bin_dir}:{env['PATH']}",
@@ -67,6 +88,9 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
         MOCK_SCENARIO=scenario,
         MOCK_CALLS=str(calls),
         MOCK_COUNT=str(root / "count.txt"),
+        MOCK_ORPHAN_SCRIPT=str(orphan_script),
+        MOCK_LIVE_SCRIPT=str(live_script),
+        MOCK_WORKER_PID=str(root / "worker-pid.txt"),
     )
     process = subprocess.Popen(
         ["bash", str(LAUNCHER), phase],
@@ -77,14 +101,31 @@ def _launch(tmp_path: Path, scenario: str, phase: str = "stage") -> tuple[subpro
         start_new_session=True,
     )
     try:
+        if scenario == "owner_dies":
+            until = time.monotonic() + 6
+            while not (root / "worker-pid.txt").exists() and time.monotonic() < until:
+                time.sleep(0.01)
+            assert (root / "worker-pid.txt").exists(), "worker never started"
+            os.killpg(process.pid, signal.SIGKILL)
         stdout, stderr = process.communicate(timeout=12)
-        result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
-    finally:
+    except subprocess.TimeoutExpired:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         process.wait()
+        raise
+    leaked_group: list[int] = []
+    for candidate in psutil.process_iter():
+        try:
+            if candidate.pid != process.pid and candidate.status() != psutil.STATUS_ZOMBIE and os.getpgid(candidate.pid) == process.pid:
+                leaked_group.append(candidate.pid)
+        except (ProcessLookupError, psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    if leaked_group:
+        os.killpg(process.pid, signal.SIGKILL)
+        pytest.fail(f"launcher returned with live same-group workers: {leaked_group}")
+    result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
     return result, root, calls.read_text().splitlines() if calls.exists() else []
 
 
@@ -109,13 +150,19 @@ def test_declared_phase_commands(tmp_path: Path, phase: str) -> None:
         assert "run-full-tranche-evaluation.py" in command
 
 
-@pytest.mark.parametrize("scenario", ["over_vram", "sensor_loss", "disk_cap"])
+@pytest.mark.parametrize("scenario", ["over_vram", "sensor_loss", "disk_cap", "inode_cap"])
 def test_sensor_failure_stops_before_or_during_work(tmp_path: Path, scenario: str) -> None:
     result, root, calls = _launch(tmp_path, scenario)
     assert result.returncode != 0
     assert (root / "stage-cap-event.txt").is_file()
     assert (root / "stage-exit-code.txt").read_text() != "0\n"
     assert sum("sparselab monitor" in call for call in calls) == (scenario == "sensor_loss")
+
+
+def test_baseline_sampler_identity_required_before_measurement(tmp_path: Path) -> None:
+    result, _, calls = _launch(tmp_path, "missing_sampler_marker")
+    assert result.returncode != 0
+    assert calls == []
 
 
 def test_claimed_phase_cannot_launch(tmp_path: Path) -> None:
@@ -182,3 +229,72 @@ def test_partial_generation_preserved_without_success_receipt(tmp_path: Path, mo
     with pytest.raises(ValueError, match="incomplete"):
         evaluate(root, Path(__file__).resolve().parents[1])
     assert not (root / "evaluation-generation-complete.json").exists()
+
+
+def test_launcher_reaps_early_parent_separate_group_worker_without_touching_sentinel(tmp_path: Path) -> None:
+    sentinel = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+    worker_pid: int | None = None
+    leaked = False
+    try:
+        result, root, calls = _launch(tmp_path, "orphan_worker")
+        worker_pid = int((root / "worker-pid.txt").read_text())
+        leaked = psutil.pid_exists(worker_pid)
+        assert result.returncode != 0
+        assert any("sparselab monitor" in call for call in calls)
+        assert (root / "stage-cap-event.txt").is_file()
+        assert not leaked, f"owned worker {worker_pid} survived launcher return"
+        assert sentinel.poll() is None, "unrelated sentinel was affected"
+        receipt = root / "stage-launch-claim/owned-completion.json"
+        assert '"living_descendants": 0' in receipt.read_text()
+    finally:
+        # Cleanup after the assertions is only hygiene; a leaked worker has
+        # already failed the test and cannot be hidden by this teardown.
+        if worker_pid is not None and psutil.pid_exists(worker_pid):
+            os.kill(worker_pid, signal.SIGKILL)
+        sentinel.kill()
+        sentinel.wait(timeout=5)
+
+
+def test_watchdog_failure_kills_separate_group_term_ignoring_worker(tmp_path: Path) -> None:
+    sentinel = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+    worker_pid: int | None = None
+    leaked = False
+    try:
+        result, root, _ = _launch(tmp_path, "sensor_loss_worker")
+        worker_pid = int((root / "worker-pid.txt").read_text())
+        leaked = psutil.pid_exists(worker_pid)
+        assert result.returncode != 0
+        assert (root / "stage-cap-event.txt").read_text().strip() == "Device-memory measurement unavailable"
+        assert not leaked, f"owned worker {worker_pid} survived launcher return"
+        assert sentinel.poll() is None, "unrelated sentinel was affected"
+        receipt = root / "stage-launch-claim/owned-completion.json"
+        assert '"living_descendants": 0' in receipt.read_text()
+    finally:
+        if worker_pid is not None and psutil.pid_exists(worker_pid):
+            os.kill(worker_pid, signal.SIGKILL)
+        sentinel.kill()
+        sentinel.wait(timeout=5)
+
+
+def test_supervisor_reaps_worker_when_launcher_group_exits_early(tmp_path: Path) -> None:
+    sentinel = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+    worker_pid: int | None = None
+    leaked = False
+    try:
+        result, root, _ = _launch(tmp_path, "owner_dies")
+        worker_pid = int((root / "worker-pid.txt").read_text())
+        until = time.monotonic() + 5
+        while psutil.pid_exists(worker_pid) and time.monotonic() < until:
+            time.sleep(0.02)
+        leaked = psutil.pid_exists(worker_pid)
+        assert result.returncode != 0
+        assert not leaked, f"worker {worker_pid} survived owner death"
+        assert sentinel.poll() is None, "unrelated sentinel was affected"
+        receipt = root / "stage-launch-claim/owned-completion.json"
+        assert '"living_descendants": 0' in receipt.read_text()
+        assert "launcher owner exited" in receipt.read_text()
+    finally:
+        if worker_pid is not None and psutil.pid_exists(worker_pid):
+            os.kill(worker_pid, signal.SIGKILL)
+        sentinel.kill()
+        sentinel.wait(timeout=5)
