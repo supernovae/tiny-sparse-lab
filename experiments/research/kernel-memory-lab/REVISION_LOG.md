@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.1 — full Card 03 acceptance, Gate 0 review and Card 05 profile proposal, 8 October 2026
+
+- Recorded the owner's KML-D19 acceptance of C03-C2 at `4ced162` together with previously accepted C03-C1 for the exact local-research release, preserving failed C03-S2/S4 and older attempt evidence
+- Cold-verified available release and prepared identities, recomputed the frozen evaluation content digest, and mapped every original Gate 0 criterion to accepted evidence in [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md); Gate 0 is evidence verified for its starting-point scope
+- Kept [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) as historical, superseded its dated acquisition/preparation blockers, and proposed one separately approved 32-update real-data measurement from a fresh main initializer with exact monitored limits; no model/GPU work occurred in this review
+
 ## 2026-10-07.24 — source-level admission policy v1 and retained-pilot screen, 7 October 2026
 
 - Recorded the owner's acceptance of proportionate pinned-source/license rules in KML-D14 and updated the Card 03 contract for inherited record provenance, automated exceptions, spot audits and nonblocking optional metadata issues; preserved the earlier rights preflight and zero-admitted pilot screen as historical evidence

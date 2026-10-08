@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D19 — full Card 03 accepted; Gate 0 reviewed; Card 05 measurement proposed, 2026-10-08
+
+- Owner review: Byron accepted [C03-C2](results/2026-10-07-card03-evaluation-continuation.md) at `4ced162` as the completed evaluation component and, together with previously accepted [C03-C1](results/2026-10-07-card03-offline-continuation.md), accepted **full Card 03 for the exact frozen local-research release**. The selected 5-million-position 65/25/10 bundle and evaluation content digest `49576570d5f490055d2c378a17cfb6094368bdd0877b0687d1d4f8b38f275907` are fixed. This acceptance does not change the rights scope or erase C03-S2/S4, Card 02 A1, or Card 04 P3/P4 failures.
+- [C03-R1/G00-R1/C05-P2](results/2026-10-08-card03-acceptance-gate0-card05-review.md) cold-verified available release and prepared identities, recomputed the frozen evaluation digest, and mapped each original Gate 0 criterion to accepted evidence. Gate 0 is **EVIDENCE VERIFIED for its starting-point contract**, with no new training or GPU activity. [C05-P1](results/2026-10-07-card05-prerequisite-audit.md) remains intact as a historical audit; its acquisition and preparation blockers are superseded, while its missing real-data throughput finding remains open.
+- Boundary: this decision authorizes review/planning only, including the [one real-data measurement proposal](CARD05_REAL_DATA_MEASUREMENT_PROPOSAL.md). It grants **no** stage, warmup, profile, optimizer update, Card 05 tranche, acquisition, GPU or cloud allocation. The owner must separately approve the exact proposed 32-update profile and later full training if appropriate.
+
 ## KML-D18 — Card 03 partial preparation accepted; evaluation-only continuation approved, 2026-10-07
 
 - Owner review: Byron accepted [C03-C1](results/2026-10-07-card03-offline-continuation.md) as completed corpus, train-only tokenizer and 5-million-position mixture preparation evidence. This accepts those artifacts for reuse; it does **not** declare full Card 03 complete. C03-S4 and C03-S2 remain failed, and the unreviewed 600-item C03-C1 candidate is not a frozen suite.
