@@ -9,7 +9,10 @@ import pytest
 
 
 def _tool():
-    path = Path(__file__).parents[1] / "tools/kernel-memory-lab/run-card05-matched-diagnostic.py"
+    path = (
+        Path(__file__).parents[1]
+        / "tools/kernel-memory-lab/run-card05-matched-diagnostic.py"
+    )
     spec = importlib.util.spec_from_file_location("kml_matched_diagnostic", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -44,10 +47,14 @@ def test_exact_eight_pairs_and_two_preselected_parity_cases() -> None:
     module = _tool()
     jobs = module.validate_declaration(_declaration(module), _Tokenizer())
     assert len(jobs) == 18
-    assert jobs[:2] == [(0, "prose", "Passage 0.", True),
-                        (0, "question", "Context:\nPassage 0.\nQuestion: What number?\nAnswer:", True)]
-    assert jobs[-2:] == [(0, "prose", "Passage 0.", False),
-                         (0, "question", "Context:\nPassage 0.\nQuestion: What number?\nAnswer:", False)]
+    assert jobs[:2] == [
+        (0, "prose", "Passage 0.", True),
+        (0, "question", "Context:\nPassage 0.\nQuestion: What number?\nAnswer:", True),
+    ]
+    assert jobs[-2:] == [
+        (0, "prose", "Passage 0.", False),
+        (0, "question", "Context:\nPassage 0.\nQuestion: What number?\nAnswer:", False),
+    ]
 
 
 @pytest.mark.parametrize("change", ["count", "stratum", "split", "context", "long"])
@@ -61,7 +68,9 @@ def test_invalid_declarations_fail_before_inference(change: str) -> None:
     elif change == "split":
         declaration["pairs"][0]["split"] = "train"
     elif change == "context":
-        declaration["pairs"][0]["question_prompt"] = "Context:\nother\nQuestion: X\nAnswer:"
+        declaration["pairs"][0]["question_prompt"] = (
+            "Context:\nother\nQuestion: X\nAnswer:"
+        )
     else:
         declaration["pairs"][0]["prose_prompt"] = "x" * 961
         declaration["pairs"][0]["question_prompt"] = (

@@ -33,7 +33,9 @@ def _sample_once(root: Path, deadline: float) -> tuple[int, int]:
         entries += 1
         identity = (info.st_dev, info.st_ino)
         if not stat.S_ISDIR(info.st_mode) and (
-            not stat.S_ISREG(info.st_mode) or info.st_nlink <= 1 or identity not in seen_links
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink <= 1
+            or identity not in seen_links
         ):
             apparent_bytes += info.st_size
         if stat.S_ISREG(info.st_mode) and info.st_nlink > 1:

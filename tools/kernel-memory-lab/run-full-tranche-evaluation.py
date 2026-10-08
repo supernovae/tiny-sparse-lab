@@ -20,7 +20,17 @@ def evaluate(root: Path, checkout: Path) -> dict[str, object]:
     project = checkout / "experiments/research/kernel-memory-lab"
     selected = json.loads((root / "selected-checkpoint.json").read_text())
     if selected.get("run_id") != RUN_ID or selected.get("selected_step") not in {
-        0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 4883
+        0,
+        500,
+        1000,
+        1500,
+        2000,
+        2500,
+        3000,
+        3500,
+        4000,
+        4500,
+        4883,
     }:
         raise ValueError("selected checkpoint receipt invalid")
     runs = root.parent / "card04-synthetic/runs"

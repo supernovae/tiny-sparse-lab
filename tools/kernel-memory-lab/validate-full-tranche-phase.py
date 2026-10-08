@@ -25,7 +25,9 @@ DISK_CAP = 68_719_476_736
 RSS_CAP = 25_769_803_776
 
 
-def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Path) -> None:
+def validate(
+    phase: str, root: Path, task_root: Path, checkout: Path, ledger: Path
+) -> None:
     if phase not in {"stage", "train", "evaluate"}:
         raise ValueError("invalid Card 05 full-tranche phase")
     root, task_root, checkout = (
@@ -33,7 +35,9 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
         task_root.resolve(strict=True),
         checkout.resolve(strict=True),
     )
-    if not root.is_relative_to(task_root) or not ledger.resolve(strict=True).is_relative_to(root):
+    if not root.is_relative_to(task_root) or not ledger.resolve(
+        strict=True
+    ).is_relative_to(root):
         raise ValueError("attempt and ledger must be inside monitored task root")
     budget = AttemptBudget(ledger)
     budget.remaining_seconds()
@@ -65,7 +69,10 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
             raise ValueError("evaluation deadline marker missing")
         if int(marker.read_text().strip()) / 1e9 < started:
             raise ValueError("evaluation marker predates ledger")
-        if datetime.now(UTC).timestamp() >= int(marker.read_text().strip()) / 1e9 + 7200:
+        if (
+            datetime.now(UTC).timestamp()
+            >= int(marker.read_text().strip()) / 1e9 + 7200
+        ):
             raise ValueError("evaluation phase deadline reached")
 
     baseline = [
@@ -77,8 +84,12 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
     digest = hashlib.sha256(f"{baseline[0]}\n{baseline[1]}\n".encode()).hexdigest()
     if (root / "profile-baseline-sha256.txt").read_text().strip() != digest:
         raise ValueError("common-root baseline changed")
-    if (root / "profile-baseline-sampler.txt").read_text().strip() != "sample-task-root-v1":
-        raise ValueError("common-root baseline was not captured by the live-tree sampler")
+    if (
+        root / "profile-baseline-sampler.txt"
+    ).read_text().strip() != "sample-task-root-v1":
+        raise ValueError(
+            "common-root baseline was not captured by the live-tree sampler"
+        )
     policy = load_monitor_policy(root / "profile-monitor-policy.yaml")
     envelope = load_resource_envelope(root / "profile-resource-envelope.yaml")
     if (
@@ -101,13 +112,19 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
     config = load_config(project / "card05-full-tranche-v1.yaml")
     if config_sha256(config.model_dump(mode="json")) != CONFIG_SHA256:
         raise ValueError("full-tranche config changed")
-    if source_identity()["sha256"] != "5fa9c2be187bf85467255febecc01d1e02e5a65215e2cb3ddc122f2778996a45":
+    if (
+        source_identity()["sha256"]
+        != "5fa9c2be187bf85467255febecc01d1e02e5a65215e2cb3ddc122f2778996a45"
+    ):
         raise ValueError("native executable source identity changed")
     if (
         config.seed != 17
         or config.training.max_steps != 4883
         or config.training.max_tokens != 5_000_000
-        or config.training.seq_len * config.training.micro_batch_size * config.training.gradient_accumulation != 1024
+        or config.training.seq_len
+        * config.training.micro_batch_size
+        * config.training.gradient_accumulation
+        != 1024
         or config.optimizer.warmup_steps != 100
         or config.optimizer.decay_steps != 4883
         or config.checkpoint.every_steps != 500
@@ -123,7 +140,10 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
     ):
         if sha256_file(project / name) != expected:
             raise ValueError(f"evaluation declaration changed: {name}")
-    frozen = task_root / "card03-scale-operations/continuation2/eval-work/frozen-card03-evaluation-v1.json"
+    frozen = (
+        task_root
+        / "card03-scale-operations/continuation2/eval-work/frozen-card03-evaluation-v1.json"
+    )
     if sha256_file(frozen) != FROZEN_SHA256:
         raise ValueError("frozen Card 03 evaluation changed")
     for path in (
@@ -142,19 +162,27 @@ def validate(phase: str, root: Path, task_root: Path, checkout: Path, ledger: Pa
     if phase in {"train", "evaluate"}:
         if (root / "stage-exit-code.txt").read_text().strip() != "0":
             raise ValueError("training/evaluation requires completed stage")
-        stage = MonitorCompletion.model_validate_json((root / "monitor-stage/completion.json").read_text())
+        stage = MonitorCompletion.model_validate_json(
+            (root / "monitor-stage/completion.json").read_text()
+        )
         if stage.status != "COMPLETE" or stage.returncode != 0:
             raise ValueError("stage monitor did not complete")
     if phase == "evaluate":
         if (root / "train-exit-code.txt").read_text().strip() != "0":
             raise ValueError("evaluation requires completed training")
-        train = MonitorCompletion.model_validate_json((root / "monitor-train/completion.json").read_text())
+        train = MonitorCompletion.model_validate_json(
+            (root / "monitor-train/completion.json").read_text()
+        )
         if train.status != "COMPLETE" or train.returncode != 0:
             raise ValueError("train monitor did not complete")
         if not run.is_dir() or (root / "selected-checkpoint.json").is_file() is False:
             raise ValueError("verified selected checkpoint is missing")
         progress = json.loads((run / "progress.json").read_text())
-        if progress.get("status") != "completed" or progress.get("step") != 4883 or progress.get("tokens_seen") != 5_000_000:
+        if (
+            progress.get("status") != "completed"
+            or progress.get("step") != 4883
+            or progress.get("tokens_seen") != 5_000_000
+        ):
             raise ValueError("training did not reach exact target")
 
 

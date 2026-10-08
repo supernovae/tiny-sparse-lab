@@ -154,12 +154,14 @@ def _fixture(
 
 def test_card03_order_policy_uses_contract_document_hash() -> None:
     expected = hashlib.sha256(b"kml-card03-v1 | incident | document-1").hexdigest()
-    assert mixture._rank(
-        17, "incident", "family-a", "document-1", "kml-card03-v1"
-    ) == expected
-    assert mixture._rank(
-        17, "incident", "family-b", "document-1", "kml-card03-v1"
-    ) == expected
+    assert (
+        mixture._rank(17, "incident", "family-a", "document-1", "kml-card03-v1")
+        == expected
+    )
+    assert (
+        mixture._rank(17, "incident", "family-b", "document-1", "kml-card03-v1")
+        == expected
+    )
 
 
 def test_exact_quotas_repeats_and_cold_replay(

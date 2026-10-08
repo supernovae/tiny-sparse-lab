@@ -32,13 +32,20 @@ def _alive(root, known: dict) -> list[psutil.Process]:
 def _owner_alive(identity) -> bool:
     try:
         process = psutil.Process(identity.pid)
-        return process.status() != psutil.STATUS_ZOMBIE and _identity(process) == identity
+        return (
+            process.status() != psutil.STATUS_ZOMBIE and _identity(process) == identity
+        )
     except psutil.NoSuchProcess:
         return False
 
 
 def supervise(
-    command: list[str], *, deadline_ns: int, stop_file: Path, owner_pid: int, completion: Path
+    command: list[str],
+    *,
+    deadline_ns: int,
+    stop_file: Path,
+    owner_pid: int,
+    completion: Path,
 ) -> int:
     if sys.platform != "linux" or not command or deadline_ns <= time.time_ns():
         raise ValueError("bounded Linux phase command and future deadline required")
@@ -54,12 +61,17 @@ def supervise(
         nonlocal requested_signal
         requested_signal = signum
 
-    previous = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    previous = {
+        sig: signal.signal(sig, interrupted)
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+    }
     process: subprocess.Popen[bytes] | None = None
     reason = ""
     returncode = 1
     try:
-        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, start_new_session=True)
+        process = subprocess.Popen(
+            command, stdin=subprocess.DEVNULL, start_new_session=True
+        )
         known[process.pid] = _identity(psutil.Process(process.pid))
         while True:
             # Reap the command leader first so an already detached grandchild

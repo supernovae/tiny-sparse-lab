@@ -86,7 +86,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kind", choices=["vram", "bytes", "inodes", "validate"])
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--phase", choices=["stage", "train", "evaluate"], required=True)
+    parser.add_argument(
+        "--phase", choices=["stage", "train", "evaluate"], required=True
+    )
     args = parser.parse_args()
     checkout = Path(os.environ["KML_CHECKOUT"])
     kind = os.environ.get("KML_MEASUREMENT_KIND", "card04")

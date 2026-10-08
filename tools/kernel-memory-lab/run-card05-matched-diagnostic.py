@@ -16,11 +16,17 @@ from sparselab.training.manifest import sha256_file
 RUN_ID = "kml-card05-full-tranche-v2"
 CHECKPOINT = "step_00004883_gen_000011"
 CHECKPOINT_SHA256 = "98934c011671b5f9583e7a70e24fc1f9bc14ae83495a7282f0ac324415964389"
-PAIR_STRATA = ("general_prose",) * 3 + ("explanatory_prose",) * 3 + ("incident_response_docs",) * 2
+PAIR_STRATA = (
+    ("general_prose",) * 3
+    + ("explanatory_prose",) * 3
+    + ("incident_response_docs",) * 2
+)
 PARITY_CASES = ((0, "prose"), (0, "question"))
 
 
-def validate_declaration(declaration: dict, tokenizer) -> list[tuple[int, str, str, bool]]:
+def validate_declaration(
+    declaration: dict, tokenizer
+) -> list[tuple[int, str, str, bool]]:
     if declaration.get("format") != "kml-card05-matched-diagnostic-v1":
         raise ValueError("unexpected declaration format")
     pairs = declaration.get("pairs")
@@ -32,7 +38,11 @@ def validate_declaration(declaration: dict, tokenizer) -> list[tuple[int, str, s
         if pair.get("stratum") != stratum or pair.get("split") != "test":
             raise ValueError("pair split or stratum changed")
         record_id = pair.get("source_record_id")
-        if not isinstance(record_id, str) or len(record_id) != 64 or record_id in record_ids:
+        if (
+            not isinstance(record_id, str)
+            or len(record_id) != 64
+            or record_id in record_ids
+        ):
             raise ValueError("source record IDs must be distinct and complete")
         record_ids.add(record_id)
         prose, question = pair.get("prose_prompt"), pair.get("question_prompt")
@@ -52,15 +62,23 @@ def validate_declaration(declaration: dict, tokenizer) -> list[tuple[int, str, s
     return jobs
 
 
-def run(declaration_path: Path, output: Path, expected_declaration_sha256: str, selected_path: Path, runs: Path) -> None:
+def run(
+    declaration_path: Path,
+    output: Path,
+    expected_declaration_sha256: str,
+    selected_path: Path,
+    runs: Path,
+) -> None:
     if output.exists():
         raise FileExistsError("one-shot diagnostic output already exists")
     if sha256_file(declaration_path) != expected_declaration_sha256:
         raise ValueError("frozen declaration identity changed")
     selected = json.loads(selected_path.read_text())
-    if (selected.get("run_id"), selected.get("checkpoint"), selected.get("checkpoint_sha256")) != (
-        RUN_ID, CHECKPOINT, CHECKPOINT_SHA256
-    ):
+    if (
+        selected.get("run_id"),
+        selected.get("checkpoint"),
+        selected.get("checkpoint_sha256"),
+    ) != (RUN_ID, CHECKPOINT, CHECKPOINT_SHA256):
         raise ValueError("selected v2 checkpoint identity changed")
     config = evaluation_config(RUN_ID, runs, CHECKPOINT, "rocm")
     authorization = authorize_profile(profile_for_id("rocm-7900xtx"), config)
@@ -80,15 +98,29 @@ def run(declaration_path: Path, output: Path, expected_declaration_sha256: str, 
                 started.flush()
                 os.fsync(started.fileno())
             text, token_ids = generate_with_token_ids(
-                loaded.model, loaded.tokenizer, prompt, 1024, 64, loaded.device,
-                temperature=0, top_k=0, seed=17, stop_sequences=(),
-                strict_context=True, use_cache=cached, engine=loaded.engine,
+                loaded.model,
+                loaded.tokenizer,
+                prompt,
+                1024,
+                64,
+                loaded.device,
+                temperature=0,
+                top_k=0,
+                seed=17,
+                stop_sequences=(),
+                strict_context=True,
+                use_cache=cached,
+                engine=loaded.engine,
             )
             if len(token_ids) > 64 or not text.startswith(prompt):
                 raise ValueError("generation exceeded cap or changed prompt")
             row = {
-                "ordinal": ordinal, "pair_index": pair_index, "kind": kind,
-                "cached": cached, "prompt": prompt, "completion": text[len(prompt):],
+                "ordinal": ordinal,
+                "pair_index": pair_index,
+                "kind": kind,
+                "cached": cached,
+                "prompt": prompt,
+                "completion": text[len(prompt) :],
                 "token_ids": token_ids,
             }
             stream.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
@@ -106,7 +138,9 @@ def main() -> None:
     parser.add_argument("--runs", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    run(args.declaration, args.output, args.declaration_sha256, args.selected, args.runs)
+    run(
+        args.declaration, args.output, args.declaration_sha256, args.selected, args.runs
+    )
 
 
 if __name__ == "__main__":

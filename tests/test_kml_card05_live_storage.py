@@ -12,7 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 
-SAMPLER = Path(__file__).resolve().parents[1] / "tools/kernel-memory-lab/sample-task-root.py"
+SAMPLER = (
+    Path(__file__).resolve().parents[1] / "tools/kernel-memory-lab/sample-task-root.py"
+)
 
 
 def _sample():
@@ -30,10 +32,14 @@ def _fixture(tmp_path: Path) -> Path:
     return root
 
 
-def test_stable_sample_matches_apparent_du_and_counts_live_sqlite_files(tmp_path: Path) -> None:
+def test_stable_sample_matches_apparent_du_and_counts_live_sqlite_files(
+    tmp_path: Path,
+) -> None:
     root = _fixture(tmp_path)
     counted_bytes, counted_inodes = _sample()(root)
-    du_bytes = int(subprocess.check_output(["du", "-sbx", str(root)], text=True).split()[0])
+    du_bytes = int(
+        subprocess.check_output(["du", "-sbx", str(root)], text=True).split()[0]
+    )
     assert counted_bytes == du_bytes
     assert counted_inodes == 6  # root, nested, data, link, WAL and SHM
     assert counted_bytes >= 4096 + 1024
@@ -51,7 +57,11 @@ def test_disappearance_restarts_and_counts_live_replacement(
 
     def stat_once(path, *args, **kwargs):
         nonlocal vanished
-        if vanish_at == "stat" and Path(path).name == "experiments.sqlite3-wal" and not vanished:
+        if (
+            vanish_at == "stat"
+            and Path(path).name == "experiments.sqlite3-wal"
+            and not vanished
+        ):
             vanished = True
             raise FileNotFoundError(errno.ENOENT, "WAL rotated", str(path))
         return real_stat(path, *args, **kwargs)
@@ -63,7 +73,9 @@ def test_disappearance_restarts_and_counts_live_replacement(
             raise FileNotFoundError(errno.ENOENT, "directory rotated", str(path))
         return real_scandir(path)
 
-    monkeypatch.setitem(globals_, "os", SimpleNamespace(stat=stat_once, scandir=scandir_once))
+    monkeypatch.setitem(
+        globals_, "os", SimpleNamespace(stat=stat_once, scandir=scandir_once)
+    )
     actual = sample(root)
     assert vanished
     assert actual == _sample()(root)
@@ -83,7 +95,9 @@ def test_genuine_access_or_io_error_fails_closed(
             raise OSError(code, "genuine read failure", str(path))
         return real_stat(path, *args, **kwargs)
 
-    monkeypatch.setitem(sample.__globals__, "os", SimpleNamespace(stat=fail_stat, scandir=os.scandir))
+    monkeypatch.setitem(
+        sample.__globals__, "os", SimpleNamespace(stat=fail_stat, scandir=os.scandir)
+    )
     with pytest.raises(OSError) as caught:
         sample(root)
     assert caught.value.errno == code
@@ -101,7 +115,9 @@ def test_continuous_disappearance_exhausts_deadline_without_stale_result(
             raise FileNotFoundError(errno.ENOENT, "keeps rotating", str(path))
         return real_stat(path, *args, **kwargs)
 
-    monkeypatch.setitem(sample.__globals__, "os", SimpleNamespace(stat=missing_stat, scandir=os.scandir))
+    monkeypatch.setitem(
+        sample.__globals__, "os", SimpleNamespace(stat=missing_stat, scandir=os.scandir)
+    )
     start = time.monotonic()
     with pytest.raises(TimeoutError, match="deadline exhausted"):
         sample(root, seconds=0.05)

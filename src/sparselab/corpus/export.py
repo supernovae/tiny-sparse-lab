@@ -180,12 +180,8 @@ def export_release(
     base = load_config(Path(base_run_config))
     base_digest = sha256_file(Path(base_run_config))
     release_id = str(manifest["release_id"])
-    request = _export_request(
-        release_id, view, base_digest, vocab_size, min_frequency
-    )
-    identity = hashlib.sha256(
-        canonical_json(request)
-    ).hexdigest()
+    request = _export_request(release_id, view, base_digest, vocab_size, min_frequency)
+    identity = hashlib.sha256(canonical_json(request)).hexdigest()
     destination = (
         Path(work_root).resolve()
         / "corpora"

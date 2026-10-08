@@ -35,9 +35,13 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         source="local_text",
         revision=release.name,
     )
-    config = SimpleNamespace(output_dir=tokenizer.parent, dataset=dataset, vocab_size=32768)
+    config = SimpleNamespace(
+        output_dir=tokenizer.parent, dataset=dataset, vocab_size=32768
+    )
     monkeypatch.setattr(identity, "load_tokenizer_config", lambda _: config)
-    monkeypatch.setattr(identity, "verify_release", lambda _: {"release_id": release.name})
+    monkeypatch.setattr(
+        identity, "verify_release", lambda _: {"release_id": release.name}
+    )
     return release, tokenizer, metadata, dataset
 
 
