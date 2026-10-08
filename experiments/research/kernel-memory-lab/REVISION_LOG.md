@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-08.2 — Card 05 timing allocation and monitored launcher, 8 October 2026
+
+- Recorded the owner's exact KML-D20 one-attempt real-data timing approval, including zero-update validation stage, 32-update/32,768-position train limit, aggregate deadline, common-root storage baseline, one-batch initial/terminal validation and no frozen-suite run
+- Added the focused tracked Card 05 launcher/validator and a kind selector in the existing bounded-measurement helper; 64 focused Card 04/05 CPU/mock tests and 28 adjacent budget/monitor tests passed, with Ruff and shell syntax checks
+- Kept model initialization, staging and GPU work outside this code-preparation revision; [C05-S1](results/2026-10-08-card05-monitor-adaptation.md) records the tested tool hashes and remaining clean-checkout preflight before the one authorized runtime ledger
+
 ## 2026-10-08.1 — full Card 03 acceptance, Gate 0 review and Card 05 profile proposal, 8 October 2026
 
 - Recorded the owner's KML-D19 acceptance of C03-C2 at `4ced162` together with previously accepted C03-C1 for the exact local-research release, preserving failed C03-S2/S4 and older attempt evidence

@@ -89,6 +89,13 @@ def main() -> int:
     parser.add_argument("--phase", choices=["stage", "train"], required=True)
     args = parser.parse_args()
     checkout = Path(os.environ["KML_CHECKOUT"])
+    kind = os.environ.get("KML_MEASUREMENT_KIND", "card04")
+    validators = {
+        "card04": "validate-profile-phase.py",
+        "card05": "validate-real-data-phase.py",
+    }
+    if kind not in validators:
+        raise ValueError("unknown bounded measurement kind")
     uv = ["uv", "run", "--locked", "--no-sync", "python"]
     commands = {
         "vram": uv
@@ -99,7 +106,7 @@ def main() -> int:
         ],
         "validate": uv
         + [
-            str(checkout / "tools/kernel-memory-lab/validate-profile-phase.py"),
+            str(checkout / "tools/kernel-memory-lab" / validators[kind]),
             args.phase,
         ],
         "bytes": ["du", "-sbx", os.environ["KML_TASK_ROOT"]],
