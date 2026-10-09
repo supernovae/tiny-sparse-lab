@@ -27,7 +27,7 @@ class AttemptCommand:
 _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
     "corpus render-declaration": (
         0,
-        {"--template", "--values-json", "--output"},
+        {"--template", "--values-json", "--output", "--workspace-baseline"},
         set(),
         "preparation",
     ),

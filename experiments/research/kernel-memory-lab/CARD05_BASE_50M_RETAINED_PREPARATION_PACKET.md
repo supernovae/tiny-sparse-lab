@@ -1,6 +1,6 @@
 # 50M retained-snapshot preparation packet — offline correction after C05-B13
 
-This is a prospective correction to [the earlier launch packet](CARD05_BASE_50M_LAUNCH_PACKET.md), not an amendment to the evidence of C05-B11, C05-B12 or C05-B13. Their ledgers, working files and stop receipts remain historical. In particular, B13's unsupervised admission and analysis files are **not** gate evidence. The scientific settings and numerical ceilings in [the 50M proposal](CARD05_BASE_50M_PROPOSAL.md) are unchanged. No production attempt is authorized by this packet.
+This is a prospective correction to [the earlier launch packet](CARD05_BASE_50M_LAUNCH_PACKET.md), not an amendment to the evidence of C05-B11, C05-B12, C05-B13 or [C05-B14](results/2026-10-09-card05-50m-attempt4-baseline-stop.md). Their ledgers, working files and stop receipts remain historical. In particular, B13's unsupervised admission and analysis files are **not** gate evidence. The scientific settings and numerical ceilings in [the 50M proposal](CARD05_BASE_50M_PROPOSAL.md) are unchanged. No production attempt is authorized by this packet.
 
 ## Immutable inputs and the new offline restriction
 
@@ -14,6 +14,8 @@ Use the existing v2 acquisition project `card05-base-50m/project-acquire-reuse-v
 | Wikimedia | `8164f132bc1b6d13c09cff4de9e45bb9c637fbeca1f9ea13c3d04a0fda899ac5` | Verify the B13 local snapshot, with **zero** new source or metadata requests |
 
 The source-effect declaration is unchanged so the B13 lock still authenticates. The *attempt contract* adds `offline_retained_sources_only: true`: native dispatch rejects transport-budget initialization, snapshot aliasing and online `corpus acquire` before launch. Execute only `corpus acquire P --offline`; do not initialize or charge a new transport ledger. The old transport budget may be inspected with `corpus budget-status P`, never reinitialized for a status query. The four snapshot bytes already retained under the shared corpus root remain part of the common storage baseline; any new outputs count against the same cumulative ceilings. Reverify available bytes/inodes and the required margin before a new ledger.
+
+After capturing the new common-root baseline, render the v2 attempt contract through native `corpus render-declaration --workspace-baseline <new-baseline-receipt>`. The reserved `${VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256}` slot is filled only by the existing loader after it verifies the receipt digest and declared `--work-dir` root. The file SHA-256 is a different identity and must never fill that slot. Pass that same baseline, root and sealed whole monitor policy to `attempt init --policy ... --baseline ... --workspace ...`; the initializer validates the fully rendered contract **before any ledger file is created**, and dispatch repeats the check. The contract requires this pre-ledger binding. A mismatch stops the attempt; never recapture a baseline to accommodate a wrong contract.
 
 ## Noncyclic preparation order
 

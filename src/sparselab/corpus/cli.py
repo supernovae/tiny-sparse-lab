@@ -65,7 +65,15 @@ def _handle(args: argparse.Namespace) -> None:
         print(
             json.dumps(
                 render_declaration(
-                    Path(args.template), args.values_json, Path(args.output), root
+                    Path(args.template),
+                    args.values_json,
+                    Path(args.output),
+                    root,
+                    workspace_baseline=(
+                        Path(args.workspace_baseline)
+                        if args.workspace_baseline is not None
+                        else None
+                    ),
                 ),
                 sort_keys=True,
             )
@@ -314,6 +322,7 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("--template", required=True)
     command.add_argument("--values-json", required=True)
     command.add_argument("--output", required=True)
+    command.add_argument("--workspace-baseline")
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "alias-snapshot", help="Cold-verify and alias one immutable retained snapshot"

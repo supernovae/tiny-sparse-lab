@@ -47,6 +47,21 @@ def handle_attempt(args: argparse.Namespace) -> None:
             ledger,
             contract_path=_absolute(args.contract, "contract"),
             expected_sha256=_digest(args.contract_sha256, "contract SHA-256"),
+            monitor_policy_path=(
+                _absolute(args.policy, "monitor policy")
+                if args.policy is not None
+                else None
+            ),
+            workspace_baseline_path=(
+                _absolute(args.baseline, "workspace baseline")
+                if args.baseline is not None
+                else None
+            ),
+            workspace_root=(
+                _absolute(args.workspace, "workspace")
+                if args.workspace is not None
+                else None
+            ),
         )
         print(json.dumps(budget.status(), sort_keys=True))
         return
@@ -155,6 +170,9 @@ def register_attempt_parser(
     initialize.add_argument("--ledger", type=Path, required=True)
     initialize.add_argument("--contract", type=Path, required=True)
     initialize.add_argument("--contract-sha256", required=True)
+    initialize.add_argument("--policy", type=Path)
+    initialize.add_argument("--baseline", type=Path)
+    initialize.add_argument("--workspace", type=Path)
     initialize.set_defaults(handler=handle_attempt)
     status = actions.add_parser("status")
     status.add_argument("--ledger", type=Path, required=True)

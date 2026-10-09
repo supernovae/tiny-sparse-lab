@@ -150,7 +150,10 @@ def test_caps_scientific_settings_and_dynamic_identity_slots() -> None:
     assert contract["max_generation_calls"] == 16
     assert contract["max_generated_tokens"] == 1024
     assert contract["max_wall_seconds"] == 36000
-    assert "${" in contract["workspace_baseline_sha256"]
+    assert contract["workspace_baseline_sha256"] == (
+        "${VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256}"
+    )
+    assert contract["require_preledger_monitor_binding"] is True
     preparation = MonitorPolicy.model_validate(
         yaml.safe_load((PACKET / "monitor-preparation.yaml").read_text())
     )

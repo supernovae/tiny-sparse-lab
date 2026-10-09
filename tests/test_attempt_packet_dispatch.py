@@ -93,6 +93,7 @@ def _fixture(
     preparation_bytes: int = 536870912,
     require_config: bool = False,
     require_eval_baseline: bool = False,
+    initialize: bool = True,
 ) -> dict[str, Path | str]:
     root = tmp_path / "owned"
     root.mkdir()
@@ -145,11 +146,12 @@ def _fixture(
         )
     )
     ledger = root / "ledger.sqlite"
-    AttemptBudget.create_contract(
-        ledger,
-        contract_path=contract,
-        expected_sha256=hashlib.sha256(contract.read_bytes()).hexdigest(),
-    )
+    if initialize:
+        AttemptBudget.create_contract(
+            ledger,
+            contract_path=contract,
+            expected_sha256=hashlib.sha256(contract.read_bytes()).hexdigest(),
+        )
     return {
         "root": root,
         "project": project,
@@ -233,6 +235,202 @@ def _dispatch(
         "--",
         *_wrapped(paths, "corpus", "budget-init", str(paths["project"])),
     )
+
+
+def _render_preledger_contract(paths: dict[str, Path | str]) -> None:
+    root = paths["root"]
+    contract = paths["contract"]
+    assert isinstance(root, Path) and isinstance(contract, Path)
+    declaration = json.loads(contract.read_text())
+    declaration["workspace_baseline_sha256"] = (
+        "${VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256}"
+    )
+    declaration["require_preledger_monitor_binding"] = True
+    template = root / "contract.template.json"
+    template.write_text(json.dumps(declaration, sort_keys=True))
+    contract.unlink()
+    completed = subprocess.run(
+        _native(
+            root,
+            "corpus",
+            "render-declaration",
+            "--template",
+            str(template),
+            "--values-json",
+            "{}",
+            "--workspace-baseline",
+            str(paths["baseline"]),
+            "--output",
+            str(contract),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+
+
+def _init_preledger(
+    paths: dict[str, Path | str], *, workspace: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    root = paths["root"]
+    contract = paths["contract"]
+    assert isinstance(root, Path) and isinstance(contract, Path)
+    return subprocess.run(
+        _native(
+            root,
+            "attempt",
+            "init",
+            "--ledger",
+            str(paths["ledger"]),
+            "--contract",
+            str(contract),
+            "--contract-sha256",
+            hashlib.sha256(contract.read_bytes()).hexdigest(),
+            "--policy",
+            str(paths["whole"]),
+            "--baseline",
+            str(paths["baseline"]),
+            "--workspace",
+            str(workspace or root),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="owned subprocess qualification")
+def test_verified_baseline_render_preledger_init_and_real_dispatch(
+    tmp_path: Path,
+) -> None:
+    paths = _fixture(tmp_path, initialize=False)
+    _render_preledger_contract(paths)
+    root = paths["root"]
+    assert isinstance(root, Path)
+    from sparselab.operational_monitor import load_workspace_baseline
+
+    assert (
+        json.loads(paths["contract"].read_text())["workspace_baseline_sha256"]
+        == load_workspace_baseline(paths["baseline"], root).sha256
+    )
+    assert not paths["ledger"].exists()
+    initialized = _init_preledger(paths)
+    assert initialized.returncode == 0, initialized.stderr
+    completed = subprocess.run(
+        _dispatch(paths), capture_output=True, text=True, timeout=90, check=False
+    )
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    assert (
+        json.loads((root / "fixture-preparation.json").read_text())[
+            "living_descendants"
+        ]
+        == 0
+    )
+    assert AttemptBudget(paths["ledger"]).status()["charged_updates"] == 0
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "file-hash",
+        "tampered-baseline",
+        "wrong-root",
+        "changed-policy",
+        "changed-binding",
+    ],
+)
+def test_preledger_binding_rejects_bad_inputs_without_ledger(
+    tmp_path: Path, fault: str
+) -> None:
+    paths = _fixture(tmp_path, initialize=False)
+    _render_preledger_contract(paths)
+    contract = paths["contract"]
+    assert isinstance(contract, Path)
+    workspace = None
+    if fault in {"file-hash", "changed-binding"}:
+        declaration = json.loads(contract.read_text())
+        declaration["workspace_baseline_sha256"] = (
+            hashlib.sha256(paths["baseline"].read_bytes()).hexdigest()
+            if fault == "file-hash"
+            else "c" * 64
+        )
+        contract.write_text(json.dumps(declaration, sort_keys=True))
+    elif fault == "tampered-baseline":
+        baseline = paths["baseline"]
+        assert isinstance(baseline, Path)
+        receipt = json.loads(baseline.read_text())
+        receipt["apparent_bytes"] += 1
+        baseline.write_text(json.dumps(receipt))
+    elif fault == "wrong-root":
+        workspace = tmp_path / "other"
+        workspace.mkdir()
+    else:
+        whole = paths["whole"]
+        assert isinstance(whole, Path)
+        whole.write_text(whole.read_text() + "# changed\n")
+    completed = _init_preledger(paths, workspace=workspace)
+    assert completed.returncode != 0
+    assert not paths["ledger"].exists()
+
+
+def test_preledger_binding_cannot_be_omitted(tmp_path: Path) -> None:
+    paths = _fixture(tmp_path, initialize=False)
+    _render_preledger_contract(paths)
+    root = paths["root"]
+    contract = paths["contract"]
+    assert isinstance(root, Path) and isinstance(contract, Path)
+    completed = subprocess.run(
+        _native(
+            root,
+            "attempt",
+            "init",
+            "--ledger",
+            str(paths["ledger"]),
+            "--contract",
+            str(contract),
+            "--contract-sha256",
+            hashlib.sha256(contract.read_bytes()).hexdigest(),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert not paths["ledger"].exists()
+
+
+def test_renderer_refuses_unverified_baseline_identity_override(tmp_path: Path) -> None:
+    paths = _fixture(tmp_path, initialize=False)
+    root = paths["root"]
+    assert isinstance(root, Path)
+    template = root / "baseline-slot.template.json"
+    template.write_text('{"identity":"${VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256}"}')
+    output = root / "bad-render.json"
+    completed = subprocess.run(
+        _native(
+            root,
+            "corpus",
+            "render-declaration",
+            "--template",
+            str(template),
+            "--values-json",
+            json.dumps({"VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256": "f" * 64}),
+            "--workspace-baseline",
+            str(paths["baseline"]),
+            "--output",
+            str(output),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert not output.exists()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="owned subprocess qualification")

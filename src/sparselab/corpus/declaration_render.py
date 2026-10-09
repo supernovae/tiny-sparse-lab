@@ -15,10 +15,16 @@ from sparselab.training.manifest import canonical_json, sha256_file
 _SLOT = re.compile(rb"\$\{([A-Z][A-Z0-9_]*)\}")
 _JSON_ARRAY_SLOT = re.compile(rb'"\$\{([A-Z][A-Z0-9_]*_JSON)\}"')
 _MAX_BYTES = 64 * 1024 * 1024
+_BASELINE_IDENTITY_SLOT = "VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256"
 
 
 def render_declaration(
-    template: Path, values_json: str, output: Path, work_root: Path
+    template: Path,
+    values_json: str,
+    output: Path,
+    work_root: Path,
+    *,
+    workspace_baseline: Path | None = None,
 ) -> dict[str, object]:
     """Fill exact named slots and publish one immutable JSON/YAML data file.
 
@@ -52,6 +58,21 @@ def render_declaration(
     ):
         raise ValueError("invalid declaration bindings")
     slots = {name.decode("ascii") for name in _SLOT.findall(raw)}
+    if workspace_baseline is not None:
+        if (
+            _BASELINE_IDENTITY_SLOT not in slots
+            or _BASELINE_IDENTITY_SLOT in values
+            or not workspace_baseline.is_absolute()
+            or workspace_baseline.is_symlink()
+        ):
+            raise ValueError("invalid verified workspace baseline binding")
+        from sparselab.operational_monitor import load_workspace_baseline
+
+        values[_BASELINE_IDENTITY_SLOT] = load_workspace_baseline(
+            workspace_baseline, root
+        ).sha256
+    elif _BASELINE_IDENTITY_SLOT in slots:
+        raise ValueError("verified workspace baseline receipt is required")
     if set(values) != slots:
         raise ValueError("declaration bindings do not exactly cover template slots")
 

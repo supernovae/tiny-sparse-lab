@@ -20,7 +20,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import (
     BaseModel,
@@ -32,6 +32,9 @@ from pydantic import (
 )
 
 from sparselab.training.attempt_commands import classify_attempt_command
+
+if TYPE_CHECKING:
+    from sparselab.operational_monitor import MonitorPolicy, WorkspaceBaseline
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
@@ -89,6 +92,9 @@ class AttemptContract(BaseModel):
         default=False, exclude_if=lambda value: value is False
     )
     require_release_acceptance_binding: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
+    require_preledger_monitor_binding: bool = Field(
         default=False, exclude_if=lambda value: value is False
     )
     offline_retained_sources_only: bool = Field(
@@ -162,6 +168,46 @@ def load_attempt_contract(
 
 class AttemptBudgetError(RuntimeError):
     """The shared attempt budget is missing, invalid, or exhausted."""
+
+
+def validate_contract_monitor_inputs(
+    contract: AttemptContract,
+    *,
+    monitor_policy_path: Path,
+    workspace_baseline_path: Path,
+    workspace_root: Path,
+) -> tuple[WorkspaceBaseline, MonitorPolicy]:
+    """Cold-check one contract against its actual monitor policy and baseline."""
+    from sparselab.operational_monitor import (
+        load_monitor_policy,
+        load_workspace_baseline,
+    )
+
+    if any(
+        not path.is_absolute() or path.is_symlink()
+        for path in (monitor_policy_path, workspace_baseline_path, workspace_root)
+    ):
+        raise AttemptBudgetError("monitor binding paths must be absolute and direct")
+    try:
+        if (
+            hashlib.sha256(monitor_policy_path.read_bytes()).hexdigest()
+            != contract.monitor_policy_sha256
+        ):
+            raise AttemptBudgetError("monitor policy identity differs from contract")
+        baseline = load_workspace_baseline(workspace_baseline_path, workspace_root)
+        policy = load_monitor_policy(monitor_policy_path)
+        if (
+            hashlib.sha256(monitor_policy_path.read_bytes()).hexdigest()
+            != contract.monitor_policy_sha256
+        ):
+            raise AttemptBudgetError("monitor policy changed during validation")
+        if baseline.sha256 != contract.workspace_baseline_sha256:
+            raise AttemptBudgetError(
+                "workspace baseline identity differs from contract"
+            )
+        return baseline, policy
+    except OSError as error:
+        raise AttemptBudgetError(f"contract input unavailable: {error}") from error
 
 
 class AttemptBudget:
@@ -432,10 +478,36 @@ class AttemptBudget:
 
     @classmethod
     def create_contract(
-        cls, path: Path, *, contract_path: Path, expected_sha256: str
+        cls,
+        path: Path,
+        *,
+        contract_path: Path,
+        expected_sha256: str,
+        monitor_policy_path: Path | None = None,
+        workspace_baseline_path: Path | None = None,
+        workspace_root: Path | None = None,
     ) -> AttemptBudget:
         """Create an exclusive v2 ledger from exact authenticated contract bytes."""
         contract = load_attempt_contract(contract_path, expected_sha256)
+        provided = (
+            monitor_policy_path,
+            workspace_baseline_path,
+            workspace_root,
+        )
+        if any(value is not None for value in provided):
+            if not all(value is not None for value in provided):
+                raise AttemptBudgetError("incomplete pre-ledger monitor binding")
+            assert monitor_policy_path is not None
+            assert workspace_baseline_path is not None
+            assert workspace_root is not None
+            validate_contract_monitor_inputs(
+                contract,
+                monitor_policy_path=monitor_policy_path,
+                workspace_baseline_path=workspace_baseline_path,
+                workspace_root=workspace_root,
+            )
+        elif contract.require_preledger_monitor_binding:
+            raise AttemptBudgetError("pre-ledger monitor binding is required")
         raw = contract_path.read_bytes()
         if hashlib.sha256(raw).hexdigest() != expected_sha256:
             raise AttemptBudgetError("attempt contract changed during initialization")
@@ -1625,27 +1697,13 @@ class AttemptBudget:
                 "zero-update contract refuses unknown or training entry point"
             )
         from sparselab import operational_monitor, owned_process
-        from sparselab.operational_monitor import (
-            load_monitor_policy,
-            load_workspace_baseline,
-        )
 
-        try:
-            if (
-                hashlib.sha256(monitor_policy_path.read_bytes()).hexdigest()
-                != contract.monitor_policy_sha256
-            ):
-                raise AttemptBudgetError(
-                    "monitor policy identity differs from contract"
-                )
-            baseline = load_workspace_baseline(workspace_baseline_path, workspace_root)
-            policy = load_monitor_policy(monitor_policy_path)
-            if baseline.sha256 != contract.workspace_baseline_sha256:
-                raise AttemptBudgetError(
-                    "workspace baseline identity differs from contract"
-                )
-        except OSError as error:
-            raise AttemptBudgetError(f"contract input unavailable: {error}") from error
+        baseline, policy = validate_contract_monitor_inputs(
+            contract,
+            monitor_policy_path=monitor_policy_path,
+            workspace_baseline_path=workspace_baseline_path,
+            workspace_root=workspace_root,
+        )
         ready = completion.with_name(completion.name + ".ready")
         if ready.exists():
             raise AttemptBudgetError("owned readiness path already exists")
@@ -1769,6 +1827,8 @@ class AttemptBudget:
             != contract.monitor_policy_sha256
         ):
             raise AttemptBudgetError("monitor policy changed during phase")
+        from sparselab.operational_monitor import load_workspace_baseline
+
         if (
             load_workspace_baseline(workspace_baseline_path, workspace_root).sha256
             != contract.workspace_baseline_sha256

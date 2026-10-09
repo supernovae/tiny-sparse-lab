@@ -129,6 +129,7 @@ def test_data_only_render_and_legacy_contract_compatibility(tmp_path: Path) -> N
     assert "preparation_normalizer" not in payload
     assert "offline_retained_sources_only" not in payload
     assert "require_release_acceptance_binding" not in payload
+    assert "require_preledger_monitor_binding" not in payload
 
 
 def test_reviewed_admission_cannot_substitute_an_edited_draft(tmp_path: Path) -> None:

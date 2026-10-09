@@ -273,6 +273,16 @@ experiment or a merge.
   floors, ROCm and model quality remain future execution gates; B11–B13 remain
   stopped and unchanged.
 
+- [x] **Bind the verified common-root baseline before a 50M ledger exists.**
+  C05-B14 stopped at dispatch because its contract used the baseline file hash
+  instead of the receipt's embedded identity. The bounded native renderer now
+  derives the reserved slot through the existing baseline loader and declared
+  root. The v2 packet requires native policy/baseline validation during attempt
+  initialization, before ledger creation, and retains the dispatch recheck.
+  Selected zero-model fixtures reject the file hash, altered receipt/root/policy,
+  changed binding and omitted pre-ledger flags; real existing dispatch accepts
+  the verified binding. B14 remains spent; no production retry is authorized.
+
 - [ ] **Restore signed warm source-snapshot proof reuse without widening verifier authority.**
   The current `source_snapshot` authority scan reaches the unrelated dynamic
   import in `recovery.implementation_replay` and declines to record a signed
