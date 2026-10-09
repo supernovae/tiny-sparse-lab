@@ -246,18 +246,23 @@ experiment or a merge.
   corpus admission remain unqualified; C05-B11 is still stopped and a fresh
   attempt requires separate authority.
 
-- [ ] **Make cold-verified retained snapshot aliases reusable by the live native acquisition path.**
-  C05-B12 cold-verified and aliased three immutable retained snapshots, but
-  `corpus acquire` used `verified_reuse`, whose path-bound artifact verifier
-  rejected the symlinked alias. The acquisition loop caught that failure and
-  downloaded retained PagerDuty, Gutenberg and Scoutflo bytes instead of
-  proceeding to the sole new Wikimedia selection. Preserve C05-B12's spent
-  ledger, charged transport and partial evidence. A focused fix must bind a
-  reviewed immutable origin/location without weakening path-bound receipts;
-  live acquisition must fail before network if a declared retained alias is
-  unverifiable. Test the actual CLI/verified-reuse path with mocked transport,
-  proving zero retained-source requests, exact source identity and cold readback.
-  Do not use a cold-only fixture as proof of live reuse or restart C05-B12.
+- [x] **Fail closed on exact retained-source bindings before live acquisition.**
+  C05-B12's rejected symlink alias and charged downloads remain historical.
+  The new optional complete source-effects declaration binds immutable origin,
+  snapshot and source-declaration identities. The native live CLI preflights
+  every retained source before any request, makes independently verified local
+  copies for the existing build/release layout, and rechecks both locations on
+  cold/live acquisition-lock readback. Only declared Wikimedia acquisition can
+  use the transport ledger. Tiny offline public-CLI fixtures cover negative
+  preflights, real `ProofStore` mode and zero retained-source requests.
+
+- [ ] **Restore signed warm source-snapshot proof reuse without widening verifier authority.**
+  The current `source_snapshot` authority scan reaches the unrelated dynamic
+  import in `recovery.implementation_replay` and declines to record a signed
+  proof. `verified_reuse` correctly falls back to full cold verification, so
+  warm source-proof hits are not yet qualified. Review the exact semantic
+  import closure and pinned exclusions separately; do not skip path-security
+  or proof invalidation to create a nominal cache hit.
 
 - [x] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
   `corpus measure-tokens --tokenizer-origin-release ORIGIN --family-inventory

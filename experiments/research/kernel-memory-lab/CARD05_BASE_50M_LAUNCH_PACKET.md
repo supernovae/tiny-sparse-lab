@@ -1,19 +1,30 @@
-# 50M offline launch packet — prospective revision after stopped C05-B11
+# 50M offline launch packet — prospective source-effects revision after stopped C05-B12
 
 This packet supersedes the **planning status**, not the evidence, of
 [C05-T2](CARD05_BASE_50M_EXECUTION_BINDING.md). The scientific and numerical
 contract remains [the approved proposal](CARD05_BASE_50M_PROPOSAL.md). No new
 source, release, mixture, run, checkpoint or admission identity is claimed.
 The B7/B9 releases and all previous attempt records remain unchanged.
-[C05-B11](results/2026-10-09-card05-50m-attempt1-dispatch-stop.md) started
-one ledger and stopped before acquisition. Its ledger and allocation remain
-spent; this revised packet cannot resume it or authorize a replacement attempt.
+[C05-B11](results/2026-10-09-card05-50m-attempt1-dispatch-stop.md) and
+[C05-B12](results/2026-10-09-card05-50m-attempt2-source-reuse-stop.md) remain
+stopped, with their ledgers and evidence unchanged. This packet does not
+authorize a replacement attempt.
 
 ## Frozen inputs and prospective declarations
 
-`card05-base-50m/project-acquire.yaml` is a valid native acquisition-only
-project, ID `kernel-memory-lab-card05-base-50m-v1`, project acquisition digest
-`cc992009c68aaf8e40bfbe070dc09f80c8649b55834ef41aa8995a64f146132a`.
+`card05-base-50m/project-acquire-reuse-v2.yaml` is a valid native acquisition-only
+project, ID `kernel-memory-lab-card05-base-50m-v2`, project acquisition digest
+`12604ffb8ccfe0351f6379ea0f781b3f9b45f6fb4ad9c8cfa80dd0b744f8b83c`.
+The separate v2 project and transport identity leave B11/B12's shared v1
+source root and spent transport ledger untouched. Its complete `source_effects`
+binds the three retained sources to the exact prior project, snapshot and
+declaration; only the additional Wikimedia selection permits acquisition.
+The v1 acquisition, build, application, contract and run-template files remain
+byte-for-byte historical. This prospective packet uses the separately named
+`project-build-reuse-v2.template.yaml`,
+`application-template-reuse-v2.template.json`,
+`attempt-contract-reuse-v2.template.json` and
+`RUN_CONFIG_TEMPLATE_REUSE_V2.md`.
 Its PagerDuty, Gutenberg and Scoutflo source-declaration digests remain,
 respectively, `8b4293a3f3cd434555ff95c45b3e40af4f5e445026f1b31efc3f6f022029b9d1`,
 `e6a5841624c0c86a4e80d67914a91b7eaf40c3391c58c3d3ff6a8b0dc54ecc32`,
@@ -29,19 +40,26 @@ The three existing snapshot identities are `e040f260758cb00dd18e2a8a7b66a2e5d744
 (PagerDuty), `db2ce3b1af503bb9444cc83f8e8fd1a72e603463ff0724ae41385f5d19627a1e`
 (Gutenberg), and `574e06a4a327a3e25c04782c829b7015b8ba541da1d8e8f66ae3e4f1f7dfda0a`
 (Scoutflo). They are present under the old project snapshot root; before reuse,
-cold-verify each old snapshot, run `S corpus alias-snapshot P --source-id
-<retained-source-id> --snapshot <cold-verified-old-snapshot-directory>` once
-for each of the three retained sources under a zero-counter preparation phase,
-and require native cold
-`corpus acquire --offline` to verify its new lock. The alias resolves to the
-old immutable bytes and makes no data copy. If native verification rejects an
-alias or a source declaration differs, stop; do not redownload a retained
-source or alter the transport allowance. The new Wikimedia snapshot and new
-acquisition-lock digests can only be recorded after acquisition.
+the native `corpus acquire` preflight verifies all three exact approved origins
+through the generic artifact-security and `verified_reuse` path **before** any
+network request, including metadata. It publishes independently verified local
+snapshot copies under the v2 project root because existing build/release
+verification requires that layout. The copies and their origins are both
+authenticated on cold and live acquisition-lock readback; copied bytes count
+against the unchanged preparation/storage ceilings, while retained sources
+consume zero transport bytes. A missing, unsafe or mismatched origin stops the
+operation without fallback transfer. No `alias-snapshot` command is used. The
+new Wikimedia snapshot and acquisition-lock digests can only be recorded after
+the permitted transfer.
+The three retained origins currently total 132,630,150 apparent bytes, so
+their local copies need at least that much of the unchanged preparation cap.
+Current `verified_reuse` source-snapshot proof authority declines to sign a
+warm proof; native verification falls back to cold byte checking. This does
+not relax the required origin or local-copy authentication.
 
 The accepted source and scale policies remain unchanged. The prospective
 [application policy](card05-base-50m/APPLICATION_POLICY_PROSPECTIVE.md) and
-`application-template.template.json` preserve B7's four rights objects. The
+`application-template-reuse-v2.template.json` preserve B7's four rights objects. The
 template deliberately has unresolved lock and Wikimedia-snapshot identities:
 bind those to the cold-verified new acquisition lock before admission-draft.
 Use the same automated source/record exception screen, 8/12/24/24 clear-row
@@ -49,14 +67,14 @@ spot sample by source, and manual review only of flagged exceptions proposed
 for qualification. Unknown/material row exceptions remain quarantined;
 source-wide rights conflicts stop that source. No template is an admission.
 
-`project-build.template.yaml`, `release-reviewed.template.yaml`, and
+`project-build-reuse-v2.template.yaml`, `release-reviewed.template.yaml`, and
 `mixture.template.yaml` specify the native operations after review. The build
 release uses `normalizer-structure-v3`, reviewed admission hash and frozen
 splits; the original C03-C1 tokenizer config and origin release ID remain
 fixed. `token-floors.yaml` requires 20.25M/4.50M/0.25M post-cleaning,
 post-admission distinct training positions. The mixture requires exactly
 40.5M/9M/0.5M targets, seed 17 and ≤2 exposures per source position. The
-[the run-config template](card05-base-50m/RUN_CONFIG_TEMPLATE.md) retains the 341,885,952-parameter architecture, BF16/ROCm,
+[the run-config template](card05-base-50m/RUN_CONFIG_TEMPLATE_REUSE_V2.md) retains the 341,885,952-parameter architecture, BF16/ROCm,
 context 1,024, effective batch one, seed 17, AdamW 3e-4 peak/3e-5 floor,
 500-step warmup/cosine through update 48,829, exact 50M target cap,
 every-5,000-update checkpoints/one-batch validation, and fresh paths.
@@ -99,7 +117,7 @@ Every command below is a command **shape**, not an instruction to run it now.
 | Phase | Reviewed command/operation | Mandatory verification before dependent work |
 | --- | --- | --- |
 | Pre-ledger | Check `git rev-parse HEAD`, clean checkout, proposal and packet hashes, active-run absence, free bytes/inodes, measured retained-space headroom and device UUID. Compute the static content identity from the pinned proposal/packet/head without writing to A; run `S monitor-baseline <common-root> --output A/workspace-baseline.json --seconds 4 --json` and cold-load it. Render one `attempt-contract.json` bound to that baseline and `monitor-whole.yaml`. | The common root and baseline never change; ≥2 GiB projected free margin and enough room for full checkpoint retention are required. The baseline is taken before *any* attempt files other than the exclusive root itself. No ledger is created during this offline packet task. |
-| One attempt/transport | `S attempt init --ledger A/attempt-ledger.sqlite --contract A/attempt-contract.json --contract-sha256 <hash>`; run the three `S corpus alias-snapshot P --source-id <id> --snapshot <old-directory>` commands; `S corpus budget-init P`; run `S corpus acquire P`, then `S corpus acquire P --offline`, all phase commands under the same owned supervision. | One persistent 36,000-second ledger, one independent 7,200-second transport ledger, 960,485,500 source and 4,194,304 metadata response-body bytes; at most one charged retry of the single Wikimedia transfer, no restart. Cold alias/readback of the three retained snapshots precedes live transfer. The contract pins raw acquisition-project SHA-256 `6326d66589fa787fd3e85d834417d968b21eb6f808f1b6c85635ac255714aa51`; online acquire requires its initialized bound transport ledger. Stop on any source/lock mismatch. |
+| One attempt/transport | `S attempt init --ledger A/attempt-ledger.sqlite --contract A/attempt-contract.json --contract-sha256 <hash>`; `S corpus budget-init P`; run `S corpus acquire P`, then `S corpus acquire P --offline`, all phase commands under the same owned supervision. | One persistent 36,000-second ledger, one independent 7,200-second transport ledger, 960,485,500 source and 4,194,304 metadata response-body bytes; at most one charged retry of the single Wikimedia transfer, no restart. Complete retained-origin preflight precedes any live request; cold acquisition-lock readback rechecks the origins and local copies. The contract pins raw acquisition-project SHA-256 `74e4326e261589bd0c29915911572074a71183fe7039b1f641faef069bcbc43c`; online acquire requires its initialized bound transport ledger. Stop on any source/lock mismatch. |
 | Rights/families | `S corpus admission-draft P --template <bound-template> --policy-document <prospective-policy> --output A/prep/admission-draft.json`; review and freeze decisions. `S corpus split-inventory P --output A/prep/split-inventory.jsonl --json`; review exact-content components against the accepted prior inventory/cluster mapping, author a new reviewed cluster declaration, then `S corpus freeze-splits P --inventory <inventory> --clusters <reviewed-clusters> --output <reviewed-splits> --json`. | Preserve accepted family IDs, splits and strata. Incompatible connected accepted families stop; new hints may map only to a compatible prior identity. The split receipt must bind admission, inventory, prior inventory and reviewed clusters. Reviewers record decisions within eight aggregate preparation reviewer-hours. The B7 hardcoded Python is not a command here. |
 | V3 release/lineage | Render reviewed `project-build.yaml` with that admission and split declaration. `S corpus build <project-build> --offline`; `S corpus freeze <verified-build-root>`; `S corpus audit R`; `S corpus near-duplicates R`; `S corpus finalize-family-inventory R --splits <reviewed-splits> --output F --json`; `S corpus audit-protected-lineage --prior-release H --candidate-release R --prior-inventory <original-family-inventory> --candidate-inventory F --profile Q --suite <frozen-600-item-suite> --output A/prep/protected-lineage.json --json`. | Cold release verification, recorded v3 source-span/cleaning and rights review, no exact/near cross-split leakage, all protected content/families excluded from candidate train and unchanged retained assignments. A BLOCKED lineage receipt stops the attempt. Explicitly admit the exact release after review; a CLI success alone is not admission. |
 | Supply/mixture | `S corpus measure-tokens R --tokenizer <original-tokenizer> --tokenizer-origin-release H --family-inventory F --policy <token-floors.yaml> --output A/prep/unique-train.json --batch-source-bytes 8388608 --json`; cold-read its receipt. Render `M` with `R`, `F`, `TC`; `S corpus materialize-mixture M --output A/prep/mixture --json`; `S corpus verify-mixture M --output A/prep/mixture --json`. | All three distinct-position floors, exact 81/18/1 50M targets and ≤2 exposures must pass. The new release is the measured/training release; H is solely the tokenizer's fitting and evaluation origin. Stop on a shortfall, without changing source/mix/exposure. |

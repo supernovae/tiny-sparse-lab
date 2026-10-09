@@ -19,15 +19,23 @@ OLD = PACKET.parent / "card05-base"
 
 
 def test_prospective_acquisition_changes_only_declared_selection() -> None:
-    project = load_project(PACKET / "project-acquire.yaml", verify_inputs=False)
+    project = load_project(
+        PACKET / "project-acquire-reuse-v2.yaml", verify_inputs=False
+    )
     prior = load_project(OLD / "project-acquire.yaml", verify_inputs=False)
-    assert project.config.id == "kernel-memory-lab-card05-base-50m-v1"
+    historical = load_project(PACKET / "project-acquire.yaml", verify_inputs=False)
+    assert historical.config.id == "kernel-memory-lab-card05-base-50m-v1"
+    assert "source_effects" not in historical.config.model_dump(mode="json")
+    assert _project_sha(historical) == (
+        "cc992009c68aaf8e40bfbe070dc09f80c8649b55834ef41aa8995a64f146132a"
+    )
+    assert project.config.id == "kernel-memory-lab-card05-base-50m-v2"
     assert project.config.transport_budget.max_source_body_bytes == 960485500
     assert project.config.transport_budget.max_metadata_body_bytes == 4194304
     assert project.config.transport_budget.max_retries_per_shard == 1
     assert project.release.lm.selected is False
     assert _project_sha(project) == (
-        "cc992009c68aaf8e40bfbe070dc09f80c8649b55834ef41aa8995a64f146132a"
+        "12604ffb8ccfe0351f6379ea0f781b3f9b45f6fb4ad9c8cfa80dd0b744f8b83c"
     )
     for source, previous in zip(project.sources[:3], prior.sources[:3], strict=True):
         assert declaration_sha256(source) == declaration_sha256(previous)
@@ -44,14 +52,16 @@ def test_prospective_acquisition_changes_only_declared_selection() -> None:
 
 
 def test_unrendered_admission_cannot_be_mistaken_for_an_admitted_release() -> None:
-    template = json.loads((PACKET / "application-template.template.json").read_text())
+    template = json.loads(
+        (PACKET / "application-template-reuse-v2.template.json").read_text()
+    )
     previous = json.loads((OLD / "application-template-v1.json").read_text())
     assert template["sources"] == previous["sources"]
     assert template["policy_sha256"] == sha256_file(
         PACKET / "APPLICATION_POLICY_PROSPECTIVE.md"
     )
     assert template["application_binding"]["project_sha256"] == (
-        "cc992009c68aaf8e40bfbe070dc09f80c8649b55834ef41aa8995a64f146132a"
+        "12604ffb8ccfe0351f6379ea0f781b3f9b45f6fb4ad9c8cfa80dd0b744f8b83c"
     )
     assert "${" in template["application_binding"]["acquisition_lock_sha256"]
     assert (
@@ -82,7 +92,7 @@ def test_caps_scientific_settings_and_dynamic_identity_slots() -> None:
         "explanatory_prose": 4500000,
         "incident_response_docs": 250000,
     }
-    template = (PACKET / "RUN_CONFIG_TEMPLATE.md").read_text()
+    template = (PACKET / "RUN_CONFIG_TEMPLATE_REUSE_V2.md").read_text()
     config = yaml.safe_load(template.split("```yaml\n", 1)[1].split("\n```", 1)[0])
     assert (config["seed"], config["runtime"]["backend"]) == (17, "rocm")
     assert config["training"]["max_steps"] == 48829
@@ -107,7 +117,9 @@ def test_caps_scientific_settings_and_dynamic_identity_slots() -> None:
         48829,
     ]
     assert selection["target_positions"] == 50000000
-    contract = json.loads((PACKET / "attempt-contract.template.json").read_text())
+    contract = json.loads(
+        (PACKET / "attempt-contract-reuse-v2.template.json").read_text()
+    )
     assert contract["max_optimizer_updates"] == 48829
     assert contract["max_actual_target_positions"] == 50000000
     assert contract["max_fixed_profile_forward_positions"] == 55000
