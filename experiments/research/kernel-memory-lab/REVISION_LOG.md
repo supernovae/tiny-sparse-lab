@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-09.1 — shared corpus and structure-cleaning candidate
+
+- [C05-B9](results/2026-10-09-card05-shared-corpus-cleaning-candidate.md) records an opt-in native structure normalizer, read-only export-binding inspection, selected offline tests and a retained-snapshot candidate from the reviewed `ca0ce581` lineage.
+- The accepted C05-B7 release, C05-B8 outcome, historical failures and reader gate remain unchanged. The candidate and its earlier v2 version have separate cold-verifiable identities; neither is admitted or used for model work.
+- Measured old-tokenizer removable exposure is 6,032 of 25M supervised positions including EOS. The new candidate's unchanged-tokenizer unique floors pass, while repeated lines and markup residue remain review signals rather than automatic deletions.
+
 ## 2026-10-08.19 — bounded draft integration lane, 8 October 2026
 
 - Recorded KML-D31 and [C05-I3](results/2026-10-08-card05-draft-pr-safety-lane.md): three exact path/digest legacy lint bindings preserve historical bytes and reject changed, moved or extra artifacts

@@ -178,6 +178,7 @@ def _prepare_file(
     source_path: Path,
     decision: Any,
     progress: BuildProgress,
+    normalizer_version: str = "normalizer-nfc-markdown-v1",
 ) -> Path:
     from sparselab.corpus.pipeline import _records_for_file
     from sparselab.engram.packs import _rename_noreplace
@@ -229,6 +230,7 @@ def _prepare_file(
                                 rejected_records=dropped,
                                 full_file_sha256=file["sha256"],
                                 first_row_index=index,
+                                normalizer_version=normalizer_version,
                             )
                         except (ValueError, UnicodeError, KeyError, TypeError) as exc:
                             raise _SourceParseError(str(exc)) from exc
@@ -253,6 +255,7 @@ def _prepare_file(
                         snapshot_sha,
                         file_rights=decision,
                         rejected_records=dropped,
+                        normalizer_version=normalizer_version,
                     )
                 except (ValueError, UnicodeError, KeyError, TypeError) as exc:
                     raise _SourceParseError(str(exc)) from exc
@@ -592,13 +595,16 @@ def _deduplicate(
             winner[component] = (*choice, identifier, split)
     dropped = 0
     updates = []
-    for number, identifier, split in connection.execute(
-        "SELECT rowid,document_id,split FROM documents ORDER BY rowid"
+    for number, identifier, split, payload in connection.execute(
+        "SELECT rowid,document_id,split,payload FROM documents ORDER BY rowid"
     ):
         selected = winner[root(number)][4]
         retained_split = winner[root(number)][5]
         reason = (
-            "contaminated_heldout"
+            "metadata_only_front_matter"
+            if json.loads(payload).get("structure", {}).get("decision")
+            == "exclude_lm_metadata_only"
+            else "contaminated_heldout"
             if selected != identifier and split == "train" and retained_split != "train"
             else "duplicate"
             if selected != identifier
@@ -1150,6 +1156,8 @@ def build_large(
                 "snapshot_sha": lock_row["snapshot_sha256"],
                 "prepared_root": prepared_root,
                 "build_id": build_id,
+                "normalizer_version": project.release.normalizer
+                or "normalizer-nfc-markdown-v1",
             }
             if executor is not None and path in eligible_jsonl:
                 pending.append(

@@ -120,6 +120,13 @@ def _handle(args: argparse.Namespace) -> None:
     if command == "freeze":
         print(publication.freeze(Path(args.build), root, **verification))
         return
+    if command == "verify-export":
+        from sparselab.config.loading import load_config
+        from sparselab.corpus.export import verify_release_export
+
+        config = load_config(Path(args.config))
+        print(json.dumps(verify_release_export(config.dataset), sort_keys=True))
+        return
     release = _release_path(args.release, root)
     if command == "measure-tokens":
         from sparselab.corpus.release import _verification_operation
@@ -271,6 +278,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.set_defaults(handler=_handle)
     command = sub.add_parser("freeze")
     command.add_argument("build")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "verify-export", help="Cold-verify one run configuration's shared corpus export"
+    )
+    command.add_argument("config")
     command.set_defaults(handler=_handle)
     command = sub.add_parser("tokenizer-bakeoff")
     command.add_argument("declaration")

@@ -51,6 +51,31 @@ Corpus Forge's explicit files and checksummed shards remain available. Use
 per-split file bindings. This route serves sources needing explicit file control;
 it does not remove release/export requirements from a Forge training contract.
 
+An immutable Forge release can serve several experiments. Export it once for a
+particular view, base configuration and vocabulary, then retain the export's
+exact `dataset` and tokenizer declarations in each consumer configuration. Run
+settings such as seed and optimizer budget may differ. `sparselab corpus
+verify-export RUN.yaml` cold-verifies that configuration's release/export
+closure and reports its content binding without fitting, preparing or copying
+data. The declared `dataset.cache_dir` remains the export's prepared directory;
+an independent cache override is not authenticated reuse. `experiment
+bind-inputs` can authenticate compatible prepared inputs without a dataset
+copy. `stage --prepared-inputs` has a different, full-config binding and copies
+assets into a new stage. Token-mixture datasets authenticate their own release,
+family inventory and tokenizer closure instead of claiming an LM export.
+
+Prospective Forge releases may opt in to `release.normalizer:
+normalizer-structure-v3`. The older normalizer remains the absent-field default
+and keeps historical release identities. The opt-in cleaner records retained
+line spans, removed-span hashes/reasons, structural blocks and ambiguity flags
+with each normalized document. It excludes recognized metadata-only front
+matter from LM views while retaining the source row and rights evidence in the
+release; meaningful YAML configuration, headings, lists, links, fenced code,
+indentation and equations remain text. Only explicit Gutenberg production
+credits and marker-delimited wrappers are removed, with their original bytes
+replayable through the pinned snapshot. A changed cleaning rule needs a new
+normalizer identity and release; never reinterpret an old release in place.
+
 ## Preparation and exposure
 
 Run/tokenizer configurations name snapshot `train_path`, `validation_path`,

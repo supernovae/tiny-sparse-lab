@@ -67,6 +67,7 @@ class NormalizedDocument(StrictModel):
     file_sha256: str | None = None
     rights: dict[str, Any] | None = None
     metadata: dict[str, str | int | float | bool | None] | None = None
+    structure: dict[str, Any] | None = None
     split: str | None = None
     representative_id: str | None = None
     drop_reason: str | None = None
@@ -441,7 +442,16 @@ def _records_for_file(
     full_file_sha256: str | None = None,
     first_row_index: int = 1,
     record_admission: dict[str, Any] | None = None,
+    normalizer_version: str = "normalizer-nfc-markdown-v1",
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    from sparselab.corpus.structure_cleaning import (
+        NORMALIZER_V1,
+        NORMALIZER_V2,
+        NORMALIZER_V3,
+    )
+
+    if normalizer_version not in {NORMALIZER_V1, NORMALIZER_V2, NORMALIZER_V3}:
+        raise ValueError("unsupported corpus normalizer")
     suffix = Path(name).suffix.lower()
     streaming_rows = (
         source.schema_version == 3
@@ -592,6 +602,7 @@ def _records_for_file(
     for passage in passages:
         content, ancestry, start, end = passage[:4]
         metadata = passage[4] if len(passage) > 4 else None
+        raw_content = content
         if not isinstance(content, str) or not content.strip():
             if source.schema_version != 3:
                 raise ValueError("empty/nontext document")
@@ -615,21 +626,27 @@ def _records_for_file(
                     }
                 )
             continue
+        structure = None
+        if normalizer_version in {NORMALIZER_V2, NORMALIZER_V3} and suffix != ".cnxml":
+            from sparselab.corpus.structure_cleaning import clean_structure
+
+            cleaned = clean_structure(
+                content, source_id=source.id, normalizer=normalizer_version
+            )
+            content, structure = cleaned["text"], cleaned["structure"]
         location = (
             f"{name}#row={start}"
             if source.kind in {"huggingface_dataset", "wikimedia_dump"}
             else f"{name}#lines={start}-{end}"
         )
-        normalizer = (
-            "cnxml-text-v1" if suffix == ".cnxml" else "normalizer-nfc-markdown-v1"
-        )
+        normalizer = "cnxml-text-v1" if suffix == ".cnxml" else normalizer_version
         identity = digest([snapshot_id, location, raw_sha, normalizer])
         byte_start = byte_offsets[start - 1] if byte_offsets else None
         byte_end = byte_offsets[end] if byte_offsets else None
         raw_passage = (
             raw[byte_start:byte_end]
             if byte_start is not None and byte_end is not None
-            else content.encode("utf-8")
+            else raw_content.encode("utf-8")
         )
         raw_content_sha = hashlib.sha256(raw_passage).hexdigest()
         document = {
@@ -666,9 +683,22 @@ def _records_for_file(
             "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "raw_content_sha256": raw_content_sha,
             "source_family": source.source_family,
+            **({"structure": structure} if structure is not None else {}),
             **(
-                {"metadata": metadata}
+                {"drop_reason": "metadata_only_front_matter"}
+                if structure and structure["decision"] == "exclude_lm_metadata_only"
+                else {}
+            ),
+            **(
+                {
+                    "metadata": {
+                        **metadata,
+                        **({"normalizer": normalizer} if structure is not None else {}),
+                    }
+                }
                 if metadata
+                else {"metadata": {"normalizer": normalizer}}
+                if structure is not None
                 else {"metadata": {"normalizer": normalizer}}
                 if suffix == ".cnxml"
                 else {}
@@ -1678,6 +1708,8 @@ def build(
                         file_rights=decision,
                         rejected_records=rejected,
                         record_admission=admitted,
+                        normalizer_version=project.release.normalizer
+                        or "normalizer-nfc-markdown-v1",
                     )
                     documents.extend(doc for doc, _ in pairs)
                     evidence.extend(span for _, span in pairs)
@@ -1880,7 +1912,10 @@ def build(
         for doc in documents:
             doc["representative_id"] = representative[doc["document_id"]]
             doc["drop_reason"] = (
-                (
+                "metadata_only_front_matter"
+                if doc.get("structure", {}).get("decision")
+                == "exclude_lm_metadata_only"
+                else (
                     "contaminated_heldout"
                     if project.release.schema_version == 3
                     and doc["split"] == "train"
