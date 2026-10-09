@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D47 — conditional 50M approval stopped pre-ledger; origin measurement fix, 2026-10-09
+
+- The owner approved one conditional preparation, source transfer, fresh 50M-target training and bounded evaluation attempt under [the proposal](CARD05_BASE_50M_PROPOSAL.md) at exact `e4f3bfa702923e3294f97f072287d41d2fad726e`. The pre-ledger review found that public `corpus measure-tokens` could not bind the unchanged C03-C1 tokenizer to a new v3 release. No attempt ledger, common baseline, source request or model work began; the approved allocation was not consumed.
+- The owner then authorized only the focused offline native correction, zero-model tests, proposal execution-binding update and publication. [C05-T1](results/2026-10-09-card05-tokenizer-origin-measurement.md) records the code fix and selected checks. This offline authorization stops before a ledger, acquisition or runtime at the new head. The numerical 50M caps and B7/B9/B8 evidence remain unchanged; expanded-release admission and measured unique-position floors remain mandatory pre-training gates.
+
 ## KML-D46 — reviewed mainline checkpoint and 50M planning only, 2026-10-09
 
 - The owner authorized a bounded offline review of the whole main-to-`codex/shared-corpus-cleaning` delta, focused corrections, safe zero-model checks, PR creation and a conditional merge at the exact tested head. The bounded review found one small systematic Wikimedia extraction artifact but did not admit the structure-cleaning candidate or change historical data or results. [C05-B10](results/2026-10-09-card05-mainline-review.md) records the corrected code paths, 24-document source-span sample and validation boundary.

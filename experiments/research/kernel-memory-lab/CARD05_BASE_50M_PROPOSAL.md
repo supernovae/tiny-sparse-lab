@@ -81,6 +81,24 @@ most two exposures of each position. All of these are mandatory before staging
 or model work. If one bucket falls short, stop and report the deficit; a second
 bucket or changed mix needs a new plan.
 
+For this gate, use the native `corpus measure-tokens` origin binding implemented
+and tested at `18e90b82aa7b563183600d89156f0c10688b45f1` (measurement code
+SHA-256 `d6fef1d9ee746096bb023a2bcecf1358a144cf9d311e72f2b54634e11f6c4bc5`).
+After the v3 release and its finalized family inventory have been admitted,
+the command shape is:
+
+```text
+uv run --locked --no-sync sparselab --work-dir /srv/sparselab/state/experiments/kernel-memory-lab corpus measure-tokens <new-v3-release> --tokenizer <unchanged-C03-C1-tokenizer.json> --tokenizer-origin-release <original-C03-C1-release> --family-inventory <new-finalized-family-inventory.jsonl> --policy <50M-token-floor-policy.yaml> --output <new-attempt>/prep/unique-train.json --batch-source-bytes 8388608 --json
+```
+
+Bind the resulting receipt to the new release manifest/documents, original
+tokenizer fit release and export, tokenizer bytes and finalized inventory; cold
+read it before using the measured floors. The 8 MiB tokenizer batch bound is an
+operational per-document limit, not added training supply or a resource-cap
+increase. If an eligible document exceeds it, stop rather than bypassing the
+native measurement. This command is preparation work inside the existing
+allocation; it does not create a new ledger or authorize an attempt restart.
+
 ## Fresh run and unchanged evaluation
 
 Propose **fresh seed-17 initialization** with empty AdamW and scheduler state,
