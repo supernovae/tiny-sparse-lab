@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-09.3 — reviewed mainline checkpoint and prospective 50M declaration
+
+- Recorded KML-D46 and [C05-P5](results/2026-10-09-card05-50m-planning.md): PR #55 merged the tested, whole-delta-reviewed branch into `main` at `58ac08e`, with both PR and main-push safe checks passing and all manual model suites skipped.
+- [The prospective 50M plan](CARD05_BASE_50M_PROPOSAL.md) quantifies the accepted release's 1,344,024-position explanatory deficit under 81/18/1 and at most two exposures, proposes one additional pinned Wikimedia hash bucket and separates forecast from hard caps. The 341,885,952-parameter architecture, tokenizer and frozen base evaluation stay fixed.
+- C05-B9 remains unadmitted, C05-B8 quality awaits owner review, C05-N1 remains 0/200 and Card 06 blocked. No acquisition, mixture materialization or model runtime occurred in this planning revision.
+
 ## 2026-10-09.2 — mainline delta and bounded source-span review
 
 - [C05-B10](results/2026-10-09-card05-mainline-review.md) reviews the complete merged-main-to-cleaning-branch delta and 24 deterministic high-exposure source locations. It identifies one small, systematic orphaned Wikimedia citation artifact and preserves other useful technical structure; C05-B9 remains NOT ADMITTED.

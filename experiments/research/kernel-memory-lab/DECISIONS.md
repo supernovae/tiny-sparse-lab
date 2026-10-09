@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D46 — reviewed mainline checkpoint and 50M planning only, 2026-10-09
+
+- The owner authorized a bounded offline review of the whole main-to-`codex/shared-corpus-cleaning` delta, focused corrections, safe zero-model checks, PR creation and a conditional merge at the exact tested head. The bounded review found one small systematic Wikimedia extraction artifact but did not admit the structure-cleaning candidate or change historical data or results. [C05-B10](results/2026-10-09-card05-mainline-review.md) records the corrected code paths, 24-document source-span sample and validation boundary.
+- PR [#55](https://github.com/supernovae/tiny-sparse-lab/pull/55) passed its safe check at `fdd4af9660c94bfebecf90393145355e09dd4f30`, with model-bearing suites skipped, and merged to `main` as `58ac08ee1289c1446491c8082851f5be196dfbcd`. Main's safe push check passed at that merge SHA. The review/merge authority is fulfilled and grants no acquisition or model runtime.
+- The owner requested a fresh branch and a 341,885,952-parameter, 50M-target **proposal only**. [C05-P5](results/2026-10-09-card05-50m-planning.md) and [the prospective declaration](CARD05_BASE_50M_PROPOSAL.md) retain the tokenizer, 81/18/1 mix, two-exposure limit, fixed evaluation and reader gate. Their numeric allocation is a request for a later decision, not present approval. C05-B9 remains NOT ADMITTED; C05-B8 quality remains READY FOR REVIEW; C05-N1 stays 0/200 and Card 06 stays blocked.
+
 ## KML-D45 — one fresh B7-bound base training attempt approved, 2026-10-08
 
 - The owner approved one fresh local attempt under [CARD05_BASE_TRAINING_FROM_B7_PROPOSAL.md](CARD05_BASE_TRAINING_FROM_B7_PROPOSAL.md) at clean `f80079b0dc1ab05cf8ecaab9b0d31a2fefc015c4`, using the exact cold-verified B7 release, 25M mixture, sealed bundle, unchanged tokenizer/profile and fresh seed-17 weights. All declared accounting caps had to be enabled before model work. Stage validation had zero updates; the one training invocation could use at most 24,415 updates for exactly 25,000,000 supervised targets, with final masking. All eleven fixed validation scores had to precede checkpoint selection and test scoring.
