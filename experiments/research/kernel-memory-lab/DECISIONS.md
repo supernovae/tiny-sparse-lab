@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D49 — one fresh 50M attempt approved and stopped before family freeze, 2026-10-09
+
+- The owner approved one fresh conditional local 50M attempt at exact clean `23c20c284819835fd5070778d3d2898563c15889` under the revised launch packet and v2 source-effects project, with all numerical caps unchanged. This authorized one new ledger, retained-source verification, only the pinned additional Wikimedia transfer, conditional v3 preparation, fresh training and bounded evaluation; no restart, training retry/resume, code change during execution, extra source, cloud use or Card 06 progression.
+- [C05-B13](results/2026-10-09-card05-50m-attempt3-family-freeze-stop.md) records that the retained origins and acquisition lock cold-verified and the only new transfer was Wikimedia. The attempt stopped before family freeze because the mapped acquisition-only project has no reviewed admission, which the native freeze requires. The record also discloses unsupervised post-ledger rendering/review and a failed redundant budget-init query. No release, mixture or model result was admitted. This one allocation is spent and its ledger, snapshots and evidence remain preserved; B11/B12 remain separate stopped attempts.
+
 ## KML-D48 — one fresh 50M attempt approved and stopped at source reuse, 2026-10-09
 
 - The owner approved one fresh conditional local 50M attempt at exact clean `cbd69d087885c020fbc20c849a9d29604581b462` under the revised [launch packet](CARD05_BASE_50M_LAUNCH_PACKET.md) and unchanged [proposal](CARD05_BASE_50M_PROPOSAL.md). The approval covered one ledger, retained-source reuse and only the declared additional Wikimedia acquisition, prospective v3 preparation, fresh seed-17 training and bounded fixed evaluation, all under the existing numerical caps. It expressly disallowed attempt restart, code changes during execution, training retry/resume, extra sources, cloud use and Card 06 progression.
