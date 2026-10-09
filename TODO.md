@@ -221,6 +221,19 @@ experiment or a merge.
   mixture receipt. Card 03 used the existing APIs directly; this command is
   not shipped yet.
 
+- [ ] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
+  The current `corpus measure-tokens` path expects a tokenizer fitted to the
+  measured release, so C05-B7 authenticated the unchanged Card 03 tokenizer
+  through the native mixture binding and called the native source-domain
+  measurement API for the new release. Extend that CLI with an explicit
+  `--tokenizer-origin-release` binding: input is a verified new release,
+  frozen family inventory, tokenizer config and accepted origin release ID;
+  output is distinct train-content positions per declared stratum, tokenizer
+  digest and both release identities. Reject changed tokenizer artifacts,
+  unverified origins, held-out content, missing strata and family mismatches.
+  Keep the existing same-release declaration and hashes unchanged when the
+  option is absent.
+
 - [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
 
 - [ ] **Retain bounded corpus decompression and temporary-storage high-water counters.** Kernel Memory Lab Card 03 P1 enforced the distinct expanded-stream and projected disk caps, but the native receipt does not report actual decompressed bytes or peak staging occupancy. Extend the existing bounded acquisition receipt, without changing legacy hashes when no new fields are present, to report per-shard bytes consumed from the expanded stream and peak task-owned staging bytes/inodes. Fail closed if a required reading is unavailable and preserve raw counters on interrupted transfers; test exact caps, overlong lines and resumed attempts with mocked HTTP. Do not backfill P1 with inferred measurements or require reacquisition only to fill historical optional fields.
