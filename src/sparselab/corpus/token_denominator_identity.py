@@ -267,6 +267,7 @@ def _authenticate_inputs(
     release: Path,
     tokenizer: Path,
     *,
+    tokenizer_origin_release: Path | None = None,
     evidence_commit: str | None = None,
     release_evidence: Path | None = None,
     selection_evidence: Path | None = None,
@@ -274,6 +275,18 @@ def _authenticate_inputs(
     """Fully verify by default; explicit committed cold reuse is limited to reviewed v5."""
     release = _safe_path(release)
     tokenizer = _safe_path(tokenizer)
+    origin = (
+        _safe_path(tokenizer_origin_release)
+        if tokenizer_origin_release is not None
+        else None
+    )
+    if origin is not None and origin == release:
+        raise ValueError("tokenizer origin must differ from measured release")
+    if origin is not None and any(
+        value is not None
+        for value in (evidence_commit, release_evidence, selection_evidence)
+    ):
+        raise ValueError("cross-release measurement requires cold verification")
     if any(
         value is not None
         for value in (evidence_commit, release_evidence, selection_evidence)
@@ -297,27 +310,55 @@ def _authenticate_inputs(
 
     with _verification_operation():
         manifest = verify_release(release)
+        origin_manifest = verify_release(origin) if origin is not None else None
         tokenizer_manifest_path = _safe_path(
             tokenizer.with_name("tokenizer_manifest.json")
         )
         metadata = json.loads(tokenizer_manifest_path.read_bytes())
         if not isinstance(metadata, dict):
             raise TypeError("invalid tokenizer manifest")
+        dataset = _dataset_for_tokenizer(origin or release, tokenizer, metadata)
+        if origin is not None and (
+            dataset is None
+            or dataset.source != "local_text"
+            or dataset.revision != origin_manifest["release_id"]
+        ):
+            raise ValueError("tokenizer is not bound to its declared origin release")
         verified = verify_tokenizer_artifact(
             tokenizer,
             source=metadata["source"],
             revision=metadata.get("revision"),
             vocab_size=metadata["vocab_size"],
-            dataset=_dataset_for_tokenizer(release, tokenizer, metadata),
+            dataset=dataset,
         )
         if verified != metadata:
             raise ValueError("tokenizer verifier returned inconsistent manifest")
         tokenizer_sha = sha256_file(tokenizer)
         if verified["sha256"] != tokenizer_sha:
             raise ValueError("tokenizer artifact digest mismatch")
-        return manifest, {
+        bindings = {
             "release_manifest_sha256": sha256_file(release / "manifest.json"),
             "tokenizer_sha256": tokenizer_sha,
             "tokenizer_manifest_sha256": sha256_file(tokenizer_manifest_path),
             "evidence": None,
         }
+        if origin is not None:
+            assert origin_manifest is not None
+            bindings.update(
+                {
+                    "tokenizer_origin_release_id": origin_manifest["release_id"],
+                    "tokenizer_origin_manifest_sha256": sha256_file(
+                        origin / "manifest.json"
+                    ),
+                    "tokenizer_origin_documents_sha256": origin_manifest["files"][
+                        "documents.jsonl"
+                    ]["sha256"],
+                    "tokenizer_origin_documents_size": origin_manifest["files"][
+                        "documents.jsonl"
+                    ]["size"],
+                    "tokenizer_config_sha256": sha256_file(
+                        _safe_path(tokenizer.parent.parent / "tokenizer.yaml")
+                    ),
+                }
+            )
+        return manifest, bindings

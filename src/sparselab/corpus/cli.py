@@ -144,6 +144,16 @@ def _handle(args: argparse.Namespace) -> None:
                 Path(args.tokenizer),
                 Path(args.policy),
                 Path(args.output),
+                tokenizer_origin_release=(
+                    _release_path(args.tokenizer_origin_release, root)
+                    if args.tokenizer_origin_release is not None
+                    else None
+                ),
+                family_inventory=(
+                    Path(args.family_inventory)
+                    if args.family_inventory is not None
+                    else None
+                ),
                 evidence_commit=args.evidence_commit,
                 release_evidence=Path(args.release_evidence)
                 if args.release_evidence is not None
@@ -301,6 +311,8 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     )
     command.add_argument("release")
     command.add_argument("--tokenizer", required=True)
+    command.add_argument("--tokenizer-origin-release")
+    command.add_argument("--family-inventory")
     command.add_argument("--policy", required=True)
     command.add_argument("--output", required=True)
     command.add_argument("--evidence-commit")

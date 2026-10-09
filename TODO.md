@@ -221,20 +221,16 @@ experiment or a merge.
   mixture receipt. Card 03 used the existing APIs directly; this command is
   not shipped yet.
 
-- [ ] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
-  The current `corpus measure-tokens` path expects a tokenizer fitted to the
-  measured release, so C05-B7 authenticated the unchanged Card 03 tokenizer
-  through the native mixture binding and called the native source-domain
-  measurement API for the new release. Extend that CLI with an explicit
-  `--tokenizer-origin-release` binding: input is a verified new release,
-  frozen family inventory, tokenizer config and accepted origin release ID;
-  output is distinct train-content positions per declared stratum, tokenizer
-  digest and both release identities. Reject changed tokenizer artifacts,
-  unverified origins, held-out content, missing strata and family mismatches.
-  Keep the existing same-release declaration and hashes unchanged when the
-  option is absent. The prospective structure-cleaning candidate hit this same
-  CLI binding gap; its CPU audit used the already verified tokenizer origin and
-  native `_measure_source_domains` API, without fitting or relaxing floors.
+- [x] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
+  `corpus measure-tokens --tokenizer-origin-release ORIGIN --family-inventory
+  INVENTORY` now cold-authenticates the original tokenizer export and both
+  releases, verifies exact kept-document family/split/stratum coverage, and
+  binds both release identities and the inventory to the receipt. Public
+  measurement and receipt-read APIs accept the same optional paths. Cached
+  reuse and post-scan checks revalidate these inputs; missing or substituted
+  origins, altered releases, held-out family leaks and ambiguous measured
+  strata fail closed. Without both options, the same-release path retains its
+  prior fields and behavior; implementation-bound receipt digests may change.
 
 - [x] **Inspect shared Corpus Forge export bindings without preparing data.**
   `sparselab corpus verify-export RUN.yaml` cold-verifies the run's exact

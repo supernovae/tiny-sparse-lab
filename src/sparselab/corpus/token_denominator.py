@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.progress import memory_bytes
 from sparselab.corpus.release import _verification_operation
 from sparselab.corpus.token_denominator_identity import _authenticate_inputs, _safe_path
@@ -144,10 +145,27 @@ def _scientific(receipt: dict[str, Any]) -> str:
     )
     from sparselab.campaign.state import digest
 
+    bound = (
+        {
+            key: receipt[key]
+            for key in (
+                "tokenizer_origin_release_id",
+                "tokenizer_origin_manifest_sha256",
+                "tokenizer_origin_documents_sha256",
+                "tokenizer_origin_documents_size",
+                "tokenizer_config_sha256",
+                "family_inventory_sha256",
+                "family_inventory_rows",
+            )
+        }
+        if "tokenizer_origin_release_id" in receipt
+        else {}
+    )
     return digest(
         "source-token-denominator-v1",
         {
             **{name: receipt[name] for name in fields},
+            **bound,
             "evidence": scientific_evidence,
         },
     )
@@ -328,11 +346,27 @@ def _measure_source_domains(
 
 
 def _check_locations(
-    release: Path, tokenizer: Path, policy_path: Path, output: Path
-) -> tuple[Path, Path, Path, Path]:
+    release: Path,
+    tokenizer: Path,
+    policy_path: Path,
+    output: Path,
+    *,
+    tokenizer_origin_release: Path | None = None,
+    family_inventory: Path | None = None,
+) -> tuple[Path, Path, Path, Path, Path | None, Path | None]:
     release, tokenizer, policy_path, output = (
         _safe_path(Path(item)) for item in (release, tokenizer, policy_path, output)
     )
+    if (tokenizer_origin_release is None) != (family_inventory is None):
+        raise ValueError(
+            "tokenizer origin and family inventory must be declared together"
+        )
+    origin = (
+        _safe_path(Path(tokenizer_origin_release))
+        if tokenizer_origin_release is not None
+        else None
+    )
+    inventory = _safe_path(Path(family_inventory)) if family_inventory else None
     if output.suffix in {".partial", ".ready"}:
         raise ValueError("source-token receipt is not complete: reserved partial path")
     sources = (
@@ -342,23 +376,107 @@ def _check_locations(
         tokenizer,
         tokenizer.with_name("tokenizer_manifest.json"),
         policy_path,
+        *(
+            (
+                origin,
+                origin / "manifest.json",
+                origin / "documents.jsonl",
+                tokenizer.parent.parent / "tokenizer.yaml",
+            )
+            if origin
+            else ()
+        ),
+        *((inventory,) if inventory else ()),
     )
     if (
         output in sources
         or output.is_relative_to(release)
+        or (origin is not None and output.is_relative_to(origin))
         or any(source.is_relative_to(output) for source in sources)
     ):
         raise ValueError("source and output paths conflict")
-    return release, tokenizer, policy_path, output
+    return release, tokenizer, policy_path, output, origin, inventory
+
+
+def _family_inventory_binding(
+    release: Path, inventory: Path, policy: CorpusReadinessPolicy
+) -> tuple[str, int]:
+    """Bind every kept document to one reviewed family, split and measured stratum."""
+    documents = {}
+    for record in records_from_path(release / "documents.jsonl"):
+        doc = record.value
+        if doc["drop_reason"] is not None:
+            continue
+        document_id = doc["document_id"]
+        if document_id in documents:
+            raise ValueError("duplicate kept document ID")
+        documents[document_id] = (
+            doc["split"],
+            doc["content_sha256"],
+            set(doc["domains"]),
+        )
+    families: dict[str, str] = {}
+    content_splits: dict[str, str] = {}
+    content_strata: dict[str, str] = {}
+    requested = set(_domains(policy))
+    count = 0
+    for record in records_from_path(inventory):
+        row = record.value
+        if (
+            not isinstance(row, dict)
+            or set(row)
+            != {"document_id", "family_id", "split", "stratum", "content_sha256"}
+            or any(not isinstance(value, str) or not value for value in row.values())
+            or row["split"] not in {"train", "validation", "test"}
+        ):
+            raise ValueError("invalid family inventory row")
+        doc = documents.pop(row["document_id"], None)
+        if (
+            doc is None
+            or row["split"] != doc[0]
+            or row["content_sha256"] != doc[1]
+            or row["stratum"] not in doc[2]
+        ):
+            raise ValueError("family inventory differs from measured release")
+        family = row["family_id"]
+        if family in families and families[family] != row["split"]:
+            raise ValueError("family inventory leaks across splits")
+        families[family] = row["split"]
+        content = row["content_sha256"]
+        if content in content_splits and content_splits[content] != row["split"]:
+            raise ValueError("identical content leaks across splits")
+        content_splits[content] = row["split"]
+        if content in content_strata and content_strata[content] != row["stratum"]:
+            raise ValueError("identical content spans measured strata")
+        content_strata[content] = row["stratum"]
+        if row["split"] == "train" and doc[2].intersection(requested) != {
+            row["stratum"]
+        }:
+            raise ValueError("training inventory has ambiguous measured stratum")
+        count += 1
+    if documents:
+        raise ValueError("family inventory omits kept documents")
+    return sha256_file(inventory), count
 
 
 @_operation
 def read_source_token_receipt(
-    path: Path, release: Path, tokenizer: Path, policy_path: Path
+    path: Path,
+    release: Path,
+    tokenizer: Path,
+    policy_path: Path,
+    *,
+    tokenizer_origin_release: Path | None = None,
+    family_inventory: Path | None = None,
 ) -> dict[str, Any]:
     """Authenticate a COMPLETE result, including fresh streamed input identity."""
-    release, tokenizer, policy_path, path = _check_locations(
-        release, tokenizer, policy_path, path
+    release, tokenizer, policy_path, path, origin, inventory = _check_locations(
+        release,
+        tokenizer,
+        policy_path,
+        path,
+        tokenizer_origin_release=tokenizer_origin_release,
+        family_inventory=family_inventory,
     )
     raw = path.read_bytes()
     receipt = json.loads(raw)
@@ -369,6 +487,8 @@ def read_source_token_receipt(
         or receipt.get("measurement_version") != _VERSION
     ):
         raise ValueError("source-token receipt is not complete or canonical")
+    if origin is None and "tokenizer_origin_release_id" in receipt:
+        raise ValueError("source-token receipt requires its tokenizer origin")
     policy, policy_sha = _policy(policy_path)
     evidence = receipt.get("evidence")
     if evidence is not None and not isinstance(evidence, dict):
@@ -376,6 +496,7 @@ def read_source_token_receipt(
     manifest, bindings = _authenticate_inputs(
         release,
         tokenizer,
+        tokenizer_origin_release=origin,
         evidence_commit=evidence.get("commit") if evidence else None,
         release_evidence=Path(evidence["release_evidence"]) if evidence else None,
         selection_evidence=Path(evidence["selection_evidence"]) if evidence else None,
@@ -393,6 +514,27 @@ def read_source_token_receipt(
         "identity_sha256": identity,
         "evidence": bindings["evidence"],
     }
+    if origin is not None:
+        assert inventory is not None
+        inventory_sha, inventory_rows = _family_inventory_binding(
+            release, inventory, policy
+        )
+        expected.update(
+            {
+                key: bindings[key]
+                for key in (
+                    "tokenizer_origin_release_id",
+                    "tokenizer_origin_manifest_sha256",
+                    "tokenizer_origin_documents_sha256",
+                    "tokenizer_origin_documents_size",
+                    "tokenizer_config_sha256",
+                )
+            }
+        )
+        expected.update(
+            family_inventory_sha256=inventory_sha,
+            family_inventory_rows=inventory_rows,
+        )
     if any(receipt.get(key) != value for key, value in expected.items()):
         raise ValueError(
             "source-token receipt input or implementation binding mismatch"
@@ -436,6 +578,8 @@ def measure_source_tokens(
     policy_path: Path,
     output: Path,
     *,
+    tokenizer_origin_release: Path | None = None,
+    family_inventory: Path | None = None,
     evidence_commit: str | None = None,
     release_evidence: Path | None = None,
     selection_evidence: Path | None = None,
@@ -447,19 +591,37 @@ def measure_source_tokens(
     batch_documents, batch_source_bytes = validate_tokenizer_batch_limits(
         batch_documents, batch_source_bytes
     )
-    release, tokenizer, policy_path, output = _check_locations(
-        release, tokenizer, policy_path, output
+    release, tokenizer, policy_path, output, origin, inventory = _check_locations(
+        release,
+        tokenizer,
+        policy_path,
+        output,
+        tokenizer_origin_release=tokenizer_origin_release,
+        family_inventory=family_inventory,
     )
     policy, policy_sha = _policy(policy_path)
     manifest, bindings = _authenticate_inputs(
         release,
         tokenizer,
+        tokenizer_origin_release=origin,
         evidence_commit=evidence_commit,
         release_evidence=release_evidence,
         selection_evidence=selection_evidence,
     )
+    inventory_binding = (
+        _family_inventory_binding(release, inventory, policy)
+        if inventory is not None
+        else None
+    )
     if output.exists():
-        existing = read_source_token_receipt(output, release, tokenizer, policy_path)
+        existing = read_source_token_receipt(
+            output,
+            release,
+            tokenizer,
+            policy_path,
+            tokenizer_origin_release=origin,
+            family_inventory=inventory,
+        )
         if existing["evidence"] != bindings["evidence"]:
             raise ValueError("existing source-token receipt evidence mode mismatch")
         return existing
@@ -536,6 +698,7 @@ def measure_source_tokens(
         )
         stable_files = {
             release / "manifest.json": bindings["release_manifest_sha256"],
+            release / "documents.jsonl": measured["documents_sha256"],
             tokenizer: bindings["tokenizer_sha256"],
             tokenizer.with_name("tokenizer_manifest.json"): bindings[
                 "tokenizer_manifest_sha256"
@@ -544,6 +707,22 @@ def measure_source_tokens(
             Path(__file__): implementation,
             Path(__file__).with_name("token_denominator_identity.py"): identity,
         }
+        if origin is not None:
+            assert inventory is not None and inventory_binding is not None
+            stable_files.update(
+                {
+                    origin / "manifest.json": bindings[
+                        "tokenizer_origin_manifest_sha256"
+                    ],
+                    origin / "documents.jsonl": bindings[
+                        "tokenizer_origin_documents_sha256"
+                    ],
+                    tokenizer.parent.parent / "tokenizer.yaml": bindings[
+                        "tokenizer_config_sha256"
+                    ],
+                    inventory: inventory_binding[0],
+                }
+            )
         evidence = bindings["evidence"]
         if evidence is not None:
             for path_key, hash_key in (
@@ -560,6 +739,18 @@ def measure_source_tokens(
             for path, expected in stable_files.items()
         ):
             raise ValueError("measurement input changed during source scan")
+        if origin is not None:
+            post_manifest, post_bindings = _authenticate_inputs(
+                release, tokenizer, tokenizer_origin_release=origin
+            )
+            if post_manifest != manifest or post_bindings != bindings:
+                raise ValueError("measurement input changed during source scan")
+            assert inventory is not None and inventory_binding is not None
+            if (
+                _family_inventory_binding(release, inventory, policy)
+                != inventory_binding
+            ):
+                raise ValueError("measurement inventory changed during source scan")
         receipt = {
             "measurement_version": _VERSION,
             "status": "COMPLETE",
@@ -588,6 +779,24 @@ def measure_source_tokens(
                 "progress_path": str(progress_path),
             },
         }
+        if origin is not None:
+            assert inventory_binding is not None
+            receipt.update(
+                {
+                    key: bindings[key]
+                    for key in (
+                        "tokenizer_origin_release_id",
+                        "tokenizer_origin_manifest_sha256",
+                        "tokenizer_origin_documents_sha256",
+                        "tokenizer_origin_documents_size",
+                        "tokenizer_config_sha256",
+                    )
+                }
+            )
+            receipt.update(
+                family_inventory_sha256=inventory_binding[0],
+                family_inventory_rows=inventory_binding[1],
+            )
         receipt["scientific_sha256"] = _scientific(receipt)
         # The interrupted marker is never rewritten as COMPLETE. A separate
         # fsynced sibling is linked exclusively into place after all checks.
