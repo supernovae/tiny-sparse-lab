@@ -64,6 +64,12 @@ class AttemptContract(BaseModel):
     acquisition_project_sha256: str | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    preparation_acquisition_identity_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    preparation_normalizer: (
+        Literal["normalizer-structure-v2", "normalizer-structure-v3"] | None
+    ) = Field(default=None, exclude_if=lambda value: value is None)
     fixed_profile_sha256: str | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -82,6 +88,12 @@ class AttemptContract(BaseModel):
     require_evaluation_baseline_binding: bool = Field(
         default=False, exclude_if=lambda value: value is False
     )
+    require_release_acceptance_binding: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
+    offline_retained_sources_only: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
 
     @field_validator(
         "content_identity_sha256",
@@ -98,6 +110,7 @@ class AttemptContract(BaseModel):
         "preparation_monitor_policy_sha256",
         "evaluation_monitor_policy_sha256",
         "acquisition_project_sha256",
+        "preparation_acquisition_identity_sha256",
         "fixed_profile_sha256",
         "fixed_family_inventory_sha256",
     )
@@ -109,6 +122,10 @@ class AttemptContract(BaseModel):
 
     @model_validator(mode="after")
     def complete_forward_limits(self) -> AttemptContract:
+        if (self.preparation_acquisition_identity_sha256 is None) != (
+            self.preparation_normalizer is None
+        ):
+            raise ValueError("preparation identity and normalizer must be paired")
         fixed = self.max_fixed_profile_forward_positions
         total = self.max_nontraining_forward_positions
         if (fixed is None) != (total is None):
@@ -197,14 +214,26 @@ class AttemptBudget:
     def bind_resolved_artifact(
         self,
         *,
-        kind: Literal["train_config", "evaluation_baseline"],
+        kind: Literal[
+            "train_config",
+            "evaluation_baseline",
+            "pre_freeze_project",
+            "build_project",
+            "release_acceptance",
+        ],
         path: Path,
         expected_sha256: str,
         content_identity_sha256: str,
         workspace_root: Path,
     ) -> dict[str, str]:
         """Seal one late-produced input without changing the original contract."""
-        if kind not in {"train_config", "evaluation_baseline"}:
+        if kind not in {
+            "train_config",
+            "evaluation_baseline",
+            "pre_freeze_project",
+            "build_project",
+            "release_acceptance",
+        }:
             raise AttemptBudgetError("unsupported resolved artifact kind")
         if not _SHA256.fullmatch(expected_sha256):
             raise AttemptBudgetError("resolved artifact SHA-256 is invalid")
@@ -216,15 +245,99 @@ class AttemptBudget:
         if root != path.parent.resolve() and root not in path.parent.resolve().parents:
             raise AttemptBudgetError("resolved artifact is outside attempt workspace")
         self.remaining_seconds()
+        pre_freeze_binding = (
+            self._resolved_artifact("pre_freeze_project", workspace_root=root)
+            if kind == "build_project"
+            else None
+        )
+        build_binding = (
+            self._resolved_artifact("build_project", workspace_root=root)
+            if kind == "release_acceptance"
+            else None
+        )
+        accepted_binding = (
+            self._resolved_artifact("release_acceptance", workspace_root=root)
+            if kind == "train_config"
+            else None
+        )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             contract, _, _, _ = self._check_v2(connection)
             if content_identity_sha256 != contract.content_identity_sha256:
                 raise AttemptBudgetError("resolved artifact contract identity mismatch")
-            if kind == "train_config":
+            if kind in {"pre_freeze_project", "build_project"}:
+                from sparselab.corpus.acquisition import _project_sha
+                from sparselab.corpus.project import load_project, project_path
+                from sparselab.corpus.release_review import verify_admission_review
+                from sparselab.training.manifest import sha256_file
+
+                project = load_project(path)
+                if (
+                    contract.preparation_acquisition_identity_sha256 is None
+                    or _project_sha(project)
+                    != contract.preparation_acquisition_identity_sha256
+                    or project.release.schema_version != 2
+                    or project.release.record_admission is None
+                    or project.release.normalizer != contract.preparation_normalizer
+                    or sha256_file(
+                        project_path(
+                            project.root, project.release.record_admission.path
+                        )
+                    )
+                    != project.release.record_admission.sha256
+                ):
+                    raise AttemptBudgetError("preparation project identity differs")
+                if contract.require_release_acceptance_binding:
+                    verify_admission_review(
+                        project_path(
+                            project.root, project.release.record_admission.path
+                        ),
+                        root,
+                    )
+                if kind == "build_project":
+                    if pre_freeze_binding is None:
+                        raise AttemptBudgetError("pre-freeze project is not bound")
+                    pre_freeze = load_project(pre_freeze_binding[0])
+                    if (
+                        project.release != pre_freeze.release
+                        or project.splits == pre_freeze.splits
+                    ):
+                        raise AttemptBudgetError(
+                            "build project differs from reviewed pre-freeze binding"
+                        )
+                    splits_path = project_path(project.root, project.config.splits)
+                    receipt_path = splits_path.with_name(
+                        splits_path.stem + ".receipt.json"
+                    )
+                    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                    if (
+                        receipt.get("split_sha256") != sha256_file(splits_path)
+                        or receipt.get("admission_sha256")
+                        != project.release.record_admission.sha256
+                    ):
+                        raise AttemptBudgetError(
+                            "build project lacks matching frozen family receipt"
+                        )
+            elif kind == "release_acceptance":
+                from sparselab.corpus.release_review import verify_release_review
+
+                if build_binding is None:
+                    raise AttemptBudgetError("build project is not bound")
+                verify_release_review(path, root, build_project=build_binding[0])
+            elif kind == "train_config":
                 from sparselab.config.loading import load_config
 
                 load_config(path)
+                if contract.require_release_acceptance_binding:
+                    from sparselab.corpus.release_review import (
+                        verify_accepted_prepared_config,
+                    )
+
+                    if accepted_binding is None:
+                        raise AttemptBudgetError("exact release has not been accepted")
+                    verify_accepted_prepared_config(
+                        path, json.loads(accepted_binding[0].read_text())
+                    )
             else:
                 from sparselab.operational_monitor import load_workspace_baseline
 
@@ -284,6 +397,37 @@ class AttemptBudget:
             from sparselab.operational_monitor import load_workspace_baseline
 
             load_workspace_baseline(Path(path), root)
+        if kind in {"pre_freeze_project", "build_project"}:
+            from sparselab.corpus.acquisition import _project_sha
+            from sparselab.corpus.project import load_project, project_path
+            from sparselab.corpus.release_review import verify_admission_review
+            from sparselab.training.manifest import sha256_file
+
+            project = load_project(Path(path))
+            reference = project.release.record_admission
+            if (
+                _project_sha(project)
+                != contract.preparation_acquisition_identity_sha256
+                or project.release.schema_version != 2
+                or project.release.normalizer != contract.preparation_normalizer
+                or reference is None
+                or sha256_file(project_path(project.root, reference.path))
+                != reference.sha256
+            ):
+                raise AttemptBudgetError("bound preparation project identity changed")
+            if contract.require_release_acceptance_binding:
+                verify_admission_review(
+                    project_path(project.root, reference.path), root
+                )
+        if kind == "release_acceptance":
+            from sparselab.corpus.release_review import verify_release_review
+
+            build_binding = self._resolved_artifact(
+                "build_project", workspace_root=root
+            )
+            if build_binding is None:
+                raise AttemptBudgetError("build project is not bound")
+            verify_release_review(Path(path), root, build_project=build_binding[0])
         return Path(path), digest
 
     @classmethod
@@ -1085,6 +1229,14 @@ class AttemptBudget:
             and classified.work_dir.resolve() != resolved_root
         ):
             raise AttemptBudgetError("native work directory differs from attempt root")
+        if contract.offline_retained_sources_only and (
+            classified.operation in {"corpus budget-init", "corpus alias-snapshot"}
+            or (
+                classified.operation == "corpus acquire"
+                and not classified.options.get("--offline")
+            )
+        ):
+            raise AttemptBudgetError("this attempt permits verified offline reuse only")
         if "--output" in classified.options:
             output = Path(str(classified.options["--output"]))
             if not output.is_absolute() or (
@@ -1115,17 +1267,87 @@ class AttemptBudget:
             classified.operation
             in {
                 "corpus budget-init",
+                "corpus budget-status",
                 "corpus alias-snapshot",
                 "corpus acquire",
                 "corpus admission-draft",
-                "corpus split-inventory",
-                "corpus freeze-splits",
             }
             and contract.acquisition_project_sha256 is not None
             and hashlib.sha256(Path(classified.args[2]).read_bytes()).hexdigest()
             != contract.acquisition_project_sha256
         ):
             raise AttemptBudgetError("acquisition project differs from contract")
+        preparation_kind = {
+            "corpus split-inventory": "pre_freeze_project",
+            "corpus freeze-splits": "pre_freeze_project",
+            "corpus build": "build_project",
+        }.get(classified.operation)
+        if preparation_kind and contract.preparation_acquisition_identity_sha256:
+            bound_project = self._resolved_artifact(
+                preparation_kind, workspace_root=resolved_root
+            )
+            if bound_project is None or Path(classified.args[2]) != bound_project[0]:
+                raise AttemptBudgetError(
+                    "preparation command requires its bound project declaration"
+                )
+        elif preparation_kind and contract.acquisition_project_sha256 is not None:
+            # Historical contracts used the acquisition project for these
+            # commands. Keep that check until a reviewed variant opts in.
+            if (
+                classified.operation != "corpus build"
+                and hashlib.sha256(Path(classified.args[2]).read_bytes()).hexdigest()
+                != contract.acquisition_project_sha256
+            ):
+                raise AttemptBudgetError("acquisition project differs from contract")
+        accepted_operations = {
+            "corpus measure-tokens",
+            "corpus materialize-mixture",
+            "corpus verify-mixture",
+            "data prepared-inputs publish",
+            "data prepared-inputs verify",
+            "stage",
+            "train",
+        }
+        if (
+            contract.require_release_acceptance_binding
+            and classified.operation in accepted_operations
+        ):
+            accepted = self._resolved_artifact(
+                "release_acceptance", workspace_root=resolved_root
+            )
+            if accepted is None:
+                raise AttemptBudgetError("exact release has not been accepted")
+            review = json.loads(accepted[0].read_text(encoding="utf-8"))
+            if classified.operation == "corpus measure-tokens":
+                from sparselab.corpus.cli import _release_path
+
+                measured = _release_path(classified.args[2], resolved_root)
+                if measured.resolve() != Path(review["release_path"]).resolve():
+                    raise AttemptBudgetError("measured release differs from acceptance")
+            if classified.operation in {
+                "corpus materialize-mixture",
+                "corpus verify-mixture",
+            }:
+                import yaml
+
+                mixture = yaml.safe_load(Path(classified.args[2]).read_text())
+                if (
+                    not isinstance(mixture, dict)
+                    or Path(mixture.get("release_path", "")).resolve()
+                    != Path(review["release_path"]).resolve()
+                    or Path(mixture.get("family_inventory", "")).resolve()
+                    != Path(review["family_inventory_path"]).resolve()
+                ):
+                    raise AttemptBudgetError("mixture differs from accepted release")
+            if classified.operation in {
+                "data prepared-inputs publish",
+                "data prepared-inputs verify",
+            }:
+                from sparselab.corpus.release_review import (
+                    verify_accepted_prepared_config,
+                )
+
+                verify_accepted_prepared_config(Path(classified.args[3]), review)
         if classified.effect in {"fixed_score", "continuation"} and (
             (
                 contract.fixed_profile_sha256 is not None

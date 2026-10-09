@@ -256,6 +256,23 @@ experiment or a merge.
   use the transport ledger. Tiny offline public-CLI fixtures cover negative
   preflights, real `ProofStore` mode and zero retained-source requests.
 
+- [x] **Make the 50M retained-source preparation order noncyclic and supervised.**
+  The C05-B13 attempt stopped because the acquisition-only quarantine project
+  could not freeze families and its inventory used the wrong normalizer; its
+  post-ledger review/render files are not gate evidence. The corrected packet
+  cold-verifies all four retained snapshots, drafts/reviews v2 admission,
+  late-binds a schema-v2, `normalizer-structure-v3` pre-freeze project with the
+  unchanged acquisition identity, then binds the frozen-split build project.
+  A bounded native JSON/YAML renderer covers deterministic local writes; an
+  explicit admission review and exact-release acceptance bind the draft,
+  family/lineage evidence and later supply operations. The prospective
+  contract rejects live acquisition and budget reinitialization; native
+  `corpus budget-status` reads an existing transport budget. A tiny offline
+  public-path fixture covers cold release, mixture and prepared-bundle
+  verification with zero model work. Production rights review, unique-token
+  floors, ROCm and model quality remain future execution gates; B11–B13 remain
+  stopped and unchanged.
+
 - [ ] **Restore signed warm source-snapshot proof reuse without widening verifier authority.**
   The current `source_snapshot` authority scan reaches the unrelated dynamic
   import in `recovery.implementation_replay` and declines to record a signed

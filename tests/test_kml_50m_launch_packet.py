@@ -1,6 +1,7 @@
 """Static, zero-model review of the prospective 50M declaration packet."""
 
 import json
+import shutil
 from pathlib import Path
 
 import yaml
@@ -73,6 +74,28 @@ def test_unrendered_admission_cannot_be_mistaken_for_an_admitted_release() -> No
     release = yaml.safe_load((PACKET / "release-reviewed.template.yaml").read_text())
     assert release["normalizer"] == "normalizer-structure-v3"
     assert "${" in release["record_admission"]["sha256"]
+
+
+def test_prefreeze_schema_normalizer_and_acquisition_identity(tmp_path: Path) -> None:
+    copy = tmp_path / "packet"
+    shutil.copytree(PACKET, copy)
+    release = (copy / "release-reviewed.template.yaml").read_text()
+    (copy / "release-reviewed.yaml").write_text(
+        release.replace(
+            "${REVIEWED_ADMISSION_FILE}", "reviewed-admission.json"
+        ).replace("${REVIEWED_ADMISSION_SHA256}", "a" * 64)
+    )
+    prefreeze = load_project(
+        copy / "project-pre-freeze-reuse-v2.template.yaml", verify_inputs=False
+    )
+    acquisition = load_project(
+        copy / "project-acquire-reuse-v2.yaml", verify_inputs=False
+    )
+    assert _project_sha(prefreeze) == _project_sha(acquisition)
+    assert prefreeze.release.schema_version == 2
+    assert prefreeze.release.normalizer == "normalizer-structure-v3"
+    assert prefreeze.release.record_admission is not None
+    assert prefreeze.config.splits == "splits-acquire.yaml"
 
 
 def test_caps_scientific_settings_and_dynamic_identity_slots() -> None:

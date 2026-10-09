@@ -25,7 +25,14 @@ class AttemptCommand:
 # Positionals, valued options, boolean options, effect. No abbreviated flags,
 # duplicate flags, extra operands or hidden shell/Python dispatch are accepted.
 _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
+    "corpus render-declaration": (
+        0,
+        {"--template", "--values-json", "--output"},
+        set(),
+        "preparation",
+    ),
     "corpus budget-init": (1, set(), set(), "preparation"),
+    "corpus budget-status": (1, set(), set(), "inspection"),
     "corpus alias-snapshot": (1, {"--source-id", "--snapshot"}, set(), "preparation"),
     "corpus acquire": (1, set(), {"--offline"}, "preparation"),
     "corpus admission-draft": (
@@ -192,6 +199,7 @@ _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
 }
 
 _REQUIRED: dict[str, set[str]] = {
+    "corpus render-declaration": {"--template", "--values-json", "--output"},
     "corpus alias-snapshot": {"--source-id", "--snapshot"},
     "corpus admission-draft": {"--template", "--policy-document", "--output"},
     "corpus split-inventory": {"--output"},

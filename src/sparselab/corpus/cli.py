@@ -50,6 +50,27 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
+    if command == "budget-status":
+        from sparselab.corpus.transport_budget import TransportBudget
+
+        project = load_project(Path(args.project))
+        ledger = TransportBudget(
+            root / "corpora" / project.config.id / "transport-budget.sqlite", project
+        )
+        print(json.dumps(ledger.receipt(), sort_keys=True))
+        return
+    if command == "render-declaration":
+        from sparselab.corpus.declaration_render import render_declaration
+
+        print(
+            json.dumps(
+                render_declaration(
+                    Path(args.template), args.values_json, Path(args.output), root
+                ),
+                sort_keys=True,
+            )
+        )
+        return
     if command == "alias-snapshot":
         from sparselab.corpus.acquisition import alias_verified_snapshot
 
@@ -283,6 +304,16 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "budget-init", help="Start one durable bounded-HF transport attempt"
     )
     command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser("budget-status", help="Read the existing transport budget")
+    command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "render-declaration", help="Render one bounded JSON/YAML declaration"
+    )
+    command.add_argument("--template", required=True)
+    command.add_argument("--values-json", required=True)
+    command.add_argument("--output", required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "alias-snapshot", help="Cold-verify and alias one immutable retained snapshot"

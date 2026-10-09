@@ -162,7 +162,15 @@ def register_attempt_parser(
     bind = actions.add_parser("bind-artifact")
     bind.add_argument("--ledger", type=Path, required=True)
     bind.add_argument(
-        "--kind", choices=("train_config", "evaluation_baseline"), required=True
+        "--kind",
+        choices=(
+            "train_config",
+            "evaluation_baseline",
+            "pre_freeze_project",
+            "build_project",
+            "release_acceptance",
+        ),
+        required=True,
     )
     bind.add_argument("--path", type=Path, required=True)
     bind.add_argument("--sha256", required=True)

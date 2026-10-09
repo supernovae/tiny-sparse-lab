@@ -265,6 +265,24 @@ def test_public_cli_owned_whole_and_preparation_monitors_dispatch_native_budget_
     assert status["charged_generation_calls"] == status["charged_generated_tokens"] == 0
     assert len(status["reservations"]) == 1
     assert status["reservations"][0]["actual_updates"] == 0
+    transport = subprocess.run(
+        _native(root, "corpus", "budget-status", str(paths["project"])),
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert transport.returncode == 0, transport.stderr
+    assert json.loads(transport.stdout)["source_charged"] == 0
+    repeated_init = subprocess.run(
+        _native(root, "corpus", "budget-init", str(paths["project"])),
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert repeated_init.returncode != 0
+    assert "already exists" in repeated_init.stderr
 
 
 @pytest.mark.parametrize(
