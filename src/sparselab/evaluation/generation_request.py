@@ -26,6 +26,7 @@ from sparselab.evaluation.generation import (
     _semantic_queries_for_context,
     _validate_generation_options,
 )
+from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
 
 
 class GenerationCancelled(RuntimeError):
@@ -46,6 +47,8 @@ class GenerationResult:
     prompt_tokens: int
     completion_tokens: int
     finish_reason: Literal["stop", "length"]
+    forward_input_positions: int = 0
+    cache_used: bool | None = None
 
 
 def _check_cancelled(cancellation: Event | Callable[[], bool] | None) -> None:
@@ -76,6 +79,7 @@ def generate_result(
     semantic_queries: SemanticQueryBatch
     | Mapping[str, SemanticQueryBatch]
     | None = None,
+    accounting_label: str | None = None,
 ) -> GenerationResult:
     """Continue ``prompt`` with sampling metadata and cooperative cancellation.
 
@@ -120,6 +124,23 @@ def generate_result(
     _check_cancelled(cancellation)
     if max_new_tokens == 0:
         return GenerationResult(prompt, [], prompt_length, 0, "length")
+    if (
+        AttemptBudget.forward_allocation_active_from_environment()
+        and accounting_label is None
+    ):
+        raise AttemptBudgetError("contracted generation requires an accounting label")
+    if accounting_label is not None:
+        if not accounting_label.strip():
+            raise ValueError("generation accounting label must be nonempty")
+        worst_case_inputs = sum(
+            min(max_seq_len, prompt_length + generated)
+            for generated in range(max_new_tokens)
+        )
+        AttemptBudget.reserve_generation_from_environment(
+            accounting_label,
+            requested_tokens=max_new_tokens,
+            forward_positions=worst_case_inputs,
+        )
 
     source_bytes = bytearray(prompt.encode("utf-8")) if byte_memory else None
     addresses = (
@@ -150,9 +171,12 @@ def generate_result(
         generator.manual_seed(seed)
     cache_enabled = engine is None and use_cache and _cache_capability(model)[0]
     cache: Any = None
+    forward_input_positions = 0
 
     def full_prefix_logits() -> Any:
+        nonlocal forward_input_positions
         active_ids = ids[-max_seq_len:]
+        forward_input_positions += len(active_ids)
         if engine is not None:
             assert mx is not None
             return engine.logits(mx.array([active_ids], dtype=mx.int32))[0, -1]
@@ -174,8 +198,9 @@ def generate_result(
         return model(input_ids, **options)[0, -1]
 
     def rebuild_cache(remaining_tokens: int) -> torch.Tensor:
-        nonlocal cache
+        nonlocal cache, forward_input_positions
         active_ids = ids[-max_seq_len:]
+        forward_input_positions += len(active_ids)
         input_ids = torch.tensor([active_ids], device=device)
         byte_addresses = (
             torch.tensor([addresses[-max_seq_len:]], device=device)
@@ -256,6 +281,7 @@ def generate_result(
                 elif cache.length >= cache.capacity:
                     logits = rebuild_cache(max_new_tokens - len(generated))
                 else:
+                    forward_input_positions += 1
                     next_ids = torch.tensor([[token]], device=device)
                     next_addresses = (
                         torch.tensor([[addresses[-1]]], device=device)
@@ -290,5 +316,11 @@ def generate_result(
     for stop in stop_sequences:
         completion = completion.split(stop, 1)[0]
     return GenerationResult(
-        prompt + completion, generated, prompt_length, completion_tokens, finish_reason
+        prompt + completion,
+        generated,
+        prompt_length,
+        completion_tokens,
+        finish_reason,
+        forward_input_positions,
+        cache_enabled,
     )

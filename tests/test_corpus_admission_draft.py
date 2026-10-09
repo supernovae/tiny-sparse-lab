@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 from test_corpus_record_admission import _mixed_fixture
 
+from sparselab.corpus.acquisition import declaration_sha256
 from sparselab.corpus.admission_draft import (
     _additional_draft_flags,
     draft_admission_manifest,
@@ -141,4 +142,84 @@ def test_draft_rejects_changed_reviewed_policy(
     output = root / "admission-draft.json"
     with pytest.raises(ValueError, match="policy document SHA-256 mismatch"):
         draft_admission_manifest(project, root, template, policy_document, output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "changed",
+    ("unchanged", "policy", "project", "lock", "declaration", "snapshot"),
+)
+def test_application_binding_fails_closed_before_draft(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    project, root, template_path, policy_document = _setup(tmp_path, monkeypatch)
+    lock_path = root / "corpora" / project.config.id / "acquisition.json"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = {
+        "project_sha256": "a" * 64,
+        "sources": {
+            source.id: {
+                "snapshot_path": str(
+                    next(
+                        (
+                            root
+                            / "corpora"
+                            / project.config.id
+                            / "snapshots"
+                            / source.id
+                        ).iterdir()
+                    )
+                ),
+                "declaration_sha256": declaration_sha256(source),
+                "snapshot_sha256": next(
+                    (
+                        root / "corpora" / project.config.id / "snapshots" / source.id
+                    ).iterdir()
+                ).name,
+            }
+            for source in project.sources
+        },
+    }
+    lock_path.write_text(json.dumps(lock))
+    monkeypatch.setattr(
+        "sparselab.corpus.admission_draft.verify_acquisition", lambda *_: lock
+    )
+    template = json.loads(template_path.read_text())
+    template["application_binding"] = {
+        "project_sha256": lock["project_sha256"],
+        "acquisition_lock_sha256": hashlib.sha256(lock_path.read_bytes()).hexdigest(),
+        "sources": {
+            source.id: {
+                "declaration_sha256": lock["sources"][source.id]["declaration_sha256"],
+                "snapshot_sha256": lock["sources"][source.id]["snapshot_sha256"],
+            }
+            for source in project.sources
+        },
+    }
+    if changed == "policy":
+        policy_document.write_text("Unreviewed replacement.\n")
+    elif changed == "project":
+        template["application_binding"]["project_sha256"] = "b" * 64
+    elif changed == "lock":
+        lock_path.write_text(json.dumps({**lock, "unexpected": True}))
+    elif changed in {"declaration", "snapshot"}:
+        source_id = project.sources[0].id
+        key = f"{changed}_sha256"
+        template["application_binding"]["sources"][source_id][key] = "b" * 64
+    template_path.write_text(json.dumps(template))
+    output = root / "application-draft.json"
+    if changed == "unchanged":
+        result = draft_admission_manifest(
+            project, root, template_path, policy_document, output
+        )
+        assert result["counts"] == {"qualify": 2, "exclude": 0, "quarantine": 2}
+        return
+    if changed == "policy":
+        error = "policy document SHA-256 mismatch"
+    elif changed in {"project", "lock"}:
+        error = "application-policy project or lock binding mismatch"
+    else:
+        error = "application-policy source binding mismatch"
+    with pytest.raises(ValueError, match=error):
+        draft_admission_manifest(project, root, template_path, policy_document, output)
     assert not output.exists()

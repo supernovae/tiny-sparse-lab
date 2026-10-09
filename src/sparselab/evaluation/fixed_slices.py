@@ -19,6 +19,8 @@ from torch.nn import functional
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.corpus.release import verify_release
 from sparselab.data.tokenizer import load_tokenizer, verify_tokenizer_artifact
+from sparselab.evaluation.generation_request import generate_result
+from sparselab.training.attempt_budget import AttemptBudget
 from sparselab.training.manifest import sha256_file
 from sparselab.verification_proofs import verification_options
 
@@ -290,10 +292,16 @@ def score_fixed_slices(
     output = []
     was_training = model.training
 
-    def charged(ids: list[int], first_target: int, count: int) -> float:
+    def charged(label: str, ids: list[int], first_target: int, count: int) -> float:
         nonlocal used, targets
         if used + len(ids) > max_forward_positions:
             raise ValueError("fixed profile forward-input cap exhausted")
+        if AttemptBudget.forward_allocation_active_from_environment():
+            AttemptBudget.reserve_forward_from_environment(
+                f"fixed:{bound.profile_sha256}:{mode}:{label}",
+                kind="fixed_profile",
+                positions=len(ids),
+            )
         used += len(ids)
         nll = score_window(
             model, ids, first_target=first_target, target_count=count, device=device
@@ -310,7 +318,7 @@ def score_fixed_slices(
                 tokens = bound.ids[row["document_id"]][
                     row["start_token"] : row["start_token"] + 257
                 ]
-                nll = charged(tokens, 1, 256)
+                nll = charged(row["id"], tokens, 1, 256)
                 output.append(
                     {
                         "id": row["id"],
@@ -328,8 +336,10 @@ def score_fixed_slices(
                 decoy = bound.ids[pair["decoy_document_id"]][
                     pair["decoy_start_token"] : pair["decoy_start_token"] + 32
                 ]
-                true_nll = charged(context + true, 64, 32)
-                decoy_nll = charged(context + decoy, 64, 32)
+                true_nll = charged(pair["slice_id"] + ":true", context + true, 64, 32)
+                decoy_nll = charged(
+                    pair["slice_id"] + ":decoy", context + decoy, 64, 32
+                )
                 output.append(
                     {
                         "id": pair["slice_id"],
@@ -373,3 +383,65 @@ def score_fixed_slices(
     else:
         result["preferred_true"] = sum(row["prefers_true"] for row in output)
     return result
+
+
+def generate_fixed_continuations(
+    bound: BoundFixedSlices,
+    model: torch.nn.Module,
+    device: torch.device,
+    max_seq_len: int,
+) -> dict[str, Any]:
+    """Generate the eight frozen plain-prose prompts with contracted decoding."""
+    if max_seq_len < 128:
+        raise ValueError("fixed continuation needs 128 context positions")
+    rows = {row["id"]: row for row in bound.profile["loss_slices"]}
+    output = []
+    actual_forward = 0
+    for continuation in bound.profile["continuations"]:
+        source = rows[continuation["slice_id"]]
+        start = continuation["prompt_start_token"]
+        prompt_ids = bound.ids[source["document_id"]][start : start + 64]
+        if len(prompt_ids) != 64:
+            raise ValueError("fixed continuation prompt is incomplete")
+        prompt = bound.tokenizer.decode(prompt_ids, skip_special_tokens=False)
+        if bound.tokenizer.encode(prompt, add_special_tokens=False).ids != prompt_ids:
+            raise ValueError("fixed continuation prompt IDs changed")
+        result = generate_result(
+            model,
+            bound.tokenizer,
+            prompt,
+            max_seq_len,
+            64,
+            device,
+            temperature=0,
+            top_k=0,
+            strict_context=True,
+            use_cache=True,
+            accounting_label=f"fixed:{bound.profile_sha256}:continuation:{continuation['slice_id']}",
+        )
+        actual_forward += result.forward_input_positions
+        output.append(
+            {
+                "slice_id": continuation["slice_id"],
+                "stratum": source["stratum"],
+                "prompt": prompt,
+                "prompt_ids": prompt_ids,
+                "completion": result.text[len(prompt) :],
+                "completion_ids": result.token_ids,
+                "finish_reason": result.finish_reason,
+                "forward_input_positions": result.forward_input_positions,
+                "cache_used": result.cache_used,
+            }
+        )
+    if len(output) != 8 or actual_forward > 8 * 6112:
+        raise ValueError("fixed continuation coverage or accounting mismatch")
+    return {
+        "mode": "continuations",
+        "profile_sha256": bound.profile_sha256,
+        "generation_calls": len(output),
+        "generated_tokens": sum(len(row["completion_ids"]) for row in output),
+        "requested_new_tokens": 64 * len(output),
+        "forward_input_positions_actual": actual_forward,
+        "forward_input_positions_reserved": 6112 * len(output),
+        "items": output,
+    }

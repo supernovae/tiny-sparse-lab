@@ -22,7 +22,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
@@ -36,6 +43,18 @@ class AttemptContract(BaseModel):
     max_actual_target_positions: int = Field(strict=True, ge=0)
     max_generation_calls: int = Field(strict=True, ge=0)
     max_generated_tokens: int = Field(strict=True, ge=0)
+    max_fixed_profile_forward_positions: int | None = Field(
+        default=None, strict=True, ge=0, exclude_if=lambda value: value is None
+    )
+    max_nontraining_forward_positions: int | None = Field(
+        default=None, strict=True, ge=0, exclude_if=lambda value: value is None
+    )
+    max_operational_validation_batches: int | None = Field(
+        default=None, strict=True, ge=0, exclude_if=lambda value: value is None
+    )
+    max_operational_validation_forward_positions: int | None = Field(
+        default=None, strict=True, ge=0, exclude_if=lambda value: value is None
+    )
     max_wall_seconds: float = Field(gt=0)
     content_identity_sha256: str
     monitor_policy_sha256: str
@@ -51,6 +70,26 @@ class AttemptContract(BaseModel):
         if not _SHA256.fullmatch(value):
             raise ValueError("contract identities must be lowercase SHA-256 digests")
         return value
+
+    @model_validator(mode="after")
+    def complete_forward_limits(self) -> AttemptContract:
+        fixed = self.max_fixed_profile_forward_positions
+        total = self.max_nontraining_forward_positions
+        if (fixed is None) != (total is None):
+            raise ValueError("both forward-input limits must be declared together")
+        if fixed is not None and total is not None and fixed > total:
+            raise ValueError("fixed-profile forward-input limit exceeds total")
+        batches = self.max_operational_validation_batches
+        validation = self.max_operational_validation_forward_positions
+        if (batches is None) != (validation is None):
+            raise ValueError(
+                "both operational validation limits must be declared together"
+            )
+        if validation is not None and (total is None or validation > total):
+            raise ValueError(
+                "operational validation limit exceeds forward-input allocation"
+            )
+        return self
 
 
 def load_attempt_contract(
@@ -178,7 +217,72 @@ class AttemptBudget:
                     raw_text,
                 ),
             )
+            if contract.max_nontraining_forward_positions is not None:
+                connection.execute(
+                    "CREATE TABLE forward_reservations ("
+                    "id INTEGER PRIMARY KEY, label TEXT NOT NULL UNIQUE, "
+                    "kind TEXT NOT NULL, positions INTEGER NOT NULL, "
+                    "content_identity_sha256 TEXT NOT NULL, reserved_ns INTEGER NOT NULL)"
+                )
         return budget
+
+    @staticmethod
+    def _forward_state(
+        connection: sqlite3.Connection, contract: AttemptContract
+    ) -> tuple[int, int, int, int] | None:
+        """Verify the optional append-only counters, including old-ledger absence."""
+        try:
+            present = (
+                connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                    "AND name = 'forward_reservations'"
+                ).fetchone()
+                is not None
+            )
+            enabled = contract.max_nontraining_forward_positions is not None
+            if present != enabled:
+                raise AttemptBudgetError(
+                    "forward-input ledger schema disagrees with contract"
+                )
+            if not enabled:
+                return None
+            rows = connection.execute(
+                "SELECT label, kind, positions, content_identity_sha256, reserved_ns "
+                "FROM forward_reservations"
+            ).fetchall()
+        except sqlite3.DatabaseError as error:
+            raise AttemptBudgetError("invalid forward-input ledger") from error
+        if any(
+            not isinstance(label, str)
+            or not label.strip()
+            or kind not in {"fixed_profile", "operational_validation", "generation"}
+            or type(positions) is not int
+            or positions <= 0
+            or identity != contract.content_identity_sha256
+            or type(reserved_ns) is not int
+            or reserved_ns <= 0
+            for label, kind, positions, identity, reserved_ns in rows
+        ) or len({row[0] for row in rows}) != len(rows):
+            raise AttemptBudgetError("invalid forward-input reservations")
+        fixed = sum(row[2] for row in rows if row[1] == "fixed_profile")
+        total = sum(row[2] for row in rows)
+        validation_rows = [row for row in rows if row[1] == "operational_validation"]
+        validation = sum(row[2] for row in validation_rows)
+        if (
+            contract.max_fixed_profile_forward_positions is None
+            or fixed > contract.max_fixed_profile_forward_positions
+            or total > contract.max_nontraining_forward_positions
+            or (
+                contract.max_operational_validation_batches is not None
+                and len(validation_rows) > contract.max_operational_validation_batches
+            )
+            or (
+                contract.max_operational_validation_forward_positions is not None
+                and validation > contract.max_operational_validation_forward_positions
+            )
+        ):
+            raise AttemptBudgetError("forward-input reservation total exceeds contract")
+        return fixed, total, len(validation_rows), validation
 
     @staticmethod
     def _version(connection: sqlite3.Connection) -> int:
@@ -273,6 +377,7 @@ class AttemptBudget:
             raise AttemptBudgetError(
                 "reservation total or identity disagrees with ledger"
             )
+        AttemptBudget._forward_state(connection, contract)
         return contract, maximum, used, row[4], row[5]
 
     def _connect(self) -> sqlite3.Connection:
@@ -434,6 +539,138 @@ class AttemptBudget:
             )
         )
 
+    def reserve_forward_positions(
+        self,
+        label: str,
+        *,
+        kind: Literal["fixed_profile", "operational_validation", "generation"],
+        positions: int,
+        content_identity_sha256: str,
+    ) -> dict[str, int]:
+        """Charge nontraining model inputs before the forward; never refund failures."""
+        if (
+            not label.strip()
+            or kind not in {"fixed_profile", "operational_validation", "generation"}
+            or type(positions) is not int
+            or positions <= 0
+        ):
+            raise ValueError(
+                "forward reservation needs a label, kind and positive positions"
+            )
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if self._version(connection) != 2:
+                raise AttemptBudgetError("forward reservations require a v2 ledger")
+            contract, _, _, _ = self._check_v2(connection)
+            if content_identity_sha256 != contract.content_identity_sha256:
+                raise AttemptBudgetError(
+                    "content identity differs from attempt contract"
+                )
+            state = self._forward_state(connection, contract)
+            if state is None:
+                raise AttemptBudgetError(
+                    "attempt contract has no forward-input allocation"
+                )
+            fixed, total, validation_batches, validation = state
+            if connection.execute(
+                "SELECT 1 FROM forward_reservations WHERE label = ?", (label,)
+            ).fetchone():
+                raise AttemptBudgetError("duplicate forward-input reservation label")
+            next_fixed = fixed + (positions if kind == "fixed_profile" else 0)
+            next_total = total + positions
+            fixed_limit = contract.max_fixed_profile_forward_positions
+            total_limit = contract.max_nontraining_forward_positions
+            assert fixed_limit is not None and total_limit is not None
+            if next_fixed > fixed_limit:
+                raise AttemptBudgetError(
+                    "shared fixed-profile forward-input limit reached"
+                )
+            if next_total > total_limit:
+                raise AttemptBudgetError(
+                    "shared nontraining forward-input limit reached"
+                )
+            if kind == "operational_validation" and (
+                (
+                    contract.max_operational_validation_batches is not None
+                    and validation_batches + 1
+                    > contract.max_operational_validation_batches
+                )
+                or (
+                    contract.max_operational_validation_forward_positions is not None
+                    and validation + positions
+                    > contract.max_operational_validation_forward_positions
+                )
+            ):
+                raise AttemptBudgetError("shared operational validation limit reached")
+            connection.execute(
+                "INSERT INTO forward_reservations "
+                "(label, kind, positions, content_identity_sha256, reserved_ns) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (label, kind, positions, content_identity_sha256, time.time_ns()),
+            )
+        return {
+            "fixed_profile_forward_positions": fixed_limit - next_fixed,
+            "nontraining_forward_positions": total_limit - next_total,
+        }
+
+    @staticmethod
+    def forward_allocation_active_from_environment() -> bool:
+        """Keep absent-field legacy attempts on their unchanged accounting path."""
+        path = os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")
+        if not path:
+            return False
+        budget = AttemptBudget(Path(path))
+        with budget._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if budget._version(connection) != 2:
+                return False
+            contract, _, _, _ = budget._check_v2(connection)
+            return contract.max_nontraining_forward_positions is not None
+
+    @staticmethod
+    def reserve_forward_from_environment(
+        label: str,
+        *,
+        kind: Literal["fixed_profile", "operational_validation", "generation"],
+        positions: int,
+    ) -> dict[str, int]:
+        """Bind a child-side reservation to the native owned attempt phase."""
+        path = os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")
+        identity = os.environ.get("SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256")
+        phase = os.environ.get("SPARSELAB_ATTEMPT_PHASE_LABEL")
+        if not path or not identity or not phase:
+            raise AttemptBudgetError("forward-input reservation lacks attempt binding")
+        return AttemptBudget(Path(path)).reserve_forward_positions(
+            f"{phase}:{label}",
+            kind=kind,
+            positions=positions,
+            content_identity_sha256=identity,
+        )
+
+    @staticmethod
+    def reserve_generation_from_environment(
+        label: str, *, requested_tokens: int, forward_positions: int
+    ) -> dict[str, int]:
+        """Precharge one request and its worst-case inputs in the shared ledger."""
+        path = os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")
+        identity = os.environ.get("SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256")
+        phase = os.environ.get("SPARSELAB_ATTEMPT_PHASE_LABEL")
+        if not path or not identity or not phase:
+            raise AttemptBudgetError("generation reservation lacks attempt binding")
+        budget = AttemptBudget(Path(path))
+        budget.reserve_vector(
+            f"{phase}:{label}:request",
+            generation_calls=1,
+            generated_tokens=requested_tokens,
+            content_identity_sha256=identity,
+        )
+        return budget.reserve_forward_positions(
+            f"{phase}:{label}:input",
+            kind="generation",
+            positions=forward_positions,
+            content_identity_sha256=identity,
+        )
+
     def _record_verified_actual(
         self,
         label: str,
@@ -485,6 +722,7 @@ class AttemptBudget:
         with self._connect() as connection:
             if self._version(connection) == 2:
                 contract, maximum, used, deadline_ns, _ = self._row_v2(connection)
+                forward = self._forward_state(connection, contract)
                 started_ns = connection.execute(
                     "SELECT started_ns FROM budget WHERE id = 1"
                 ).fetchone()[0]
@@ -493,7 +731,7 @@ class AttemptBudget:
                     "generated_tokens, actual_updates, actual_targets, actual_calls, "
                     "actual_tokens FROM reservations ORDER BY id"
                 ).fetchall()
-                return {
+                status = {
                     "version": 2,
                     "contract_sha256": connection.execute(
                         "SELECT contract_sha256 FROM budget WHERE id = 1"
@@ -542,6 +780,28 @@ class AttemptBudget:
                         ) in rows
                     ],
                 }
+                if forward is not None:
+                    forward_rows = connection.execute(
+                        "SELECT label, kind, positions FROM forward_reservations ORDER BY id"
+                    ).fetchall()
+                    status.update(
+                        max_fixed_profile_forward_positions=contract.max_fixed_profile_forward_positions,
+                        charged_fixed_profile_forward_positions=forward[0],
+                        max_nontraining_forward_positions=contract.max_nontraining_forward_positions,
+                        charged_nontraining_forward_positions=forward[1],
+                        forward_reservations=[
+                            {"label": label, "kind": kind, "positions": positions}
+                            for label, kind, positions in forward_rows
+                        ],
+                    )
+                    if contract.max_operational_validation_batches is not None:
+                        status.update(
+                            max_operational_validation_batches=contract.max_operational_validation_batches,
+                            charged_operational_validation_batches=forward[2],
+                            max_operational_validation_forward_positions=contract.max_operational_validation_forward_positions,
+                            charged_operational_validation_forward_positions=forward[3],
+                        )
+                return status
             _, maximum, used, deadline_ns, _ = self._row(connection)
             started_ns = connection.execute(
                 "SELECT started_ns FROM budget WHERE id = 1"

@@ -21,6 +21,7 @@ def _fixed_slices(args: argparse.Namespace) -> None:
     from sparselab.config.loading import load_tokenizer_config
     from sparselab.evaluation.fixed_slices import (
         bind_fixed_slices,
+        generate_fixed_continuations,
         score_fixed_slices,
     )
     from sparselab.evaluation.inference import load_run, write_inference_result
@@ -60,9 +61,14 @@ def _fixed_slices(args: argparse.Namespace) -> None:
         or loaded.identity["tokenizer_sha256"] != bound.profile["tokenizer_sha256"]
     ):
         raise ValueError("fixed profile requires the declared dense PyTorch tokenizer")
-    result = score_fixed_slices(
-        bound, loaded.model, loaded.device, args.mode, args.max_forward_positions
-    )
+    if args.fixed_command == "continuations":
+        result = generate_fixed_continuations(
+            bound, loaded.model, loaded.device, loaded.config.model.max_seq_len
+        )
+    else:
+        result = score_fixed_slices(
+            bound, loaded.model, loaded.device, args.mode, args.max_forward_positions
+        )
     result["identity"] = loaded.identity
     path = write_inference_result(loaded.run, "fixed-slices", result)
     _print({"output": str(path), **result}, args.json)
@@ -166,16 +172,16 @@ def register_evaluation_parser(
     run.set_defaults(handler=_suite_run)
     fixed = commands.add_parser("fixed-slices")
     fixed_actions = fixed.add_subparsers(dest="fixed_command", required=True)
-    for action in ("verify", "score"):
+    for action in ("verify", "score", "continuations"):
         command = fixed_actions.add_parser(action)
         command.add_argument("profile")
         command.add_argument("--release", required=True)
         command.add_argument("--tokenizer-config", required=True)
         command.add_argument("--family-inventory", required=True)
-        command.add_argument("--expected-profile-sha256", required=action == "score")
-        command.add_argument("--expected-family-sha256", required=action == "score")
+        command.add_argument("--expected-profile-sha256", required=action != "verify")
+        command.add_argument("--expected-family-sha256", required=action != "verify")
         command.add_argument("--json", action="store_true")
-        if action == "score":
+        if action in {"score", "continuations"}:
             command.add_argument("run_id")
             command.add_argument("--checkpoint", required=True)
             command.add_argument("--runs-dir", required=True)
@@ -183,10 +189,11 @@ def register_evaluation_parser(
             runtime = command.add_mutually_exclusive_group()
             runtime.add_argument("--runtime-profile")
             runtime.add_argument("--runtime", metavar="ID")
-            command.add_argument(
-                "--mode", choices=("validation", "test", "utility"), required=True
-            )
-            command.add_argument("--max-forward-positions", type=int, required=True)
+            if action == "score":
+                command.add_argument(
+                    "--mode", choices=("validation", "test", "utility"), required=True
+                )
+                command.add_argument("--max-forward-positions", type=int, required=True)
         command.set_defaults(handler=_fixed_slices)
 
 

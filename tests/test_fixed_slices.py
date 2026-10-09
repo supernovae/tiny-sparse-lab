@@ -14,6 +14,7 @@ from sparselab.corpus.mixture import MixtureDeclaration, _tokenizer
 from sparselab.evaluation.fixed_slices import (
     BoundFixedSlices,
     bind_fixed_slices,
+    generate_fixed_continuations,
     score_fixed_slices,
     score_window,
 )
@@ -387,3 +388,57 @@ def test_declared_nontraining_forward_allocation_closes():
         == budget["nontraining_reserved_input_positions"]
         <= budget["nontraining_max_input_positions"]
     )
+
+
+def test_frozen_continuation_command_binds_prompts_and_labels(monkeypatch):
+    from sparselab.evaluation import fixed_slices
+
+    calls = []
+    tokenizer = TinyTokenizer()
+    rows = []
+    prompts = []
+    ids = {}
+    for index in range(8):
+        identifier = f"slice-{index}"
+        rows.append(
+            {"id": identifier, "document_id": identifier, "stratum": "general_prose"}
+        )
+        prompts.append({"slice_id": identifier, "prompt_start_token": 0})
+        ids[identifier] = [65] * 64
+
+    def fake_generate(
+        model, tok, prompt, max_seq_len, max_new_tokens, device, **kwargs
+    ):
+        calls.append((prompt, max_seq_len, max_new_tokens, kwargs))
+        return SimpleNamespace(
+            text=prompt + "B",
+            token_ids=[66],
+            finish_reason="length",
+            forward_input_positions=64,
+            cache_used=True,
+        )
+
+    monkeypatch.setattr(fixed_slices, "generate_result", fake_generate)
+    bound = BoundFixedSlices(
+        {"loss_slices": rows, "continuations": prompts},
+        "a" * 64,
+        tokenizer,
+        ids,
+        {},
+        {},
+    )
+    result = generate_fixed_continuations(bound, object(), torch.device("cpu"), 1024)
+    assert (result["generation_calls"], result["generated_tokens"]) == (8, 8)
+    assert result["forward_input_positions_actual"] == 512
+    assert len({call[3]["accounting_label"] for call in calls}) == 8
+    assert all(
+        call[1:3] == (1024, 64)
+        and call[3]["temperature"] == 0
+        and call[3]["top_k"] == 0
+        and call[3]["strict_context"] is True
+        and call[3]["use_cache"] is True
+        for call in calls
+    )
+    assert all(row["completion"] == "B" for row in result["items"])
+    with pytest.raises(ValueError, match="128 context"):
+        generate_fixed_continuations(bound, object(), torch.device("cpu"), 127)

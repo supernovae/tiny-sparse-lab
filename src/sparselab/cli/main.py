@@ -3364,7 +3364,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     is_fixed_slices = (
         args.command == "evaluation"
         and args.evaluation_command == "fixed-slices"
-        and args.fixed_command == "score"
+        and args.fixed_command in {"score", "continuations"}
     )
     if not (
         is_legacy
