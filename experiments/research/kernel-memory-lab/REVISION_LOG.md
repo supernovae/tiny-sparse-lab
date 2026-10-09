@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-09.4 — prospective 50M launch packet, offline only
+
+- [C05-T3](results/2026-10-09-card05-50m-launch-packet.md) adds a valid prospective three-bucket acquisition declaration, unchanged source-rights application template, v3 release/mixture/run/monitor/contract templates and [the full binding map](CARD05_BASE_50M_LAUNCH_PACKET.md); runtime-created identities remain unresolved until verified.
+- Native fixed-validation selection now uses eleven verified checkpoint/score receipts with requested/effective config separation and an immutable pre-test choice. A parameterized protected-lineage audit replaces the B7-path-hardcoded comparison; baseline CLI exposure makes the distinct preparation and whole-attempt storage caps expressible without new orchestration.
+- Selected zero-model fixtures and safe static checks cover this packet. No 50M attempt or new corpus admission has occurred; B7/B8/B9, the original evaluations and Card 06 block remain unchanged.
+
 ## 2026-10-09.3 — reviewed mainline checkpoint and prospective 50M declaration
 
 - Recorded KML-D46 and [C05-P5](results/2026-10-09-card05-50m-planning.md): PR #55 merged the tested, whole-delta-reviewed branch into `main` at `58ac08e`, with both PR and main-push safe checks passing and all manual model suites skipped.

@@ -215,15 +215,18 @@ experiment or a merge.
   token-mixture path also checks the authenticated mask against the mixture
   receipt and run target. Both commands do no model work.
 
-- [ ] **Make fixed-validation checkpoint selection reusable for a fresh base run.**
+- [x] **Make fixed-validation checkpoint selection reusable for a fresh base run.**
   C05-B8's retained selector (SHA-256
   `1903a5c19c9d7ee85aeca774fc89069f7ef534311e0467ea3371f7769e164112`)
   correctly chose the earliest minimum finite fixed-validation loss, but
-  hard-codes its 25M run ID, config hash, steps and monitor paths. A prospective
-  50M selection needs a reviewed, identity-bound operation with that same
-  rule, all eleven declared checkpoints and scores, and a receipt sealed
-  before test scoring. Do not use the historical 5M selector or Campaign's
-  highest-step choice.
+  hard-codes its 25M run ID, config hash, steps and monitor paths. The native
+  `evaluation fixed-slices select DECLARATION --output RECEIPT` and
+  `verify-selection DECLARATION RECEIPT` now check all eleven declared
+  checkpoints and twelve validation windows each, distinguish requested from
+  staged effective config, select the earliest finite token-weighted minimum
+  and seal a receipt before test/prose outputs. Zero-model negative fixtures
+  cover missing, duplicate and substituted evidence. The 50M launch packet
+  records its prospective declaration; no runtime selection has occurred.
 
 - [x] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
   `corpus measure-tokens --tokenizer-origin-release ORIGIN --family-inventory

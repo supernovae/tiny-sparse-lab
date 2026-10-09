@@ -1,0 +1,18 @@
+# Render only after reviewing the exact new acquisition and admission rows.
+schema_version: 2
+publication_mode: metadata_reconstruction_only
+mixture:
+  general_prose: 0.81
+  explanatory_prose: 0.18
+  incident_response_docs: 0.01
+lm:
+  selected: true
+  training_splits: [train, validation]
+chat:
+  selected: false
+  training_splits: []
+keep_nonredistributable_local: true
+record_admission:
+  path: ${REVIEWED_ADMISSION_FILE}
+  sha256: ${REVIEWED_ADMISSION_SHA256}
+normalizer: normalizer-structure-v3

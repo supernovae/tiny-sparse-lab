@@ -1673,6 +1673,37 @@ def test_interrupted_wikimedia_acquisition_reuses_verified_snapshot(
     assert restored["sources"]["one"] == first["sources"]["one"]
 
 
+def test_verified_snapshot_alias_reused_across_project_ids_without_transfer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    xml = b"""<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xml:lang="en">
+<siteinfo><dbname>enwikibooks</dbname></siteinfo>
+<page><title>Programming/Python</title><ns>0</ns><id>17</id>
+<revision><id>93</id><timestamp>2026-08-31T00:00:00Z</timestamp>
+<text>Useful short programming explanation.</text></revision></page>
+</mediawiki>"""
+    recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, xml)
+    work = tmp_path / "work"
+    old = load_project(recipe)
+    old_lock = acquire(old, work)
+    old_snapshot = Path(old_lock["sources"]["one"]["snapshot_path"])
+    declaration = yaml.safe_load(recipe.read_text())
+    declaration["id"] = "new-project"
+    _yaml(recipe, declaration)
+    new = load_project(recipe)
+    alias = work / "corpora" / new.config.id / "snapshots" / "one" / old_snapshot.name
+    alias.parent.mkdir(parents=True)
+    alias.symlink_to(old_snapshot, target_is_directory=True)
+
+    def no_network() -> None:
+        raise AssertionError("verified snapshot alias must prevent a transfer")
+
+    monkeypatch.setattr(urllib.request, "build_opener", no_network)
+    new_lock = acquire(new, work)
+    assert new_lock["sources"]["one"]["snapshot_sha256"] == old_snapshot.name
+    assert acquire(new, work, offline=True) == new_lock
+
+
 def test_wikimedia_rejects_checksum_caps_and_doctype(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

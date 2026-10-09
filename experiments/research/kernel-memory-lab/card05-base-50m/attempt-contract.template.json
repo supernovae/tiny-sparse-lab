@@ -1,0 +1,15 @@
+{
+  "contract_version": 1,
+  "max_optimizer_updates": 48829,
+  "max_actual_target_positions": 50000000,
+  "max_generation_calls": 16,
+  "max_generated_tokens": 1024,
+  "max_fixed_profile_forward_positions": 55000,
+  "max_nontraining_forward_positions": 170000,
+  "max_operational_validation_batches": 11,
+  "max_operational_validation_forward_positions": 11264,
+  "max_wall_seconds": 36000.0,
+  "content_identity_sha256": "${SEALED_CONTENT_IDENTITY_SHA256}",
+  "monitor_policy_sha256": "${SEALED_MONITOR_POLICY_SHA256}",
+  "workspace_baseline_sha256": "${COMMON_STORAGE_BASELINE_SHA256}"
+}

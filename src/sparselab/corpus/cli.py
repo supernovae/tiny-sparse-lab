@@ -94,6 +94,22 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(result, sort_keys=True))
         return
+    if command == "audit-protected-lineage":
+        from sparselab.corpus.protected_lineage import audit_protected_lineage
+
+        result = audit_protected_lineage(
+            Path(args.prior_release),
+            Path(args.candidate_release),
+            Path(args.prior_inventory),
+            Path(args.candidate_inventory),
+            Path(args.profile),
+            Path(args.suite),
+            Path(args.output),
+        )
+        print(json.dumps(result, sort_keys=True))
+        if result["status"] != "PASS":
+            raise ValueError("protected evaluation lineage collision")
+        return
     if command in {"materialize-mixture", "verify-mixture"}:
         from sparselab.corpus.mixture import materialize_mixture, verify_mixture
 
@@ -275,6 +291,22 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("release")
     command.add_argument("--splits", required=True)
     command.add_argument("--output", required=True)
+    command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "audit-protected-lineage",
+        help="Cold-check protected evaluation documents against a candidate release",
+    )
+    for field in (
+        "prior-release",
+        "candidate-release",
+        "prior-inventory",
+        "candidate-inventory",
+        "profile",
+        "suite",
+        "output",
+    ):
+        command.add_argument(f"--{field}", required=True)
     command.add_argument("--json", action="store_true")
     command.set_defaults(handler=_handle)
     command = sub.add_parser(

@@ -1,0 +1,9 @@
+id: kml_scale_lm
+version: '1'
+kind: lm_text
+parameters: {}
+inputs:
+- kml_scale_pagerduty
+- kml_scale_project_gutenberg
+- kml_scale_scoutflo
+- kml_scale_wikimedia

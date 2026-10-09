@@ -3568,6 +3568,12 @@ def _read_only_command(args: argparse.Namespace) -> bool:
         return True
     if args.command == "data" and args.data_command == "prepared-inputs":
         return args.inputs_command == "verify"
+    if (
+        args.command == "evaluation"
+        and args.evaluation_command == "fixed-slices"
+        and args.fixed_command == "verify-selection"
+    ):
+        return True
     if args.command == "campaign":
         return args.campaign_command in READ_ONLY_COMMANDS
     if args.command == "recovery":

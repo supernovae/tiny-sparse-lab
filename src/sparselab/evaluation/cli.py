@@ -74,6 +74,20 @@ def _fixed_slices(args: argparse.Namespace) -> None:
     _print({"output": str(path), **result}, args.json)
 
 
+def _fixed_selection(args: argparse.Namespace) -> None:
+    from sparselab.evaluation.fixed_selection import (
+        select_fixed_validation,
+        verify_fixed_selection,
+    )
+
+    result = (
+        select_fixed_validation(Path(args.declaration), Path(args.output))
+        if args.fixed_command == "select"
+        else verify_fixed_selection(Path(args.declaration), Path(args.receipt))
+    )
+    _print(result, args.json)
+
+
 def _print(payload: dict, json_output: bool) -> None:
     print(
         json.dumps(payload, sort_keys=True)
@@ -195,6 +209,16 @@ def register_evaluation_parser(
                 )
                 command.add_argument("--max-forward-positions", type=int, required=True)
         command.set_defaults(handler=_fixed_slices)
+    select = fixed_actions.add_parser("select")
+    select.add_argument("declaration")
+    select.add_argument("--output", required=True)
+    select.add_argument("--json", action="store_true")
+    select.set_defaults(handler=_fixed_selection)
+    verify_selection = fixed_actions.add_parser("verify-selection")
+    verify_selection.add_argument("declaration")
+    verify_selection.add_argument("receipt")
+    verify_selection.add_argument("--json", action="store_true")
+    verify_selection.set_defaults(handler=_fixed_selection)
 
 
 def register_readiness_parser(subparsers: argparse._SubParsersAction) -> None:
