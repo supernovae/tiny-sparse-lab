@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D50 — retained-snapshot 50M attempt stopped at baseline binding, 2026-10-09
+
+- The owner approved one fresh conditional local attempt at exact clean `7b9fe21f27f74d215e761c0da2146657e6aaa611` under [the retained proposal](CARD05_BASE_50M_RETAINED_PROPOSAL.md) and corrected launch packet. It required four authenticated retained snapshots and zero network/metadata requests or transfer bytes, one persistent ledger and cumulative baseline, conditional v3 preparation, fresh training and bounded evaluation under all existing caps. No retry, resume, attempt restart, code change during execution, cloud use or Card 06 progression was approved.
+- [C05-B14](results/2026-10-09-card05-50m-attempt4-baseline-stop.md) records the one initialized ledger and first failed gate. The operator bound the common-baseline file hash rather than its embedded native identity; `attempt run` rejected the contract before reservation, monitor launch or offline acquisition. The transport ledger stayed unchanged, all model counters stayed zero and the owned supervisor reported no living descendants. The B14 allocation is spent. Its root and ledger and all B11–B13 evidence remain preserved. A corrected pre-ledger baseline binding and any fresh attempt require separate review and authority.
+
 ## KML-D49 — one fresh 50M attempt approved and stopped before family freeze, 2026-10-09
 
 - The owner approved one fresh conditional local 50M attempt at exact clean `23c20c284819835fd5070778d3d2898563c15889` under the revised launch packet and v2 source-effects project, with all numerical caps unchanged. This authorized one new ledger, retained-source verification, only the pinned additional Wikimedia transfer, conditional v3 preparation, fresh training and bounded evaluation; no restart, training retry/resume, code change during execution, extra source, cloud use or Card 06 progression.
