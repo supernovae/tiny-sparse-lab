@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D45 — one fresh B7-bound base training attempt approved, 2026-10-08
+
+- The owner approved one fresh local attempt under [CARD05_BASE_TRAINING_FROM_B7_PROPOSAL.md](CARD05_BASE_TRAINING_FROM_B7_PROPOSAL.md) at clean `f80079b0dc1ab05cf8ecaab9b0d31a2fefc015c4`, using the exact cold-verified B7 release, 25M mixture, sealed bundle, unchanged tokenizer/profile and fresh seed-17 weights. All declared accounting caps had to be enabled before model work. Stage validation had zero updates; the one training invocation could use at most 24,415 updates for exactly 25,000,000 supervised targets, with final masking. All eleven fixed validation scores had to precede checkpoint selection and test scoring.
+- Hard bounds: one 14,400-second ledger; 10,800-second stage/train/selection and 2,400-second evaluation phases; 20 GiB whole-device VRAM, 24 GiB process-tree RSS, 72 GiB cumulative added apparent storage and 10,000 entries against the unchanged baseline including retained B7 preparation; 55,000 fixed-profile and 170,000 aggregate nontraining forward-input positions; 16 calls/1,024 requested new tokens; 64 MiB evaluation output; two aggregate agent-assisted evaluation reviewer-hours. No acquisition, rebuild, retry, resume or cloud spend. Preserve earlier evidence and stop on failure.
+- Disposition: the single allocation was spent by [C05-B8](results/2026-10-08-card05-base-training-v4.md). Training, selection and bounded evaluation completed with reconciled counters and no monitor violation; the measured base-language quality is mixed and remains **READY FOR REVIEW**, not accepted or reader eligible. This decision supplies no further runtime authority. C05-N1 remains 0/200 and Card 06 remains blocked.
+
 ## KML-D44 — retained-snapshot family correction and preparation-only readiness approved, 2026-10-08
 
 - The owner authorized [one bounded preparation-only pass](CARD05_BASE_PREPARATION_V4.md) using the retained four snapshots, original cumulative storage baseline and existing preparation ceilings. No acquisition, GPU work, optimizer updates, generation or training is authorized. Preserve C05-B3/B4/B6 and their ledgers.
