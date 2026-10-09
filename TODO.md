@@ -228,6 +228,18 @@ experiment or a merge.
   cover missing, duplicate and substituted evidence. The 50M launch packet
   records its prospective declaration; no runtime selection has occurred.
 
+- [ ] **Make declared zero-counter corpus and evaluation phases executable under the native attempt contract.**
+  C05-B11 started the exact `80be807` 50M ledger but stopped at the first
+  preparation dispatch: `AttemptBudget._approved_counter_free_command` accepts
+  only inspect, triage, evidence and validation-only stage, while the reviewed
+  launch packet places native corpus acquisition, admission, split, build,
+  verification and fixed-profile evaluation/selection under `attempt run`.
+  Review a narrow typed command binding and phase monitor composition without
+  allowing arbitrary shell commands or unmetered model work. Acceptance needs
+  zero-model positive/negative tests for each allowed command shape, argument
+  substitution and subprocess effects, plus a revised exact-head launch packet.
+  Preserve the failed C05-B11 ledger; a fresh attempt requires separate authority.
+
 - [x] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
   `corpus measure-tokens --tokenizer-origin-release ORIGIN --family-inventory
   INVENTORY` now cold-authenticates the original tokenizer export and both
