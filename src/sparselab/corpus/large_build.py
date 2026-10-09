@@ -562,18 +562,29 @@ def _deduplicate(
     # validation/test isolation gate even for transitive overlaps.
     winner: dict[int, tuple[Any, ...]] = {}
     heldout_mask: dict[int, int] = defaultdict(int)
-    for number, split in connection.execute(
-        "SELECT rowid,split FROM documents ORDER BY rowid"
+    cleaning_mask: dict[int, int] = defaultdict(int)
+    for number, split, payload in connection.execute(
+        "SELECT rowid,split,payload FROM documents ORDER BY rowid"
     ):
         component = root(number)
         heldout_mask[component] |= (
             1 if split == "validation" else 2 if split == "test" else 0
+        )
+        cleaning_mask[component] |= (
+            2
+            if (json.loads(payload).get("structure") or {}).get("decision")
+            == "exclude_lm_metadata_only"
+            else 1
         )
     if any(mask == 3 for mask in heldout_mask.values()):
         _write_json(
             diagnostics, {"error": "validation/test page or paper origin overlap"}
         )
         raise ValueError("validation/test page or paper origin overlap")
+    if any(mask == 3 for mask in cleaning_mask.values()):
+        message = "discordant metadata-only cleaning decisions in duplicate component"
+        _write_json(diagnostics, {"error": message})
+        raise ValueError(message)
     for number, identifier, split, source_rank, kind in connection.execute(
         "SELECT rowid,document_id,split,source_rank,document_kind FROM documents ORDER BY rowid"
     ):
@@ -602,7 +613,7 @@ def _deduplicate(
         retained_split = winner[root(number)][5]
         reason = (
             "metadata_only_front_matter"
-            if json.loads(payload).get("structure", {}).get("decision")
+            if (json.loads(payload).get("structure") or {}).get("decision")
             == "exclude_lm_metadata_only"
             else "contaminated_heldout"
             if selected != identifier and split == "train" and retained_split != "train"

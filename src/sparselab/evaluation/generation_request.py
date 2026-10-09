@@ -7,6 +7,7 @@ context and cache-capability helpers here, with parity tests guarding trajectory
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from threading import Event
@@ -124,23 +125,30 @@ def generate_result(
     _check_cancelled(cancellation)
     if max_new_tokens == 0:
         return GenerationResult(prompt, [], prompt_length, 0, "length")
-    if (
-        AttemptBudget.forward_allocation_active_from_environment()
-        and accounting_label is None
-    ):
+    forward_allocation = AttemptBudget.forward_allocation_active_from_environment()
+    if forward_allocation and accounting_label is None:
         raise AttemptBudgetError("contracted generation requires an accounting label")
+    if (
+        accounting_label is not None
+        and os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")
+        and not forward_allocation
+    ):
+        raise AttemptBudgetError(
+            "labelled generation requires a forward-input allocation in the active ledger"
+        )
     if accounting_label is not None:
         if not accounting_label.strip():
             raise ValueError("generation accounting label must be nonempty")
-        worst_case_inputs = sum(
-            min(max_seq_len, prompt_length + generated)
-            for generated in range(max_new_tokens)
-        )
-        AttemptBudget.reserve_generation_from_environment(
-            accounting_label,
-            requested_tokens=max_new_tokens,
-            forward_positions=worst_case_inputs,
-        )
+        if forward_allocation:
+            worst_case_inputs = sum(
+                min(max_seq_len, prompt_length + generated)
+                for generated in range(max_new_tokens)
+            )
+            AttemptBudget.reserve_generation_from_environment(
+                accounting_label,
+                requested_tokens=max_new_tokens,
+                forward_positions=worst_case_inputs,
+            )
 
     source_bytes = bytearray(prompt.encode("utf-8")) if byte_memory else None
     addresses = (

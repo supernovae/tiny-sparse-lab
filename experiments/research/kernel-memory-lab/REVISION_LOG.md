@@ -1,5 +1,11 @@
 # Revision and synchronization log
 
+## 2026-10-09.2 — mainline delta and bounded source-span review
+
+- [C05-B10](results/2026-10-09-card05-mainline-review.md) reviews the complete merged-main-to-cleaning-branch delta and 24 deterministic high-exposure source locations. It identifies one small, systematic orphaned Wikimedia citation artifact and preserves other useful technical structure; C05-B9 remains NOT ADMITTED.
+- Focused native corrections bind split inventory to the selected normalizer, fail closed on discordant duplicate cleaning decisions and permit labelled standalone fixed continuations without weakening active attempt-ledger charging.
+- The accepted C05-B7 release, C05-B8 mixed result, C05-N1's 0/200 reader result and Card 06 block remain unchanged. No new scientific runtime or acquisition authority is created.
+
 ## 2026-10-09.1 — shared corpus and structure-cleaning candidate
 
 - [C05-B9](results/2026-10-09-card05-shared-corpus-cleaning-candidate.md) records an opt-in native structure normalizer, read-only export-binding inspection, selected offline tests and a retained-snapshot candidate from the reviewed `ca0ce581` lineage.

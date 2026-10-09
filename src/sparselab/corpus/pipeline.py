@@ -73,6 +73,18 @@ class NormalizedDocument(StrictModel):
     drop_reason: str | None = None
 
 
+def _require_consistent_cleaning_decisions(documents: list[dict[str, Any]]) -> None:
+    """Reject duplicate source rules that disagree about LM eligibility."""
+    decisions = {
+        (doc.get("structure") or {}).get("decision") == "exclude_lm_metadata_only"
+        for doc in documents
+    }
+    if len(decisions) > 1:
+        raise ValueError(
+            "discordant metadata-only cleaning decisions in duplicate component"
+        )
+
+
 class GenerationRecord(StrictModel):
     """Captured response with explicit, non-self-attested validation status."""
 
@@ -1887,6 +1899,17 @@ def build(
                     _json(staging / "audit.json", diagnostic)
                     _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
                     raise ValueError("validation/test page or paper origin overlap")
+                try:
+                    _require_consistent_cleaning_decisions([by_id[i] for i in ids])
+                except ValueError as error:
+                    diagnostic = {
+                        "duplicates": duplicate_groups,
+                        "rejected": rejected,
+                        "error": str(error),
+                    }
+                    _json(staging / "audit.json", diagnostic)
+                    _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
+                    raise
                 priority = next(iter(heldout)) if heldout else None
                 selected = min(
                     ids,
@@ -1913,7 +1936,7 @@ def build(
             doc["representative_id"] = representative[doc["document_id"]]
             doc["drop_reason"] = (
                 "metadata_only_front_matter"
-                if doc.get("structure", {}).get("decision")
+                if (doc.get("structure") or {}).get("decision")
                 == "exclude_lm_metadata_only"
                 else (
                     "contaminated_heldout"

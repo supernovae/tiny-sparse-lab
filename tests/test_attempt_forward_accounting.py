@@ -295,3 +295,64 @@ def test_generation_exhaustion_rejects_before_model_access(
             accounting_label="first",
         )
     assert budget.status()["charged_nontraining_forward_positions"] == 0
+
+
+def test_standalone_accounting_label_does_not_require_a_ledger_or_forward(
+    monkeypatch,
+) -> None:
+    for name in (
+        "SPARSELAB_ATTEMPT_BUDGET_LEDGER",
+        "SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256",
+        "SPARSELAB_ATTEMPT_PHASE_LABEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        AttemptBudget,
+        "reserve_generation_from_environment",
+        lambda *args, **kwargs: pytest.fail("standalone request attempted a charge"),
+    )
+
+    class Tokenizer:
+        def encode(self, _prompt, *, add_special_tokens):
+            assert add_special_tokens is False
+            return SimpleNamespace(ids=[4])
+
+        def token_to_id(self, _name):
+            raise RuntimeError("stopped before decoding or model forward")
+
+    with pytest.raises(RuntimeError, match="stopped before decoding"):
+        generate_result(
+            SimpleNamespace(config=SimpleNamespace(memory="none")),
+            Tokenizer(),
+            "prompt",
+            128,
+            1,
+            torch.device("cpu"),
+            accounting_label="standalone-fixed-prompt",
+        )
+
+
+def test_labelled_generation_rejects_legacy_ledger_before_model_access(
+    tmp_path: Path, monkeypatch
+) -> None:
+    budget, identity, _ = _ledger(tmp_path, forward=False)
+    _environment(monkeypatch, budget, identity)
+
+    class Tokenizer:
+        def encode(self, _prompt, *, add_special_tokens):
+            assert add_special_tokens is False
+            return SimpleNamespace(ids=[4])
+
+        def token_to_id(self, _name):
+            pytest.fail("decoder was entered without a forward-input allocation")
+
+    with pytest.raises(AttemptBudgetError, match="requires a forward-input allocation"):
+        generate_result(
+            SimpleNamespace(config=SimpleNamespace(memory="none")),
+            Tokenizer(),
+            "prompt",
+            128,
+            1,
+            torch.device("cpu"),
+            accounting_label="legacy-ledger-fixed-prompt",
+        )

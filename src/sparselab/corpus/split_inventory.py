@@ -166,6 +166,10 @@ def write_split_inventory(
                         source,
                         entry["snapshot_sha256"],
                         file_rights=file_rights,
+                        normalizer_version=getattr(
+                            getattr(project, "release", None), "normalizer", None
+                        )
+                        or "normalizer-nfc-markdown-v1",
                     ):
                         index = document.get("metadata", {}).get("source_row_index")
                         if (

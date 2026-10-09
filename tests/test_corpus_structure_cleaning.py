@@ -13,7 +13,10 @@ import yaml
 from sparselab.config.loading import load_config
 from sparselab.config.models import RunConfig
 from sparselab.corpus.large_build import _deduplicate, _index_prepared, _prepare_file
-from sparselab.corpus.pipeline import _records_for_file
+from sparselab.corpus.pipeline import (
+    _records_for_file,
+    _require_consistent_cleaning_decisions,
+)
 from sparselab.corpus.progress import BuildProgress
 from sparselab.corpus.project import (
     ReleaseDeclaration,
@@ -22,6 +25,7 @@ from sparselab.corpus.project import (
     release_declaration_payload,
 )
 from sparselab.corpus.release import _verify_structure_replay
+from sparselab.corpus.split_inventory import write_split_inventory
 from sparselab.corpus.structure_cleaning import (
     NORMALIZER_V2,
     NORMALIZER_V3,
@@ -362,3 +366,102 @@ def test_two_configs_share_exact_dataset_export_and_cache_without_copy(
         )
         assert loaded.dataset.cache_dir == exported / "prepared"
     assert not shared.exists() and not exported.exists()  # declarations never copy data
+
+
+def test_split_inventory_uses_declared_normalizer_and_preserves_legacy_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _local_source()
+    raw = b"---\ntitle: Playbook\n---\nUseful body prose.\n"
+    snapshot = tmp_path / "snapshot"
+    (snapshot / "files").mkdir(parents=True)
+    (snapshot / "files" / "doc.md").write_bytes(raw)
+    (snapshot / "manifest.json").write_text(json.dumps({"files": [{"path": "doc.md"}]}))
+    monkeypatch.setattr(
+        "sparselab.corpus.split_inventory.verify_acquisition",
+        lambda *_: {
+            "sources": {
+                source.id: {
+                    "snapshot_path": str(snapshot),
+                    "snapshot_sha256": "a" * 64,
+                }
+            }
+        },
+    )
+    for normalizer in (None, NORMALIZER_V3):
+        project = SimpleNamespace(
+            config=SimpleNamespace(id="normalizer-inventory-fixture"),
+            sources=[source],
+            release=SimpleNamespace(normalizer=normalizer),
+        )
+        destination = tmp_path / f"inventory-{normalizer or 'legacy'}.jsonl"
+        write_split_inventory(project, tmp_path, destination)
+        inventory = [json.loads(line) for line in destination.read_text().splitlines()]
+        expected = _records_for_file(
+            raw,
+            "doc.md",
+            source,
+            "a" * 64,
+            normalizer_version=normalizer or "normalizer-nfc-markdown-v1",
+        )
+        assert [row["document_id"] for row in inventory] == [
+            document["document_id"] for document, _ in expected
+        ]
+        assert [row["content_sha256"] for row in inventory] == [
+            document["content_sha256"] for document, _ in expected
+        ]
+    assert inventory[0]["content_sha256"] != hashlib.sha256(raw).hexdigest()
+
+
+def test_large_dedup_rejects_discordant_metadata_and_config_decisions(
+    tmp_path: Path,
+) -> None:
+    raw = b"---\ncover: image.png\n---\n"
+    sources = [
+        _local_source().model_copy(update={"id": source_id})
+        for source_id in ("kml_scale_pagerduty", "other_config")
+    ]
+    prepared_roots = []
+    pairs = []
+    for index, source in enumerate(sources):
+        pair = _records_for_file(
+            raw,
+            "doc.md",
+            source,
+            str(index + 1) * 64,
+            normalizer_version=NORMALIZER_V3,
+        )[0]
+        pairs.append(pair)
+        prepared = tmp_path / source.id
+        prepared.mkdir()
+        for name, position in (("docs.jsonl", 0), ("spans.jsonl", 1)):
+            (prepared / name).write_text(json.dumps(pair[position]) + "\n")
+        prepared_roots.append(prepared)
+    assert pairs[0][0]["drop_reason"] == "metadata_only_front_matter"
+    assert pairs[1][0].get("drop_reason") is None
+    with pytest.raises(ValueError, match="discordant metadata-only"):
+        _require_consistent_cleaning_decisions([document for document, _ in pairs])
+    splits = SplitDeclaration.model_validate(
+        {
+            "schema_version": 1,
+            "unit": "document",
+            "family_key": None,
+            "assignments": {doc["document_id"]: "train" for doc, _ in pairs},
+        }
+    )
+    project = SimpleNamespace(sources=sources, splits=splits)
+    progress = BuildProgress(tmp_path / "progress.jsonl", "discordant-cleaning")
+    connection = _index_prepared(
+        tmp_path / "index.sqlite", prepared_roots, project, progress
+    )
+    try:
+        with pytest.raises(ValueError, match="discordant metadata-only"):
+            _deduplicate(
+                connection,
+                tmp_path / "groups.jsonl",
+                diagnostics=tmp_path / "diagnostics.json",
+                progress=progress,
+            )
+        assert "discordant metadata-only" in (tmp_path / "diagnostics.json").read_text()
+    finally:
+        connection.close()
