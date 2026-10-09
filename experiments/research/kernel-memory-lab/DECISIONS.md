@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D48 — one fresh 50M attempt approved and stopped at source reuse, 2026-10-09
+
+- The owner approved one fresh conditional local 50M attempt at exact clean `cbd69d087885c020fbc20c849a9d29604581b462` under the revised [launch packet](CARD05_BASE_50M_LAUNCH_PACKET.md) and unchanged [proposal](CARD05_BASE_50M_PROPOSAL.md). The approval covered one ledger, retained-source reuse and only the declared additional Wikimedia acquisition, prospective v3 preparation, fresh seed-17 training and bounded fixed evaluation, all under the existing numerical caps. It expressly disallowed attempt restart, code changes during execution, training retry/resume, extra sources, cloud use and Card 06 progression.
+- [C05-B12](results/2026-10-09-card05-50m-attempt2-source-reuse-stop.md) records the new ledger and first failed gate: the live native acquisition path rejected cold-verified symlink aliases under path-bound proof verification and downloaded retained-source bytes. The operator stopped the owned phase before any Wikimedia transfer or model work. Its transport charges, partial files and receipts remain preserved; owned descendants exited. This one approved attempt is spent. C05-B11 remains a separate unchanged stopped attempt. A native reuse correction and any future runtime allocation require separate review.
+
 ## KML-D47 — conditional 50M approval stopped pre-ledger; origin measurement fix, 2026-10-09
 
 - The owner approved one conditional preparation, source transfer, fresh 50M-target training and bounded evaluation attempt under [the proposal](CARD05_BASE_50M_PROPOSAL.md) at exact `e4f3bfa702923e3294f97f072287d41d2fad726e`. The pre-ledger review found that public `corpus measure-tokens` could not bind the unchanged C03-C1 tokenizer to a new v3 release. No attempt ledger, common baseline, source request or model work began; the approved allocation was not consumed.

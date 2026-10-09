@@ -246,6 +246,19 @@ experiment or a merge.
   corpus admission remain unqualified; C05-B11 is still stopped and a fresh
   attempt requires separate authority.
 
+- [ ] **Make cold-verified retained snapshot aliases reusable by the live native acquisition path.**
+  C05-B12 cold-verified and aliased three immutable retained snapshots, but
+  `corpus acquire` used `verified_reuse`, whose path-bound artifact verifier
+  rejected the symlinked alias. The acquisition loop caught that failure and
+  downloaded retained PagerDuty, Gutenberg and Scoutflo bytes instead of
+  proceeding to the sole new Wikimedia selection. Preserve C05-B12's spent
+  ledger, charged transport and partial evidence. A focused fix must bind a
+  reviewed immutable origin/location without weakening path-bound receipts;
+  live acquisition must fail before network if a declared retained alias is
+  unverifiable. Test the actual CLI/verified-reuse path with mocked transport,
+  proving zero retained-source requests, exact source identity and cold readback.
+  Do not use a cold-only fixture as proof of live reuse or restart C05-B12.
+
 - [x] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
   `corpus measure-tokens --tokenizer-origin-release ORIGIN --family-inventory
   INVENTORY` now cold-authenticates the original tokenizer export and both
