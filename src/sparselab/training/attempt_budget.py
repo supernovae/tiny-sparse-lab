@@ -31,6 +31,8 @@ from pydantic import (
     model_validator,
 )
 
+from sparselab.training.attempt_commands import classify_attempt_command
+
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -59,6 +61,27 @@ class AttemptContract(BaseModel):
     content_identity_sha256: str
     monitor_policy_sha256: str
     workspace_baseline_sha256: str
+    acquisition_project_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    fixed_profile_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    fixed_family_inventory_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    preparation_monitor_policy_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    evaluation_monitor_policy_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    require_resolved_train_config_binding: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
+    require_evaluation_baseline_binding: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
 
     @field_validator(
         "content_identity_sha256",
@@ -69,6 +92,19 @@ class AttemptContract(BaseModel):
     def valid_sha256(cls, value: str) -> str:
         if not _SHA256.fullmatch(value):
             raise ValueError("contract identities must be lowercase SHA-256 digests")
+        return value
+
+    @field_validator(
+        "preparation_monitor_policy_sha256",
+        "evaluation_monitor_policy_sha256",
+        "acquisition_project_sha256",
+        "fixed_profile_sha256",
+        "fixed_family_inventory_sha256",
+    )
+    @classmethod
+    def valid_optional_sha256(cls, value: str | None) -> str | None:
+        if value is not None and not _SHA256.fullmatch(value):
+            raise ValueError("monitor identities must be lowercase SHA-256 digests")
         return value
 
     @model_validator(mode="after")
@@ -157,6 +193,98 @@ class AttemptBudget:
                 (max_updates, started_ns, deadline_ns, started_ns),
             )
         return budget
+
+    def bind_resolved_artifact(
+        self,
+        *,
+        kind: Literal["train_config", "evaluation_baseline"],
+        path: Path,
+        expected_sha256: str,
+        content_identity_sha256: str,
+        workspace_root: Path,
+    ) -> dict[str, str]:
+        """Seal one late-produced input without changing the original contract."""
+        if kind not in {"train_config", "evaluation_baseline"}:
+            raise AttemptBudgetError("unsupported resolved artifact kind")
+        if not _SHA256.fullmatch(expected_sha256):
+            raise AttemptBudgetError("resolved artifact SHA-256 is invalid")
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            raise AttemptBudgetError(
+                "resolved artifact must be an existing absolute file"
+            )
+        root = workspace_root.resolve(strict=True)
+        if root != path.parent.resolve() and root not in path.parent.resolve().parents:
+            raise AttemptBudgetError("resolved artifact is outside attempt workspace")
+        self.remaining_seconds()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            contract, _, _, _ = self._check_v2(connection)
+            if content_identity_sha256 != contract.content_identity_sha256:
+                raise AttemptBudgetError("resolved artifact contract identity mismatch")
+            if kind == "train_config":
+                from sparselab.config.loading import load_config
+
+                load_config(path)
+            else:
+                from sparselab.operational_monitor import load_workspace_baseline
+
+                load_workspace_baseline(path, root)
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual != expected_sha256:
+                raise AttemptBudgetError("resolved artifact bytes differ")
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS resolved_artifacts ("
+                "kind TEXT PRIMARY KEY, path TEXT NOT NULL, sha256 TEXT NOT NULL, "
+                "content_identity_sha256 TEXT NOT NULL, bound_ns INTEGER NOT NULL)"
+            )
+            try:
+                connection.execute(
+                    "INSERT INTO resolved_artifacts VALUES (?, ?, ?, ?, ?)",
+                    (kind, str(path), actual, content_identity_sha256, time.time_ns()),
+                )
+            except sqlite3.IntegrityError as error:
+                raise AttemptBudgetError(
+                    "resolved artifact is already bound"
+                ) from error
+        return {"kind": kind, "path": str(path), "sha256": actual}
+
+    def _resolved_artifact(
+        self, kind: str, *, workspace_root: Path
+    ) -> tuple[Path, str] | None:
+        with self._connect() as connection:
+            contract, _, _, _ = self._check_v2(connection)
+            present = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='resolved_artifacts'"
+            ).fetchone()
+            if not present:
+                return None
+            row = connection.execute(
+                "SELECT path, sha256, content_identity_sha256 FROM resolved_artifacts "
+                "WHERE kind=?",
+                (kind,),
+            ).fetchone()
+        if row is None:
+            return None
+        path, digest, identity = row
+        root = workspace_root.resolve(strict=True)
+        if (
+            identity != contract.content_identity_sha256
+            or not isinstance(path, str)
+            or not isinstance(digest, str)
+            or not Path(path).is_absolute()
+            or Path(path).is_symlink()
+            or (
+                root != Path(path).parent.resolve()
+                and root not in Path(path).parent.resolve().parents
+            )
+            or hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest
+        ):
+            raise AttemptBudgetError("resolved artifact identity changed")
+        if kind == "evaluation_baseline":
+            from sparselab.operational_monitor import load_workspace_baseline
+
+            load_workspace_baseline(Path(path), root)
+        return Path(path), digest
 
     @classmethod
     def create_contract(
@@ -671,6 +799,46 @@ class AttemptBudget:
             content_identity_sha256=identity,
         )
 
+    @staticmethod
+    def require_fixed_evaluation_allocation_from_environment(
+        *, fixed_positions: int, total_positions: int, calls: int, tokens: int
+    ) -> None:
+        """Refuse contracted model loading when its durable allowance is absent."""
+        keys = (
+            "SPARSELAB_ATTEMPT_BUDGET_LEDGER",
+            "SPARSELAB_ATTEMPT_CONTENT_IDENTITY_SHA256",
+            "SPARSELAB_ATTEMPT_PHASE_LABEL",
+            "SPARSELAB_ATTEMPT_ACTIVITY",
+        )
+        present = [bool(os.environ.get(key)) for key in keys]
+        if not any(present):
+            return  # Historical direct evaluation has no attempt contract.
+        if not all(present) or os.environ[keys[3]] != "evaluate":
+            raise AttemptBudgetError("fixed evaluation lacks an owned attempt binding")
+        budget = AttemptBudget(Path(os.environ[keys[0]]))
+        with budget._connect() as connection:
+            contract, _, _, _ = budget._check_v2(connection)
+            forward = budget._forward_state(connection, contract)
+        status = budget.status()
+        if (
+            os.environ[keys[1]] != contract.content_identity_sha256
+            or not any(
+                row["label"] == os.environ[keys[2]] and row["actual_updates"] is None
+                for row in status["reservations"]
+            )
+            or forward is None
+            or contract.max_fixed_profile_forward_positions is None
+            or contract.max_nontraining_forward_positions is None
+            or forward[0] + fixed_positions
+            > contract.max_fixed_profile_forward_positions
+            or forward[1] + total_positions > contract.max_nontraining_forward_positions
+            or status["charged_generation_calls"] + calls
+            > contract.max_generation_calls
+            or status["charged_generated_tokens"] + tokens
+            > contract.max_generated_tokens
+        ):
+            raise AttemptBudgetError("fixed evaluation lacks declared model allocation")
+
     def _record_verified_actual(
         self,
         label: str,
@@ -780,6 +948,16 @@ class AttemptBudget:
                         ) in rows
                     ],
                 }
+                if connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='resolved_artifacts'"
+                ).fetchone():
+                    status["resolved_artifacts"] = [
+                        {"kind": kind, "path": path, "sha256": digest}
+                        for kind, path, digest in connection.execute(
+                            "SELECT kind, path, sha256 FROM resolved_artifacts ORDER BY kind"
+                        )
+                    ]
                 if forward is not None:
                     forward_rows = connection.execute(
                         "SELECT label, kind, positions FROM forward_reservations ORDER BY id"
@@ -898,6 +1076,201 @@ class AttemptBudget:
             contract, _, _, _, _ = self._row_v2(connection)
         if content_identity_sha256 != contract.content_identity_sha256:
             raise AttemptBudgetError("content identity differs from attempt contract")
+        try:
+            classified = classify_attempt_command(command)
+        except ValueError as error:
+            raise AttemptBudgetError(str(error)) from error
+        if (
+            classified.work_dir is not None
+            and classified.work_dir.resolve() != resolved_root
+        ):
+            raise AttemptBudgetError("native work directory differs from attempt root")
+        if "--output" in classified.options:
+            output = Path(str(classified.options["--output"]))
+            if not output.is_absolute() or (
+                output.parent.resolve() != resolved_root
+                and resolved_root not in output.parent.resolve().parents
+            ):
+                raise AttemptBudgetError("native output is outside the attempt root")
+        if classified.monitor is not None:
+            log_dir = Path(classified.monitor["--log-dir"])
+            if (
+                log_dir.parent.resolve() != resolved_root
+                and resolved_root not in log_dir.parent.resolve().parents
+            ):
+                raise AttemptBudgetError(
+                    "nested monitor logs are outside the attempt root"
+                )
+        if (
+            classified.operation == "monitor-baseline"
+            and Path(classified.args[1]).resolve() != resolved_root
+        ):
+            raise AttemptBudgetError("monitor baseline root differs from attempt root")
+        if (
+            classified.operation == "attempt status"
+            and Path(str(classified.options["--ledger"])) != self.path
+        ):
+            raise AttemptBudgetError("nested attempt status points at another ledger")
+        if (
+            classified.operation
+            in {
+                "corpus budget-init",
+                "corpus alias-snapshot",
+                "corpus acquire",
+                "corpus admission-draft",
+                "corpus split-inventory",
+                "corpus freeze-splits",
+            }
+            and contract.acquisition_project_sha256 is not None
+            and hashlib.sha256(Path(classified.args[2]).read_bytes()).hexdigest()
+            != contract.acquisition_project_sha256
+        ):
+            raise AttemptBudgetError("acquisition project differs from contract")
+        if classified.effect in {"fixed_score", "continuation"} and (
+            (
+                contract.fixed_profile_sha256 is not None
+                and classified.options["--expected-profile-sha256"]
+                != contract.fixed_profile_sha256
+            )
+            or (
+                contract.fixed_family_inventory_sha256 is not None
+                and classified.options["--expected-family-sha256"]
+                != contract.fixed_family_inventory_sha256
+            )
+        ):
+            raise AttemptBudgetError("fixed evaluation identity differs from contract")
+        if classified.effect == "train" and activity != "train":
+            raise AttemptBudgetError("training command requires training activity")
+        if (
+            classified.effect in {"fixed_score", "continuation"}
+            and activity != "evaluate"
+        ):
+            raise AttemptBudgetError(
+                "fixed model evaluation requires evaluation activity"
+            )
+        if classified.effect not in {"train", "campaign"} and activity == "train":
+            raise AttemptBudgetError("training activity requires native training")
+        if classified.effect == "campaign" and native_receipt_kind not in {
+            "campaign_run",
+            "campaign_panel",
+            "campaign_evaluation",
+        }:
+            raise AttemptBudgetError("Campaign work requires a native stage receipt")
+        if classified.monitor is not None:
+            nested = classified.monitor
+            policy_digest = hashlib.sha256(
+                Path(nested["--policy"]).read_bytes()
+            ).hexdigest()
+            preparation_wrapper = (
+                policy_digest == contract.preparation_monitor_policy_sha256
+                and Path(nested["--baseline"]) == workspace_baseline_path
+                and classified.effect not in {"fixed_score", "continuation"}
+            )
+            evaluation_baseline = self._resolved_artifact(
+                "evaluation_baseline", workspace_root=resolved_root
+            )
+            evaluation_wrapper = (
+                policy_digest == contract.evaluation_monitor_policy_sha256
+                and evaluation_baseline is not None
+                and Path(nested["--baseline"]) == evaluation_baseline[0]
+            )
+            if Path(nested["--workspace"]).resolve() != resolved_root or not (
+                preparation_wrapper or evaluation_wrapper
+            ):
+                raise AttemptBudgetError("nested monitor policy or baseline is unbound")
+        if (
+            classified.effect in {"fixed_score", "continuation"}
+            and contract.require_evaluation_baseline_binding
+            and (
+                classified.monitor is None
+                or hashlib.sha256(
+                    Path(classified.monitor["--policy"]).read_bytes()
+                ).hexdigest()
+                != contract.evaluation_monitor_policy_sha256
+            )
+        ):
+            raise AttemptBudgetError(
+                "fixed evaluation requires the bound output monitor"
+            )
+        if classified.operation == "corpus acquire" and not classified.options.get(
+            "--offline"
+        ):
+            from sparselab.corpus.project import load_project
+            from sparselab.corpus.transport_budget import TransportBudget
+
+            project = load_project(Path(classified.args[2]))
+            if project.config.transport_budget is None:
+                raise AttemptBudgetError(
+                    "live corpus acquisition requires a transport budget"
+                )
+            TransportBudget(
+                resolved_root
+                / "corpora"
+                / project.config.id
+                / "transport-budget.sqlite",
+                project,
+            )
+        train_binding = self._resolved_artifact(
+            "train_config", workspace_root=resolved_root
+        )
+        if (
+            classified.operation
+            in {
+                "evaluation fixed-slices select",
+                "evaluation fixed-slices verify-selection",
+            }
+            and contract.fixed_profile_sha256 is not None
+        ):
+            try:
+                declaration = json.loads(Path(classified.args[3]).read_text())
+            except (OSError, ValueError) as error:
+                raise AttemptBudgetError(
+                    "fixed selection declaration cannot be read"
+                ) from error
+            if not isinstance(declaration, dict) or (
+                declaration.get("profile_sha256") != contract.fixed_profile_sha256
+                or (
+                    contract.require_resolved_train_config_binding
+                    and (
+                        train_binding is None
+                        or declaration.get("config_sha256") != train_binding[1]
+                        or declaration.get("config") != str(train_binding[0])
+                    )
+                )
+            ):
+                raise AttemptBudgetError(
+                    "fixed selection declaration differs from attempt binding"
+                )
+        if (
+            classified.effect in {"stage", "train"}
+            and contract.require_resolved_train_config_binding
+            and (train_binding is None or Path(classified.args[1]) != train_binding[0])
+        ):
+            raise AttemptBudgetError("resolved training config is not bound")
+        if (
+            contract.require_resolved_train_config_binding
+            and classified.effect == "stage"
+            and not {
+                "--prepared-inputs",
+                "--cold-verify",
+                "--runtime",
+                "--resource-envelope",
+            }.issubset(classified.options)
+        ):
+            raise AttemptBudgetError("stage differs from resolved packet binding")
+        if (
+            contract.require_resolved_train_config_binding
+            and classified.effect == "train"
+            and not {"--stage-bundle", "--runtime", "--resource-envelope"}.issubset(
+                classified.options
+            )
+        ):
+            raise AttemptBudgetError("train differs from resolved packet binding")
+        train_identity = (
+            train_binding[1]
+            if classified.effect == "train" and train_binding is not None
+            else content_identity_sha256
+        )
         if activity not in {"train", "warmup", "validate", "evaluate", "inspect"}:
             raise ValueError("unknown attempt activity")
         if contract.max_optimizer_updates == 0 and activity in ("train", "warmup"):
@@ -921,12 +1294,41 @@ class AttemptBudget:
         reserved = (updates, target_positions, generation_calls, generated_tokens)
         if native_receipt_kind == "none" and any(reserved):
             raise AttemptBudgetError("nonzero reservation requires a native receipt")
-        if native_receipt_kind == "none" and not self._approved_counter_free_command(
-            command
+        metered_fixed = classified.effect in {"fixed_score", "continuation"}
+        if native_receipt_kind == "none" and not (
+            self._approved_counter_free_command(command) or metered_fixed
         ):
             raise AttemptBudgetError(
-                "counter-free phase requires a safe native read-only command"
+                "counter-free phase requires an explicit supported native command"
             )
+        if metered_fixed:
+            status = self.status()
+            required_fixed = (
+                int(classified.options["--max-forward-positions"])
+                if classified.effect == "fixed_score"
+                else 0
+            )
+            required_total = required_fixed if required_fixed else 8 * 6112
+            if (
+                contract.max_nontraining_forward_positions is None
+                or contract.max_fixed_profile_forward_positions is None
+                or status["charged_nontraining_forward_positions"] + required_total
+                > contract.max_nontraining_forward_positions
+                or status["charged_fixed_profile_forward_positions"] + required_fixed
+                > contract.max_fixed_profile_forward_positions
+                or (
+                    classified.effect == "continuation"
+                    and (
+                        status["charged_generation_calls"] + 8
+                        > contract.max_generation_calls
+                        or status["charged_generated_tokens"] + 512
+                        > contract.max_generated_tokens
+                    )
+                )
+            ):
+                raise AttemptBudgetError(
+                    "fixed evaluation lacks declared model allocation"
+                )
         if activity in ("train", "warmup") and native_receipt_kind not in {
             "train",
             "campaign_run",
@@ -990,7 +1392,7 @@ class AttemptBudget:
                 stage_limits=stage_limits,
                 reserved=reserved,
                 parent_checkpoint_path=parent_checkpoint_path,
-                content_identity_sha256=content_identity_sha256,
+                content_identity_sha256=train_identity,
             )
         if (
             contract.max_optimizer_updates == 0
@@ -1152,6 +1554,48 @@ class AttemptBudget:
             raise AttemptBudgetError("workspace baseline changed during phase")
         actual: tuple[int, int, int, int] | None = None
         if rc == 0:
+            if metered_fixed:
+                charged = self.status()
+                phase_forward = [
+                    row
+                    for row in charged.get("forward_reservations", [])
+                    if row["label"].startswith(f"{label}:")
+                ]
+                expected = (
+                    int(classified.options["--max-forward-positions"])
+                    if classified.effect == "fixed_score"
+                    else 8 * 6112
+                )
+                kind = (
+                    "fixed_profile"
+                    if classified.effect == "fixed_score"
+                    else "generation"
+                )
+                if sum(row["positions"] for row in phase_forward) != expected or any(
+                    row["kind"] != kind for row in phase_forward
+                ):
+                    self._final_storage_receipt(
+                        completion=completion,
+                        workspace_root=workspace_root,
+                        baseline=baseline,
+                        policy=policy,
+                        label=label,
+                        native_status="UNVERIFIED",
+                    )
+                    raise AttemptBudgetError(
+                        "fixed evaluation forward charges unverified"
+                    )
+                if classified.effect == "continuation":
+                    phase_requests = [
+                        row
+                        for row in charged["reservations"]
+                        if row["label"].startswith(f"{label}:")
+                    ]
+                    if (
+                        sum(row["generation_calls"] for row in phase_requests) != 8
+                        or sum(row["generated_tokens"] for row in phase_requests) != 512
+                    ):
+                        raise AttemptBudgetError("fixed generation charges unverified")
             from sparselab.training.attempt_receipts import verify_native_phase_counters
             from sparselab.training.manifest import sha256_file
 
@@ -1160,7 +1604,7 @@ class AttemptBudget:
                     config_source = Path(self._native_command_args(command)[1])
                     if (
                         config_source.is_symlink()
-                        or sha256_file(config_source) != content_identity_sha256
+                        or sha256_file(config_source) != train_identity
                     ):
                         raise ValueError("direct train config changed during phase")
                 actual = verify_native_phase_counters(
@@ -1169,7 +1613,7 @@ class AttemptBudget:
                     campaign_stage=campaign_stage,
                     campaign_work_dir=campaign_work_dir,
                     parent_checkpoint_path=parent_checkpoint_path,
-                    expected_content_sha256=content_identity_sha256,
+                    expected_content_sha256=train_identity,
                 )
             except (OSError, ValueError, TypeError, KeyError) as error:
                 self._final_storage_receipt(
@@ -1287,15 +1731,10 @@ class AttemptBudget:
 
     @staticmethod
     def _native_command_args(command: list[str]) -> list[str]:
-        if (
-            len(command) >= 3
-            and Path(command[0]).resolve() == Path(sys.executable).resolve()
-            and command[1:3] == ["-m", "sparselab"]
-        ):
-            return command[3:]
-        if command and Path(command[0]).name == "sparselab":
-            return command[1:]
-        raise AttemptBudgetError("native receipt requires a direct sparselab command")
+        try:
+            return list(classify_attempt_command(command).args)
+        except ValueError as error:
+            raise AttemptBudgetError(str(error)) from error
 
     @classmethod
     def _preflight_native_command(
@@ -1406,42 +1845,17 @@ class AttemptBudget:
     @staticmethod
     def _approved_counter_free_command(command: list[str]) -> bool:
         try:
-            args = AttemptBudget._native_command_args(command)
-        except AttemptBudgetError:
+            effect = classify_attempt_command(command).effect
+        except ValueError:
             return False
-        if not args:
-            return False
-        if args[0] in {"inspect", "triage", "evidence"}:
-            return True
-        return (
-            args[0] == "stage"
-            and args.count("--through") == 1
-            and args[args.index("--through") + 1 : args.index("--through") + 2]
-            == ["validate"]
-        )
+        return effect in {"inspection", "preparation", "stage"}
 
     @staticmethod
     def _approved_zero_update_command(command: list[str]) -> bool:
-        words = [Path(part).name.lower() for part in command]
-        for index, word in enumerate(words):
-            if word == "sparselab" and index + 1 < len(words):
-                prefix = words[:index]
-                if prefix and not (
-                    prefix[0] == "uv"
-                    and "run" in prefix
-                    or prefix[0].startswith("python")
-                    and prefix[-1] == "-m"
-                ):
-                    return False
-                action = words[index + 1]
-                if action in {"inspect", "eval", "generate", "triage", "evidence"}:
-                    return True
-                if action == "stage":
-                    return "--through" in words and words[
-                        words.index("--through") + 1 : words.index("--through") + 2
-                    ] == ["validate"]
-                return False
-        return False
+        try:
+            return classify_attempt_command(command).effect != "train"
+        except ValueError:
+            return False
 
     @staticmethod
     def _verify_owned_completion(path: Path, returncode: int) -> None:

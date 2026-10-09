@@ -1393,6 +1393,47 @@ def verify_snapshot(
     return _verify_snapshot_cold(path, _staged=_staged)
 
 
+def alias_verified_snapshot(
+    project: Project, work_root: Path, *, source_id: str, snapshot: Path
+) -> dict[str, str]:
+    """Reuse exact immutable snapshot bytes across projects without a transfer."""
+    sources = [source for source in project.sources if source.id == source_id]
+    if len(sources) != 1 or sources[0].kind not in {
+        "git",
+        "huggingface_dataset",
+        "wikimedia_dump",
+    }:
+        raise ValueError("snapshot alias source is missing or not immutable")
+    root = work_root.resolve(strict=True)
+    if not snapshot.is_absolute() or snapshot.is_symlink():
+        raise ValueError("snapshot alias origin must be an absolute directory")
+    origin = snapshot.resolve(strict=True)
+    if root not in origin.parents or not origin.is_dir():
+        raise ValueError("snapshot alias origin is outside the persistent root")
+    manifest = verify_snapshot(origin, verification_mode="cold")
+    if (
+        manifest["source_id"] != source_id
+        or manifest["declaration_sha256"] != declaration_sha256(sources[0])
+        or manifest["declaration"] != source_declaration_payload(sources[0])
+    ):
+        raise ValueError("snapshot alias differs from current source declaration")
+    target = (
+        root / "corpora" / project.config.id / "snapshots" / source_id / origin.name
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(origin, target_is_directory=True)
+    if (
+        verify_snapshot(target, verification_mode="cold")["snapshot_sha256"]
+        != origin.name
+    ):
+        raise ValueError("snapshot alias failed cold readback")
+    return {
+        "source_id": source_id,
+        "snapshot_sha256": origin.name,
+        "alias": str(target),
+    }
+
+
 def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any]:
     path = Path(path)
     try:

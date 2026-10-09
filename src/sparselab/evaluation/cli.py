@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import torch
@@ -47,6 +48,22 @@ def _fixed_slices(args: argparse.Namespace) -> None:
             args.json,
         )
         return
+    from sparselab.training.attempt_budget import AttemptBudget
+
+    if args.fixed_command == "score":
+        required = 4608 if args.mode == "utility" else 3084
+        if (
+            any(key.startswith("SPARSELAB_ATTEMPT_") for key in os.environ)
+            and args.max_forward_positions != required
+        ):
+            raise ValueError("fixed score requires its exact declared forward cap")
+        AttemptBudget.require_fixed_evaluation_allocation_from_environment(
+            fixed_positions=required, total_positions=required, calls=0, tokens=0
+        )
+    else:
+        AttemptBudget.require_fixed_evaluation_allocation_from_environment(
+            fixed_positions=0, total_positions=8 * 6112, calls=8, tokens=512
+        )
     loaded = load_run(
         args.run_id,
         Path(args.runs_dir),

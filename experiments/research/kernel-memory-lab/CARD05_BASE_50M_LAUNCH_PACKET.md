@@ -1,10 +1,13 @@
-# 50M offline launch packet — prospective, no attempt started
+# 50M offline launch packet — prospective revision after stopped C05-B11
 
 This packet supersedes the **planning status**, not the evidence, of
 [C05-T2](CARD05_BASE_50M_EXECUTION_BINDING.md). The scientific and numerical
 contract remains [the approved proposal](CARD05_BASE_50M_PROPOSAL.md). No new
 source, release, mixture, run, checkpoint or admission identity is claimed.
 The B7/B9 releases and all previous attempt records remain unchanged.
+[C05-B11](results/2026-10-09-card05-50m-attempt1-dispatch-stop.md) started
+one ledger and stopped before acquisition. Its ledger and allocation remain
+spent; this revised packet cannot resume it or authorize a replacement attempt.
 
 ## Frozen inputs and prospective declarations
 
@@ -26,8 +29,10 @@ The three existing snapshot identities are `e040f260758cb00dd18e2a8a7b66a2e5d744
 (PagerDuty), `db2ce3b1af503bb9444cc83f8e8fd1a72e603463ff0724ae41385f5d19627a1e`
 (Gutenberg), and `574e06a4a327a3e25c04782c829b7015b8ba541da1d8e8f66ae3e4f1f7dfda0a`
 (Scoutflo). They are present under the old project snapshot root; before reuse,
-cold-verify each old snapshot, create only a digest-named directory alias under
-the new project `snapshots/<source-id>/<digest>`, and require native cold
+cold-verify each old snapshot, run `S corpus alias-snapshot P --source-id
+<retained-source-id> --snapshot <cold-verified-old-snapshot-directory>` once
+for each of the three retained sources under a zero-counter preparation phase,
+and require native cold
 `corpus acquire --offline` to verify its new lock. The alias resolves to the
 old immutable bytes and makes no data copy. If native verification rejects an
 alias or a source declaration differs, stop; do not redownload a retained
@@ -94,13 +99,13 @@ Every command below is a command **shape**, not an instruction to run it now.
 | Phase | Reviewed command/operation | Mandatory verification before dependent work |
 | --- | --- | --- |
 | Pre-ledger | Check `git rev-parse HEAD`, clean checkout, proposal and packet hashes, active-run absence, free bytes/inodes, measured retained-space headroom and device UUID. Compute the static content identity from the pinned proposal/packet/head without writing to A; run `S monitor-baseline <common-root> --output A/workspace-baseline.json --seconds 4 --json` and cold-load it. Render one `attempt-contract.json` bound to that baseline and `monitor-whole.yaml`. | The common root and baseline never change; ≥2 GiB projected free margin and enough room for full checkpoint retention are required. The baseline is taken before *any* attempt files other than the exclusive root itself. No ledger is created during this offline packet task. |
-| One attempt/transport | `S attempt init --ledger A/attempt-ledger.sqlite --contract A/attempt-contract.json --contract-sha256 <hash>`; `S corpus budget-init P`; run `S corpus acquire P`, then `S corpus acquire P --offline`, all under the same owned phase supervision. | One persistent 36,000-second ledger, one independent 7,200-second transport ledger, 960,485,500 source and 4,194,304 metadata response-body bytes; at most one charged retry of the single Wikimedia transfer, no restart. Alias and cold-verify the three retained snapshots before live transfer. Stop on any source/lock mismatch. |
+| One attempt/transport | `S attempt init --ledger A/attempt-ledger.sqlite --contract A/attempt-contract.json --contract-sha256 <hash>`; run the three `S corpus alias-snapshot P --source-id <id> --snapshot <old-directory>` commands; `S corpus budget-init P`; run `S corpus acquire P`, then `S corpus acquire P --offline`, all phase commands under the same owned supervision. | One persistent 36,000-second ledger, one independent 7,200-second transport ledger, 960,485,500 source and 4,194,304 metadata response-body bytes; at most one charged retry of the single Wikimedia transfer, no restart. Cold alias/readback of the three retained snapshots precedes live transfer. The contract pins raw acquisition-project SHA-256 `6326d66589fa787fd3e85d834417d968b21eb6f808f1b6c85635ac255714aa51`; online acquire requires its initialized bound transport ledger. Stop on any source/lock mismatch. |
 | Rights/families | `S corpus admission-draft P --template <bound-template> --policy-document <prospective-policy> --output A/prep/admission-draft.json`; review and freeze decisions. `S corpus split-inventory P --output A/prep/split-inventory.jsonl --json`; review exact-content components against the accepted prior inventory/cluster mapping, author a new reviewed cluster declaration, then `S corpus freeze-splits P --inventory <inventory> --clusters <reviewed-clusters> --output <reviewed-splits> --json`. | Preserve accepted family IDs, splits and strata. Incompatible connected accepted families stop; new hints may map only to a compatible prior identity. The split receipt must bind admission, inventory, prior inventory and reviewed clusters. Reviewers record decisions within eight aggregate preparation reviewer-hours. The B7 hardcoded Python is not a command here. |
 | V3 release/lineage | Render reviewed `project-build.yaml` with that admission and split declaration. `S corpus build <project-build> --offline`; `S corpus freeze <verified-build-root>`; `S corpus audit R`; `S corpus near-duplicates R`; `S corpus finalize-family-inventory R --splits <reviewed-splits> --output F --json`; `S corpus audit-protected-lineage --prior-release H --candidate-release R --prior-inventory <original-family-inventory> --candidate-inventory F --profile Q --suite <frozen-600-item-suite> --output A/prep/protected-lineage.json --json`. | Cold release verification, recorded v3 source-span/cleaning and rights review, no exact/near cross-split leakage, all protected content/families excluded from candidate train and unchanged retained assignments. A BLOCKED lineage receipt stops the attempt. Explicitly admit the exact release after review; a CLI success alone is not admission. |
 | Supply/mixture | `S corpus measure-tokens R --tokenizer <original-tokenizer> --tokenizer-origin-release H --family-inventory F --policy <token-floors.yaml> --output A/prep/unique-train.json --batch-source-bytes 8388608 --json`; cold-read its receipt. Render `M` with `R`, `F`, `TC`; `S corpus materialize-mixture M --output A/prep/mixture --json`; `S corpus verify-mixture M --output A/prep/mixture --json`. | All three distinct-position floors, exact 81/18/1 50M targets and ≤2 exposures must pass. The new release is the measured/training release; H is solely the tokenizer's fitting and evaluation origin. Stop on a shortfall, without changing source/mix/exposure. |
-| Run data/preflight | Render `C` from verified counts and paths, validate native RunConfig, then `S corpus verify-export C`; `S data prepared-inputs publish C --output B --resource-envelope <resource-envelope.yaml> --tokenizer-batch-source-bytes 8388608`; `S data prepared-inputs verify C B`; `S inspect C --json`; `S workspace preflight C`. | Verify tokenizer bytes/origin, new release, exact mixture mask, bundle identity, config/architecture/schedule and 50M target count. Stage is not a pre-ledger preflight. |
+| Run data/preflight | Render `C` from verified counts and paths, validate native RunConfig, cold-read its bytes, then **once** `S attempt bind-artifact --ledger A/attempt-ledger.sqlite --kind train_config --path C --sha256 <actual-C-sha256> --content-identity-sha256 <contract-content-sha256> --workspace <common-root>`; then `S corpus verify-export C`; `S data prepared-inputs publish C --output B --resource-envelope <resource-envelope.yaml> --tokenizer-batch-source-bytes 8388608`; `S data prepared-inputs verify C B`; `S inspect C --json`; `S workspace preflight C`. | The late-resolved C digest is sealed in the same ledger before stage/train. The attempt's static packet/content identity remains unchanged; the direct train receipt requires the bound C digest. Verify tokenizer bytes/origin, new release, exact mixture mask, bundle identity, config/architecture/schedule and 50M target count. Stage is not a pre-ledger preflight. |
 | Runtime | `S stage C --through validate --prepared-inputs B --cold-verify --output A/stage-validate --runtime rocm-7900xtx --resource-envelope <resource-envelope.yaml>`; then **one** `S train C --stage-bundle A/stage-validate --run-id N --runs-dir A/runs --runtime rocm-7900xtx --resource-envelope <resource-envelope.yaml>` under native `attempt run`. | Stage reserves 0 updates/targets; train pre-reserves 48,829 updates/50M targets and binds its native train receipt. Require fresh seed-17 weights and empty optimizer/scheduler; no smoke/warmup training, resume or second invocation. Success means 48,828 full 1,024-target batches plus a 128-target final batch with 896 masked targets. |
-| Fixed validation/selection | Before the first fixed score, capture a supplemental common-root baseline with `S monitor-baseline <common-root> --output A/evaluation-output-baseline.json --seconds 4 --json`. For each declared step `0,5000,...,45000,48829`, use `S evaluation fixed-slices score Q N --release H --tokenizer-config TC --family-inventory <original-family-inventory> --expected-profile-sha256 <Q-hash> --expected-family-sha256 <original-family-hash> --checkpoint <verified-generation> --runs-dir A/runs --backend rocm --runtime rocm-7900xtx --mode validation --max-forward-positions 3084 --json`. Render `selection.template.json` with sealed `C`, `Q`, `N`, `A`; run `S evaluation fixed-slices select <declaration> --output A/selected-fixed-validation.json --json`, then `verify-selection`. | All eleven complete verified checkpoints, one-batch native validations, 12 exact validation windows/3,072 targets each, finite token-weighted losses, matching run/config/checkpoint/profile/tokenizer identities; earliest-step tie break. The immutable selection receipt must be published **before** test scoring, utility scoring or prose generation/review. The 64 MiB evaluation-output limit counts all common-root additions after this supplemental baseline; the original cumulative baseline remains operative. |
+| Fixed validation/selection | Before the first fixed score, capture a supplemental common-root baseline with `S monitor-baseline <common-root> --output A/evaluation-output-baseline.json --seconds 4 --json`, then bind its actual digest once with `S attempt bind-artifact --ledger A/attempt-ledger.sqlite --kind evaluation_baseline --path A/evaluation-output-baseline.json --sha256 <actual-baseline-file-sha256> --content-identity-sha256 <contract-content-sha256> --workspace <common-root>`. For each declared step `0,5000,...,45000,48829`, use `S evaluation fixed-slices score Q N --release H --tokenizer-config TC --family-inventory <original-family-inventory> --expected-profile-sha256 <Q-hash> --expected-family-sha256 <original-family-hash> --checkpoint <verified-generation> --runs-dir A/runs --backend rocm --runtime rocm-7900xtx --mode validation --max-forward-positions 3084 --json`. Render `selection.template.json` with sealed `C`, `Q`, `N`, `A`; run `S evaluation fixed-slices select <declaration> --output A/selected-fixed-validation.json --json`, then `verify-selection`. | Wrap each fixed score and subsequent evaluation-output command in the bound `S monitor --policy A/policies/monitor-eval-output.yaml --log-dir <fresh-log-dir> --workspace <common-root> --baseline A/evaluation-output-baseline.json -- <exact-native-command>` inside `attempt run`. The original cumulative baseline remains in the outer whole monitor. All eleven complete verified checkpoints, one-batch native validations, 12 exact validation windows/3,072 targets each, finite token-weighted losses, matching run/config/checkpoint/profile/tokenizer identities; earliest-step tie break. Seal selection **before** test/prose. |
 | Test/report | After selection, use the same fixed-slice command with selected checkpoint in `--mode test --max-forward-positions 3084` and `--mode utility --max-forward-positions 4608`; run `evaluation fixed-slices continuations` with the same Q/H/TC/family/selected-checkpoint binding. Repeat the declared v2 validation/test/utility and eight prose comparisons only. Cold `verify-selection`, `verify-mixture`, prepared-input `verify`, native `evidence`, selected `checkpoint verify`, and `attempt status`; preserve monitor/owned receipts and write the result/index. | Fixed scoring is bounded by 55,000 inputs; aggregate nontraining forwards by 170,000; operational validation 11 batches/11,264 positions; generation 16 calls/1,024 requested new tokens, evaluation output ≤64 MiB, evaluation reviewer time ≤2 hours. Report negative results without Card 06 promotion. |
 
 Every phase command runs through `attempt run` with the **same** ledger,
@@ -110,8 +115,18 @@ whole-attempt deadline and bounded TERM-to-KILL shutdown. The preparation
 phase additionally runs through `S monitor --policy <monitor-preparation.yaml>
 --log-dir <new-log-dir> --workspace <common-root> --baseline
 A/workspace-baseline.json -- <phase-command>` to enforce its
-stricter 8 GiB added-byte/14,400-second ceilings; the contract's single
-monitor-policy binding remains the 72 GiB whole policy. The 21,600-second
+stricter 8 GiB added-byte/14,400-second ceilings; the contract's whole-policy
+binding remains the 72 GiB policy and an optional nested-policy hash pins the
+8 GiB policy separately. The only ledger administrative operations outside
+`attempt run` are `attempt init`, the one-time resolved-config binding, the
+one-time supplemental evaluation-baseline binding, and read-only status.
+`attempt run` accepts only the reviewed native `uv run --locked --no-sync
+sparselab --work-dir <common-root> <operation>` shape (or its exact direct
+module/CLI equivalent), one checked native monitor wrapper with the same work
+root and declared policy/baseline identity, and an explicitly enumerated native
+leaf. It rejects shell/Python dispatch, extra or abbreviated options and
+hidden model verbs. Native online `corpus acquire` still requires the pinned
+project and its initialized persistent transport ledger. The 21,600-second
 runtime subcap, 18,000-second stage/train/selection subcap and 2,400-second
 evaluation subcap are computed from the same persisted start time, not fresh
 per-command clocks. Check phase remaining time before each operation and
@@ -133,7 +148,14 @@ for all preparation, stage, selector and read-only reporting phases; the
 single training call reserves 48,829 updates and 50M targets with
 `--receipt-kind train --receipt-path A/runs/N`; validation/score/generation
 phases charge the native forward/generation counters before model work. Each
-generation reserves its requested 64 tokens, including failures. Keep score
+generation reserves its requested 64 tokens, including failures. Fixed-slice
+score and continuations are classified as metered model work. Before loading
+a checkpoint, the native fixed-slice CLI checks the owned phase and remaining
+fixed/total forward, generation-call and requested-token allocations. Every
+score forward and 64-token generation request charges the same ledger before
+the model call; successful phase completion reconciles their reservations.
+Missing or exhausted accounting fails before model load/forward. Direct legacy
+evaluation outside an attempt retains its earlier behavior. Keep score
 and generation commands inside their declared per-call forward caps and the
 aggregate ledger. `attempt status` reconciles reserved and actual model work;
 no retry/resume follows an exhausted or failed ledger.
@@ -169,5 +191,10 @@ admission and clusters, split, v3 release, finalized inventory, token receipt,
 mixture, prepared bundle, run config, checkpoints and fixed scores exist only
 after their upstream phases. Each must be cold-verified, recorded by digest,
 and inserted into the **next** declaration before that phase starts. Never
-predeclare a guessed release, checkpoint or receipt hash. The 50M candidate
+predeclare a guessed release, checkpoint or receipt hash. The native contract
+template pins the acquisition-project, original fixed-profile/family and
+nested-monitor hashes, and requires
+one-time cold bindings of the actual resolved run config and supplemental
+evaluation baseline. Older contracts omit these optional fields without
+changing their declaration bytes or hash. The 50M candidate
 remains unadmitted at this offline checkpoint.

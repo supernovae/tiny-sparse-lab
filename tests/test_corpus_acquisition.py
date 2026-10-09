@@ -28,6 +28,7 @@ from sparselab.corpus.acquisition import (
     _read_with_deadline,
     _set_response_deadline,
     acquire,
+    alias_verified_snapshot,
     declaration_sha256,
     verify_acquisition,
     verify_snapshot,
@@ -1691,9 +1692,15 @@ def test_verified_snapshot_alias_reused_across_project_ids_without_transfer(
     declaration["id"] = "new-project"
     _yaml(recipe, declaration)
     new = load_project(recipe)
-    alias = work / "corpora" / new.config.id / "snapshots" / "one" / old_snapshot.name
-    alias.parent.mkdir(parents=True)
-    alias.symlink_to(old_snapshot, target_is_directory=True)
+    alias_receipt = alias_verified_snapshot(
+        new, work, source_id="one", snapshot=old_snapshot
+    )
+    assert alias_receipt["snapshot_sha256"] == old_snapshot.name
+    assert Path(alias_receipt["alias"]).is_symlink()
+    with pytest.raises(ValueError, match="source is missing"):
+        alias_verified_snapshot(new, work, source_id="other", snapshot=old_snapshot)
+    with pytest.raises(FileExistsError):
+        alias_verified_snapshot(new, work, source_id="one", snapshot=old_snapshot)
 
     def no_network() -> None:
         raise AssertionError("verified snapshot alias must prevent a transfer")

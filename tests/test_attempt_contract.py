@@ -15,6 +15,7 @@ import pytest
 from sparselab.operational_monitor import capture_workspace_baseline
 from sparselab.training import attempt_budget as module
 from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
+from sparselab.training.attempt_commands import AttemptCommand
 
 
 def _fixture(
@@ -225,20 +226,36 @@ def test_zero_update_training_and_warmup_are_refused_before_spawn(
     )
     with pytest.raises(AttemptBudgetError, match="zero-update"):
         budget.run_contract(
-            ["sparselab", "train"],
+            [
+                "sparselab",
+                "train",
+                "config.yaml",
+                "--run-id",
+                "run",
+                "--runs-dir",
+                str(paths["root"]),
+            ],
             **(
                 _run_args(paths, paths["root"] / "train.json")
                 | {"activity": "train", "updates": 1}
             ),
         )
-    with pytest.raises(AttemptBudgetError, match="zero-update"):
+    with pytest.raises(AttemptBudgetError, match="stage must stop at validation"):
         budget.run_contract(
-            ["sparselab", "stage", "--through", "warmup"],
+            [
+                "sparselab",
+                "stage",
+                "config.yaml",
+                "--through",
+                "warmup",
+                "--output",
+                str(paths["root"] / "stage"),
+            ],
             **(
                 _run_args(paths, paths["root"] / "warmup.json") | {"activity": "warmup"}
             ),
         )
-    with pytest.raises(AttemptBudgetError, match="counter-free"):
+    with pytest.raises(AttemptBudgetError, match="direct native sparselab"):
         budget.run_contract(
             ["bash", "-c", "sparselab train"],
             **_run_args(paths, paths["root"] / "wrapped.json"),
@@ -253,10 +270,25 @@ def _alive(pid: int) -> bool:
         return False
 
 
+def _allow_harmless_supervisor_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep process-tree tests isolated from the production native allowlist."""
+    original = module.classify_attempt_command
+
+    def classify(command: list[str]) -> AttemptCommand:
+        if command[:2] == [sys.executable, "-c"]:
+            return AttemptCommand(
+                ("inspect", "fixture"), "inspect", "inspection", None, {}
+            )
+        return original(command)
+
+    monkeypatch.setattr(module, "classify_attempt_command", classify)
+
+
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
 def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -294,6 +326,7 @@ def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
 def test_runtime_deadline_keeps_charge_and_zero_survivors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -313,6 +346,7 @@ def test_runtime_deadline_keeps_charge_and_zero_survivors(
 def test_outer_receipts_crossing_cap_cannot_return_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -360,6 +394,7 @@ def test_outer_receipts_crossing_cap_cannot_return_success(
 def test_policy_change_at_child_boundary_prevents_native_launch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )

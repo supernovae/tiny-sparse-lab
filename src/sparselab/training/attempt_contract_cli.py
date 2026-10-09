@@ -53,6 +53,18 @@ def handle_attempt(args: argparse.Namespace) -> None:
     if args.attempt_command == "status":
         print(json.dumps(AttemptBudget(ledger).status(), sort_keys=True))
         return
+    if args.attempt_command == "bind-artifact":
+        result = AttemptBudget(ledger).bind_resolved_artifact(
+            kind=args.kind,
+            path=_absolute(args.path, "resolved artifact"),
+            expected_sha256=_digest(args.sha256, "resolved artifact SHA-256"),
+            content_identity_sha256=_digest(
+                args.content_identity_sha256, "content identity"
+            ),
+            workspace_root=_absolute(args.workspace, "workspace"),
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
     if args.attempt_command != "run":
         raise ValueError("unknown attempt command")
 
@@ -147,6 +159,16 @@ def register_attempt_parser(
     status = actions.add_parser("status")
     status.add_argument("--ledger", type=Path, required=True)
     status.set_defaults(handler=handle_attempt)
+    bind = actions.add_parser("bind-artifact")
+    bind.add_argument("--ledger", type=Path, required=True)
+    bind.add_argument(
+        "--kind", choices=("train_config", "evaluation_baseline"), required=True
+    )
+    bind.add_argument("--path", type=Path, required=True)
+    bind.add_argument("--sha256", required=True)
+    bind.add_argument("--content-identity-sha256", required=True)
+    bind.add_argument("--workspace", type=Path, required=True)
+    bind.set_defaults(handler=handle_attempt)
     run = actions.add_parser("run")
     run.add_argument("--ledger", type=Path, required=True)
     run.add_argument("--label", required=True)

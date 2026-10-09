@@ -1,0 +1,353 @@
+"""Exact native command shapes accepted by a contracted attempt.
+
+This is deliberately smaller than the public CLI. A new command or option does
+not inherit a zero-model-work classification merely because its parent verb is
+listed here.
+"""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class AttemptCommand:
+    args: tuple[str, ...]
+    operation: str
+    effect: str  # preparation, inspection, stage, train, fixed_score, continuation
+    work_dir: Path | None
+    options: dict[str, str | bool]
+    monitor: dict[str, str] | None = None
+
+
+# Positionals, valued options, boolean options, effect. No abbreviated flags,
+# duplicate flags, extra operands or hidden shell/Python dispatch are accepted.
+_SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {
+    "corpus budget-init": (1, set(), set(), "preparation"),
+    "corpus alias-snapshot": (1, {"--source-id", "--snapshot"}, set(), "preparation"),
+    "corpus acquire": (1, set(), {"--offline"}, "preparation"),
+    "corpus admission-draft": (
+        1,
+        {"--template", "--policy-document", "--output"},
+        set(),
+        "preparation",
+    ),
+    "corpus split-inventory": (1, {"--output"}, {"--json"}, "preparation"),
+    "corpus freeze-splits": (
+        1,
+        {"--inventory", "--clusters", "--output"},
+        {"--json"},
+        "preparation",
+    ),
+    "corpus build": (1, set(), {"--offline"}, "preparation"),
+    "corpus freeze": (1, set(), set(), "preparation"),
+    "corpus audit": (1, set(), set(), "inspection"),
+    "corpus near-duplicates": (
+        1,
+        {
+            "--max-documents",
+            "--max-input-text-bytes",
+            "--max-total-shingles",
+            "--max-comparisons",
+            "--max-candidates",
+        },
+        set(),
+        "inspection",
+    ),
+    "corpus finalize-family-inventory": (
+        1,
+        {"--splits", "--output"},
+        {"--json"},
+        "preparation",
+    ),
+    "corpus audit-protected-lineage": (
+        0,
+        {
+            "--prior-release",
+            "--candidate-release",
+            "--prior-inventory",
+            "--candidate-inventory",
+            "--profile",
+            "--suite",
+            "--output",
+        },
+        {"--json"},
+        "preparation",
+    ),
+    "corpus measure-tokens": (
+        1,
+        {
+            "--tokenizer",
+            "--tokenizer-origin-release",
+            "--family-inventory",
+            "--policy",
+            "--output",
+            "--batch-source-bytes",
+        },
+        {"--json"},
+        "preparation",
+    ),
+    "corpus materialize-mixture": (1, {"--output"}, {"--json"}, "preparation"),
+    "corpus verify-mixture": (1, {"--output"}, {"--json"}, "inspection"),
+    "corpus verify-export": (1, set(), set(), "inspection"),
+    "data prepared-inputs publish": (
+        1,
+        {"--output", "--resource-envelope", "--tokenizer-batch-source-bytes"},
+        set(),
+        "preparation",
+    ),
+    "data prepared-inputs verify": (2, set(), set(), "inspection"),
+    "inspect": (1, set(), {"--json"}, "inspection"),
+    "workspace preflight": (1, set(), set(), "inspection"),
+    "stage": (
+        1,
+        {
+            "--through",
+            "--prepared-inputs",
+            "--output",
+            "--runtime",
+            "--resource-envelope",
+        },
+        {"--cold-verify"},
+        "stage",
+    ),
+    "train": (
+        1,
+        {
+            "--stage-bundle",
+            "--run-id",
+            "--runs-dir",
+            "--runtime",
+            "--resource-envelope",
+            "--backend",
+            "--resume",
+            "--extend-budget",
+            "--promote",
+            "--recover",
+            "--stop-after-step",
+        },
+        {"--allow-runtime-drift"},
+        "train",
+    ),
+    "evaluation fixed-slices verify": (
+        1,
+        {
+            "--release",
+            "--tokenizer-config",
+            "--family-inventory",
+            "--expected-profile-sha256",
+            "--expected-family-sha256",
+        },
+        {"--json"},
+        "inspection",
+    ),
+    "evaluation fixed-slices score": (
+        2,
+        {
+            "--release",
+            "--tokenizer-config",
+            "--family-inventory",
+            "--expected-profile-sha256",
+            "--expected-family-sha256",
+            "--checkpoint",
+            "--runs-dir",
+            "--backend",
+            "--runtime",
+            "--mode",
+            "--max-forward-positions",
+        },
+        {"--json"},
+        "fixed_score",
+    ),
+    "evaluation fixed-slices continuations": (
+        2,
+        {
+            "--release",
+            "--tokenizer-config",
+            "--family-inventory",
+            "--expected-profile-sha256",
+            "--expected-family-sha256",
+            "--checkpoint",
+            "--runs-dir",
+            "--backend",
+            "--runtime",
+        },
+        {"--json"},
+        "continuation",
+    ),
+    "evaluation fixed-slices select": (1, {"--output"}, {"--json"}, "preparation"),
+    "evaluation fixed-slices verify-selection": (2, set(), {"--json"}, "inspection"),
+    "monitor-baseline": (1, {"--output", "--seconds"}, {"--json"}, "preparation"),
+    "evidence": (1, {"--runs-dir", "--checkpoint"}, {"--json"}, "inspection"),
+    "checkpoint verify": (1, {"--config"}, {"--json"}, "inspection"),
+    "attempt status": (0, {"--ledger"}, set(), "inspection"),
+    "campaign apply": (
+        1,
+        {"--only-stage", "--max-wait-seconds", "--runtime"},
+        {"--execute-runs", "--cold-verify", "--json"},
+        "campaign",
+    ),
+}
+
+_REQUIRED: dict[str, set[str]] = {
+    "corpus alias-snapshot": {"--source-id", "--snapshot"},
+    "corpus admission-draft": {"--template", "--policy-document", "--output"},
+    "corpus split-inventory": {"--output"},
+    "corpus freeze-splits": {"--inventory", "--clusters", "--output"},
+    "corpus finalize-family-inventory": {"--splits", "--output"},
+    "corpus audit-protected-lineage": {
+        "--prior-release",
+        "--candidate-release",
+        "--prior-inventory",
+        "--candidate-inventory",
+        "--profile",
+        "--suite",
+        "--output",
+    },
+    "corpus measure-tokens": {
+        "--tokenizer",
+        "--tokenizer-origin-release",
+        "--family-inventory",
+        "--policy",
+        "--output",
+        "--batch-source-bytes",
+    },
+    "corpus materialize-mixture": {"--output"},
+    "corpus verify-mixture": {"--output"},
+    "data prepared-inputs publish": {
+        "--output",
+        "--resource-envelope",
+        "--tokenizer-batch-source-bytes",
+    },
+    "stage": {"--through", "--output"},
+    "train": {"--run-id", "--runs-dir"},
+    "evaluation fixed-slices score": {
+        "--release",
+        "--tokenizer-config",
+        "--family-inventory",
+        "--expected-profile-sha256",
+        "--expected-family-sha256",
+        "--checkpoint",
+        "--runs-dir",
+        "--backend",
+        "--runtime",
+        "--mode",
+        "--max-forward-positions",
+    },
+    "evaluation fixed-slices continuations": {
+        "--release",
+        "--tokenizer-config",
+        "--family-inventory",
+        "--expected-profile-sha256",
+        "--expected-family-sha256",
+        "--checkpoint",
+        "--runs-dir",
+        "--backend",
+        "--runtime",
+    },
+    "evaluation fixed-slices select": {"--output"},
+    "monitor-baseline": {"--output", "--seconds"},
+    "attempt status": {"--ledger"},
+    "campaign apply": {"--only-stage"},
+}
+
+
+def _native_words(command: list[str]) -> tuple[list[str], Path | None]:
+    if not command:
+        raise ValueError("empty attempt command")
+    if command[0] == "uv":
+        if command[1:5] != ["run", "--locked", "--no-sync", "sparselab"]:
+            raise ValueError("unreviewed uv invocation")
+        words = command[5:]
+    elif command[0] == "sparselab":
+        words = command[1:]
+    elif (
+        len(command) >= 3
+        and Path(command[0]).resolve() == Path(sys.executable).resolve()
+        and command[1:3] == ["-m", "sparselab"]
+    ):
+        words = command[3:]
+    else:
+        raise ValueError("attempt requires a direct native sparselab invocation")
+    work_dir = None
+    if words[:1] == ["--work-dir"] and len(words) >= 3:
+        work_dir = Path(words[1])
+        if not work_dir.is_absolute() or work_dir.is_symlink():
+            raise ValueError("attempt work directory must be absolute and unlinked")
+        words = words[2:]
+    if not words or words[0].startswith("-"):
+        raise ValueError("missing native operation")
+    return words, work_dir
+
+
+def _options(
+    words: list[str], count: int, valued: set[str], boolean: set[str]
+) -> dict[str, str | bool]:
+    if len(words) < count or any(word.startswith("-") for word in words[:count]):
+        raise ValueError("missing native positional input")
+    values: dict[str, str | bool] = {}
+    index = count
+    while index < len(words):
+        key = words[index]
+        if key in values or key not in valued | boolean:
+            raise ValueError(f"unreviewed or duplicate native option: {key}")
+        if key in boolean:
+            values[key] = True
+            index += 1
+        else:
+            if index + 1 >= len(words) or words[index + 1].startswith("-"):
+                raise ValueError(f"missing value for {key}")
+            values[key] = words[index + 1]
+            index += 2
+    return values
+
+
+def classify_attempt_command(command: list[str], *, depth: int = 0) -> AttemptCommand:
+    """Reject every dispatch shape outside the explicitly reviewed native grammar."""
+    words, work_dir = _native_words(command)
+    if words[0] == "monitor":
+        if depth or words.count("--") != 1:
+            raise ValueError("only one bounded native monitor wrapper is supported")
+        separator = words.index("--")
+        parsed = _options(
+            words[1:separator],
+            0,
+            {"--policy", "--log-dir", "--workspace", "--baseline"},
+            set(),
+        )
+        if set(parsed) != {"--policy", "--log-dir", "--workspace", "--baseline"}:
+            raise ValueError("incomplete nested monitor binding")
+        monitor = {key: str(value) for key, value in parsed.items()}
+        if any(
+            not Path(value).is_absolute() or Path(value).is_symlink()
+            for value in monitor.values()
+        ):
+            raise ValueError("nested monitor paths must be absolute and unlinked")
+        inner = classify_attempt_command(words[separator + 1 :], depth=1)
+        if inner.work_dir != work_dir:
+            raise ValueError("nested native work directory differs")
+        if inner.effect in {"train", "stage"}:
+            raise ValueError("training or staging cannot be hidden in a nested monitor")
+        return AttemptCommand(
+            inner.args, inner.operation, inner.effect, work_dir, inner.options, monitor
+        )
+    for size in (3, 2, 1):
+        name = " ".join(words[:size])
+        if name in _SHAPES:
+            count, valued, boolean, effect = _SHAPES[name]
+            options = _options(words[size:], count, valued, boolean)
+            if not _REQUIRED.get(name, set()).issubset(options):
+                raise ValueError("required native option is missing")
+            if name == "stage" and options.get("--through") != "validate":
+                raise ValueError("attempt stage must stop at validation")
+            if name == "evaluation fixed-slices score":
+                mode = options.get("--mode")
+                if mode not in {"validation", "test", "utility"}:
+                    raise ValueError("invalid fixed score mode")
+                expected = "4608" if mode == "utility" else "3084"
+                if options.get("--max-forward-positions") != expected:
+                    raise ValueError("fixed score must use the exact declared cap")
+            return AttemptCommand(tuple(words), name, effect, work_dir, options)
+    raise ValueError("unreviewed native attempt operation")

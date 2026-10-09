@@ -50,6 +50,22 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
+    if command == "alias-snapshot":
+        from sparselab.corpus.acquisition import alias_verified_snapshot
+
+        project = load_project(Path(args.project))
+        print(
+            json.dumps(
+                alias_verified_snapshot(
+                    project,
+                    root,
+                    source_id=args.source_id,
+                    snapshot=Path(args.snapshot),
+                ),
+                sort_keys=True,
+            )
+        )
+        return
     if command == "admission-draft":
         from sparselab.corpus.admission_draft import draft_admission_manifest
 
@@ -267,6 +283,13 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
         "budget-init", help="Start one durable bounded-HF transport attempt"
     )
     command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "alias-snapshot", help="Cold-verify and alias one immutable retained snapshot"
+    )
+    command.add_argument("project")
+    command.add_argument("--source-id", required=True)
+    command.add_argument("--snapshot", required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "admission-draft",
