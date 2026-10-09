@@ -194,17 +194,6 @@ experiment or a merge.
   items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
   existing output. Do not turn the adapter into a second authoring engine.
 
-- [ ] **Parse selected JSONL on LF record boundaries in the native corpus path.**
-  [C05-B4](experiments/research/kernel-memory-lab/results/2026-10-08-card05-base-retained-preparation-stop.md)
-  cold-verified a retained Wikimedia snapshot, then `corpus split-inventory`
-  failed because the schema-v2 `_records_for_file` path uses `str.splitlines()`:
-  a literal U+0085 inside a valid JSON string became a false record boundary.
-  Use LF-delimited parsing consistently in inventory and build/release
-  verification, without changing already accepted content or receipt hashes.
-  Add an offline fixture with literal U+0085, malformed LF records and source
-  row identity checks; assert valid rows survive and malformed rows still fail.
-  A fix does not authorize resuming C05-B4 or starting model work.
-
 - [ ] **Score fixed source-bound base-language slices through native evaluation.**
   [C05-B1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-base-pretraining-audit.md)
   declares 24 exact held-out document/token windows and 24 paired continuation

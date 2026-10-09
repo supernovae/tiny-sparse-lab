@@ -57,11 +57,9 @@ def _load(path: Path) -> Any:
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line
-    ]
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    return [record.value for record in records_from_path(path)]
 
 
 def _safe(root: Path, relative: str) -> Path:
@@ -245,10 +243,10 @@ def _verify_rights_files(
 
 
 def _iter_rows(path: Path):
-    with path.open("rb") as stream:
-        for line in stream:
-            if line.strip():
-                yield json.loads(line)
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    for record in records_from_path(path):
+        yield record.value
 
 
 def _streaming_v3(identity: dict[str, Any]) -> bool:
@@ -438,6 +436,7 @@ def _validate_rows_v3(
             with ExitStack() as stack:
                 raw_stream = None
                 current_line = 0
+                current_item = None
                 current_offset = 0
                 for doc_json, text, span_json in db.execute(
                     "SELECT docs.data, docs.text, spans.data "
@@ -483,6 +482,7 @@ def _validate_rows_v3(
                         raw_stream = stack.enter_context(raw_path.open("rb"))
                         raw_sha = sha256_file(raw_path)
                         current_line, current_offset = 0, 0
+                        current_item = None
                         previous_file = raw_path
                     if (
                         span["source_id"] != doc["source_id"]
@@ -559,13 +559,20 @@ def _validate_rows_v3(
                         if index <= current_line:
                             raw_stream.seek(0)
                             current_line = 0
+                        from sparselab.corpus.jsonl_records import iter_jsonl_records
+
                         while current_line < index:
-                            line = raw_stream.readline()
-                            if not line:
+                            parsed = next(
+                                iter_jsonl_records(raw_stream, source=str(raw_path)),
+                                None,
+                            )
+                            if parsed is None:
                                 raise ValueError("document raw row range mismatch")
-                            if line.strip():
-                                current_line += 1
-                        item = json.loads(line)
+                            current_line += 1
+                            current_item = parsed.value
+                        if current_item is None:
+                            raise ValueError("document raw row range mismatch")
+                        item = current_item
                         if (
                             not isinstance(item, dict)
                             or not isinstance(
@@ -847,6 +854,7 @@ def _validate_rows(
     raw = b""
     raw_sha = ""
     offsets: list[int] = []
+    sample_rows = None
     observed_admission: set[tuple[str, str, int]] = set()
     for doc in sorted(
         documents,
@@ -919,9 +927,14 @@ def _validate_rows(
             raw = raw_path.read_bytes()
             raw_sha = hashlib.sha256(raw).hexdigest()
             offsets = [0]
+            sample_rows = None
             if "#lines=" in doc["source_location"]:
                 for line in raw.decode("utf-8").splitlines(keepends=True):
                     offsets.append(offsets[-1] + len(line.encode("utf-8")))
+            if prospective and "_admission_decisions" in file:
+                from sparselab.corpus.jsonl_records import records_from_bytes
+
+                sample_rows = list(records_from_bytes(raw, source=str(raw_path)))
             previous_file = raw_path
         if (
             span["source_id"] != doc["source_id"]
@@ -934,14 +947,14 @@ def _validate_rows(
             from sparselab.corpus.pipeline import _normalized
 
             line_number = span["line_start"]
-            sample_lines = raw.splitlines()
             if (
-                type(line_number) is not int
+                sample_rows is None
+                or type(line_number) is not int
                 or line_number < 1
-                or line_number > len(sample_lines)
+                or line_number > len(sample_rows)
                 or span["line_end"] != line_number
                 or doc["source_location"] != f"{span['raw_path']}#row={line_number}"
-                or _normalized(json.loads(sample_lines[line_number - 1])["text"])
+                or _normalized(sample_rows[line_number - 1].value["text"])
                 != doc["text"]
             ):
                 raise ValueError("admitted document differs from selected source row")

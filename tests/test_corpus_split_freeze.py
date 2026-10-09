@@ -153,6 +153,21 @@ def test_freeze_splits_is_deterministic_and_validates_integer_family_counts(
     )
 
 
+def test_freeze_splits_reads_embedded_unicode_separators_as_one_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project, inventory, clusters, rows, _ = _fixture(tmp_path, monkeypatch)
+    rows[0]["family_hint"] += "\u0085\u2028\u2029"
+    inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
+    declaration = json.loads(clusters.read_text())
+    declaration["inventory_sha256"] = sha256_file(inventory)
+    clusters.write_bytes(canonical_json(declaration))
+    output = tmp_path / "splits-unicode.yaml"
+    report = split_freeze.freeze_splits(project, tmp_path, inventory, clusters, output)
+    assert report["eligible_documents"] == 30
+    assert len(yaml.safe_load(output.read_text())["assignments"]) == 30
+
+
 def test_freeze_splits_preserves_authenticated_prior_families_with_new_document_ids(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

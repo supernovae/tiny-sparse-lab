@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from sparselab.corpus.acquisition import verify_acquisition
+from sparselab.corpus.jsonl_records import records_from_path
 from sparselab.corpus.project import Project, project_path, source_declaration_payload
 from sparselab.corpus.release import verify_release
 from sparselab.corpus.rights import verify_record_admission
@@ -73,50 +74,45 @@ def _prior_family_splits(
     if manifest["release_id"] != release.name:
         raise ValueError("prior release identity mismatch")
     kept = {}
-    with (release / "documents.jsonl").open(encoding="utf-8") as stream:
-        for line in stream:
-            if line.strip():
-                doc = json.loads(line)
-                if doc["drop_reason"] is None:
-                    kept[doc["document_id"]] = doc
+    for record in records_from_path(release / "documents.jsonl"):
+        doc = record.value
+        if doc["drop_reason"] is None:
+            kept[doc["document_id"]] = doc
     families: dict[str, str] = {}
     strata: dict[str, str] = {}
     content: dict[str, tuple[str, str]] = {}
     seen: set[str] = set()
-    with prior_path.open(encoding="utf-8") as stream:
-        for line in stream:
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if (
-                not isinstance(row, dict)
-                or set(row)
-                != {"document_id", "family_id", "split", "stratum", "content_sha256"}
-                or row["document_id"] in seen
-                or row["split"] not in _SPLITS
-                or not isinstance(row["family_id"], str)
-                or not row["family_id"]
-            ):
-                raise ValueError("invalid prior family inventory row")
-            seen.add(row["document_id"])
-            doc = kept.get(row["document_id"])
-            if (
-                doc is None
-                or doc["split"] != row["split"]
-                or doc["content_sha256"] != row["content_sha256"]
-                or row["stratum"] not in doc["domains"]
-            ):
-                raise ValueError("prior family inventory differs from release")
-            family = row["family_id"]
-            if family in families and (
-                families[family] != row["split"] or strata[family] != row["stratum"]
-            ):
-                raise ValueError("prior family spans split or stratum")
-            families[family] = row["split"]
-            strata[family] = row["stratum"]
-            previous = content.setdefault(row["content_sha256"], (family, row["split"]))
-            if previous != (family, row["split"]):
-                raise ValueError("prior content spans families or splits")
+    for record in records_from_path(prior_path):
+        row = record.value
+        if (
+            not isinstance(row, dict)
+            or set(row)
+            != {"document_id", "family_id", "split", "stratum", "content_sha256"}
+            or row["document_id"] in seen
+            or row["split"] not in _SPLITS
+            or not isinstance(row["family_id"], str)
+            or not row["family_id"]
+        ):
+            raise ValueError("invalid prior family inventory row")
+        seen.add(row["document_id"])
+        doc = kept.get(row["document_id"])
+        if (
+            doc is None
+            or doc["split"] != row["split"]
+            or doc["content_sha256"] != row["content_sha256"]
+            or row["stratum"] not in doc["domains"]
+        ):
+            raise ValueError("prior family inventory differs from release")
+        family = row["family_id"]
+        if family in families and (
+            families[family] != row["split"] or strata[family] != row["stratum"]
+        ):
+            raise ValueError("prior family spans split or stratum")
+        families[family] = row["split"]
+        strata[family] = row["stratum"]
+        previous = content.setdefault(row["content_sha256"], (family, row["split"]))
+        if previous != (family, row["split"]):
+            raise ValueError("prior content spans families or splits")
     if seen != set(kept):
         raise ValueError("prior family inventory does not cover kept release")
     return families, strata, content
@@ -217,11 +213,7 @@ def freeze_splits(
         snapshots,
         root / "corpora" / project.config.id / "snapshots",
     )
-    inventory = [
-        json.loads(line)
-        for line in inventory_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    inventory = [record.value for record in records_from_path(inventory_path)]
     ids = [row["document_id"] for row in inventory]
     if len(set(ids)) != len(ids):
         raise ValueError("split inventory has duplicate document IDs")
@@ -431,23 +423,15 @@ def finalize_family_inventory(
         != yaml.safe_load(frozen_splits.read_text(encoding="utf-8"))
     ):
         raise ValueError("family candidates differ from frozen release split")
-    candidates = {
-        row["document_id"]: row
-        for line in candidate_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-        for row in [json.loads(line)]
-    }
+    candidate_rows = [record.value for record in records_from_path(candidate_path)]
+    candidates = {row["document_id"]: row for row in candidate_rows}
     docs = {
         row["document_id"]: row
-        for line in (release / "documents.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-        if line.strip()
-        for row in [json.loads(line)]
+        for row in (
+            record.value for record in records_from_path(release / "documents.jsonl")
+        )
     }
-    if len(candidates) != sum(
-        1 for line in candidate_path.read_text().splitlines() if line.strip()
-    ):
+    if len(candidates) != len(candidate_rows):
         raise ValueError("duplicate family candidate document")
     if set(candidates) != set(docs):
         raise ValueError("family candidates differ from release documents")

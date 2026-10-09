@@ -210,11 +210,14 @@ def draft_admission_manifest(
             decisions: list[dict[str, Any]] = []
             profile = _admission_profile(source_declaration_payload(source))
             with (snapshot_dir / "files" / file["path"]).open("rb") as stream:
+                from sparselab.corpus.jsonl_records import iter_jsonl_records
+
+                rows = iter_jsonl_records(stream, source=file["path"])
                 for receipt in selected:
-                    line = stream.readline()
-                    if not line:
+                    row = next(rows, None)
+                    if row is None:
                         raise ValueError("selected HF rows exceed snapshot file")
-                    record = json.loads(line)
+                    record = row.value
                     envelope = record.pop("_sparselab_source", None)
                     original_sha = hashlib.sha256(canonical_json(record)).hexdigest()
                     if (
@@ -254,7 +257,7 @@ def draft_admission_manifest(
                     )
                     decisions.append(choice)
                     counts[state if conflict is not None else choice["decision"]] += 1
-                if stream.readline():
+                if next(rows, None) is not None:
                     raise ValueError("snapshot has undeclared HF rows")
             entry["records"] = decisions
         elif source.kind == "git":

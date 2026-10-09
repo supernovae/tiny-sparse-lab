@@ -212,11 +212,9 @@ def _jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line
-    ]
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    return [record.value for record in records_from_path(path)]
 
 
 def _line_count(path: Path) -> int:
@@ -450,12 +448,20 @@ def _records_for_file(
         and suffix == ".jsonl"
         and source.kind in {"huggingface_dataset", "wikimedia_dump"}
     )
+    jsonl_rows = suffix == ".jsonl" and source.kind in {
+        "huggingface_dataset",
+        "wikimedia_dump",
+    }
     raw_text = ""
     if suffix != ".parquet":
         if b"\x00" in raw:
             raise ValueError("binary input")
-        raw_text = "" if streaming_rows else raw.decode("utf-8", errors="strict")
-        if not raw or (not streaming_rows and not raw_text.strip()):
+        raw_text = "" if jsonl_rows else raw.decode("utf-8", errors="strict")
+        if (
+            not raw
+            or (jsonl_rows and not raw.strip())
+            or (not jsonl_rows and not raw_text.strip())
+        ):
             raise ValueError("empty input")
     text = (
         ""
@@ -470,10 +476,10 @@ def _records_for_file(
             import pyarrow.parquet as pq
 
             objects = pq.read_table(io.BytesIO(raw)).to_pylist()
-        elif streaming_rows:
-            objects = (json.loads(line) for line in io.BytesIO(raw) if line.strip())
-        elif suffix == ".jsonl":
-            objects = [json.loads(line) for line in text.splitlines() if line.strip()]
+        elif streaming_rows or suffix == ".jsonl":
+            from sparselab.corpus.jsonl_records import records_from_bytes
+
+            objects = (record.value for record in records_from_bytes(raw, source=name))
         else:
             loaded = json.loads(text)
             objects = loaded if isinstance(loaded, list) else [loaded]
@@ -543,7 +549,7 @@ def _records_for_file(
             }
             content = (
                 _normalized(item[field])
-                if streaming_rows and isinstance(item[field], str)
+                if suffix == ".jsonl" and isinstance(item[field], str)
                 else item[field]
             )
             passages.append((content, [], n, n, metadata))
@@ -2000,11 +2006,10 @@ def build(
                     verification_mode=verification_mode,
                 )
                 output = []
-                for entry in (
-                    json.loads(line)
-                    for line in raw.decode("utf-8").splitlines()
-                    if line
-                ):
+                from sparselab.corpus.jsonl_records import records_from_bytes
+
+                for parsed in records_from_bytes(raw, source=params["path"]):
+                    entry = parsed.value
                     doc = by_id[entry["evidence_document_id"]]
                     start, end = entry["evidence_span"]
                     if doc["text"][start:end] != entry["evidence_passage"]:
@@ -2326,10 +2331,13 @@ def build(
                     verification_mode=verification_mode,
                 )
                 output = []
+                from sparselab.corpus.jsonl_records import records_from_bytes
+
                 responses = [
-                    json.loads(line)
-                    for line in response_bytes.decode("utf-8").splitlines()
-                    if line
+                    record.value
+                    for record in records_from_bytes(
+                        response_bytes, source=params["responses_path"]
+                    )
                 ]
                 adapter = RecordedResponses(responses)
                 replay: Generator = adapter

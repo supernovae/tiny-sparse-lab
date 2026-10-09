@@ -207,7 +207,9 @@ def _prepare_file(
             ].endswith(".jsonl"):
                 with source_path.open("rb") as stream:
                     index = 0
-                    for raw in stream:
+                    from sparselab.corpus.jsonl_records import iter_lf_lines
+
+                    for _, raw in iter_lf_lines(stream):
                         counts["input_bytes"] += len(raw)
                         if not raw.strip():
                             progress.update(input_bytes=len(raw))
