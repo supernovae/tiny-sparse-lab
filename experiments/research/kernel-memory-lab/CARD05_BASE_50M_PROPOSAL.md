@@ -14,8 +14,13 @@ Card 06 remains blocked.
 ## Supply and one smallest source addition
 
 Use the same 341,885,952-parameter dense model, 32,768-token tokenizer file
-SHA-256 `308b33a6edbed613f3caf5232b124a7c6105a7a3dc273c999725be51c3ffeaa9`,
-context 1,024 and **81/18/1** target mixture. For exactly **50,000,000**
+SHA-256 `308b33a6edbed613f3caf5232b124a7c6105a7a3dc273c999725be51c3ffeaa9`
+from the accepted C03-C1 origin release
+`e893cb2e3c65f7f6360f73e4daa159dcec5da1b4c2c6f911ff5d9d549b815818`
+(manifest SHA-256 `718a5f1df007e59a32717bc660708ab05e4c5c8b90da963e1e8a960208c4f3ca`),
+context 1,024 and **81/18/1** target mixture. Bind that verified tokenizer
+origin explicitly in the prospective mixture declaration; the new training
+release is not the tokenizer's fitting release. For exactly **50,000,000**
 supervised targets, the quotas are **40,500,000 general**, **9,000,000
 explanatory** and **500,000 incident**. At most two exposures of any position
 requires at least **20,250,000 / 4,500,000 / 250,000** distinct eligible train
@@ -29,9 +34,11 @@ positions before packing, plus independently assigned held-out families.
 
 These are tokenizer positions in distinct retained training documents, not
 vocabulary types, and exclude EOS; they conservatively expose the narrow
-general margin. The unadmitted C05-B9 structure candidate would give about
-20.800M / 3.156M / 0.339M, a similar constraint. It is **not** silently used
-as training input.
+general margin. They describe the accepted B7 baseline, **not** the new
+post-cleaning supply. The unadmitted C05-B9 structure candidate would give
+about 20.800M / 3.156M / 0.339M, a similar constraint. Preserve B7 and B9
+unchanged; neither the B9 candidate nor its measured positions are an
+admission receipt for the prospective release.
 
 The smallest currently supported addition is one more hash bucket from the
 **same pinned Wikimedia complete shard**: change only its new declaration's
@@ -51,20 +58,28 @@ and exact compressed size **480,242,750 bytes**. Reuse cold-verified unchanged
 Gutenberg, PagerDuty and Scoutflo snapshots through native acquisition binding;
 do not redownload them. No additional source or shard is proposed.
 
-Apply the accepted local-research source policy, record-level exceptions and
-spot audit to new rows. Preserve prior family IDs, splits and strata; freeze
-new independent families before build, reject incompatible aliases, cross-split
-exact/near leakage and rights conflicts. Preserve raw snapshots and quarantines.
-Use the accepted v1 normalizer for this **proposed** expanded release unless a
-separate review admits a specifically versioned structure candidate. The
-merged v3 code is available but C05-B9 remains NOT ADMITTED. Do not fit or
-change the tokenizer, alter the protected evaluation content, or materialize a
-mixture before the new release passes its rights, family and content checks.
-Require measured post-admission, post-dedup **at least 20.25M general, 4.50M
-explanatory and 0.25M incident** unique train content positions, no loss of
-accepted held-out families, and a native exact 50M-position mixture receipt
-showing at most two exposures of each position. If one bucket falls short,
-stop and report the deficit; a second bucket or changed mix needs a new plan.
+The prospective expanded training release **must** declare
+`release.normalizer: normalizer-structure-v3`. The reviewed v3 implementation
+and source-span review establish a candidate transformation, not corpus
+admission. Apply the accepted local-research source policy, record-level
+exceptions and spot audit to new rows, and review the expanded v3 output for
+cleaning, rights and use before admitting this exact new release. Preserve
+prior family IDs, splits and strata; freeze new independent families before
+build, reject incompatible aliases, cross-split exact/near leakage and rights
+conflicts. Preserve raw snapshots, quarantines and all B7/B9 artifacts.
+
+Corpus admission is a mandatory pre-training gate: cold-verify the new v3
+release and its lineage, complete rights/cleaning and held-out-family review,
+and record a reviewed admission decision for its exact release identity. Do
+not fit or change the tokenizer, alter the protected evaluation content, or
+materialize a mixture before the new release passes its rights, family and
+content checks. Measure **post-cleaning, post-admission, post-dedup** distinct
+train content with the unchanged tokenizer; require **at least 20.25M general,
+4.50M explanatory and 0.25M incident** unique positions, no loss of accepted
+held-out families, and a native exact 50M-position mixture receipt showing at
+most two exposures of each position. All of these are mandatory before staging
+or model work. If one bucket falls short, stop and report the deficit; a second
+bucket or changed mix needs a new plan.
 
 ## Fresh run and unchanged evaluation
 
@@ -78,12 +93,17 @@ per-position exposure cap is two. Stage only through validation with the
 authenticated prepared bundle and zero optimizer updates. Exactly 50M targets
 need **48,828 full 1,024-target updates plus one 128-target update**, at most
 **48,829 updates**, with **896** final padding targets masked. No smoke/warmup
-optimizer work, retry or resume is included.
+optimizer work, training retry or resume is included.
 
 Preserve full initial, every-5,000-update and terminal checkpoints (11 total),
 with one held-out operational validation batch at each. Use the unchanged
 frozen `CARD05_BASE_EVALUATION_PROFILE_V1.json` SHA-256
-`bb4c1b719b29fa96c4429516022a5038f0e3595b9d8ef63394bf0a17a5c6851d`:
+`bb4c1b719b29fa96c4429516022a5038f0e3595b9d8ef63394bf0a17a5c6851d`,
+bound to the **original C03-C1 held-out release**
+`e893cb2e3c65f7f6360f73e4daa159dcec5da1b4c2c6f911ff5d9d549b815818`
+(manifest SHA-256 `718a5f1df007e59a32717bc660708ab05e4c5c8b90da963e1e8a960208c4f3ca`),
+its frozen document identities and the same tokenizer. Verify this binding
+against the original release, not the prospective v3 training release:
 all 12 fixed validation windows at all 11 checkpoints, earliest verified
 minimum finite token-weighted validation loss for checkpoint selection, then
 the same 12 test windows and 24 true/decoy pairs. Repeat the profile's exact
@@ -102,9 +122,9 @@ frozen 200-item language suite or the 400 evidence items in this proposal.
 
 | Boundary | Proposed hard ceiling |
 | --- | --- |
-| Whole attempt | **36,000 elapsed seconds** from a new preparation ledger through final verification, with one fixed common-root storage baseline and no reset, retry or resume |
+| Whole attempt | **36,000 elapsed seconds** from a new preparation ledger through final verification, with one fixed common-root storage baseline and no ledger reset, attempt restart, training retry or resume; only the charged source-transfer retry below is permitted |
 | Preparation | **14,400 seconds**, 24 GiB process-tree RSS, 8 GiB added apparent bytes, 10,000 added entries, 8 aggregate agent-assisted reviewer-hours; no model work |
-| One source transfer | **7,200 seconds**; at most **960,485,500 source response-body bytes** including one charged retry, **4,194,304 metadata/redirect/error-body bytes**, **964,679,804 total**; enforce before/during transfer; ≤4 GiB expanded stream and ≤384 MiB selected Wikimedia output |
+| One source transfer | **7,200 seconds**; at most **960,485,500 source response-body bytes** including **one bounded, charged retry of that transfer only**, **4,194,304 metadata/redirect/error-body bytes**, **964,679,804 total**; enforce before/during transfer under the same attempt ledger and deadline, without restart; ≤4 GiB expanded stream and ≤384 MiB selected Wikimedia output |
 | Runtime | **21,600 seconds**, including ≤18,000 for stage/train/checkpoint selection and ≤2,400 for evaluation; one training invocation, ≤48,829 updates, exactly 50M targets for success |
 | Memory/device | ≤20 GiB whole-device VRAM and ≤24 GiB process-tree RSS; fail closed on sensor, monitor, OOM or numerical failure |
 | Common-root storage | ≤72 GiB new apparent bytes and ≤10,000 new entries across preparation, checkpoints, logs and evaluation; include retained artifacts made by this attempt; ≥2 GiB projected free-space margin; no deletion of old evidence |
@@ -128,8 +148,11 @@ generation reservations, even if cache use reduces actual inputs.
 
 **Decision requested later:** approve this single conditional preparation and
 fresh 50M run only after a separate review of the declaration, native reuse
-binding, measured headroom and exact identities. This document authorizes no
+binding, measured headroom and exact identities. Admission of the exact
+expanded v3 release and its measured post-cleaning unique-position floors
+remain pre-training conditions, not assumptions. This document authorizes no
 acquisition, mixture materialization, model forward, generation, GPU work,
 optimizer update or cloud job. Stop on the first hard failure or token/family
 shortfall; preserve all receipts and return for a new decision rather than
-expanding a cap, data source or cleaning rule.
+expanding a cap, data source or cleaning rule. Apart from the single charged
+source-transfer retry, no attempt restart, training retry or resume is proposed.
