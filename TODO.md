@@ -194,32 +194,36 @@ experiment or a merge.
   items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
   existing output. Do not turn the adapter into a second authoring engine.
 
-- [ ] **Score fixed source-bound base-language slices through native evaluation.**
+- [x] **Score fixed source-bound base-language slices through native evaluation.**
   [C05-B1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-base-pretraining-audit.md)
   declares 24 exact held-out document/token windows and 24 paired continuation
-  utility items. The current `evaluation suite` `heldout_lm` observation uses
-  the run's packed validation batch and cannot select these exact windows or
-  return the teacher-forced true/decoy likelihoods. Add one small typed source
-  reference to the existing checkpoint-bound suite/API, reusing its verified
-  checkpoint, tokenizer, release, index and immutable receipt paths. Input is
-  the versioned profile plus release/family inventory; output is per-window
-  scored target counts/loss and per-pair normalized likelihood with missing or
-  failed rows explicit. Reject altered source hashes, tokenizer, split/family,
-  offsets, duplicate/omitted IDs and target-count drift before model work.
-  Preserve legacy suite identities when the new field is absent. Inspect and
-  run zero-update/no-generation fixture tests first; any real model scoring or
-  generation needs its own bounded allocation.
+  utility items. The native `evaluation fixed-slices
+  verify|score|continuations` commands bind the frozen profile, held-out
+  release, family inventory and tokenizer; scoring and generation additionally
+  bind the verified checkpoint. They report per-window loss and target counts
+  and true/decoy likelihoods, and reject missing coverage. C05-B8 exercised
+  the scored and generation paths within its allocation. Legacy suite
+  identities remain unchanged.
 
-- [ ] **Expose prepared-input bundle publication and cold verification through a typed CLI.**
+- [x] **Expose prepared-input bundle publication and cold verification through a typed CLI.**
   The native `materialize_prepared_inputs(config, destination)` and
   `verify_prepared_inputs(root, config)` Python APIs can seal and authenticate a
   data-only bundle, but `sparselab data prepare` publishes only the cache.
-  Add a small CLI adapter taking a validated run config and exclusive output
-  path, returning the bundle manifest digest and supervised-target counters.
-  Verification must reject altered assets, config/source-identity drift, a
-  missing supervision mask, or a target count different from the verified
-  mixture receipt. Card 03 used the existing APIs directly; this command is
-  not shipped yet.
+  `data prepared-inputs publish CONFIG --output DIR` and
+  `data prepared-inputs verify CONFIG DIR` now call those APIs in cold mode and
+  report the sealed bundle/data identities and supervised target count. The
+  token-mixture path also checks the authenticated mask against the mixture
+  receipt and run target. Both commands do no model work.
+
+- [ ] **Make fixed-validation checkpoint selection reusable for a fresh base run.**
+  C05-B8's retained selector (SHA-256
+  `1903a5c19c9d7ee85aeca774fc89069f7ef534311e0467ea3371f7769e164112`)
+  correctly chose the earliest minimum finite fixed-validation loss, but
+  hard-codes its 25M run ID, config hash, steps and monitor paths. A prospective
+  50M selection needs a reviewed, identity-bound operation with that same
+  rule, all eleven declared checkpoints and scores, and a receipt sealed
+  before test scoring. Do not use the historical 5M selector or Campaign's
+  highest-step choice.
 
 - [x] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
   `corpus measure-tokens --tokenizer-origin-release ORIGIN --family-inventory

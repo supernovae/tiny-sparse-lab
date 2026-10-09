@@ -744,6 +744,72 @@ def _data_prepare(args: argparse.Namespace) -> None:
     )
 
 
+def _prepared_input_summary(
+    root: Path, config: Any, verified: dict[str, Any]
+) -> dict[str, Any]:
+    """Report supervised targets from the cold-authenticated prepared assets."""
+    import numpy as np
+
+    manifest = json.loads((root / "assets" / "data" / "manifest.json").read_text())
+    train = manifest["train"]
+    result = {
+        "bundle": str(root.resolve()),
+        "bundle_manifest_sha256": verified["sha256"],
+        "source_identity_sha256": verified["source_identity_sha256"],
+        "prepared_data_manifest_sha256": manifest["manifest_sha256"],
+        "supervised_target_positions": train.get("supervised_target_positions"),
+        "scheduled_target_positions": train.get("scheduled_target_positions"),
+        "masked_padding_positions": train.get("masked_padding_positions"),
+        "supervised_target_positions_by_stratum": train.get(
+            "supervised_target_positions_by_stratum"
+        ),
+    }
+    if config.dataset.source == "local_token_mixture":
+        if manifest.get("supervision", {}).get("kind") != "token-loss-mask-v1":
+            raise ValueError("token mixture prepared inputs lack a supervision mask")
+        mask = np.load(
+            root / "assets" / "data" / "train_supervision.npy",
+            mmap_mode="r",
+            allow_pickle=False,
+        )
+        actual = sum(
+            int(np.count_nonzero(mask[start : start + 1_048_576]))
+            for start in range(1, len(mask), 1_048_576)
+        )
+        mixture = manifest["token_mixture"]
+        expected = sum(mixture["actual_target_tokens"].values())
+        if (
+            actual != expected
+            or actual != train.get("supervised_target_positions")
+            or actual != train.get("scheduled_target_positions")
+            or actual != config.training.max_tokens
+            or train.get("supervised_target_positions_by_stratum")
+            != mixture["actual_target_tokens"]
+        ):
+            raise ValueError("prepared supervision differs from verified token mixture")
+    return result
+
+
+def _data_prepared_inputs(args: argparse.Namespace) -> None:
+    from sparselab.data.legacy import require_current_dataset
+    from sparselab.staging import materialize_prepared_inputs, verify_prepared_inputs
+
+    config = load_config(Path(args.config))
+    require_current_dataset(config.dataset)
+    root = Path(args.output if args.inputs_command == "publish" else args.bundle)
+    if args.inputs_command == "publish":
+        materialize_prepared_inputs(
+            config,
+            root,
+            resource_envelope=args.resource_envelope_value,
+            tokenizer_batch_documents=args.tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+            verification_mode="cold",
+        )
+    verified = verify_prepared_inputs(root, config, verification_mode="cold")
+    print(json.dumps(_prepared_input_summary(root, config, verified), sort_keys=True))
+
+
 def _workspace_preflight(args: argparse.Namespace) -> None:
     checks = (
         tokenizer_storage_checks(load_tokenizer_config(Path(args.config)))
@@ -2468,6 +2534,22 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     data_prepare.add_argument("--cold-verify", action="store_true")
     data_prepare.add_argument("--observations-output", type=Path)
     _tokenizer_batch_arguments(data_prepare)
+    prepared_inputs = data_commands.add_parser(
+        "prepared-inputs", help="Publish or cold-verify immutable training inputs"
+    )
+    prepared_commands = prepared_inputs.add_subparsers(
+        dest="inputs_command", required=True
+    )
+    prepared_publish = prepared_commands.add_parser("publish")
+    prepared_publish.add_argument("config")
+    prepared_publish.add_argument("--output", required=True, type=Path)
+    prepared_publish.add_argument("--resource-envelope", type=Path)
+    _tokenizer_batch_arguments(prepared_publish)
+    prepared_publish.set_defaults(handler=_data_prepared_inputs)
+    prepared_verify = prepared_commands.add_parser("verify")
+    prepared_verify.add_argument("config")
+    prepared_verify.add_argument("bundle", type=Path)
+    prepared_verify.set_defaults(handler=_data_prepared_inputs)
     from sparselab.data.preparation_benchmark import (
         register_parser as register_benchmark,
     )
@@ -3484,6 +3566,8 @@ def _read_only_command(args: argparse.Namespace) -> bool:
         return True
     if args.command == "data" and args.data_command == "coverage":
         return True
+    if args.command == "data" and args.data_command == "prepared-inputs":
+        return args.inputs_command == "verify"
     if args.command == "campaign":
         return args.campaign_command in READ_ONLY_COMMANDS
     if args.command == "recovery":
@@ -3558,6 +3642,11 @@ def main() -> None:
     if (
         args.command in {"stage", "train", "run"}
         or (args.command == "data" and args.data_command == "prepare")
+        or (
+            args.command == "data"
+            and args.data_command == "prepared-inputs"
+            and args.inputs_command == "publish"
+        )
         or (args.command == "experiment" and args.experiment_command == "prepare")
     ):
         validate_tokenizer_batch_limits(
@@ -3586,7 +3675,8 @@ def main() -> None:
         from sparselab.data.legacy import require_current_dataset
 
         if args.command in {"train", "stage", "run"} or (
-            args.command == "data" and args.data_command in {"prepare", "bakeoff"}
+            args.command == "data"
+            and args.data_command in {"prepare", "bakeoff", "prepared-inputs"}
         ):
             require_current_dataset(load_config(Path(args.config)).dataset)
         elif args.command == "tokenizer" and args.tokenizer_command == "train":
@@ -3607,7 +3697,11 @@ def main() -> None:
                 else config.logging.root_dir
             )
         elif args.command == "data":
-            workspace = load_config(Path(args.config)).dataset.cache_dir
+            workspace = (
+                args.output
+                if args.data_command == "prepared-inputs"
+                else load_config(Path(args.config)).dataset.cache_dir
+            )
         elif args.command == "experiment" and args.experiment_command == "prepare":
             from sparselab.experiments.plan import load_plan
 
@@ -3644,6 +3738,11 @@ def main() -> None:
             if (
                 args.command in {"train", "tokenizer"}
                 or (args.command == "data" and args.data_command == "prepare")
+                or (
+                    args.command == "data"
+                    and args.data_command == "prepared-inputs"
+                    and args.inputs_command == "publish"
+                )
                 or (
                     args.command == "corpus"
                     and args.corpus_command
