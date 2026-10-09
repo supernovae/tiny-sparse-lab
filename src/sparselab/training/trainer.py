@@ -68,6 +68,7 @@ from sparselab.runtime_forecasting import (
     runtime_signature_key,
 )
 from sparselab.runtime_profile import RuntimeAuthorization, require_authorization
+from sparselab.training.attempt_budget import AttemptBudget
 from sparselab.training.checkpoints import (
     CheckpointManager,
     CheckpointRecord,
@@ -1704,6 +1705,8 @@ def _train_impl(
                 state=final_state,
             )
 
+        validation_pass_index = 0
+
         def evaluation_batches():
             limit = config.evaluation.max_batches
             progress_total = 0
@@ -1730,8 +1733,15 @@ def _train_impl(
                         ),
                     )
                 ]
+                inputs = np.stack([record[0] for record in records])
+                if AttemptBudget.forward_allocation_active_from_environment():
+                    AttemptBudget.reserve_forward_from_environment(
+                        f"validation:{run_id}:{validation_pass_index}:{emitted}",
+                        kind="operational_validation",
+                        positions=int(inputs.size),
+                    )
                 yield Microbatch(
-                    np.stack([record[0] for record in records]),
+                    inputs,
                     np.stack([record[1] for record in records]),
                     _stack_optional(records, 2),
                     _stack_optional(records, 3),
@@ -1752,8 +1762,10 @@ def _train_impl(
                     )
 
         def evaluate_and_record() -> dict[str, object] | None:
+            nonlocal validation_pass_index
             if wall_expired():
                 return None
+            validation_pass_index += 1
             enter_stage(ExperimentStage.EVALUATING)
             phase_reporter = ProgressReporter(
                 "validation",

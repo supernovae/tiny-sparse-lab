@@ -57,11 +57,9 @@ def _load(path: Path) -> Any:
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line
-    ]
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    return [record.value for record in records_from_path(path)]
 
 
 def _safe(root: Path, relative: str) -> Path:
@@ -245,10 +243,45 @@ def _verify_rights_files(
 
 
 def _iter_rows(path: Path):
-    with path.open("rb") as stream:
-        for line in stream:
-            if line.strip():
-                yield json.loads(line)
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    for record in records_from_path(path):
+        yield record.value
+
+
+def _verify_structure_replay(
+    doc: dict[str, Any], raw_text: str, *, expected_normalizer: str | None = None
+) -> None:
+    """Recreate opt-in cleaning from the authenticated source text."""
+    from sparselab.corpus.pipeline import _normalized
+    from sparselab.corpus.structure_cleaning import clean_structure
+
+    original = _normalized(raw_text)
+    normalizer = (doc.get("structure") or {}).get("normalizer")
+    if expected_normalizer is not None and normalizer != expected_normalizer:
+        raise ValueError("structured document normalizer mismatch")
+    replay = clean_structure(
+        original, source_id=doc["source_id"], normalizer=normalizer
+    )
+    if (
+        replay["text"] != doc["text"]
+        or replay["structure"] != doc.get("structure")
+        or (
+            "#row=" in doc["source_location"]
+            and hashlib.sha256(original.encode()).hexdigest()
+            != doc["raw_content_sha256"]
+        )
+    ):
+        raise ValueError("structured document replay mismatch")
+
+
+def _verify_cleaning_decision(doc: dict[str, Any], normalizer: str) -> None:
+    excluded = (
+        normalizer in {"normalizer-structure-v2", "normalizer-structure-v3"}
+        and (doc.get("structure") or {}).get("decision") == "exclude_lm_metadata_only"
+    )
+    if (doc.get("drop_reason") == "metadata_only_front_matter") != excluded:
+        raise ValueError("metadata-only cleaning decision mismatch")
 
 
 def _streaming_v3(identity: dict[str, Any]) -> bool:
@@ -357,6 +390,12 @@ def _validate_rows_v3(
                     != hashlib.sha256(text.encode("utf-8")).hexdigest()
                 ):
                     raise ValueError("document content digest mismatch")
+                _verify_cleaning_decision(
+                    doc,
+                    receipt["identity"]["release"].get(
+                        "normalizer", "normalizer-nfc-markdown-v1"
+                    ),
+                )
                 span_row = db.execute(
                     "SELECT data FROM spans WHERE id=?", (doc["document_id"],)
                 ).fetchone()
@@ -415,9 +454,11 @@ def _validate_rows_v3(
                 "SELECT COUNT(*) FROM docs AS doc LEFT JOIN docs AS representative "
                 "ON doc.representative=representative.id WHERE representative.id IS NULL "
                 "OR representative.representative!=representative.id OR "
-                "(doc.id=doc.representative AND doc.dropped IS NOT NULL) OR "
+                "(doc.id=doc.representative AND doc.dropped IS NOT NULL "
+                "AND doc.dropped!='metadata_only_front_matter') OR "
                 "(doc.id!=doc.representative AND doc.dropped IS NULL) OR "
-                "(doc.dropped NOT IN ('duplicate','contaminated_heldout')) OR "
+                "(doc.dropped NOT IN ('duplicate','contaminated_heldout',"
+                "'metadata_only_front_matter')) OR "
                 "(doc.split!='train' AND representative.split!=doc.split) OR "
                 "(doc.dropped='contaminated_heldout' AND "
                 "(doc.split!='train' OR representative.split='train')) OR "
@@ -438,6 +479,7 @@ def _validate_rows_v3(
             with ExitStack() as stack:
                 raw_stream = None
                 current_line = 0
+                current_item = None
                 current_offset = 0
                 for doc_json, text, span_json in db.execute(
                     "SELECT docs.data, docs.text, spans.data "
@@ -483,6 +525,7 @@ def _validate_rows_v3(
                         raw_stream = stack.enter_context(raw_path.open("rb"))
                         raw_sha = sha256_file(raw_path)
                         current_line, current_offset = 0, 0
+                        current_item = None
                         previous_file = raw_path
                     if (
                         span["source_id"] != doc["source_id"]
@@ -494,7 +537,9 @@ def _validate_rows_v3(
                     normalizer = (
                         "cnxml-text-v1"
                         if raw_path.suffix.lower() == ".cnxml"
-                        else "normalizer-nfc-markdown-v1"
+                        else receipt["identity"]["release"].get(
+                            "normalizer", "normalizer-nfc-markdown-v1"
+                        )
                     )
                     if (
                         span.get("normalizer") != normalizer
@@ -538,6 +583,17 @@ def _validate_rows_v3(
                             or digest.hexdigest() != doc["raw_content_sha256"]
                         ):
                             raise ValueError("document raw byte range mismatch")
+                        if normalizer in {
+                            "normalizer-structure-v2",
+                            "normalizer-structure-v3",
+                        }:
+                            _verify_structure_replay(
+                                doc,
+                                raw_path.read_bytes()[byte_start:current_offset].decode(
+                                    "utf-8"
+                                ),
+                                expected_normalizer=normalizer,
+                            )
                         if doc["source_location"] != (
                             f"{span['raw_path']}#lines={start}-{end}"
                         ):
@@ -559,31 +615,43 @@ def _validate_rows_v3(
                         if index <= current_line:
                             raw_stream.seek(0)
                             current_line = 0
+                        from sparselab.corpus.jsonl_records import iter_jsonl_records
+
                         while current_line < index:
-                            line = raw_stream.readline()
-                            if not line:
+                            parsed = next(
+                                iter_jsonl_records(raw_stream, source=str(raw_path)),
+                                None,
+                            )
+                            if parsed is None:
                                 raise ValueError("document raw row range mismatch")
-                            if line.strip():
-                                current_line += 1
-                        item = json.loads(line)
-                        if (
-                            not isinstance(item, dict)
-                            or not isinstance(
-                                item.get(
-                                    snapshots[doc["source_id"]]["declaration"][
-                                        "acquisition"
-                                    ]["text_field"]
-                                ),
-                                str,
+                            current_line += 1
+                            current_item = parsed.value
+                        if current_item is None:
+                            raise ValueError("document raw row range mismatch")
+                        item = current_item
+                        if not isinstance(item, dict) or not isinstance(
+                            item.get(
+                                snapshots[doc["source_id"]]["declaration"][
+                                    "acquisition"
+                                ]["text_field"]
+                            ),
+                            str,
+                        ):
+                            raise ValueError("document raw row content mismatch")
+                        source_text = item[
+                            snapshots[doc["source_id"]]["declaration"]["acquisition"][
+                                "text_field"
+                            ]
+                        ]
+                        if normalizer in {
+                            "normalizer-structure-v2",
+                            "normalizer-structure-v3",
+                        }:
+                            _verify_structure_replay(
+                                doc, source_text, expected_normalizer=normalizer
                             )
-                            or _normalized(
-                                item[
-                                    snapshots[doc["source_id"]]["declaration"][
-                                        "acquisition"
-                                    ]["text_field"]
-                                ]
-                            )
-                            != doc["text"]
+                        elif (
+                            _normalized(source_text) != doc["text"]
                             or doc["raw_content_sha256"] != doc["content_sha256"]
                         ):
                             raise ValueError("document raw row content mismatch")
@@ -780,6 +848,13 @@ def _validate_rows(
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
 ) -> None:
+    receipt = _load(
+        root / ("build.json" if (root / "build.json").exists() else "manifest.json")
+    )
+    identity = receipt.get("identity", receipt.get("build_identity"))
+    selected_normalizer = identity["release"].get(
+        "normalizer", "normalizer-nfc-markdown-v1"
+    )
     documents = _rows(root / "documents.jsonl")
     document_map = {doc["document_id"]: doc for doc in documents}
     if len(document_map) != len(documents):
@@ -787,6 +862,7 @@ def _validate_rows(
     for doc in documents:
         if doc["content_sha256"] != hashlib.sha256(doc["text"].encode()).hexdigest():
             raise ValueError("document content digest mismatch")
+        _verify_cleaning_decision(doc, selected_normalizer)
     spans = {item["record_id"]: item for item in _rows(root / "spans.jsonl")}
     sources = {item["id"]: item for item in _load(root / "sources.json")}
     from sparselab.corpus.acquisition import verify_snapshot
@@ -847,6 +923,7 @@ def _validate_rows(
     raw = b""
     raw_sha = ""
     offsets: list[int] = []
+    sample_rows = None
     observed_admission: set[tuple[str, str, int]] = set()
     for doc in sorted(
         documents,
@@ -919,9 +996,20 @@ def _validate_rows(
             raw = raw_path.read_bytes()
             raw_sha = hashlib.sha256(raw).hexdigest()
             offsets = [0]
+            sample_rows = None
             if "#lines=" in doc["source_location"]:
-                for line in raw.decode("utf-8").splitlines(keepends=True):
-                    offsets.append(offsets[-1] + len(line.encode("utf-8")))
+                for line in raw.split(b"\n")[:-1]:
+                    offsets.append(offsets[-1] + len(line) + 1)
+                if raw and not raw.endswith(b"\n"):
+                    offsets.append(len(raw))
+            if (prospective and "_admission_decisions" in file) or (
+                selected_normalizer
+                in {"normalizer-structure-v2", "normalizer-structure-v3"}
+                and "#row=" in doc["source_location"]
+            ):
+                from sparselab.corpus.jsonl_records import records_from_bytes
+
+                sample_rows = list(records_from_bytes(raw, source=str(raw_path)))
             previous_file = raw_path
         if (
             span["source_id"] != doc["source_id"]
@@ -930,21 +1018,58 @@ def _validate_rows(
             or span["raw_content_sha256"] != doc["raw_content_sha256"]
         ):
             raise ValueError("document snapshot span mismatch")
+        expected_normalizer = (
+            "cnxml-text-v1"
+            if raw_path.suffix.lower() == ".cnxml"
+            else selected_normalizer
+        )
+        if selected_normalizer in {
+            "normalizer-structure-v2",
+            "normalizer-structure-v3",
+        } and (
+            span.get("normalizer") != expected_normalizer
+            or doc["document_id"]
+            != _digest(
+                [
+                    source["snapshot_sha256"],
+                    doc["source_location"],
+                    raw_sha,
+                    expected_normalizer,
+                ]
+            )
+        ):
+            raise ValueError("structured document identity mismatch")
         if prospective and "_admission_decisions" in file:
             from sparselab.corpus.pipeline import _normalized
 
             line_number = span["line_start"]
-            sample_lines = raw.splitlines()
             if (
-                type(line_number) is not int
+                sample_rows is None
+                or type(line_number) is not int
                 or line_number < 1
-                or line_number > len(sample_lines)
+                or line_number > len(sample_rows)
                 or span["line_end"] != line_number
                 or doc["source_location"] != f"{span['raw_path']}#row={line_number}"
-                or _normalized(json.loads(sample_lines[line_number - 1])["text"])
-                != doc["text"]
+                or (
+                    selected_normalizer
+                    not in {"normalizer-structure-v2", "normalizer-structure-v3"}
+                    and _normalized(sample_rows[line_number - 1].value["text"])
+                    != doc["text"]
+                )
             ):
                 raise ValueError("admitted document differs from selected source row")
+        if (
+            selected_normalizer
+            in {"normalizer-structure-v2", "normalizer-structure-v3"}
+            and "#row=" in doc["source_location"]
+        ):
+            if sample_rows is None:
+                raise ValueError("structured source row unavailable")
+            _verify_structure_replay(
+                doc,
+                sample_rows[span["line_start"] - 1].value["text"],
+                expected_normalizer=expected_normalizer,
+            )
         if "#lines=" in doc["source_location"]:
             start, end = span["line_start"], span["line_end"]
             if start < 1 or end < start or end >= len(offsets):
@@ -957,6 +1082,16 @@ def _validate_rows(
                 != doc["raw_content_sha256"]
             ):
                 raise ValueError("document raw byte range mismatch")
+            if (
+                selected_normalizer
+                in {"normalizer-structure-v2", "normalizer-structure-v3"}
+                and expected_normalizer != "cnxml-text-v1"
+            ):
+                _verify_structure_replay(
+                    doc,
+                    raw[byte_start:byte_end].decode("utf-8"),
+                    expected_normalizer=expected_normalizer,
+                )
     expected_admission = {
         (source_id, path, index)
         for (source_id, path), file in rights_files.items()

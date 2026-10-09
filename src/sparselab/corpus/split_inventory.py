@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from sparselab.corpus.acquisition import verify_acquisition
+from sparselab.corpus.jsonl_records import records_from_bytes
 from sparselab.corpus.pipeline import _records_for_file
 from sparselab.corpus.project import Project
 from sparselab.corpus.rights import resolve_file_rights
@@ -31,12 +32,12 @@ def _verified_hf_metadata(
         raise ValueError("split inventory lacks one pinned HF shard receipt")
     shard = matching[0]
     selected = shard["selected_rows"]
-    lines = [line for line in raw.splitlines() if line.strip()]
-    if len(lines) != len(selected):
+    rows = list(records_from_bytes(raw, source=file["path"]))
+    if len(rows) != len(selected):
         raise ValueError("split inventory HF row count differs from receipt")
     result: dict[int, dict[str, Any]] = {}
-    for line, receipt in zip(lines, selected, strict=True):
-        row = json.loads(line)
+    for parsed, receipt in zip(rows, selected, strict=True):
+        row = parsed.value
         envelope = row.get("_sparselab_source")
         if not isinstance(envelope, dict):
             raise TypeError("split inventory HF row lacks provenance")
@@ -165,6 +166,10 @@ def write_split_inventory(
                         source,
                         entry["snapshot_sha256"],
                         file_rights=file_rights,
+                        normalizer_version=getattr(
+                            getattr(project, "release", None), "normalizer", None
+                        )
+                        or "normalizer-nfc-markdown-v1",
                     ):
                         index = document.get("metadata", {}).get("source_row_index")
                         if (

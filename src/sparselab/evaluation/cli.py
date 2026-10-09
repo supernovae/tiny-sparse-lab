@@ -6,6 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
+import torch
+
 from sparselab.campaign.state import publish_immutable
 from sparselab.evaluation.readiness import (
     assess_readiness,
@@ -13,6 +15,63 @@ from sparselab.evaluation.readiness import (
     verify_readiness_result,
 )
 from sparselab.evaluation.suite import run_suite, verify_evaluation_index
+
+
+def _fixed_slices(args: argparse.Namespace) -> None:
+    from sparselab.config.loading import load_tokenizer_config
+    from sparselab.evaluation.fixed_slices import (
+        bind_fixed_slices,
+        generate_fixed_continuations,
+        score_fixed_slices,
+    )
+    from sparselab.evaluation.inference import load_run, write_inference_result
+
+    fit = load_tokenizer_config(Path(args.tokenizer_config))
+    bound = bind_fixed_slices(
+        Path(args.profile),
+        Path(args.release),
+        fit.output_dir / "tokenizer.json",
+        Path(args.tokenizer_config),
+        Path(args.family_inventory),
+        expected_profile_sha256=getattr(args, "expected_profile_sha256", None),
+        expected_family_sha256=getattr(args, "expected_family_sha256", None),
+    )
+    if args.fixed_command == "verify":
+        _print(
+            {
+                "profile_sha256": bound.profile_sha256,
+                "slices": 24,
+                "utility_pairs": 24,
+                "continuations": 8,
+            },
+            args.json,
+        )
+        return
+    loaded = load_run(
+        args.run_id,
+        Path(args.runs_dir),
+        args.checkpoint,
+        args.backend,
+        authorization=getattr(args, "runtime_authorization", None),
+    )
+    if (
+        loaded.engine is not None
+        or loaded.config.model.memory != "none"
+        or not isinstance(loaded.device, torch.device)
+        or loaded.identity["tokenizer_sha256"] != bound.profile["tokenizer_sha256"]
+    ):
+        raise ValueError("fixed profile requires the declared dense PyTorch tokenizer")
+    if args.fixed_command == "continuations":
+        result = generate_fixed_continuations(
+            bound, loaded.model, loaded.device, loaded.config.model.max_seq_len
+        )
+    else:
+        result = score_fixed_slices(
+            bound, loaded.model, loaded.device, args.mode, args.max_forward_positions
+        )
+    result["identity"] = loaded.identity
+    path = write_inference_result(loaded.run, "fixed-slices", result)
+    _print({"output": str(path), **result}, args.json)
 
 
 def _print(payload: dict, json_output: bool) -> None:
@@ -111,6 +170,31 @@ def register_evaluation_parser(
     run.add_argument("--json", action="store_true")
     run.add_argument("--evidence-output")
     run.set_defaults(handler=_suite_run)
+    fixed = commands.add_parser("fixed-slices")
+    fixed_actions = fixed.add_subparsers(dest="fixed_command", required=True)
+    for action in ("verify", "score", "continuations"):
+        command = fixed_actions.add_parser(action)
+        command.add_argument("profile")
+        command.add_argument("--release", required=True)
+        command.add_argument("--tokenizer-config", required=True)
+        command.add_argument("--family-inventory", required=True)
+        command.add_argument("--expected-profile-sha256", required=action != "verify")
+        command.add_argument("--expected-family-sha256", required=action != "verify")
+        command.add_argument("--json", action="store_true")
+        if action in {"score", "continuations"}:
+            command.add_argument("run_id")
+            command.add_argument("--checkpoint", required=True)
+            command.add_argument("--runs-dir", required=True)
+            command.add_argument("--backend")
+            runtime = command.add_mutually_exclusive_group()
+            runtime.add_argument("--runtime-profile")
+            runtime.add_argument("--runtime", metavar="ID")
+            if action == "score":
+                command.add_argument(
+                    "--mode", choices=("validation", "test", "utility"), required=True
+                )
+                command.add_argument("--max-forward-positions", type=int, required=True)
+        command.set_defaults(handler=_fixed_slices)
 
 
 def register_readiness_parser(subparsers: argparse._SubParsersAction) -> None:

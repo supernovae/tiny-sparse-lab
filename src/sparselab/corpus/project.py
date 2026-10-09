@@ -629,6 +629,9 @@ class ReleaseDeclaration(StrictModel):
     ) = None
     training_use_policy: Literal["allowed_unless_explicitly_prohibited"] | None = None
     record_admission: RecordAdmissionReference | None = None
+    normalizer: Literal["normalizer-structure-v2", "normalizer-structure-v3"] | None = (
+        None
+    )
 
     @model_validator(mode="after")
     def weights_valid(self) -> ReleaseDeclaration:
@@ -667,6 +670,8 @@ def release_declaration_payload(release: ReleaseDeclaration) -> dict[str, Any]:
         result.pop("training_use_policy")
     if release.record_admission is None:
         result.pop("record_admission")
+    if release.normalizer is None:
+        result.pop("normalizer")
     return result
 
 

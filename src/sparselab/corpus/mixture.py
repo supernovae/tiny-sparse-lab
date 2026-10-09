@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from sparselab.config.loading import load_tokenizer_config
 from sparselab.config.models import DatasetConfig
@@ -40,6 +40,11 @@ class MixtureDeclaration(BaseModel):
     seed: int
     max_exposures: Literal[2]
     order_policy: Literal["kml-card03-v1"] | None = None
+    # Reuse an authenticated tokenizer fitted to an earlier frozen release.
+    # Absent for legacy declarations, preserving their canonical identity.
+    tokenizer_origin_release_id: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
 
     @model_validator(mode="after")
     def valid(self) -> MixtureDeclaration:
@@ -134,11 +139,16 @@ def _source_rights(release: Path, source_strata: dict[str, str]) -> None:
 def _tokenizer(spec: MixtureDeclaration, release: Path, release_id: str):
     config = load_tokenizer_config(spec.tokenizer_config)
     dataset = config.dataset
+    origin = spec.tokenizer_origin_release_id or release_id
     if (
         dataset.source != "local_text"
         or dataset.corpus_release_path is None
-        or dataset.corpus_release_path.resolve() != release
-        or dataset.revision != release_id
+        or dataset.corpus_release_path.resolve().name != origin
+        or dataset.revision != origin
+        or (
+            spec.tokenizer_origin_release_id is None
+            and dataset.corpus_release_path.resolve() != release
+        )
     ):
         raise ValueError("tokenizer configuration is not bound to this release")
     path = config.output_dir / "tokenizer.json"

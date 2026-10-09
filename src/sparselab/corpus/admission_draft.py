@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from sparselab.corpus.acquisition import verify_acquisition
+from sparselab.corpus.acquisition import declaration_sha256, verify_acquisition
 from sparselab.corpus.project import Project, source_declaration_payload
 from sparselab.corpus.rights import (
     RightsPolicy,
@@ -127,7 +127,9 @@ def draft_admission_manifest(
     template = json.loads(template_path.read_text(encoding="utf-8"))
     if (
         not isinstance(template, dict)
-        or set(template) != {"policy_id", "policy_sha256", "sources"}
+        or not {"policy_id", "policy_sha256", "sources"}.issubset(template)
+        or set(template)
+        - {"policy_id", "policy_sha256", "sources", "application_binding"}
         or not isinstance(template["sources"], list)
         or any(
             not isinstance(item, dict)
@@ -145,6 +147,32 @@ def draft_admission_manifest(
         raise ValueError("admission policy template source mismatch")
 
     lock = verify_acquisition(project, root)
+    if "application_binding" in template:
+        binding = template["application_binding"]
+        sources = binding.get("sources") if isinstance(binding, dict) else None
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != {"project_sha256", "acquisition_lock_sha256", "sources"}
+            or not isinstance(sources, dict)
+            or set(sources) != {source.id for source in project.sources}
+            or binding["project_sha256"] != lock.get("project_sha256")
+            or binding["acquisition_lock_sha256"]
+            != sha256_file(root / "corpora" / project.config.id / "acquisition.json")
+        ):
+            raise ValueError("application-policy project or lock binding mismatch")
+        for source in project.sources:
+            expected = sources[source.id]
+            entry = lock["sources"][source.id]
+            if (
+                not isinstance(expected, dict)
+                or set(expected) != {"declaration_sha256", "snapshot_sha256"}
+                or expected["declaration_sha256"] != declaration_sha256(source)
+                or expected["declaration_sha256"] != entry["declaration_sha256"]
+                or expected["snapshot_sha256"] != entry["snapshot_sha256"]
+            ):
+                raise ValueError(
+                    f"application-policy source binding mismatch: {source.id}"
+                )
     snapshots: dict[str, dict[str, Any]] = {}
     entries: list[dict[str, Any]] = []
     counts = {"qualify": 0, "exclude": 0, "quarantine": 0}
@@ -182,11 +210,14 @@ def draft_admission_manifest(
             decisions: list[dict[str, Any]] = []
             profile = _admission_profile(source_declaration_payload(source))
             with (snapshot_dir / "files" / file["path"]).open("rb") as stream:
+                from sparselab.corpus.jsonl_records import iter_jsonl_records
+
+                rows = iter_jsonl_records(stream, source=file["path"])
                 for receipt in selected:
-                    line = stream.readline()
-                    if not line:
+                    row = next(rows, None)
+                    if row is None:
                         raise ValueError("selected HF rows exceed snapshot file")
-                    record = json.loads(line)
+                    record = row.value
                     envelope = record.pop("_sparselab_source", None)
                     original_sha = hashlib.sha256(canonical_json(record)).hexdigest()
                     if (
@@ -226,7 +257,7 @@ def draft_admission_manifest(
                     )
                     decisions.append(choice)
                     counts[state if conflict is not None else choice["decision"]] += 1
-                if stream.readline():
+                if next(rows, None) is not None:
                     raise ValueError("snapshot has undeclared HF rows")
             entry["records"] = decisions
         elif source.kind == "git":

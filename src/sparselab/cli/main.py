@@ -3361,7 +3361,19 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         and args.evaluation_command == "suite"
         and args.suite_command == "run"
     )
-    if not (is_legacy or is_experiment or is_campaign or is_snapshot or is_suite):
+    is_fixed_slices = (
+        args.command == "evaluation"
+        and args.evaluation_command == "fixed-slices"
+        and args.fixed_command in {"score", "continuations"}
+    )
+    if not (
+        is_legacy
+        or is_experiment
+        or is_campaign
+        or is_snapshot
+        or is_suite
+        or is_fixed_slices
+    ):
         return
     from sparselab.runtime_environments import profile_for_id
 
@@ -3420,7 +3432,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         args.runtime_profile_loaded = profile
     elif workers:
         _prepare_local_worker(args, workers[0])
-    if is_suite:
+    if is_suite or is_fixed_slices:
         from sparselab.evaluation.inference import evaluation_config
         from sparselab.runtime_profile import authorize_worker
 

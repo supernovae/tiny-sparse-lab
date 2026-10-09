@@ -12,7 +12,6 @@ implicitly from the filesystem.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
@@ -774,8 +773,9 @@ def _verify_record_admission_v1(
         )
         if sample.is_symlink() or sha256_file(sample) != file["sha256"]:
             raise ValueError("record admission sample bytes differ from snapshot")
-        with sample.open("rb") as stream:
-            sample_rows = [json.loads(line) for line in stream if line.strip()]
+        from sparselab.corpus.jsonl_records import records_from_path
+
+        sample_rows = [record.value for record in records_from_path(sample)]
         if len(sample_rows) != len(selected):
             raise ValueError("record admission sample row count mismatch")
         for row, receipt in zip(sample_rows, selected, strict=True):

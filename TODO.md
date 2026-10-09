@@ -194,6 +194,22 @@ experiment or a merge.
   items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
   existing output. Do not turn the adapter into a second authoring engine.
 
+- [ ] **Score fixed source-bound base-language slices through native evaluation.**
+  [C05-B1](experiments/research/kernel-memory-lab/results/2026-10-08-card05-base-pretraining-audit.md)
+  declares 24 exact held-out document/token windows and 24 paired continuation
+  utility items. The current `evaluation suite` `heldout_lm` observation uses
+  the run's packed validation batch and cannot select these exact windows or
+  return the teacher-forced true/decoy likelihoods. Add one small typed source
+  reference to the existing checkpoint-bound suite/API, reusing its verified
+  checkpoint, tokenizer, release, index and immutable receipt paths. Input is
+  the versioned profile plus release/family inventory; output is per-window
+  scored target counts/loss and per-pair normalized likelihood with missing or
+  failed rows explicit. Reject altered source hashes, tokenizer, split/family,
+  offsets, duplicate/omitted IDs and target-count drift before model work.
+  Preserve legacy suite identities when the new field is absent. Inspect and
+  run zero-update/no-generation fixture tests first; any real model scoring or
+  generation needs its own bounded allocation.
+
 - [ ] **Expose prepared-input bundle publication and cold verification through a typed CLI.**
   The native `materialize_prepared_inputs(config, destination)` and
   `verify_prepared_inputs(root, config)` Python APIs can seal and authenticate a
@@ -204,6 +220,27 @@ experiment or a merge.
   missing supervision mask, or a target count different from the verified
   mixture receipt. Card 03 used the existing APIs directly; this command is
   not shipped yet.
+
+- [ ] **Support cold train-only token-denominator measurement with a reused tokenizer origin.**
+  The current `corpus measure-tokens` path expects a tokenizer fitted to the
+  measured release, so C05-B7 authenticated the unchanged Card 03 tokenizer
+  through the native mixture binding and called the native source-domain
+  measurement API for the new release. Extend that CLI with an explicit
+  `--tokenizer-origin-release` binding: input is a verified new release,
+  frozen family inventory, tokenizer config and accepted origin release ID;
+  output is distinct train-content positions per declared stratum, tokenizer
+  digest and both release identities. Reject changed tokenizer artifacts,
+  unverified origins, held-out content, missing strata and family mismatches.
+  Keep the existing same-release declaration and hashes unchanged when the
+  option is absent. The prospective structure-cleaning candidate hit this same
+  CLI binding gap; its CPU audit used the already verified tokenizer origin and
+  native `_measure_source_domains` API, without fitting or relaxing floors.
+
+- [x] **Inspect shared Corpus Forge export bindings without preparing data.**
+  `sparselab corpus verify-export RUN.yaml` cold-verifies the run's exact
+  release/export dataset binding. Two offline fixture run configurations can
+  vary seed and run output while retaining the same authenticated dataset,
+  tokenizer and cache declaration; this command does no model work or copying.
 
 - [ ] **Expose native read-only verification for bounded project budgets and tokenizer artifacts.** Kernel Memory Lab Cards 03/04 currently need Python APIs to inspect a live `TransportBudget` ledger and to call `verify_tokenizer_artifact`. Add small typed adapters, not another orchestrator: `sparselab corpus budget status PROJECT --json` should return the project/attempt binding, deadline, charged/actual source and metadata body bytes, transfer statuses and preserved failures; it must fail on missing, corrupt, expired-clock or identity-mismatched ledgers without mutating them. `sparselab tokenizer verify CONFIG --json` should bind the configured tokenizer path to its native manifest and declared source/revision/vocabulary, then report digest, vocabulary and special-token IDs with exact provenance; it must reject missing/tampered outputs, underfilled vocabulary or a changed config/source rather than silently accepting a same-sized file. Keep optional round-trip probes separately declared and report their denominators. These would replace ad hoc API invocations in project handoffs; they are not shipped commands today.
 

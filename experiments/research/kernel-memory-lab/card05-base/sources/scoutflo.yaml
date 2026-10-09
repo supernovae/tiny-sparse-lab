@@ -1,0 +1,1325 @@
+schema_version: 2
+id: kml_scale_scoutflo
+kind: git
+canonical_uri: https://github.com/Scoutflo/Scoutflo-SRE-Playbooks
+revision: acc55da0224fda5eda580939a15bc60990e8e69f
+license: MIT repository claim, per-file review required
+license_url: https://github.com/Scoutflo/Scoutflo-SRE-Playbooks/blob/acc55da0224fda5eda580939a15bc60990e8e69f/LICENSE
+rights:
+  training_eligibility: review_required
+  redistribution_mode: review_required
+  license_references:
+  - https://github.com/Scoutflo/Scoutflo-SRE-Playbooks/blob/acc55da0224fda5eda580939a15bc60990e8e69f/LICENSE
+  notices:
+  - Review selected playbook Markdown for third-party inserts, sensitive data, source-specific
+    exceptions and near-duplicate templates before admission.
+notes: Pinned complete-file incident-response preparation candidate; source policy
+  and per-file screening are required before admission.
+domains:
+- incident_response_docs
+document_kinds:
+- markdown
+source_family: kml_scale_scoutflo
+acquisition:
+  max_bytes: 2087503
+  tree_oid: 1e77048f12715248fd7a1cab6c4d0bdc4eb2ec86
+  bounded_blobs:
+  - path: AWS Playbooks/01-Compute/Cold-Start-Delays-Performance-Lambda.md
+    git_blob_oid: 5bf181d685f29b1d2d87ec14a25784f88cf7242f
+    max_bytes: 5309
+  - path: AWS Playbooks/01-Compute/Connection-Timeout-SSH-Issues-EC2.md
+    git_blob_oid: 44be92c14b440de8f4d0fcd6d7a4baa8d6557fb8
+    max_bytes: 7477
+  - path: AWS Playbooks/01-Compute/Connection-Timeout-from-Lambda-RDS.md
+    git_blob_oid: 2207aab94bc7ec9cbb974f6fc6bc72fa13f328dd
+    max_bytes: 5232
+  - path: AWS Playbooks/01-Compute/Exceeds-Memory-Limit-Lambda.md
+    git_blob_oid: ecab3624892f0710c8b768f23ff444ab34b98c3e
+    max_bytes: 5081
+  - path: AWS Playbooks/01-Compute/Failing-on-EC2-Instances-CodeDeploy.md
+    git_blob_oid: fd10cb31ae38d6e4b9b5a2417abb93319ebaf3a8
+    max_bytes: 5005
+  - path: AWS Playbooks/01-Compute/High-CPU-Utilization-EC2.md
+    git_blob_oid: 921aba84915e1c61f47c99981829ca2a82180492
+    max_bytes: 5111
+  - path: AWS Playbooks/01-Compute/IAM-Role-Not-Attaching-to-Service-Account-EKS.md
+    git_blob_oid: f4fc1fe1fbf8c3f1229e4a270777382850ef3493
+    max_bytes: 6252
+  - path: AWS Playbooks/01-Compute/Image-Pull-Failing-in-ECS-Docker.md
+    git_blob_oid: b59f87b9a0cd24a39010c9466a89be2d342c4c5c
+    max_bytes: 6021
+  - path: AWS Playbooks/01-Compute/Ingress-Controller-Not-Routing-Traffic-EKS.md
+    git_blob_oid: 5c62e973dcf96a7fed01eb6249a781d0cde421b4
+    max_bytes: 6276
+  - path: AWS Playbooks/01-Compute/Instance-Cant-Reach-Internet-via-NAT-Gateway-EC2.md
+    git_blob_oid: 992c95a5b5a4282eb1391787408eb31c59f5e7f4
+    max_bytes: 5443
+  - path: AWS Playbooks/01-Compute/Instance-Not-Starting-EC2.md
+    git_blob_oid: b73267fd6ae81863632e0431a384060382a8aa64
+    max_bytes: 5456
+  - path: AWS Playbooks/01-Compute/Instance-Unable-to-Reach-the-Internet-EC2.md
+    git_blob_oid: 8d97e52fb62ee3cb1797651c4784cfdefe180eb9
+    max_bytes: 5095
+  - path: AWS Playbooks/01-Compute/Interrupted-Unexpectedly-Spot-Instance.md
+    git_blob_oid: eb8bdd43dc828b378db349b3e19937188e9a23be
+    max_bytes: 4940
+  - path: AWS Playbooks/01-Compute/Logs-Not-Appearing-in-CloudWatch-ECS.md
+    git_blob_oid: 065024a6c7027f56fc544bfb551f5e1a43c5cdcc
+    max_bytes: 6078
+  - path: AWS Playbooks/01-Compute/Nodes-Not-Joining-Cluster-EKS.md
+    git_blob_oid: 96aa6c81a313ef1798d3eae0b35bb997e406ffb3
+    max_bytes: 6241
+  - path: AWS Playbooks/01-Compute/Not-Launching-New-Instances-Auto-Scaling.md
+    git_blob_oid: 86fc9f3d4a3ec42c5cfb26d7d1d9375c5c93039e
+    max_bytes: 4939
+  - path: AWS Playbooks/01-Compute/Not-Scaling-as-Expected-ECS.md
+    git_blob_oid: 2d54c3a362bdfc326b57c5fc8fbb0983ef9b1b26
+    max_bytes: 4902
+  - path: AWS Playbooks/01-Compute/Not-Triggering-from-S3-Event-Lambda.md
+    git_blob_oid: ae1affdc82e3c7814653f0a30687a72e1bdf0b09
+    max_bytes: 5657
+  - path: AWS Playbooks/01-Compute/Pod-Stuck-in-CrashLoopBackOff-EKS.md
+    git_blob_oid: 08f0249763b17a1ff08064edf97d2d2570145136
+    max_bytes: 5518
+  - path: AWS Playbooks/01-Compute/Role-Not-Attaching-to-EC2-Instance-IAM.md
+    git_blob_oid: 8c344ff24e6890fd83ac44a1266833f68f9a4989
+    max_bytes: 5159
+  - path: AWS Playbooks/01-Compute/Running-Out-of-Memory-Fargate.md
+    git_blob_oid: 0d0c4a0d1d6ac72ca99f5a253bf23217145eb342
+    max_bytes: 6265
+  - path: AWS Playbooks/01-Compute/Spot-Instance-Pricing-Unexpectedly-High-Cost.md
+    git_blob_oid: 820685de139bba0c5b5d93747aa2995fdb49fbba
+    max_bytes: 5192
+  - path: AWS Playbooks/01-Compute/Streams-Not-Triggering-Lambda-DynamoDB.md
+    git_blob_oid: 5ccca891d2abf1440940a9b0917e23c2e7ac9976
+    max_bytes: 6425
+  - path: AWS Playbooks/01-Compute/Stuck-in-Initializing-State-EC2.md
+    git_blob_oid: 3f2b27bfcb1c434f4aaed2751c561cbac953401c
+    max_bytes: 5233
+  - path: AWS Playbooks/01-Compute/Task-Stuck-in-Pending-State-ECS.md
+    git_blob_oid: f142b80929171bb2d6040f149766962d684de42a
+    max_bytes: 5669
+  - path: AWS Playbooks/01-Compute/Terminating-Instances-Unexpectedly-Auto-Scaling.md
+    git_blob_oid: 1997789cd3f9d8df187d950fa67ccdbd53f40b53
+    max_bytes: 4988
+  - path: AWS Playbooks/01-Compute/Timeout-Error-Lambda.md
+    git_blob_oid: e9106be97835ccecf7adb75d535b6ac50749850e
+    max_bytes: 5319
+  - path: AWS Playbooks/02-Database/Automatic-Backup-Not-Working-RDS.md
+    git_blob_oid: 8c94f0496512c8f6f51697f01ecb3e8e6a8530e9
+    max_bytes: 4740
+  - path: AWS Playbooks/02-Database/Backup-Failing-DynamoDB.md
+    git_blob_oid: 5f956ba56d1e208528136af527c3b711426f63a3
+    max_bytes: 5840
+  - path: AWS Playbooks/02-Database/High-CPU-Utilization-RDS.md
+    git_blob_oid: c6138971c86c5542c8c04ce158388f39d2e20752
+    max_bytes: 5056
+  - path: AWS Playbooks/02-Database/Instance-Not-Connecting-RDS.md
+    git_blob_oid: ac713460e3ceb54c825e7e234c8cd1ac199de549
+    max_bytes: 5401
+  - path: AWS Playbooks/02-Database/Query-Performance-Slower-Than-Expected-DynamoDB.md
+    git_blob_oid: 8117068dc885d438d7b8e13fbbdc6f6b0a7f6093
+    max_bytes: 5026
+  - path: AWS Playbooks/02-Database/Read-Replica-Lagging-Behind-Primary-RDS.md
+    git_blob_oid: 228733936322b3a8837eba33a12d9d41ba7da486
+    max_bytes: 4990
+  - path: AWS Playbooks/02-Database/Storage-Full-Error-RDS.md
+    git_blob_oid: 1bf314271b83d9c86d4ba8c342d2716635e5fc7b
+    max_bytes: 5213
+  - path: AWS Playbooks/02-Database/Throttling-Errors-DynamoDB.md
+    git_blob_oid: 1b4b8715abec01bac95c5a89c2f2041d934dbf04
+    max_bytes: 5262
+  - path: AWS Playbooks/03-Storage/Bucket-Access-Denied-403-Error-S3.md
+    git_blob_oid: 458f97ba0467c86ed7d2f261f56fdd5c832b8f9f
+    max_bytes: 5138
+  - path: AWS Playbooks/03-Storage/Cross-Region-Replication-Not-Working-S3.md
+    git_blob_oid: e883bbfb698b3b52be1bd5d663f0b8342c857d03
+    max_bytes: 6378
+  - path: AWS Playbooks/03-Storage/Failing-Due-to-S3-Permissions-CodePipeline.md
+    git_blob_oid: 56fe7364d141eda424c8263f7ff763b10cd40105
+    max_bytes: 5315
+  - path: AWS Playbooks/03-Storage/File-Upload-Extremely-Slow-S3.md
+    git_blob_oid: ff164faf715b06b3ac574855495297b5e20b1230
+    max_bytes: 6226
+  - path: AWS Playbooks/03-Storage/Intelligent-Tiering-Not-Moving-Data-as-Expected-S3.md
+    git_blob_oid: 86a5d33c765f5710f15ed693fee3cc6d30a14cf7
+    max_bytes: 5985
+  - path: AWS Playbooks/03-Storage/Lifecycle-Policy-Not-Deleting-Objects-S3.md
+    git_blob_oid: 90f6b495a1f227457b481b3c270a99a3a34eeb70
+    max_bytes: 6159
+  - path: AWS Playbooks/03-Storage/Public-Access-Block-Preventing-Access-S3.md
+    git_blob_oid: 81c43fbc040b56e22dd60627e33dc4234dd3b6e9
+    max_bytes: 4765
+  - path: AWS Playbooks/04-Networking/Blocking-Expected-Traffic-NACL.md
+    git_blob_oid: 3328d641b60cb7bbe6af4846b84f5238f9732141
+    max_bytes: 4655
+  - path: AWS Playbooks/04-Networking/CORS-Issues-API-Gateway.md
+    git_blob_oid: 298c98911fe39c7df3e16cc3745f33e686f24a50
+    max_bytes: 4823
+  - path: AWS Playbooks/04-Networking/Certificate-Not-Working-on-ELB.md
+    git_blob_oid: a595891675a82d7070e42b302a2dab8506175404
+    max_bytes: 6371
+  - path: AWS Playbooks/04-Networking/Connection-Dropping-Frequently-VPN.md
+    git_blob_oid: 0fc356b56ebf1744a91646d0692daf4bd55c89ae
+    max_bytes: 4784
+  - path: AWS Playbooks/04-Networking/DNS-Resolution-Failing-Route-53.md
+    git_blob_oid: 27cf443b73d8797e83f6fd30af53a1b438264557
+    max_bytes: 5031
+  - path: AWS Playbooks/04-Networking/Distribution-Deployment-Stuck-in-Progress-CloudFront.md
+    git_blob_oid: 59bc1aedc7fa95f5d5ee0594e05448ea4038ba58
+    max_bytes: 6492
+  - path: AWS Playbooks/04-Networking/Endpoint-Not-Working-PrivateLink.md
+    git_blob_oid: 1a979db31acb314b31a384dd6dcf1426461bc355
+    max_bytes: 4592
+  - path: AWS Playbooks/04-Networking/Latency-Based-Routing-Not-Working-Route-53.md
+    git_blob_oid: fe0a1586f3751cc45e09f070fa369d7546e417f7
+    max_bytes: 6204
+  - path: AWS Playbooks/04-Networking/Latency-Higher-Than-Expected-Direct-Connect.md
+    git_blob_oid: 0548079229edda4e3a46247e8ace0aaa901ba91b
+    max_bytes: 6232
+  - path: AWS Playbooks/04-Networking/Not-Distributing-Traffic-Properly-Global-Accelerator.md
+    git_blob_oid: 3bd5094c0dc887173bf80764b5573b7ec677b8ac
+    max_bytes: 6487
+  - path: AWS Playbooks/04-Networking/Not-Routing-Traffic-ELB.md
+    git_blob_oid: 7aab53642fe9ace580a22583a5070d11219d7ac1
+    max_bytes: 5464
+  - path: AWS Playbooks/04-Networking/Not-Serving-Updated-Content-CloudFront.md
+    git_blob_oid: fef7a5e08c3986bac2297d12f8b8d47b50d17e5a
+    max_bytes: 6228
+  - path: AWS Playbooks/04-Networking/Peering-Not-Working-VPC.md
+    git_blob_oid: 4c1ca858eb2f0cfee6f89e64f7b370d65ca25d17
+    max_bytes: 5365
+  - path: AWS Playbooks/04-Networking/Returning-500-Internal-Server-Error-API-Gateway.md
+    git_blob_oid: 2ec649ebe4ff11009ff3c791483d9f864fc1800a
+    max_bytes: 5434
+  - path: AWS Playbooks/04-Networking/Route-Not-Matching-Requests-API-Gateway.md
+    git_blob_oid: 8fcc983c791e27207609790817dd11a080721bbd
+    max_bytes: 6098
+  - path: AWS Playbooks/04-Networking/Target-Group-Showing-Unhealthy-Instances-ELB.md
+    git_blob_oid: ef89ad9c69b5c6827eb12a3c1d79b644e936a39b
+    max_bytes: 5676
+  - path: AWS Playbooks/04-Networking/Throttling-Requests-API-Gateway.md
+    git_blob_oid: a3a10da06ea5878dd027699198eba321038440cc
+    max_bytes: 4807
+  - path: AWS Playbooks/05-Security/Access-Key-Leaked-Warning-IAM.md
+    git_blob_oid: 7c376812d10cd51a908e96ff89b656c573349c36
+    max_bytes: 5443
+  - path: AWS Playbooks/05-Security/Authentication-Failing-for-IAM-User-MFA.md
+    git_blob_oid: b6552973deacb58bdffae3eb96d5b0c047bbeb73
+    max_bytes: 4601
+  - path: AWS Playbooks/05-Security/Blocking-Legitimate-Traffic-WAF.md
+    git_blob_oid: dedd61dbd90588e358a39d66028f61ea7ed9081e
+    max_bytes: 5918
+  - path: AWS Playbooks/05-Security/Certificate-Not-Issuing-ACM.md
+    git_blob_oid: c12af098c8a018418ae4a92ddfb8ab52001cfc10
+    max_bytes: 6034
+  - path: AWS Playbooks/05-Security/Key-Policy-Preventing-Decryption-KMS.md
+    git_blob_oid: 3838c672cb7c086c0dd594a02c9ee0d00e279f6c
+    max_bytes: 5128
+  - path: AWS Playbooks/05-Security/Not-Aggregating-Findings-Security-Hub.md
+    git_blob_oid: cc7f217488c349246d51185543499378860a1596
+    max_bytes: 5260
+  - path: AWS Playbooks/05-Security/Not-Detecting-Security-Threats-GuardDuty.md
+    git_blob_oid: 7658ce280e84c23d4de27e879d61cef696b15c53
+    max_bytes: 5269
+  - path: AWS Playbooks/05-Security/Not-Detecting-Threats-GuardDuty.md
+    git_blob_oid: 3f4da95b002cbfd5e94cef42ce29f81ca7f7be22
+    max_bytes: 5281
+  - path: AWS Playbooks/05-Security/Not-Mitigating-DDoS-Attacks-Shield.md
+    git_blob_oid: 7810f568b6433fe6537ce7d92939c8116a563df7
+    max_bytes: 5497
+  - path: AWS Playbooks/05-Security/Not-Rotating-Credentials-Secrets-Manager.md
+    git_blob_oid: e2120fa596e2af6ac140a114b6f27ee0e74e3394
+    max_bytes: 6714
+  - path: AWS Playbooks/05-Security/Policy-Not-Granting-Expected-Access-IAM.md
+    git_blob_oid: 7ac74140273af5696a6f2ce76d0d4bfd7ed87549
+    max_bytes: 5319
+  - path: AWS Playbooks/05-Security/Rules-Causing-False-Positives-WAF.md
+    git_blob_oid: 59a5fd8340a14e7d05a45e04a09bea6b0ca9920e
+    max_bytes: 5448
+  - path: AWS Playbooks/05-Security/Rules-Not-Applying-Correctly-Security-Group.md
+    git_blob_oid: f640dc6734f7dcf3a6b95af58eac9a1e6aa8fad0
+    max_bytes: 5125
+  - path: AWS Playbooks/05-Security/SCP-Preventing-Service-Access-Organizations.md
+    git_blob_oid: 0c44b980b723ae1868e29b6af2ec513e32b031dd
+    max_bytes: 5604
+  - path: AWS Playbooks/05-Security/Token-Expired-Error-STS.md
+    git_blob_oid: 33b9f256dfb94eea8f94f4385a4f4552faf4fd22
+    max_bytes: 4882
+  - path: AWS Playbooks/05-Security/User-Pool-Login-Issues-Cognito.md
+    git_blob_oid: b5a0bd354fe186e4a91925378efb26dec738b6c3
+    max_bytes: 5313
+  - path: AWS Playbooks/06-Monitoring/Alarm-Not-Triggering-as-Expected-CloudWatch.md
+    git_blob_oid: 0b4b6f8bda82e6cff5db8f8798ec2909c9d514a7
+    max_bytes: 5863
+  - path: AWS Playbooks/06-Monitoring/Events-Not-Showing-in-Logs-CloudTrail.md
+    git_blob_oid: d294f68590f8e3495978ed4e2676e0fa53313d43
+    max_bytes: 5382
+  - path: AWS Playbooks/06-Monitoring/Logs-Not-Appearing-CloudWatch.md
+    git_blob_oid: 8e349ed14593aa6b5d5941ae0a46569f34f01715
+    max_bytes: 5058
+  - path: AWS Playbooks/06-Monitoring/Logs-Not-Capturing-Events-CloudTrail.md
+    git_blob_oid: e418315fa946693dc10354a5ae1c9805f04a3c67
+    max_bytes: 5296
+  - path: AWS Playbooks/06-Monitoring/Metrics-Missing-Data-Points-CloudWatch.md
+    git_blob_oid: 878520bc385fa39c63f9a2905a976d8aa8c9f067
+    max_bytes: 6140
+  - path: AWS Playbooks/06-Monitoring/Not-Recording-Changes-Config.md
+    git_blob_oid: 770ea64d628f1aa352f66a86e6dc6a76fa83c515
+    max_bytes: 5228
+  - path: AWS Playbooks/06-Monitoring/Not-Recording-Resource-Changes-Config.md
+    git_blob_oid: 10cfc727f4950b09467b8d01cf23fedd9568460b
+    max_bytes: 5447
+  - path: AWS Playbooks/06-Monitoring/Traces-Missing-in-Application-Logs-X-Ray.md
+    git_blob_oid: 12f54574f37548e6b73aa320163c39b5ad1fc64e
+    max_bytes: 5181
+  - path: AWS Playbooks/07-CI-CD/Deployment-Failing-App-Runner.md
+    git_blob_oid: e16c1dc875225b81aff15edd119c1ba15f5529b1
+    max_bytes: 6170
+  - path: AWS Playbooks/07-CI-CD/Drift-Detection-Not-Detecting-Changes-CloudFormation.md
+    git_blob_oid: 97b6681a68fb3e7606d1d87db731d8d70d0d5c1e
+    max_bytes: 5750
+  - path: AWS Playbooks/07-CI-CD/Execution-Stuck-in-Running-State-Step-Functions.md
+    git_blob_oid: b142e299b2fbeff85e31b3aa98979c1f20525fe1
+    max_bytes: 5732
+  - path: AWS Playbooks/07-CI-CD/Failing-Due-to-Dependency-Errors-CodeBuild.md
+    git_blob_oid: b60162ed19dd4c138bdb012447c26d4746072ef8
+    max_bytes: 4943
+  - path: AWS Playbooks/07-CI-CD/Job-Failing-Randomly-Glue.md
+    git_blob_oid: a0d21a91567bd31fd533a644785f6b666f611c5e
+    max_bytes: 5352
+  - path: AWS Playbooks/07-CI-CD/Jobs-Not-Starting-Batch.md
+    git_blob_oid: 5453dbc758c39d614543dc8523f2f8246c28a147
+    max_bytes: 5600
+  - path: AWS Playbooks/07-CI-CD/Repository-Not-Allowing-Push-CodeCommit.md
+    git_blob_oid: bdda4e28caf4fb04f936797d3f378af8cdc59c6b
+    max_bytes: 6240
+  - path: AWS Playbooks/07-CI-CD/Stack-Failing-to-Create-CloudFormation.md
+    git_blob_oid: 414f03fe3a6be7c0ad7d318662a2037d613a212c
+    max_bytes: 4666
+  - path: AWS Playbooks/07-CI-CD/Stuck-in-Progress-CodePipeline.md
+    git_blob_oid: be8831accc763455d9c4c135337bfefd2b90a66c
+    max_bytes: 4668
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Baseline-Comparison-AWS.md
+    git_blob_oid: 5851616a05db36532d704b91fc9869bc3ae2bed7
+    max_bytes: 4600
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Capacity-Trend-Analysis-AWS.md
+    git_blob_oid: d4ace62db14adf142514c9f7a156cb6a56e3b12d
+    max_bytes: 4626
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Cascading-Failure-Analysis-AWS.md
+    git_blob_oid: 93b0740b8fe8d1240a3ebeb24aa006cc99649d41
+    max_bytes: 4699
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Error-Budget-Tracking-AWS.md
+    git_blob_oid: 1435d6b9fb239188a6c43ab067be96e7d726c161
+    max_bytes: 4528
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Performance-Regression-Detection-AWS.md
+    git_blob_oid: dc69ecfbb94a5f4c22588f6b1ae3fcb75d753423
+    max_bytes: 4632
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Performance-Trend-Analysis-AWS.md
+    git_blob_oid: e11d79609cbbb0072d3f62d2bdd2ce54417cd055
+    max_bytes: 4832
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Quota-Utilization-Tracking-AWS.md
+    git_blob_oid: 8e511a6f5ceeebb6150e342a9999e2c20fd04670
+    max_bytes: 4559
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Resource-Exhaustion-Prediction-AWS.md
+    git_blob_oid: 7e9440c55c56d1b3e138e6510d1332a592a7602e
+    max_bytes: 4620
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Resource-Usage-Forecasting-AWS.md
+    git_blob_oid: 2c2db7361bce3ceaf85b0f1fd7540d5f550abc68
+    max_bytes: 4520
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Right-sizing-Analysis-AWS.md
+    git_blob_oid: d6faf94f5fcb3290597cee3ad8c083fa211da631
+    max_bytes: 5317
+  - path: AWS Playbooks/08-Proactive/01-Capacity-Performance/Scaling-Projections-AWS.md
+    git_blob_oid: c06b8697e2a33e9cb4049210aa11878390f05c20
+    max_bytes: 4531
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Access-Review-AWS.md
+    git_blob_oid: b981994fc19d5d87c318880c7820d4cbb327cdce
+    max_bytes: 4648
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Audit-Log-Review-AWS.md
+    git_blob_oid: 2e4f992fa498d2dde978a77b080ad30cc6aa01cc
+    max_bytes: 4446
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Compliance-Check-AWS.md
+    git_blob_oid: b97d85ba508bf439f67608610afb34b64b42ed97
+    max_bytes: 4687
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Compliance-Status-Check-AWS.md
+    git_blob_oid: 20ac15cc835adcc35d156aa64e45ea934ad973d5
+    max_bytes: 4447
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/IAM-Policy-Review-AWS.md
+    git_blob_oid: 8a614ee4014fdebd5b2d5d5d82c16d7ccf6c2cba
+    max_bytes: 4551
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Network-Security-Audit-AWS.md
+    git_blob_oid: eee05d78e90376dfa101b567ae37e465decc95a2
+    max_bytes: 4750
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Policy-Compliance-Verification-AWS.md
+    git_blob_oid: 66d968e2474825347f03cec88322396ab29c4a72
+    max_bytes: 4575
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Regulatory-Requirement-Check-AWS.md
+    git_blob_oid: 27fe13781910aff33b8d922588a8e6cbd75d9a2b
+    max_bytes: 4799
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Secrets-Rotation-Status-AWS.md
+    git_blob_oid: 9ee9605ec16288a250d23de2721ce5faf6d3f473
+    max_bytes: 4650
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Security-Group-Audit-AWS.md
+    git_blob_oid: b0bd9942f3b7451a95d1f21b159e1728426fe9c6
+    max_bytes: 4851
+  - path: AWS Playbooks/08-Proactive/02-Security-Compliance/Vulnerability-Scanning-AWS.md
+    git_blob_oid: c02cef8a9ea17868fd5fa3556591d29e7d65ace9
+    max_bytes: 4608
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Backup-Integrity-Verification-AWS.md
+    git_blob_oid: 1b0fb3d955dad385b63a299b6235f10c28871cf0
+    max_bytes: 4548
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Backup-Verification-AWS.md
+    git_blob_oid: e445ed20893ffcae9aa288d9318fc780baf7c19b
+    max_bytes: 4943
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Cross-region-Backup-Sync-AWS.md
+    git_blob_oid: b4d51bbb6de1ce66d1ee7c9fed9b72db7c109967
+    max_bytes: 5239
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Data-Replication-Status-AWS.md
+    git_blob_oid: a9434d1049c6215dc4f9ff65e2224d3684f90893
+    max_bytes: 4825
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Disaster-Recovery-Runbook-Execution-AWS.md
+    git_blob_oid: 453f753d5a637da44f2cfcb3e5bdd2a425aef60b
+    max_bytes: 4907
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Multi-region-Failover-AWS.md
+    git_blob_oid: df9b5e2ab2af74025c2817982852315f26b2534a
+    max_bytes: 4962
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/RTO-RPO-Validation-AWS.md
+    git_blob_oid: b896edceb37059ae4e54674497295dccc48221f6
+    max_bytes: 4853
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Replication-Lag-Monitoring-AWS.md
+    git_blob_oid: 0d23aaeb82a3357ff19694796b23a1117988f04b
+    max_bytes: 4731
+  - path: AWS Playbooks/08-Proactive/03-Backup-DR/Restore-Testing-AWS.md
+    git_blob_oid: c2584ece578124b57208eece3f5f8d36025d4a37
+    max_bytes: 4895
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Budgets-Not-Sending-Alerts-Cost.md
+    git_blob_oid: 204fa5f946a3ae5d8c6b4d01da4aa1ff0500e466
+    max_bytes: 5445
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Compute-Savings-Plan-Not-Optimizing-Costs-Cost.md
+    git_blob_oid: e0dbefaa7dd133102a1c86f761e97ca8c3bcc806
+    max_bytes: 5521
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Cost-Anomaly-Detection-AWS.md
+    git_blob_oid: b8eba650519e5eb0bd0d30e4367e98075f05b90a
+    max_bytes: 4546
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Cost-Explorer-Not-Displaying-Data-Cost.md
+    git_blob_oid: 1f258b7bd3f6efe4dc8dc9d7c67341a464a9779d
+    max_bytes: 5194
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Free-Tier-Unexpectedly-Exceeded-Cost.md
+    git_blob_oid: f070906fa3f4f48d07d87c4f64553d7066c6a6c9
+    max_bytes: 5082
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Idle-Resource-Detection-AWS.md
+    git_blob_oid: 9bd38c0da97f406bf2a347ec95dfcd214d66b197
+    max_bytes: 4835
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/On-Demand-Pricing-Higher-Than-Expected-DynamoDB.md
+    git_blob_oid: 789028462af0aaf4bc5af54ea8df87b04869764a
+    max_bytes: 5414
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Reserved-Instance-Discount-Not-Applying-Cost.md
+    git_blob_oid: ee598fa33b4c336d2d5b6d53e7bfb171c6e0f689
+    max_bytes: 5458
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Reserved-Instance-Not-Reflecting-in-Billing-RDS.md
+    git_blob_oid: db1bdf8a9d1cb9a60aa9dcd950d4b5f376acc8b6
+    max_bytes: 5569
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Reserved-Instance-Optimization-AWS.md
+    git_blob_oid: 9e4f350de64be6e30339482a487ad67a0242dec3
+    max_bytes: 5133
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Spot-Instance-Management-AWS.md
+    git_blob_oid: ad846adeacf71e7274ad0aee5bda912dc2603bc0
+    max_bytes: 5051
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Spot-Instance-Pricing-Unexpectedly-High-Cost.md
+    git_blob_oid: 820685de139bba0c5b5d93747aa2995fdb49fbba
+    max_bytes: 5192
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Storage-Tier-Optimization-AWS.md
+    git_blob_oid: 3a8e69a6cdfd4897bbd6d4812e9d7b509b651456
+    max_bytes: 4890
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Unexpected-Increase-in-AWS-Bill-Cost.md
+    git_blob_oid: 2fb8a2da128b3641676e6b9c85d48904106ea67a
+    max_bytes: 4932
+  - path: AWS Playbooks/08-Proactive/04-Cost-Optimization/Unused-Resource-Cleanup-AWS.md
+    git_blob_oid: ecef12a3d00e3503346de1c57c0ad730ca590308
+    max_bytes: 4426
+  - path: AWS Playbooks/08-Proactive/05-Observability/Alert-Coverage-Analysis-AWS.md
+    git_blob_oid: 753c41a7197c513d3d4cbc3cd7ba3278d72cfcca
+    max_bytes: 4472
+  - path: AWS Playbooks/08-Proactive/05-Observability/Automation-Coverage-AWS.md
+    git_blob_oid: 88bdc387013b58f579bded55205ccd69ce4fcbf3
+    max_bytes: 4571
+  - path: AWS Playbooks/08-Proactive/05-Observability/Certificate-Expiration-Monitoring-AWS.md
+    git_blob_oid: ba9a6e6d94573345d7afbc6e1611ba5f4bb34383
+    max_bytes: 4848
+  - path: AWS Playbooks/08-Proactive/05-Observability/Log-Coverage-Analysis-AWS.md
+    git_blob_oid: fa9b6e0148493985e76d1ec941288a24f54b0c5d
+    max_bytes: 4377
+  - path: AWS Playbooks/08-Proactive/05-Observability/Metric-Coverage-Gaps-AWS.md
+    git_blob_oid: 63f768e9bfd6c9e018d321ab9a522aee60275741
+    max_bytes: 4575
+  - path: AWS Playbooks/08-Proactive/05-Observability/Missing-Instrumentation-AWS.md
+    git_blob_oid: 11528f30a448a8de610b8f2d855fbb6303064dea
+    max_bytes: 4475
+  - path: AWS Playbooks/08-Proactive/05-Observability/SLO-SLI-Monitoring-AWS.md
+    git_blob_oid: fa757198760b11df902eba0043298a953d698106
+    max_bytes: 4647
+  - path: AWS Playbooks/08-Proactive/05-Observability/Trace-Coverage-Issues-AWS.md
+    git_blob_oid: 74eb84a2edacdc0e00aa8ab8ecb032948804e2cf
+    max_bytes: 4457
+  - path: AWS Playbooks/08-Proactive/05-Observability/Transaction-Log-Analysis-AWS.md
+    git_blob_oid: f18109927d9c39ca00af6f1038d2738b809d4266
+    max_bytes: 4535
+  - path: AWS Playbooks/08-Proactive/06-Data-Integrity/Data-Consistency-Checks-AWS.md
+    git_blob_oid: 50e68b5fab483c6294802014d2aa598265e793b7
+    max_bytes: 4424
+  - path: AWS Playbooks/08-Proactive/06-Data-Integrity/Data-Corruption-Detection-AWS.md
+    git_blob_oid: e848cd7de2c91c2ec214714f5516915032908098
+    max_bytes: 4545
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/API-Dependency-Status-AWS.md
+    git_blob_oid: 7e842410452aa9d1db56d2bcf6d7c1d648989f51
+    max_bytes: 4546
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/Dependency-Health-Check-AWS.md
+    git_blob_oid: d27c6c86a46727488f7062b42027677e282b5dd0
+    max_bytes: 4696
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/Documentation-Gaps-AWS.md
+    git_blob_oid: b3a00742b6fe8970484446573db894b453907e3f
+    max_bytes: 4773
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/Incident-Response-Preparedness-AWS.md
+    git_blob_oid: 8d22fb05fe952d5453eefc7bae21fa124bac2421
+    max_bytes: 4958
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/On-call-Readiness-AWS.md
+    git_blob_oid: 96bec37a9f6b59064661e941b40099e2eff58b37
+    max_bytes: 4655
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/Runbook-Completeness-AWS.md
+    git_blob_oid: f424fe946fedefcf6f8854975eb20a19f9fce1da
+    max_bytes: 4417
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/Service-Dependency-Mapping-AWS.md
+    git_blob_oid: 178c32e3a7c757d33e969ef2531d4f0421c90c99
+    max_bytes: 4581
+  - path: AWS Playbooks/08-Proactive/07-Operational-Readiness/Service-Mesh-Health-AWS.md
+    git_blob_oid: 700b1277105e09f36dddd67e0750e33b5407468e
+    max_bytes: 4522
+  - path: AWS Playbooks/08-Proactive/README.md
+    git_blob_oid: 008c84c28aba8750c3893a581457c343cb722250
+    max_bytes: 500
+  - path: AWS Playbooks/README.md
+    git_blob_oid: 67cc1c63f0d342d26e566f3b2fef8627a9c9f592
+    max_bytes: 20414
+  - path: K8s Playbooks/01-Control-Plane/APIServerHighLatency-control-plane.md
+    git_blob_oid: ee166681c249422c483f66077cd952b83e79d4d0
+    max_bytes: 5079
+  - path: K8s Playbooks/01-Control-Plane/CannotAccessAPI-control-plane.md
+    git_blob_oid: 7df63f6208ec19e9cab9bd56cc9221c1839af52d
+    max_bytes: 4127
+  - path: K8s Playbooks/01-Control-Plane/CertManagerACMEOrderFailed-cert.md
+    git_blob_oid: 328a2ef6fe8dbf9c5e10f1018b2da6c58e6e9b6a
+    max_bytes: 2757
+  - path: K8s Playbooks/01-Control-Plane/CertManagerControllerHighError-cert.md
+    git_blob_oid: 4dcc9f11e9f246acea2cfeef6c6b6d1e0792df37
+    max_bytes: 2741
+  - path: K8s Playbooks/01-Control-Plane/CertManagerDown-cert.md
+    git_blob_oid: 2bd51100385e6b102d94c1f8628d3efb6f4228d7
+    max_bytes: 2617
+  - path: K8s Playbooks/01-Control-Plane/CertificateExpired-control-plane.md
+    git_blob_oid: 50aa620e26dcd0642b5c93af6d8eee081e0477d4
+    max_bytes: 3979
+  - path: K8s Playbooks/01-Control-Plane/CertificateExpiringCritical-cert.md
+    git_blob_oid: c6be77f8784cc8a981886a628fbe970e17c44c99
+    max_bytes: 2748
+  - path: K8s Playbooks/01-Control-Plane/CertificateExpiringSoon-cert.md
+    git_blob_oid: d25b1c33bd4fd57aa443e5974c157162da9c6b80
+    max_bytes: 2839
+  - path: K8s Playbooks/01-Control-Plane/CertificateNotReady-cert.md
+    git_blob_oid: 62ff4ae0620d3f0d6d2083104cff61acca702f77
+    max_bytes: 2845
+  - path: K8s Playbooks/01-Control-Plane/ConnectionRefused-control-plane.md
+    git_blob_oid: 80bd503ea71cd732ad580d8934c131e6a031f468
+    max_bytes: 3725
+  - path: K8s Playbooks/01-Control-Plane/ContextDeadlineExceeded-control-plane.md
+    git_blob_oid: a9f043d9ce6bc10f17d7fc39d4d8551ace78996e
+    max_bytes: 3744
+  - path: K8s Playbooks/01-Control-Plane/ControlPlaneComponentsNotStarting-control-plane.md
+    git_blob_oid: bdc3fcb81cdb11ba8feda71d8d81d193ea2fd5a4
+    max_bytes: 4707
+  - path: K8s Playbooks/01-Control-Plane/KubeAPIDown-control-plane.md
+    git_blob_oid: cb5ee64cd326675dba2bc83671b1b4bf94b95818
+    max_bytes: 4967
+  - path: K8s Playbooks/01-Control-Plane/KubeAPIErrorBudgetBurn-control-plane.md
+    git_blob_oid: 86812c9b710255619737c1141655bc3e4fa2f81d
+    max_bytes: 5223
+  - path: K8s Playbooks/01-Control-Plane/KubeAPITerminatedRequests-control-plane.md
+    git_blob_oid: ab0c92dbb572eff28198c5834458b7b0be4d5c32
+    max_bytes: 4883
+  - path: K8s Playbooks/01-Control-Plane/KubeAggregatedAPIDown-control-plane.md
+    git_blob_oid: 715a8866654f6ead8a68632a2493d8219e03dc02
+    max_bytes: 5073
+  - path: K8s Playbooks/01-Control-Plane/KubeAggregatedAPIErrors-control-plane.md
+    git_blob_oid: 336b2aec257b698bdddcf3591433825f0e22d49d
+    max_bytes: 4959
+  - path: K8s Playbooks/01-Control-Plane/KubeClientCertificateExpiration-control-plane.md
+    git_blob_oid: 596bb653f241f92097d2969cd39bb98e5aad3bc2
+    max_bytes: 5379
+  - path: K8s Playbooks/01-Control-Plane/KubeClientErrors-control-plane.md
+    git_blob_oid: 545222ef878920e422922e2af935adb1e6777a8a
+    max_bytes: 4982
+  - path: K8s Playbooks/01-Control-Plane/KubeControllerManagerDown-control-plane.md
+    git_blob_oid: 7813a79b7be3df2825e8a211525da776ba7e5f69
+    max_bytes: 4980
+  - path: K8s Playbooks/01-Control-Plane/KubeSchedulerDown-control-plane.md
+    git_blob_oid: 56fc7e38d448b371f70119fbcbf3362c353ca669
+    max_bytes: 4627
+  - path: K8s Playbooks/01-Control-Plane/KubeVersionMismatch-control-plane.md
+    git_blob_oid: 4386ba1ffe0a4a11ba7450e07e63ae8ba3170e15
+    max_bytes: 4692
+  - path: K8s Playbooks/01-Control-Plane/README.md
+    git_blob_oid: 319582a1b83f63fe701bc5f1c4f31e717be01d30
+    max_bytes: 7542
+  - path: K8s Playbooks/01-Control-Plane/Timeout-control-plane.md
+    git_blob_oid: 1fb8764e420fd8ce13827971eff51f0e2dd413db
+    max_bytes: 3861
+  - path: K8s Playbooks/01-Control-Plane/UpgradeFails-control-plane.md
+    git_blob_oid: 5513463b504ca884bf8a9179ffc2e61aaf8514dc
+    max_bytes: 4879
+  - path: K8s Playbooks/02-Nodes/KubeNodeNotReady-node.md
+    git_blob_oid: 7ad8835c3b031b8caefcaba32d02cb3643404a73
+    max_bytes: 4769
+  - path: K8s Playbooks/02-Nodes/KubeNodeReadinessFlapping-node.md
+    git_blob_oid: c0498591624ed09133dbeb052cad422ad5b36ee7
+    max_bytes: 4666
+  - path: K8s Playbooks/02-Nodes/KubeNodeUnreachable-node.md
+    git_blob_oid: caabf03408e5558767f9aca65eb43307ce40a378
+    max_bytes: 4380
+  - path: K8s Playbooks/02-Nodes/KubeletCertificateRotationFailing-node.md
+    git_blob_oid: 70b65db16ecef7329a22e06f190aca06f800a921
+    max_bytes: 4197
+  - path: K8s Playbooks/02-Nodes/KubeletDown-node.md
+    git_blob_oid: ae23dd414bdad074702e4047b61ddd2d74f66c22
+    max_bytes: 4413
+  - path: K8s Playbooks/02-Nodes/KubeletPlegDurationHigh-node.md
+    git_blob_oid: 43c116a8a9571175825ec8926742411cda065865
+    max_bytes: 4578
+  - path: K8s Playbooks/02-Nodes/KubeletPodStartUpLatencyHigh-node.md
+    git_blob_oid: 9e29faaf9ed9c9ad96f7f924b279f38addce3c4c
+    max_bytes: 4520
+  - path: K8s Playbooks/02-Nodes/KubeletServiceNotRunning-node.md
+    git_blob_oid: 0bba8661744a6e3570280796d51b457390979cc3
+    max_bytes: 4266
+  - path: K8s Playbooks/02-Nodes/KubeletTooManyPods-node.md
+    git_blob_oid: 3084397ece292ab8c8295748ed28253394157dc5
+    max_bytes: 4290
+  - path: K8s Playbooks/02-Nodes/NodeCannotJoinCluster-node.md
+    git_blob_oid: f8c7fc4d8dee0acdd39d639fa0596ef0489e4450
+    max_bytes: 4217
+  - path: K8s Playbooks/02-Nodes/NodeClockSkewDetected-node.md
+    git_blob_oid: a5bb9b1f39728748b599dd0a716aa7772b6ddaba
+    max_bytes: 2933
+  - path: K8s Playbooks/02-Nodes/NodeDiskIOSaturation-node.md
+    git_blob_oid: 637fbada04bdc14410323bde7fd7375feac93ee4
+    max_bytes: 2933
+  - path: K8s Playbooks/02-Nodes/NodeDiskPressure-storage.md
+    git_blob_oid: e10aec0b7e0bdac02582d4e04733f2664258c76c
+    max_bytes: 4785
+  - path: K8s Playbooks/02-Nodes/NodeExporterDown-node.md
+    git_blob_oid: 7525be5a7ed50cf227037b21ada5e21b6a0f3f4a
+    max_bytes: 2642
+  - path: K8s Playbooks/02-Nodes/NodeFileDescriptorLimit-node.md
+    git_blob_oid: 05e5367aed18921f96cf3ee468c728bc5d2c7b82
+    max_bytes: 2943
+  - path: K8s Playbooks/02-Nodes/NodeFilesystemAlmostOutOfSpace-node.md
+    git_blob_oid: 961cfada4e1b8b8534885b296d943dd6d1d0d8cc
+    max_bytes: 3066
+  - path: K8s Playbooks/02-Nodes/NodeHighCPUUsage-node.md
+    git_blob_oid: 8a69972fb9934d5079d84ec5cd416d72d94f2f4c
+    max_bytes: 3215
+  - path: K8s Playbooks/02-Nodes/NodeHighLoadAverage-node.md
+    git_blob_oid: c8b0eb8d0b95fcc8153073e60edc97c211a409de
+    max_bytes: 2662
+  - path: K8s Playbooks/02-Nodes/NodeHighMemoryUsage-node.md
+    git_blob_oid: 1a58747eab429227b3dda08842e18a9a701fbaf6
+    max_bytes: 3097
+  - path: K8s Playbooks/02-Nodes/NodeMemoryMajorPagesFaults-node.md
+    git_blob_oid: 74b1ac0c4a23532928abb2364ac8db630fd1302c
+    max_bytes: 2585
+  - path: K8s Playbooks/02-Nodes/NodeNetworkReceiveErrors-node.md
+    git_blob_oid: ad8b29f2c2ec6ca77a68793544eecb69e6d92cf0
+    max_bytes: 3025
+  - path: K8s Playbooks/02-Nodes/NodeNotReady-node.md
+    git_blob_oid: dc6bcc63cafae39f3ee1e01530ca8829e54384e6
+    max_bytes: 4046
+  - path: K8s Playbooks/02-Nodes/NodeRAIDDegraded-node.md
+    git_blob_oid: 64f666838b39438365355bab46a975b64db9d254
+    max_bytes: 2506
+  - path: K8s Playbooks/02-Nodes/NodeSystemdServiceFailed-node.md
+    git_blob_oid: d242cffb740abee02f419d000f41408651d02f2a
+    max_bytes: 2902
+  - path: K8s Playbooks/02-Nodes/README.md
+    git_blob_oid: 766bdd3c43cc4137fe9a4b65c44d9e35321b0257
+    max_bytes: 7187
+  - path: K8s Playbooks/03-Pods/CPUThrottlingHigh-container.md
+    git_blob_oid: dac657e621f1d12c60f1d0a743472163479fecdf
+    max_bytes: 3611
+  - path: K8s Playbooks/03-Pods/ContainerHighCPUThrottling-container.md
+    git_blob_oid: 561691bb47a6a88c53a23ba9251bdea03fde15f0
+    max_bytes: 3909
+  - path: K8s Playbooks/03-Pods/ContainerHighMemoryUsage-container.md
+    git_blob_oid: 3c256eb8064dd16ab5fb5c4dd66f503ab72a8c08
+    max_bytes: 3720
+  - path: K8s Playbooks/03-Pods/ContainerMemoryNearLimit-container.md
+    git_blob_oid: bf92220e3865fd475d8dbf29d1282d8d0ed1e4b1
+    max_bytes: 3451
+  - path: K8s Playbooks/03-Pods/ContainerRestartsFrequent-container.md
+    git_blob_oid: 3cd6a6f1938ad38353b3d6e6eba931d58ffc8ed4
+    max_bytes: 3480
+  - path: K8s Playbooks/03-Pods/CrashLoopBackOff-pod.md
+    git_blob_oid: ef82e212b07986298fc2551672a3b1d35d020096
+    max_bytes: 4818
+  - path: K8s Playbooks/03-Pods/EvictedPods-pod.md
+    git_blob_oid: 29e36d9ca991bff751d87df88d550102fa9c2755
+    max_bytes: 4061
+  - path: K8s Playbooks/03-Pods/FailedtoStartPodSandbox-pod.md
+    git_blob_oid: a90478fd73b5c3f7cf7eb64f5f72521712e55456
+    max_bytes: 4129
+  - path: K8s Playbooks/03-Pods/ImagePullBackOff-registry.md
+    git_blob_oid: d10199267e7c281b2ae9b99b75740ee9c2cdbb78
+    max_bytes: 5379
+  - path: K8s Playbooks/03-Pods/KubeContainerOOMKilled-pod.md
+    git_blob_oid: 4663131963c23620041a7c93bb48561a58970e92
+    max_bytes: 3589
+  - path: K8s Playbooks/03-Pods/KubeContainerWaiting-pod.md
+    git_blob_oid: 367d6f17ec09e1a48cb7398c54584975a8e04cb7
+    max_bytes: 4462
+  - path: K8s Playbooks/03-Pods/KubePodContainerWaiting-pod.md
+    git_blob_oid: f5c8a535a22337e667e6de9092b81608f0840c07
+    max_bytes: 3137
+  - path: K8s Playbooks/03-Pods/KubePodCrashLooping-pod.md
+    git_blob_oid: e044c4f771b48c77f7fdcb9bb5702cb5bd874d84
+    max_bytes: 4847
+  - path: K8s Playbooks/03-Pods/KubePodFrequentlyRestarting-pod.md
+    git_blob_oid: d222aae3ae6d286ad61a09624a719272c1443f9b
+    max_bytes: 3282
+  - path: K8s Playbooks/03-Pods/KubePodImagePullBackOff-pod.md
+    git_blob_oid: f08d2ba59c2c964cb4f3883ba580b5d1d76b9509
+    max_bytes: 3507
+  - path: K8s Playbooks/03-Pods/KubePodNotReady-pod.md
+    git_blob_oid: daa1275f255092328434af507717f21187a09b26
+    max_bytes: 4737
+  - path: K8s Playbooks/03-Pods/KubePodPending-pod.md
+    git_blob_oid: 1ee8f97371f014c6fa2fbcf9e8a27de23861fe41
+    max_bytes: 3292
+  - path: K8s Playbooks/03-Pods/PendingPods-pod.md
+    git_blob_oid: f1d646e8c05dc5a303c7dc32a81e01ab5752270a
+    max_bytes: 4250
+  - path: K8s Playbooks/03-Pods/PodCannotAccessClusterInternalDNS-dns.md
+    git_blob_oid: 6868ac80d9160d0cb834714b56596cccd160fd05
+    max_bytes: 4646
+  - path: K8s Playbooks/03-Pods/PodCannotConnecttoExternalServices-network.md
+    git_blob_oid: d9346ce3f378fca7244b5f128e4e2cbd1b2f31f1
+    max_bytes: 4083
+  - path: K8s Playbooks/03-Pods/PodFailsLivenessProbe-pod.md
+    git_blob_oid: 41e19ebdd1c3e3ce8f66d7c6032c6d17ea4fa236
+    max_bytes: 4902
+  - path: K8s Playbooks/03-Pods/PodFailsReadinessProbe-pod.md
+    git_blob_oid: 273baf64cc16647ea35e670fa45386e85dd78285
+    max_bytes: 4574
+  - path: K8s Playbooks/03-Pods/PodIPConflict-network.md
+    git_blob_oid: dab697497ef1972ec250ed109a75da3b8c62dfd8
+    max_bytes: 3947
+  - path: K8s Playbooks/03-Pods/PodIPNotReachable-network.md
+    git_blob_oid: 994e5f30ab575deaa2341f9d7a385d326452c0a8
+    max_bytes: 4037
+  - path: K8s Playbooks/03-Pods/PodLogsNotAvailable-pod.md
+    git_blob_oid: 499f73bb2709c16a71907d677970ede633a80f6b
+    max_bytes: 4154
+  - path: K8s Playbooks/03-Pods/PodLogsTruncated-pod.md
+    git_blob_oid: 3b80ccd6a15e751c82e1a7e69e771d0a865d5293
+    max_bytes: 4232
+  - path: K8s Playbooks/03-Pods/PodSchedulingIgnoredNodeSelector-pod.md
+    git_blob_oid: b3d1667468878a1d2a46db8c5ff1628795228361
+    max_bytes: 3977
+  - path: K8s Playbooks/03-Pods/PodSecurityContext-pod.md
+    git_blob_oid: 5fe3c5d06e30a600b7fa1692a07cfc3392f11027
+    max_bytes: 4569
+  - path: K8s Playbooks/03-Pods/PodStuckInTerminatingState-pod.md
+    git_blob_oid: fac3a10094bc3b45580eff3f57bfa1addc7ae62c
+    max_bytes: 3426
+  - path: K8s Playbooks/03-Pods/PodStuckinPendingDuetoNodeAffinity-pod.md
+    git_blob_oid: d28833cdb307bddcdaa1c4e03cf019e2f2862d97
+    max_bytes: 4291
+  - path: K8s Playbooks/03-Pods/PodTerminatedWithExitCode137-pod.md
+    git_blob_oid: d570c85604b50cd2d841df41ca2709fb89c0dd49
+    max_bytes: 4568
+  - path: K8s Playbooks/03-Pods/PodsExceedingResourceQuota-workload.md
+    git_blob_oid: b2ad0533e8335c7c9fccacf915e2145a31d5bb67
+    max_bytes: 4212
+  - path: K8s Playbooks/03-Pods/PodsNotBeingScheduled-pod.md
+    git_blob_oid: 0d8d611826c8b388a2729b33c6e0e4ef0ade53ba
+    max_bytes: 4301
+  - path: K8s Playbooks/03-Pods/PodsOverloadedDuetoMissingHPA-workload.md
+    git_blob_oid: 241d8ee307d3e74659307a474df5a80acd3145c2
+    max_bytes: 4796
+  - path: K8s Playbooks/03-Pods/PodsRestartingFrequently-pod.md
+    git_blob_oid: eb5172826528487d39bf058e7296164b862f624e
+    max_bytes: 4433
+  - path: K8s Playbooks/03-Pods/PodsStuckInUnknownState-pod.md
+    git_blob_oid: fa6f98929966981a201078ca692fe0455fc181c4
+    max_bytes: 3969
+  - path: K8s Playbooks/03-Pods/PodsStuckinContainerCreatingState-pod.md
+    git_blob_oid: 8882f2a6ac3cf58839eb0ce8bef2627e687ca457
+    max_bytes: 4461
+  - path: K8s Playbooks/03-Pods/PodsStuckinEvictedState-pod.md
+    git_blob_oid: 60b27faef77e7a62c0f0fa026475d0e1e69e123b
+    max_bytes: 4072
+  - path: K8s Playbooks/03-Pods/PodsStuckinImagePullBackOff-registry.md
+    git_blob_oid: a4077dc023f367b197ed35aed38ae7a8283c849e
+    max_bytes: 4583
+  - path: K8s Playbooks/03-Pods/PodsStuckinInitState-pod.md
+    git_blob_oid: ec073e421b4d1a8e13a954937ac4c8b3ba6268a7
+    max_bytes: 4328
+  - path: K8s Playbooks/03-Pods/PodsStuckinTerminatingState-pod.md
+    git_blob_oid: 0c33a99f6974d6180e5a1663acff80c103b72416
+    max_bytes: 4532
+  - path: K8s Playbooks/03-Pods/README.md
+    git_blob_oid: 3b0a41f15b60b5aac4edca40fc73be4c3e78f85d
+    max_bytes: 8493
+  - path: K8s Playbooks/04-Workloads/CannotScaleDeploymentBeyondNodeCapacity-workload.md
+    git_blob_oid: 7a88eedcb8f66883729f5f3c4926196aa3b3ca74
+    max_bytes: 4527
+  - path: K8s Playbooks/04-Workloads/DaemonSetNotDeployingPodsonAllNodes-daemonset.md
+    git_blob_oid: 9c8d98411465e4fd6338ce4caca759b682b6818b
+    max_bytes: 4545
+  - path: K8s Playbooks/04-Workloads/DaemonSetPodsNotDeploying-daemonset.md
+    git_blob_oid: 9af7dead9164b07ddd7c254c132731787ea7edd8
+    max_bytes: 4067
+  - path: K8s Playbooks/04-Workloads/DaemonSetPodsNotRunningonSpecificNode-daemonset.md
+    git_blob_oid: 5e489d31c25ee5866396b8b7b245f885bd993978
+    max_bytes: 4247
+  - path: K8s Playbooks/04-Workloads/DeploymentNotScalingProperly-deployment.md
+    git_blob_oid: 4238f66911c1997db7d5d67b11b52711a828d8ee
+    max_bytes: 4314
+  - path: K8s Playbooks/04-Workloads/DeploymentNotUpdating-deployment.md
+    git_blob_oid: ccda919159a07b143b388d3e63141deffe2087f2
+    max_bytes: 5419
+  - path: K8s Playbooks/04-Workloads/HPAHorizontalPodAutoscalerNotScaling-workload.md
+    git_blob_oid: 48fa66ce8f36bd0bf57c4955f8a99d23529f0fcd
+    max_bytes: 5224
+  - path: K8s Playbooks/04-Workloads/HPANotRespondingtoCustomMetrics-workload.md
+    git_blob_oid: c1257521ffe11958ed12230b33e7c75dc91d938e
+    max_bytes: 5454
+  - path: K8s Playbooks/04-Workloads/HPANotRespondingtoMetrics-workload.md
+    git_blob_oid: 2abb3707a2a9db5b82963c35212a4dc626a93f47
+    max_bytes: 5169
+  - path: K8s Playbooks/04-Workloads/InvalidMemoryCPURequests-workload.md
+    git_blob_oid: bbcee69b5df0868ad73c3f33b5e72ca57885218f
+    max_bytes: 3692
+  - path: K8s Playbooks/04-Workloads/JobFailingToComplete-job.md
+    git_blob_oid: 74f7ea7e6e1cdf13677a0e87ac78572f3347f5c4
+    max_bytes: 3721
+  - path: K8s Playbooks/04-Workloads/KubeDaemonSetMisScheduled-daemonset.md
+    git_blob_oid: 5acb7f45de6a5ec9302cf1874210553f0a4f80c7
+    max_bytes: 4145
+  - path: K8s Playbooks/04-Workloads/KubeDaemonSetNotReady-daemonset.md
+    git_blob_oid: 150e2ebab6ce8121d286aed681aa232f144bad33
+    max_bytes: 2763
+  - path: K8s Playbooks/04-Workloads/KubeDaemonSetNotScheduled-daemonset.md
+    git_blob_oid: 55a02210c6c6b95a7f810e8ac0b1b5bbddb1efef
+    max_bytes: 4198
+  - path: K8s Playbooks/04-Workloads/KubeDaemonSetRolloutStuck-daemonset.md
+    git_blob_oid: 1e32354ab779641162d8e9cc8f7c1c1084d273cf
+    max_bytes: 4340
+  - path: K8s Playbooks/04-Workloads/KubeDeploymentGenerationMismatch-deployment.md
+    git_blob_oid: b1af12bf165a6925d210eeca7bed23a5c72c3bc1
+    max_bytes: 5031
+  - path: K8s Playbooks/04-Workloads/KubeDeploymentReplicasMismatch-deployment.md
+    git_blob_oid: d3643b3d3ecd8bcd7a86f9cdab8bc0c843e359a1
+    max_bytes: 5024
+  - path: K8s Playbooks/04-Workloads/KubeDeploymentRolloutStuck-deployment.md
+    git_blob_oid: ef905ffbf9eb0fa2e66f4fe319fc47831f511c7a
+    max_bytes: 2636
+  - path: K8s Playbooks/04-Workloads/KubeHpaMaxedOut-workload.md
+    git_blob_oid: 26004f84e5a86537a1e84d47e57d0b8360d7336f
+    max_bytes: 4624
+  - path: K8s Playbooks/04-Workloads/KubeHpaReplicasMismatch-workload.md
+    git_blob_oid: d7c1d0e071a9dbc711739d5695d15d341eb6713d
+    max_bytes: 4463
+  - path: K8s Playbooks/04-Workloads/KubeJobCompletion-workload.md
+    git_blob_oid: 48b2c3cd3cd2b0d467a182b0810e950dd38c6574
+    max_bytes: 4326
+  - path: K8s Playbooks/04-Workloads/KubeJobFailed-workload.md
+    git_blob_oid: a881098193ec0c29546b5710880cc68e51aea008
+    max_bytes: 4213
+  - path: K8s Playbooks/04-Workloads/KubeStatefulSetGenerationMismatch-statefulset.md
+    git_blob_oid: 8f588aeac02315d341b95cb9c89db98b5da486aa
+    max_bytes: 4598
+  - path: K8s Playbooks/04-Workloads/KubeStatefulSetReplicasMismatch-statefulset.md
+    git_blob_oid: adcc09f3c740b9f142dac966ef61a6c3ab6f05ed
+    max_bytes: 4707
+  - path: K8s Playbooks/04-Workloads/KubeStatefulSetUpdateNotRolledOut-statefulset.md
+    git_blob_oid: b0009518d3fc771f1dc9eac9c0af572e0cb93853
+    max_bytes: 4504
+  - path: K8s Playbooks/04-Workloads/README.md
+    git_blob_oid: 2952bc654da99cd4ace9da0c29b6b2580a18fbc5
+    max_bytes: 8469
+  - path: K8s Playbooks/05-Networking/CoreDNSDown-dns.md
+    git_blob_oid: fa6511dc2ab0484ba6b5b2f7994ba0c698768f6d
+    max_bytes: 5058
+  - path: K8s Playbooks/05-Networking/CoreDNSLatencyHigh-dns.md
+    git_blob_oid: c716bf4fc168b8fbd0a4a15ded59c70a58841e2f
+    max_bytes: 3838
+  - path: K8s Playbooks/05-Networking/CoreDNSPodsCrashLooping-dns.md
+    git_blob_oid: 6e8c7b2485d7c451f82d1a23a09cad3481316f93
+    max_bytes: 4138
+  - path: K8s Playbooks/05-Networking/DNSResolutionIntermittent-dns.md
+    git_blob_oid: e75d6d7e2ff70706e6d70f77792634e6e25dddd4
+    max_bytes: 4407
+  - path: K8s Playbooks/05-Networking/ErrorConnectionRefusedWhenAccessingService-service.md
+    git_blob_oid: 40592c0e455d3e6dbfe1d4527411514870aed619
+    max_bytes: 4196
+  - path: K8s Playbooks/05-Networking/IngressCertificateExpiring-ingress.md
+    git_blob_oid: 489ce853d80884aa060e73eedc8cb515a25a097f
+    max_bytes: 2775
+  - path: K8s Playbooks/05-Networking/IngressControllerPodsCrashLooping-ingress.md
+    git_blob_oid: 3ef9a02a083f7b369b81a3998c6207cbf6d02a27
+    max_bytes: 5052
+  - path: K8s Playbooks/05-Networking/IngressNotWorking-ingress.md
+    git_blob_oid: 10f55edeb0de7d9f3f0bc84b6d0a6f6344d27e50
+    max_bytes: 5301
+  - path: K8s Playbooks/05-Networking/IngressRedirectLoop-ingress.md
+    git_blob_oid: 1e18efcf224b9d8cd698c40b75af3e774cab8f24
+    max_bytes: 5060
+  - path: K8s Playbooks/05-Networking/IngressReturning502BadGateway-ingress.md
+    git_blob_oid: 5fd802b32f471b28dd864e0416656ca2896dae8b
+    max_bytes: 5178
+  - path: K8s Playbooks/05-Networking/IngressSSLTLSConfigurationFails-ingress.md
+    git_blob_oid: a6083ee17228337e72d0e7770db749581ca5ef8e
+    max_bytes: 5322
+  - path: K8s Playbooks/05-Networking/IngressShows404-ingress.md
+    git_blob_oid: e8ecc1680e0a0fce9d1987899e966d8350caf109
+    max_bytes: 5157
+  - path: K8s Playbooks/05-Networking/Kube-proxyFailing-network.md
+    git_blob_oid: 48adaeccdf572c7bcf185b42e0055338abe8c919
+    max_bytes: 4149
+  - path: K8s Playbooks/05-Networking/KubeProxyDown-network.md
+    git_blob_oid: bcb694b0caccde8afe323b46d9b04da0562094c2
+    max_bytes: 3997
+  - path: K8s Playbooks/05-Networking/NetworkPolicyBlockingTraffic-network.md
+    git_blob_oid: 9ad8b3db8569660ae9cc0d7ef5d753a26fd29b5b
+    max_bytes: 4416
+  - path: K8s Playbooks/05-Networking/NginxIngress4xxErrorsHigh-ingress.md
+    git_blob_oid: 3a64efaa00fca1711834875d1da101bdfee0b73a
+    max_bytes: 2814
+  - path: K8s Playbooks/05-Networking/NginxIngress5xxErrorsHigh-ingress.md
+    git_blob_oid: 740f2150316ef2ffd89d91c8e923e85786aa7315
+    max_bytes: 2655
+  - path: K8s Playbooks/05-Networking/NginxIngressConfigReloadFailed-ingress.md
+    git_blob_oid: b80adb358d57972ff86caafc58c90f8c90a54f90
+    max_bytes: 2708
+  - path: K8s Playbooks/05-Networking/NginxIngressDown-ingress.md
+    git_blob_oid: eb93c969530aba0af6ec573e7112a797dd6bd390
+    max_bytes: 2697
+  - path: K8s Playbooks/05-Networking/NginxIngressHighLatency-ingress.md
+    git_blob_oid: 21fd63fbc41698ed2f8ab53d38a2f2e950e8375a
+    max_bytes: 2707
+  - path: K8s Playbooks/05-Networking/NodesUnreachable-network.md
+    git_blob_oid: c3afc8a12059e0838b738b806983da18e2daf4df
+    max_bytes: 3352
+  - path: K8s Playbooks/05-Networking/README.md
+    git_blob_oid: 66640af28f4d7353ad458592077674135b33e116
+    max_bytes: 7844
+  - path: K8s Playbooks/05-Networking/ServiceExternal-IPPending-service.md
+    git_blob_oid: 70d69430a1a5b70146031c0d0997a3d7a3ce0a5d
+    max_bytes: 4073
+  - path: K8s Playbooks/05-Networking/ServiceNodePortNotAccessible-service.md
+    git_blob_oid: 37f7fa785ae8f5fd95ec17bc675bb5cad1bab036
+    max_bytes: 3812
+  - path: K8s Playbooks/05-Networking/ServiceNotAccessible-service.md
+    git_blob_oid: b2816518b8d8d3c49b62bdda586b4da1d4ec12b6
+    max_bytes: 4521
+  - path: K8s Playbooks/05-Networking/ServiceNotForwardingTraffic-service.md
+    git_blob_oid: 7b4a4caee2c5f4ceac7e3fdc69cfa00cf085ca56
+    max_bytes: 3703
+  - path: K8s Playbooks/05-Networking/ServiceNotResolvingDNS-dns.md
+    git_blob_oid: 536f30fcaef660d54efae403dd35ed13cbe9983f
+    max_bytes: 5080
+  - path: K8s Playbooks/05-Networking/ServicesIntermittentlyUnreachable-service.md
+    git_blob_oid: c5cb515054ec4c56cd6067d3b381d519969165f7
+    max_bytes: 3886
+  - path: K8s Playbooks/06-Storage/FailedAttachVolume-storage.md
+    git_blob_oid: 5be4395e915f5ad710eef506e96641f596ec0cee
+    max_bytes: 4708
+  - path: K8s Playbooks/06-Storage/KubePersistentVolumeErrors-storage.md
+    git_blob_oid: 6b8f74c14c1ed7a9e5d1c6be8931c6d6324edb92
+    max_bytes: 4889
+  - path: K8s Playbooks/06-Storage/KubePersistentVolumeFillingUp-storage.md
+    git_blob_oid: 3cd0074e58e9b689d893e83754bfaa1e74bad9b1
+    max_bytes: 4850
+  - path: K8s Playbooks/06-Storage/PVCPendingDueToStorageClassIssues-storage.md
+    git_blob_oid: eb539e91b367cfde8287089217502a1f84b10d86
+    max_bytes: 4764
+  - path: K8s Playbooks/06-Storage/PVCinLostState-storage.md
+    git_blob_oid: b64333fcb9d2eee408f42b598192cb753e4d5b02
+    max_bytes: 4617
+  - path: K8s Playbooks/06-Storage/PersistentVolumeNotResizing-storage.md
+    git_blob_oid: 3dad60bc1431b369f316dbcffbdf705cda98f966
+    max_bytes: 5139
+  - path: K8s Playbooks/06-Storage/PersistentVolumeStuckinReleasedState-storage.md
+    git_blob_oid: 262742c5c5a12e58dc8446036751dc809aa13956
+    max_bytes: 4791
+  - path: K8s Playbooks/06-Storage/PodCannotAccessPersistentVolume-storage.md
+    git_blob_oid: fd1b61e8f8f99898095628c4bb641e88b327ca52
+    max_bytes: 4775
+  - path: K8s Playbooks/06-Storage/README.md
+    git_blob_oid: f8d23fec1ed435a1168ba78ba7513682005616e1
+    max_bytes: 6060
+  - path: K8s Playbooks/06-Storage/VolumeMountPermissionsDenied-storage.md
+    git_blob_oid: 15f766a160f98273cdf78e4e58eb2c5291ad684a
+    max_bytes: 5118
+  - path: K8s Playbooks/07-RBAC/ClusterRoleBindingMissingPermissions-rbac.md
+    git_blob_oid: 0f8f1d0679079493bbb020d22886d48d684fd96a
+    max_bytes: 5489
+  - path: K8s Playbooks/07-RBAC/ErrorForbiddenwhenRunningkubectlCommands-rbac.md
+    git_blob_oid: 3d78a78c75e0214f337ee552de8f0e0cbab1e4ce
+    max_bytes: 4456
+  - path: K8s Playbooks/07-RBAC/ErrorUnauthorizedwhenAccessingAPIServer-rbac.md
+    git_blob_oid: a382c56f9b22ca22aa9e3296e427fb44883164c5
+    max_bytes: 4491
+  - path: K8s Playbooks/07-RBAC/RBACPermissionDeniedError-rbac.md
+    git_blob_oid: 70ea7c2a8974d29e8327a04d6bbdce9c98a63f32
+    max_bytes: 4359
+  - path: K8s Playbooks/07-RBAC/README.md
+    git_blob_oid: ffe4991d55ab0485eafbff4bf7da971846b87c57
+    max_bytes: 6338
+  - path: K8s Playbooks/07-RBAC/ServiceAccountNotFound-rbac.md
+    git_blob_oid: fa231405edf43947ee6648dd4f8198c57ffdb4ca
+    max_bytes: 5674
+  - path: K8s Playbooks/07-RBAC/UnauthorizedErrorWhenAccessingKubernetesAPI-rbac.md
+    git_blob_oid: 73d93aa744644231480af441dd977e3c64617142
+    max_bytes: 4593
+  - path: K8s Playbooks/08-Configuration/ConfigMapNotFound-configmap.md
+    git_blob_oid: a7254470ee9f04f79d7e4ea8d4639904a3274707
+    max_bytes: 4182
+  - path: K8s Playbooks/08-Configuration/ConfigMapTooLarge-configmap.md
+    git_blob_oid: 99eee407e5b51b0f1c79f1636c3bbdeece4f8034
+    max_bytes: 4209
+  - path: K8s Playbooks/08-Configuration/PodCannotAccessConfigMap-configmap.md
+    git_blob_oid: 7b2600034b250b1d91174b94f4523bc5285c7999
+    max_bytes: 4265
+  - path: K8s Playbooks/08-Configuration/PodCannotAccessSecret-secret.md
+    git_blob_oid: 81ad48b4f3dfee4f99406e45dcec32642ebda638
+    max_bytes: 4222
+  - path: K8s Playbooks/08-Configuration/PodsCannotPullSecrets-secret.md
+    git_blob_oid: 5818d927f164501fefec642fdb8ca778b4e91f64
+    max_bytes: 4276
+  - path: K8s Playbooks/08-Configuration/README.md
+    git_blob_oid: 66331711df3306904663a41b56ce16a54b1ef4b8
+    max_bytes: 5815
+  - path: K8s Playbooks/08-Configuration/SecretsNotAccessible-secret.md
+    git_blob_oid: 06560eb24418c5b89b2f8bd840613fc57d299362
+    max_bytes: 4188
+  - path: K8s Playbooks/09-Resource-Management/HighCPUUsage-compute.md
+    git_blob_oid: a9a8d22bf776cee4f8c97b430dcb0945c849273e
+    max_bytes: 3871
+  - path: K8s Playbooks/09-Resource-Management/KubeCPUOvercommit-compute.md
+    git_blob_oid: c95a34f5a5318392a4d145a179c211947dd4bb94
+    max_bytes: 4628
+  - path: K8s Playbooks/09-Resource-Management/KubeCPUQuotaOvercommit-namespace.md
+    git_blob_oid: 30bd55a4e29190af1246cce4ce501279ef6cff01
+    max_bytes: 4171
+  - path: K8s Playbooks/09-Resource-Management/KubeMemoryOvercommit-compute.md
+    git_blob_oid: 8dd5ad74054e66737ec29cf655b821bb56b71af2
+    max_bytes: 4695
+  - path: K8s Playbooks/09-Resource-Management/KubeMemoryQuotaOvercommit-namespace.md
+    git_blob_oid: 7b5800f3c4bd12af96c4308ecaf2826b8b39570e
+    max_bytes: 4292
+  - path: K8s Playbooks/09-Resource-Management/KubeQuotaAlmostFull-namespace.md
+    git_blob_oid: fc42cf5ea2f96c4e209a6c6569ad1c249171bede
+    max_bytes: 3691
+  - path: K8s Playbooks/09-Resource-Management/KubeQuotaExceeded-namespace.md
+    git_blob_oid: ec175287e145bc9bb20c46bfbe45c19a9212e846
+    max_bytes: 3880
+  - path: K8s Playbooks/09-Resource-Management/KubeQuotaFullyUsed-namespace.md
+    git_blob_oid: 87485bf42cab34868324145ef52a4fa5606382b7
+    max_bytes: 4054
+  - path: K8s Playbooks/09-Resource-Management/README.md
+    git_blob_oid: 8ec408bc975fbec6ac6894af3f920e72e3cf6719
+    max_bytes: 5938
+  - path: K8s Playbooks/10-Monitoring-Autoscaling/AutoscalerNotAddingNodes-autoscaler.md
+    git_blob_oid: d94c939f0480b3f490616d857e3d62d75b0d9793
+    max_bytes: 3902
+  - path: K8s Playbooks/10-Monitoring-Autoscaling/AutoscalerScalingTooSlowly-autoscaler.md
+    git_blob_oid: cd4c3da037fa218219f37f15fab8b2a6b89d3b34
+    max_bytes: 3638
+  - path: K8s Playbooks/10-Monitoring-Autoscaling/MetricsServerShowsNoData-monitoring.md
+    git_blob_oid: 56d6b604c13f687dfd72acbf41e9d3d3b6a06500
+    max_bytes: 4875
+  - path: K8s Playbooks/10-Monitoring-Autoscaling/README.md
+    git_blob_oid: 84beecb432e7a212df336948b4ffc35e992fbbe4
+    max_bytes: 6143
+  - path: K8s Playbooks/11-Installation-Setup/HelmReleaseStuckInPending-install.md
+    git_blob_oid: 92c5555a473f27dd17dcb85a0d1d148afefd7ffa
+    max_bytes: 3579
+  - path: K8s Playbooks/11-Installation-Setup/README.md
+    git_blob_oid: 0027fc72664d061937fc4f8792045c9c70933d36
+    max_bytes: 4250
+  - path: K8s Playbooks/12-Namespaces/CannotDeleteNamespace-namespace.md
+    git_blob_oid: 41dfa1614f1918d0814e1a74aeacf9f331651b53
+    max_bytes: 4113
+  - path: K8s Playbooks/12-Namespaces/NamespaceDeletionStuck-namespace.md
+    git_blob_oid: aeff841705ae387a40e2a3d57ef62a0019360dc2
+    max_bytes: 3795
+  - path: K8s Playbooks/12-Namespaces/README.md
+    git_blob_oid: 63d6e81b1ffd908bc6cd3dfc47f450273abb6472
+    max_bytes: 4455
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Baseline-Comparison-K8s.md
+    git_blob_oid: 3be992c445fa234a2e8b4e9ad78cf052340ace5b
+    max_bytes: 4264
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Capacity-Trend-Analysis-K8s.md
+    git_blob_oid: 0329625322b5477eca1ab3ef513b7ad51c3b5c47
+    max_bytes: 4117
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Performance-Regression-Detection-K8s.md
+    git_blob_oid: bbadc4f46e3903a81d56b7bbf8273ab391b513c5
+    max_bytes: 4513
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Performance-Trend-Analysis-K8s.md
+    git_blob_oid: ad820d2fb7143dab7ab291a7ffb4209c5ee1521f
+    max_bytes: 4539
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Resource-Exhaustion-Prediction-K8s.md
+    git_blob_oid: c521acab52ba0099bf8755d9ec20b4319525a8f1
+    max_bytes: 4586
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Resource-Usage-Forecasting-K8s.md
+    git_blob_oid: e0a3a0a2995622c079a925c32ebada0e117c27db
+    max_bytes: 4341
+  - path: K8s Playbooks/13-Proactive/01-Capacity-Performance/Scaling-Projections-K8s.md
+    git_blob_oid: 04c4e6e3a85b7a7e8f701174fd122ab41690377b
+    max_bytes: 4712
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Access-Review-K8s.md
+    git_blob_oid: 59f92aa089542be13b8ea6bb239bc4bb0b0d3d9b
+    max_bytes: 3929
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Compliance-Check-K8s.md
+    git_blob_oid: e4bc6ba4acdb943d4dda5d3263a6375609b5b265
+    max_bytes: 4108
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Compliance-Status-Check-K8s.md
+    git_blob_oid: 9686ae44b59069c9e30c5092917586baade16ed6
+    max_bytes: 3884
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/IAM-Policy-Review-K8s.md
+    git_blob_oid: ba1250fb8f28fd151732246b0793b387a61d5a73
+    max_bytes: 4463
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Network-Security-Audit-K8s.md
+    git_blob_oid: d808f3fb9a8a197ed31fdbcffba8afce07cf9738
+    max_bytes: 4509
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Policy-Compliance-Verification-K8s.md
+    git_blob_oid: e059a4055535eb1c8eea6331001108f999978b56
+    max_bytes: 4511
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Regulatory-Requirement-Check-K8s.md
+    git_blob_oid: 20bed9041e76e2902aa97f27486566957b6798a6
+    max_bytes: 4508
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Secrets-Rotation-Status-K8s.md
+    git_blob_oid: ddf7f15e631ba331ade1dbb89fd6198af0a08248
+    max_bytes: 4514
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Security-Group-Audit-K8s.md
+    git_blob_oid: a23fd8d588b7c5f00b388caf4a9424190485ea5a
+    max_bytes: 4589
+  - path: K8s Playbooks/13-Proactive/02-Security-Compliance/Vulnerability-Scanning-K8s.md
+    git_blob_oid: bcba682260cdfbb8e214c7b0741e413d8368a50e
+    max_bytes: 4710
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/Backup-Integrity-Verification-K8s.md
+    git_blob_oid: ff7f1acf7c3a2f68353b61f295b0c9555f9437ea
+    max_bytes: 4009
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/Backup-Verification-K8s.md
+    git_blob_oid: d85500a28d49e4fc1815066ddf2a67f391845879
+    max_bytes: 4175
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/Cross-cluster-Backup-Sync-K8s.md
+    git_blob_oid: e26cefdd7df910c39921ae89c412c89f65e13a84
+    max_bytes: 4291
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/Disaster-Recovery-Runbook-Execution-K8s.md
+    git_blob_oid: db4525e660885ca0ceda97ebdfeab748e48ebe3c
+    max_bytes: 4108
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/Multi-cluster-Failover-K8s.md
+    git_blob_oid: 1b2d7623dd464556f3426813543f8257d0306fe0
+    max_bytes: 5257
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/RTO-RPO-Validation-K8s.md
+    git_blob_oid: 8ae2b6e611530043679ac14cd29c8ac3e4acc173
+    max_bytes: 4343
+  - path: K8s Playbooks/13-Proactive/03-Backup-DR/Restore-Testing-K8s.md
+    git_blob_oid: f17205036c112ef68313bea3d2241abfcacc82ee
+    max_bytes: 4270
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Cost-Anomaly-Detection-K8s.md
+    git_blob_oid: b2c8c7f712f4af4390be24d77d604fce4b6b5d13
+    max_bytes: 4176
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Idle-Resource-Detection-K8s.md
+    git_blob_oid: c6399c32878241fde8f8c2c1e78c900126da2e26
+    max_bytes: 4756
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Quota-Utilization-Tracking-K8s.md
+    git_blob_oid: 3998d755541d1c7d6d61d7b559b884ad6927dab1
+    max_bytes: 4200
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Reserved-Instance-Optimization-K8s.md
+    git_blob_oid: 76f742a371e45448608f483c9e889462b6cfd44a
+    max_bytes: 4553
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Right-sizing-Analysis-K8s.md
+    git_blob_oid: 3402983deca91fa2efcb716f67a3f6700fa5b7d2
+    max_bytes: 4352
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Spot-Instance-Management-K8s.md
+    git_blob_oid: d268e792bc7266e9358070c00b2f2989cba807ac
+    max_bytes: 4742
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Storage-Tier-Optimization-K8s.md
+    git_blob_oid: b7a3587ab4feb8141a280746f9588cec4ed3d834
+    max_bytes: 4619
+  - path: K8s Playbooks/13-Proactive/04-Cost-Optimization/Unused-Resource-Cleanup-K8s.md
+    git_blob_oid: 6a3c9b3086b1c536074f6e9965807431857d4b9c
+    max_bytes: 4445
+  - path: K8s Playbooks/13-Proactive/05-Observability/Alert-Coverage-Analysis-K8s.md
+    git_blob_oid: 69afeaad6a765044cbf0d8d0cc85e94a5498fe94
+    max_bytes: 4071
+  - path: K8s Playbooks/13-Proactive/05-Observability/Error-Budget-Tracking-K8s.md
+    git_blob_oid: 60f319ef1af03e22bf698f4e05d7e4ab6cc00647
+    max_bytes: 5180
+  - path: K8s Playbooks/13-Proactive/05-Observability/Log-Coverage-Analysis-K8s.md
+    git_blob_oid: 028e4ff2691a3f23903559dc8c865b66bd2014b9
+    max_bytes: 4676
+  - path: K8s Playbooks/13-Proactive/05-Observability/Metric-Coverage-Gaps-K8s.md
+    git_blob_oid: 42a32f8c94b5f2525fa3433c6c9054bd0621cc23
+    max_bytes: 4950
+  - path: K8s Playbooks/13-Proactive/05-Observability/Missing-Instrumentation-K8s.md
+    git_blob_oid: 4e95e347546a8e79ebaeb464048df5dd7cf05fa4
+    max_bytes: 4798
+  - path: K8s Playbooks/13-Proactive/05-Observability/SLO-SLI-Monitoring-K8s.md
+    git_blob_oid: a40622765a3aa2737f9245cf6226e84cb91b8761
+    max_bytes: 4492
+  - path: K8s Playbooks/13-Proactive/05-Observability/Trace-Coverage-Issues-K8s.md
+    git_blob_oid: da47e500aab779db5370fb3ff2523188939b2f0a
+    max_bytes: 4518
+  - path: K8s Playbooks/13-Proactive/06-Data-Integrity/Data-Consistency-Checks-K8s.md
+    git_blob_oid: 885b40598816d679ae7fdb13845f9bf6a8fca472
+    max_bytes: 4033
+  - path: K8s Playbooks/13-Proactive/06-Data-Integrity/Data-Corruption-Detection-K8s.md
+    git_blob_oid: eb0e13b97758b9fb0da64e968abd80e60d2880e8
+    max_bytes: 4013
+  - path: K8s Playbooks/13-Proactive/06-Data-Integrity/Data-Replication-Status-K8s.md
+    git_blob_oid: 113fc44b4af097e650ed8b1a29d86d18b8c7e895
+    max_bytes: 4068
+  - path: K8s Playbooks/13-Proactive/06-Data-Integrity/Replication-Lag-Monitoring-K8s.md
+    git_blob_oid: 457b82815e2285552d437acb7691f5986d8ea278
+    max_bytes: 4518
+  - path: K8s Playbooks/13-Proactive/06-Data-Integrity/Transaction-Log-Analysis-K8s.md
+    git_blob_oid: dfad1180a0c609b0242a1a1c34dde618f4ab0977
+    max_bytes: 4382
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/API-Dependency-Status-K8s.md
+    git_blob_oid: c2586027fff171d24b6a5c730ce19f2c6c4486e2
+    max_bytes: 4242
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Audit-Log-Review-K8s.md
+    git_blob_oid: 9e01c5cb38124ceea6e45e8d55e5ed2392d1af62
+    max_bytes: 3945
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Automation-Coverage-K8s.md
+    git_blob_oid: e31fda032c0375e5604ff935c0e935bbc8b6e648
+    max_bytes: 4127
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Cascading-Failure-Analysis-K8s.md
+    git_blob_oid: 17f9a55ea65fa2ff3ea36ed6a15c2ad9c1f581ed
+    max_bytes: 4329
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Certificate-Expiration-Monitoring-K8s.md
+    git_blob_oid: 27c1bebf8dc8a85e1f4143551b932ef6ebefd5d1
+    max_bytes: 4248
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Dependency-Health-Check-K8s.md
+    git_blob_oid: 183df31529586ce98b30690d36185ebf6dc7280b
+    max_bytes: 4120
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Documentation-Gaps-K8s.md
+    git_blob_oid: 8d2b213ff43d575332c15b6e03aa917b49d74139
+    max_bytes: 4190
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Incident-Response-Preparedness-K8s.md
+    git_blob_oid: 330619b48f68a93189bd267f2a57d3910fc609d9
+    max_bytes: 5405
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/On-call-Readiness-K8s.md
+    git_blob_oid: ad4570d9f3ef4696e3a678c82ba270f9dc696100
+    max_bytes: 4255
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Runbook-Completeness-K8s.md
+    git_blob_oid: d5725d2b3be48cb65559fdab00ec5111194a04c6
+    max_bytes: 4179
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Service-Dependency-Mapping-K8s.md
+    git_blob_oid: c1464466c8e2d3198d457fe028485567aa04a7f7
+    max_bytes: 4561
+  - path: K8s Playbooks/13-Proactive/07-Operational-Readiness/Service-Mesh-Health-K8s.md
+    git_blob_oid: 51e570082b209d328cd804aaeb41963ab760bfa5
+    max_bytes: 4654
+  - path: K8s Playbooks/README.md
+    git_blob_oid: b3f354aadf330a7550dbbb7059a531955f831d03
+    max_bytes: 38258
+  - path: LICENSE
+    git_blob_oid: 8540e4f0f8e2d5c91d95f9be8341b11edb2db81d
+    max_bytes: 1065
+  - path: README.md
+    git_blob_oid: 2a758a1c0545cf6869ceabade7c65ebb35ae661f
+    max_bytes: 29160
+  - path: Sentry Playbooks/01-Error-Tracking/APICallFailed-Error-application.md
+    git_blob_oid: 32bc4c1b3805170f27462bb9bf27efad51fef5ba
+    max_bytes: 5284
+  - path: Sentry Playbooks/01-Error-Tracking/AttributeError-MissingAttribute-Error-application.md
+    git_blob_oid: 06d9be310afcfe53c55660d0e69ea623438da4da
+    max_bytes: 4170
+  - path: Sentry Playbooks/01-Error-Tracking/ConnectionError-ConnectionRefused-Database-Error-application.md
+    git_blob_oid: a7c9fa8c88aa1096207030db1172560e4a4634d4
+    max_bytes: 4948
+  - path: Sentry Playbooks/01-Error-Tracking/ConnectionError-ConnectionRefused-Redis-Error-application.md
+    git_blob_oid: abfe59fe510a60a39cf814b930c3ae8a8ab03e6a
+    max_bytes: 4890
+  - path: Sentry Playbooks/01-Error-Tracking/ConsumerError-ConnectionError-Kafka-Error-application.md
+    git_blob_oid: 87a1465db557a9460d1876e24ee18b308b6482ae
+    max_bytes: 4889
+  - path: Sentry Playbooks/01-Error-Tracking/ConsumerError-PartitionError-Kafka-Error-application.md
+    git_blob_oid: 07515372bffa544b88911dfb55b3e536d96424c6
+    max_bytes: 5012
+  - path: Sentry Playbooks/01-Error-Tracking/ConsumerError-TopicNotFound-Kafka-Error-application.md
+    git_blob_oid: c8fc4606269e6396f785dc09b3c5c980af9fcef3
+    max_bytes: 5008
+  - path: Sentry Playbooks/01-Error-Tracking/DatabaseConnectionError-ConnectionRefused-Database-Error-application.md
+    git_blob_oid: b8ce3911862b1c14edd18d366210c84a48f9e6e7
+    max_bytes: 4770
+  - path: Sentry Playbooks/01-Error-Tracking/ImportError-ModuleNotFound-Error-application.md
+    git_blob_oid: c450ba1c6ca5e6b75c1857e156f4ce845c87c349
+    max_bytes: 4148
+  - path: Sentry Playbooks/01-Error-Tracking/IndexError-IndexOutOfRange-Error-application.md
+    git_blob_oid: 610abb6ddd0e6e506150c5f3ef867c3fc4ec21c8
+    max_bytes: 4071
+  - path: Sentry Playbooks/01-Error-Tracking/KeyError-MissingKey-Error-application.md
+    git_blob_oid: 4b1364f41dc2ae394564cbbd02a96fa111736219
+    max_bytes: 3823
+  - path: Sentry Playbooks/01-Error-Tracking/MemoryError-Error-application.md
+    git_blob_oid: 39f997f8e8974c8d35765a2a3d8f5b79e66cc55a
+    max_bytes: 4687
+  - path: Sentry Playbooks/01-Error-Tracking/ProgrammingError-ColumnMissing-Database-Error-application.md
+    git_blob_oid: 9a77e67ebbb35a99cc4a51ca89e0beab312709be
+    max_bytes: 5042
+  - path: Sentry Playbooks/01-Error-Tracking/ProgrammingError-ConstraintViolation-Database-Error-application.md
+    git_blob_oid: 23232abd4b1270173942b334aae3366666ae7769
+    max_bytes: 5298
+  - path: Sentry Playbooks/01-Error-Tracking/ProgrammingError-RelationMissing-Database-Error-application.md
+    git_blob_oid: 7a0d685c8a3a6e5f9ae83c30466d2eea69420e5a
+    max_bytes: 5083
+  - path: Sentry Playbooks/01-Error-Tracking/ProgrammingError-SyntaxError-Database-Error-application.md
+    git_blob_oid: 402937d144e2d83857f3dee68a92190722694948
+    max_bytes: 4945
+  - path: Sentry Playbooks/01-Error-Tracking/UnhandledException-Error-application.md
+    git_blob_oid: b7e924da1511afdefcc29de9f6aab3abe2f473cb
+    max_bytes: 4662
+  - path: Sentry Playbooks/01-Error-Tracking/ValidationError-DataValidation-Error-application.md
+    git_blob_oid: e5c3895765caf6e0e7297bb1c27803db880776b5
+    max_bytes: 4022
+  - path: Sentry Playbooks/01-Error-Tracking/ValueError-InvalidValue-Error-application.md
+    git_blob_oid: 5d8649e7e49b0aca5f6220dd8536f5aab29c7c85
+    max_bytes: 4007
+  - path: Sentry Playbooks/02-Performance/ConnectionError-ConnectionTimeout-Database-Error-application.md
+    git_blob_oid: 0d846706e30b975f8f33681638219f095e304051
+    max_bytes: 5017
+  - path: Sentry Playbooks/02-Performance/ConnectionError-ConnectionTimeout-Redis-Error-application.md
+    git_blob_oid: 23553a2a483a8a32c92fff420456eb00edaeeb60
+    max_bytes: 4977
+  - path: Sentry Playbooks/02-Performance/DatabaseConnectionError-ConnectionTimeout-Database-Error-application.md
+    git_blob_oid: 3a4e33279efe8292b59b9f55bb60cd0c0a2f1259
+    max_bytes: 4859
+  - path: Sentry Playbooks/02-Performance/TimeoutError-ConnectionTimeout-API-Error-application.md
+    git_blob_oid: 01c960283d5e881f35ed170471b889ef45aa3901
+    max_bytes: 4737
+  - path: Sentry Playbooks/02-Performance/TimeoutError-QueryTimeout-Database-Error-application.md
+    git_blob_oid: 2e8a690439c3be94b71b366925b6d02971639bb6
+    max_bytes: 4739
+  - path: Sentry Playbooks/02-Performance/TimeoutError-RequestTimeout-API-Error-application.md
+    git_blob_oid: cd1bee03ee31963af0293bd475a9ec7ab628c6dc
+    max_bytes: 4700
+  - path: Sentry Playbooks/03-Release-Health/README.md
+    git_blob_oid: b859eabc71def6ed37d8eac045372102f876b616
+    max_bytes: 1637
+  - path: Sentry Playbooks/README.md
+    git_blob_oid: a8ce3d70356d1990dc74cee16068481a3d184af1
+    max_bytes: 2842

@@ -67,9 +67,22 @@ class NormalizedDocument(StrictModel):
     file_sha256: str | None = None
     rights: dict[str, Any] | None = None
     metadata: dict[str, str | int | float | bool | None] | None = None
+    structure: dict[str, Any] | None = None
     split: str | None = None
     representative_id: str | None = None
     drop_reason: str | None = None
+
+
+def _require_consistent_cleaning_decisions(documents: list[dict[str, Any]]) -> None:
+    """Reject duplicate source rules that disagree about LM eligibility."""
+    decisions = {
+        (doc.get("structure") or {}).get("decision") == "exclude_lm_metadata_only"
+        for doc in documents
+    }
+    if len(decisions) > 1:
+        raise ValueError(
+            "discordant metadata-only cleaning decisions in duplicate component"
+        )
 
 
 class GenerationRecord(StrictModel):
@@ -212,11 +225,9 @@ def _jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line
-    ]
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    return [record.value for record in records_from_path(path)]
 
 
 def _line_count(path: Path) -> int:
@@ -443,19 +454,36 @@ def _records_for_file(
     full_file_sha256: str | None = None,
     first_row_index: int = 1,
     record_admission: dict[str, Any] | None = None,
+    normalizer_version: str = "normalizer-nfc-markdown-v1",
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    from sparselab.corpus.structure_cleaning import (
+        NORMALIZER_V1,
+        NORMALIZER_V2,
+        NORMALIZER_V3,
+    )
+
+    if normalizer_version not in {NORMALIZER_V1, NORMALIZER_V2, NORMALIZER_V3}:
+        raise ValueError("unsupported corpus normalizer")
     suffix = Path(name).suffix.lower()
     streaming_rows = (
         source.schema_version == 3
         and suffix == ".jsonl"
         and source.kind in {"huggingface_dataset", "wikimedia_dump"}
     )
+    jsonl_rows = suffix == ".jsonl" and source.kind in {
+        "huggingface_dataset",
+        "wikimedia_dump",
+    }
     raw_text = ""
     if suffix != ".parquet":
         if b"\x00" in raw:
             raise ValueError("binary input")
-        raw_text = "" if streaming_rows else raw.decode("utf-8", errors="strict")
-        if not raw or (not streaming_rows and not raw_text.strip()):
+        raw_text = "" if jsonl_rows else raw.decode("utf-8", errors="strict")
+        if (
+            not raw
+            or (jsonl_rows and not raw.strip())
+            or (not jsonl_rows and not raw_text.strip())
+        ):
             raise ValueError("empty input")
     text = (
         ""
@@ -470,10 +498,10 @@ def _records_for_file(
             import pyarrow.parquet as pq
 
             objects = pq.read_table(io.BytesIO(raw)).to_pylist()
-        elif streaming_rows:
-            objects = (json.loads(line) for line in io.BytesIO(raw) if line.strip())
-        elif suffix == ".jsonl":
-            objects = [json.loads(line) for line in text.splitlines() if line.strip()]
+        elif streaming_rows or suffix == ".jsonl":
+            from sparselab.corpus.jsonl_records import records_from_bytes
+
+            objects = (record.value for record in records_from_bytes(raw, source=name))
         else:
             loaded = json.loads(text)
             objects = loaded if isinstance(loaded, list) else [loaded]
@@ -543,7 +571,7 @@ def _records_for_file(
             }
             content = (
                 _normalized(item[field])
-                if streaming_rows and isinstance(item[field], str)
+                if suffix == ".jsonl" and isinstance(item[field], str)
                 else item[field]
             )
             passages.append((content, [], n, n, metadata))
@@ -586,6 +614,7 @@ def _records_for_file(
     for passage in passages:
         content, ancestry, start, end = passage[:4]
         metadata = passage[4] if len(passage) > 4 else None
+        raw_content = content
         if not isinstance(content, str) or not content.strip():
             if source.schema_version != 3:
                 raise ValueError("empty/nontext document")
@@ -609,21 +638,27 @@ def _records_for_file(
                     }
                 )
             continue
+        structure = None
+        if normalizer_version in {NORMALIZER_V2, NORMALIZER_V3} and suffix != ".cnxml":
+            from sparselab.corpus.structure_cleaning import clean_structure
+
+            cleaned = clean_structure(
+                content, source_id=source.id, normalizer=normalizer_version
+            )
+            content, structure = cleaned["text"], cleaned["structure"]
         location = (
             f"{name}#row={start}"
             if source.kind in {"huggingface_dataset", "wikimedia_dump"}
             else f"{name}#lines={start}-{end}"
         )
-        normalizer = (
-            "cnxml-text-v1" if suffix == ".cnxml" else "normalizer-nfc-markdown-v1"
-        )
+        normalizer = "cnxml-text-v1" if suffix == ".cnxml" else normalizer_version
         identity = digest([snapshot_id, location, raw_sha, normalizer])
         byte_start = byte_offsets[start - 1] if byte_offsets else None
         byte_end = byte_offsets[end] if byte_offsets else None
         raw_passage = (
             raw[byte_start:byte_end]
             if byte_start is not None and byte_end is not None
-            else content.encode("utf-8")
+            else raw_content.encode("utf-8")
         )
         raw_content_sha = hashlib.sha256(raw_passage).hexdigest()
         document = {
@@ -660,9 +695,22 @@ def _records_for_file(
             "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "raw_content_sha256": raw_content_sha,
             "source_family": source.source_family,
+            **({"structure": structure} if structure is not None else {}),
             **(
-                {"metadata": metadata}
+                {"drop_reason": "metadata_only_front_matter"}
+                if structure and structure["decision"] == "exclude_lm_metadata_only"
+                else {}
+            ),
+            **(
+                {
+                    "metadata": {
+                        **metadata,
+                        **({"normalizer": normalizer} if structure is not None else {}),
+                    }
+                }
                 if metadata
+                else {"metadata": {"normalizer": normalizer}}
+                if structure is not None
                 else {"metadata": {"normalizer": normalizer}}
                 if suffix == ".cnxml"
                 else {}
@@ -1672,6 +1720,8 @@ def build(
                         file_rights=decision,
                         rejected_records=rejected,
                         record_admission=admitted,
+                        normalizer_version=project.release.normalizer
+                        or "normalizer-nfc-markdown-v1",
                     )
                     documents.extend(doc for doc, _ in pairs)
                     evidence.extend(span for _, span in pairs)
@@ -1849,6 +1899,17 @@ def build(
                     _json(staging / "audit.json", diagnostic)
                     _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
                     raise ValueError("validation/test page or paper origin overlap")
+                try:
+                    _require_consistent_cleaning_decisions([by_id[i] for i in ids])
+                except ValueError as error:
+                    diagnostic = {
+                        "duplicates": duplicate_groups,
+                        "rejected": rejected,
+                        "error": str(error),
+                    }
+                    _json(staging / "audit.json", diagnostic)
+                    _json(root / "diagnostics" / f"{build_id}.json", diagnostic)
+                    raise
                 priority = next(iter(heldout)) if heldout else None
                 selected = min(
                     ids,
@@ -1874,7 +1935,10 @@ def build(
         for doc in documents:
             doc["representative_id"] = representative[doc["document_id"]]
             doc["drop_reason"] = (
-                (
+                "metadata_only_front_matter"
+                if (doc.get("structure") or {}).get("decision")
+                == "exclude_lm_metadata_only"
+                else (
                     "contaminated_heldout"
                     if project.release.schema_version == 3
                     and doc["split"] == "train"
@@ -2000,11 +2064,10 @@ def build(
                     verification_mode=verification_mode,
                 )
                 output = []
-                for entry in (
-                    json.loads(line)
-                    for line in raw.decode("utf-8").splitlines()
-                    if line
-                ):
+                from sparselab.corpus.jsonl_records import records_from_bytes
+
+                for parsed in records_from_bytes(raw, source=params["path"]):
+                    entry = parsed.value
                     doc = by_id[entry["evidence_document_id"]]
                     start, end = entry["evidence_span"]
                     if doc["text"][start:end] != entry["evidence_passage"]:
@@ -2326,10 +2389,13 @@ def build(
                     verification_mode=verification_mode,
                 )
                 output = []
+                from sparselab.corpus.jsonl_records import records_from_bytes
+
                 responses = [
-                    json.loads(line)
-                    for line in response_bytes.decode("utf-8").splitlines()
-                    if line
+                    record.value
+                    for record in records_from_bytes(
+                        response_bytes, source=params["responses_path"]
+                    )
                 ]
                 adapter = RecordedResponses(responses)
                 replay: Generator = adapter

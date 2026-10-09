@@ -178,6 +178,7 @@ def _prepare_file(
     source_path: Path,
     decision: Any,
     progress: BuildProgress,
+    normalizer_version: str = "normalizer-nfc-markdown-v1",
 ) -> Path:
     from sparselab.corpus.pipeline import _records_for_file
     from sparselab.engram.packs import _rename_noreplace
@@ -207,7 +208,9 @@ def _prepare_file(
             ].endswith(".jsonl"):
                 with source_path.open("rb") as stream:
                     index = 0
-                    for raw in stream:
+                    from sparselab.corpus.jsonl_records import iter_lf_lines
+
+                    for _, raw in iter_lf_lines(stream):
                         counts["input_bytes"] += len(raw)
                         if not raw.strip():
                             progress.update(input_bytes=len(raw))
@@ -227,6 +230,7 @@ def _prepare_file(
                                 rejected_records=dropped,
                                 full_file_sha256=file["sha256"],
                                 first_row_index=index,
+                                normalizer_version=normalizer_version,
                             )
                         except (ValueError, UnicodeError, KeyError, TypeError) as exc:
                             raise _SourceParseError(str(exc)) from exc
@@ -251,6 +255,7 @@ def _prepare_file(
                         snapshot_sha,
                         file_rights=decision,
                         rejected_records=dropped,
+                        normalizer_version=normalizer_version,
                     )
                 except (ValueError, UnicodeError, KeyError, TypeError) as exc:
                     raise _SourceParseError(str(exc)) from exc
@@ -557,18 +562,29 @@ def _deduplicate(
     # validation/test isolation gate even for transitive overlaps.
     winner: dict[int, tuple[Any, ...]] = {}
     heldout_mask: dict[int, int] = defaultdict(int)
-    for number, split in connection.execute(
-        "SELECT rowid,split FROM documents ORDER BY rowid"
+    cleaning_mask: dict[int, int] = defaultdict(int)
+    for number, split, payload in connection.execute(
+        "SELECT rowid,split,payload FROM documents ORDER BY rowid"
     ):
         component = root(number)
         heldout_mask[component] |= (
             1 if split == "validation" else 2 if split == "test" else 0
+        )
+        cleaning_mask[component] |= (
+            2
+            if (json.loads(payload).get("structure") or {}).get("decision")
+            == "exclude_lm_metadata_only"
+            else 1
         )
     if any(mask == 3 for mask in heldout_mask.values()):
         _write_json(
             diagnostics, {"error": "validation/test page or paper origin overlap"}
         )
         raise ValueError("validation/test page or paper origin overlap")
+    if any(mask == 3 for mask in cleaning_mask.values()):
+        message = "discordant metadata-only cleaning decisions in duplicate component"
+        _write_json(diagnostics, {"error": message})
+        raise ValueError(message)
     for number, identifier, split, source_rank, kind in connection.execute(
         "SELECT rowid,document_id,split,source_rank,document_kind FROM documents ORDER BY rowid"
     ):
@@ -590,13 +606,16 @@ def _deduplicate(
             winner[component] = (*choice, identifier, split)
     dropped = 0
     updates = []
-    for number, identifier, split in connection.execute(
-        "SELECT rowid,document_id,split FROM documents ORDER BY rowid"
+    for number, identifier, split, payload in connection.execute(
+        "SELECT rowid,document_id,split,payload FROM documents ORDER BY rowid"
     ):
         selected = winner[root(number)][4]
         retained_split = winner[root(number)][5]
         reason = (
-            "contaminated_heldout"
+            "metadata_only_front_matter"
+            if (json.loads(payload).get("structure") or {}).get("decision")
+            == "exclude_lm_metadata_only"
+            else "contaminated_heldout"
             if selected != identifier and split == "train" and retained_split != "train"
             else "duplicate"
             if selected != identifier
@@ -1148,6 +1167,8 @@ def build_large(
                 "snapshot_sha": lock_row["snapshot_sha256"],
                 "prepared_root": prepared_root,
                 "build_id": build_id,
+                "normalizer_version": project.release.normalizer
+                or "normalizer-nfc-markdown-v1",
             }
             if executor is not None and path in eligible_jsonl:
                 pending.append(
