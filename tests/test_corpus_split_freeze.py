@@ -311,6 +311,87 @@ def test_prior_content_cannot_be_renamed_into_another_family(
         )
 
 
+def test_exact_content_alias_uses_accepted_family_id_and_held_out_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project, inventory, clusters_path, rows, decisions = _fixture(tmp_path, monkeypatch)
+    accepted, alias = rows[0], rows[1]
+    alias["content_sha256"] = accepted["content_sha256"]
+    extra = dict(rows[2])
+    extra.update(
+        document_id="books-10",
+        source_row_index=10,
+        family_hint="books-family:10",
+        content_sha256=hashlib.sha256(b"books-10").hexdigest(),
+    )
+    rows.append(extra)
+    decisions["books", "books.sample.jsonl"]["decisions"][10] = {"decision": "qualify"}
+    inventory.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
+    release = tmp_path / ("c" * 64)
+    release.mkdir()
+    old_id = "old-" + accepted["document_id"]
+    (release / "documents.jsonl").write_bytes(
+        canonical_json(
+            {
+                "document_id": old_id,
+                "drop_reason": None,
+                "split": "test",
+                "content_sha256": accepted["content_sha256"],
+                "domains": ["general_prose"],
+            }
+        )
+        + b"\n"
+    )
+    prior = tmp_path / "accepted-families.jsonl"
+    prior.write_bytes(
+        canonical_json(
+            {
+                "document_id": old_id,
+                "family_id": accepted["family_hint"],
+                "split": "test",
+                "stratum": "general_prose",
+                "content_sha256": accepted["content_sha256"],
+            }
+        )
+        + b"\n"
+    )
+    clusters = json.loads(clusters_path.read_text())
+    clusters["inventory_sha256"] = sha256_file(inventory)
+    clusters["prior_family_inventory"] = {
+        "path": str(prior),
+        "sha256": sha256_file(prior),
+        "release_path": str(release),
+    }
+    clusters["merges"] = [
+        {
+            "family_id": accepted["family_hint"],
+            "member_hints": [accepted["family_hint"], alias["family_hint"]],
+        }
+    ]
+    clusters_path.write_bytes(canonical_json(clusters))
+    monkeypatch.setattr(
+        split_freeze,
+        "verify_release",
+        lambda *a, **kw: {"release_id": release.name},
+    )
+    output = tmp_path / "aliases-preserved.yaml"
+    report = split_freeze.freeze_splits(
+        project, tmp_path, inventory, clusters_path, output
+    )
+    assignments = yaml.safe_load(output.read_text())["assignments"]
+    assert assignments[accepted["document_id"]] == "test"
+    assert assignments[alias["document_id"]] == "test"
+    candidates = {
+        row["document_id"]: row
+        for row in (
+            json.loads(line)
+            for line in Path(report["family_candidates"]).read_text().splitlines()
+        )
+    }
+    assert candidates[accepted["document_id"]]["family_id"] == accepted["family_hint"]
+    assert candidates[alias["document_id"]]["family_id"] == accepted["family_hint"]
+
+
 def test_finalized_family_inventory_matches_kept_release_documents(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

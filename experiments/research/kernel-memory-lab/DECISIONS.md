@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D44 — retained-snapshot family correction and preparation-only readiness approved, 2026-10-08
+
+- The owner authorized [one bounded preparation-only pass](CARD05_BASE_PREPARATION_V4.md) using the retained four snapshots, original cumulative storage baseline and existing preparation ceilings. No acquisition, GPU work, optimizer updates, generation or training is authorized. Preserve C05-B3/B4/B6 and their ledgers.
+- Audit all eligible exact-content components and accepted prior family mappings. Compatible aliases must use the exact accepted family ID; incompatible accepted IDs, splits or strata stop for a decision. Preserve every accepted held-out assignment and quarantine. Complete only reachable native freeze, release, cleaning, leakage, unique-token and 25M-mixture checks under the unchanged floors and two-exposure cap; stop for training approval if they pass.
+
 ## KML-D43 — LF-record parser repair and one fresh retained-snapshot continuation approved, 2026-10-08
 
 - The owner authorized a focused native JSONL correction, with inspected zero-update/no-generation regressions, followed conditionally by one new Card 05 retained-snapshot preparation/training/evaluation attempt. The correction must be committed and pushed before the attempt. [C05-B5](results/2026-10-08-card05-base-jsonl-parser-preflight.md) records the passing offline correction. Historical C05-B3/B4 attempts, ledgers, source bytes and failures stay untouched.
