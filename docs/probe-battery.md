@@ -1,9 +1,12 @@
-# Probe battery: fast-fail checks for any checkpoint
+# Probe battery: fast-fail checks for native checkpoints
 
 The probe battery is a small, versioned suite of cheap checks that tells you, in
-seconds to minutes, whether an idea is worth a longer run. It runs on any
-checkpoint, against a baseline checkpoint, and ends with a machine-readable
+seconds to minutes, whether an idea is worth a longer run. It scores supported native PyTorch
+checkpoints, optionally against a baseline checkpoint, and ends with a machine-readable
 verdict and a recommended next action.
+
+MLX checkpoints and attached semantic packs are currently refused; text-level
+reference models have a separate full-tier path described below.
 
 **Probes screen; they do not prove usefulness.** A pass means "nothing obvious
 broke and loss moved the right way on a small fixed sample", nothing more.
@@ -16,17 +19,22 @@ data split, a longer run, more seeds) for any claim that an idea is better.
 uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
 
 # Any run or checkpoint, any tier.
-uv run --locked --extra cpu sparselab probe RUN_OR_CHECKPOINT --vs BASELINE_RUN --tier standard
-uv run --locked --extra cpu sparselab probe RUN --vs BASE --json      # stable schema
+uv run --locked --extra cpu sparselab probe RUN_OR_CHECKPOINT --vs BASELINE_RUN --backend cpu --tier standard
+uv run --locked --extra cpu sparselab probe RUN --vs BASE --backend cpu --json      # stable schema
 uv run --locked --extra cpu sparselab report probe-20261010T150839Z-ece5a739
 
 # Standard lm-eval tasks (optional extra).
 uv sync --locked --extra cpu --extra lmeval
-uv run --locked --extra cpu --extra lmeval sparselab probe RUN --vs BASE --tier full
+uv run --locked --extra cpu --extra lmeval sparselab probe RUN --vs BASE --backend cpu --tier full
 
 # Place a result on the reference curve (reads records; no download, no compute).
 uv run --locked --extra cpu sparselab compare TRY_OR_PROBE_ID --references
 ```
+
+`--extra cpu` selects dependencies, not the saved checkpoint backend. These
+examples explicitly score on CPU; use a registered compatible runtime for GPU
+scoring. `explore` defaults to CPU, while standalone `probe` inherits the saved
+backend when `--backend` is omitted.
 
 A target is a run directory, a checkpoint directory inside a run, or a run id
 under `WORK_DIR/lab/runs` (or `--runs-dir`). Results land in

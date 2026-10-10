@@ -44,5 +44,5 @@ in the [roadmap](roadmap.md), not an implicit execution queue.
 
 The [dashboard](dashboard.md) already browses lifecycle findings and verified
 reports. A shared CLI/dashboard ledger projection is proposed in
-[TODO.md](../../TODO.md#experiment-ledger-projection); it is not a shipped command
+[TODO.md](../../TODO.md#parked-experiment-ledger-projection); it is not a shipped command
 or a new evidence authority.

@@ -255,9 +255,11 @@ Build-only success records a real build and `release: null`; it never freezes.
 
 Some historical recovery procedures used task-specific coordinators. Their
 [retained records](development-evidence.md#task-scoped-ancestry-replay) describe
-those exact attempts, not a general DSL route. Verified snapshot inheritance
-remains an [implementation gap](../../TODO.md#p3--conditional-work-activate-for-a-concrete-workload).
-Use the native recovery operations within their supported boundaries.
+those exact attempts, not a general DSL route. New recovery declarations use
+the native [snapshot inheritance contract](#declared-snapshot-inheritance) below.
+Partial inheritance still needs explicit acquisition authorization for missing
+sources; production replay remains a separately allocated execution, not a
+missing inheritance interface.
 
 ### Future identity design boundary
 

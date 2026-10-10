@@ -20,8 +20,16 @@ ExperimentPlans, and do not request Campaign approvals. Iterate: read the
 record, change one setting, try again. A lab record is evidence of one local
 comparison, not a release, promotion or scientific conclusion.
 
+For a new user, follow the [TinyStories lab walkthrough](docs/tinystories-microlab.md):
+prepare the three sample inputs, then use `try` and `report`. Keep advanced
+continuation, matrices and release instructions in their own guides. Run IDs
+belong to `probe`/`explore`; record IDs belong to `report`/`compare`. Standalone
+`probe` inherits the saved backend unless explicitly overridden; the CPU extra
+installs a framework but does not override a saved CUDA/ROCm backend.
+
 Every try also runs the fast [probe battery](docs/probe-battery.md) tier; use
-`sparselab probe RUN --vs BASE --tier standard|full --json` for more. Act on
+`sparselab probe RUN --vs BASE --backend cpu --tier standard --json`
+(or `--tier full`) for more. Act on
 `probe.verdict.action`: `abandon` (a hard probe failed, including a NaN/inf
 loss reported as a numerical failure: drop or fix the idea),
 `tweak` (change one setting; `suggestion` names what the failing probe

@@ -75,7 +75,7 @@ A smaller `training.micro_batch_size` reduces activation dimensions. Increasing 
 `inspect` can write a separate proposal rather than editing its input:
 
 ```sh
-uv run --locked sparselab inspect configs/runtime_smoke_cpu.yaml \
+uv run --locked --extra cpu sparselab inspect configs/runtime_smoke_cpu.yaml \
   --write-proposal sparselab-work/runtime-proposal.yaml
 ```
 

@@ -2,7 +2,10 @@
 
 Lab mode is the default path for normal, authorized local experiments. One
 command trains a baseline and a candidate, scores both on the same held-out
-split and writes one compact record:
+split and writes one compact record. For a complete input setup, start with
+[TinyStories](tinystories-microlab.md); for a larger budget use the
+[first-model guide](first-model.md). The placeholders below assume an existing
+RunConfig and tokenizer:
 
 ```sh
 export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"

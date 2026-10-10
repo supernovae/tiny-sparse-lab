@@ -3,8 +3,8 @@
 Use SparseLab's declared inputs, native verifiers and retained evidence between
 runs. A passing check establishes its stated scope; it does not approve model
 quality or promote a child. Keep the baseline and parent generation immutable.
-Record the intended scientific delta before compute, then compare the actual
-locked delta rather than reconstructing it in a Python notebook or agent script.
+Record the intended scientific delta before compute, then read the native lab
+record or resolved release plan rather than reconstructing it in a private script.
 
 ## Lab mode first
 
@@ -50,7 +50,7 @@ In PowerShell use `$env:SPARSELAB_WORK_DIR` for the environment variable and
 continued Bash commands on one line instead of using `\`. For the TinyStories
 copy step, set `$WORK = Join-Path $env:SPARSELAB_WORK_DIR 'experiments/tinystories-microlab'`,
 create a fresh `$WORK/inputs` directory with `New-Item -ItemType Directory`,
-and copy the four sample YAML files with `Copy-Item` into it. Use forward slashes
+and copy `source.yaml`, `tokenizer.yaml` and `run.yaml` with `Copy-Item` into it. Use forward slashes
 or quoted absolute paths in YAML. Do not edit the checked-in templates.
 
 For a dense-model session, run the bounded CPU wiring check once into a new,
@@ -161,8 +161,8 @@ registered persistent store use signed host-local proofs; changed fingerprints,
 closure/source identity, unsafe paths or missing/foreign proofs fall back to cold
 verification. `stage --cold-verify` explicitly disables proof reuse; supported
 ExperimentPlan commands also expose `--cold-verify`. Independent archive,
-recovery and Family verification remain cold. There is no Campaign-wide
-`--cold-verify` option. See [capacity-aware execution](capacity-aware-execution.md)
+recovery and Family verification remain cold. Campaign
+`plan|status|next|explain|apply|resume|approve` also accept `--cold-verify`. See [capacity-aware execution](capacity-aware-execution.md)
 for exact support and trust limitations.
 
 ## Read-only iteration check

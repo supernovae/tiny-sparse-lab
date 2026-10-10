@@ -19,16 +19,19 @@ uv run --locked --extra cpu pytest -q tests/test_surface_overlay.py tests/test_s
 uv run --locked --extra cpu pytest -q tests/test_hf_auth.py
 ```
 
-Pushes to `main` and all PRs run one explicit Linux zero-model-work job:
-Ruff, research lint, and selected safety,
-compatibility, packing, panel and readiness nodes. The selected nodes include
-no tokenizer fitting, model initialization, optimizer update or generation. The
-`workflow_dispatch` **Run workflow** menu defaults to `safe`; its
-`integration-linux`, `platform-macos` and `release-candidate` choices are
-manual model-bearing checks and require a separately reviewed allocation.
-No tag automatically starts model work. The release-candidate choice runs the
-broader Linux and macOS CPU suites. Ordinary PR success
-does not certify optimizer/generation integration or macOS behavior.
+Pushes to `main` and all PRs run two Linux jobs: `safe` (Ruff, research lint
+and an explicit zero-model selection) and `lab-loop` (tiny CPU training plus
+probe, reference, explorer and dashboard regressions). The automatic `safe`
+selection itself fits no tokenizer and initializes no model; the separate
+`lab-loop` job does model work. See the [workflow](../.github/workflows/ci.yml)
+for exact nodes and budgets.
+
+Manual `workflow_dispatch` with `safe` selects both jobs too. Additional
+`integration-linux`, `platform-macos` and `release-candidate` choices need a
+separately reviewed allocation. Do not dispatch them for prose changes. For
+documentation, check links, anchors, parser arguments and configuration schemas
+without calling command handlers. Ordinary PR success does not certify all
+training paths, accelerator behavior or macOS behavior.
 
 For an explicit local full-suite run, use two workers, distributing whole test
 files so module-scoped fixtures remain together. Pytest's `tmp_path` and
@@ -95,8 +98,7 @@ Never use `-n` for MLX/MPS or run another accelerator test/training process agai
 
 The full CPU jobs on Linux and macOS retain their tests, hardware exclusions,
 and existing 30-minute safety limits, but are manual-only while their long
-native integrations are paused as automatic build gates. Automatic lint and
-focused/evidence/serving jobs retain their 5- and 10-minute limits. The manual hosted
+native integrations are paused as automatic build gates. The automatic `safe` and `lab-loop` jobs have 12- and 20-minute limits. The manual hosted
 CPU jobs use up to four workers with work-stealing; the local command above
 uses whole-file scheduling for fixture reuse.
 

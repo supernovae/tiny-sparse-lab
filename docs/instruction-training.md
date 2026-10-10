@@ -17,13 +17,13 @@ The curriculum contains bounded arithmetic, word reversal, attribute lookup, con
 ## Reference run
 
 ```sh
-uv run --locked sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
-uv run --locked sparselab data prepare configs/instruction_100m.yaml
-uv run --locked sparselab inspect configs/instruction_100m.yaml --json
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
-uv run --locked sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
-uv run --locked sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32
+uv run --locked --extra cpu sparselab tokenizer train configs/tokenizer_instruction_8k.yaml
+uv run --locked --extra cpu sparselab data prepare configs/instruction_100m.yaml
+uv run --locked --extra cpu sparselab inspect configs/instruction_100m.yaml --json
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m-pilot --stop-after-step 2
+uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/instruction-100m-pilot/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_100m.yaml --run-id instruction-100m
+uv run --locked --extra cpu sparselab chat instruction-100m --system "You are a concise local assistant." --max-new-tokens 32 --runs-dir sparselab-work/runs
 ```
 
 `instruction_100m.yaml` is the initial larger reference: 104,843,648 dense parameters, a 20-million-target-token curriculum budget, effective batch size 16, and block activation checkpointing. It is intentionally a 100M—not 200M—configuration: establish that the corpus, transcript, checkpoint, and held-out behavior are useful before paying the substantially higher memory and training cost of a 200M experiment.

@@ -24,5 +24,5 @@ rules.
 
 The [curated experiment ledger](experiment-ledger.md) connects project questions
 to retained lessons across studies. A shared CLI/dashboard ledger projection is
-[proposed](../../TODO.md#experiment-ledger-projection); current Research pages
+[proposed](../../TODO.md#parked-experiment-ledger-projection); current Research pages
 continue to read their existing lifecycle and verified report sources.

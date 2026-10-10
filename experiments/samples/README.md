@@ -3,18 +3,18 @@
 Samples teach the workflow and are safe to copy. They are not claims that a
 mechanism improves quality or performance.
 
-- [TinyStories microlab](../../docs/tinystories-microlab.md): a small story model,
-  explicit FFN-width matrix, and full-state exposure child without Python scripts, with
+- [TinyStories microlab](../../docs/tinystories-microlab.md): a small `try`/`report` width comparison, with
   [copyable configs](tinystories-microlab/).
 - [Chained training program](../../docs/experiment-programs.md): an offline
   authored plan with preparation, immutable locking, and a checkpoint-bound
   child phase.
 
-Start with a packaged scaffold:
+For an advanced research recipe, use a packaged scaffold:
 
 ```sh
-WORK="$PWD/sparselab-work/experiments/engram-ffn-substitution-v1"
-uv run --locked --extra cpu sparselab --work-dir "$PWD/sparselab-work" research scaffold engram-ffn-substitution-v1 \
+export SPARSELAB_WORK_DIR="$HOME/.local/share/sparselab"
+WORK="$SPARSELAB_WORK_DIR/experiments/engram-ffn-substitution-v1"
+uv run --locked --extra cpu sparselab research scaffold engram-ffn-substitution-v1 \
   --scale smoke --data offline --backend cpu \
   --output "$WORK/scaffold"
 uv run --locked --extra cpu sparselab study plan "$WORK/scaffold/study.yaml"

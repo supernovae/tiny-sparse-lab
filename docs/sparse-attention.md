@@ -50,15 +50,16 @@ measurement procedure. Both MLX peaks use the same allocator high-water
 method; MPS sampled peaks are lower bounds and are not directly comparable.
 
 Raw samples, runtime identities, source identities, errors, and limitations:
-[Metal kernels](../artifacts/benchmarks/mlx_sparse_metal_2026_09_22.json) and
-[preceding operator baseline](../artifacts/benchmarks/mlx_sparse_operator_2026_09_22.json).
+`artifacts/benchmarks/mlx_sparse_metal_2026_09_22.json` and
+`artifacts/benchmarks/mlx_sparse_operator_2026_09_22.json` are the recorded
+artifact locations; these payloads are not present in this checkout.
 Regressions cover prefix causality, partial blocks, batch/head unions, input
 and projection gradients, a 40-channel head spanning the 32-lane SIMD width,
 and recomputed sparse blocks. Full MLX checkpoint/inference lifecycle
 acceptance is tracked separately from this attention component.
 
 ```sh
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_sparse_cpu.yaml --run-id sparse-smoke
 ```
 
 The [`sparse-attention` lesson](research/lesson-paths.md) scaffolds the block-16/select-2 PyTorch configuration and exposes selector diagnostics without a campaign. The [memory/selection study](research/engram-sparse-budget.md) keeps endpoint comparisons and observed deltas separate from Python timing; batch/head selection unions can exceed a per-head budget.
