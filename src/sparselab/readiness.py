@@ -31,10 +31,27 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     )
 
 
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 3600.0
+
+
 def smoke_readiness(
-    configs_root: Path, output: Path, *, families: tuple[str, ...] = ()
+    configs_root: Path,
+    output: Path,
+    *,
+    families: tuple[str, ...] = (),
+    command_timeout: float | None = DEFAULT_COMMAND_TIMEOUT_SECONDS,
 ) -> Path:
-    """Exercise inspect through resumed inference with isolated mutable outputs."""
+    """Exercise inspect through resumed inference with isolated mutable outputs.
+
+    ``command_timeout`` bounds each child command (seconds); ``None`` disables
+    the bound for slow hosts. It is an operational limit, not a quality gate.
+    """
+    if command_timeout is not None and not (
+        isinstance(command_timeout, (int, float))
+        and not isinstance(command_timeout, bool)
+        and 0 < command_timeout < float("inf")
+    ):
+        raise ValueError("command_timeout must be positive and finite, or None")
     ensure_work_dir()
     selected = families or tuple(SMOKE_FAMILIES)
     if not selected or any(name not in SMOKE_FAMILIES for name in selected):
@@ -68,6 +85,7 @@ def smoke_readiness(
         "kind": "local_cpu_capability_smoke",
         "source_identity_sha256": source_identity()["sha256"],
         "status": "running",
+        "command_timeout_seconds": command_timeout,
         "families": {},
         "commands": [],
         "limitations": [
@@ -92,7 +110,7 @@ def smoke_readiness(
                 cwd=configs_root.parent,
                 text=True,
                 capture_output=True,
-                timeout=900,
+                timeout=command_timeout,
                 check=False,
             )
             row = {

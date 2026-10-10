@@ -6,6 +6,23 @@ quality or promote a child. Keep the baseline and parent generation immutable.
 Record the intended scientific delta before compute, then compare the actual
 locked delta rather than reconstructing it in a Python notebook or agent script.
 
+## Lab mode first
+
+For a normal authorized local experiment, skip the sections below and run
+[lab mode](lab-mode.md):
+
+```sh
+uv run --locked --extra cpu sparselab try DELTA.yaml --vs "$CONFIG"
+uv run --locked --extra cpu sparselab report TRY_ID
+```
+
+It derives the candidate, trains both arms, scores both on the same held-out
+split and writes one sealed record, with resource limits, data identity, safe
+cancellation and held-out checks retained and no locks, approvals or
+reconciliation. The rest of this guide is the **release path**: use it when a
+result will be promoted, published or used as a release parent, or for paid
+compute.
+
 ## Start a runner session
 
 Use one external persistent work root and a fixed, tested source revision.
@@ -52,7 +69,7 @@ selected GPU environment. See [lab readiness](lab-readiness.md).
 Do not repeat the entire test suite for each budget or config iteration on the
 same tested revision. Code changes need nearest behavior tests and the relevant
 broader gate. Full CPU CI jobs are currently manual-only on both Linux and
-macOS; use [test-speed.md](test-speed.md) for the automatic checks and explicit
+macOS (the small timed `lab-loop` job is the one automatic CPU model run); use [test-speed.md](test-speed.md) for the automatic checks and explicit
 full-suite opt-in.
 
 ## Check the actual proposed configuration
@@ -130,6 +147,7 @@ none automatically promotes a model. See [checkpointing](checkpointing.md),
 
 | Change | Repeat before the next run |
 |---|---|
+| Lab-mode idea (one YAML delta, local) | Nothing extra: `sparselab try` derives, trains, scores and records it; an identical completed baseline is verified and reused. |
 | Only inspecting completed results | Native status/evidence/triage reads; do not train again to reconstruct evidence. |
 | Training budget or other scientific config | Inspect the effective config and declared comparison; resolve a new immutable declaration/lock; check parent compatibility, storage, and candidate stage/runtime gates. Preserve unchanged identities. |
 | Corpus, tokenizer or prepared bytes | Authenticate the changed artifact and affected dependency closure; prepare/resolve affected outputs and rerun config/runtime gates. Never relabel changed bytes as the baseline. |

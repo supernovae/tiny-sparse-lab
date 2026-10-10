@@ -93,6 +93,26 @@ retain those destinations even when the global root changes. Use fresh run IDs a
 stage directories when repeating an experiment; check free storage and runtime
 warmup measurements before scaling.
 
+## Try an idea in one command
+
+Lab mode is the default for normal local experiments. Write the change as a
+small YAML delta and compare it against a baseline config:
+
+```sh
+printf 'set:\n  model.ffn_dim: 128\n' > wider-ffn.yaml
+uv run --locked --extra cpu sparselab try wider-ffn.yaml --vs BASELINE.yaml
+uv run --locked --extra cpu sparselab report TRY_ID
+```
+
+`try` trains both arms (reusing an identical completed baseline), scores both on
+the same held-out split and writes one sealed record with the config, seed, code
+revision, data digests, resource envelope and result. It skips plan locks,
+approvals, admission reviews and campaign reconciliation, but keeps storage and
+resource limits, data identity, safe cancellation and held-out checks. A tiny
+CPU smoke delta reaches its report in about 15 seconds. See
+**[lab mode](docs/lab-mode.md)**; the full-provenance path below is for release
+runs.
+
 ## Try an existing model
 
 Use the [TinyText model guide](docs/tinytext-model-guide.md) to locate and verify
@@ -110,12 +130,13 @@ frontend. Interface support does not imply instruction-following quality.
 
 ## Iterate with the lab
 
-Declare one change, inspect its effective settings and storage, pilot the actual
+Start in [lab mode](docs/lab-mode.md) (`sparselab try`). When a result is worth
+releasing, declare it, inspect its effective settings and storage, pilot the actual
 config when needed, then run through the existing queue or Campaign. Read native
 `evidence` and `triage` afterward; preserve the parent and compare checkpoint-bound
 results. The [rapid iteration guide](docs/iteration.md) explains which checks to
-repeat when code, data, runtime or budget changes. Agents follow the same route
-in [AGENTS.md](AGENTS.md#use-the-lab-for-rapid-iteration).
+repeat when code, data, runtime or budget changes. Agents default to lab mode
+per [AGENTS.md](AGENTS.md#0-default-to-lab-mode).
 
 For a declared Campaign, `campaign status`, `next` and `explain` show progress,
 blockers and the next action. `apply`/`resume` without `--execute-runs` cannot

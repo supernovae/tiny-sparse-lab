@@ -93,6 +93,35 @@ jobs:
             tests/test_attempt_native_integration_optin.py::test_ordinary_pytest_skips_optimizer_node_before_setup \
             tests/test_ci_routing.py::test_ordinary_ci_selects_only_explicit_zero_model_nodes
 
+  lab-loop:
+    # Lab-mode loop-time guard (CPU only): tokenizer -> try -> report on a tiny
+    # synthetic delta must finish well inside the 15-minute target.
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.12.19"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked --extra cpu --dev
+      - name: Timed lab loop (tokenizer -> try -> report)
+        env:
+          UV_OFFLINE: "1"
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          SPARSELAB_WORK_DIR: ${{ runner.temp }}/lab-loop-work
+          SPARSELAB_LAB_LOOP_BUDGET_SECONDS: "900"
+        run: |
+          uv run --locked --no-sync pytest -q -s -p no:cacheprovider \
+            --basetemp "$RUNNER_TEMP/lab-loop-pytest" \
+            tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget
+
   integration-linux:
     # Model work is manual-only. Dispatch requires its own reviewed allocation.
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'integration-linux'

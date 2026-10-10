@@ -62,6 +62,7 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     jobs = workflow["jobs"]
     assert set(jobs) == {
         "safe",
+        "lab-loop",
         "integration-linux",
         "platform-macos",
         "release-candidate",
@@ -83,6 +84,21 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     assert "no:cacheprovider" in command
     assert tuple(token for token in command if token.startswith("tests/")) == NODES
     assert not any(token in command for token in ("-k", "-m", "-n", "--pyargs"))
+
+    # The only automatic model work: the bounded CPU lab-mode loop-time guard.
+    lab = jobs["lab-loop"]
+    assert lab["if"] == jobs["safe"]["if"]
+    assert lab["runs-on"] == "ubuntu-24.04"
+    assert lab["timeout-minutes"] == "20"
+    assert lab["steps"][3]["run"] == "uv sync --locked --extra cpu --dev"
+    lab_step = lab["steps"][4]
+    assert lab_step["env"]["SPARSELAB_LAB_LOOP_BUDGET_SECONDS"] == "900"
+    assert lab_step["env"]["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+    lab_command = shlex.split(lab_step["run"].replace("\\\n", " "))
+    assert tuple(token for token in lab_command if token.startswith("tests/")) == (
+        "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
+    )
+    assert not any(token in lab_command for token in ("-k", "-m", "-n", "--pyargs"))
 
     for suite in ("integration-linux", "platform-macos", "release-candidate"):
         assert jobs[suite]["if"] == (

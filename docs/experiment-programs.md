@@ -1,5 +1,9 @@
 # Chain a training program
 
+> For a quick local comparison, use [lab mode](lab-mode.md)
+> (`sparselab try DELTA.yaml --vs BASELINE.yaml`) instead. Training programs
+> are the release path: locked, multi-phase and reviewable.
+
 An authored YAML program can describe inputs, bounded axes, controlled changes
 and a sequence of checkpoints. SparseLab resolves it into an immutable lock,
 executes each cell through a worker, and collects evidence with the selected

@@ -94,3 +94,18 @@ def test_readiness_rejects_non_cpu_config_before_creating_output(
     with pytest.raises(ValueError, match="compatible CPU synthetic"):
         smoke_readiness(configs, output, families=("dense",))
     assert not output.exists()
+
+
+@pytest.mark.parametrize("timeout", [0, -1.0, float("inf"), float("nan"), True])
+def test_readiness_command_timeout_is_configurable_and_validated(
+    tmp_path: Path, timeout: object
+) -> None:
+    output = tmp_path / "new-workspace"
+    with pytest.raises(ValueError, match="command_timeout"):
+        smoke_readiness(
+            _ROOT / "configs",
+            output,
+            families=("dense",),
+            command_timeout=timeout,  # type: ignore[arg-type]
+        )
+    assert not output.exists()
