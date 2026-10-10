@@ -52,6 +52,7 @@ from sparselab.lab_records import (
     canonical as _canonical,
 )
 from sparselab.lab_records import (
+    eval_group,
     read_lab_record,
     write_sealed,
 )
@@ -464,15 +465,18 @@ def _train_and_score(
         "evaluator": "pytorch" if loaded.engine is None else "mlx",
     }
     stats = None
-    if measurements is not None and shareable:
+    if loaded.engine is None:
+        # The probe battery's own observer: per-window sums make this arm
+        # pairable with any probe or try result in the same eval group.
         from sparselab.probes.scoring import ValidationStats
 
         stats = ValidationStats()
     result = scored.evaluate(observer=stats)
-    if stats is not None and measurements is not None:
+    validation = stats.result(result) if stats is not None else None
+    if validation is not None and measurements is not None and shareable:
         measurements[arm] = {
             "checkpoint_sha256": loaded.identity.get("checkpoint_sha256"),
-            "validation": {**stats.result(result), "protocol": dict(protocol)},
+            "validation": {**validation, "protocol": dict(protocol)},
         }
     result.update(
         {
@@ -483,6 +487,15 @@ def _train_and_score(
     )
     observation = write_inference_result(loaded.run, "eval", result)
     identity = loaded.identity
+    pareto: dict[str, Any] = {"eval_group": None}
+    if validation is not None:
+        from sparselab.probes.runner import _validation_identity, footprint
+
+        pareto = {
+            # Same digest the probe battery records for this checkpoint.
+            "eval_group": eval_group(_validation_identity(loaded), used),
+            **footprint(loaded.model, identity.get("parameter_inventory")),
+        }
     row.update(
         {
             "eval_seconds": round(time.monotonic() - started, 3),
@@ -491,6 +504,7 @@ def _train_and_score(
             "step": identity.get("step"),
             "tokens_seen": identity.get("tokens_seen"),
             "parameters": (identity.get("parameter_inventory") or {}).get("total"),
+            **pareto,
             "eval_protocol": protocol_identity,
             "eval_protocol_sha256": hashlib.sha256(
                 _canonical(protocol_identity)
@@ -502,6 +516,15 @@ def _train_and_score(
                 "valid_targets": result["valid_targets"],
                 "batches": result["batches"],
                 "observation": str(observation),
+                **(
+                    {
+                        "ms_per_token": validation["ms_per_token"],
+                        "window_sums": [float(v) for v in validation["window_sums"]],
+                        "window_counts": [int(v) for v in validation["window_counts"]],
+                    }
+                    if validation is not None
+                    else {}
+                ),
             },
             "data": {
                 **data,

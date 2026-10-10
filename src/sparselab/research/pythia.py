@@ -10,7 +10,6 @@ from __future__ import annotations
 import gc
 import hashlib
 import itertools
-import json
 import os
 import platform
 import sys
@@ -25,7 +24,11 @@ from torch.nn import functional
 
 from sparselab.config.models import RunConfig
 from sparselab.data.datasets import iter_documents
-from sparselab.hf_auth import HUB_ACCESS_ERRORS, hub_auth_kwargs, raise_for_hub_auth
+from sparselab.reference_models import (
+    safe_snapshot,
+    validate_model_metadata,
+    validate_snapshot,
+)
 from sparselab.training.manifest import canonical_json, config_sha256, sha256_file
 
 PYTHIA_MODEL_ID = "EleutherAI/pythia-70m-deduped"
@@ -52,25 +55,6 @@ PYTHIA_70M_DEDUPED_CHECKPOINTS: Mapping[str, PythiaCheckpoint] = {
     ),
 }
 DEFAULT_STEPS = tuple(PYTHIA_70M_DEDUPED_CHECKPOINTS)
-
-# These are the only non-weight repository files that may enter a snapshot.
-_SAFE_SNAPSHOT_FILES = frozenset(
-    {
-        "config.json",
-        "model.safetensors.index.json",
-        "generation_config.json",
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "special_tokens_map.json",
-        "added_tokens.json",
-        "vocab.json",
-        "merges.txt",
-        "README.md",
-        "LICENSE",
-        "LICENSE.md",
-    }
-)
-_SNAPSHOT_ALLOW_PATTERNS = tuple(sorted(_SAFE_SNAPSHOT_FILES)) + ("*.safetensors",)
 
 
 def checkpoint_for_step(step: str) -> PythiaCheckpoint:
@@ -109,69 +93,16 @@ def _validate_steps(steps: Sequence[str]) -> tuple[PythiaCheckpoint, ...]:
 
 def _validate_snapshot(snapshot: Path) -> list[Path]:
     """Reject every downloaded file outside the safe static/safetensor allowlist."""
-    if snapshot.is_symlink() or not snapshot.is_dir():
-        raise ValueError("Pythia snapshot must be a regular directory")
-    files: list[Path] = []
-    for path in sorted(snapshot.rglob("*")):
-        if path.is_dir():
-            continue
-        if not path.is_file():
-            raise ValueError(f"Pythia snapshot contains unsafe path: {path}")
-        relative = path.relative_to(snapshot).as_posix()
-        if "/" in relative or (
-            relative not in _SAFE_SNAPSHOT_FILES
-            and not relative.endswith(".safetensors")
-        ):
-            raise ValueError(f"Pythia snapshot contains disallowed file: {relative}")
-        files.append(path)
-    names = {path.name for path in files}
-    required = {"config.json", "tokenizer.json"}
-    missing = sorted(required - names)
-    if missing:
-        raise ValueError("Pythia snapshot lacks required files: " + ", ".join(missing))
-    safetensors = {path.name for path in files if path.suffix == ".safetensors"}
-    if not safetensors:
-        raise ValueError("Pythia snapshot contains no safetensors weights")
-    index = snapshot / "model.safetensors.index.json"
-    if index.exists():
-        weights = _read_json_object(index).get("weight_map")
-        if not isinstance(weights, dict) or not weights:
-            raise ValueError("Pythia safetensors index has no weight map")
-        shards = set(weights.values())
-        if (
-            any(not isinstance(shard, str) or "/" in shard for shard in shards)
-            or not shards <= safetensors
-        ):
-            raise ValueError(
-                "Pythia safetensors index references unsafe or missing shards"
-            )
-    return files
-
-
-def _read_json_object(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ValueError(f"invalid Pythia metadata JSON: {path.name}") from error
-    if not isinstance(value, dict):
-        raise TypeError(f"Pythia metadata must be an object: {path.name}")
-    return value
+    return validate_snapshot(snapshot, "Pythia")
 
 
 def _validate_model_metadata(snapshot: Path) -> None:
-    config = _read_json_object(snapshot / "config.json")
-    if config.get("model_type") != "gpt_neox":
-        raise ValueError("Pythia config must declare model_type=gpt_neox")
-    architectures = config.get("architectures")
-    if architectures != ["GPTNeoXForCausalLM"]:
-        raise ValueError("Pythia config must declare GPTNeoXForCausalLM only")
-    for path in (snapshot / "config.json", snapshot / "tokenizer_config.json"):
-        if path.exists():
-            metadata = _read_json_object(path)
-            if "auto_map" in metadata or "quantization_config" in metadata:
-                raise ValueError(
-                    f"Pythia metadata forbids remote code or quantization: {path.name}"
-                )
+    validate_model_metadata(
+        snapshot,
+        model_type="gpt_neox",
+        architecture="GPTNeoXForCausalLM",
+        label="Pythia",
+    )
 
 
 def _validation_documents(config: RunConfig) -> tuple[str, ...]:
@@ -208,27 +139,14 @@ def _bounded_tokenized_documents(
 def _snapshot(
     checkpoint: PythiaCheckpoint, cache_dir: Path | None
 ) -> tuple[Path, list[Path]]:
-    try:
-        from huggingface_hub import snapshot_download
-    except ImportError as error:  # pragma: no cover - base dependency supplies this
-        raise RuntimeError(
-            "huggingface-hub is required for the Pythia adapter"
-        ) from error
-    kwargs: dict[str, Any] = {
-        "repo_id": PYTHIA_MODEL_ID,
-        "revision": checkpoint.commit,
-        "allow_patterns": list(_SNAPSHOT_ALLOW_PATTERNS),
-    }
-    kwargs.update(hub_auth_kwargs())
-    if cache_dir is not None:
-        kwargs["cache_dir"] = str(cache_dir)
-    try:
-        snapshot = Path(snapshot_download(**kwargs))
-    except HUB_ACCESS_ERRORS as error:
-        raise_for_hub_auth(error, credential_supplied="token" in kwargs)
-    files = _validate_snapshot(snapshot)
-    _validate_model_metadata(snapshot)
-    return snapshot, files
+    return safe_snapshot(
+        PYTHIA_MODEL_ID,
+        checkpoint.commit,
+        cache_dir,
+        model_type="gpt_neox",
+        architecture="GPTNeoXForCausalLM",
+        label="Pythia",
+    )
 
 
 def _document_digest(documents: Iterable[str]) -> str:

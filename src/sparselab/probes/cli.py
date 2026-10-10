@@ -11,6 +11,7 @@ from typing import Any
 from sparselab.lab_context import LabContext, LabSignal
 from sparselab.lab_records import read_lab_record, write_sealed
 from sparselab.probes.runner import Arm, progress_writer, run_battery
+from sparselab.reference_models import load_reference, require_reference_extras
 
 
 def _run_root(path: Path) -> Path | None:
@@ -82,6 +83,21 @@ def run_probe(
     envelope is checked before every probe. A stopped battery is still
     published, marked incomplete.
     """
+    from sparselab.reference_models import is_reference, reference_for
+
+    if baseline_spec is not None and is_reference(baseline_spec):
+        raise ValueError(
+            "a reference model is not a probe baseline (different tokenizer and "
+            f"data); probe it on its own and use `sparselab compare {target_spec} "
+            f"{baseline_spec}`"
+        )
+    if is_reference(target_spec):
+        reference_for(target_spec)  # unknown names fail before any work
+        if tier != "full":
+            raise ValueError(
+                "reference models are scored on lm-eval tasks only: use --tier full"
+            )
+        require_reference_extras()
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     probe_id = f"probe-{stamp}-{secrets.token_hex(4)}"
     folder = lab_dir / "probes" / probe_id
@@ -97,6 +113,8 @@ def run_probe(
     )
 
     def arm(spec: str) -> Arm:
+        if is_reference(spec):
+            return Arm(load=lambda: load_reference(spec), reference=True)
         # Resolve now (fail fast on a typo); load lazily, one arm at a time.
         resolve_target(spec, lab_dir=lab_dir, runs_dir=runs_dir)
         return Arm(

@@ -112,7 +112,7 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
-      - name: Timed lab loop (tokenizer -> try + probe -> report)
+      - name: Timed lab loop (tokenizer -> try + probe -> report, references)
         env:
           UV_OFFLINE: "1"
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
@@ -122,7 +122,8 @@ jobs:
           uv run --locked --no-sync pytest -q -s -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/lab-loop-pytest" \
             tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget \
-            tests/test_probes.py
+            tests/test_probes.py \
+            tests/test_references.py
 
   integration-linux:
     # Model work is manual-only. Dispatch requires its own reviewed allocation.

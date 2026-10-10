@@ -39,6 +39,15 @@ the dev split: `guard.overfit_suspected` means you are fitting the probes; chang
 the idea instead. Any suite change needs a `SUITE_VERSION` bump, and results are
 comparable only within one suite digest.
 
+To place a result on a known curve, run `sparselab compare RESULT
+--references` (records only, no compute). It compares a metric only within one
+comparison group (held-out loss: same `eval_group`; lm-eval: same
+`benchmark_group`) and otherwise reports `not_comparable` with the reason or
+`missing_evidence` with the command that produces it; never compare such pairs
+by hand. Reference models (`ref:NAME`) are scored on lm-eval only
+(`sparselab probe ref:NAME --tier full`, optional `reference` + `lmeval`
+extras) and are never a `--vs` baseline.
+
 Write proposal, binding and stop documents **only** for:
 
 - **release runs**: results that will be promoted, published, cited as a

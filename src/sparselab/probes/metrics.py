@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import numpy as np
 
@@ -125,3 +125,30 @@ def ratio_difference_se(
     z = (s_a - mean_a * n_a) / total_a - (s_b - mean_b * n_b) / total_b
     windows = z.size
     return float(math.sqrt(windows / (windows - 1) * float((z**2).sum())))
+
+
+def task_mean_difference(
+    items_a: Mapping[str, Sequence[float]], items_b: Mapping[str, Sequence[float]]
+) -> tuple[float, float | None] | None:
+    """Difference of task-averaged accuracy with its paired SE.
+
+    Both sides must hold the same items per task (same order); the delta is the
+    mean over tasks of per-task mean differences and the SE combines each task's
+    paired SE: ``sqrt(sum se_t^2) / T``. None when the items do not line up.
+    """
+    if set(items_a) != set(items_b) or not items_a:
+        return None
+    deltas, variances = [], []
+    for task in items_a:
+        a, b = np.asarray(items_a[task], float), np.asarray(items_b[task], float)
+        if a.shape != b.shape or a.size == 0:
+            return None
+        mean, se = paired_mean_and_se(a - b)
+        deltas.append(mean)
+        variances.append(None if se is None else se**2)
+    se_total = (
+        None
+        if any(v is None for v in variances)
+        else math.sqrt(sum(variances)) / len(variances)  # type: ignore[arg-type]
+    )
+    return float(np.mean(deltas)), se_total

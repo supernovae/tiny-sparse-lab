@@ -160,6 +160,16 @@ def missing_evidence(
     return missing
 
 
+REFERENCE_SUGGESTION = (
+    "Reference point (pinned public checkpoint): place a result on this "
+    "curve with `sparselab compare RESULT --references`."
+)
+REFERENCE_RERUN_SUGGESTION = (
+    "Reference evaluation is incomplete: fix the cause (missing extras, memory) "
+    "and re-run `sparselab probe ref:NAME --tier full` before placing results "
+    "on this reference."
+)
+
 NUMERICAL_SUGGESTION = (
     "Numerical failure: the candidate's loss is NaN/inf. Lower the learning "
     "rate or lengthen warmup, check precision and initialization, and look for "
@@ -199,6 +209,7 @@ def decide(
     guard: Mapping[str, Any] | None,
     specs: Mapping[str, ProbeSpec],
     stop: Mapping[str, Any] | None = None,
+    reference: bool = False,
 ) -> dict[str, Any]:
     """Overall verdict and a recommended next action for humans and agents.
 
@@ -226,6 +237,34 @@ def decide(
     next_tier = (
         TIERS[TIERS.index(last) + 1] if last in TIERS and last != TIERS[-1] else None
     )
+    if reference:
+        # A reference point is only usable with complete benchmark evidence.
+        if missing:
+            reasons = [
+                f"missing: {m['id']} ({m['status']}): {m.get('note') or ''}".rstrip(
+                    ": "
+                )
+                for m in missing
+            ]
+            unscored = sorted(
+                {
+                    t
+                    for r in results
+                    for t in (r.get("details") or {}).get("missing_tasks") or []
+                }
+            )
+            if unscored:
+                reasons.append("unscored tasks: " + ", ".join(unscored))
+            return _verdict(
+                "incomplete", "rerun", reasons, REFERENCE_RERUN_SUGGESTION, missing
+            )
+        return _verdict(
+            "info",
+            "compare",
+            ["reference point: every benchmark task and item scored"],
+            REFERENCE_SUGGESTION,
+            missing,
+        )
     if not has_baseline:
         return _verdict(
             "info",

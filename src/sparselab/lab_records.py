@@ -13,7 +13,7 @@ import json
 import math
 import os
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +37,19 @@ def canonical(value: Any) -> bytes:
 def seal(record: dict[str, Any]) -> dict[str, Any]:
     body = {key: value for key, value in record.items() if key != DIGEST_FIELD}
     return {**body, DIGEST_FIELD: hashlib.sha256(canonical(body)).hexdigest()}
+
+
+def comparison_group(body: Mapping[str, Any]) -> str:
+    """Digest of everything that must match for two measurements to compare."""
+    return hashlib.sha256(canonical(dict(body))).hexdigest()
+
+
+def eval_group(validation: Mapping[str, Any], protocol: Mapping[str, Any]) -> str:
+    """Held-out losses compare only within one group: same validation data,
+    tokenizer, loss mask and eval protocol."""
+    return comparison_group(
+        {"validation": dict(validation), "protocol": dict(protocol)}
+    )
 
 
 def is_sealed(record: Any) -> bool:

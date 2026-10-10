@@ -31,7 +31,7 @@ from sparselab.lab_context import (
     is_out_of_memory,
     release_memory,
 )
-from sparselab.lab_records import PROBE_FORMAT, canonical, write_json_atomic
+from sparselab.lab_records import PROBE_FORMAT, eval_group, write_json_atomic
 from sparselab.probes import metrics, scoring
 from sparselab.probes.suite import (
     BY_ID,
@@ -71,6 +71,14 @@ class Arm:
 
     load: Callable[[], Any]
     cache: dict[str, Any] = field(default_factory=dict)
+    # A pinned public checkpoint (``ref:NAME``): only the probes in
+    # REFERENCE_PROBES apply, since its tokenizer and data are not ours.
+    reference: bool = False
+
+
+# Probes that mean the same thing for a public reference model: lm-eval tasks
+# are defined by the harness, not by our validation split or tokenizer.
+REFERENCE_PROBES = frozenset({"lm_eval"})
 
 
 def as_arm(value: Any) -> Arm | None:
@@ -86,9 +94,28 @@ def _require_torch_engine(loaded: Any) -> None:
         raise ProbeUnsupported("probes do not support attached semantic packs")
 
 
+def footprint(model: Any, inventory: Mapping[str, Any] | None) -> dict[str, int]:
+    """Resident vs. active parameters (and bytes) of a loaded model.
+
+    Resident counts every weight held in memory; active counts what one token
+    touches (one embedding row, the selected experts/memory rows) per the
+    model's parameter inventory. Shared by probe records and lab try arms.
+    """
+    parameters = list(model.parameters())
+    total = sum(p.numel() for p in parameters)
+    size = sum(p.numel() * p.element_size() for p in parameters)
+    active = int((inventory or {}).get("active_per_token") or total)
+    active = min(active, total)
+    return {
+        "parameters": total,
+        "parameter_bytes": size,
+        "active_parameters": active,
+        "active_parameter_bytes": round(size * active / total) if total else 0,
+    }
+
+
 def _identity(loaded: Any) -> dict[str, Any]:
     identity = loaded.identity
-    parameters = list(loaded.model.parameters())
     return {
         "run_id": identity.get("run_id"),
         "run_dir": str(loaded.run),
@@ -96,16 +123,27 @@ def _identity(loaded: Any) -> dict[str, Any]:
         "checkpoint_sha256": identity.get("checkpoint_sha256"),
         "step": identity.get("step"),
         "tokens_seen": identity.get("tokens_seen"),
-        "parameters": sum(p.numel() for p in parameters),
-        "parameter_bytes": sum(p.numel() * p.element_size() for p in parameters),
+        **footprint(loaded.model, identity.get("parameter_inventory")),
         "tokenizer_sha256": identity.get("tokenizer_sha256"),
         "validation_sha256": (identity.get("data_sha256") or {}).get("validation"),
         "max_seq_len": loaded.config.model.max_seq_len,
+        **(
+            {"reference": loaded.describe()}
+            if getattr(loaded, "reference", None) is not None
+            else {}
+        ),
     }
 
 
 def _validation_identity(loaded: Any) -> dict[str, Any]:
     from sparselab.lab_mode import _data_identity, _supervision_identity
+
+    if getattr(loaded, "reference", None) is not None:
+        # Never equal to a lab run's: held-out loss is not comparable.
+        return {
+            "reference": loaded.identity["checkpoint_relative_path"],
+            "tokenizer_sha256": loaded.identity["tokenizer_sha256"],
+        }
 
     data = _data_identity(loaded.run)
     return {
@@ -359,6 +397,17 @@ def _paired(t: list[float], b: list[float]) -> float | None:
     return metrics.paired_mean_and_se(np.asarray(t) - np.asarray(b))[1]
 
 
+def lm_eval_paired(
+    t: Mapping[str, Any], b: Mapping[str, Any]
+) -> tuple[float, float | None] | None:
+    """Paired task-mean accuracy difference of two lm-eval summaries."""
+
+    def items(side: Mapping[str, Any]) -> dict[str, list[float]]:
+        return {task: row.get("items") or [] for task, row in side["tasks"].items()}
+
+    return metrics.task_mean_difference(items(t), items(b))
+
+
 def _judge(
     spec: ProbeSpec,
     t: Mapping[str, Any],
@@ -421,6 +470,10 @@ def _judge(
             "top1_accuracy": t["top1_accuracy"],
             "baseline_top1_accuracy": b["top1_accuracy"] if b else None,
             "ms_per_token": t["ms_per_token"],
+            # Per-window sums let later comparisons (sparselab compare) pair
+            # this result with another one in the same eval group.
+            "window_sums": [float(v) for v in t["window_sums"]],
+            "window_counts": [int(v) for v in t["window_counts"]],
         }
         return row
     if spec.id == "calibration":
@@ -498,10 +551,22 @@ def _judge(
             }
         return row
     if spec.id == "lm_eval":
-        row.update(judge(spec, t["value"], b["value"] if b else None))
+        if b is not None and t.get("benchmark_group") != b.get("benchmark_group"):
+            return {
+                **row,
+                "status": "not_comparable",
+                "note": "different benchmark group "
+                "(tasks, limit, few-shot or task versions differ)",
+            }
+        paired = lm_eval_paired(t, b) if b is not None else None
+        row.update(
+            judge(spec, t["value"], b["value"] if b else None, se=paired and paired[1])
+        )
         row["details"] = {
             "tasks": t["tasks"],
             "baseline_tasks": b["tasks"] if b else None,
+            "benchmark": t.get("benchmark"),
+            "benchmark_group": t.get("benchmark_group"),
             "limit": spec.params["limit"],
             "chance": spec.params["chance"],
             "lm_eval_version": t["version"],
@@ -515,10 +580,36 @@ def _judge(
 # --- Battery ------------------------------------------------------------------
 
 
-def _eval_group(validation_identity: Mapping[str, Any], protocol: Mapping) -> str:
-    """Results with the same group share data, tokenizer, mask and protocol."""
-    body = {"validation": dict(validation_identity), "protocol": dict(protocol)}
-    return hashlib.sha256(canonical(body)).hexdigest()
+def _require_complete_benchmark(results: list[dict[str, Any]]) -> None:
+    """A reference's lm-eval row counts only with every task and item scored.
+
+    An errored, skipped (stopped, OOM) or partial row names its unscored
+    tasks in ``details.missing_tasks`` and is an error, i.e. missing evidence.
+    """
+    from sparselab.probes.lm_eval_adapter import missing_tasks
+
+    spec = BY_ID["lm_eval"]
+    for row in results:
+        if row["id"] != "lm_eval":
+            continue
+        details = row.get("details") or {}
+        gaps = (
+            missing_tasks(details, spec.params["tasks"], spec.params["limit"])
+            if row["status"] == "info"
+            else list(spec.params["tasks"])
+        )
+        if gaps:
+            row["details"] = {**details, "missing_tasks": gaps}
+        if row["status"] == "info" and gaps:
+            row.update(
+                status="error",
+                note="incomplete benchmark: unscored items in " + ", ".join(gaps),
+            )
+        elif row["status"] == "info":
+            row["note"] = (
+                "reference point: place results on it with "
+                "`sparselab compare RESULT --references`"
+            )
 
 
 def run_battery(
@@ -544,10 +635,17 @@ def run_battery(
     started = time.monotonic()
     tiers_through(tier)
     suite = suite_identity()
-    specs = ordered(tier)
     t_arm = as_arm(target)
     b_arm = as_arm(baseline)
     assert t_arm is not None
+    if b_arm is not None and b_arm.reference:
+        raise ValueError(
+            "a reference model is not a probe baseline; "
+            "use `sparselab compare RESULT --references`"
+        )
+    specs = [
+        s for s in ordered(tier) if not t_arm.reference or s.id in REFERENCE_PROBES
+    ]
     results: list[dict[str, Any]] = []
     dev: dict[str, dict[str, Any]] = {}
     tiers_run: list[str] = []
@@ -591,7 +689,7 @@ def run_battery(
         try:
             _require_torch_engine(loaded)
             _describe(loaded, arm)
-            if state["protocol"] is None:
+            if state["protocol"] is None and not arm.reference:
                 state["protocol"] = eval_protocol(loaded.config)
             was_training = loaded.model.training
             loaded.model.eval()
@@ -649,6 +747,8 @@ def run_battery(
             tier_specs = [s for s in specs if s.tier == tier_name]
             if stop["stopped"]:
                 break
+            if not tier_specs:
+                continue  # e.g. a reference model has nothing in this tier
             if (
                 tiers_run
                 and fast_fail
@@ -712,6 +812,8 @@ def run_battery(
             if r["id"] in dev
         },
     )
+    if t_arm.reference:
+        _require_complete_benchmark(results)
     verdict = decide(
         results,
         has_baseline=b_arm is not None,
@@ -720,6 +822,7 @@ def run_battery(
         guard=guard,
         specs=BY_ID,
         stop=stop,
+        reference=t_arm.reference,
     )
     protocol_used = state["protocol"] or {}
 
@@ -728,7 +831,7 @@ def run_battery(
             return None
         return {
             **arm.cache["identity"],
-            "eval_group": _eval_group(arm.cache["validation_identity"], protocol_used),
+            "eval_group": eval_group(arm.cache["validation_identity"], protocol_used),
         }
 
     result = {

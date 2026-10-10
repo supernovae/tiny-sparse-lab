@@ -42,6 +42,15 @@ probing marks the try `interrupted` at `phase: probing` and keeps both scored
 arms, the comparison and the finalized partial battery (completed probes kept,
 unrun probes listed as missing evidence).
 
+Each scored arm also records what the Pareto view and `sparselab compare`
+need, whether or not probes ran: `eval_group` (the same digest a probe battery
+records for that checkpoint and protocol), resident and active parameters and
+weight bytes (`parameters`, `active_parameters`, `parameter_bytes`,
+`active_parameter_bytes`) and, under `heldout`, `ms_per_token` plus the
+per-window loss sums and counts that give a paired standard error against any
+other result in the same eval group. See
+[reference models and compare](probe-battery.md#reference-models-and-sparselab-compare).
+
 Use `--json` for the full record. A baseline is reused only when an earlier try
 *completed* with the same reuse key: effective config, code (source identity)
 and the tokenizer, dataset input files and external memory packages
