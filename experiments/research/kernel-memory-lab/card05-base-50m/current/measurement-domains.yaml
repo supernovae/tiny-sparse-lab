@@ -1,0 +1,4 @@
+min_unique_train_tokens_by_domain:
+  general_prose: 0
+  explanatory_prose: 0
+  incident_response_docs: 0

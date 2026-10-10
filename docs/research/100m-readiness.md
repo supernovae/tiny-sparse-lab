@@ -2,8 +2,8 @@
 
 **2026-10-10 host update:** The earlier assessment below describes a different
 workspace that lacked `/srv/sparselab`. The present host has retained artifacts;
-their fresh, bounded cold-verification results and the prospective next allocation
-are recorded in [the 100M readiness proposal](../../experiments/research/kernel-memory-lab/CARD05_BASE_100M_READINESS_PROPOSAL.md).
+their fresh, bounded cold-verification results and proposed retained-only
+admission/yield allocation are recorded in [the updated proposal](../../experiments/research/kernel-memory-lab/CARD05_BASE_100M_READINESS_PROPOSAL.md).
 That verification does not admit or measure a new v3 release. The older text is
 kept as a historical forecast, not a current host inventory.
 

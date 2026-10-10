@@ -1,0 +1,392 @@
+{
+  "format": "sparselab-preparation-v1",
+  "defaults": {
+    "ACQUISITION_PROJECT": "./project-acquire.yaml",
+    "POLICY_DOCUMENT": "./APPLICATION_POLICY_PROSPECTIVE.md",
+    "INSPECTION_SELECTION": "./admission-inspection-selection-v1.json",
+    "TOKEN_FLOORS": "./measurement-domains.yaml",
+    "RESOURCE_ENVELOPE": "./resource-envelope.yaml",
+    "MAX_INPUT_BYTES": "1073741824",
+    "MAX_EXCERPT_BYTES": "1024",
+    "MAX_OUTPUT_BYTES": "2097152",
+    "BATCH_SOURCE_BYTES": "8388608"
+  },
+  "phases": {
+    "verify-snapshots": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "acquire",
+        "${ACQUISITION_PROJECT}",
+        "--offline"
+      ]
+    },
+    "application-declaration": {
+      "leaf": "application.json",
+      "template": "application.template.json",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@application-declaration"
+      ]
+    },
+    "admission-draft": {
+      "leaf": "admission-draft.json",
+      "args": [
+        "corpus",
+        "admission-draft",
+        "${ACQUISITION_PROJECT}",
+        "--template",
+        "@application-declaration",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--output",
+        "@admission-draft"
+      ]
+    },
+    "admission-inspection": {
+      "leaf": "admission-inspection.json",
+      "args": [
+        "corpus",
+        "inspect-admission",
+        "${ACQUISITION_PROJECT}",
+        "--draft",
+        "@admission-draft",
+        "--policy-document",
+        "${POLICY_DOCUMENT}",
+        "--selection",
+        "${INSPECTION_SELECTION}",
+        "--output",
+        "@admission-inspection",
+        "--max-input-bytes",
+        "${MAX_INPUT_BYTES}",
+        "--max-excerpt-bytes",
+        "${MAX_EXCERPT_BYTES}",
+        "--max-output-bytes",
+        "${MAX_OUTPUT_BYTES}"
+      ]
+    },
+    "reviewed-admission": {
+      "leaf": "admission.json",
+      "template": "@admission-draft",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@reviewed-admission"
+      ]
+    },
+    "admission-review": {
+      "leaf": "admission.json.review.json",
+      "template": "admission-review.template.json",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@admission-review"
+      ]
+    },
+    "source-pagerduty": {
+      "leaf": "sources/source-pagerduty.yaml",
+      "template": "sources/pagerduty.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@source-pagerduty"
+      ]
+    },
+    "source-gutenberg": {
+      "leaf": "sources/source-gutenberg.yaml",
+      "template": "sources/project-gutenberg.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@source-gutenberg"
+      ]
+    },
+    "source-scoutflo": {
+      "leaf": "sources/source-scoutflo.yaml",
+      "template": "sources/scoutflo.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@source-scoutflo"
+      ]
+    },
+    "source-wikimedia": {
+      "leaf": "sources/source-wikimedia.yaml",
+      "template": "sources/wikimedia.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@source-wikimedia"
+      ]
+    },
+    "transform-declaration": {
+      "leaf": "transforms/lm.yaml",
+      "template": "transforms/lm.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@transform-declaration"
+      ]
+    },
+    "placeholder-split-declaration": {
+      "leaf": "splits-placeholder.yaml",
+      "template": "splits-acquire.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@placeholder-split-declaration"
+      ]
+    },
+    "reviewed-release-declaration": {
+      "leaf": "release-reviewed.yaml",
+      "template": "release-reviewed.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@reviewed-release-declaration"
+      ],
+      "template_bindings": {
+        "REVIEWED_ADMISSION_FILE": "@reviewed-admission"
+      }
+    },
+    "pre-freeze-declaration": {
+      "leaf": "pre-freeze.yaml",
+      "template": "project-pre-freeze.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@pre-freeze-declaration"
+      ],
+      "template_bindings": {
+        "SOURCE_GUTENBERG": "@source-gutenberg",
+        "SOURCE_PAGERDUTY": "@source-pagerduty",
+        "SOURCE_SCOUTFLO": "@source-scoutflo",
+        "SOURCE_WIKIMEDIA": "@source-wikimedia",
+        "RELEASE_FILE": "@reviewed-release-declaration",
+        "SPLITS_FILE": "@placeholder-split-declaration"
+      }
+    },
+    "split-inventory": {
+      "leaf": "split-inventory.jsonl",
+      "args": [
+        "corpus",
+        "split-inventory",
+        "@pre-freeze-declaration",
+        "--output",
+        "@split-inventory",
+        "--json"
+      ]
+    },
+    "reviewed-family-decisions": {
+      "leaf": "clusters-reviewed.json",
+      "template": "family-clusters-reviewed.template.json",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@reviewed-family-decisions"
+      ]
+    },
+    "family-freeze": {
+      "leaf": "splits-reviewed.yaml",
+      "args": [
+        "corpus",
+        "freeze-splits",
+        "@pre-freeze-declaration",
+        "--inventory",
+        "@split-inventory",
+        "--clusters",
+        "@reviewed-family-decisions",
+        "--output",
+        "@family-freeze",
+        "--json"
+      ]
+    },
+    "final-build-declaration": {
+      "leaf": "build.yaml",
+      "template": "project-build.template.yaml",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@final-build-declaration"
+      ],
+      "template_bindings": {
+        "SOURCE_GUTENBERG": "@source-gutenberg",
+        "SOURCE_PAGERDUTY": "@source-pagerduty",
+        "SOURCE_SCOUTFLO": "@source-scoutflo",
+        "SOURCE_WIKIMEDIA": "@source-wikimedia",
+        "RELEASE_FILE": "@reviewed-release-declaration",
+        "SPLITS_FILE": "@family-freeze",
+        "TRANSFORM_FILE": "@transform-declaration"
+      }
+    },
+    "offline-build": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "build",
+        "@final-build-declaration",
+        "--offline"
+      ]
+    },
+    "freeze-release": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "freeze",
+        "${BUILD_PATH}"
+      ]
+    },
+    "release-audit": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "audit",
+        "${RELEASE_PATH}"
+      ]
+    },
+    "near-duplicate-audit": {
+      "leaf": null,
+      "args": [
+        "corpus",
+        "near-duplicates",
+        "${RELEASE_PATH}"
+      ]
+    },
+    "final-family": {
+      "leaf": "family.jsonl",
+      "args": [
+        "corpus",
+        "finalize-family-inventory",
+        "${RELEASE_PATH}",
+        "--splits",
+        "@family-freeze",
+        "--output",
+        "@final-family",
+        "--json"
+      ]
+    },
+    "protected-lineage": {
+      "leaf": "protected-lineage.json",
+      "args": [
+        "corpus",
+        "audit-protected-lineage",
+        "--prior-release",
+        "${PRIOR_RELEASE}",
+        "--candidate-release",
+        "${RELEASE_PATH}",
+        "--prior-inventory",
+        "${PRIOR_FAMILY}",
+        "--candidate-inventory",
+        "@final-family",
+        "--profile",
+        "${PROFILE}",
+        "--suite",
+        "${SUITE}",
+        "--output",
+        "@protected-lineage",
+        "--json"
+      ]
+    },
+    "release-acceptance": {
+      "leaf": "release-acceptance.json",
+      "template": "release-acceptance.template.json",
+      "args": [
+        "corpus",
+        "render-declaration",
+        "--template",
+        "${TEMPLATE}",
+        "--values-json",
+        "${VALUES_JSON}",
+        "--output",
+        "@release-acceptance"
+      ]
+    },
+    "measure-accepted-supply": {
+      "leaf": "unique-train.json",
+      "args": [
+        "corpus",
+        "measure-tokens",
+        "${RELEASE_PATH}",
+        "--tokenizer",
+        "${TOKENIZER_PATH}",
+        "--tokenizer-origin-release",
+        "${PRIOR_RELEASE}",
+        "--family-inventory",
+        "@final-family",
+        "--policy",
+        "${TOKEN_FLOORS}",
+        "--output",
+        "@measure-accepted-supply",
+        "--batch-source-bytes",
+        "${BATCH_SOURCE_BYTES}",
+        "--json"
+      ]
+    }
+  }
+}

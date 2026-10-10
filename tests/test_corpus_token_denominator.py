@@ -379,6 +379,37 @@ def test_public_api_requires_token_domain_policy(
     assert not output.exists()
 
 
+def test_checked_in_measurement_policy_authenticates_below_100m_supply(
+    frozen: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    release, tokenizer, _ = frozen
+    policy = (
+        Path(__file__).resolve().parents[1]
+        / "experiments/research/kernel-memory-lab/card05-base-50m/current/measurement-domains.yaml"
+    )
+    output = tmp_path / "measured-supply.json"
+    receipt = measure_source_tokens(
+        release, tokenizer, policy, output, batch_documents=1
+    )
+    assert receipt["status"] == "COMPLETE"
+    assert receipt["policy_sha256"] == sha256_file(policy)
+    assert set(receipt["domains"]) == {
+        "general_prose",
+        "explanatory_prose",
+        "incident_response_docs",
+    }
+    comparison_floors = {
+        "general_prose": 40_500_000,
+        "explanatory_prose": 9_000_000,
+        "incident_response_docs": 500_000,
+    }
+    assert all(
+        receipt["domains"][domain]["source_tokens"] < floor
+        for domain, floor in comparison_floors.items()
+    )
+    assert read_source_token_receipt(output, release, tokenizer, policy) == receipt
+
+
 def test_complete_receipt_reuse_and_mutation_refusal(
     frozen: tuple[Path, Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

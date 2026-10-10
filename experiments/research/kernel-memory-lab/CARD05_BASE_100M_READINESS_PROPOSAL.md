@@ -1,9 +1,9 @@
-# Prospective 100M base-training readiness — approval required
+# Retained-corpus admission and yield measurement — approval required
 
 Assessment at merged main `1978ebeefed1a2ea7b9acf1c5050a0efddfb1016`, whose
 PR #57 final reviewed head was `0de752b322e357d35bc64a6afdf03382528c58e8`.
-This is retained-only inventory and a prospective protocol, not corpus admission,
-a production ledger, a run configuration or runtime approval. The current 50M
+This is retained-only inventory and a proposed admission/measurement milestone,
+not corpus admission, a production ledger, a run configuration or runtime approval. The current 50M
 preparation declaration remains canonical for its historical scope. C05-B7/B8,
 B11–B17, C05-N1 and all prior artifacts remain unchanged. Card 06 is blocked.
 
@@ -79,18 +79,39 @@ do not establish the general and incident floors. At 81/18/1, B7 explanatory
 supply alone permits only about 35.07M content-position exposures. EOS, packing
 and final-batch masking affect exact supervised-target accounting separately.
 
-**Single next requested allocation: retained-only 100M supply preparation.**
+**Single next requested allocation: retained-only admission and yield measurement.**
 Use one new preparation identity, common-root baseline and persistent native
 attempt ledger. Reuse and cold-verify all four snapshots; admit through native
 inspection-backed item review, `normalizer-structure-v3` pre-freeze inventory,
 family decisions, split freeze, build, leakage/protected-lineage audit and
 explicit release acceptance. Then measure post-cleaning, post-admission unique
 train positions with the unchanged C03-C1 tokenizer-origin binding. Stop with a
-verified supply receipt and per-source/stratum/family yield; **do not materialize
-a 100M mixture or prepared bundle unless all three floors pass**. If they pass,
-publish and cold-verify the exact 81/18/1 bundle, with at most two exposures per
-content position and exactly 100M supervised targets. Keep protected held-out
-families out of training. Do not fit a tokenizer or run a model.
+**cold-verified accepted release and authenticated per-stratum supply receipt**.
+Report per-source and family yield from the accepted inventory alongside the
+receipt; do not mistake those supplementary tallies for tokenizer-measured
+positions. Keep protected held-out families out of training. **This allocation
+excludes mixture declaration/materialization, prepared-run declaration and
+prepared-bundle publication/verification regardless of measured supply.** Do
+not fit a tokenizer or run a model.
+
+The exact selected public-native plan is
+[`card05-base-50m/current/measurement-only.json`](card05-base-50m/current/measurement-only.json),
+SHA-256 `066d6e37c3703d120dbeabd89846dd9133483ad9ade2617b1832b862ddee952a`,
+using the unchanged `sparselab-preparation-v1` interface. Its 26 phases are an
+exact checked-in prefix of the current canonical plan through
+`measure-accepted-supply`; the six downstream mixture and bundle phase labels
+are absent and rejected by `attempt phase-command` / `attempt run-phase` when
+this plan is selected. Its sole default difference is the
+[`measurement-domains.yaml`](card05-base-50m/current/measurement-domains.yaml)
+policy, SHA-256 `5954443818a492600fcb5d8f5f4b775b297f0989ab3983b7e06302409e0ea268`,
+which selects the three domains with zero measurement thresholds.
+This is **not** a zero-supply eligibility rule or a replacement for the 100M
+floors. It keeps the native receipt COMPLETE and cold-verifiable even when a
+domain falls short. The original 50M `token-floors.yaml` and full 32-phase
+declaration remain unchanged for their prior scope. Pin the selected plan and
+policy hashes in any later attempt contract/review record; derive commands
+only with `attempt phase-command` and dispatch only the selected labels through
+`attempt run-phase`. Do not treat the full 50M plan as authorized by this request.
 
 Proposed hard limits for this *preparation-only* allocation: 14,400 seconds
 whole attempt including review, tests and shutdown; 24 GiB process-tree RSS;
@@ -99,78 +120,40 @@ free-space margin, all from one cumulative root baseline; at most 8 aggregate
 agent-assisted reviewer-hours tracked separately. Zero network/metadata
 requests, transferred bytes, acquisition retries, GPU, model forwards, updates,
 generation, cloud use or spend; no attempt restart or resume. An unavailable or
-invalid retained input, review conflict, lineage leak, cap failure or measured
-shortfall stops with receipts. These limits are a **request**, not authority.
+invalid retained input, unresolved blocking review decision, lineage leak or
+hard-cap failure stops with receipts. **A completed authenticated measurement
+below one or more 100M comparison floors is a successful measurement with a
+negative eligibility finding, not a failed preparation.** These limits are a
+**request**, not authority.
 
-If a floor fails, quantify the post-cleaning shortfall before selecting new
-sources. Favor additional independent, rights-reviewed general-language works
-or broad prose collections for general coverage; another independently sampled
-Wikimedia component for explanatory coverage; and a distinct rights-reviewed
-incident-response documentation family for incident coverage. Avoid counting
-more pages from one family as independent supply, repeating positions above two
-exposures, or stripping useful structure merely to boost token counts. Any
-new-source pins, rights/use terms, selection size, filtering yield, transport
-budget and revised mix require a separate proposal. 81/18/1 is the comparison
-baseline; a mix change would alter per-stratum floors and evaluation meaning and
-needs explicit review rather than an implicit fallback.
+**Provisional expansion plan, pending fresh measurement.** B7 already fell
+short by 19.70M general and 0.16M incident unique positions, and the retained
+extra Wikimedia bucket primarily addresses explanatory content. Its historical
+~1.55M explanatory forecast could not close even that stratum's 5.84M B7 gap;
+it adds no demonstrated general or incident supply. If fresh accepted v3
+measurement confirms shortages, first pursue independent, rights-reviewed
+general-language works or broad prose families; a distinct incident-response
+documentation family; and additional independently sampled explanatory sources
+only to the extent the measured explanatory gap remains. Prioritize useful new
+language coverage over cosmetic stripping. Record expected filtering yield and
+family independence before pinning sources; do not infer them from raw shard
+bytes or count more pages from one family as independent supply. New-source
+pins, rights/use terms, selection size, transport and storage budgets require
+separate approval. Keep 81/18/1 and two exposures solely as the 100M comparison
+baseline; any mix change needs explicit scientific review.
 
-## Prospective training and evaluation declaration — not executable yet
+## Later 100M decision, outside this allocation
 
-Use a fresh seed-17 341,885,952-parameter dense model with empty optimizer and
-scheduler state, BF16/ROCm only after device preflight, context 1,024,
-microbatch 1 and accumulation 1. Reuse the authenticated C03-C1 32,768-token
-tokenizer byte-for-byte. Bind the future admitted v3 release, family inventory,
-measured supply receipt, mixture and cold prepared bundle at their actual hashes;
-none is invented here. Keep the fixed profile and held-out inputs bound to the
-original C03-C1 release. Never resume B8's completed 25M schedule or any 50M
-stopped attempt.
-
-The draft run config changes the existing 50M template's `max_tokens` and
-`dataset.train_max_tokens` to **100,000,000**, `max_steps` and
-`optimizer.decay_steps` to **97,657**, and checkpoint and one-batch operational
-validation `every_steps` to **10,000**. Keep 500 warmup updates, AdamW peak/floor
-`3e-4`/`3e-5`, batch/architecture/precision and seed as a prospective combined
-recipe. Native final-batch masking must yield 97,656 full 1,024-target updates
-and one 256-target update with 768 masked positions, for exactly 100M
-nonmasked supervised targets. Preserve full checkpoints and one-batch
-operational validation at steps `0,10000,...,90000,97657` (11 events).
-The [prospective run template](card05-base-100m/prospective-run.template.yaml)
-records these values. Its release, bundle, validation counts, storage paths and
-admitted-license summary are deliberately late-bound, so it is not a runnable
-configuration and cannot substitute for reviewed admission or native inspect.
-Select the earliest checkpoint with minimum finite token-weighted fixed
-validation loss across all 12 windows/3,072 targets at each event, seal the
-native selection receipt, then score fixed test/utility/prose. Do not use test
-outcomes for selection.
-
-The proposed evaluation retains the original 24 true/decoy pairs, 12 fixed
-test windows, eight greedy 64-new-token prose continuations on the selected
-model and matched v2 comparison, for at most 16 generation calls/1,024
-requested tokens. Budget at most 11 operational validation batches/11,264
-input positions, 55,000 fixed-profile scoring positions and 170,000 aggregate
-nontraining forward-input positions (including generation context processing),
-64 MiB output and 2 aggregate agent-assisted review hours. Those are proposed
-caps based on B8's 11-checkpoint workload, not measured costs of a 100M run.
-Keep the existing prospective base criteria: at least 10% lower fixed test loss
-than v2, at least 18/24 correct preferences and four more than v2, and at least
-6/8 coherent sustained prose continuations. Report negative results. The
-unchanged C05-N1 0/200 instruction score and Card 06 reader gate remain
-separate.
-
-B8 measured 6,348 seconds for the 25M training monitor and about 7,960 seconds
-end to end. `4 × 6,348 + (7,960 - 6,348) = 27,004` seconds (~7.5 hours) is
-only a historical 11-checkpoint extrapolation, not a measured 100M runtime or
-confidence bound. For a later *separate* training approval, propose a
-43,200-second whole-runtime safety ceiling (39,600 stage/train/selection and
-3,600 evaluation), 20 GiB whole-device VRAM, 24 GiB process-tree RSS,
-80 GiB cumulative added apparent bytes and 15,000 entries from a fixed baseline,
-and at least 4 GiB projected free-space margin. B8's measured 11 checkpoint
-directories total about 42.4 GB; allow one additional ~4.1 GB transient
-checkpoint plus prepared inputs, logs and evaluation before finalizing that
-ceiling against the actual new release. Use one ledger, fail-closed monitoring,
-one training invocation, zero retries/resumes and zero cloud spend. This future
-allocation is **not requested for execution now**; the preparation result may
-require changing its storage/time projection before a runnable declaration.
+The 100M comparison still requires at least 40.5M general, 9M explanatory and
+0.5M incident unique eligible content positions at 81/18/1 with no more than
+two exposures. These are not the success criteria for admission or yield
+measurement. Exact 100M supervised-target packing, tokenizer reuse, a fresh
+scheduler/configuration, checkpoint selection, evaluation and runtime ceilings
+must be declared **after** the new accepted release and supply receipt exist.
+The earlier approximately 7.5-hour estimate remains a historical extrapolation
+from B8, not a measured 100M runtime or authority to train. The original
+C03-C1 tokenizer and fixed-evaluation origins, C05-N1 0/200 and Card 06 block
+remain unchanged.
 
 ## Branch and CI disposition
 

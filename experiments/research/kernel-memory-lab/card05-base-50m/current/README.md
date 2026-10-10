@@ -15,6 +15,17 @@ are late values from verified receipts or reviewed decisions. Missing and unused
 bindings fail. The compiler does no acquisition, review, artifact discovery,
 execution or scheduling.
 
+For the prospective 100M retained-corpus admission and yield measurement,
+`measurement-only.json` selects the exact first 26 phases of this packet,
+ending at `measure-accepted-supply`. It uses the same native format and
+template bindings but omits all mixture and prepared-bundle phase labels. Its
+only changed default is `measurement-domains.yaml`: zero thresholds select the
+three domains for authenticated measurement without making 50M or 100M floors
+a prerequisite for a valid supply receipt. A measured shortfall is a result to
+report, not permission to materialize a mixture. The full plan and
+`token-floors.yaml` retain their earlier meanings. An approved attempt must
+pin and dispatch the selected plan, not switch to the full plan.
+
 Before an authorized attempt, capture one common-root baseline with native
 `monitor-baseline`. Render `attempt-contract.template.json` using public
 `corpus render-declaration --workspace-baseline BASELINE`; its reserved slot is
