@@ -74,8 +74,12 @@ Pick a result (a try's arms or a `sparselab probe` record). The page shows:
 - needle accuracy by length.
 
 **History & trends** plots any probe across every result, colored by verdict.
-It warns when results mix probe-suite versions and lists tries that never ran a
-probe battery, each with the command to probe it.
+A trend only joins results measured the same way: one probe-suite digest and
+one comparison group (the eval group for held-out probes, the benchmark group
+for lm-eval, the item group for recall and needle). Pick the group in the
+selector (default: the newest result's); the other groups are hidden and
+counted, and older results that recorded no group are listed as such. It also
+lists tries that never ran a probe battery, each with the command to probe it.
 
 ![Compare: paired deltas, refused across groups](assets/dashboard-compare.png)
 
@@ -119,8 +123,10 @@ places it in the catalog and on the frontier.
   more than half of the 4-grams repeat.
 - **Fact recall.** Every held-out item with what was expected and what each
   arm picked (fractional credit for ties), misses first. In-context recall (the
-  fact is stated in the prompt) and closed-book recall (facts from the
-  withheld-facts training set, asked with no context) sit side by side. The
+  fact is stated in the prompt) and closed-book recall (the run's own
+  withheld-facts training facts, from its `dataset.synthetic_seed`, asked with
+  no context) sit side by side; for a run not trained on `withheld_facts` the
+  closed-book block shows why it was not scored instead. The
   closed-book block also shows the never-trained control facts, which should
   stay at chance. The demo above shows what this is for: every lab model picks
   the same first candidate for every question (`red`, `panda`), which no
@@ -149,9 +155,15 @@ uv run --locked --extra cpu sparselab explore RUN --json        # the full paylo
 Results are cached as sealed records under
 `LAB/explorer/<checkpoint sha>/<key>.json`, keyed by checkpoint digest, sample
 text and explorer format. An edited cache file is ignored and recomputed.
-Exploration runs on CPU through the verified checkpoint loader (the same one
-`sparselab probe` uses). It stops at the next stage if `LAB/explorer/CANCEL`
-appears, and turns an out-of-memory error into a clear message. MLX checkpoints
+Exploration goes through the same runtime preparation as `sparselab probe` and
+`sparselab try`: the run is resolved, `--backend` (default `cpu`) or
+`--runtime`/`--runtime-profile` is applied and authorized by the run's runtime
+policy (an accelerator needs a runtime profile, exactly as for probe), and the
+checkpoint loads through the verified loader. `--resource-envelope FILE` is
+checked before the command and again before every explorer stage; a violation
+stops it with the reason. The dashboard page always explores on CPU. It stops
+at the next stage if `LAB/explorer/CANCEL` appears, and turns an out-of-memory
+error into a clear message. MLX checkpoints
 and attached semantic packs are refused with a reason.
 
 ![Explorer: architecture and parameters (MoE run)](assets/dashboard-explorer.png)

@@ -37,8 +37,10 @@ These items take priority over new lifecycle, admission or orchestration code.
   - per-probe trends over tries, needle accuracy by length across checkpoints
     and calibration reliability diagrams (`details.reliability`) on the
     redesigned dashboard ([tour](docs/dashboard.md));
-  - a closed-book **fact recall from weights** probe built from the
-    withheld-facts manifest, with a never-trained control (suite v3);
+  - a closed-book **fact recall from weights** probe built from the run's
+    own withheld-facts manifest (its `dataset.synthetic_seed`), with a
+    never-trained control; inapplicable to other runs and references (suite
+    v3);
   - a text-level ranking path (`details.item_group`) so references are scored
     on fact recall as well as lm-eval and compare with lab runs on it;
   - `--lm-eval-tasks`/`--lm-eval-limit` for larger limits and other task

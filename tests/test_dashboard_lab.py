@@ -379,3 +379,76 @@ def test_full_app_opens_on_lab_home(lab: Path, monkeypatch: pytest.MonkeyPatch) 
     assert not test.exception
     assert [h.value for h in test.header] == ["Lab home"]
     assert any(str(lab) in c.value for c in test.sidebar.caption)
+
+
+def _lm_result(probe_id: str, when: str, value: float, group: str) -> dict:
+    tasks = {"piqa": {"acc": value, "items": [1.0, 0.0]}}
+    lm = _row("lm_eval", value, None, tasks=tasks, benchmark_group=group)
+    return {
+        **_probe_result(),
+        "probe_id": probe_id,
+        "created_at": when,
+        "probes": [_row("heldout_loss", 3.2, None), lm],
+    }
+
+
+def _values(data: Any) -> list[float]:
+    """Plotly JSON arrays may be base64 typed arrays."""
+    import base64
+
+    import numpy as np
+
+    if isinstance(data, dict):
+        raw = base64.b64decode(data["bdata"])
+        return [round(float(v), 6) for v in np.frombuffer(raw, dtype=data["dtype"])]
+    return [round(float(v), 6) for v in data]
+
+
+def test_trends_never_join_results_from_different_benchmark_groups(
+    tmp_path: Path,
+) -> None:
+    """lm-eval with other tasks/limit is another benchmark group: its own trend."""
+    import json
+
+    default, custom = "d" * 64, "w" * 64
+    for probe_id, when, value, group in (
+        ("probe-11", "2026-10-10T10:00:00+00:00", 0.40, default),
+        ("probe-12", "2026-10-10T11:00:00+00:00", 0.42, default),
+        ("probe-13", "2026-10-10T12:00:00+00:00", 0.90, custom),
+    ):
+        path = _mk(tmp_path / f"probes/{probe_id}/probe.json")
+        write_sealed(path, _lm_result(probe_id, when, value, group))
+    snap = lab_data.snapshot(tmp_path)
+    rows = [r for r in lab_data.probe_trends(snap.entries) if r["probe"] == "lm_eval"]
+    by_id = {r["id"]: r["trend_group"] for r in rows}
+    assert len(set(by_id.values())) == 2
+    assert by_id["probe-11"] == by_id["probe-12"] != by_id["probe-13"]
+    # Held-out loss of the same results shares the eval group.
+    loss = [
+        r for r in lab_data.probe_trends(snap.entries) if r["probe"] == "heldout_loss"
+    ]
+    assert len({r["trend_group"] for r in loss}) == 1
+
+    def trend_values(test: AppTest) -> list[list[float]]:
+        for chart in test.get("plotly_chart"):
+            figure = json.loads(chart.proto.spec)
+            title = figure["layout"].get("title", {}).get("text", "")
+            if "per result" in title:
+                return [
+                    _values(trace["y"])
+                    for trace in figure["data"]
+                    if trace.get("name") == "candidate"
+                ]
+        raise AssertionError("no trend chart")
+
+    test = _render("experiments", tmp_path)
+    test.selectbox(key="experiments_trend_probe").set_value("lm_eval").run()
+    assert not test.exception
+    # Newest result's group by default: only the custom-task point is drawn.
+    assert trend_values(test) == [[0.9]]
+    assert "1 other comparison group(s) hidden" in _text(test)
+    group = test.selectbox(key="experiments_trend_group_lm_eval")
+    assert len(group.options) == 2
+    assert group.index == 0
+    group.select_index(1).run()
+    assert trend_values(test) == [[0.4, 0.42]]

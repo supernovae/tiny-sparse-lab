@@ -19,7 +19,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from sparselab.dashboard.probe_data import ProbeEntry, load_history, probe_row
+from sparselab.dashboard.probe_data import (
+    ProbeEntry,
+    load_history,
+    probe_row,
+    result_group,
+)
 from sparselab.explorer import cached_explorations
 from sparselab.lab_records import iter_lab_records
 from sparselab.probes.points import METRICS, collect_points
@@ -236,13 +241,20 @@ def next_steps(
 
 
 def probe_trends(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
-    """One row per (result, probe) with a value: plot a probe over time."""
+    """One row per (result, probe) with a value: plot a probe over time.
+
+    ``trend_group`` is the comparison identity (suite digest + the probe's
+    eval/benchmark/item group); only rows sharing it lie on one scale and may
+    be joined into a trend. ``None`` when the record predates its group.
+    """
     rows = []
     for entry in entries:
-        suite = (entry.result.get("suite") or {}).get("sha256", "")[:8]
+        suite_sha = (entry.result.get("suite") or {}).get("sha256", "")
+        suite = suite_sha[:8]
         for row in entry.result.get("probes") or []:
             if row.get("value") is None:
                 continue
+            group = result_group(entry.result, row)
             rows.append(
                 {
                     "when": entry.created_at,
@@ -256,6 +268,8 @@ def probe_trends(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
                     "status": row.get("status"),
                     "higher_is_better": row.get("higher_is_better"),
                     "suite": suite,
+                    "group": group,
+                    "trend_group": f"{suite_sha}:{group}" if group else None,
                 }
             )
     return rows

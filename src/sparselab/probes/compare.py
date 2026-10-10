@@ -19,6 +19,7 @@ from sparselab.probes import metrics
 from sparselab.probes.points import (
     METRICS,
     collect_points,
+    mean_chance,
     metric_points,
     points_from_record,
     with_checkpoint_evidence,
@@ -237,10 +238,9 @@ def reference_curve(
         [*same, {**subject, **mine, "label": subject["label"], "subject": True}],
         key=lambda p: (p.get("active_parameters") or 0, p["label"]),
     )
-    chance = mine.get("chance") or {}
     return {
         "group": mine["group"],
-        "chance": sum(chance.values()) / len(chance) if chance else None,
+        "chance": mean_chance(mine.get("chance")),
         "points": rows,
         "excluded": len(refs) - len(same),
     }

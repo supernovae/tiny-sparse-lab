@@ -299,11 +299,38 @@ def _trends(entries: Sequence[ProbeEntry]) -> None:
     )
     part = frame[frame["probe"] == probe].copy()
     part["when"] = pd.to_datetime(part["when"], errors="coerce", utc=True)
-    if part["suite"].nunique() > 1:
-        st.warning(
-            "These values come from different probe suite versions; only rows with "
-            "the same suite digest share a scale."
+    # Only results measured the same way (suite + eval/benchmark/item group)
+    # share a scale; a trend never joins points across groups.
+    ungrouped = int(part["trend_group"].isna().sum())
+    part = part.dropna(subset=["trend_group"]).sort_values("when")
+    if part.empty:
+        st.info(
+            "No result of this probe records its comparison group; re-score to "
+            "plot a trend."
         )
+        return
+    counts = part["trend_group"].value_counts()
+    groups = list(dict.fromkeys(reversed(part["trend_group"].tolist())))
+    label = METRICS[probe].group_label if probe in METRICS else "comparison group"
+    group = st.selectbox(
+        f"Comparison group (suite · {label})",
+        groups,
+        index=0,
+        key=f"experiments_trend_group_{probe}",
+        format_func=lambda g: (
+            f"suite {g[:8]} · {g.split(':', 1)[1][:12]} · {int(counts[g])} result(s)"
+        ),
+        help="Results from different probe suites, datasets/tokenizers, "
+        "benchmark tasks/limits or item sets are not on one scale; pick one.",
+    )
+    notes = []
+    if len(groups) > 1:
+        notes.append(f"{len(groups) - 1} other comparison group(s) hidden")
+    if ungrouped:
+        notes.append(f"{ungrouped} older result(s) recorded no group")
+    if notes:
+        st.caption(" · ".join(notes))
+    part = part[part["trend_group"] == group]
     figure = go.Figure()
     figure.add_trace(
         go.Scatter(
@@ -683,14 +710,20 @@ def _recall(entry: ProbeEntry) -> None:
             "parametric_recall",
             "Closed-book fact recall (from weights)",
             (
-                "Facts from the withheld-facts training set, asked with no "
-                "context. Only meaningful for runs trained on `withheld_facts`; "
-                "the never-trained control facts should stay at chance."
+                "The run's own withheld-facts training facts (its "
+                "`dataset.synthetic_seed` manifest), asked with no context; the "
+                "never-trained control facts should stay at chance. Only runs "
+                "trained on `withheld_facts` are scored."
             ),
         ),
     ):
         row = probe_row(entry.result, probe_id)
-        if not row or row.get("value") is None:
+        if not row:
+            continue
+        if row.get("value") is None:
+            if row.get("note"):
+                # Inapplicable (skipped) or missing evidence: say why.
+                st.caption(f"{title}: {row.get('status')} · {row['note']}")
             continue
         shown = True
         details = row.get("details") or {}

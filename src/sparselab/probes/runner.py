@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import math
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -71,6 +72,10 @@ class ProbeUnsupported(ValueError):
 
 class _NotComparable(Exception):
     pass
+
+
+class ProbeInapplicable(Exception):
+    """The probe does not apply to this checkpoint (recorded as skipped)."""
 
 
 @dataclass
@@ -236,15 +241,71 @@ def recall_items(split: str) -> list[dict[str, Any]]:
     ]
 
 
-def parametric_recall_items(split: str, *, control: bool = False) -> list[dict]:
+def parametric_recall_items(
+    split: str, *, seed: int, control: bool = False
+) -> list[dict]:
     return [
         {
             "prefix": item["question"],
             "answer": item["answer"],
             "candidates": item["candidates"],
         }
-        for item in parametric_items(split, control=control)
+        for item in parametric_items(split, seed=seed, control=control)
     ]
+
+
+def parametric_binding(loaded: Any, *, reference: bool = False) -> dict[str, Any]:
+    """Bind closed-book recall to the facts this checkpoint actually trained on.
+
+    The ``withheld_facts`` source trains on ``split_facts(synthetic_seed)``;
+    the probe uses the same seed's manifest, read from the run's resolved
+    config and cross-checked against its prepared-data provenance
+    (``data/manifest.json``). A run (or reference model) not trained on
+    ``withheld_facts`` raises :class:`ProbeInapplicable`; a withheld-facts run
+    whose provenance is missing or disagrees raises :class:`ProbeUnsupported`
+    (missing evidence), so trained facts are never scored as never-trained.
+    """
+    if reference:
+        raise ProbeInapplicable(
+            "inapplicable: a pinned public model was not trained on a "
+            "withheld-facts manifest"
+        )
+    dataset = getattr(getattr(loaded, "config", None), "dataset", None)
+    source = getattr(dataset, "source", None)
+    if source is None:
+        raise ProbeUnsupported(
+            "no dataset provenance in the run config: cannot tell which facts "
+            "were trained"
+        )
+    if source != "withheld_facts":
+        raise ProbeInapplicable(
+            f"inapplicable: the run trained on {source}, not withheld_facts "
+            "(no facts manifest to bind)"
+        )
+    seed = getattr(dataset, "synthetic_seed", None)
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ProbeUnsupported("withheld_facts run records no synthetic_seed")
+    run = getattr(loaded, "run", None)
+    if isinstance(run, Path):
+        path = run / "data" / "manifest.json"
+        try:
+            recorded = json.loads(path.read_text(encoding="utf-8"))
+            prepared = recorded["cache_identity"]["dataset"]
+        except OSError, ValueError, KeyError, TypeError:
+            raise ProbeUnsupported(
+                "the run's prepared-data provenance (data/manifest.json) is "
+                "missing or unreadable: cannot bind the facts manifest"
+            ) from None
+        if (prepared.get("source"), prepared.get("synthetic_seed")) != (
+            source,
+            seed,
+        ):
+            raise ProbeUnsupported(
+                "the run's prepared data does not match its config "
+                f"(prepared {prepared.get('source')} seed "
+                f"{prepared.get('synthetic_seed')}, config {source} seed {seed})"
+            )
+    return {"seed": seed, "manifest_sha256": parametric_manifest_sha256(seed)}
 
 
 def item_group(probe: str, items: list[dict[str, Any]]) -> str:
@@ -365,9 +426,14 @@ def _measure(
             if spec.id == "fact_recall":
                 return recall_items(split)
             if spec.id == "parametric_recall":
-                return parametric_recall_items(split)
+                return parametric_recall_items(split, seed=binding["seed"])
             return needle_items(loaded, split, list(spec.params["length_fractions"]))
 
+        binding = (
+            parametric_binding(loaded, reference=arm.reference)
+            if spec.id == "parametric_recall"
+            else {}
+        )
         held = items("heldout")
         ranked = _ranked(loaded, held)
         credits = ranked["credits"]
@@ -391,9 +457,13 @@ def _measure(
             ],
         }
         if spec.id == "parametric_recall":
-            control = _ranked(loaded, parametric_recall_items("heldout", control=True))
+            control = _ranked(
+                loaded,
+                parametric_recall_items("heldout", seed=binding["seed"], control=True),
+            )
             out["control_accuracy"] = float(np.mean(control["credits"]))
-            out["manifest_sha256"] = parametric_manifest_sha256()
+            out["manifest_sha256"] = binding["manifest_sha256"]
+            out["manifest_seed"] = binding["seed"]
         return out
     if spec.id == "lm_eval":
         from sparselab.probes.lm_eval_adapter import LmEvalUnavailable, run_lm_eval
@@ -419,6 +489,8 @@ def _measure_safely(
         measured = {"status": "not_comparable", "note": str(error)}
     except ProbeUnsupported as error:
         measured = {"status": "unavailable", "note": str(error)}
+    except ProbeInapplicable as error:
+        measured = {"status": "skipped", "note": str(error)}
     except Exception as error:
         if is_out_of_memory(error):
             raise
@@ -629,6 +701,7 @@ def _judge(
             details["control_accuracy"] = t["control_accuracy"]
             details["baseline_control_accuracy"] = b["control_accuracy"] if b else None
             details["manifest_sha256"] = t["manifest_sha256"]
+            details["manifest_seed"] = t["manifest_seed"]
         if spec.id == "needle":
             by_length: dict[str, dict[str, Any]] = {}
             for fraction in spec.params["length_fractions"]:

@@ -89,6 +89,21 @@ IDENTITY_FIELDS = (
 )
 
 
+def mean_chance(chance: Mapping[str, Any] | None) -> float | None:
+    """Mean chance baseline over a group's tasks, or None when any is unknown.
+
+    Custom lm-eval tasks (e.g. winogrande) have no known chance baseline; a
+    mean over only the known tasks would draw a misleading line, so the whole
+    chance line is omitted instead.
+    """
+    if not chance:
+        return None
+    values = list(chance.values())
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in values):
+        return None
+    return sum(values) / len(values)
+
+
 def packaged_reference_records() -> list[tuple[Path, dict[str, Any]]]:
     """Sealed reference results shipped with SparseLab (verified on read)."""
     folder = resources.files("sparselab.probes") / "reference_results"

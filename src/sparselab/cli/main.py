@@ -2536,8 +2536,12 @@ def _probe(args: argparse.Namespace) -> None:
 def _explore(args: argparse.Namespace) -> None:
     """Look inside a small checkpoint; cache the views for the dashboard."""
     from sparselab.explorer import DEFAULT_TEXT, ExplorerUnavailable, explore
+    from sparselab.lab_context import LabCancelled
     from sparselab.lab_mode import lab_root
 
+    # Same runtime wiring as probe/try: _prepare_runtime_command resolved the
+    # run, applied --backend/--runtime and authorized the device; the
+    # envelope is checked at every explorer stage.
     try:
         result, path = explore(
             args.target,
@@ -2545,10 +2549,16 @@ def _explore(args: argparse.Namespace) -> None:
             runs_dir=Path(args.runs_dir) if args.runs_dir else None,
             text=args.text or DEFAULT_TEXT,
             backend=args.backend,
+            authorization=args.runtime_authorization,
+            resource_envelope=args.resource_envelope_value,
             refresh=args.refresh,
         )
     except (ValueError, OSError, ExplorerUnavailable) as error:
         raise SystemExit(f"sparselab explore: {error}") from None
+    except LabCancelled as error:
+        raise SystemExit(f"sparselab explore: stopped: {error}") from None
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
     if args.json:
         print(json.dumps({**result, "cache": str(path) if path else None}, indent=2))
         return
@@ -2850,10 +2860,20 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     explore.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
     explore.add_argument("--runs-dir", help="Also look up run ids here")
     explore.add_argument(
+        "--resource-envelope",
+        type=Path,
+        help="ResourceEnvelope YAML checked before every explorer stage",
+    )
+    explore.add_argument(
         "--backend",
         choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"),
         default="cpu",
+        help="Device (default cpu); authorized through the run's runtime "
+        "policy like probe/try",
     )
+    explore_runtime = explore.add_mutually_exclusive_group()
+    explore_runtime.add_argument("--runtime-profile", type=Path)
+    explore_runtime.add_argument("--runtime", metavar="ID")
     explore.add_argument("--json", action="store_true")
     explore.set_defaults(handler=_explore)
     from sparselab.operational_monitor_cli import register_monitor_parser
@@ -3890,6 +3910,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     is_legacy = args.command in {
         "try",
         "probe",
+        "explore",
         "train",
         "stage",
         "eval",
@@ -4002,13 +4023,13 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         config = load_config(Path(args.config))
     elif args.command == "try":
         config = load_config(Path(args.vs))
-    elif args.command == "probe":
+    elif args.command in {"probe", "explore"}:
         from sparselab.config.models import RunConfig
         from sparselab.lab_mode import lab_root
         from sparselab.probes.cli import resolve_target
         from sparselab.reference_models import is_reference
 
-        if is_reference(args.target):
+        if args.command == "probe" and is_reference(args.target):
             # Pinned public checkpoints load in-process through transformers
             # on the CPU; there is no SparseLab run config to authorize.
             if profile is not None or workers:
@@ -4032,7 +4053,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     backend_override = (
         args.backend
         if args.command
-        in {"try", "probe", "train", "eval", "generate", "chat", "serve"}
+        in {"try", "probe", "explore", "train", "eval", "generate", "chat", "serve"}
         else None
     )
     if backend_override is not None:
@@ -4211,7 +4232,7 @@ def main() -> None:
                 if args.data_command == "prepared-inputs"
                 else load_config(Path(args.config)).dataset.cache_dir
             )
-        elif args.command == "try":
+        elif args.command in {"try", "explore"}:
             from sparselab.lab_mode import lab_root
 
             workspace = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)

@@ -131,6 +131,26 @@ def probe_row(result: dict[str, Any], probe_id: str) -> dict[str, Any] | None:
     return None
 
 
+# Probes measured on their own item set: their scale is the benchmark/item
+# group in the row's details, never the run's eval group.
+OWN_GROUP_PROBES = frozenset({"lm_eval", "fact_recall", "parametric_recall", "needle"})
+
+
+def result_group(result: dict[str, Any], row: dict[str, Any]) -> str | None:
+    """The comparison group one probe row of a result was measured in.
+
+    lm-eval rows carry their benchmark group and the ranking probes their
+    item group; every other probe is measured on the run's held-out data, so
+    its eval group (dataset + tokenizer + windows) applies. ``None`` when the
+    record predates the group (never comparable with anything).
+    """
+    details = row.get("details") or {}
+    own = details.get("benchmark_group") or details.get("item_group")
+    if own or row.get("id") in OWN_GROUP_PROBES:
+        return own or None
+    return (result.get("target") or {}).get("eval_group")
+
+
 def history_rows(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
     rows = []
     for entry in entries:

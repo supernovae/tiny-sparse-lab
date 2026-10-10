@@ -3,6 +3,7 @@ diagrams, lm-eval overrides and fact recall as a comparable metric."""
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 from typing import Any
@@ -10,10 +11,15 @@ from typing import Any
 import numpy as np
 import pytest
 
-from sparselab.data.withheld_facts import diagnostic_manifest
+from sparselab.data.withheld_facts import (
+    diagnostic_manifest,
+    split_facts,
+    training_documents,
+)
 from sparselab.lab_records import write_sealed
 from sparselab.probes import compare as compare_mod
 from sparselab.probes import lm_eval_adapter, metrics, runner, scoring
+from sparselab.probes import verdict as verdict_mod
 from sparselab.probes.points import collect_points, metric_points
 from sparselab.probes.suite import BY_ID, parametric_items
 
@@ -37,10 +43,27 @@ class _Words:
 
 
 class _Loaded:
-    def __init__(self, tokenizer: Any, max_seq_len: int = 256) -> None:
+    def __init__(
+        self,
+        tokenizer: Any,
+        max_seq_len: int = 256,
+        *,
+        source: str | None = "withheld_facts",
+        seed: int = 0,
+    ) -> None:
         self.tokenizer = tokenizer
+        dataset = (
+            type("Dataset", (), {"source": source, "synthetic_seed": seed})()
+            if source is not None
+            else None
+        )
         self.config = type(
-            "Config", (), {"model": type("Model", (), {"max_seq_len": max_seq_len})()}
+            "Config",
+            (),
+            {
+                "model": type("Model", (), {"max_seq_len": max_seq_len})(),
+                "dataset": dataset,
+            },
         )()
 
 
@@ -85,25 +108,108 @@ def test_calibration_row_keeps_both_reliability_diagrams() -> None:
 # --- Closed-book (parametric) fact recall -------------------------------------
 
 
-def test_parametric_items_follow_the_withheld_facts_manifest() -> None:
-    manifest = diagnostic_manifest(0)
-    trained = parametric_items("heldout")
-    control = parametric_items("heldout", control=True)
+@pytest.mark.parametrize("seed", [0, 42])
+def test_parametric_items_follow_the_withheld_facts_manifest(seed: int) -> None:
+    manifest = diagnostic_manifest(seed)
+    trained = parametric_items("heldout", seed=seed)
+    control = parametric_items("heldout", seed=seed, control=True)
     # Verdict items: the manifest's training facts, asked closed-book with its
     # canonical prompt (the fact itself is never in the context).
     assert [f"{i['question']} {i['answer']}." for i in trained] == manifest[
         "training_statements"
     ]
+    assert [f"{i['question']} {i['answer']}." for i in trained] == list(
+        training_documents(seed)
+    )
     assert all(i["answer"] not in i["question"] for i in trained)
     # Control: exactly the never-trained held-out cases.
     assert [(i["question"], i["answer"]) for i in control] == [
         (c["prompt"], c["expected_value"]) for c in manifest["held_out_cases"]
     ]
     assert {i["question"] for i in trained}.isdisjoint(i["question"] for i in control)
-    dev = parametric_items("dev")
+    dev = parametric_items("dev", seed=seed)
     assert [i["answer"] for i in dev] == [i["answer"] for i in trained]
     assert {i["question"] for i in dev}.isdisjoint(i["question"] for i in trained)
     assert all(len(i["candidates"]) == 4 for i in trained + control)
+
+
+def test_parametric_recall_binds_the_runs_nonzero_seed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run trained on withheld_facts with synthetic_seed=42 is scored on
+    seed 42's facts: its trained facts are never counted as the control."""
+    seed = 42
+    assert split_facts(seed) != split_facts(0)
+    trained_text = set(training_documents(seed))
+
+    def knows(loaded: Any, items: list[dict[str, Any]]) -> dict[str, Any]:
+        # A model that memorized exactly its training documents.
+        hits = [f"{i['prefix']} {i['answer']}." in trained_text for i in items]
+        return {
+            "credits": [1.0 if hit else 0.0 for hit in hits],
+            "picked": [
+                i["answer"] if hit else "?" for i, hit in zip(items, hits, strict=True)
+            ],
+        }
+
+    monkeypatch.setattr(runner, "_ranked", knows)
+    monkeypatch.setattr(scoring, "ranking_credit", lambda loaded, items: [])
+    out = _measure("parametric_recall", _Loaded(_Words(), seed=seed))
+    assert out["value"] == 1.0  # every trained fact recalled
+    assert out["control_accuracy"] == 0.0  # never-trained facts stay unknown
+    assert out["manifest_seed"] == seed
+    assert out["manifest_sha256"] == diagnostic_manifest(seed)["sha256"]
+    assert out["manifest_sha256"] != diagnostic_manifest(0)["sha256"]
+    # Another seed's facts are other items: never paired with seed 0.
+    zero = _measure("parametric_recall", _Loaded(_Words(), seed=0))
+    assert zero["item_group"] != out["item_group"]
+
+
+def test_parametric_recall_is_inapplicable_or_missing_without_provenance(
+    tmp_path: Path,
+) -> None:
+    spec = BY_ID["parametric_recall"]
+
+    def measured(loaded: Any, *, reference: bool = False) -> dict[str, Any]:
+        arm = runner.Arm(load=lambda: loaded, reference=reference)
+        return runner._measure_safely(spec, loaded, arm, {})
+
+    # Not trained on withheld_facts (or a public reference): does not apply.
+    other = measured(_Loaded(_Words(), source="tinystories"))
+    assert other["status"] == "skipped" and "inapplicable" in other["note"]
+    assert "tinystories" in other["note"]
+    ref = measured(_Loaded(_Words()), reference=True)
+    assert ref["status"] == "skipped" and "inapplicable" in ref["note"]
+    # No dataset provenance: missing evidence, never a guessed manifest.
+    bare = measured(_Loaded(_Words(), source=None))
+    assert bare["status"] == "unavailable" and "provenance" in bare["note"]
+    # Prepared data that disagrees with the config: missing evidence.
+    loaded = _Loaded(_Words(), seed=42)
+    loaded.run = tmp_path
+    missing = measured(loaded)
+    assert (
+        missing["status"] == "unavailable" and "data/manifest.json" in missing["note"]
+    )
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "manifest.json").write_text(
+        json.dumps(
+            {
+                "cache_identity": {
+                    "dataset": {"source": "withheld_facts", "synthetic_seed": 7}
+                }
+            }
+        )
+    )
+    loaded = _Loaded(_Words(), seed=42)
+    loaded.run = tmp_path
+    mismatch = measured(loaded)
+    assert mismatch["status"] == "unavailable" and "does not match" in mismatch["note"]
+    row = runner._judge(spec, mismatch, None, {"validation": True}, {})
+    assert row["status"] == "unavailable" and row["value"] is None
+    assert verdict_mod.missing_evidence([row])[0]["id"] == "parametric_recall"
+    assert not verdict_mod.missing_evidence(
+        [runner._judge(spec, other, None, {"validation": True}, {})]
+    )
 
 
 @pytest.mark.usefixtures("uniform")
@@ -113,6 +219,7 @@ def test_parametric_recall_of_a_uniform_model_is_chance_with_a_chance_control() 
     assert out["control_accuracy"] == pytest.approx(0.25)
     assert out["chance"] == pytest.approx(0.25)
     assert out["manifest_sha256"] == diagnostic_manifest(0)["sha256"]
+    assert out["manifest_seed"] == 0
     assert len(out["items"]) == len(out["credits"]) == len(out["picked"]) == 6
 
 

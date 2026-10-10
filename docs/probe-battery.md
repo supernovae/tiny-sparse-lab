@@ -37,7 +37,7 @@ edited record is rejected everywhere. A try stores its result in `try.json`
 under `probe`.
 
 ```text
-PROBE BATTERY  sparselab-probe-battery v3 · suite 8e628c9b · tier full (ran fast → standard → full) · 23.4s
+PROBE BATTERY  sparselab-probe-battery v3 · suite bc974a71 · tier full (ran fast → standard → full) · 22.6s
   candidate lab-try-20261010T191906Z-6a192ff3  step 60 · 7.7k tokens · 98.7k params (43.4k active)
   baseline  lab-base-43194de82c467490-try-20261010T191906Z-6a192ff3  step 60 · 7.7k tokens · 43.2k params
 
@@ -46,14 +46,14 @@ PROBE BATTERY  sparselab-probe-battery v3 · suite 8e628c9b · tier full (ran fa
              ↳ Confidence no longer tracks accuracy: check the LR schedule end, label smoothing or an output-scale change.
   ✔ PASS        Top-1 agreement             0.964                                                     JS 0.018 · KL 0.073
   ✔ PASS        Degeneration                0.690 vs 0.966    ◀◀◀◀◀│·····  Δ -0.276                   distinct-2 0.03
-  ✔ PASS        Fact recall (from weights)  0.333 vs 0.333    ·····│·····  Δ +0.000 ±0.000            never-trained control 0.00 (chance 0.25)
+  ⊘ SKIPPED     Fact recall (from weights)  candidate: inapplicable: the run trained on synthetic, not withheld_facts (no facts manifest to bind)
   ✔ PASS        Fact recall (reworded)      0.250 vs 0.250    ·····│·····  Δ +0.000 ±0.000            chance 0.25
   ✔ PASS        Needle in context           0.167 vs 0.167    ·····│·····  Δ +0.000 ±0.000            by length ▂▂▂ (27/40/55 tok)
   ✔ PASS        Standard tasks (lm-eval)    0.215 vs 0.215    ·····│·····  Δ +0.000 ±0.000            lambada 0.00 hellaswag 0.20 arc 0.16 piqa 0.50
 
   verdict ▲ WARN  next → LONGER RUN
   Every tier holds up: schedule a longer run (more tokens or seeds) to confirm the gain. Probes screen; they do not prove usefulness.
-  guard   verdicts use the held-out split · ok · parametric_recall dev +0.00 / held-out +0.00; fact_recall dev +0.00 / held-out +0.00; needle dev +0.00 / held-out +0.00
+  guard   verdicts use the held-out split · ok · fact_recall dev +0.00 / held-out +0.00; needle dev +0.00 / held-out +0.00
   legend  meter ◀ better │ worse ▶ (full = fail threshold)
 ```
 
@@ -70,7 +70,7 @@ Probes run cheapest first: by tier, then declared cost.
 | Calibration (ECE) | fast · 1 | top-1 expected calibration error, 15 equal-width bins (Guo et al. 2017); the non-empty bins are kept as a reliability diagram | +0.02 / +0.05 | no | confidence no longer tracks accuracy (schedule end, output scale) |
 | Top-1 agreement | fast · 1 | argmax agreement with the baseline on fixed held-out prompts, plus KL(base‖cand) and JS in nats | below 0.5 (warn only) | no | a large behavior shift; informative only together with loss |
 | Degeneration | fast · 2 | seq-rep-4 of greedy continuations (Welleck et al. 2019), distinct-1/2 (Li et al. 2016) | +0.05 / +0.20 | yes | loops: duplicated data, too-high LR, positional change |
-| Fact recall (from weights) | standard · 1 | closed-book: ranks the trained value of a withheld-facts *training* fact among the values of the same relation, with no context; also reports never-trained control facts | −0.05 / −0.15 | no | the facts are not stored in the weights (only meaningful for runs trained on `withheld_facts`) |
+| Fact recall (from weights) | standard · 1 | closed-book: ranks the trained value of one of the run's own withheld-facts *training* facts (manifest of its `dataset.synthetic_seed`) among the values of the same relation, with no context; also reports never-trained control facts | −0.05 / −0.15 | no | the facts are not stored in the weights (runs trained on `withheld_facts` only; inapplicable elsewhere) |
 | Fact recall (reworded) | standard · 2 | ranks the stated answer among candidates from the same relation (mean token log-prob), asked in different words than the fact was stated; fractional tie credit | −0.05 / −0.15 | no | context handling or memory wiring |
 | Needle in context | standard · 3 | retrieve a code word stated at the start of a filler context at ~50/75/95% of `max_seq_len`; fractional tie credit | −0.05 / −0.15 | no | attention span, positions or sequence-length changes |
 | Standard tasks (lm-eval) | full · 4 | mean `acc` over lambada_openai, hellaswag, arc_easy, piqa at `limit=50` | −0.02 / −0.05 | no | treat small moves as noise at tiny scale |
@@ -91,14 +91,22 @@ note, never as a win or a regression.
 
 **Tiny-model honesty.** The reworded fact recall probe is *in-context* (the
 fact is stated, then asked in other words), because a tiny model knows no
-facts. **Fact recall (from weights)** is the closed-book counterpart: its items
-come from the withheld-facts manifest (`sparselab.data.withheld_facts`, seed
-0), so it asks about facts a `withheld_facts` run was trained on. The held-out
-split asks each trained fact with its own prompt, the dev split rewords it, and
-the never-trained facts are reported as `control_accuracy`. A model that stored
-its training facts beats chance on the held-out split while the control stays
-at chance. On any other run (and on the references) it sits near chance,
-reported as such. The manifest digest is recorded in `details.manifest_sha256`. When both models are near-uniform (JS < 0.01)
+facts. **Fact recall (from weights)** is the closed-book counterpart. It is
+bound to the facts the run actually trained on: the `withheld_facts` source
+trains on `split_facts(dataset.synthetic_seed)`
+(`sparselab.data.withheld_facts`), so the probe reads that seed from the run's
+resolved config, checks it against the run's prepared-data provenance
+(`data/manifest.json`) and builds the same seed's manifest. The held-out split
+asks each trained fact with its own prompt, the dev split rewords it, and the
+never-trained facts are reported as `control_accuracy`. A model that stored its
+training facts beats chance on the held-out split while the control stays at
+chance. The manifest seed and digest are recorded in `details.manifest_seed`
+and `details.manifest_sha256`; different seeds are different items, so they
+never pair. A run trained on another dataset, and every reference model, has
+no facts manifest: the probe is `skipped` with an "inapplicable" note (it does
+not make the battery incomplete). A `withheld_facts` run whose provenance is
+missing or disagrees with its config is `unavailable`, i.e. missing evidence
+with the reason, so trained facts are never scored as never-trained. When both models are near-uniform (JS < 0.01)
 top-1 agreement is meaningless and is reported as uninformative instead of
 warning. lm-eval tasks are borrowed for their established metric definitions,
 but tiny models sit at or near chance (≈0.25 hellaswag/arc_easy, 0.5 piqa, ≈0
@@ -296,20 +304,19 @@ identical records. They were re-sealed for suite v3, which added the two
 text-level recall probes; the lm-eval items, per-item outcomes, accuracies,
 benchmark group and checkpoint digests did not change:
 
-| Reference | lambada_openai | hellaswag | arc_easy | piqa | mean `acc` | fact recall | from weights / control |
-|---|---|---|---|---|---|---|---|
-| pythia-70m-deduped | 0.28 | 0.30 | 0.30 | 0.54 | 0.355 | 0.688 | 0.333 / 0.000 |
-| pythia-160m-deduped | 0.36 | 0.42 | 0.34 | 0.60 | 0.430 | 0.938 | 0.333 / 0.500 |
-| SmolLM2-135M | 0.36 | 0.44 | 0.52 | 0.62 | 0.485 | 1.000 | 0.333 / 0.000 |
-| SmolLM2-360M | 0.42 | 0.46 | 0.64 | 0.74 | 0.565 | 1.000 | 0.333 / 0.000 |
+| Reference | lambada_openai | hellaswag | arc_easy | piqa | mean `acc` | fact recall |
+|---|---|---|---|---|---|---|
+| pythia-70m-deduped | 0.28 | 0.30 | 0.30 | 0.54 | 0.355 | 0.688 |
+| pythia-160m-deduped | 0.36 | 0.42 | 0.34 | 0.60 | 0.430 | 0.938 |
+| SmolLM2-135M | 0.36 | 0.44 | 0.52 | 0.62 | 0.485 | 1.000 |
+| SmolLM2-360M | 0.42 | 0.46 | 0.64 | 0.74 | 0.565 | 1.000 |
 
 These are 50-item slices, not the published full-task numbers; compare them
 only with results in the same benchmark group (below). Fact recall is 16
-held-out items with 4 candidates each (chance 0.25). "From weights" is 6
-held-out items (chance 0.25) and 2 never-trained control facts. The references
-were never trained on those facts, so values near chance are the expected
-result; they are recorded to show the probe stays honest on models that do not
-know the facts, not as a skill. To refresh them, run
+held-out items with 4 candidates each (chance 0.25). Fact recall from weights
+is recorded as `skipped` (inapplicable): a public model was never trained on a
+withheld-facts manifest, so there are no trained facts to ask about. To refresh
+them, run
 `sparselab probe ref:NAME --tier full` for each reference and copy the sealed
 `probe.json` to `reference_results/NAME.json`; `tests/test_references.py`
 checks every packaged record against the pinned registry.

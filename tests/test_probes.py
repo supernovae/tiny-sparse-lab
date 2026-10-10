@@ -47,8 +47,9 @@ PINNED_SUITE = {
     1: "68a1bba35e4dca50ba4cf45d49fd466c0a7c764ef2a1f02227753f930c4545f3",
     # v2: fractional tie credit, paired/clustered uncertainty declarations.
     2: "ec0544e78b2303deec540f317c237f28bfb4e61cb71bb372f864906cfb1478a0",
-    # v3: closed-book fact recall from the withheld-facts manifest.
-    3: "8e628c9ba05c09795e5f90f1241db72333fe2521c359e8d2910d8972de75467d",
+    # v3: closed-book fact recall from the run's own withheld-facts manifest
+    # (bound to dataset.synthetic_seed; unreleased before PR #63 merged).
+    3: "bc974a71841375e8788b612186f67a69d7d26598cd1325499b64ffbb5b484a50",
 }
 
 RESULT_KEYS = {
@@ -1409,3 +1410,59 @@ def test_explore_cli_reads_a_lab_run_through_the_verified_loader(
     # Same checkpoint and text: served from the sealed cache.
     again, path = explore(run_id, lab_dir=lab, text="Once upon a")
     assert again["created_at"] == cached["created_at"] and path is not None
+
+
+def test_explore_cli_uses_the_shared_runtime_preparation_and_envelope(
+    tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """explore goes through _prepare_runtime_command like probe/try: the
+    device is authorized there and the envelope reaches every stage check."""
+    import sparselab.cli.main as cli_main
+    import sparselab.resource_envelope as envelopes
+
+    root, record = tried
+    run_id = record["arms"]["candidate"]["run_id"]
+    # Device selection goes through runtime preparation (CPU in CI): an
+    # unauthorized accelerator is rejected there, before anything loads.
+    with pytest.raises(SystemExit) as rejected:
+        _cli(monkeypatch, capsys, root, "explore", run_id, "--backend", "cuda")
+    assert "cuda requires --runtime-profile" in str(rejected.value)
+    seen: list[str] = []
+    native_require = cli_main.require_authorization
+
+    def require(config: Any, authorization: Any) -> None:
+        seen.append(config.runtime.backend)
+        native_require(config, authorization)
+
+    monkeypatch.setattr(cli_main, "require_authorization", require)
+    envelope = root / "envelope.yaml"
+    envelope.write_text(
+        yaml.safe_dump({"resource_envelope_version": 1, "max_rss_bytes": 1 << 50})
+    )
+    phases: list[str] = []
+    native_measure = LabContext.measure
+
+    def measure(self: LabContext) -> Any:
+        assert self.resource_envelope is not None
+        phases.append(self.phase)
+        return native_measure(self)
+
+    monkeypatch.setattr(LabContext, "measure", measure)
+    args = ("explore", run_id, "--text", "Once upon", "--refresh")
+    out = _cli(monkeypatch, capsys, root, *args, "--resource-envelope", str(envelope))
+    assert out.startswith(f"EXPLORE  {run_id}")
+    assert seen == ["cpu"]
+    assert phases[0] == "weights" and len(phases) >= 3
+    # A violation at a stage check stops the exploration cleanly.
+    monkeypatch.setattr(
+        envelopes,
+        "check_envelope",
+        lambda *_a, **_k: (_ for _ in ()).throw(ValueError("rss over the limit")),
+    )
+    with pytest.raises(SystemExit) as stopped:
+        _cli(monkeypatch, capsys, root, *args, "--resource-envelope", str(envelope))
+    assert "stopped" in str(stopped.value) and "rss over the limit" in str(
+        stopped.value
+    )

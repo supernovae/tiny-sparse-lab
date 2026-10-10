@@ -12,7 +12,12 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from sparselab.dashboard.probe_data import history_rows, live_batteries, probe_row
+from sparselab.dashboard.probe_data import (
+    history_rows,
+    live_batteries,
+    probe_row,
+    result_group,
+)
 from sparselab.dashboard.ui import (
     ACTION_TEXT,
     SERIES,
@@ -21,7 +26,13 @@ from sparselab.dashboard.ui import (
     chip,
     num,
 )
-from sparselab.probes.points import COSTS, METRICS, metric_points, pareto_frontier
+from sparselab.probes.points import (
+    COSTS,
+    METRICS,
+    mean_chance,
+    metric_points,
+    pareto_frontier,
+)
 from sparselab.probes.suite import PROBES
 
 _chip = chip
@@ -368,11 +379,7 @@ def own_group(result: dict[str, Any] | None, metric_id: str) -> str | None:
     """The comparison group a result's own value was measured in."""
     if not result:
         return None
-    if metric_id == "heldout_loss":
-        return (result.get("target") or {}).get("eval_group")
-    row = probe_row(result, metric_id) or {}
-    details = row.get("details") or {}
-    return details.get("benchmark_group") or details.get("item_group")
+    return result_group(result, probe_row(result, metric_id) or {"id": metric_id})
 
 
 def _pareto(raw: list[dict[str, Any]], selected: Any | None) -> None:
@@ -551,12 +558,13 @@ def _pareto_figure(data: pd.DataFrame, axis: str, metric: Any, log_x: bool) -> A
                 + "tokens %{customdata[3]:,}<extra></extra>",
             )
         )
+    # One group per figure; any unknown task baseline omits the line.
     chance = [
-        sum(c.values()) / len(c)
+        mean_chance(c)
         for c in data.get("chance", pd.Series(dtype=object)).dropna()
-        if isinstance(c, dict) and c
+        if isinstance(c, dict)
     ]
-    if chance:
+    if chance and chance[0] is not None:
         figure.add_hline(
             y=chance[0],
             line_dash="dash",

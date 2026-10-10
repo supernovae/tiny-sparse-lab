@@ -21,6 +21,7 @@ from sparselab.lab_records import comparison_group, read_lab_record, write_seale
 from sparselab.probes import compare as compare_mod
 from sparselab.probes import lm_eval_adapter, metrics, runner
 from sparselab.probes.points import (
+    METRICS,
     collect_points,
     metric_points,
     packaged_reference_records,
@@ -215,9 +216,13 @@ def test_reference_arm_runs_text_level_probes_and_lm_eval_only(
         "lm_eval",
     ]
     assert result["tiers_run"] == ["standard", "full"] and result["protocol"] == {}
-    for recall in result["probes"][:2]:
-        assert recall["status"] == "info" and recall["details"]["item_group"]
-        assert len(recall["details"]["items"]) == recall["details"]["n"]
+    # Closed-book recall needs the run's own facts manifest: a public model
+    # was never trained on one, so it is inapplicable (not missing evidence).
+    parametric, recall = result["probes"][:2]
+    assert parametric["status"] == "skipped" and parametric["value"] is None
+    assert "inapplicable" in parametric["note"]
+    assert recall["status"] == "info" and recall["details"]["item_group"]
+    assert len(recall["details"]["items"]) == recall["details"]["n"]
     row = result["probes"][2]
     assert row["status"] == "info" and row["value"] == pytest.approx(38 / 50)
     assert result["verdict"]["status"] == "info"
@@ -320,6 +325,9 @@ def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
             "lm_eval",
         ]
         assert record["suite"]["sha256"] == suite_identity()["sha256"]
+        parametric = record["probes"][0]
+        assert parametric["status"] == "skipped" and parametric["value"] is None
+        assert "inapplicable" in parametric["note"]
         recall = record["probes"][1]
         assert recall["details"]["item_group"] == item_groups["fact_recall"]
         row = record["probes"][2]
@@ -737,3 +745,71 @@ def test_auto_added_references_resolve_like_named_ones(tmp_path: Path) -> None:
     lm = by_other["SmolLM2-135M"][1]
     assert lm["status"] != "not_comparable"
     assert lm["group"] == _ref_lm("SmolLM2-135M")["details"]["benchmark_group"]
+
+
+def test_custom_task_without_chance_compares_with_references_and_no_chance_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """winogrande has no known chance baseline: compare --references and the
+    Pareto figure omit the chance line (never a mean over the known tasks)."""
+    import pandas as pd
+
+    from sparselab.cli.main import main
+    from sparselab.dashboard.probes import _pareto_figure
+
+    spec = runner.lm_eval_spec(["piqa", "winogrande"], 20)
+    assert spec.params["chance"] == {"piqa": 0.5, "winogrande": None}
+
+    def harness(loaded: Any, tasks: list[str], limit: int) -> dict[str, Any]:
+        rows = {
+            task: {"acc": 0.55, "acc_metric": "acc", "items": [1.0, 0.0] * 10}
+            for task in tasks
+        }
+        benchmark = {"tasks": tasks, "limit": limit}
+        return {
+            "tasks": rows,
+            "version": "0.4.13",
+            "benchmark": benchmark,
+            "benchmark_group": comparison_group({"benchmark": benchmark}),
+            "mean_accuracy": 0.55,
+        }
+
+    monkeypatch.setattr(lm_eval_adapter, "run_lm_eval", harness)
+    measured = runner._measure_safely(spec, object(), runner.Arm(load=object), {})
+    row = runner._judge(spec, measured, None, {"validation": True}, {})
+    assert row["status"] == "info" and row["value"] == pytest.approx(0.55)
+    lab = tmp_path / "lab"
+    _probe_record(lab, "probe-wino", lm_row=row, group="w" * 64)
+
+    report = compare_mod.compare("probe-wino", [], lab_dir=lab, references=True)
+    assert report["curve"]["chance"] is None
+    assert report["curve"]["excluded"] == len(REFERENCES)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "sparselab",
+            "--work-dir",
+            str(tmp_path),
+            "compare",
+            "probe-wino",
+            "--references",
+        ],
+    )
+    capsys.readouterr()
+    main()
+    out = capsys.readouterr().out
+    assert "reference curve" in out and "chance" not in out
+
+    lm = pd.DataFrame(metric_points(collect_points(lab), "lm_eval"))
+    mine = lm[lm["group"] == row["details"]["benchmark_group"]].reset_index(drop=True)
+    mine["frontier"] = True
+    figure = _pareto_figure(mine, "active_parameters", METRICS["lm_eval"], False)
+    assert not figure.layout.shapes
+    # Shared rule: unknown anywhere means no line; known everywhere is the mean.
+    from sparselab.probes.points import mean_chance
+
+    assert mean_chance({"piqa": 0.5, "winogrande": None}) is None
+    assert mean_chance({"piqa": 0.5, "arc_easy": 0.25}) == pytest.approx(0.375)
+    assert mean_chance({}) is None
