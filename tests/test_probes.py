@@ -5,14 +5,18 @@ from __future__ import annotations
 import json
 import math
 import sys
+import weakref
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pytest
 import yaml
 
-from sparselab.probes import lm_eval_adapter, metrics, runner
+from sparselab.lab_context import LabContext
+from sparselab.lab_records import seal
+from sparselab.probes import lm_eval_adapter, metrics, runner, scoring
 from sparselab.probes.render import meter, render, sparkline
 from sparselab.probes.suite import (
     BY_ID,
@@ -25,7 +29,13 @@ from sparselab.probes.suite import (
     prompts,
     suite_identity,
 )
-from sparselab.probes.verdict import ACTIONS, decide, judge, overfit_guard
+from sparselab.probes.verdict import (
+    ACTIONS,
+    MISSING_STATUSES,
+    decide,
+    judge,
+    overfit_guard,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,6 +43,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # so historical results are never silently compared across different suites.
 PINNED_SUITE = {
     1: "68a1bba35e4dca50ba4cf45d49fd466c0a7c764ef2a1f02227753f930c4545f3",
+    # v2: fractional tie credit, paired/clustered uncertainty declarations.
+    2: "ec0544e78b2303deec540f317c237f28bfb4e61cb71bb372f864906cfb1478a0",
 }
 
 RESULT_KEYS = {
@@ -41,7 +53,7 @@ RESULT_KEYS = {
     "suite",
     "tier",
     "tiers_run",
-    "fast_fail",
+    "stop",
     "target",
     "baseline",
     "comparable",
@@ -60,6 +72,7 @@ ROW_KEYS = {
     "higher_is_better",
     "hard",
     "thresholds",
+    "uncertainty",
     "suggests",
     "explains",
     "reference",
@@ -87,8 +100,10 @@ IDENTITY_KEYS = {
     "tokenizer_sha256",
     "validation_sha256",
     "max_seq_len",
+    "eval_group",
 }
-VERDICT_KEYS = {"status", "action", "next_tier", "reasons", "suggestion"}
+VERDICT_KEYS = {"status", "action", "next_tier", "reasons", "missing", "suggestion"}
+STOP_KEYS = {"stopped", "kind", "at", "reason"}
 
 
 # --- Metrics (known answers) -------------------------------------------------
@@ -150,9 +165,96 @@ def test_standard_errors_known_answers() -> None:
     mean, se = metrics.paired_mean_and_se([1.0, 3.0])
     assert mean == 2.0 and se == pytest.approx(1.0)
     assert metrics.paired_mean_and_se([5.0]) == (5.0, None)
-    assert metrics.binomial_se(0.5, 100) == pytest.approx(0.05)
-    assert metrics.accuracy_delta_se(0.5, 0.5, 50) == pytest.approx(0.1)
-    assert metrics.accuracy_delta_se(0.5, 0.5, 0) is None
+    # Identical windows on both sides: the clustered SE of the difference is 0.
+    assert metrics.ratio_difference_se([1, 2], [1, 1], [1, 2], [1, 1]) == 0.0
+    assert metrics.ratio_difference_se([1.0], [1], [1.0], [1]) is None
+    assert metrics.ratio_difference_se([1, 2], [1, 1], [1], [1]) is None
+
+
+def test_ratio_se_is_the_clustered_delta_method_and_token_weighted() -> None:
+    rng = np.random.default_rng(0)
+    counts_a = rng.integers(5, 40, size=30)
+    counts_b = counts_a.copy()
+    sums_a = counts_a * rng.normal(4.0, 0.3, size=30)
+    sums_b = counts_b * rng.normal(4.1, 0.3, size=30)
+    se = metrics.ratio_difference_se(sums_a, counts_a, sums_b, counts_b)
+    la, lb = sums_a.sum() / counts_a.sum(), sums_b.sum() / counts_b.sum()
+    z = (sums_a - la * counts_a) / counts_a.sum() - (sums_b - lb * counts_b) / (
+        counts_b.sum()
+    )
+    assert se == pytest.approx(math.sqrt(30 / 29 * float((z**2).sum())))
+    # Windows carry weight by tokens: a window of 1 token barely moves the SE.
+    tiny = metrics.ratio_difference_se(
+        [*sums_a, 50.0], [*counts_a, 1], [*sums_b, 0.0], [*counts_b, 1]
+    )
+    assert tiny is not None and tiny < 2 * se
+
+
+def test_accuracy_delta_se_is_paired_on_items() -> None:
+    # Same items right and wrong on both arms: no difference, zero SE.
+    same = runner._paired([1.0, 0.0, 1.0, 0.0], [1.0, 0.0, 1.0, 0.0])
+    assert same == 0.0
+    flipped = runner._paired([1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0])
+    assert flipped == pytest.approx(metrics.paired_mean_and_se([1, 0, 0, 0])[1])
+    assert runner._paired([1.0], [0.0]) is None
+
+
+# --- Recall/needle credit ----------------------------------------------------
+
+
+def test_tie_credit_is_fractional_and_answer_independent() -> None:
+    assert scoring.tie_credit({"a": -1.0, "b": -2.0}, "a") == 1.0
+    assert scoring.tie_credit({"a": -1.0, "b": -2.0}, "b") == 0.0
+    tied = {"a": -1.0, "b": -1.0, "c": -1.0, "d": -3.0}
+    assert scoring.tie_credit(tied, "a") == pytest.approx(1 / 3)
+    assert scoring.tie_credit(tied, "d") == 0.0
+    # The answer's position in the candidate list never matters.
+    assert scoring.tie_credit({"x": 0.0, "y": 0.0}, "x") == scoring.tie_credit(
+        {"y": 0.0, "x": 0.0}, "x"
+    )
+
+
+class _TinyTokenizer:
+    """Whitespace tokenizer for ranking tests (ids from a growing vocabulary)."""
+
+    def __init__(self) -> None:
+        self.vocab: dict[str, int] = {"<eos>": 0}
+
+    def encode(self, text: str, add_special_tokens: bool = False) -> Any:
+        ids = [self.vocab.setdefault(w, len(self.vocab)) for w in text.split()]
+        return type("Encoding", (), {"ids": ids})()
+
+    def token_to_id(self, token: str) -> int | None:
+        return self.vocab.get(token)
+
+
+class _Loaded:
+    def __init__(self, tokenizer: Any, max_seq_len: int = 64) -> None:
+        self.tokenizer = tokenizer
+        self.config = type(
+            "Config", (), {"model": type("Model", (), {"max_seq_len": max_seq_len})()}
+        )()
+
+
+@pytest.mark.parametrize("probe", ["fact_recall", "needle"])
+def test_uniform_scores_give_chance_accuracy(
+    probe: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: ties used to break toward the answer (uniform model = 100%)."""
+    vocab = 5000
+    monkeypatch.setattr(
+        scoring,
+        "log_probs",
+        lambda loaded, ids: np.full((len(ids), vocab), -math.log(vocab)),
+    )
+    loaded = _Loaded(_TinyTokenizer(), max_seq_len=256)
+    if probe == "fact_recall":
+        items = runner.recall_items("heldout")
+    else:
+        items = runner.needle_items(loaded, "heldout", [0.5])
+    credits = scoring.ranking_credit(loaded, items)
+    chance = 1 / len(items[0]["candidates"])
+    assert credits == pytest.approx([chance] * len(items))
 
 
 # --- Suite identity and splits ----------------------------------------------
@@ -269,6 +371,58 @@ def test_decide_actions_cover_the_documented_table() -> None:
     guarded = verdict([improved], guard={"overfit_suspected": True})
     assert guarded["action"] == "tweak" and "held-out" in guarded["suggestion"]
     assert verdict([improved], has_baseline=False)["action"] == "compare"
+    assert hard["missing"] == [] and verdict([improved])["missing"] == []
+
+
+@pytest.mark.parametrize("status", sorted(MISSING_STATUSES))
+def test_missing_evidence_is_never_success(status: str) -> None:
+    """An unavailable tier or a probe error never reads as PASS or escalation."""
+    improved = _result_row("heldout_loss", "pass", improved=True)
+    rows = [improved, _result_row("lm_eval", status, note="lm-eval not installed")]
+    for tiers in (["fast"], ["fast", "standard", "full"]):
+        out = decide(
+            rows,
+            has_baseline=True,
+            tiers_run=tiers,
+            requested_tier="full",
+            guard=None,
+            specs=BY_ID,
+        )
+        assert out["status"] == "incomplete" and out["action"] == "rerun"
+        assert out["action"] not in {"escalate", "longer_run"}
+        assert out["next_tier"] is None
+        assert out["missing"] == [
+            {"id": "lm_eval", "status": status, "note": "lm-eval not installed"}
+        ]
+        assert "Every tier holds up" not in out["suggestion"]
+        assert "lm_eval" in out["suggestion"]
+    # A real failure still decides the verdict.
+    failed = decide(
+        [*rows, _result_row("calibration", "fail")],
+        has_baseline=True,
+        tiers_run=["fast"],
+        requested_tier="fast",
+        guard=None,
+        specs=BY_ID,
+    )
+    assert failed["action"] == "tweak" and failed["missing"]
+
+
+def test_stopped_battery_names_the_unrun_probes() -> None:
+    improved = _result_row("heldout_loss", "pass", improved=True)
+    out = decide(
+        [improved, _result_row("calibration", "skipped")],
+        has_baseline=True,
+        tiers_run=["fast"],
+        requested_tier="fast",
+        guard=None,
+        specs=BY_ID,
+        stop={"kind": "oom", "reason": "out of memory"},
+    )
+    assert out["action"] == "rerun"
+    assert out["missing"] == [
+        {"id": "calibration", "status": "stopped:oom", "note": "out of memory"}
+    ]
 
 
 def test_overfit_guard_flags_dev_only_gains_beyond_noise() -> None:
@@ -280,65 +434,127 @@ def test_overfit_guard_flags_dev_only_gains_beyond_noise() -> None:
         {"fact_recall": {"value": 0.9, "baseline_value": 0.5}},
     )
     assert shared["overfit_suspected"] is False
-    # One flipped item out of four is noise, not overfitting.
+    # One flipped item out of four is noise (paired SE 0.25), not overfitting.
     tiny = overfit_guard(
-        {"fact_recall": {"value": 0.5, "baseline_value": 0.25, "n": 4}}, held
+        {"fact_recall": {"value": 0.5, "baseline_value": 0.25, "se": 0.25}}, held
     )
     assert tiny["overfit_suspected"] is False
     assert tiny["verdict_split"] == "heldout"
 
 
-# --- Fast-fail ordering (scripted probes, no model) ----------------------------
+# --- Battery control flow (scripted probes, fake arms, no model) ---------------
 
 
-class _FakeSession:
-    def __init__(self, loaded: Any) -> None:
-        self.loaded = loaded
-        self.identity = {key: None for key in IDENTITY_KEYS} | {"run_id": loaded}
+class _FakeModel:
+    training = False
 
-    def close(self) -> None:
-        pass
+    def eval(self) -> None:
+        self.training = False
+
+    def train(self, mode: bool = True) -> None:
+        self.training = mode
 
 
-class _Calls(list):
-    script: dict[str, str]
+class _FakeRun:
+    """A loaded arm; ``alive`` counts how many are in memory at once."""
+
+    alive: ClassVar[list[str]] = []
+
+    def __init__(self, name: str) -> None:
+        assert not _FakeRun.alive, f"{name} loaded while {_FakeRun.alive} alive"
+        _FakeRun.alive.append(name)
+        self.name = name
+        self.model = _FakeModel()
+        self.engine = None
+        weakref.finalize(self, _FakeRun.alive.remove, name)
+
+
+class _Script:
+    def __init__(self) -> None:
+        self.status: dict[str, str] = {}
+        self.calls: list[tuple[str, str]] = []
+        self.loads: list[str] = []
+        self.hooks: dict[str, Callable[[], None]] = {}
+
+    def arm(self, name: str) -> runner.Arm:
+        def load() -> _FakeRun:
+            self.loads.append(name)
+            return _FakeRun(name)
+
+        return runner.Arm(load=load)
+
+    def candidate_calls(self) -> list[str]:
+        return [probe for arm, probe in self.calls if arm == "cand"]
 
 
 @pytest.fixture
-def scripted(monkeypatch: pytest.MonkeyPatch) -> _Calls:
-    calls = _Calls()
-    script: dict[str, str] = {}
-    calls.script = script
-    monkeypatch.setattr(runner, "_Session", _FakeSession)
-    monkeypatch.setattr(runner, "_validation_identity", lambda loaded: {"v": 1})
-    monkeypatch.setattr(runner, "_tokenizer_digest", lambda loaded: "t")
+def scripted(monkeypatch: pytest.MonkeyPatch) -> _Script:
+    script = _Script()
+    _FakeRun.alive.clear()
 
-    def fake(spec, target, base, protocol, comparable, dev):
-        calls.append(spec.id)
-        status = script.get(spec.id, "pass")
+    def describe(loaded: Any, arm: runner.Arm) -> None:
+        arm.cache.setdefault(
+            "identity",
+            {key: None for key in IDENTITY_KEYS - {"eval_group"}}
+            | {"run_id": loaded.name, "checkpoint_sha256": loaded.name},
+        )
+        arm.cache.setdefault("validation_identity", {"v": 1})
+        arm.cache.setdefault("tokenizer_digest", "t")
+
+    def measure(spec, loaded, arm, protocol):
+        script.calls.append((loaded.name, spec.id))
+        hook = script.hooks.get(f"{loaded.name}:{spec.id}")
+        if hook is not None:
+            hook()
+        return {"value": 1.0}
+
+    def fake_judge(spec, t, b, comparable, dev):
+        for name, side in (("candidate", t), ("baseline", b)):
+            if side is not None and "status" in side:
+                note = f"{name}: {side['note']}"
+                return runner._row(spec, status=side["status"], note=note)
+        status = script.status.get(spec.id, "pass")
         return runner._row(spec, status=status, value=1.0, baseline_value=1.0)
 
-    monkeypatch.setattr(runner, "_run_probe", fake)
-    return calls
+    monkeypatch.setattr(runner, "_describe", describe)
+    monkeypatch.setattr(runner, "_measure", measure)
+    monkeypatch.setattr(runner, "_judge", fake_judge)
+    return script
 
 
 PROTOCOL = {"seq_len": 32, "batch_size": 4, "max_batches": 1}
 
 
-def test_battery_runs_cheapest_first(scripted: Any) -> None:
-    result = runner.run_battery("cand", "base", tier="standard", protocol=PROTOCOL)
-    assert scripted == [s.id for s in ordered("standard")]
+def _battery(script: _Script, **kw: Any) -> dict[str, Any]:
+    options = {"tier": "fast", "protocol": PROTOCOL, **kw}
+    return runner.run_battery(script.arm("cand"), script.arm("base"), **options)
+
+
+def test_battery_runs_cheapest_first_one_arm_at_a_time(scripted: _Script) -> None:
+    result = _battery(scripted, tier="standard")
+    assert scripted.candidate_calls() == [s.id for s in ordered("standard")]
+    # Per tier: the baseline is loaded, measured and released, then the
+    # candidate. _FakeRun asserts no two arms are ever alive together.
+    assert scripted.loads == ["base", "cand", "base", "cand"]
     assert result["tiers_run"] == ["fast", "standard"]
-    assert result["fast_fail"]["stopped"] is False
+    assert result["stop"] == {
+        "stopped": False,
+        "kind": None,
+        "at": None,
+        "reason": None,
+    }
     assert set(result) == RESULT_KEYS
+    assert set(result["stop"]) == STOP_KEYS
+    assert result["target"]["eval_group"] == result["baseline"]["eval_group"]
 
 
-def test_hard_fail_stops_the_battery(scripted: Any) -> None:
-    scripted.script["heldout_loss"] = "fail"
-    result = runner.run_battery("cand", "base", tier="full", protocol=PROTOCOL)
-    assert scripted == ["heldout_loss"]
-    assert result["fast_fail"] == {
+def test_hard_fail_stops_the_battery(scripted: _Script) -> None:
+    scripted.status["heldout_loss"] = "fail"
+    result = _battery(scripted, tier="full")
+    assert scripted.candidate_calls() == ["heldout_loss"]
+    assert result["stop"] == {
         "stopped": True,
+        "kind": "fast_fail",
         "at": "heldout_loss",
         "reason": "fast-fail: hard failure in heldout_loss",
     }
@@ -346,44 +562,152 @@ def test_hard_fail_stops_the_battery(scripted: Any) -> None:
     assert result["verdict"]["action"] == "abandon"
 
 
-def test_soft_fail_finishes_the_tier_but_does_not_escalate(scripted: Any) -> None:
-    scripted.script["calibration"] = "fail"
-    result = runner.run_battery("cand", "base", tier="standard", protocol=PROTOCOL)
-    assert scripted == [s.id for s in ordered("fast")]
+def test_soft_fail_finishes_the_tier_but_does_not_escalate(scripted: _Script) -> None:
+    scripted.status["calibration"] = "fail"
+    result = _battery(scripted, tier="standard")
+    assert scripted.candidate_calls() == [s.id for s in ordered("fast")]
     assert result["tiers_run"] == ["fast"]
-    assert "not escalating" in result["fast_fail"]["reason"]
-    off = runner.run_battery(
-        "cand", "base", tier="standard", protocol=PROTOCOL, fast_fail=False
-    )
+    assert result["stop"]["kind"] == "not_promising"
+    assert "not escalating" in result["stop"]["reason"]
+    scripted.calls.clear()
+    off = _battery(scripted, tier="standard", fast_fail=False)
     assert off["tiers_run"] == ["fast", "standard"]
 
 
-def test_probe_exception_is_an_error_row_not_a_crash(
-    scripted: Any, monkeypatch: pytest.MonkeyPatch
+def test_probe_exception_is_missing_evidence_not_a_crash_or_pass(
+    scripted: _Script,
 ) -> None:
-    def boom(spec, *args):
-        if spec.id == "calibration":
-            raise RuntimeError("kaput")
-        return runner._row(spec, status="pass", value=1.0, baseline_value=1.0)
+    def boom() -> None:
+        raise RuntimeError("kaput")
 
-    monkeypatch.setattr(runner, "_run_probe", boom)
+    scripted.hooks["cand:calibration"] = boom
     states: list[str] = []
-    result = runner.run_battery(
-        "cand",
-        "base",
-        tier="fast",
-        protocol=PROTOCOL,
-        progress=lambda s: states.append(s["state"]),
+    result = _battery(
+        scripted, tier="standard", progress=lambda s: states.append(s["state"])
     )
     row = next(r for r in result["probes"] if r["id"] == "calibration")
-    assert row["status"] == "error" and "kaput" in row["note"]
+    assert row["status"] == "error" and row["note"] == "candidate: RuntimeError: kaput"
+    # Missing evidence: no escalation to the next tier, and no pass.
+    assert result["tiers_run"] == ["fast"]
+    assert result["stop"]["kind"] == "missing_evidence"
+    verdict = result["verdict"]
+    assert verdict["status"] == "incomplete" and verdict["action"] == "rerun"
+    assert verdict["missing"][0]["id"] == "calibration"
     assert states[-1] == "done" and "running" in states
 
 
-def test_seal_detects_tampering() -> None:
-    sealed = runner.seal({"a": 1})
-    assert runner.verify(sealed)
-    assert not runner.verify({**sealed, "a": 2})
+def test_unavailable_optional_tier_is_incomplete(scripted: _Script) -> None:
+    def missing() -> None:
+        raise runner.ProbeUnsupported("lm-eval is not installed")
+
+    scripted.hooks["base:lm_eval"] = missing
+    scripted.status["heldout_loss"] = "pass"
+    result = _battery(scripted, tier="full")
+    row = next(r for r in result["probes"] if r["id"] == "lm_eval")
+    assert row["status"] == "unavailable"
+    assert row["note"] == "baseline: lm-eval is not installed"
+    assert result["verdict"]["status"] == "incomplete"
+    assert result["verdict"]["action"] == "rerun"
+
+
+def test_cancel_sentinel_stops_probing_at_the_next_safe_point(
+    scripted: _Script, tmp_path: Path
+) -> None:
+    context = LabContext(tmp_path / "CANCEL")
+    scripted.hooks["cand:heldout_loss"] = lambda: context.cancel_path.touch()
+    states: list[str] = []
+    result = _battery(
+        scripted,
+        tier="standard",
+        context=context,
+        progress=lambda s: states.append(s["state"]),
+    )
+    assert scripted.candidate_calls() == ["heldout_loss"]
+    assert result["stop"]["kind"] == "cancelled"
+    assert result["stop"]["at"] == "heldout_loss"
+    assert result["verdict"]["action"] == "rerun"
+    assert result["probes"][0]["status"] == "pass"  # completed work is kept
+    assert all(r["status"] == "skipped" for r in result["probes"][1:])
+    assert states[-1] == "stopped"
+
+
+def test_cancel_before_probing_loads_nothing(scripted: _Script, tmp_path: Path) -> None:
+    context = LabContext(tmp_path / "CANCEL")
+    context.cancel_path.touch()
+    result = _battery(scripted, context=context)
+    assert scripted.loads == [] and result["stop"]["kind"] == "cancelled"
+    assert result["target"] is None and result["verdict"]["action"] == "rerun"
+
+
+@pytest.mark.parametrize("error", [MemoryError, "torch"])
+def test_out_of_memory_stops_further_probe_work(scripted: _Script, error: Any) -> None:
+    import torch
+
+    def oom() -> None:
+        if error == "torch":
+            raise torch.OutOfMemoryError("CUDA out of memory")
+        raise MemoryError("host")
+
+    scripted.hooks["base:calibration"] = oom
+    result = _battery(scripted, tier="full")
+    assert scripted.calls == [("base", "heldout_loss"), ("base", "calibration")]
+    assert scripted.loads == ["base"]
+    assert result["stop"]["kind"] == "oom" and result["stop"]["at"] == "calibration"
+    assert not any(r["status"] == "error" for r in result["probes"])
+    assert result["verdict"]["status"] == "incomplete"
+    assert _FakeRun.alive == []  # the arm was released after the OOM
+
+
+def test_resource_envelope_violation_stops_probing(
+    scripted: _Script, tmp_path: Path
+) -> None:
+    from sparselab.resource_envelope import ResourceEnvelope
+
+    envelope = ResourceEnvelope(
+        resource_envelope_version=1, max_rss_bytes=1
+    )  # any live process exceeds this
+    context = LabContext(tmp_path / "CANCEL", resource_envelope=envelope)
+    result = _battery(scripted, context=context)
+    assert scripted.loads == []
+    assert result["stop"]["kind"] == "resources"
+    assert result["verdict"]["action"] == "rerun"
+
+
+def test_validation_is_computed_only_on_a_cache_miss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sparselab import lab_mode
+
+    forwards: list[int] = []
+
+    class _Run:
+        def evaluate(self, observer: Any = None) -> dict[str, Any]:
+            forwards.append(1)
+            return {"loss": 4.0, "valid_targets": 8}
+
+    loaded = _Loaded(_TinyTokenizer(), max_seq_len=64)
+    monkeypatch.setattr(lab_mode, "_with_eval_protocol", lambda loaded, p: _Run())
+    arm = runner.Arm(load=lambda: loaded)
+    first = runner.validation(loaded, arm, PROTOCOL)
+    again = runner.validation(loaded, arm, PROTOCOL)
+    assert forwards == [1] and again is first
+    runner.validation(loaded, arm, {**PROTOCOL, "max_batches": 2})
+    assert forwards == [1, 1]  # a different protocol is a miss
+    with pytest.raises(runner._NotComparable):
+        runner.validation(loaded, arm, {**PROTOCOL, "seq_len": 65})
+
+
+def test_sealed_records_detect_tampering(tmp_path: Path) -> None:
+    from sparselab.lab_records import read_lab_record, write_sealed
+
+    path = tmp_path / "probe.json"
+    write_sealed(path, {"format": runner.RESULT_FORMAT, "a": 1})
+    assert read_lab_record(path, "probe")[1]["a"] == 1
+    record = json.loads(path.read_text())
+    path.write_text(json.dumps({**record, "a": 2}))
+    with pytest.raises(ValueError):
+        read_lab_record(path, "probe")
+    assert seal({"a": 1})["record_sha256"]
 
 
 # --- Rendering ---------------------------------------------------------------
@@ -408,7 +732,7 @@ def _fake_result(**verdict: Any) -> dict[str, Any]:
         "suite": suite_identity(),
         "tier": "standard",
         "tiers_run": ["fast"],
-        "fast_fail": {"stopped": False, "at": None, "reason": None},
+        "stop": {"stopped": False, "kind": None, "at": None, "reason": None},
         "target": who,
         "baseline": who | {"run_id": "base"},
         "probes": [loss, calibration, skipped],
@@ -418,6 +742,7 @@ def _fake_result(**verdict: Any) -> dict[str, Any]:
             "action": "tweak",
             "next_tier": None,
             "reasons": [],
+            "missing": [],
             "suggestion": "Try again.",
             **verdict,
         },
@@ -428,7 +753,7 @@ def _fake_result(**verdict: Any) -> dict[str, Any]:
 def test_render_is_plain_without_color_and_shows_verdict_and_hints() -> None:
     text = render(_fake_result(), color=False)
     assert "\x1b[" not in text
-    assert text.startswith("PROBE BATTERY  sparselab-probe-battery v1")
+    assert text.startswith("PROBE BATTERY  sparselab-probe-battery v2")
     assert "✔ PASS" in text and "✖ FAIL" in text and "⊘ SKIPPED" in text
     assert "ppl 49.4" in text
     assert "↳ " + BY_ID["calibration"].suggests in text
@@ -436,6 +761,14 @@ def test_render_is_plain_without_color_and_shows_verdict_and_hints() -> None:
     assert "43.2k params" in text
     colored = render(_fake_result(), color=True)
     assert "\x1b[" in colored
+
+
+def test_render_names_missing_evidence() -> None:
+    gap = {"id": "lm_eval", "status": "unavailable", "note": "lm-eval not installed"}
+    result = _fake_result(status="incomplete", action="rerun", missing=[gap])
+    text = render(result, color=False)
+    assert "next → RERUN (missing evidence)" in text
+    assert "missing lm_eval (unavailable): lm-eval not installed" in text
 
 
 def test_meter_and_sparkline() -> None:
@@ -447,54 +780,147 @@ def test_meter_and_sparkline() -> None:
     assert sparkline([0.0, 1.0]) == "▁█"
 
 
-# --- lm-eval adapter (fake model) -------------------------------------------
+# --- Scoring and lm-eval boundaries (real tokenizer, fake model) -------------
 
 
-class _FakeLoaded:
-    class config:
-        class model:
-            max_seq_len = 4
+def _bigram(vocab: int) -> Callable[[Any, list[int]], np.ndarray]:
+    """Deterministic bigram model: log P(next | previous token) only."""
+    table = np.log(
+        np.random.default_rng(7).dirichlet(np.ones(vocab), size=vocab)
+    ).astype(np.float64)
 
-
-def _uniform(vocab: int, calls: list[list[int]]):
     def log_probs(loaded: Any, ids: list[int]) -> np.ndarray:
-        calls.append(list(ids))
-        assert len(ids) <= loaded.config.model.max_seq_len
-        return np.full((len(ids), vocab), -math.log(vocab))
+        assert 0 < len(ids) <= loaded.config.model.max_seq_len
+        return table[np.asarray(ids)]
 
+    log_probs.table = table  # type: ignore[attr-defined]
     return log_probs
 
 
-def test_rolling_logprob_scores_every_token_once(
+@pytest.fixture(scope="module")
+def smoke_tokenizer(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    from tokenizers import Tokenizer
+
+    root = tmp_path_factory.mktemp("tok")
+    _write_inputs(root)
+    return Tokenizer.from_file(str(root / "tokenizer" / "tokenizer.json"))
+
+
+def test_long_continuations_are_scored_completely(
+    smoke_tokenizer: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: leading answer tokens were dropped beyond max_seq_len."""
+    bigram = _bigram(smoke_tokenizer.get_vocab_size())
+    monkeypatch.setattr(scoring, "log_probs", bigram)
+    loaded = _Loaded(smoke_tokenizer, max_seq_len=8)
+    context = "The cat sat on the mat."
+    continuation = " " + " ".join(["and then it ran far away from home"] * 4)
+    ctx, cont = scoring.split_pair(loaded, context, continuation)
+    assert len(cont) > 2 * loaded.config.model.max_seq_len
+    tokens = [*ctx, *cont]
+    brute = sum(
+        bigram.table[tokens[i - 1], tokens[i]] for i in range(len(ctx), len(tokens))
+    )
+    total, count, _ = scoring.continuation_score(loaded, context, continuation)
+    assert count == len(cont)
+    assert total == pytest.approx(brute)
+    rolling = scoring.rolling_score(loaded, continuation)
+    ids = [scoring.eot(loaded), *scoring.encode(loaded, continuation)]
+    assert rolling == pytest.approx(
+        sum(bigram.table[ids[i - 1], ids[i]] for i in range(1, len(ids)))
+    )
+
+
+def test_score_tokens_windows_every_target_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[int]] = []
-    monkeypatch.setattr(lm_eval_adapter, "_log_probs", _uniform(10, calls))
-    monkeypatch.setattr(lm_eval_adapter, "_eos", lambda loaded: 0)
-    monkeypatch.setattr(
-        lm_eval_adapter, "_encode", lambda loaded, text: [int(c) for c in text]
-    )
-    total = lm_eval_adapter.rolling_logprob(_FakeLoaded(), "123456789")
-    assert total == pytest.approx(9 * -math.log(10))
+
+    def uniform(loaded: Any, ids: list[int]) -> np.ndarray:
+        calls.append(list(ids))
+        assert len(ids) <= loaded.config.model.max_seq_len
+        return np.full((len(ids), 10), -math.log(10))
+
+    monkeypatch.setattr(scoring, "log_probs", uniform)
+    loaded = _Loaded(_TinyTokenizer(), max_seq_len=4)
+    values, _ = scoring.score_tokens(loaded, list(range(10)), 1)
+    assert len(values) == 9 and values.sum() == pytest.approx(9 * -math.log(10))
     assert calls[0] == [0, 1, 2, 3]  # windows never exceed max_seq_len
+    with pytest.raises(ValueError):
+        scoring.score_tokens(loaded, [1, 2], 0)
 
 
-def test_continuation_logprob_and_greedy_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_continuation_greedy_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     def peaked(loaded: Any, ids: list[int]) -> np.ndarray:
-        rows = np.full((len(ids), 10), -20.0)
+        rows = np.full((len(ids), 50), -20.0)
         for i, token in enumerate(ids):
-            rows[i, (token + 1) % 10] = 0.0  # always predicts token + 1
+            rows[i, (token + 1) % 50] = 0.0  # always predicts token + 1
         return rows
 
-    monkeypatch.setattr(lm_eval_adapter, "_log_probs", peaked)
-    monkeypatch.setattr(lm_eval_adapter, "_eos", lambda loaded: 0)
-    monkeypatch.setattr(
-        lm_eval_adapter, "_encode", lambda loaded, text: [int(c) for c in text]
-    )
-    logprob, greedy = lm_eval_adapter.continuation_logprob(_FakeLoaded(), "12", "34")
-    assert logprob == pytest.approx(0.0) and greedy is True
-    logprob, greedy = lm_eval_adapter.continuation_logprob(_FakeLoaded(), "12", "35")
-    assert logprob == pytest.approx(-20.0) and greedy is False
+    monkeypatch.setattr(scoring, "log_probs", peaked)
+    tokenizer = _TinyTokenizer()
+    loaded = _Loaded(tokenizer)
+    for word in ("a", "b", "c", "d"):
+        tokenizer.encode(word)  # ids 1..4 in order
+    assert scoring.continuation_score(loaded, "a b", " c d") == (0.0, 2, True)
+    total, _, greedy = scoring.continuation_score(loaded, "a b", " d")
+    assert total == pytest.approx(-20.0) and greedy is False
+
+
+def test_split_pair_matches_the_harness_boundary_rules(smoke_tokenizer: Any) -> None:
+    loaded = _Loaded(smoke_tokenizer)
+
+    def enc(text: str) -> list[int]:
+        return scoring.encode(loaded, text)
+
+    # Trailing context whitespace moves into the continuation.
+    ctx, cont = scoring.split_pair(loaded, "Question: 2+2=  ", "4")
+    assert ctx == enc("Question: 2+2=")
+    assert cont == enc("Question: 2+2=  4")[len(ctx) :]
+    # Context and continuation are encoded together, then split by length.
+    for context, continuation in [
+        ("The quick brown", " fox"),
+        ("The quick bro", "wn fox"),
+        ("hello", "world"),
+    ]:
+        ctx, cont = scoring.split_pair(loaded, context, continuation)
+        whole = enc(context + continuation)
+        assert ctx == enc(context) and cont == whole[len(ctx) :]
+    # An empty context is a single end-of-text token.
+    ctx, cont = scoring.split_pair(loaded, "", "hello")
+    assert ctx == [scoring.eot(loaded)] and cont == enc("hello")
+
+
+def test_split_pair_agrees_with_lm_eval_when_installed(smoke_tokenizer: Any) -> None:
+    pytest.importorskip("lm_eval")
+    from lm_eval.api.model import TemplateLM
+
+    loaded = _Loaded(smoke_tokenizer)
+
+    class _Harness(TemplateLM):
+        eot_token_id = scoring.eot(loaded)
+
+        def tok_encode(self, string: str, **kwargs: Any) -> list[int]:
+            return scoring.encode(loaded, string)
+
+        def _loglikelihood_tokens(self, requests, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+        def loglikelihood_rolling(self, requests, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+        def generate_until(self, requests, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+    harness = _Harness()
+    for context, continuation in [
+        ("Question: what is it?  ", "a cat"),
+        ("The quick bro", "wn fox"),
+        ("Answer:", " yes"),
+    ]:
+        assert tuple(scoring.split_pair(loaded, context, continuation)) == tuple(
+            harness._encode_pair(context, continuation)
+        )
 
 
 def test_lm_eval_summary_prefers_acc_then_acc_norm() -> None:
@@ -549,7 +975,20 @@ def tried(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, Any
     delta.write_text(
         yaml.safe_dump({"question": "wider?", "set": {"model.ffn_dim": 128}})
     )
-    record, _ = run_try(delta, baseline, work_dir=root / "work")
+    from sparselab.evaluation.inference import InferenceRun
+
+    forwards: list[str] = []
+    native = InferenceRun.evaluate
+
+    def counted(self: Any, *args: Any, **kwargs: Any) -> Any:
+        forwards.append("evaluate")
+        return native(self, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(InferenceRun, "evaluate", counted)
+        record, _ = run_try(delta, baseline, work_dir=root / "work")
+    # One held-out scoring pass per arm; the probes reuse it (no extra forward).
+    assert forwards == ["evaluate", "evaluate"]
     return root, record
 
 
@@ -580,11 +1019,13 @@ def test_try_runs_the_fast_tier_and_records_it(
     assert [r["id"] for r in probe["probes"]] == [s.id for s in ordered("fast")]
     for row in probe["probes"]:
         assert set(row) == ROW_KEYS
-        assert row["status"] in {"pass", "warn", "fail", "skipped", "error"}
+        assert row["status"] in {"pass", "warn", "fail", "skipped"}
     assert set(probe["target"]) == IDENTITY_KEYS
     assert probe["target"]["run_id"] == record["arms"]["candidate"]["run_id"]
     assert probe["baseline"]["run_id"] == record["arms"]["baseline"]["run_id"]
     assert set(probe["verdict"]) == VERDICT_KEYS
+    assert probe["verdict"]["missing"] == [] and probe["stop"]["stopped"] is False
+    assert probe["target"]["eval_group"] == probe["baseline"]["eval_group"]
     loss = probe["probes"][0]
     # The probe's loss mirrors the lab try's native held-out loss exactly.
     assert loss["value"] == pytest.approx(
@@ -619,7 +1060,7 @@ def test_probe_cli_json_and_report(
         "--json",
     )
     result = json.loads(out)
-    assert set(result) >= RESULT_KEYS | {"probe_id", "result_sha256", "record"}
+    assert set(result) >= RESULT_KEYS | {"probe_id", "record_sha256", "record"}
     assert result["tiers_run"][0] == "fast"
     ids = [r["id"] for r in result["probes"]]
     assert ids == [s.id for s in ordered("standard")]
@@ -645,20 +1086,125 @@ def test_probe_cli_without_baseline_reports_absolute_values(
     assert "--vs BASELINE" in text
 
 
-def test_dashboard_history_reads_tries_and_probes(
+def test_standalone_probe_scores_validation_once_per_arm(
     tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    from sparselab.evaluation.inference import InferenceRun
+
+    root, record = tried
+    forwards: list[int] = []
+    native = InferenceRun.evaluate
+
+    def counted(self: Any, *args: Any, **kwargs: Any) -> Any:
+        forwards.append(1)
+        return native(self, *args, **kwargs)
+
+    monkeypatch.setattr(InferenceRun, "evaluate", counted)
+    out = _cli(
+        monkeypatch,
+        capsys,
+        root,
+        "probe",
+        record["arms"]["candidate"]["run_id"],
+        "--vs",
+        record["arms"]["baseline"]["run_id"],
+        "--json",
+    )
+    assert json.loads(out)["probes"][0]["status"] != "error"
+    # held-out loss and calibration share one validation pass per arm
+    assert len(forwards) == 2
+
+
+def test_report_rejects_an_edited_probe_record(
+    tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    root, record = tried
+    source = root / "work/lab/tries" / record["try_id"] / "try.json"
+    edited = json.loads(source.read_text())
+    edited["probe"]["verdict"]["action"] = "longer_run"
+    path = tmp_path / "try.json"
+    path.write_text(json.dumps(edited))
+    with pytest.raises(SystemExit):
+        _cli(monkeypatch, capsys, root, "report", str(path))
+
+
+def test_cancel_during_probing_keeps_the_training_comparison(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.lab_mode import run_try
+
+    baseline = _write_inputs(tmp_path)
+    delta = tmp_path / "wider.yaml"
+    delta.write_text(
+        yaml.safe_dump({"question": "wider?", "set": {"model.ffn_dim": 128}})
+    )
+    work = tmp_path / "work"
+    measure = runner._measure
+
+    def cancel_then_measure(spec, loaded, arm, protocol):
+        cancels = list((work / "lab/tries").glob("*/CANCEL"))
+        if not cancels:
+            (next((work / "lab/tries").glob("*/")) / "CANCEL").touch()
+        return measure(spec, loaded, arm, protocol)
+
+    monkeypatch.setattr(runner, "_measure", cancel_then_measure)
+    record, code = run_try(delta, baseline, work_dir=work)
+    assert record["status"] == "interrupted" and code != 0
+    assert record["interruption"]["phase"] == "probing"
+    probe = record["probe"]
+    assert probe["stop"]["kind"] == "cancelled"
+    assert probe["verdict"]["action"] == "rerun"
+    # The completed training comparison survives the cancelled battery.
+    assert record["comparison"]["heldout_loss_delta"] is not None
+    assert record["arms"]["candidate"]["heldout"]["loss"] is not None
+
+
+def test_dashboard_history_reads_verified_records(
+    tried: tuple[Path, dict[str, Any]], tmp_path: Path
+) -> None:
+    import shutil
+
     from sparselab.dashboard.probe_data import (
         history_rows,
         live_batteries,
-        load_entries,
+        load_history,
         pareto_frontier,
+        pareto_points,
     )
 
     root, record = tried
-    entries = load_entries(root / "work/lab")
+    entries, rejected = load_history(root / "work/lab")
     assert any(e.source == "try" and e.key == record["try_id"] for e in entries)
+    assert rejected == []
     rows = history_rows(entries)
     assert all(r["verdict"] for r in rows)
     assert live_batteries(root / "work/lab") == []  # finished batteries are not live
     assert pareto_frontier([(1, 3), (2, 2), (3, 3), (0.5, 4)]) == [3, 0, 1]
+
+    # The dashboard rejects an edited record exactly like `report` does.
+    lab = tmp_path / "lab"
+    shutil.copytree(root / "work/lab/tries", lab / "tries")
+    edited = lab / "tries" / record["try_id"] / "try.json"
+    body = json.loads(edited.read_text())
+    body["probe"]["verdict"]["status"] = "pass"
+    body["probe"]["verdict"]["action"] = "longer_run"
+    edited.write_text(json.dumps(body))
+    kept, dropped = load_history(lab)
+    assert record["try_id"] not in {e.key for e in kept}
+    assert [path for path, _ in dropped] == [edited]
+
+    # Pareto points: one per checkpoint, grouped by eval protocol identity.
+    points = pareto_points(entries)
+    checkpoints = [p["checkpoint"] for p in points]
+    assert len(checkpoints) == len(set(checkpoints))
+    probe = record["probe"]
+    assert {
+        probe["target"]["checkpoint_sha256"],
+        probe["baseline"]["checkpoint_sha256"],
+    } <= set(checkpoints)
+    assert {p["eval_group"] for p in points} == {probe["target"]["eval_group"]}

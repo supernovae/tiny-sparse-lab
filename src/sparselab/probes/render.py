@@ -18,6 +18,7 @@ GLYPH = {
     "fail": "✖",
     "info": "•",
     "skipped": "⊘",
+    "unavailable": "○",
     "not_comparable": "≠",
     "error": "!",
     "incomplete": "…",
@@ -28,6 +29,7 @@ COLOR = {
     "fail": "31",
     "info": "36",
     "skipped": "2",
+    "unavailable": "33",
     "not_comparable": "35",
     "error": "31;1",
     "incomplete": "33",
@@ -35,6 +37,7 @@ COLOR = {
 ACTION_TEXT = {
     "abandon": "ABANDON",
     "tweak": "TWEAK",
+    "rerun": "RERUN (missing evidence)",
     "escalate": "ESCALATE",
     "longer_run": "LONGER RUN",
     "compare": "COMPARE",
@@ -175,7 +178,7 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
     for row in result["probes"]:
         status = row["status"]
         badge = _paint(
-            f"{GLYPH.get(status, '?')} {status.upper().replace('_', ' '):<8}",
+            f"{GLYPH.get(status, '?')} {status.upper().replace('_', ' '):<11}",
             COLOR.get(status, "0"),
             color,
         )
@@ -198,7 +201,7 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
             )
         elif row.get("note") and status in {"not_comparable", "error", "info"}:
             lines.append(" " * 13 + _paint(f"↳ {row['note']}", "2", color))
-    stop = result.get("fast_fail") or {}
+    stop = result.get("stop") or {}
     if stop.get("stopped"):
         lines.append(_paint(f"\n  ⚡ {stop['reason']}", "33", color))
     verdict = result["verdict"]
@@ -217,6 +220,11 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
         + (f" (--tier {verdict['next_tier']})" if verdict.get("next_tier") else "")
     )
     lines.append(f"  {verdict['suggestion']}")
+    for gap in verdict.get("missing") or []:
+        lines.append(
+            _paint("  missing ", "33", color)
+            + f"{gap['id']} ({gap['status']}): {gap.get('note') or ''}".rstrip(": ")
+        )
     guard = result.get("guard") or {}
     if guard.get("probes"):
         parts = [

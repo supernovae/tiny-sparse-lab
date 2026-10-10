@@ -15,8 +15,9 @@ from plotly.subplots import make_subplots
 from sparselab.dashboard.probe_data import (
     history_rows,
     live_batteries,
-    load_entries,
+    load_history,
     pareto_frontier,
+    pareto_points,
 )
 from sparselab.probes.suite import PROBES, suite_identity
 
@@ -28,7 +29,9 @@ STATUS_COLOR = {
     "skipped": "#6e7781",
     "not_comparable": "#8250df",
     "error": "#cf222e",
-    "incomplete": "#b58100",
+    "unavailable": "#b58100",
+    "incomplete": "#8250df",
+    "baseline": "#8c959f",
 }
 STATUS_ICON = {
     "pass": "✔",
@@ -38,11 +41,13 @@ STATUS_ICON = {
     "skipped": "⊘",
     "not_comparable": "≠",
     "error": "!",
+    "unavailable": "○",
     "incomplete": "…",
 }
 ACTION_TEXT = {
     "abandon": "Abandon this idea",
     "tweak": "Tweak and retry",
+    "rerun": "Fix the missing checks and re-run",
     "escalate": "Escalate to the next tier",
     "longer_run": "Schedule a longer run",
     "compare": "Compare against a baseline",
@@ -123,10 +128,20 @@ def _verdict_banner(result: dict[str, Any]) -> None:
         if guard.get("overfit_suspected")
         else "held-out split decides; no dev/held-out divergence"
     )
-    stop = result.get("fast_fail") or {}
+    stop = result.get("stop") or {}
     stop_text = (
-        f"<p>⚡ {html.escape(stop['reason'])}</p>" if stop.get("stopped") else ""
+        f"<p>⚡ {html.escape(str(stop['reason']))}</p>" if stop.get("stopped") else ""
     )
+    missing = verdict.get("missing") or []
+    if missing:
+        stop_text += (
+            "<p><b>Missing evidence:</b> "
+            + "; ".join(
+                html.escape(f"{m['id']} ({m['status']}): {m.get('note') or ''}")
+                for m in missing
+            )
+            + "</p>"
+        )
     st.markdown(
         f'<div class="pb-banner" style="background:{STATUS_COLOR.get(status, "#0969da")}">'
         f"<h3>{STATUS_ICON.get(status, '?')} {html.escape(status.upper())} · "
@@ -291,7 +306,12 @@ def _explain() -> None:
         "**hard** failure stops the battery (fast-fail) and the battery only escalates "
         "to the next tier when nothing failed. Verdicts use the **held-out** item "
         "split only; the **dev** split is free to look at, and a dev gain the "
-        "held-out split does not share raises the overfit guard."
+        "held-out split does not share raises the overfit guard. Probes are "
+        "screening signals, not proof that an idea is useful: selecting on them "
+        "again and again turns the held-out items into development data, so keep "
+        "a separate, untouched final evaluation. A missing check (optional tier "
+        "not installed, a probe error) makes the battery **incomplete**, never a "
+        "pass."
     )
     for spec in PROBES:
         fail = "—" if spec.fail is None else f"{spec.fail:g}"
@@ -314,11 +334,11 @@ def _explain() -> None:
             )
 
 
-def _history(entries: list[Any]) -> pd.DataFrame:
+def _history(entries: list[Any]) -> None:
     frame = pd.DataFrame(history_rows(entries))
     if frame.empty:
         st.info("No probe results yet.")
-        return frame
+        return
     frame["when"] = pd.to_datetime(frame["when"], errors="coerce", utc=True)
     shown = frame[
         [
@@ -356,14 +376,29 @@ def _history(entries: list[Any]) -> pd.DataFrame:
         st.warning(
             "History mixes probe suite versions; only compare rows with the same suite digest."
         )
-    return frame
 
 
-def _pareto(frame: pd.DataFrame) -> None:
-    if frame.empty or frame["loss"].dropna().empty:
+def _pareto(entries: list[Any], selected: Any) -> None:
+    points = pd.DataFrame(pareto_points(entries))
+    if points.empty:
         st.info("The Pareto view needs at least one result with a held-out loss.")
         return
-    axis = st.radio(
+    groups = list(dict.fromkeys(points["eval_group"].dropna()))
+    own = (selected.result.get("target") or {}).get("eval_group")
+    default = groups.index(own) if own in groups else 0
+    controls = st.columns([2, 3])
+    group = controls[0].selectbox(
+        "Comparison group",
+        groups,
+        index=default,
+        key="probe_pareto_group",
+        format_func=lambda g: (
+            f"{g[:12]} · {int((points['eval_group'] == g).sum())} checkpoints"
+        ),
+        help="Only checkpoints scored on the same validation data, tokenizer, "
+        "loss mask and eval protocol share a loss scale.",
+    )
+    axis = controls[1].radio(
         "Cost axis",
         ("parameters", "parameter_bytes", "tokens_seen", "ms_per_token"),
         horizontal=True,
@@ -375,15 +410,16 @@ def _pareto(frame: pd.DataFrame) -> None:
             "ms_per_token": "latency (ms/token)",
         }[name],
     )
-    # One point per candidate checkpoint: the newest result wins.
-    data = (
-        frame.dropna(subset=["loss", axis])
-        .drop_duplicates(subset=["target"], keep="first")
-        .reset_index(drop=True)
-    )
+    data = points[points["eval_group"] == group].dropna(subset=["loss", axis])
+    data = data.reset_index(drop=True)
     if data.empty:
-        st.info(f"No results record {axis}.")
+        st.info(f"No checkpoints in this group record {axis}.")
         return
+    if len(groups) > 1:
+        st.caption(
+            f"{len(groups) - 1} other comparison group(s) hidden: their losses are "
+            "on a different scale."
+        )
     front = pareto_frontier(list(zip(data[axis], data["loss"], strict=True)))
     data["frontier"] = data.index.isin(front)
     chart = px.scatter(
@@ -391,9 +427,11 @@ def _pareto(frame: pd.DataFrame) -> None:
         x=axis,
         y="loss",
         color="verdict",
-        hover_data=["id", "idea", "action"],
+        symbol="role",
+        hover_data=["label", "checkpoint", "source"],
         color_discrete_map=STATUS_COLOR,
-        title="Quality vs cost: lower-left is better; the line is the Pareto frontier",
+        title="Quality vs cost per checkpoint: lower-left is better; the line is "
+        "the Pareto frontier",
     )
     frontier = data[data["frontier"]].sort_values(axis)
     chart.add_trace(
@@ -437,7 +475,13 @@ def probe_page(lab_dir: Path) -> None:
         f"{lab_dir}"
     )
     _live(lab_dir)
-    entries = load_entries(lab_dir)
+    entries, rejected = load_history(lab_dir)
+    if rejected:
+        with st.expander(
+            f"⚠ {len(rejected)} record(s) rejected (edited or unreadable)"
+        ):
+            for path, reason in rejected:
+                st.markdown(f"`{html.escape(str(path))}`: {html.escape(reason)}")
     if not entries:
         st.info(
             "No probe results yet. Run `sparselab try DELTA.yaml --vs BASELINE.yaml` "
@@ -492,6 +536,6 @@ def probe_page(lab_dir: Path) -> None:
     with explain_tab:
         _explain()
     with history_tab:
-        frame = _history(entries)
+        _history(entries)
     with pareto_tab:
-        _pareto(frame)
+        _pareto(entries, entry)

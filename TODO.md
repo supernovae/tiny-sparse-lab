@@ -30,7 +30,14 @@ These items take priority over new lifecycle, admission or orchestration code.
   minutes on any checkpoint: held-out perplexity delta vs. baseline, top-token
   agreement with baseline, fact recall with reworded (held-out) prompts, simple
   needle-in-context retrieval. Cheap metrics filter most ideas before any longer
-  run.
+  run. Probes are screening signals: keep a separate, untouched final evaluation
+  because repeated selection on held-out probes turns them into development data.
+- [ ] **Probe battery follow-ups.** Reference models on the probe and Pareto
+  views (SmolLM2/Pythia scored by the same battery, see below); more dashboard
+  charts (per-probe trends over tries, needle accuracy by length across
+  checkpoints, calibration curves); broader benchmarks beyond the four lm-eval
+  tasks at `limit=50` (larger limits, more task families, a held-back final
+  evaluation set that agents never select on).
 - [ ] **P1 — Known reference points.** *Partial: `probe --tier full` wraps
   lm-evaluation-harness tasks for our checkpoints; importing SmolLM2/Pythia
   checkpoints is still open.* Import SmolLM2 and Pythia checkpoints in

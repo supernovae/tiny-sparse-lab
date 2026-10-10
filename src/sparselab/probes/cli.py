@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import secrets
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sparselab.probes.runner import (
-    RESULT_FORMAT,
-    progress_writer,
-    run_battery,
-    seal,
-    verify,
-    write_json_atomic,
-)
+from sparselab.lab_context import LabContext, LabSignal
+from sparselab.lab_records import read_lab_record, write_sealed
+from sparselab.probes.runner import Arm, progress_writer, run_battery
 
 
 def _run_root(path: Path) -> Path | None:
@@ -78,52 +73,66 @@ def run_probe(
     fast_fail: bool = True,
     backend: str | None = None,
     authorization: Any = None,
+    resource_envelope: Any = None,
 ) -> tuple[dict[str, Any], Path]:
-    """Run the battery and publish ``LAB/probes/<id>/probe.json`` (sealed)."""
+    """Run the battery and publish ``LAB/probes/<id>/probe.json`` (sealed).
+
+    The same :class:`LabContext` as ``sparselab try`` applies: touch
+    ``LAB/probes/<id>/CANCEL`` (or Ctrl-C) to stop at a safe point; a resource
+    envelope is checked before every probe. A stopped battery is still
+    published, marked incomplete.
+    """
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     probe_id = f"probe-{stamp}-{secrets.token_hex(4)}"
     folder = lab_dir / "probes" / probe_id
     folder.mkdir(parents=True, exist_ok=False)
     progress = progress_writer(folder / "progress.json")
     progress({"state": "loading", "tier": tier, "target": target_spec})
-    try:
-        target = load_target(
-            target_spec,
-            lab_dir=lab_dir,
-            runs_dir=runs_dir,
-            backend=backend,
-            authorization=authorization,
-        )
-        baseline = (
-            load_target(
-                baseline_spec,
+    context = LabContext(
+        folder / "CANCEL", resource_envelope=resource_envelope, workspace=lab_dir
+    )
+    print(
+        f"probe {probe_id}: touch {context.cancel_path} (or Ctrl-C) to stop",
+        file=sys.stderr,
+    )
+
+    def arm(spec: str) -> Arm:
+        # Resolve now (fail fast on a typo); load lazily, one arm at a time.
+        resolve_target(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+        return Arm(
+            load=lambda: load_target(
+                spec,
                 lab_dir=lab_dir,
                 runs_dir=runs_dir,
                 backend=backend,
                 authorization=authorization,
             )
-            if baseline_spec is not None
-            else None
         )
+
+    context.install()
+    try:
         result = run_battery(
-            target, baseline, tier=tier, fast_fail=fast_fail, progress=progress
+            arm(target_spec),
+            arm(baseline_spec) if baseline_spec is not None else None,
+            tier=tier,
+            fast_fail=fast_fail,
+            progress=progress,
+            context=context,
         )
-    except BaseException as error:
-        progress({"state": "failed", "error": f"{type(error).__name__}: {error}"})
+    except (LabSignal, KeyboardInterrupt, Exception) as error:
+        context.finalizing = True
+        name = error.name if isinstance(error, LabSignal) else type(error).__name__
+        progress({"state": "failed", "error": f"{name}: {error}"})
+        if isinstance(error, (LabSignal, KeyboardInterrupt)):
+            raise KeyboardInterrupt from None
         raise
-    result = seal({**result, "probe_id": probe_id})
+    finally:
+        context.restore()
     path = folder / "probe.json"
-    write_json_atomic(path, result, exclusive=True)
-    return result, path
+    sealed = write_sealed(path, {**result, "probe_id": probe_id})
+    return sealed, path
 
 
 def read_probe(path: Path) -> dict[str, Any]:
-    path = Path(path)
-    if path.is_dir():
-        path = path / "probe.json"
-    result = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(result, dict) or result.get("format") != RESULT_FORMAT:
-        raise ValueError(f"not a probe record: {path}")
-    if not verify(result):
-        raise ValueError(f"probe record digest mismatch: {path}")
-    return result
+    """Verified probe record (the shared lab-record reader)."""
+    return read_lab_record(path, "probe")[1]

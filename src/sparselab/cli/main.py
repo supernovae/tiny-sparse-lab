@@ -2450,27 +2450,21 @@ def _try(args: argparse.Namespace) -> None:
 
 def _report(args: argparse.Namespace) -> None:
     """Read one sealed lab try or probe record without rerunning anything."""
-    from sparselab.lab_mode import lab_root, read_record, summarize
-    from sparselab.probes.cli import read_probe
+    from sparselab.lab_mode import lab_root, summarize
+    from sparselab.lab_records import read_lab_record, resolve_record
     from sparselab.probes.render import render, use_color
 
-    target = Path(args.record)
     root = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)
-    if not target.exists() and target.parent == Path():
-        kind = "probes" if args.record.startswith("probe-") else "tries"
-        target = root / kind / args.record
-    probe_file = target / "probe.json" if target.is_dir() else target
-    if probe_file.name == "probe.json" and probe_file.is_file():
-        result = read_probe(probe_file)
-        if args.json:
-            print(json.dumps(result, indent=2, sort_keys=True))
-        else:
-            print(render(result, color=use_color()))
-            print(f"  record: {probe_file}")
-        return
-    record = read_record(target)
+    target = resolve_record(args.record, root)
+    try:
+        kind, record = read_lab_record(target)
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"sparselab report: {error}") from None
     if args.json:
         print(json.dumps(record, indent=2, sort_keys=True))
+    elif kind == "probe":
+        print(render(record, color=use_color()))
+        print(f"  record: {target}")
     else:
         print(summarize(record, target, color=use_color()))
 
@@ -2491,6 +2485,7 @@ def _probe(args: argparse.Namespace) -> None:
             fast_fail=not args.no_fast_fail,
             backend=args.backend,
             authorization=args.runtime_authorization,
+            resource_envelope=args.resource_envelope_value,
         )
     except (ValueError, OSError) as error:
         raise SystemExit(f"sparselab probe: {error}") from None
@@ -2702,6 +2697,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     probe.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
     probe.add_argument("--runs-dir", help="Also look up run ids here")
+    probe.add_argument(
+        "--resource-envelope",
+        type=Path,
+        help="ResourceEnvelope YAML checked before every probe",
+    )
     probe.add_argument(
         "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
     )

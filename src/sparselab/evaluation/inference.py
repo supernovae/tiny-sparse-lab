@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -78,8 +79,13 @@ class InferenceRun:
             else None,
         )
 
-    def evaluate(self) -> dict[str, float | int | str | None]:
-        """Evaluate through the run's native engine without changing its RNG or mode."""
+    def evaluate(
+        self, observer: Callable[[Any, Any], None] | None = None
+    ) -> dict[str, float | int | str | None]:
+        """Evaluate through the run's native engine without changing its RNG or mode.
+
+        ``observer(logits, targets)`` sees each scored PyTorch batch.
+        """
         dataset = self.validation_dataset()
         if self.engine is None:
             from sparselab.evaluation.language_model import evaluate
@@ -91,7 +97,10 @@ class InferenceRun:
                 batch_size=self.config.training.micro_batch_size,
                 max_batches=self.config.evaluation.max_batches,
                 device=self.device,
+                observer=observer,
             )
+        if observer is not None:
+            raise ValueError("evaluation observers need the PyTorch engine")
         batch_size = self.config.training.micro_batch_size
         limit = min(len(dataset), batch_size * self.config.evaluation.max_batches)
 

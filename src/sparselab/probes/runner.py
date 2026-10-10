@@ -1,24 +1,39 @@
-"""Run the probe battery on loaded checkpoints, cheapest probes first."""
+"""Run the probe battery, cheapest probes first, one loaded arm at a time.
+
+Each arm (baseline, candidate) is loaded, measured for the current tier and
+released before the other is loaded, so a battery never holds two models in
+memory. Measurements are cached per arm (validation is scored once and shared
+by held-out loss and calibration; inside ``sparselab try`` it is the try's own
+scoring pass). A :class:`~sparselab.lab_context.LabContext` is checked before
+every probe: a cancel sentinel or a violated resource envelope stops the
+battery at that safe point, and an out-of-memory error stops further probe work
+instead of becoming an ordinary error row. A stopped battery keeps everything
+measured so far and is ``incomplete``.
+"""
 
 from __future__ import annotations
 
 import hashlib
-import json
 import math
-import os
-import secrets
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from sparselab.probes import metrics
+from sparselab.lab_context import (
+    LabCancelled,
+    LabContext,
+    is_out_of_memory,
+    release_memory,
+)
+from sparselab.lab_records import PROBE_FORMAT, canonical, write_json_atomic
+from sparselab.probes import metrics, scoring
 from sparselab.probes.suite import (
     BY_ID,
-    TIERS,
     ProbeSpec,
     fact_items,
     needle_split,
@@ -27,9 +42,9 @@ from sparselab.probes.suite import (
     suite_identity,
     tiers_through,
 )
-from sparselab.probes.verdict import decide, judge, overfit_guard
+from sparselab.probes.verdict import MISSING_STATUSES, decide, judge, overfit_guard
 
-RESULT_FORMAT = "sparselab-probe-v1"
+RESULT_FORMAT = PROBE_FORMAT
 NEAR_IDENTICAL_JS = 0.01
 Progress = Callable[[dict[str, Any]], None]
 
@@ -38,13 +53,22 @@ class ProbeUnsupported(ValueError):
     """The checkpoint cannot run this probe (e.g. a non-PyTorch engine)."""
 
 
-# --- Model access ------------------------------------------------------------
+class _NotComparable(Exception):
+    pass
 
 
-def _torch():
-    import torch
+@dataclass
+class Arm:
+    """One side of a comparison: how to load it and what is already measured."""
 
-    return torch
+    load: Callable[[], Any]
+    cache: dict[str, Any] = field(default_factory=dict)
+
+
+def as_arm(value: Any) -> Arm | None:
+    if value is None or isinstance(value, Arm):
+        return value
+    return Arm(load=lambda: value)
 
 
 def _require_torch_engine(loaded: Any) -> None:
@@ -54,163 +78,64 @@ def _require_torch_engine(loaded: Any) -> None:
         raise ProbeUnsupported("probes do not support attached semantic packs")
 
 
-def _byte_inputs(loaded: Any, ids: list[int]) -> dict[str, Any]:
-    config = loaded.config.model
-    if config.memory not in {"byte", "portable"}:
-        return {}
-    from sparselab.evaluation.generation import _addresses_from_ids
-
-    torch = _torch()
-    addresses = _addresses_from_ids(
-        loaded.tokenizer, ids, config.memory_table_size, config.memory_ngram_size
-    )
+def _identity(loaded: Any) -> dict[str, Any]:
+    identity = loaded.identity
+    parameters = list(loaded.model.parameters())
     return {
-        "byte_addresses": torch.tensor(
-            [addresses], dtype=torch.long, device=loaded.device
-        )
+        "run_id": identity.get("run_id"),
+        "run_dir": str(loaded.run),
+        "checkpoint": identity.get("checkpoint_relative_path"),
+        "checkpoint_sha256": identity.get("checkpoint_sha256"),
+        "step": identity.get("step"),
+        "tokens_seen": identity.get("tokens_seen"),
+        "parameters": sum(p.numel() for p in parameters),
+        "parameter_bytes": sum(p.numel() * p.element_size() for p in parameters),
+        "tokenizer_sha256": identity.get("tokenizer_sha256"),
+        "validation_sha256": (identity.get("data_sha256") or {}).get("validation"),
+        "max_seq_len": loaded.config.model.max_seq_len,
     }
 
 
-def _log_probs(loaded: Any, ids: list[int]) -> np.ndarray:
-    """Log-softmax over the vocabulary at every position of IDS -> [T, V]."""
-    torch = _torch()
-    ids = ids[-loaded.config.model.max_seq_len :]
-    x = torch.tensor([ids], dtype=torch.long, device=loaded.device)
-    with torch.inference_mode():
-        logits = loaded.model(x, **_byte_inputs(loaded, ids))[0].float()
-        return torch.log_softmax(logits, dim=-1).cpu().numpy().astype(np.float64)
+def _validation_identity(loaded: Any) -> dict[str, Any]:
+    from sparselab.lab_mode import _data_identity, _supervision_identity
+
+    data = _data_identity(loaded.run)
+    return {
+        "validation_sha256": data["validation_sha256"],
+        "tokenizer_sha256": data["tokenizer_sha256"],
+        **_supervision_identity(loaded.run),
+    }
 
 
-def _encode(loaded: Any, text: str) -> list[int]:
-    return list(loaded.tokenizer.encode(text, add_special_tokens=False).ids)
+def _tokenizer_digest(loaded: Any) -> str:
+    return hashlib.sha256(loaded.tokenizer.to_str().encode()).hexdigest()
 
 
-def _answer_score(loaded: Any, prefix: str, answer: str) -> float:
-    """Mean log-probability of `` answer`` after PREFIX (context kept on the right)."""
-    prefix_ids = _encode(loaded, prefix)
-    full = _encode(loaded, f"{prefix} {answer}")
-    if full[: len(prefix_ids)] != prefix_ids or len(full) <= len(prefix_ids):
-        # Tokenization merged across the boundary; score the differing suffix.
-        common = 0
-        while common < min(len(full), len(prefix_ids)) and (
-            full[common] == prefix_ids[common]
-        ):
-            common += 1
-        prefix_ids = full[: max(common, 1)]
-    answer_count = len(full) - len(prefix_ids)
-    limit = loaded.config.model.max_seq_len + 1
-    window = full[-limit:]
-    log_probs = _log_probs(loaded, window[:-1])
-    targets = window[1:][-answer_count:]
-    rows = log_probs[-answer_count:]
-    return float(np.mean(rows[np.arange(answer_count), targets]))
+def _describe(loaded: Any, arm: Arm) -> None:
+    """Identity facts recorded the first time an arm is opened."""
+    if "identity" not in arm.cache:
+        arm.cache["identity"] = _identity(loaded)
+        arm.cache["validation_identity"] = _validation_identity(loaded)
+        arm.cache["tokenizer_digest"] = _tokenizer_digest(loaded)
+        arm.cache["config"] = loaded.config
 
 
-class _Session:
-    """Per-checkpoint state with eval mode and cached shared computations."""
-
-    def __init__(self, loaded: Any) -> None:
-        _require_torch_engine(loaded)
-        self.loaded = loaded
-        self.cache: dict[str, Any] = {}
-        self._was_training = loaded.model.training
-        loaded.model.eval()
-
-    def close(self) -> None:
-        self.loaded.model.train(self._was_training)
-
-    @property
-    def identity(self) -> dict[str, Any]:
-        loaded = self.loaded
-        identity = loaded.identity
-        parameters = sum(p.numel() for p in loaded.model.parameters())
-        parameter_bytes = sum(
-            p.numel() * p.element_size() for p in loaded.model.parameters()
-        )
-        return {
-            "run_id": identity.get("run_id"),
-            "run_dir": str(loaded.run),
-            "checkpoint": identity.get("checkpoint_relative_path"),
-            "checkpoint_sha256": identity.get("checkpoint_sha256"),
-            "step": identity.get("step"),
-            "tokens_seen": identity.get("tokens_seen"),
-            "parameters": parameters,
-            "parameter_bytes": parameter_bytes,
-            "tokenizer_sha256": identity.get("tokenizer_sha256"),
-            "validation_sha256": (identity.get("data_sha256") or {}).get("validation"),
-            "max_seq_len": loaded.config.model.max_seq_len,
-        }
+# --- Per-arm measurements ----------------------------------------------------
 
 
-# --- Probe computations ------------------------------------------------------
-
-
-def validation_pass(loaded: Any, protocol: Mapping[str, int]) -> dict[str, Any]:
-    """Per-window loss sums plus top-1 confidence/correctness, native semantics.
-
-    Mirrors ``evaluation.language_model.evaluate`` (same windows, masks and
-    byte addresses) so the mean equals the native held-out loss.
-    """
+def validation(loaded: Any, arm: Arm, protocol: Mapping[str, int]) -> dict[str, Any]:
+    """Native held-out scoring with the probe observer, computed once per arm."""
+    cached = arm.cache.get("validation")
+    if cached is not None and cached.get("protocol") == dict(protocol):
+        return cached
+    if protocol["seq_len"] > loaded.config.model.max_seq_len:
+        raise _NotComparable("baseline eval window exceeds this model's max_seq_len")
     from sparselab.lab_mode import _with_eval_protocol
 
-    torch = _torch()
-    from sparselab.data.allocation import OWNER_HYBRID, OWNER_LEXICAL
-
-    scored = _with_eval_protocol(loaded, protocol)
-    dataset = scored.validation_dataset()
-    limit = min(len(dataset), protocol["batch_size"] * protocol["max_batches"])
-    sums: list[float] = []
-    counts: list[int] = []
-    confidences: list[np.ndarray] = []
-    correct: list[np.ndarray] = []
-    started = time.monotonic()
-    tokens = 0
-    with torch.inference_mode():
-        for index in range(limit):
-            inputs, targets, addresses, owners, queries, masks = (
-                dataset.numpy_microblock(index)
-            )
-            if queries is not None or masks is not None:
-                raise ProbeUnsupported("semantic-query validation is not supported")
-            x = torch.from_numpy(np.asarray(inputs)[None]).to(loaded.device)
-            y = torch.from_numpy(np.asarray(targets)[None]).to(loaded.device)
-            kwargs: dict[str, Any] = {}
-            if addresses is not None:
-                kwargs["byte_addresses"] = torch.from_numpy(
-                    np.asarray(addresses)[None]
-                ).to(loaded.device)
-            if owners is not None:
-                owner = np.asarray(owners)[None]
-                kwargs["memory_mask"] = torch.from_numpy(
-                    (owner == OWNER_LEXICAL) | (owner == OWNER_HYBRID)
-                ).to(loaded.device)
-            logits = loaded.model(x, **kwargs)[0].float()
-            log_probs = torch.log_softmax(logits, dim=-1)
-            valid = y[0] != -100
-            target = y[0].clamp(min=0)
-            nll = -log_probs.gather(1, target[:, None])[:, 0]
-            sums.append(float(nll[valid].sum()))
-            counts.append(int(valid.sum()))
-            top = log_probs.max(dim=-1)
-            confidences.append(top.values.exp()[valid].cpu().numpy())
-            correct.append((top.indices == target)[valid].cpu().numpy())
-            tokens += int(x.numel())
-    elapsed = time.monotonic() - started
-    total = sum(counts)
-    if total == 0:
-        raise ValueError("validation contains no valid labels")
-    return {
-        "loss": sum(sums) / total,
-        "window_losses": [s / c if c else float("nan") for s, c in zip(sums, counts)],
-        "window_sums": sums,
-        "window_counts": counts,
-        "valid_targets": total,
-        "windows": limit,
-        "confidences": np.concatenate(confidences),
-        "correct": np.concatenate(correct),
-        "accuracy": float(np.concatenate(correct).mean()),
-        "ms_per_token": 1000.0 * elapsed / max(tokens, 1),
-    }
+    stats = scoring.ValidationStats()
+    native = _with_eval_protocol(loaded, protocol).evaluate(observer=stats)
+    arm.cache["validation"] = {**stats.result(native), "protocol": dict(protocol)}
+    return arm.cache["validation"]
 
 
 def generations(loaded: Any, max_new_tokens: int) -> list[dict[str, Any]]:
@@ -232,18 +157,6 @@ def generations(loaded: Any, max_new_tokens: int) -> list[dict[str, Any]]:
             {"prompt": prompt, "continuation": text.removeprefix(prompt), "ids": ids}
         )
     return rows
-
-
-def ranking_accuracy(loaded: Any, items: list[dict[str, Any]]) -> dict[str, Any]:
-    hits = []
-    for item in items:
-        scores = {
-            c: _answer_score(loaded, item["prefix"], c) for c in item["candidates"]
-        }
-        best = max(scores, key=lambda c: (scores[c], c == item["answer"]))
-        hits.append(best == item["answer"])
-    accuracy = float(np.mean(hits)) if hits else None
-    return {"accuracy": accuracy, "n": len(hits), "hits": [bool(h) for h in hits]}
 
 
 def recall_items(split: str) -> list[dict[str, Any]]:
@@ -271,56 +184,117 @@ def needle_items(loaded: Any, split: str, fractions: list[float]) -> list[dict]:
             while True:
                 candidate = parts + [filler[k % len(filler)]]
                 text = " ".join([*candidate, spec["question"], word])
-                if len(_encode(loaded, text)) > target:
+                if len(scoring.encode(loaded, text)) > target:
                     break
                 parts = candidate
                 k += 1
+            prefix = " ".join([*parts, spec["question"]])
             items.append(
                 {
-                    "prefix": " ".join([*parts, spec["question"]]),
+                    "prefix": prefix,
                     "answer": word,
                     "candidates": spec["needles"],
                     "fraction": fraction,
-                    "tokens": len(
-                        _encode(loaded, " ".join([*parts, spec["question"]]))
-                    ),
+                    "tokens": len(scoring.encode(loaded, prefix)),
                 }
             )
     return items
 
 
-def _divergence(target: _Session, base: _Session) -> dict[str, Any]:
-    log_p_rows, log_q_rows = [], []
-    for prompt in prompts("heldout"):
-        ids = _encode(target.loaded, prompt)
-        log_p_rows.append(_log_probs(base.loaded, ids))
-        log_q_rows.append(_log_probs(target.loaded, ids))
-    log_p = np.concatenate(log_p_rows)
-    log_q = np.concatenate(log_q_rows)
-    return {
-        "top1_agreement": metrics.top1_agreement(log_p, log_q),
-        "kl_base_to_candidate": float(metrics.kl_divergence(log_p, log_q).mean()),
-        "js": float(metrics.js_divergence(log_p, log_q).mean()),
-        "positions": int(log_p.shape[0]),
-    }
+def _measure(
+    spec: ProbeSpec, loaded: Any, arm: Arm, protocol: Mapping[str, int]
+) -> dict[str, Any]:
+    """Everything one arm contributes to SPEC; judged later against the other."""
+    if spec.id in {"heldout_loss", "calibration"}:
+        val = validation(loaded, arm, protocol)
+        if spec.id == "heldout_loss":
+            return {
+                "value": val["loss"],
+                "window_sums": val["window_sums"],
+                "window_counts": val["window_counts"],
+                "valid_targets": val["valid_targets"],
+                "windows": val["windows"],
+                "top1_accuracy": val["accuracy"],
+                "ms_per_token": val["ms_per_token"],
+            }
+        bins = int(spec.params.get("bins", 15))
+        return {
+            "value": metrics.expected_calibration_error(
+                val["confidences"], val["correct"], bins
+            ),
+            "positions": int(val["correct"].size),
+            "bins": bins,
+        }
+    if spec.id == "token_agreement":
+        rows = []
+        for prompt in prompts("heldout"):
+            ids = scoring.encode(loaded, prompt)[-loaded.config.model.max_seq_len :]
+            rows.append(scoring.log_probs(loaded, ids).astype(np.float32))
+        return {"log_probs": rows}
+    if spec.id == "repetition":
+        rows = generations(loaded, int(spec.params.get("max_new_tokens", 32)))
+        ids = [r["ids"] for r in rows]
+        return {
+            "value": metrics.mean_seq_rep_n(ids, 4),
+            "seq_rep_4": metrics.mean_seq_rep_n(ids, 4),
+            "distinct_1": metrics.distinct_n(ids, 1),
+            "distinct_2": metrics.distinct_n(ids, 2),
+            "samples": [
+                {"prompt": r["prompt"], "continuation": r["continuation"]}
+                for r in rows[:2]
+            ],
+        }
+    if spec.id in {"fact_recall", "needle"}:
+
+        def items(split: str) -> list[dict[str, Any]]:
+            if spec.id == "fact_recall":
+                return recall_items(split)
+            return needle_items(loaded, split, list(spec.params["length_fractions"]))
+
+        held = items("heldout")
+        credits = scoring.ranking_credit(loaded, held)
+        dev = scoring.ranking_credit(loaded, items("dev"))
+        return {
+            "value": float(np.mean(credits)) if credits else None,
+            "credits": credits,
+            "dev_credits": dev,
+            "fractions": [i.get("fraction") for i in held],
+            "tokens": [i.get("tokens") for i in held],
+            "chance": 1 / len(held[0]["candidates"]) if held else None,
+        }
+    if spec.id == "lm_eval":
+        from sparselab.probes.lm_eval_adapter import LmEvalUnavailable, run_lm_eval
+
+        try:
+            out = run_lm_eval(loaded, spec.params["tasks"], spec.params["limit"])
+        except LmEvalUnavailable as error:
+            raise ProbeUnsupported(str(error)) from None
+        return {"value": out["mean_accuracy"], **out}
+    raise ValueError(f"unknown probe {spec.id}")
 
 
-# --- Battery ----------------------------------------------------------------
+def _measure_safely(
+    spec: ProbeSpec, loaded: Any, arm: Arm, protocol: Mapping[str, int]
+) -> dict[str, Any]:
+    """Probe failures become evidence gaps; OOM and stops propagate."""
+    key = f"probe:{spec.id}"
+    if key in arm.cache:
+        return arm.cache[key]
+    try:
+        measured = _measure(spec, loaded, arm, protocol)
+    except _NotComparable as error:
+        measured = {"status": "not_comparable", "note": str(error)}
+    except ProbeUnsupported as error:
+        measured = {"status": "unavailable", "note": str(error)}
+    except Exception as error:
+        if is_out_of_memory(error):
+            raise
+        measured = {"status": "error", "note": f"{type(error).__name__}: {error}"}
+    arm.cache[key] = measured
+    return measured
 
 
-def _tokenizer_digest(loaded: Any) -> str:
-    return hashlib.sha256(loaded.tokenizer.to_str().encode()).hexdigest()
-
-
-def _validation_identity(loaded: Any) -> dict[str, Any]:
-    from sparselab.lab_mode import _data_identity, _supervision_identity
-
-    data = _data_identity(loaded.run)
-    return {
-        "validation_sha256": data["validation_sha256"],
-        "tokenizer_sha256": data["tokenizer_sha256"],
-        **_supervision_identity(loaded.run),
-    }
+# --- Judging ------------------------------------------------------------------
 
 
 def _row(spec: ProbeSpec, **extra: Any) -> dict[str, Any]:
@@ -333,6 +307,7 @@ def _row(spec: ProbeSpec, **extra: Any) -> dict[str, Any]:
         "higher_is_better": spec.higher_is_better,
         "hard": spec.hard,
         "thresholds": {"mode": spec.mode, "warn": spec.warn, "fail": spec.fail},
+        "uncertainty": spec.uncertainty,
         "suggests": spec.suggests,
         "explains": spec.explains,
         "reference": spec.reference,
@@ -351,71 +326,79 @@ def _row(spec: ProbeSpec, **extra: Any) -> dict[str, Any]:
     }
 
 
-def _run_probe(
+def _paired(t: list[float], b: list[float]) -> float | None:
+    if len(t) != len(b) or len(t) < 2:
+        return None
+    return metrics.paired_mean_and_se(np.asarray(t) - np.asarray(b))[1]
+
+
+def _judge(
     spec: ProbeSpec,
-    target: _Session,
-    base: _Session | None,
-    protocol: Mapping[str, int] | None,
+    t: Mapping[str, Any],
+    b: Mapping[str, Any] | None,
     comparable: Mapping[str, Any],
-    dev: dict[str, dict[str, float | None]],
+    dev: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     row = _row(spec)
-    if spec.id in {"heldout_loss", "calibration"}:
-        if base is not None and not comparable["validation"]:
-            row.update(status="not_comparable", note=comparable["validation_reason"])
-            return row
-        assert protocol is not None
-        if protocol["seq_len"] > target.loaded.config.model.max_seq_len:
-            row.update(
-                status="not_comparable",
-                note="baseline eval window exceeds the candidate's max_seq_len",
+    for name, side in (("candidate", t), ("baseline", b)):
+        if side is not None and "status" in side:
+            note = f"{name}: {side['note']}"
+            return {**row, "status": side["status"], "note": note}
+    if (
+        b is not None
+        and spec.id in {"heldout_loss", "calibration"}
+        and not comparable["validation"]
+    ):
+        return {
+            **row,
+            "status": "not_comparable",
+            "note": comparable["validation_reason"],
+        }
+    if (
+        b is not None
+        and spec.id in {"token_agreement", "fact_recall", "needle"}
+        and not comparable["tokenizer"]
+    ):
+        return {**row, "status": "not_comparable", "note": "tokenizers differ"}
+    if spec.id == "heldout_loss":
+        se = (
+            metrics.ratio_difference_se(
+                t["window_sums"],
+                t["window_counts"],
+                b["window_sums"],
+                b["window_counts"],
             )
-            return row
-        t = target.cache.setdefault("val", validation_pass(target.loaded, protocol))
-        b = (
-            base.cache.setdefault("val", validation_pass(base.loaded, protocol))
-            if base is not None
+            if b is not None
             else None
         )
-        if spec.id == "heldout_loss":
-            se = None
-            if b is not None:
-                diffs = np.asarray(t["window_losses"]) - np.asarray(b["window_losses"])
-                _, se = metrics.paired_mean_and_se(diffs[np.isfinite(diffs)])
-            row.update(judge(spec, t["loss"], b["loss"] if b else None, se=se))
-            row["details"] = {
-                "perplexity": math.exp(t["loss"]) if t["loss"] < 700 else None,
-                "baseline_perplexity": math.exp(b["loss"])
-                if b and b["loss"] < 700
-                else None,
-                "valid_targets": t["valid_targets"],
-                "windows": t["windows"],
-                "protocol": dict(protocol),
-                "top1_accuracy": t["accuracy"],
-                "baseline_top1_accuracy": b["accuracy"] if b else None,
-                "ms_per_token": t["ms_per_token"],
-            }
-        else:
-            bins = int(spec.params.get("bins", 15))
-            value = metrics.expected_calibration_error(
-                t["confidences"], t["correct"], bins
-            )
-            base_value = (
-                metrics.expected_calibration_error(b["confidences"], b["correct"], bins)
-                if b
-                else None
-            )
-            row.update(judge(spec, value, base_value))
-            row["details"] = {"bins": bins, "positions": int(t["correct"].size)}
+        row.update(judge(spec, t["value"], b["value"] if b else None, se=se))
+        row["details"] = {
+            "perplexity": math.exp(t["value"]) if t["value"] < 700 else None,
+            "baseline_perplexity": math.exp(b["value"])
+            if b and b["value"] < 700
+            else None,
+            "valid_targets": t["valid_targets"],
+            "windows": t["windows"],
+            "top1_accuracy": t["top1_accuracy"],
+            "baseline_top1_accuracy": b["top1_accuracy"] if b else None,
+            "ms_per_token": t["ms_per_token"],
+        }
+        return row
+    if spec.id == "calibration":
+        row.update(judge(spec, t["value"], b["value"] if b else None))
+        row["details"] = {"bins": t["bins"], "positions": t["positions"]}
         return row
     if spec.id == "token_agreement":
-        if base is None:
-            row.update(status="info", note="needs a baseline")
-            return row
-        if not comparable["tokenizer"]:
-            row.update(status="not_comparable", note="tokenizers differ")
-            return row
-        stats = _divergence(target, base)
+        if b is None:
+            return {**row, "status": "info", "note": "needs a baseline"}
+        log_p = np.concatenate(b["log_probs"]).astype(np.float64)
+        log_q = np.concatenate(t["log_probs"]).astype(np.float64)
+        stats = {
+            "top1_agreement": metrics.top1_agreement(log_p, log_q),
+            "kl_base_to_candidate": float(metrics.kl_divergence(log_p, log_q).mean()),
+            "js": float(metrics.js_divergence(log_p, log_q).mean()),
+            "positions": int(log_p.shape[0]),
+        }
         row.update(judge(spec, stats["top1_agreement"], None))
         if stats["js"] < NEAR_IDENTICAL_JS and row["status"] != "pass":
             # Argmax ties between near-identical (often near-uniform) predictions
@@ -425,120 +408,58 @@ def _run_probe(
                 note=f"near-identical distributions (JS < {NEAR_IDENTICAL_JS}); "
                 "argmax agreement is not informative",
             )
-        row["details"] = {
-            **stats,
-            "informative": stats["js"] >= NEAR_IDENTICAL_JS,
-        }
+        row["details"] = {**stats, "informative": stats["js"] >= NEAR_IDENTICAL_JS}
         return row
     if spec.id == "repetition":
-        budget = int(spec.params.get("max_new_tokens", 32))
-        t_rows = generations(target.loaded, budget)
-        b_rows = generations(base.loaded, budget) if base is not None else None
-
-        def summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
-            ids = [r["ids"] for r in rows]
-            return {
-                "seq_rep_4": metrics.mean_seq_rep_n(ids, 4),
-                "distinct_1": metrics.distinct_n(ids, 1),
-                "distinct_2": metrics.distinct_n(ids, 2),
-            }
-
-        t_sum = summary(t_rows)
-        b_sum = summary(b_rows) if b_rows is not None else None
-        row.update(
-            judge(spec, t_sum["seq_rep_4"], b_sum["seq_rep_4"] if b_sum else None)
-        )
+        row.update(judge(spec, t["value"], b["value"] if b else None))
+        keep = ("seq_rep_4", "distinct_1", "distinct_2")
         row["details"] = {
-            **t_sum,
-            "baseline": b_sum,
-            "samples": [
-                {"prompt": r["prompt"], "continuation": r["continuation"]}
-                for r in t_rows[:2]
-            ],
-            "baseline_samples": [
-                {"prompt": r["prompt"], "continuation": r["continuation"]}
-                for r in (b_rows or [])[:2]
-            ],
+            **{k: t[k] for k in keep},
+            "baseline": {k: b[k] for k in keep} if b else None,
+            "samples": t["samples"],
+            "baseline_samples": b["samples"] if b else [],
         }
         return row
     if spec.id in {"fact_recall", "needle"}:
-        if base is not None and not comparable["tokenizer"]:
-            row.update(status="not_comparable", note="tokenizers differ")
-            return row
-
-        def items(session: _Session, split: str) -> list[dict[str, Any]]:
-            if spec.id == "fact_recall":
-                return recall_items(split)
-            return needle_items(
-                session.loaded, split, list(spec.params["length_fractions"])
-            )
-
-        held_t = ranking_accuracy(target.loaded, items(target, "heldout"))
-        held_b = (
-            ranking_accuracy(base.loaded, items(target, "heldout")) if base else None
-        )
-        dev_t = ranking_accuracy(target.loaded, items(target, "dev"))
-        dev_b = ranking_accuracy(base.loaded, items(target, "dev")) if base else None
-        n = held_t["n"]
-        se = (
-            metrics.accuracy_delta_se(held_t["accuracy"], held_b["accuracy"], n)
-            if held_b
-            else None
-        )
-        row.update(
-            judge(
-                spec, held_t["accuracy"], held_b["accuracy"] if held_b else None, se=se
-            )
-        )
-        candidates = items(target, "heldout")[0]["candidates"] if n else []
+        se = _paired(t["credits"], b["credits"]) if b else None
+        row.update(judge(spec, t["value"], b["value"] if b else None, se=se))
         details: dict[str, Any] = {
-            "n": n,
-            "chance": 1 / len(candidates) if candidates else None,
-            "dev_accuracy": dev_t["accuracy"],
-            "baseline_dev_accuracy": dev_b["accuracy"] if dev_b else None,
+            "n": len(t["credits"]),
+            "chance": t["chance"],
+            "credit": "fractional_ties",
+            "dev_accuracy": float(np.mean(t["dev_credits"]))
+            if t["dev_credits"]
+            else None,
+            "baseline_dev_accuracy": float(np.mean(b["dev_credits"]))
+            if b and b["dev_credits"]
+            else None,
         }
         if spec.id == "needle":
-            held_items = items(target, "heldout")
             by_length: dict[str, dict[str, Any]] = {}
             for fraction in spec.params["length_fractions"]:
-                picks = [
-                    i for i, it in enumerate(held_items) if it["fraction"] == fraction
-                ]
-                tokens = max(held_items[i]["tokens"] for i in picks) if picks else 0
+                picks = [i for i, f in enumerate(t["fractions"]) if f == fraction]
                 by_length[str(fraction)] = {
-                    "tokens": tokens,
-                    "accuracy": float(np.mean([held_t["hits"][i] for i in picks]))
+                    "tokens": max((t["tokens"][i] for i in picks), default=0),
+                    "accuracy": float(np.mean([t["credits"][i] for i in picks]))
                     if picks
                     else None,
                     "baseline_accuracy": float(
-                        np.mean([held_b["hits"][i] for i in picks])
+                        np.mean([b["credits"][i] for i in picks])
                     )
-                    if picks and held_b
+                    if picks and b
                     else None,
                 }
             details["by_length"] = by_length
         row["details"] = details
-        dev[spec.id] = {
-            "value": dev_t["accuracy"],
-            "baseline_value": dev_b["accuracy"] if dev_b else None,
-            "n": dev_t["n"],
-        }
+        if b is not None:
+            dev[spec.id] = {
+                "value": details["dev_accuracy"],
+                "baseline_value": details["baseline_dev_accuracy"],
+                "se": _paired(t["dev_credits"], b["dev_credits"]),
+            }
         return row
     if spec.id == "lm_eval":
-        from sparselab.probes.lm_eval_adapter import LmEvalUnavailable, run_lm_eval
-
-        try:
-            t = run_lm_eval(target.loaded, spec.params["tasks"], spec.params["limit"])
-            b = (
-                run_lm_eval(base.loaded, spec.params["tasks"], spec.params["limit"])
-                if base
-                else None
-            )
-        except LmEvalUnavailable as error:
-            row.update(status="skipped", note=str(error))
-            return row
-        value = t["mean_accuracy"]
-        row.update(judge(spec, value, b["mean_accuracy"] if b else None))
+        row.update(judge(spec, t["value"], b["value"] if b else None))
         row["details"] = {
             "tasks": t["tasks"],
             "baseline_tasks": b["tasks"] if b else None,
@@ -552,6 +473,15 @@ def _run_probe(
     raise ValueError(f"unknown probe {spec.id}")
 
 
+# --- Battery ------------------------------------------------------------------
+
+
+def _eval_group(validation_identity: Mapping[str, Any], protocol: Mapping) -> str:
+    """Results with the same group share data, tokenizer, mask and protocol."""
+    body = {"validation": dict(validation_identity), "protocol": dict(protocol)}
+    return hashlib.sha256(canonical(body)).hexdigest()
+
+
 def run_battery(
     target: Any,
     baseline: Any | None = None,
@@ -560,9 +490,15 @@ def run_battery(
     fast_fail: bool = True,
     protocol: Mapping[str, int] | None = None,
     progress: Progress | None = None,
+    context: LabContext | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> dict[str, Any]:
-    """Score TARGET (and BASELINE) with the suite through TIER; fast-fail."""
+    """Run the battery through TIER and return one result (never raises on probes).
+
+    TARGET/BASELINE are :class:`Arm` loaders or already loaded runs. Arms are
+    opened one at a time per tier: the baseline first, then the candidate,
+    which is judged probe by probe so a hard failure stops it immediately.
+    """
     from sparselab.lab_mode import eval_protocol
 
     started_at = (now or (lambda: datetime.now(UTC)))()
@@ -570,157 +506,205 @@ def run_battery(
     tiers_through(tier)
     suite = suite_identity()
     specs = ordered(tier)
-    t_session = _Session(target)
-    b_session = _Session(baseline) if baseline is not None else None
-    try:
-        if protocol is None:
-            protocol = eval_protocol((baseline or target).config)
-        comparable = {"validation": True, "validation_reason": None, "tokenizer": True}
-        if b_session is not None:
-            t_id = _validation_identity(target)
-            b_id = _validation_identity(baseline)
-            if t_id != b_id:
-                differing = sorted(k for k in t_id if t_id[k] != b_id[k])
-                comparable.update(
-                    validation=False,
-                    validation_reason="validation identity differs: "
-                    + ", ".join(differing),
-                )
-            comparable["tokenizer"] = _tokenizer_digest(target) == _tokenizer_digest(
-                baseline
-            )
-        results: list[dict[str, Any]] = []
-        dev: dict[str, dict[str, float | None]] = {}
-        stopped: dict[str, Any] = {"stopped": False, "at": None, "reason": None}
-        tiers_run: list[str] = []
+    t_arm = as_arm(target)
+    b_arm = as_arm(baseline)
+    assert t_arm is not None
+    results: list[dict[str, Any]] = []
+    dev: dict[str, dict[str, Any]] = {}
+    tiers_run: list[str] = []
+    stop: dict[str, Any] = {"stopped": False, "kind": None, "at": None, "reason": None}
+    state: dict[str, Any] = {"protocol": dict(protocol) if protocol else None}
 
-        def report(state: str, current: str | None) -> None:
-            if progress is not None:
-                progress(
-                    {
-                        "state": state,
-                        "suite": suite["sha256"],
-                        "tier": tier,
-                        "current": current,
-                        "done": [r["id"] for r in results],
-                        "statuses": {r["id"]: r["status"] for r in results},
-                        "total": len(specs),
-                        "target": t_session.identity["run_id"],
-                        "started_at": started_at.isoformat(),
-                        "updated_at": datetime.now(UTC).isoformat(),
-                    }
-                )
+    def report(phase: str, arm: str | None, current: str | None) -> None:
+        state["current"] = current
+        if progress is None:
+            return
+        progress(
+            {
+                "state": phase,
+                "suite": suite["sha256"],
+                "tier": tier,
+                "arm": arm,
+                "current": current,
+                "done": [r["id"] for r in results],
+                "statuses": {r["id"]: r["status"] for r in results},
+                "total": len(specs),
+                "target": (t_arm.cache.get("identity") or {}).get("run_id"),
+                "started_at": started_at.isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
+            }
+        )
 
-        for spec in specs:
-            if stopped["stopped"]:
-                results.append(_row(spec, note=f"skipped: {stopped['reason']}"))
-                continue
-            if spec.tier not in tiers_run:
-                previous = [r for r in results if r["tier"] in tiers_run]
-                if (
-                    fast_fail
-                    and b_session is not None
-                    and any(r["status"] == "fail" for r in previous)
-                ):
-                    stopped.update(
-                        stopped=True,
-                        at=spec.id,
-                        reason=f"not promising after the {tiers_run[-1]} tier; "
-                        "not escalating",
-                    )
-                    results.append(_row(spec, note=f"skipped: {stopped['reason']}"))
-                    continue
-                tiers_run.append(spec.tier)
-            report("running", spec.id)
-            tick = time.monotonic()
+    def checkpoint() -> None:
+        if context is not None:
+            context.checkpoint()
+
+    def open_arm(
+        arm: Arm,
+        name: str,
+        work: Callable[[Any, list[ProbeSpec]], None],
+        tier_specs: list[ProbeSpec],
+    ) -> None:
+        if context is not None:
+            context.enter(name, "probing")
+        checkpoint()
+        loaded = arm.load()
+        try:
+            _require_torch_engine(loaded)
+            _describe(loaded, arm)
+            if state["protocol"] is None:
+                state["protocol"] = eval_protocol(loaded.config)
+            was_training = loaded.model.training
+            loaded.model.eval()
             try:
-                row = _run_probe(spec, t_session, b_session, protocol, comparable, dev)
-            except ProbeUnsupported as error:
-                row = _row(spec, status="skipped", note=str(error))
-            except Exception as error:  # noqa: BLE001 - one probe never sinks the battery
-                row = _row(
-                    spec, status="error", note=f"{type(error).__name__}: {error}"
-                )
+                work(loaded, tier_specs)
+            finally:
+                loaded.model.train(was_training)
+        finally:
+            del loaded
+            release_memory()
+
+    def comparable() -> dict[str, Any]:
+        out = {"validation": True, "validation_reason": None, "tokenizer": True}
+        if b_arm is None or "identity" not in b_arm.cache:
+            return out
+        t_id = t_arm.cache["validation_identity"]
+        b_id = b_arm.cache["validation_identity"]
+        if t_id != b_id:
+            out["validation"] = False
+            out["validation_reason"] = "validation identity differs: " + ", ".join(
+                sorted(k for k in t_id if t_id.get(k) != b_id.get(k))
+            )
+        out["tokenizer"] = (
+            t_arm.cache["tokenizer_digest"] == b_arm.cache["tokenizer_digest"]
+        )
+        return out
+
+    def stop_battery(kind: str, at: str | None, reason: str) -> None:
+        stop.update(stopped=True, kind=kind, at=at, reason=reason)
+
+    def measure_baseline(loaded: Any, tier_specs: list[ProbeSpec]) -> None:
+        assert b_arm is not None
+        for spec in tier_specs:
+            checkpoint()
+            report("running", "baseline", spec.id)
+            _measure_safely(spec, loaded, b_arm, state["protocol"])
+
+    def measure_candidate(loaded: Any, tier_specs: list[ProbeSpec]) -> None:
+        for spec in tier_specs:
+            checkpoint()
+            report("running", "candidate", spec.id)
+            tick = time.monotonic()
+            measured = _measure_safely(spec, loaded, t_arm, state["protocol"])
+            base = b_arm.cache.get(f"probe:{spec.id}") if b_arm is not None else None
+            row = _judge(spec, measured, base, comparable(), dev)
             row["seconds"] = round(time.monotonic() - tick, 3)
             results.append(row)
             if fast_fail and row["status"] == "fail" and spec.hard:
-                stopped.update(
-                    stopped=True,
-                    at=spec.id,
-                    reason=f"fast-fail: hard failure in {spec.id}",
+                stop_battery(
+                    "fast_fail", spec.id, f"fast-fail: hard failure in {spec.id}"
                 )
-        guard = overfit_guard(
-            dev,
-            {
-                r["id"]: {"value": r["value"], "baseline_value": r["baseline_value"]}
-                for r in results
-                if r["id"] in dev
-            },
-        )
-        verdict = decide(
-            results,
-            has_baseline=b_session is not None,
-            tiers_run=tiers_run,
-            requested_tier=tier,
-            guard=guard,
-            specs=BY_ID,
-        )
-        result = {
-            "format": RESULT_FORMAT,
-            "created_at": started_at.isoformat(),
-            "suite": suite,
-            "tier": tier,
-            "tiers_run": tiers_run,
-            "fast_fail": stopped,
-            "target": t_session.identity,
-            "baseline": b_session.identity if b_session is not None else None,
-            "comparable": comparable,
-            "protocol": dict(protocol),
-            "probes": results,
-            "guard": guard,
-            "verdict": verdict,
-            "seconds": round(time.monotonic() - started, 3),
-        }
-        report("done", None)
-        return result
-    finally:
-        t_session.close()
-        if b_session is not None:
-            b_session.close()
+                return
 
-
-# --- Records -----------------------------------------------------------------
-
-
-def _canonical(value: Any) -> bytes:
-    return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), default=str
-    ).encode()
-
-
-def seal(result: dict[str, Any]) -> dict[str, Any]:
-    body = {k: v for k, v in result.items() if k != "result_sha256"}
-    return {**body, "result_sha256": hashlib.sha256(_canonical(body)).hexdigest()}
-
-
-def verify(result: Mapping[str, Any]) -> bool:
-    return seal(dict(result))["result_sha256"] == result.get("result_sha256")
-
-
-def write_json_atomic(path: Path, value: Any, *, exclusive: bool = False) -> None:
-    payload = (json.dumps(value, indent=2, sort_keys=True, default=str) + "\n").encode()
-    temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
     try:
-        with temporary.open("xb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if exclusive:
-            os.link(temporary, path)
-        else:
-            os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+        for tier_name in tiers_through(tier):
+            tier_specs = [s for s in specs if s.tier == tier_name]
+            if stop["stopped"]:
+                break
+            if (
+                tiers_run
+                and fast_fail
+                and b_arm is not None
+                and any(r["status"] == "fail" for r in results)
+            ):
+                stop_battery(
+                    "not_promising",
+                    tier_specs[0].id,
+                    f"not promising after the {tiers_run[-1]} tier; not escalating",
+                )
+                break
+            if (
+                tiers_run
+                and fast_fail
+                and any(r["status"] in MISSING_STATUSES for r in results)
+            ):
+                stop_battery(
+                    "missing_evidence",
+                    tier_specs[0].id,
+                    f"missing evidence in the {tiers_run[-1]} tier; not escalating",
+                )
+                break
+            tiers_run.append(tier_name)
+            if b_arm is not None:
+                open_arm(b_arm, "baseline", measure_baseline, tier_specs)
+            open_arm(t_arm, "candidate", measure_candidate, tier_specs)
+    except LabCancelled as error:
+        stop_battery(error.kind, state.get("current"), error.reason)
+    except Exception as error:
+        if not is_out_of_memory(error):
+            raise
+        release_memory()
+        stop_battery(
+            "oom",
+            state.get("current"),
+            f"out of memory: {type(error).__name__}: {error}",
+        )
+    done = {r["id"] for r in results}
+    for spec in specs:
+        if spec.id not in done:
+            note = f"skipped: {stop['reason']}" if stop["stopped"] else "skipped"
+            results.append(_row(spec, note=note))
+    order = {spec.id: i for i, spec in enumerate(specs)}
+    results.sort(key=lambda r: order[r["id"]])
+    guard = overfit_guard(
+        dev,
+        {
+            r["id"]: {"value": r["value"], "baseline_value": r["baseline_value"]}
+            for r in results
+            if r["id"] in dev
+        },
+    )
+    verdict = decide(
+        results,
+        has_baseline=b_arm is not None,
+        tiers_run=tiers_run,
+        requested_tier=tier,
+        guard=guard,
+        specs=BY_ID,
+        stop=stop,
+    )
+    protocol_used = state["protocol"] or {}
+
+    def identity(arm: Arm | None) -> dict[str, Any] | None:
+        if arm is None or "identity" not in arm.cache:
+            return None
+        return {
+            **arm.cache["identity"],
+            "eval_group": _eval_group(arm.cache["validation_identity"], protocol_used),
+        }
+
+    result = {
+        "format": RESULT_FORMAT,
+        "created_at": started_at.isoformat(),
+        "suite": suite,
+        "tier": tier,
+        "tiers_run": tiers_run,
+        "stop": stop,
+        "target": identity(t_arm),
+        "baseline": identity(b_arm),
+        "comparable": comparable() if "identity" in t_arm.cache else None,
+        "protocol": dict(protocol_used),
+        "probes": results,
+        "guard": guard,
+        "verdict": verdict,
+        "seconds": round(time.monotonic() - started, 3),
+    }
+    report(
+        "stopped" if stop["kind"] in {"cancelled", "resources", "oom"} else "done",
+        None,
+        None,
+    )
+    return result
 
 
 def progress_writer(path: Path) -> Progress:
@@ -733,7 +717,3 @@ def progress_writer(path: Path) -> Progress:
             pass
 
     return write
-
-
-def tier_names() -> tuple[str, ...]:
-    return TIERS

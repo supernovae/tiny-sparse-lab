@@ -23,7 +23,7 @@ from typing import Any, Literal
 from sparselab.data.withheld_facts import _FACTS
 
 SUITE_NAME = "sparselab-probe-battery"
-SUITE_VERSION = 1
+SUITE_VERSION = 2
 TIERS = ("fast", "standard", "full")
 Mode = Literal["delta_rel", "delta_abs", "value_min"]
 
@@ -43,6 +43,8 @@ class ProbeSpec:
     suggests: str
     explains: str
     reference: str = ""
+    # How the delta's standard error is formed ("none": no noise estimate).
+    uncertainty: str = "none"
     params: dict[str, Any] = field(default_factory=dict)
 
 
@@ -62,10 +64,11 @@ PROBES: tuple[ProbeSpec, ...] = (
         "retune LR/warmup before spending a longer run.",
         explains="Mean next-token cross-entropy on the run's validation split, "
         "scored under one shared window/batch protocol for both arms. Lower is "
-        "better; perplexity = exp(loss). Judged on the relative change, with a "
-        "paired standard error across the same windows.",
-        reference="token-level cross-entropy; paired windows",
-        params={"max_windows": 64},
+        "better; perplexity = exp(loss). Judged on the relative change; the "
+        "standard error is clustered by evaluation window and weighted by "
+        "scored tokens, matching the token-weighted loss.",
+        reference="token-level cross-entropy; window-clustered ratio SE",
+        uncertainty="window_clustered_ratio",
     ),
     ProbeSpec(
         id="calibration",
@@ -138,9 +141,12 @@ PROBES: tuple[ProbeSpec, ...] = (
         suggests="Worse at using a stated fact when asked in different words: "
         "check context handling (attention/positions) or memory wiring.",
         explains="A fact is stated, then asked with a reworded held-out "
-        "question; the model ranks candidate answers by log-probability. "
-        "Accuracy is top-1; chance is 1/candidates.",
+        "question; the model ranks candidate answers by mean token "
+        "log-probability. Ties share credit (1/k for k tied at the top), so "
+        "chance is 1/candidates.",
         reference="candidate ranking by mean answer log-probability",
+        uncertainty="paired_items",
+        params={"credit": "fractional_ties"},
     ),
     ProbeSpec(
         id="needle",
@@ -157,9 +163,10 @@ PROBES: tuple[ProbeSpec, ...] = (
         "span, positional encoding or sequence-length changes.",
         explains="A code word is hidden early in filler text of a few lengths "
         "up to the model's context; at the end the model must recall it. "
-        "Scored by candidate ranking at each length.",
+        "Scored by candidate ranking at each length (ties share credit).",
         reference="needle-in-a-haystack, candidate ranking",
-        params={"length_fractions": [0.5, 0.75, 0.95]},
+        uncertainty="paired_items",
+        params={"length_fractions": [0.5, 0.75, 0.95], "credit": "fractional_ties"},
     ),
     ProbeSpec(
         id="lm_eval",

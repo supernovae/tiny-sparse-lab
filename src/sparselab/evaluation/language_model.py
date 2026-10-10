@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -50,8 +51,13 @@ def evaluate(
     batch_size: int,
     max_batches: int,
     device: torch.device,
+    observer: Callable[[torch.Tensor, torch.Tensor], None] | None = None,
 ) -> dict[str, float | int | str | None]:
-    """Evaluate no more than ``max_batches`` and report exactly scored labels."""
+    """Evaluate no more than ``max_batches`` and report exactly scored labels.
+
+    ``observer(logits, targets)`` sees every scored batch (e.g. the probe
+    battery's per-window and calibration statistics) without a second pass.
+    """
     if batch_size <= 0 or max_batches <= 0:
         raise ValueError("batch_size and max_batches must be positive")
     was_training = model.training
@@ -126,6 +132,8 @@ def evaluate(
                 )
                 if not torch.isfinite(loss):
                     raise ValueError("nonfinite validation loss")
+                if observer is not None:
+                    observer(logits, y)
                 valid = int((y != -100).sum())
                 if valid:
                     total += float(loss)

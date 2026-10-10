@@ -92,7 +92,7 @@ def top1_agreement(log_p: np.ndarray, log_q: np.ndarray) -> float:
 def paired_mean_and_se(
     values: Sequence[float] | np.ndarray,
 ) -> tuple[float, float | None]:
-    """Mean and standard error of paired differences (None for n < 2)."""
+    """Mean and standard error of paired per-item differences (None for n < 2)."""
     data = np.asarray(values, dtype=np.float64)
     if data.size == 0:
         raise ValueError("no values")
@@ -102,12 +102,26 @@ def paired_mean_and_se(
     return mean, float(data.std(ddof=1) / math.sqrt(data.size))
 
 
-def binomial_se(p: float, n: int) -> float | None:
-    return math.sqrt(max(p * (1 - p), 0.0) / n) if n > 0 else None
+def ratio_difference_se(
+    sums_a: Sequence[float],
+    counts_a: Sequence[int],
+    sums_b: Sequence[float],
+    counts_b: Sequence[int],
+) -> float | None:
+    """SE of (sum S_a / sum N_a) - (sum S_b / sum N_b) over paired windows.
 
-
-def accuracy_delta_se(p_a: float, p_b: float, n: int) -> float | None:
-    """Conservative SE of a difference of two accuracies on the same n items."""
-    if n <= 0:
+    Each window is a cluster; the linearized (delta-method) ratio estimator
+    weights windows by their scored tokens, matching a token-weighted mean
+    loss rather than an unweighted mean of per-window losses.
+    """
+    s_a, n_a = np.asarray(sums_a, float), np.asarray(counts_a, float)
+    s_b, n_b = np.asarray(sums_b, float), np.asarray(counts_b, float)
+    if not (s_a.shape == n_a.shape == s_b.shape == n_b.shape) or s_a.size < 2:
         return None
-    return math.sqrt((p_a * (1 - p_a) + p_b * (1 - p_b)) / n)
+    total_a, total_b = n_a.sum(), n_b.sum()
+    if total_a <= 0 or total_b <= 0:
+        return None
+    mean_a, mean_b = s_a.sum() / total_a, s_b.sum() / total_b
+    z = (s_a - mean_a * n_a) / total_a - (s_b - mean_b * n_b) / total_b
+    windows = z.size
+    return float(math.sqrt(windows / (windows - 1) * float((z**2).sum())))

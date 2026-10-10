@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sparselab.lab_records import iter_lab_records
+
 LIVE_STATES = {"loading", "running"}
 STALE_SECONDS = 600
 
@@ -35,7 +37,7 @@ class ProbeEntry:
         title = (
             self.question
             or ", ".join(self.delta)
-            or self.result["target"].get("run_id")
+            or (self.result.get("target") or {}).get("run_id")
         )
         return (
             f"{self.key} · {title} · {str(verdict.get('status', '?')).upper()} → "
@@ -44,6 +46,7 @@ class ProbeEntry:
 
 
 def _read(path: Path) -> dict[str, Any] | None:
+    """Unsealed live progress files only; records go through the verified reader."""
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except OSError, ValueError:
@@ -51,44 +54,52 @@ def _read(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def load_entries(lab_dir: Path, limit: int = 500) -> list[ProbeEntry]:
-    """Newest first; unreadable or probe-less records are skipped."""
+def load_history(
+    lab_dir: Path, limit: int = 500
+) -> tuple[list[ProbeEntry], list[tuple[Path, str]]]:
+    """Verified probe results, newest first, plus rejected records and why.
+
+    Uses the same sealed-record reader as ``sparselab report``: an edited
+    try.json or probe.json is listed as rejected, never shown as a result.
+    """
+    accepted, rejected = iter_lab_records(lab_dir, limit)
     entries: list[ProbeEntry] = []
-    for path in sorted((lab_dir / "tries").glob("*/try.json"))[-limit:]:
-        record = _read(path)
-        probe = (record or {}).get("probe")
-        if not isinstance(probe, dict) or "format" not in probe:
-            continue
-        entries.append(
-            ProbeEntry(
-                key=str(record.get("try_id")),
-                source="try",
-                created_at=str(record.get("created_at") or probe.get("created_at")),
-                path=path,
-                result=probe,
-                question=record.get("question"),
-                delta=record.get("delta") or {},
-                comparison=record.get("comparison"),
+    for kind, path, record in accepted:
+        if kind == "try":
+            probe = record.get("probe")
+            if not isinstance(probe, dict) or "format" not in probe:
+                continue
+            entries.append(
+                ProbeEntry(
+                    key=str(record.get("try_id")),
+                    source="try",
+                    created_at=str(record.get("created_at")),
+                    path=path,
+                    result=probe,
+                    question=record.get("question"),
+                    delta=record.get("delta") or {},
+                    comparison=record.get("comparison"),
+                )
             )
-        )
-    for path in sorted((lab_dir / "probes").glob("*/probe.json"))[-limit:]:
-        result = _read(path)
-        if not result or "verdict" not in result:
-            continue
-        entries.append(
-            ProbeEntry(
-                key=str(result.get("probe_id") or path.parent.name),
-                source="probe",
-                created_at=str(result.get("created_at")),
-                path=path,
-                result=result,
-                question=None,
-                delta={},
-                comparison=None,
+        else:
+            entries.append(
+                ProbeEntry(
+                    key=str(record.get("probe_id") or path.parent.name),
+                    source="probe",
+                    created_at=str(record.get("created_at")),
+                    path=path,
+                    result=record,
+                    question=None,
+                    delta={},
+                    comparison=None,
+                )
             )
-        )
     entries.sort(key=lambda entry: entry.created_at, reverse=True)
-    return entries
+    return entries, rejected
+
+
+def load_entries(lab_dir: Path, limit: int = 500) -> list[ProbeEntry]:
+    return load_history(lab_dir, limit)[0]
 
 
 def live_batteries(lab_dir: Path, now: datetime | None = None) -> list[dict[str, Any]]:
@@ -143,6 +154,8 @@ def history_rows(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
                 "tier": result.get("tier"),
                 "suite": (result.get("suite") or {}).get("sha256", "")[:8],
                 "target": target.get("run_id"),
+                "checkpoint": target.get("checkpoint_sha256"),
+                "eval_group": target.get("eval_group"),
                 "loss": loss.get("value"),
                 "loss_delta": loss.get("delta"),
                 "recall": recall.get("value"),
@@ -157,6 +170,46 @@ def history_rows(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def pareto_points(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
+    """One point per checkpoint (newest result wins), candidates and baselines.
+
+    Each point carries its ``eval_group`` (validation data, tokenizer, loss
+    mask and eval protocol); only points in one group are comparable.
+    """
+    points: dict[str, dict[str, Any]] = {}
+    for entry in entries:  # newest first
+        result = entry.result
+        loss = probe_row(result, "heldout_loss") or {}
+        verdict = (result.get("verdict") or {}).get("status")
+        for role, who, value in (
+            ("candidate", result.get("target"), loss.get("value")),
+            ("baseline", result.get("baseline"), loss.get("baseline_value")),
+        ):
+            if not who or value is None or not who.get("checkpoint_sha256"):
+                continue
+            key = who["checkpoint_sha256"]
+            if key in points:
+                continue
+            details = loss.get("details") or {}
+            points[key] = {
+                "checkpoint": key,
+                "label": f"{who.get('run_id')}@{who.get('step')}",
+                "run_id": who.get("run_id"),
+                "role": role,
+                "eval_group": who.get("eval_group"),
+                "loss": value,
+                "parameters": who.get("parameters"),
+                "parameter_bytes": who.get("parameter_bytes"),
+                "tokens_seen": who.get("tokens_seen"),
+                "ms_per_token": details.get("ms_per_token")
+                if role == "candidate"
+                else None,
+                "verdict": verdict if role == "candidate" else "baseline",
+                "source": entry.key,
+            }
+    return list(points.values())
 
 
 def pareto_frontier(

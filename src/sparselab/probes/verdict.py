@@ -11,8 +11,21 @@ from typing import Any
 
 from sparselab.probes.suite import TIERS, ProbeSpec
 
-STATUSES = ("pass", "warn", "fail", "info", "skipped", "not_comparable", "error")
-ACTIONS = ("abandon", "tweak", "escalate", "longer_run", "compare")
+STATUSES = (
+    "pass",
+    "warn",
+    "fail",
+    "info",
+    "skipped",
+    "unavailable",
+    "not_comparable",
+    "error",
+)
+# A row in one of these states is a check that should have run and did not.
+MISSING_STATUSES = frozenset({"unavailable", "not_comparable", "error"})
+# Battery stops that leave requested checks unrun (fast-fail stops do not).
+INCOMPLETE_STOPS = frozenset({"cancelled", "resources", "oom"})
+ACTIONS = ("abandon", "tweak", "rerun", "escalate", "longer_run", "compare")
 NOISE_SIGMAS = 2.0
 OVERFIT_GAP = 0.15
 NEXT_TIER_CHECKS = {
@@ -90,7 +103,8 @@ def overfit_guard(
     """Flag a dev-split gain the held-out split does not share.
 
     ``dev``/``heldout`` map probe id -> {"value", "baseline_value"} (accuracy);
-    a dev row may carry ``n`` (items) so small dev splits do not cry wolf.
+    a dev row may carry ``se`` (paired SE of the dev difference) so small dev
+    splits do not cry wolf.
     """
     rows: dict[str, Any] = {}
     suspected = False
@@ -106,21 +120,8 @@ def overfit_guard(
             continue
         dev_gain = float(values[0]) - float(values[1])
         held_gain = float(values[2]) - float(values[3])
-        n = dev_row.get("n")
-        noise = (
-            NOISE_SIGMAS
-            * math.sqrt(
-                (
-                    float(values[0]) * (1 - float(values[0]))
-                    + float(values[1]) * (1 - float(values[1]))
-                )
-                / float(n)
-            )
-            if n
-            else 0.0
-        )
-        margin = max(OVERFIT_GAP, noise)
-        flag = dev_gain - held_gain > margin and dev_gain > noise
+        noise = NOISE_SIGMAS * float(dev_row.get("se") or 0.0)
+        flag = dev_gain - held_gain > max(OVERFIT_GAP, noise) and dev_gain > noise
         suspected = suspected or flag
         rows[probe] = {
             "dev_gain": dev_gain,
@@ -137,6 +138,46 @@ def overfit_guard(
     }
 
 
+def missing_evidence(
+    results: Sequence[Mapping[str, Any]], stop: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Checks that should have produced evidence and did not, with why."""
+    missing = [
+        {"id": r["id"], "status": r["status"], "note": r.get("note")}
+        for r in results
+        if r["status"] in MISSING_STATUSES
+    ]
+    if stop and stop.get("kind") in INCOMPLETE_STOPS:
+        unrun = [r["id"] for r in results if r["status"] == "skipped"]
+        if unrun:
+            missing.append(
+                {
+                    "id": ",".join(unrun),
+                    "status": f"stopped:{stop['kind']}",
+                    "note": stop.get("reason"),
+                }
+            )
+    return missing
+
+
+def _verdict(
+    status: str,
+    action: str,
+    reasons: list[str],
+    suggestion: str,
+    missing: list[dict[str, Any]],
+    next_tier: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "status": status,
+        "action": action,
+        "next_tier": next_tier,
+        "reasons": reasons,
+        "missing": missing,
+        "suggestion": suggestion,
+    }
+
+
 def decide(
     results: Sequence[Mapping[str, Any]],
     *,
@@ -145,91 +186,96 @@ def decide(
     requested_tier: str,
     guard: Mapping[str, Any] | None,
     specs: Mapping[str, ProbeSpec],
+    stop: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Overall verdict and a recommended next action for humans and agents."""
-    reasons: list[str] = []
+    """Overall verdict and a recommended next action for humans and agents.
+
+    Missing evidence never reads as success: an unavailable optional tier, a
+    probe error, a non-comparable probe or a battery stopped by cancellation,
+    resources or OOM makes the battery ``incomplete`` (action ``rerun``) unless
+    a failure already decides it.
+    """
+    missing = missing_evidence(results, stop)
     by_id = {row["id"]: row for row in results}
     last = tiers_run[-1] if tiers_run else requested_tier
     next_tier = (
         TIERS[TIERS.index(last) + 1] if last in TIERS and last != TIERS[-1] else None
     )
     if not has_baseline:
-        return {
-            "status": "info",
-            "action": "compare",
-            "next_tier": None,
-            "reasons": ["no baseline: values are absolute"],
-            "suggestion": "Re-run with --vs BASELINE to get pass/warn/fail and "
-            "a recommended action.",
-        }
+        return _verdict(
+            "info",
+            "compare",
+            ["no baseline: values are absolute"],
+            "Re-run with --vs BASELINE to get pass/warn/fail and a recommended action.",
+            missing,
+        )
     hard = [r for r in results if r["status"] == "fail" and specs[r["id"]].hard]
     fails = [r for r in results if r["status"] == "fail"]
     warns = [r for r in results if r["status"] == "warn"]
     if hard:
-        first = hard[0]
-        return {
-            "status": "fail",
-            "action": "abandon",
-            "next_tier": None,
-            "reasons": [f"hard fail: {r['id']}" for r in hard],
-            "suggestion": specs[first["id"]].suggests,
-        }
+        return _verdict(
+            "fail",
+            "abandon",
+            [f"hard fail: {r['id']}" for r in hard],
+            specs[hard[0]["id"]].suggests,
+            missing,
+        )
     if fails:
-        first = fails[0]
-        return {
-            "status": "fail",
-            "action": "tweak",
-            "next_tier": None,
-            "reasons": [f"fail: {r['id']}" for r in fails],
-            "suggestion": specs[first["id"]].suggests,
-        }
+        return _verdict(
+            "fail",
+            "tweak",
+            [f"fail: {r['id']}" for r in fails],
+            specs[fails[0]["id"]].suggests,
+            missing,
+        )
+    if missing:
+        named = "; ".join(f"{m['id']} ({m['status']}: {m['note']})" for m in missing)
+        return _verdict(
+            "incomplete",
+            "rerun",
+            [f"missing evidence: {m['id']} ({m['status']})" for m in missing],
+            f"Not enough evidence for a verdict. Fix and re-run: {named}.",
+            missing,
+        )
     if guard and guard.get("overfit_suspected"):
-        return {
-            "status": "warn",
-            "action": "tweak",
-            "next_tier": None,
-            "reasons": ["dev split improved but held-out did not"],
-            "suggestion": "You may be fitting the probe items: change the idea, "
-            "not the prompts. Verdicts only use the held-out split.",
-        }
-    loss = by_id.get("heldout_loss")
+        return _verdict(
+            "warn",
+            "tweak",
+            ["dev split improved but held-out did not"],
+            "You may be fitting the probe items: change the idea, not the "
+            "prompts. Verdicts only use the held-out split.",
+            missing,
+        )
     status = "warn" if warns else "pass"
-    reasons.extend(f"warn: {r['id']}" for r in warns)
-    if loss is None or loss["status"] in {"not_comparable", "error", "skipped"}:
-        return {
-            "status": "incomplete",
-            "action": "tweak",
-            "next_tier": None,
-            "reasons": reasons + ["held-out loss is not comparable"],
-            "suggestion": "Make the arms share validation data and tokenizer "
-            "(or fix the error) before trusting any verdict.",
-        }
-    if loss.get("improved"):
+    reasons = [f"warn: {r['id']}" for r in warns]
+    loss = by_id.get("heldout_loss")
+    if loss is not None and loss.get("improved"):
         reasons.append("held-out loss improved beyond noise")
         if next_tier is not None:
-            return {
-                "status": status,
-                "action": "escalate",
-                "next_tier": next_tier,
-                "reasons": reasons,
-                "suggestion": f"Promising: run `--tier {next_tier}` ("
+            return _verdict(
+                status,
+                "escalate",
+                reasons,
+                f"Promising: run `--tier {next_tier}` ("
                 + NEXT_TIER_CHECKS.get(next_tier, "the next tier")
                 + ") before a longer run.",
-            }
-        return {
-            "status": status,
-            "action": "longer_run",
-            "next_tier": None,
-            "reasons": reasons,
-            "suggestion": "Every tier holds up: schedule a longer run (more "
-            "tokens or seeds) to confirm the gain.",
-        }
+                missing,
+                next_tier,
+            )
+        return _verdict(
+            status,
+            "longer_run",
+            reasons,
+            "Every tier holds up: schedule a longer run (more tokens or seeds) "
+            "to confirm the gain. Probes screen; they do not prove usefulness.",
+            missing,
+        )
     reasons.append("no held-out loss gain beyond noise")
-    return {
-        "status": status,
-        "action": "tweak",
-        "next_tier": None,
-        "reasons": reasons,
-        "suggestion": "No measurable gain at this budget: try a bolder change, "
-        "or a longer run only if the idea needs more tokens to show.",
-    }
+    return _verdict(
+        status,
+        "tweak",
+        reasons,
+        "No measurable gain at this budget: try a bolder change, or a longer "
+        "run only if the idea needs more tokens to show.",
+        missing,
+    )

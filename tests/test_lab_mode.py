@@ -490,10 +490,10 @@ _SIGTERM_DURING_SCORING = """
 import os, signal, sys
 from sparselab.evaluation import inference
 original = inference.InferenceRun.evaluate
-def evaluate(self):
+def evaluate(self, **kwargs):
     if self.run.name.startswith("lab-try-"):
         os.kill(os.getpid(), signal.SIGTERM)
-    return original(self)
+    return original(self, **kwargs)
 inference.InferenceRun.evaluate = evaluate
 from sparselab.cli.main import main
 sys.argv = ["sparselab", "try", sys.argv[1], "--vs", sys.argv[2]]
@@ -535,10 +535,10 @@ def test_cancel_during_baseline_scoring_is_never_reused(
     root, baseline = lab
     original = inference.InferenceRun.evaluate
 
-    def cancel_while_scoring(self):  # type: ignore[no-untyped-def]
+    def cancel_while_scoring(self, **kwargs):  # type: ignore[no-untyped-def]
         for marker in (root / "work/lab/tries").glob("*"):
             (marker / "CANCEL").touch()
-        return original(self)
+        return original(self, **kwargs)
 
     monkeypatch.setattr(inference.InferenceRun, "evaluate", cancel_while_scoring)
     record, _ = run_try(
