@@ -1,5 +1,12 @@
 # Offline 100M-target readiness assessment
 
+**2026-10-10 host update:** The earlier assessment below describes a different
+workspace that lacked `/srv/sparselab`. The present host has retained artifacts;
+their fresh, bounded cold-verification results and proposed retained-only
+admission/yield allocation are recorded in [the updated proposal](../../experiments/research/kernel-memory-lab/CARD05_BASE_100M_READINESS_PROPOSAL.md).
+That verification does not admit or measure a new v3 release. The older text is
+kept as a historical forecast, not a current host inventory.
+
 Assessment date: 2026-10-10. Code baseline: merged PR #56,
 `1c1fbc5` (reviewed parent `2b981988dc454820d296bf6c950683be3123c975`).
 The owner selected **100,000,000 training targets** as the next research target.

@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D54 — one retained-yield attempt stopped at baseline sampling, 2026-10-10
+
+- The owner authorized exactly one retained-only admission/yield attempt at clean `bf93fe1d5b0d43275d7c88099d2e8b4a6bff5815` under [the selected measurement-only proposal](CARD05_BASE_100M_READINESS_PROPOSAL.md): 14,400 seconds, 24 GiB process-tree RSS, 8 GiB cumulative added apparent storage, 10,000 entries, 2 GiB projected free-space margin and eight aggregate reviewer-hours. It excluded acquisition, model work, GPU/cloud use, retries, resumes, mixture, bundle and training.
+- [C05-Y2](results/2026-10-10-card05-100m-yield-preledger-stop.md) records the single pre-ledger stop. The approved plan/policy identities and phase shapes checked out, but the native common-root baseline scan exhausted the operator-selected five-second sampling deadline. No baseline, contract, ledger, source verification, release or supply receipt was created. The error and phase-map evidence remain under the unique attempt root; the command was not retried.
+- This authorization supplies no replacement attempt. The historical B7 yield remains the only measured comparison; 100M eligibility is still unestablished. A further attempt or altered baseline sampling bound requires separate review. Card 06 remains blocked.
+
 ## KML-D53 — retained-only preparation attempt stopped at receipt collision, 2026-10-10
 
 - The owner approved one fresh preparation-only attempt at exact clean `01b2939320f9d7320649336681e2ed62ee320ce9` under the [separate proposal](CARD05_BASE_50M_PREPARATION_ONLY_PROPOSAL.md) and corrected packet. It permitted the four authenticated retained snapshots, genuine inspected admission review and downstream preparation only after its gates, under the declared 14,400-second, memory, storage, inode and reviewer ceilings. It prohibited acquisition requests, model work, code changes during execution, restart and resume.
