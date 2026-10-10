@@ -374,6 +374,24 @@ def test_evidence_status_distinguishes_verified_missing_tampered_and_symlink(
     )
 
 
+def test_archived_tinystories_evidence_remains_available_without_rewriting_identity():
+    from sparselab.research.lifecycle import load_lifecycle
+
+    registry = load_lifecycle()
+    reference = next(
+        row for row in registry.evidence if row.id == "tinystories-data-rich-evidence"
+    )
+    assert reference.artifact.sha256 == (
+        "c928b823b6c899a2092c8ccda84af22e30f5dcb0641ba9dace6822793218ff14"
+    )
+    assert reference.artifact.size_bytes == 12316
+    # Exercise the public reader, not merely existence of the relocated file.
+    report = validate_lifecycle(registry, evidence_root=_ROOT)
+    evidence = _mapping(_mapping(report["availability"])[reference.id])
+    assert evidence["status"] == "verified"
+    assert evidence["path"] == str(_ROOT / reference.artifact.relative_path)
+
+
 def test_next_replicate_gate_does_not_treat_documentation_as_measurement(
     tmp_path: Path,
 ) -> None:

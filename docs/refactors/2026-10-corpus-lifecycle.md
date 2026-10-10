@@ -36,9 +36,10 @@ inactive. [The path map](../../experiments/research/history/path-map.json) recor
 original paths, new locations, exact hashes/sizes and the recoverable source
 revision for removed helpers.
 
-- 193 files / 6,041,772 bytes relocated intact: ten earlier research directories
-  and 35 superseded KML packet files plus both old launch documents.
-- 40 obsolete research/tool scripts and 13 old test modules deleted, plus the
+- 194 files / 6,043,943 bytes relocated intact: ten earlier research directories
+  and 35 superseded KML packet files, both old launch documents and the retired
+  Card 03 continuation test allowlist.
+- 40 obsolete research/tool scripts and 15 old test modules deleted, plus the
   historical `surface_studies.py` implementation. Useful guarantees moved to or
   remain in focused native lifecycle tests; old scientific qualification
   assertions were retired without claiming zero-model equivalence.
@@ -162,3 +163,90 @@ Production rights/sample review and reviewer independence, accepted protected
 families, measured 50M supply, actual mixture/bundle evidence, live ROCm/hosted
 shutdown and all model quality or performance remain unrun/unqualified. A new
 production attempt needs separate authorization at the reviewed new commit.
+
+## Follow-up review and repairs
+
+Independent static review of `f1edf7ebfbe37ee51e920922911577999c5ab2bd` found
+four concrete omissions: one live lifecycle evidence reference, two retained
+Card 03 test modules importing deleted helpers, a moved tokenizer-probe fixture
+reference and a source-effects test using the retired packet. Bounded review
+checks reproduced 18 failures in the two Card 03 modules plus the 13 probe
+validation cases (3.19s), and one source-effects declaration failure (2.67s).
+These failures qualify the earlier bounded passing results; they were not
+production failures.
+
+The follow-up directly repairs the lifecycle location binding while preserving
+the evidence digest/size, updates current fixture/declaration references, and
+retires the two old script callers. Their allowlist is archived byte-for-byte.
+The native Card 03 item tests retain source/family/chunk/control/output guarantees;
+old context-screen and gold-blind review-receipt protocols are explicitly retired,
+not represented as equivalent coverage. No deleted helper or replay framework
+was restored. A new public lifecycle-reader regression verifies the retained
+TinyStories evidence is available at its archived location.
+
+Follow-up bounded checks use the environment above plus `UV_OFFLINE=1`,
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, `--tb=short` and `-p no:cacheprovider`.
+
+```text
+tests/test_research_lifecycle.py::test_archived_tinystories_evidence_remains_available_without_rewriting_identity
+tests/test_research_lifecycle.py::test_evidence_status_distinguishes_verified_missing_tampered_and_symlink
+tests/test_corpus_tokenizer_probes.py::test_probe_suite_validation
+tests/test_corpus_tokenizer_probes.py::test_probe_rejects_missing_tokenizer
+tests/test_corpus_tokenizer_probes.py::test_probe_rejects_non_object_and_malformed_json
+tests/test_kml_card03_items.py
+tests/test_corpus_source_effects.py
+```
+
+**37 passed in 19.56s.** The scoring test that fits a tokenizer was deliberately
+not run. All source-effects transports in this selection are fixture adapters
+writing tiny local bytes; socket/HTTP/subprocess transport tripwires forbid real
+source acquisition. The public CLI cases cover verified retained reuse, offline
+and warm/cold readback, missing/corrupt/symlinked origins, declaration mismatch,
+incomplete effect sets, stale proof/bad copies, changed lock origin and origin
+mutation. Only the explicit fixture Wikimedia adapter can consume transfer
+counters; retained origins consume none.
+
+```text
+tests/test_research_lint.py
+tests/test_ci_routing.py
+tests/test_preparation_commands.py
+```
+
+**102 passed in 7.51s.** The active source/test/workflow scan now finds no callers
+of deleted modules or relocated fixtures. Remaining old TinyStories catalog paths
+are hash-bound non-executing `recipe: null` provenance. CLI removal assertions
+and migration documentation intentionally name obsolete interfaces. Workflow
+selections remain explicit; no workflow references either retired Card 03 module.
+
+A direct comparison with the original base verified all 194 archived files
+(6,043,943 bytes) and all 96 KML result/evidence files unchanged.
+
+The connected fixture follow-up replaces both `source_effects=None` substitutions
+with complete sorted `reuse_only` declarations. It verifies the tiny prior
+acquisition cold, copies its exact snapshots locally, binds the origin/copy
+identities and verifies the resulting retained lock cold. A pre-ledger public
+`corpus acquire --offline` refusal probe hides one fixture origin manifest while
+keeping its copied snapshot intact; failure must preserve the acquisition lock,
+create no transport budget and never reach the network tripwire. The fixture
+manifest is restored byte-for-byte before the connected positive sequence.
+All four fixture sources are retained; mixed production acquisition is covered
+only by the separate mocked public-CLI source-effects tests above.
+
+Independent follow-up static review found no new concrete defect in the inspected
+changes and confirmed that the original four omissions were addressed. It did
+not qualify production data, real acquisition, hardware or model behavior.
+
+Final retained-origin connected result: **1 passed in 420.88s**, using
+`uv run --locked --no-sync pytest -q --tb=short
+tests/test_kml_50m_preparation_sequence.py::test_offline_preparation_sequence_through_native_supervision`.
+The final run completed publication, substituted-release denial, cold prepared
+bundle verification and zero-update/accounting/shutdown assertions with all four
+retained-origin effects intact. This supersedes the earlier connected coverage
+limitation without claiming real acquisition or corpus admission.
+
+Final static checks: `ruff check .` passed; `ruff format --check .` passed
+(843 Python files); `git diff --cached --check` passed; native research lint
+reported 417 valid records and zero errors. No fitting, model work, production
+processing, actual source acquisition, push or PR occurred. The original checkout
+remains clean. No remaining concrete blocker was found in this bounded follow-up;
+the production and scientific qualification limits above still apply.

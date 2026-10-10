@@ -17,7 +17,7 @@ from sparselab.corpus.tokenizer_probes import load_probe_suite, probe_tokenizer
 
 _SUITE = (
     Path(__file__).resolve().parents[1]
-    / "experiments/research/devmind-pretrain-v1/tokenizer-probes.json"
+    / "experiments/research/history/devmind-pretrain-v1/tokenizer-probes.json"
 )
 
 

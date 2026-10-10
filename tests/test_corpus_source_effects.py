@@ -356,7 +356,7 @@ def test_preflight_fails_before_any_transport(
 
 def test_kml_declaration_permits_only_pinned_wikimedia_acquisition() -> None:
     recipe = Path(
-        "experiments/research/kernel-memory-lab/card05-base-50m/project-acquire-reuse-v2.yaml"
+        "experiments/research/kernel-memory-lab/card05-base-50m/current/project-acquire.yaml"
     )
     project = load_project(recipe)
     effects = {item.source_id: item.effect for item in project.config.source_effects}

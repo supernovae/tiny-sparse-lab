@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -21,6 +22,8 @@ from sparselab.corpus.acquisition import (
     _digest,
     _project_sha,
     declaration_sha256,
+    verify_acquisition,
+    verify_snapshot,
 )
 from sparselab.corpus.admission_draft import draft_admission_manifest
 from sparselab.corpus.declaration_render import render_declaration
@@ -425,6 +428,54 @@ def _sources(root: Path, project_id: str) -> tuple[Path, dict[str, str]]:
         canonical_json(lock) + b"\n"
     )
     return recipe, strata
+
+
+def _retained_fixture_sources(root: Path, recipe: Path, origin_id: str) -> list[dict]:
+    """Construct a local retained-copy fixture, never invoke source acquisition.
+
+    The prior fixture is the immutable origin. Copy its verified bytes into the
+    candidate and bind both locations exactly as the native retained reader does.
+    Scientific IDs/hashes below describe these generated fixtures only.
+    """
+    origin_lock = verify_acquisition(
+        load_project(root / origin_id / "acquire.yaml"), root
+    )
+    lock_path = root / "corpora" / recipe.name / "acquisition.json"
+    lock = json.loads(lock_path.read_text())
+    effects = []
+    for source_id, entry in sorted(lock["sources"].items()):
+        retained = origin_lock["sources"][source_id]
+        origin = Path(retained["snapshot_path"])
+        copied = Path(entry["snapshot_path"])
+        manifest = verify_snapshot(origin)
+        assert entry["declaration_sha256"] == retained["declaration_sha256"]
+        assert entry["snapshot_sha256"] == retained["snapshot_sha256"]
+        shutil.copytree(origin, copied, dirs_exist_ok=True)
+        assert verify_snapshot(copied) == manifest
+        effects.append(
+            {
+                "source_id": source_id,
+                "declaration_sha256": retained["declaration_sha256"],
+                "effect": "reuse_only",
+                "origin_project_id": origin_id,
+                "snapshot_sha256": retained["snapshot_sha256"],
+            }
+        )
+        entry["reuse_origin"] = {
+            "project_id": origin_id,
+            "declaration_sha256": retained["declaration_sha256"],
+            "snapshot_sha256": retained["snapshot_sha256"],
+            "path": str(origin),
+        }
+    acquisition = recipe / "acquire.yaml"
+    _write_yaml(
+        acquisition,
+        {**yaml.safe_load(acquisition.read_text()), "source_effects": effects},
+    )
+    lock["project_sha256"] = _project_sha(load_project(acquisition))
+    lock_path.write_bytes(canonical_json(lock) + b"\n")
+    assert verify_acquisition(load_project(acquisition), root) == lock
+    return effects
 
 
 def _policy(recipe: Path, strata: dict[str, str]) -> tuple[Path, Path]:
@@ -961,6 +1012,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         root, prior_release
     )
     recipe, _ = _sources(root, "fixture-candidate")
+    retained_effects = _retained_fixture_sources(root, recipe, "fixture-prior")
     template, policy = _policy(recipe, strata)
     (root / "sitecustomize.py").write_text(
         "import socket\n"
@@ -969,6 +1021,46 @@ def test_offline_preparation_sequence_through_native_supervision(
         "socket.socket.connect = blocked\n"
         "socket.create_connection = blocked\n"
     )
+    # A local copied snapshot is insufficient when its declared retained origin
+    # disappears. This negative probe is pre-ledger and cannot reacquire bytes.
+    retained_manifest = (
+        root
+        / "corpora"
+        / "fixture-prior"
+        / "snapshots"
+        / retained_effects[0]["source_id"]
+        / retained_effects[0]["snapshot_sha256"]
+        / "manifest.json"
+    )
+    original_manifest = retained_manifest.read_bytes()
+    held_manifest = retained_manifest.with_name("manifest.fixture-held")
+    retained_manifest.rename(held_manifest)
+    lock_path = root / "corpora" / "fixture-candidate" / "acquisition.json"
+    lock_identity = sha256_file(lock_path)
+    offline_env = os.environ.copy()
+    offline_env["PYTHONPATH"] = (
+        str(root) + os.pathsep + offline_env.get("PYTHONPATH", "")
+    )
+    offline_env["HF_HUB_OFFLINE"] = "1"
+    try:
+        denied_origin = subprocess.run(
+            _native(
+                root, "corpus", "acquire", str(recipe / "acquire.yaml"), "--offline"
+            ),
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+            env=offline_env,
+        )
+        assert denied_origin.returncode != 0
+        assert "snapshot" in denied_origin.stderr
+        assert "network-disabled fixture" not in denied_origin.stderr
+        assert sha256_file(lock_path) == lock_identity
+        assert not (lock_path.parent / "transport-budget.sqlite").exists()
+    finally:
+        held_manifest.rename(retained_manifest)
+    assert retained_manifest.read_bytes() == original_manifest
     release_template = _fixture_template(
         recipe,
         "release-reviewed.template.yaml",
@@ -1011,7 +1103,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         recipe,
         "project-pre-freeze.template.yaml",
         id=fixture_project["id"],
-        source_effects=None,
+        source_effects=retained_effects,
         transport_budget=None,
     )
     cluster_template = recipe / "clusters.template.json"
@@ -1028,7 +1120,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         recipe,
         "project-build.template.yaml",
         id=fixture_project["id"],
-        source_effects=None,
+        source_effects=retained_effects,
         transport_budget=None,
     )
     prior_rows = [json.loads(line) for line in prior_family.read_text().splitlines()]

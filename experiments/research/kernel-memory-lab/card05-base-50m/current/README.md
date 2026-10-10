@@ -3,8 +3,8 @@
 This directory is the sole current preparation packet. Its public baseline is
 `sparselab-preparation-v1`; existing contract v1, release schema 2, admission
 review v2 and `normalizer-structure-v3` retain their real artifact identities.
-The parent directory's versioned packets are historical inputs, not alternative
-operator routes. No production execution is authorized by this refactor.
+The archived versioned packets are historical inputs, not alternative operator
+routes. No production execution is authorized by this refactor.
 
 `preparation.json` owns the 32 phase labels, argument vectors, output names,
 template references and project-template path bindings. `@phase` means that
@@ -62,9 +62,13 @@ and release paths, tokenizer origin, reviewer decisions and hashes remain
 late-bound, never synthesized by the compiler. `attempt bind-artifact` still
 seals pre-freeze/build/release acceptance at their existing gates.
 
-The connected test loads this packet, uses tiny offline snapshots and a prebuilt
-WordLevel vocabulary, explicitly replaces fixture identities/resource limits,
-and follows the public path to cold bundle verification. Synthetic decisions
+The connected test loads this packet, uses tiny verified retained-origin snapshots
+and a prebuilt WordLevel vocabulary, explicitly replaces fixture identities/resource
+limits, and preserves `reuse_only` source effects through the public path to cold
+bundle verification. A missing-origin probe must fail even with a valid local
+copy, without acquisition. The fixture treats all four sources as retained; the
+production declaration still permits acquisition only for Wikimedia. Independent
+public-CLI source-effect fixtures cover that mixed policy with mocked transport. Synthetic decisions
 prove binding and coverage only. Real source admission, family review, supply,
 mixture/bundle qualification, reviewer independence and all model/hardware work
 remain unqualified. B11–B16 evidence is unchanged; B16's outer receipt-based

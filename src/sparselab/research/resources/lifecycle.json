@@ -1472,7 +1472,7 @@
     },
     {
       "artifact": {
-        "relative_path": "experiments/research/tinystories-dense-30m-data-rich-v1/evidence.json",
+        "relative_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/evidence.json",
         "sha256": "c928b823b6c899a2092c8ccda84af22e30f5dcb0641ba9dace6822793218ff14",
         "size_bytes": 12316
       },

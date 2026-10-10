@@ -49,3 +49,28 @@ hosted guard are removed. Device UUID/sensor errors and storage accounting have
 focused native monitor regressions. Old model-science assertions are retired,
 not represented as passing or replaced by zero-model tests. Historical results
 and their limitations remain in the research archive.
+
+The remaining `test_kml_card03_context_check.py` and
+`test_kml_card03_review_receipts.py` modules were retired after review found that
+they imported deleted, research-specific scripts. Their historical allowlist is
+archived unchanged. Native `test_kml_card03_items` retains held-out family/source
+binding, exact chunk identity, control structure, immutable output and incomplete
+denominator checks. It does not replace the old token-context/phrase-overlap
+screen or independent gold-blind evaluation-review receipt protocol. Those old
+evaluation-specific guarantees are retired, not claimed as preparation coverage;
+current corpus admission review remains inspection-bound and independently tested.
+
+The live research lifecycle now points directly to archived TinyStories evidence
+while retaining its exact digest and size. The public lifecycle-reader regression
+checks availability; no historical replay or path alias layer was introduced.
+Tokenizer probe validation reads its unchanged archived fixture. The source-effects
+regression loads `current/project-acquire.yaml`, retaining the three reuse-only
+sources and single permitted Wikimedia source declaration.
+
+The connected fixture keeps complete `reuse_only` bindings to verified tiny
+origin snapshots through pre-freeze/build and cold prepared-bundle verification.
+It rejects a missing retained origin even when a valid candidate copy exists.
+All four fixture sources are retained; real Wikimedia acquisition is not exercised.
+The independent `test_corpus_source_effects` public-CLI tests cover the mixed
+production effect policy using an explicit mocked Wikimedia transport and network
+tripwires. Neither fixture result admits a real corpus or qualifies real transfer.

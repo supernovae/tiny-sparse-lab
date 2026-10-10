@@ -28,8 +28,8 @@ compatibility alias is provided. Archived YAML/JSON declarations are retained
 provenance, not supported launch templates.
 
 The same map also preserves **35 historical Kernel Memory Lab packet files /
-116,252 bytes**, relocated without modification. Its total is **193 retained
-files / 6,041,772 bytes** and 20 deleted research helpers. The
+116,252 bytes**, relocated without modification. Its total is **194 retained
+files / 6,043,943 bytes** and 20 deleted research helpers. The
 [current preparation packet](../kernel-memory-lab/card05-base-50m/current/README.md)
 is the sole current operator path; B11–B17 result records remain in the active
 project as truthful historical evidence. No stopped ledger is changed or reset.
@@ -57,3 +57,7 @@ scores, corpus bytes and stopped attempt findings remain unchanged.
 
 The two superseded 50M launch/preparation packet documents are archived under
 `kernel-memory-lab/` as well. The active route is the current packet linked above.
+
+The obsolete Card 03 evaluation continuation test allowlist is archived unchanged
+under `kernel-memory-lab/corpus-scale/`. It is a historical selection tied to
+retired scripts, not a current test command or execution authorization.

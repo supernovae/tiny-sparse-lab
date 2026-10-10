@@ -13,7 +13,7 @@
     "devmind-pretrain-v5",
     "tinystories-dense-30m-data-rich-v1",
     "kernel-memory-lab/card05-base-50m (historical parent only; current/ excluded)",
-    "kernel-memory-lab/corpus-scale (retired executable helpers only)",
+    "kernel-memory-lab/corpus-scale (retired helpers and historical test allowlist)",
     "kernel-memory-lab (superseded 50M launch/preparation packet documents)"
   ],
   "note": "Historical record bytes are unchanged. Embedded paths refer to their original layout and source revision. Deleted executable scaffolding is recoverable from source_commit; no current replay support is claimed.",
@@ -1396,6 +1396,13 @@
       "bytes": 9115,
       "action": "deleted_obsolete_executable",
       "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/corpus-scale/evaluation-continuation-test-allowlist.md",
+      "sha256": "738418f8d222c50c8efbb5d52c16a2804bb76dbd3a3f94edbf8d162a48c18aeb",
+      "bytes": 2171,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/corpus-scale/evaluation-continuation-test-allowlist.md"
     },
     {
       "original_path": "experiments/research/kernel-memory-lab/corpus-scale/make-evaluation-blind-worksheet.py",
