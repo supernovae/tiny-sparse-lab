@@ -2,6 +2,12 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D51 — retained-only 50M attempt stopped at admission review, 2026-10-10
+
+- The owner approved one fresh conditional local attempt at exact clean `52b681c1b71f73dfd4ec52e91102e3e0c087c6bc` under the retained proposal and corrected packets. It required zero network or retries, a new native baseline/ledger, reviewed v3 preparation gates, then conditional fresh training and bounded evaluation. Code changes during execution, attempt restart/resume, cloud use, merge and Card 06 progression were excluded.
+- [C05-B15](results/2026-10-10-card05-50m-attempt5-admission-review-stop.md) records successful pre-ledger binding, four-snapshot offline verification and an unreviewed admission draft. The packet's deterministic clear-row review cannot use native release inspection before admission creates a release; no compliant bounded pre-admission inspection operation was available. The attempt stopped before accepting admission or running any model work. Its one ledger has three zero-model reservations and is spent; no restart or resume is authorized. B11–B14 and their evidence remain unchanged.
+- Next task is a narrowly scoped offline native read-only sampling/inspection route for verified snapshots and draft decisions, plus inspected zero-model tests and a corrected packet. No fresh production allocation is granted here.
+
 ## KML-D50 — retained-snapshot 50M attempt stopped at baseline binding, 2026-10-09
 
 - The owner approved one fresh conditional local attempt at exact clean `7b9fe21f27f74d215e761c0da2146657e6aaa611` under [the retained proposal](CARD05_BASE_50M_RETAINED_PROPOSAL.md) and corrected launch packet. It required four authenticated retained snapshots and zero network/metadata requests or transfer bytes, one persistent ledger and cumulative baseline, conditional v3 preparation, fresh training and bounded evaluation under all existing caps. No retry, resume, attempt restart, code change during execution, cloud use or Card 06 progression was approved.

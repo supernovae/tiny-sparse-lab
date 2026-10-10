@@ -273,6 +273,22 @@ experiment or a merge.
   floors, ROCm and model quality remain future execution gates; B11–B13 remain
   stopped and unchanged.
 
+- [ ] **Inspect verified pre-admission corpus rows through a bounded native command.**
+  C05-B15 cold-verified the four retained snapshots and produced a v2 admission
+  draft, then stopped before admission review: `corpus sample`/`review` require
+  a frozen release, but that release requires reviewed admission first. Expose
+  a read-only command over the verified acquisition lock, exact snapshot files
+  and admission draft that deterministically selects the preregistered
+  clear-screen strata, reports stable row/file identities, bounded source-text
+  excerpts and source/notice/exception fields, and fails on changed lock,
+  snapshot, draft, source policy or selection rules. Do not auto-accept the
+  sample or change row decisions. Add tiny offline tests for deterministic
+  selection, source binding, malformed or missing text, quarantine exclusion
+  and hard output/resource limits. The reviewer still records item-level
+  decisions through the existing supervised declaration renderer. Preserve the
+  B15 ledger and draft as stopped evidence; a corrected packet and separate
+  attempt decision are required before production work resumes.
+
 - [x] **Bind the verified common-root baseline before a 50M ledger exists.**
   C05-B14 stopped at dispatch because its contract used the baseline file hash
   instead of the receipt's embedded identity. The bounded native renderer now
