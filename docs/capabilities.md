@@ -13,11 +13,11 @@ uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs confi
 uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/chat_recall_engram_cpu.yaml --run-id chat-engram
 uv run --locked --extra cpu sparselab capability list
 uv run --locked --extra cpu sparselab capability describe chat-alias-recall-v1
-uv run --locked --extra cpu sparselab capability compare chat-dense chat-engram chat-alias-retention-v1
-uv run --locked --extra cpu sparselab capability evaluate chat-dense chat-alias-recall-v1
-uv run --locked --extra cpu sparselab capability compare chat-dense chat-engram chat-alias-recall-v1 --vary memory
-uv run --locked --extra cpu sparselab capability compare chat-dense chat-engram chat-context-override-v1 --vary memory
-uv run --locked --extra cpu sparselab chat chat-engram --system "Answer the requested alias with only its value." --max-new-tokens 12 --transcript sparselab-work/chat-engram.json
+uv run --locked --extra cpu sparselab capability compare chat-dense chat-engram chat-alias-retention-v1 --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab capability evaluate chat-dense chat-alias-recall-v1 --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab capability compare chat-dense chat-engram chat-alias-recall-v1 --vary memory --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab capability compare chat-dense chat-engram chat-context-override-v1 --vary memory --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab chat chat-engram --system "Answer the requested alias with only its value." --max-new-tokens 12 --transcript sparselab-work/chat-engram.json --runs-dir sparselab-work/runs
 ```
 
 These configurations deliberately train small models on a bounded task rather than promise general conversation. The dataset and evaluator share the ordinary `User:` / `Assistant:` formatter. There is no lookup-tool shortcut at inference: responses come from trained model logits. The tokenizer is trained on the training split only.
@@ -38,8 +38,8 @@ The bundled pair trains for up to 1,536 steps/393,216 targets. Epoch-end short b
 Each result retains every prompt, expected answer, generated response, score, and generation settings. Identity includes the exact resolved checkpoint digest, actual step and trained target tokens, run configuration, run-owned tokenizer and data hashes, code identity, runtime, and parameter inventory. Content-addressed filenames preserve earlier checkpoints and reruns instead of overwriting the latest score. The comparison itself is saved too.
 
 ```sh
-uv run --locked --extra cpu sparselab capability evaluate chat-engram chat-alias-recall-v1 --checkpoint best.json
-uv run --locked --extra cpu sparselab evidence chat-engram --json
+uv run --locked --extra cpu sparselab capability evaluate chat-engram chat-alias-recall-v1 --checkpoint best.json --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab evidence chat-engram --json --runs-dir sparselab-work/runs
 ```
 
 `best.json` means best **validation loss**, not best capability score. Select a checkpoint on validation, not by searching test scores. For a learning curve, evaluate explicit generation directories at preregistered token budgets; preserve the step-zero result as the untrained control. Compare architectures at the same actual budget, not just the same configured maximum.
@@ -81,7 +81,10 @@ KV-cached PyTorch decoding and native MLX sparse attention are available within 
 ## Additional task and review workflows
 
 Set `SPARSELAB_WORK_DIR` to your external persistent root before these commands.
-Use new output destinations for each task bundle.
+Here `RUN_ID`, `base` and `variant` stand for existing runs in
+`$SPARSELAB_WORK_DIR/runs`; pass their actual store if it differs. The chat pair
+above explicitly uses `sparselab-work/runs` instead. Use new output destinations
+for each task bundle.
 
 Inspect the outcome groups with `sparselab capability suite`. Held-out language-model loss remains separate from exact-answer behavior-card scores. The suite has distinct cards for canonical lexical recall, paraphrase, multi-turn follow-up, Python API behavior, novel-operand math, application, composition, long-context retrieval, conversation override, instruction-over-memory, and stale/conflicting/missing evidence. Lexical, paraphrase, and conversation cards share the synthetic alias domain; treat them as task conditions, not independent knowledge samples. Wikidata factual and paraphrase cards are generated from the explicitly built local source bundle.
 
@@ -98,7 +101,7 @@ The optional factual miniature downloads data only when explicitly requested:
 
 ```sh
 uv run --locked --extra cpu sparselab research tasks build wikidata-mini --output "$SPARSELAB_WORK_DIR/experiments/capability-tasks/wikidata"
-uv run --locked --extra cpu sparselab capability evaluate RUN_ID "$SPARSELAB_WORK_DIR/experiments/capability-tasks/wikidata/cards/wikidata-mini-factual-recall-v1.json"
+uv run --locked --extra cpu sparselab capability evaluate RUN_ID "$SPARSELAB_WORK_DIR/experiments/capability-tasks/wikidata/cards/wikidata-mini-factual-recall-v1.json" --runs-dir "$SPARSELAB_WORK_DIR/runs"
 ```
 
 The answer-free packaged source manifest pins Q42 and Q937 to training, Q7259 to validation, and Q7186 to test, each at a fixed Wikidata revision. The builder makes four serial requests to the revision-specific `Special:EntityData` endpoint, sends a descriptive User-Agent, caps each response at 8 MiB, and does not retry a rate-limited request. It downloads each complete entity JSON, extracts an English label or (when absent) a language-neutral `mul` label recorded as `label_language`, and extracts P569/P570 dates at day precision. It verifies each entity ID and revision, hashes the canonical response, and retains no raw entity JSON. Wikidata structured data is [CC0](https://www.wikidata.org/wiki/Wikidata:Reuse); the [data-access guidance](https://www.wikidata.org/wiki/Wikidata:Data_access) recommends specific revisions and considerate request rates. The manifest labels source facts `CC0-1.0` and generated prompts/format `MIT`; set the combined local-chat license to `MIT prompts/format; CC0-1.0 Wikidata facts`. Train/validation/test membership is entity-disjoint, and test answers are absent from training. This four-entity fixture is not a broad factual-knowledge benchmark.
@@ -108,7 +111,7 @@ Mine lexical statistics using only the explicitly supplied training corpus:
 ```sh
 uv run --locked --extra cpu sparselab research corpus mine \
   --train-jsonl "$SPARSELAB_WORK_DIR/experiments/capability-tasks/math/train.jsonl" \
-  --tokenizer sparselab-work/runs/RUN_ID/tokenizer/tokenizer.json \
+  --tokenizer "$SPARSELAB_WORK_DIR/runs/RUN_ID/tokenizer/tokenizer.json" \
   --table-size 65536 --memory-dim 64 --ngram-orders 2 4 --hash-heads 1 \
   --output "$SPARSELAB_WORK_DIR/experiments/capability-tasks/math-lexical-analysis.json"
 ```
@@ -119,8 +122,8 @@ Create a blinded comparison directly from content-addressed capability results:
 
 ```sh
 uv run --locked --extra cpu sparselab review bundle \
-  --base-result sparselab-work/runs/base/evaluations/BASE_RESULT.json \
-  --variant-result sparselab-work/runs/variant/evaluations/VARIANT_RESULT.json \
+  --base-result "$SPARSELAB_WORK_DIR/runs/base/evaluations/BASE_RESULT.json" \
+  --variant-result "$SPARSELAB_WORK_DIR/runs/variant/evaluations/VARIANT_RESULT.json" \
   --criteria rubric.json --seed 17 \
   --bundle artifacts/review/rater-bundle.json \
   --reveal-map private/reveal-map.json
