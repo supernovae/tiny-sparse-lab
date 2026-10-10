@@ -580,6 +580,38 @@ def _judge(
 # --- Battery ------------------------------------------------------------------
 
 
+def _require_complete_benchmark(results: list[dict[str, Any]]) -> None:
+    """A reference's lm-eval row counts only with every task and item scored.
+
+    An errored, skipped (stopped, OOM) or partial row names its unscored
+    tasks in ``details.missing_tasks`` and is an error, i.e. missing evidence.
+    """
+    from sparselab.probes.lm_eval_adapter import missing_tasks
+
+    spec = BY_ID["lm_eval"]
+    for row in results:
+        if row["id"] != "lm_eval":
+            continue
+        details = row.get("details") or {}
+        gaps = (
+            missing_tasks(details, spec.params["tasks"], spec.params["limit"])
+            if row["status"] == "info"
+            else list(spec.params["tasks"])
+        )
+        if gaps:
+            row["details"] = {**details, "missing_tasks": gaps}
+        if row["status"] == "info" and gaps:
+            row.update(
+                status="error",
+                note="incomplete benchmark: unscored items in " + ", ".join(gaps),
+            )
+        elif row["status"] == "info":
+            row["note"] = (
+                "reference point: place results on it with "
+                "`sparselab compare RESULT --references`"
+            )
+
+
 def run_battery(
     target: Any,
     baseline: Any | None = None,
@@ -780,6 +812,8 @@ def run_battery(
             if r["id"] in dev
         },
     )
+    if t_arm.reference:
+        _require_complete_benchmark(results)
     verdict = decide(
         results,
         has_baseline=b_arm is not None,
@@ -788,19 +822,8 @@ def run_battery(
         guard=guard,
         specs=BY_ID,
         stop=stop,
+        reference=t_arm.reference,
     )
-    if t_arm.reference:
-        for row in results:
-            if row["status"] == "info":
-                row["note"] = (
-                    "reference point: place results on it with "
-                    "`sparselab compare RESULT --references`"
-                )
-    if t_arm.reference and verdict["status"] == "info":
-        verdict["suggestion"] = (
-            "Reference point (pinned public checkpoint): place a result on this "
-            "curve with `sparselab compare RESULT --references`."
-        )
     protocol_used = state["protocol"] or {}
 
     def identity(arm: Arm | None) -> dict[str, Any] | None:

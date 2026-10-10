@@ -21,6 +21,7 @@ from sparselab.probes.points import (
     collect_points,
     metric_points,
     points_from_record,
+    with_checkpoint_evidence,
 )
 from sparselab.probes.render import GLYPH, _compact, _num, _paint, params_text
 from sparselab.reference_models import REFERENCES, is_reference, reference_for
@@ -69,9 +70,13 @@ def _reference_point(spec: str, pool: Sequence[Mapping[str, Any]]) -> dict[str, 
 def resolve_point(
     spec: str, lab_dir: Path, pool: Sequence[Mapping[str, Any]]
 ) -> dict[str, Any]:
-    """A try/probe id or record path (its candidate), or ``ref:NAME``."""
+    """A try/probe id or record path (its candidate), or ``ref:NAME``.
+
+    The record's own measurements come first; other verified records of the
+    same checkpoint (e.g. a later ``probe --tier full``) add what it lacks.
+    """
     if is_reference(spec):
-        return _reference_point(spec, pool)
+        return with_checkpoint_evidence(_reference_point(spec, pool), pool)
     path = resolve_record(spec, lab_dir)
     kind, record = read_lab_record(path)
     points = points_from_record(kind, record, path)
@@ -79,7 +84,34 @@ def resolve_point(
     if not candidate:
         raise ValueError(f"{spec}: no scored candidate in this record")
     sha = candidate[0]["checkpoint_sha256"]
-    return _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
+    own = _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
+    return with_checkpoint_evidence(own, pool)
+
+
+def _common_group(
+    subject: Mapping[str, Any],
+    other: Mapping[str, Any],
+    metric_id: str,
+    a: Mapping[str, Any],
+    b: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    """Measurements of both checkpoints in one shared group, when they exist.
+
+    A checkpoint scored in several groups (e.g. an older lm-eval record and a
+    newer `probe --tier full`) is compared in the group the other side has.
+    """
+    if a.get("group") == b.get("group"):
+        return a, b
+    mine = (subject.get("by_group") or {}).get(metric_id) or {}
+    theirs = (other.get("by_group") or {}).get(metric_id) or {}
+    for group in (b.get("group"), a.get("group"), *mine):
+        if group is not None and group in mine and group in theirs:
+            return mine[group], theirs[group]
+    if b.get("group") in mine:
+        return mine[b["group"]], b
+    if a.get("group") in theirs:
+        return a, theirs[a["group"]]
+    return a, b
 
 
 def pair(
@@ -110,6 +142,14 @@ def pair(
             "status": "missing_evidence",
             "note": f"{who['label']} has no {metric.label}; {hint}",
         }
+    a, b = _common_group(subject, other, metric_id, a, b)
+    source = (a.get("evidence") or {}).get("value")
+    out.update(
+        value=a["value"],
+        other_value=b["value"],
+        evidence=source,
+        group=a.get("group") if a.get("group") == b.get("group") else None,
+    )
     if a.get("group") is None or b.get("group") is None:
         return {
             **out,
@@ -130,7 +170,12 @@ def pair(
     status = "higher" if delta > 0 else "lower"
     if se is not None and abs(delta) <= NOISE_SE * se or delta == 0:
         status = "within_noise"
-    note = None if se is not None else "no paired SE (per-item evidence missing)"
+    notes = []
+    if source and source != subject.get("source"):
+        notes.append(f"subject measured in {source}")
+    if se is None:
+        notes.append("no paired SE (per-item evidence missing)")
+    note = "; ".join(notes) or None
     return {**out, "status": status, "delta": delta, "se": se, "note": note}
 
 
@@ -172,9 +217,18 @@ def reference_curve(
     refs = [p for p in metric_points(pool, "lm_eval") if p["kind"] == "reference"]
     if mine is None:
         return {"group": None, "points": [], "note": METRICS["lm_eval"].missing_hint}
+    # Of the groups this checkpoint was scored in, use the one with the most
+    # references (ties: the subject's own record).
+    options = (subject.get("by_group") or {}).get("lm_eval") or {}
+    ranked = sorted(
+        options.values(),
+        key=lambda m: -sum(r["group"] == m["group"] for r in refs),
+    )
+    if ranked and any(r["group"] == ranked[0]["group"] for r in refs):
+        mine = ranked[0]
     same = [p for p in refs if p["group"] == mine["group"]]
     rows = sorted(
-        [*same, {**subject, **mine, "subject": True}],
+        [*same, {**subject, **mine, "label": subject["label"], "subject": True}],
         key=lambda p: (p.get("active_parameters") or 0, p["label"]),
     )
     chance = mine.get("chance") or {}
@@ -209,6 +263,25 @@ def _metric_value(point: Mapping[str, Any], metric_id: str) -> str:
     return _num(value["value"]) if value else "–"
 
 
+def _provenance(points: Sequence[Mapping[str, Any]], color: bool) -> list[str]:
+    """Where a point's measurements came from when not its own record."""
+    lines = []
+    for point in points:
+        for metric_id, value in (point.get("metrics") or {}).items():
+            source = (value.get("evidence") or {}).get("value")
+            if source and source != point.get("source"):
+                lines.append(
+                    _paint(
+                        f"    ↳ {point['label']}: {METRICS[metric_id].label} from "
+                        f"{source} (same checkpoint "
+                        f"{str(point.get('checkpoint_sha256'))[:12]})",
+                        "2",
+                        color,
+                    )
+                )
+    return lines
+
+
 def render(report: Mapping[str, Any], *, color: bool = False) -> str:
     subject = report["subject"]
     points = report["points"]
@@ -234,6 +307,7 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
             f" {_metric_value(point, 'heldout_loss'):>14}"
             f" {_metric_value(point, 'lm_eval'):>12}"
         )
+    lines += _provenance(points, color)
     for metric_id, metric in METRICS.items():
         direction = "higher" if metric.higher_is_better else "lower"
         lines += [

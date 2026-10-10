@@ -169,10 +169,11 @@ actions are:
 | Condition (first match) | status | action |
 |---|---|---|
 | numerical failure (NaN/inf held-out loss) | fail | `abandon` |
-| no baseline | info | `compare` |
+| no baseline (a reference model only once every task and item is scored) | info | `compare` |
 | a hard probe failed | fail | `abandon` |
 | any probe failed | fail | `tweak` (that probe's hint) |
 | missing evidence (unavailable, error, not comparable, stopped by cancel/resources/OOM) | incomplete | `rerun` (names each gap) |
+| reference model: a benchmark task or item unscored (error, OOM, partial) | incomplete | `rerun` (names the unscored tasks; never placed on the curve) |
 | overfit guard fired | warn | `tweak` |
 | held-out loss improved beyond noise, tiers left | pass/warn | `escalate` with `next_tier` |
 | held-out loss improved beyond noise, all tiers run | pass/warn | `longer_run` |
@@ -245,7 +246,9 @@ baseline. Without the optional extras the command stops before any work with
 record, so `compare`, the dashboard and CI use them without downloading a
 model. Measured on CPU (fp32, lm-eval 0.4.13, transformers 4.57.6) with the
 `full` tier's tasks at `limit=50`, zero-shot; two independent runs gave
-identical records:
+identical records. They were re-sealed when the benchmark group gained item
+prompt/target identities and the scoring-protocol version; the scored items,
+per-item outcomes, accuracies and checkpoint digests did not change:
 
 | Reference | lambada_openai | hellaswag | arc_easy | piqa | mean `acc` |
 |---|---|---|---|---|---|
@@ -265,9 +268,12 @@ way:
 
 - held-out loss within one `eval_group` (validation data, tokenizer, loss mask,
   eval protocol), as before;
-- lm-eval accuracy within one `benchmark_group`: a digest of the tasks, task
-  versions, shots, `limit`, the metric used per task and the exact item hashes
-  the harness scored (`details.benchmark`). Each task's per-item outcomes are
+- lm-eval accuracy within one `benchmark_group`: a digest of the harness, the
+  scoring-protocol version (`sparselab-lmeval-scoring-v1`), tasks, task
+  versions, shots, `limit`, the metric used per task and, per item, a hash of
+  its document, its rendered requests (context and continuation) and its
+  target(s) (`details.benchmark`), so a reworded prompt or a changed target is a
+  different group. Each task's per-item outcomes are
   kept (`details.tasks.<task>.items`) so two results in the same group get a
   **paired** standard error: per-task paired SEs combined as `sqrt(Σ se_t²)/T`.
   The battery's own lm-eval row uses the same paired SE, and refuses a
@@ -275,7 +281,12 @@ way:
 
 `sparselab compare RESULT [RESULT…] [--references] [--json]` reads sealed
 records only (a try/probe id, a record path or `ref:NAME`; the first is the
-subject) and prints one table of points and, per metric, each pair as
+subject). Each point is completed with compatible evidence for the **same
+checkpoint** (same checkpoint sha256) from every verified record in the lab:
+per (comparison group, checkpoint) each field keeps its newest available value
+and its source. So when `compare TRY --references` reports missing lm-eval
+evidence and suggests `sparselab probe TRY --tier full`, rerunning the same
+`compare TRY` picks up that probe and says where the number came from. It and prints one table of points and, per metric, each pair as
 better/worse/within noise (|Δ| ≤ 2 paired SE), **NOT COMPARABLE** with the
 reason, or **MISSING EVIDENCE** with the command that produces it:
 
@@ -294,10 +305,18 @@ COMPARE  try-20261010T171944Z-43f2ff1d:candidate vs 4 point(s) · comparisons on
       ↳ reference models have their own tokenizer and training data, so held-out loss on our split is never comparable; use lm-eval accuracy
 
   lm-eval accuracy (higher is better)
-    ✖ WORSE         vs pythia-70m-deduped                        Δ -0.135 ±0.033
-    ✖ WORSE         vs pythia-160m-deduped                       Δ -0.210 ±0.037
-    ✖ WORSE         vs SmolLM2-135M                              Δ -0.265 ±0.038
-    ✖ WORSE         vs SmolLM2-360M                              Δ -0.345 ±0.039
+    ✖ WORSE         vs pythia-70m-deduped                        Δ -0.135 ±0.033  (subject measured in probe-20261010T182330Z-e7ef2268)
+    ✖ WORSE         vs pythia-160m-deduped                       Δ -0.210 ±0.037  (subject measured in probe-20261010T182330Z-e7ef2268)
+    ✖ WORSE         vs SmolLM2-135M                              Δ -0.265 ±0.038  (subject measured in probe-20261010T182330Z-e7ef2268)
+    ✖ WORSE         vs SmolLM2-360M                              Δ -0.345 ±0.039  (subject measured in probe-20261010T182330Z-e7ef2268)
+
+  reference curve (lm-eval accuracy)
+    ▶ try-20261010T171944Z-43f2ff1d:candidate   49.3k params                   0.220 █████████
+    ◆ pythia-70m-deduped                        70.4M params (44.7M active)    0.355 ██████████████
+    ◆ pythia-160m-deduped                       162.3M params (123.7M active)  0.430 █████████████████
+    ◆ SmolLM2-135M                              134.5M params                  0.485 ███████████████████
+    ◆ SmolLM2-360M                              361.8M params                  0.565 ███████████████████████
+    chance (task mean) 0.250
 ```
 
 (A 49k-parameter smoke model trained on 1.5k tokens, so it sits below chance on
@@ -323,8 +342,10 @@ checkpoint's active → resident range. Points come from every verified lab
 record through `sparselab.probes.points` (shared with `compare`): each scored
 arm of every `try`, including tries run with `--probe-tier none`, every probe
 target and baseline, and the packaged reference results (purple diamonds,
-lm-eval only). One point per (comparison group, checkpoint), newest result
-wins. It plots only within one comparison group (`eval_group` for loss,
+lm-eval only). One point per (comparison group, checkpoint): compatible
+measurements are merged field by field, each keeping its newest available value
+with its source (`evidence`), so a newer record without latency does not drop an
+older record's latency. It plots only within one comparison group (`eval_group` for loss,
 `benchmark_group` for lm-eval), chosen with a selector that defaults to the
 selected result's group; hidden groups, points without the chosen cost and
 older records without a group are counted in a caption, never mixed in. The

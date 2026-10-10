@@ -26,6 +26,7 @@ from sparselab.probes.points import (
     packaged_reference_records,
     pareto_frontier,
     points_from_record,
+    probe_points,
 )
 from sparselab.probes.suite import BY_ID
 from sparselab.reference_models import (
@@ -166,7 +167,9 @@ def _fake_reference() -> ReferenceRun:
     )
 
 
-def _summary(items: dict[str, list[float]], doc_hash: str = "d") -> dict[str, Any]:
+def _summary(
+    items: dict[str, list[float]], doc_hash: str = "d", prompt: str = "Q"
+) -> dict[str, Any]:
     """An lm-eval summary built by the real summarizer from harness-shaped output."""
     results = {
         "results": {t: {"acc,none": float(np.mean(v))} for t, v in items.items()},
@@ -174,7 +177,13 @@ def _summary(items: dict[str, list[float]], doc_hash: str = "d") -> dict[str, An
         "n-shot": dict.fromkeys(items, 0),
         "samples": {
             t: [
-                {"doc_id": i, "doc_hash": f"{doc_hash}{t}{i}", "acc": x}
+                {
+                    "doc_id": i,
+                    "doc_hash": f"{doc_hash}{t}{i}",
+                    "arguments": [[f"{prompt}{i}:", " yes"], [f"{prompt}{i}:", " no"]],
+                    "target": 0,
+                    "acc": x,
+                }
                 for i, x in reversed(list(enumerate(v)))  # harness order is not ours
             ]
             for t, v in items.items()
@@ -194,7 +203,7 @@ def test_reference_arm_runs_only_lm_eval_and_records_identity(
 
     loaded = _fake_reference()
     assert eot(loaded) == 0
-    items = {t: [1.0, 0.0, 1.0, 1.0] for t in LM_TASKS}
+    items = {t: [1.0, 0.0, 1.0, 1.0] * 12 + [1.0, 1.0] for t in LM_TASKS}  # limit 50
     monkeypatch.setattr(lm_eval_adapter, "run_lm_eval", lambda *a, **k: _summary(items))
     result = runner.run_battery(
         runner.Arm(load=lambda: loaded, reference=True), tier="full"
@@ -202,7 +211,9 @@ def test_reference_arm_runs_only_lm_eval_and_records_identity(
     assert [r["id"] for r in result["probes"]] == ["lm_eval"]
     assert result["tiers_run"] == ["full"] and result["protocol"] == {}
     row = result["probes"][0]
-    assert row["status"] == "info" and row["value"] == pytest.approx(0.75)
+    assert row["status"] == "info" and row["value"] == pytest.approx(38 / 50)
+    assert result["verdict"]["status"] == "info"
+    assert result["verdict"]["action"] == "compare"
     assert "sparselab compare" in row["note"]
     assert row["details"]["benchmark_group"]
     assert "sparselab compare RESULT --references" in result["verdict"]["suggestion"]
@@ -237,6 +248,10 @@ def test_benchmark_group_pins_tasks_versions_shots_and_items() -> None:
     assert same["benchmark_group"] == base["benchmark_group"]  # scores don't matter
     other_items = _summary(items, doc_hash="other")
     assert other_items["benchmark_group"] != base["benchmark_group"]
+    # The rendered prompts/targets and the scoring protocol are part of it.
+    reworded = _summary(items, prompt="Question ")
+    assert reworded["benchmark_group"] != base["benchmark_group"]
+    assert base["benchmark"]["scoring_protocol"] == lm_eval_adapter.SCORING_PROTOCOL
     fewer = _summary({"piqa": [1.0, 0.0, 1.0]})
     assert fewer["benchmark_group"] != base["benchmark_group"]
     assert base["benchmark_group"] == comparison_group(base["benchmark"])
@@ -309,7 +324,9 @@ def _ref_lm(name: str) -> dict[str, Any]:
     raise AssertionError(name)
 
 
-def _try_record(lab: Path, try_id: str, *, eval_group: str | None) -> dict[str, Any]:
+def _try_record(
+    lab: Path, try_id: str, *, eval_group: str | None, shas: str = "ab"
+) -> dict[str, Any]:
     def arm(sha: str, loss: float) -> dict[str, Any]:
         return {
             "run_id": f"lab-{try_id}-{sha}",
@@ -334,7 +351,7 @@ def _try_record(lab: Path, try_id: str, *, eval_group: str | None) -> dict[str, 
         "try_id": try_id,
         "created_at": "2026-10-10T12:00:00+00:00",
         "question": "does it help?",
-        "arms": {"baseline": arm("a", 5.0), "candidate": arm("b", 4.0)},
+        "arms": {"baseline": arm(shas[0], 5.0), "candidate": arm(shas[1], 4.0)},
         "comparison": {"verdict": "BETTER"},
     }
     path = lab / "tries" / try_id / "try.json"
@@ -343,13 +360,27 @@ def _try_record(lab: Path, try_id: str, *, eval_group: str | None) -> dict[str, 
 
 
 def _probe_record(
-    lab: Path, probe_id: str, *, lm_row: dict[str, Any] | None, group: str
+    lab: Path,
+    probe_id: str,
+    *,
+    lm_row: dict[str, Any] | None,
+    group: str,
+    checkpoint: str = "c" * 64,
+    created_at: str = "2026-10-10T13:00:00+00:00",
+    baseline: dict[str, Any] | None = None,
+    ms_per_token: float | None = None,
 ) -> dict[str, Any]:
     loss = runner._row(BY_ID["heldout_loss"], status="info", value=4.5)
-    loss["details"] = {"window_sums": [45.0, 46.0], "window_counts": [10, 10]}
+    loss["details"] = {
+        "window_sums": [45.0, 46.0],
+        "window_counts": [10, 10],
+        "ms_per_token": ms_per_token,
+    }
+    if baseline is not None:
+        loss["baseline_value"] = 4.6
     target = {
         "run_id": "lab-run",
-        "checkpoint_sha256": "c" * 64,
+        "checkpoint_sha256": checkpoint,
         "step": 50,
         "tokens_seen": 100_000,
         "parameters": 5_000_000,
@@ -359,9 +390,9 @@ def _probe_record(
     record = {
         "format": "sparselab-probe-v1",
         "probe_id": probe_id,
-        "created_at": "2026-10-10T13:00:00+00:00",
+        "created_at": created_at,
         "target": target,
-        "baseline": None,
+        "baseline": baseline,
         "probes": [loss, *([lm_row] if lm_row else [])],
         "verdict": {"status": "info"},
     }
@@ -391,7 +422,7 @@ def test_compare_never_crosses_groups_and_names_missing_evidence(
     tmp_path: Path,
 ) -> None:
     _try_record(tmp_path, "try-1", eval_group="g" * 64)
-    _try_record(tmp_path, "try-old", eval_group=None)
+    _try_record(tmp_path, "try-old", eval_group=None, shas="de")
     report = compare_mod.compare(
         "try-1", ["try-old"], lab_dir=tmp_path, references=True
     )
@@ -438,7 +469,9 @@ def test_compare_pairs_lm_eval_with_references_in_the_same_benchmark_group(
     # Same tasks, different items: refused, never compared.
     other = json.loads(json.dumps(flipped))
     other["details"]["benchmark_group"] = "x" * 64
-    _probe_record(tmp_path, "probe-2", lm_row=other, group="h" * 64)
+    _probe_record(
+        tmp_path, "probe-2", lm_row=other, group="h" * 64, checkpoint="z" * 64
+    )
     report = compare_mod.compare("probe-2", [], lab_dir=tmp_path, references=True)
     statuses = {c["other"]: c["pairs"][1]["status"] for c in report["comparisons"]}
     assert set(statuses.values()) == {"not_comparable"}
@@ -493,3 +526,166 @@ def test_dashboard_pareto_renders_references_and_try_points(tmp_path: Path) -> N
     assert len(test.get("plotly_chart")) == 1
     frame = test.dataframe[0].value
     assert set(frame["source"]) == {"reference"} and len(frame) == len(REFERENCES)
+
+
+# --- Review fixes (PR #62): each test failed before its fix. -----------------
+
+
+def _comparable_lm_row(name: str = "SmolLM2-135M") -> dict[str, Any]:
+    """A complete lm-eval row in the packaged references' benchmark group."""
+    row = json.loads(json.dumps(_ref_lm(name)))
+    for task in row["details"]["tasks"].values():
+        task["items"] = [1.0 - x for x in task["items"]]
+        task["acc"] = float(np.mean(task["items"]))
+    row["value"] = float(np.mean([t["acc"] for t in row["details"]["tasks"].values()]))
+    return row
+
+
+def test_compare_picks_up_a_later_probe_of_the_same_checkpoint(tmp_path: Path) -> None:
+    _try_record(tmp_path, "try-1", eval_group="g" * 64)
+
+    def lm_pairs() -> tuple[dict[str, Any], dict[str, Any]]:
+        report = compare_mod.compare("try-1", [], lab_dir=tmp_path, references=True)
+        lm = {c["other"]: c["pairs"][1] for c in report["comparisons"]}
+        return report, lm
+
+    report, lm = lm_pairs()
+    assert {p["status"] for p in lm.values()} == {"missing_evidence"}
+    assert "sparselab probe lab-try-1-b --tier full" in lm["SmolLM2-135M"]["note"]
+
+    # The suggested `probe RUN --tier full` measured the try's candidate
+    # checkpoint: its sealed record lands in the shared pool.
+    _probe_record(
+        tmp_path,
+        "probe-later",
+        lm_row=_comparable_lm_row(),
+        group="g" * 64,
+        checkpoint="b" * 64,
+        created_at="2026-10-10T14:00:00+00:00",
+    )
+    report, lm = lm_pairs()
+    assert {p["status"] for p in lm.values()} <= {"higher", "lower", "within_noise"}
+    assert lm["SmolLM2-135M"]["se"] is not None
+    evidence = report["subject"]["metrics"]["lm_eval"]["evidence"]
+    assert evidence["value"] == "probe-later"
+    # The try's own held-out loss still wins for its own eval group.
+    assert report["subject"]["metrics"]["heldout_loss"]["value"] == 4.0
+    assert report["subject"]["metrics"]["heldout_loss"]["evidence"]["value"] == "try-1"
+    text = compare_mod.render(report)
+    assert "lm-eval accuracy from probe-later (same checkpoint bbbbbbbbbbbb)" in text
+
+
+def test_pareto_merge_keeps_latency_from_an_older_candidate_record(
+    tmp_path: Path,
+) -> None:
+    group = "h" * 64
+    _probe_record(
+        tmp_path,
+        "probe-old",
+        lm_row=None,
+        group=group,
+        checkpoint="x" * 64,
+        created_at="2026-10-10T13:00:00+00:00",
+        ms_per_token=0.42,
+    )
+    # Newer: x is only the baseline (baselines are not timed).
+    base = {
+        "run_id": "lab-x",
+        "checkpoint_sha256": "x" * 64,
+        "step": 50,
+        "tokens_seen": 100_000,
+        "parameters": 5_000_000,
+        "eval_group": group,
+    }
+    _probe_record(
+        tmp_path,
+        "probe-new",
+        lm_row=None,
+        group=group,
+        checkpoint="y" * 64,
+        created_at="2026-10-10T15:00:00+00:00",
+        baseline=base,
+    )
+    points = metric_points(collect_points(tmp_path), "heldout_loss")
+    (x,) = [p for p in points if p["checkpoint_sha256"] == "x" * 64]
+    assert x["value"] == 4.6 and x["evidence"]["value"] == "probe-new"
+    assert x["ms_per_token"] == 0.42 and x["evidence"]["ms_per_token"] == "probe-old"
+    assert x["active_parameters"] == 2_000_000  # also only in the older record
+
+
+def _reference_battery(monkeypatch: pytest.MonkeyPatch, outcome: Any) -> dict:
+    def fake(*_: Any, **__: Any) -> dict[str, Any]:
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(lm_eval_adapter, "run_lm_eval", fake)
+    loaded = _fake_reference()
+    return runner.run_battery(
+        runner.Arm(load=lambda: loaded, reference=True), tier="full"
+    )
+
+
+def _assert_reference_rerun(result: dict[str, Any], tasks: list[str]) -> None:
+    verdict = result["verdict"]
+    assert (verdict["status"], verdict["action"]) == ("incomplete", "rerun")
+    assert "sparselab compare" not in verdict["suggestion"]
+    assert "unscored tasks: " + ", ".join(sorted(tasks)) in verdict["reasons"]
+    (row,) = result["probes"]
+    assert row["status"] in {"error", "skipped"}
+    assert "sparselab compare" not in (row.get("note") or "")
+    # Never a point on the reference curve.
+    points = probe_points(result, source="p", path=None, packaged=False)
+    assert "lm_eval" not in points[0]["metrics"]
+
+
+def test_failed_reference_task_is_incomplete_not_a_reference_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = RuntimeError("lm-eval returned no accuracy for: piqa")
+    result = _reference_battery(monkeypatch, error)
+    _assert_reference_rerun(result, list(LM_TASKS))
+    assert "piqa" in result["probes"][0]["note"]
+
+    # Every task returned an accuracy but piqa scored only part of its items.
+    items = {t: [1.0, 0.0] * 25 for t in LM_TASKS}
+    partial = _summary(items)
+    partial["tasks"]["piqa"]["items"] = partial["tasks"]["piqa"]["items"][:10]
+    result = _reference_battery(monkeypatch, partial)
+    _assert_reference_rerun(result, ["piqa"])
+    assert "incomplete benchmark" in result["probes"][0]["note"]
+
+
+def test_reference_oom_is_incomplete_not_a_reference_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import torch
+
+    result = _reference_battery(monkeypatch, torch.OutOfMemoryError("CUDA OOM"))
+    assert result["stop"]["kind"] == "oom"
+    _assert_reference_rerun(result, list(LM_TASKS))
+
+
+def test_compare_uses_the_checkpoints_measurement_in_the_shared_group(
+    tmp_path: Path,
+) -> None:
+    stale = _comparable_lm_row()
+    stale["details"]["benchmark_group"] = "s" * 64  # e.g. an older protocol
+    _probe_record(tmp_path, "probe-stale", lm_row=stale, group="h" * 64)
+    report = compare_mod.compare("probe-stale", [], lab_dir=tmp_path, references=True)
+    assert {c["pairs"][1]["status"] for c in report["comparisons"]} == {
+        "not_comparable"
+    }
+    _probe_record(
+        tmp_path,
+        "probe-fresh",
+        lm_row=_comparable_lm_row(),
+        group="h" * 64,
+        created_at="2026-10-10T14:00:00+00:00",
+    )
+    report = compare_mod.compare("probe-stale", [], lab_dir=tmp_path, references=True)
+    pairs = [c["pairs"][1] for c in report["comparisons"]]
+    assert {p["status"] for p in pairs} <= {"higher", "lower", "within_noise"}
+    assert {p["evidence"] for p in pairs} == {"probe-fresh"}
+    assert "subject measured in probe-fresh" in compare_mod.render(report)
+    assert report["curve"]["excluded"] == 0

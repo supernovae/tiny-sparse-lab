@@ -399,8 +399,10 @@ checkpoint's active → resident count.
 **Comparison groups.** A number only means something next to numbers measured
 the same way. Held-out loss compares within one *eval group* (same validation
 data, tokenizer, loss mask and eval protocol); lm-eval accuracy within one
-*benchmark group* (same tasks, task versions, shots and items). Other groups
-are hidden, never mixed in.
+*benchmark group* (same tasks, task versions, shots, scoring protocol, and the
+same prompts and targets for every item). Other groups are hidden, never mixed
+in. One checkpoint measured by several records is one point; each value says
+which record it came from.
 
 **Reference points (◆).** Pinned public checkpoints (Pythia, SmolLM2) scored
 by the same lm-eval path as our runs, so a result sits on a known curve. They

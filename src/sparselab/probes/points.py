@@ -135,7 +135,8 @@ def probe_points(
                 else None,
             }
         value = lm.get("value" if candidate else "baseline_value")
-        if value is not None and lm_details.get("benchmark_group"):
+        complete = lm.get("status") not in {"error", "unavailable", "skipped"}
+        if value is not None and complete and lm_details.get("benchmark_group"):
             tasks = lm_details.get("tasks" if candidate else "baseline_tasks")
             metrics["lm_eval"] = {
                 "value": value,
@@ -252,25 +253,82 @@ def collect_points(
     return points
 
 
-def metric_points(points: Iterable[Mapping[str, Any]], metric: str) -> list[dict]:
-    """Flat points for one metric, one per (group, checkpoint); first wins.
+# Fields merged per (group, checkpoint): the measurement and every cost. A
+# newer record that lacks a field (e.g. a checkpoint used as a baseline, which
+# is not timed) never erases an older record's measurement of it.
+MERGED_FIELDS = (
+    "value",
+    "window_sums",
+    "window_counts",
+    "items",
+    "tasks",
+    "chance",
+    *COSTS,
+    "step",
+)
 
-    Pass points newest first: the same checkpoint scored again in the same
-    group is one point (the newest); scored under another group it is a
-    separate point that never shares a chart or a comparison with this one.
+
+def metric_points(points: Iterable[Mapping[str, Any]], metric: str) -> list[dict]:
+    """Flat points for one metric, one per (group, checkpoint).
+
+    Pass points newest first. The same checkpoint measured again in the same
+    group is one point: each field in MERGED_FIELDS takes the newest record
+    that has it, and ``evidence`` names the record each field came from.
+    Scored under another group, it is a separate point that never shares a
+    chart or a comparison with this one.
     """
-    seen: set[tuple[Any, Any]] = set()
-    out = []
+    merged: dict[tuple[Any, Any], dict[str, Any]] = {}
     for point in points:
         value = (point.get("metrics") or {}).get(metric)
         if not value or value.get("value") is None:
             continue
         key = (value.get("group"), point.get("checkpoint_sha256"))
-        if key in seen:
-            continue
-        seen.add(key)
         flat = {k: v for k, v in point.items() if k != "metrics"}
-        out.append({**flat, **value, "metric": metric})
+        flat = {**flat, **value, "metric": metric}
+        current = merged.get(key)
+        if current is None:
+            current = merged[key] = {**flat, "evidence": {}}
+            for field in MERGED_FIELDS:
+                if flat.get(field) is not None:
+                    current["evidence"][field] = flat["source"]
+            continue
+        for field in MERGED_FIELDS:
+            if current.get(field) is None and flat.get(field) is not None:
+                current[field] = flat[field]
+                current["evidence"][field] = flat["source"]
+    return list(merged.values())
+
+
+def with_checkpoint_evidence(
+    subject: Mapping[str, Any], pool: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """SUBJECT plus compatible evidence for its checkpoint from verified records.
+
+    Other records that measured the same checkpoint digest (e.g. ``sparselab
+    probe RUN --tier full`` after a try) fill what the subject lacks: a metric
+    the subject never measured comes from the newest record that did; a
+    metric it has is only completed from records in the *same* group. Every
+    metric keeps ``evidence`` (field -> record) so the provenance is shown,
+    and ``by_group`` holds the checkpoint's measurement in every group it was
+    scored in, so a comparison can use the one that matches the other side.
+    """
+    sha = subject.get("checkpoint_sha256")
+    same = [p for p in pool if sha and p.get("checkpoint_sha256") == sha]
+    out: dict[str, Any] = {**subject, "metrics": {}, "by_group": {}}
+    for metric in METRICS:
+        merged = metric_points([subject, *same], metric)
+        own = (subject.get("metrics") or {}).get(metric)
+        if own is not None:
+            pick = next(m for m in merged if m["group"] == own.get("group"))
+        elif merged:
+            pick = merged[0]  # newest group measured for this checkpoint
+        else:
+            continue
+        out["metrics"][metric] = pick
+        out["by_group"][metric] = {m["group"]: m for m in merged if m["group"]}
+        for cost in COSTS:
+            if out.get(cost) is None and pick.get(cost) is not None:
+                out[cost] = pick[cost]
     return out
 
 

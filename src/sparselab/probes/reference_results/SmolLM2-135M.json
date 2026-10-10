@@ -5,7 +5,7 @@
     "validation": true,
     "validation_reason": null
   },
-  "created_at": "2026-10-10T17:26:55.756322+00:00",
+  "created_at": "2026-10-10T18:21:02.520816+00:00",
   "format": "sparselab-probe-v1",
   "guard": {
     "overfit_suspected": false,
@@ -13,7 +13,7 @@
     "rule": "flag when the dev gain is beyond noise and exceeds the held-out gain by more than max(0.15, 2 SE)",
     "verdict_split": "heldout"
   },
-  "probe_id": "probe-20261010T172655Z-0cfb7300",
+  "probe_id": "probe-20261010T182102Z-1f320b44",
   "probes": [
     {
       "baseline_value": null,
@@ -25,10 +25,10 @@
         "benchmark": {
           "harness": "lm-evaluation-harness",
           "items_sha256": {
-            "arc_easy": "e9f9920c0aa89a5a7d6bbab9ddd2459be1e887c63c75d79f58009639ea98bd39",
-            "hellaswag": "0e4ac8d23f3a2b2b50fde73505105ccbcf166d8f6abc9a2e9212493507f41fd3",
-            "lambada_openai": "c76d9674e438da691118e4b41ce07b8008c8dd28ee831cfa2ae68318c120a85d",
-            "piqa": "0c896974a4da38c7fa65495c678b4bf5fa00491b93d3a59a8ab844ec9aa398d9"
+            "arc_easy": "ffb9c55aa7c190f7263659b4185040b7b469d2e73d849ec1d32ce278ae558d5a",
+            "hellaswag": "8d4216fb7348703a4388d1f63d74fef9754bf7ea780e04f4a68aa6a23cd136ca",
+            "lambada_openai": "1d16c0ce426275b2e5373123fd6053b6b9906eac09ef6e3cb1f595013a03b8bf",
+            "piqa": "b30f074e49c28fc6ec38e194220c68afa31fde04f029f0af17ec1c355356f723"
           },
           "limit": 50,
           "metric": {
@@ -43,6 +43,7 @@
             "lambada_openai": 0,
             "piqa": 0
           },
+          "scoring_protocol": "sparselab-lmeval-scoring-v1",
           "task_versions": {
             "arc_easy": 1.0,
             "hellaswag": 1.0,
@@ -56,7 +57,7 @@
             "piqa"
           ]
         },
-        "benchmark_group": "249c9a514c0f40810b41800f7fc70a850ea31baf69c9544af26bcc48a235df83",
+        "benchmark_group": "6fa5a4796ff479544bfffd54c960c6e6723e5d9a078e0dfc778645de0a7dbb02",
         "caveat": "tiny models usually score near chance on these tasks; small differences are noise at this limit",
         "chance": {
           "arc_easy": 0.25,
@@ -123,7 +124,7 @@
               0.0,
               0.0
             ],
-            "items_sha256": "e9f9920c0aa89a5a7d6bbab9ddd2459be1e887c63c75d79f58009639ea98bd39",
+            "items_sha256": "ffb9c55aa7c190f7263659b4185040b7b469d2e73d849ec1d32ce278ae558d5a",
             "perplexity": null
           },
           "hellaswag": {
@@ -182,7 +183,7 @@
               0.0,
               0.0
             ],
-            "items_sha256": "0e4ac8d23f3a2b2b50fde73505105ccbcf166d8f6abc9a2e9212493507f41fd3",
+            "items_sha256": "8d4216fb7348703a4388d1f63d74fef9754bf7ea780e04f4a68aa6a23cd136ca",
             "perplexity": null
           },
           "lambada_openai": {
@@ -241,8 +242,8 @@
               1.0,
               0.0
             ],
-            "items_sha256": "c76d9674e438da691118e4b41ce07b8008c8dd28ee831cfa2ae68318c120a85d",
-            "perplexity": 27.90789158933902
+            "items_sha256": "1d16c0ce426275b2e5373123fd6053b6b9906eac09ef6e3cb1f595013a03b8bf",
+            "perplexity": 27.908221351625844
           },
           "piqa": {
             "acc": 0.62,
@@ -300,7 +301,7 @@
               1.0,
               0.0
             ],
-            "items_sha256": "0c896974a4da38c7fa65495c678b4bf5fa00491b93d3a59a8ab844ec9aa398d9",
+            "items_sha256": "b30f074e49c28fc6ec38e194220c68afa31fde04f029f0af17ec1c355356f723",
             "perplexity": null
           }
         }
@@ -314,7 +315,7 @@
       "note": "reference point: place results on it with `sparselab compare RESULT --references`",
       "reference": "lm-evaluation-harness acc (zero-shot)",
       "regression": null,
-      "seconds": 32.237,
+      "seconds": 39.516,
       "status": "info",
       "suggests": "Lower on standard zero-shot tasks; at tiny scale most tasks sit near chance, so treat small moves as noise.",
       "thresholds": {
@@ -330,8 +331,8 @@
     }
   ],
   "protocol": {},
-  "record_sha256": "90b606a5cb73bee5ec658a22f6ddb6addc3f3840b9f54001e39c6563f847e91e",
-  "seconds": 35.617,
+  "record_sha256": "7709fadd621966a10b10e7a1c9436c04d9476375c85890ead7ded953ce5040b9",
+  "seconds": 44.262,
   "stop": {
     "at": null,
     "kind": null,
@@ -386,7 +387,7 @@
     "missing": [],
     "next_tier": null,
     "reasons": [
-      "no baseline: values are absolute"
+      "reference point: every benchmark task and item scored"
     ],
     "status": "info",
     "suggestion": "Reference point (pinned public checkpoint): place a result on this curve with `sparselab compare RESULT --references`."
