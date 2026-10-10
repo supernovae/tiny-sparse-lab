@@ -138,3 +138,54 @@ Offline inspection and verification do not require MLX. Execution does require
 the pinned optional runtime. Same-engine continuation restores native state;
 cross-engine continuation is canonical-weight promotion with fresh training
 state, never an optimizer conversion.
+
+## Optional spot-safety policy
+
+The canonical `sparselab train CONFIG --spot-policy POLICY.json` accepts a
+separate operational policy; Python callers pass `spot_policy=SpotSafetyPolicy(...)`
+to `train`. Read-only `sparselab checkpoint plan-spot POLICY.json --workspace RUNS_DIR`
+prints the decision and capacity without creating a run. Queued worker declarations
+do not implicitly inherit this host policy; this interface is explicit direct training.
+It adds checkpoint boundaries without editing RunConfig, evaluation
+intervals, scheduler, optimizer, data, precision or target budget. Each fresh or
+resumed child records its chosen policy, cadence and initial capacity readings
+in `spot_safety.json`; a child must explicitly supply its own current policy.
+Operational saves retain scientific cadence watermarks; separate child-local
+operational time starts at child initialization and resets on every save.
+Historical generations and their identities remain unchanged.
+
+The strict JSON fields are `format: "sparselab-spot-safety-v1"`,
+`observation_reference` (retained measurement reference),
+`checkpoint_write_seconds`, `boundary_seconds`, `restart_seconds`,
+`interruption_notice_seconds`, `max_recovery_seconds`, `checkpoint_bytes`,
+`checkpoint_inodes`, `reserve_bytes` and `reserve_inodes`. Times must be finite;
+write, boundary and restart observations must be positive. Missing observations
+fail closed. Boundary latency must include the longest observed update plus
+any intervening evaluation before reaching a checkpoint boundary. Write time
+must include durable checkpoint commit, and restart cost must include restore
+and preparation needed to resume updates on the selected runtime.
+
+Cadence in seconds is `max_recovery_seconds - restart_seconds -
+checkpoint_write_seconds - boundary_seconds`; a nonpositive result is rejected.
+Interruption notice must cover the observed boundary plus write time. This
+bounds the planned replay/restart envelope using supplied observations; it is
+not a provider SLA or a guarantee against longer future operations. Scientific
+checkpoint triggers remain enabled, and time cadence is checked at native
+completed-update boundaries, measured from the last checkpoint start watermark
+(conservative with respect to time spent writing). Native signal handling still owns shutdown; this
+policy does not add a provider polling service or authorize allocation.
+
+Native storage checks run before engine creation and again before each save.
+Required free bytes/inodes are twice the measured generation footprint plus
+explicit reserves (staging and committed-generation headroom); existing retained
+generations already consume free space. Missing inode observations, unavailable
+storage or insufficient capacity reject the operation. Checkpoint growth and
+competing writers still require conservative observed bounds and reserves.
+
+Offline tests establish strict loading, cadence, capacity failures and canonical
+CLI wiring with training mocked. Live qualification remains separately allocated:
+measure full-state durable write size/time, longest boundary latency, and cold
+child restart on the actual model/runtime/filesystem; verify notice delivery and
+signal-to-durable-commit under bounded interruption, then verify the exact
+committed generation and child resume. No fixture establishes these measurements
+or provider interruption safety.

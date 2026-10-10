@@ -993,7 +993,19 @@ def _triage(args: argparse.Namespace) -> None:
     print(summary)
 
 
+def _checkpoint_plan_spot(args: argparse.Namespace) -> None:
+    from sparselab.training.spot_safety import check_spot_capacity, load_spot_policy
+
+    print(
+        json.dumps(
+            check_spot_capacity(load_spot_policy(args.policy), args.workspace), indent=2
+        )
+    )
+
+
 def _train(args: argparse.Namespace) -> None:
+    from sparselab.training.spot_safety import load_spot_policy
+
     config = load_config(Path(args.config))
     if args.runs_dir is not None:
         config = config.model_copy(
@@ -1011,6 +1023,7 @@ def _train(args: argparse.Namespace) -> None:
         )
     run_id = train(
         config,
+        spot_policy=load_spot_policy(args.spot_policy) if args.spot_policy else None,
         resume=Path(args.resume) if args.resume else None,
         extend_budget=Path(args.extend_budget) if args.extend_budget else None,
         promote=Path(args.promote) if args.promote else None,
@@ -2457,6 +2470,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     checkpoint_commands = checkpoint.add_subparsers(
         dest="checkpoint_command", required=True
     )
+    checkpoint_spot = checkpoint_commands.add_parser("plan-spot")
+    checkpoint_spot.add_argument("policy", type=Path)
+    checkpoint_spot.add_argument("--workspace", type=Path, required=True)
+    checkpoint_spot.set_defaults(handler=_checkpoint_plan_spot)
     checkpoint_inspect = checkpoint_commands.add_parser("inspect")
     checkpoint_inspect.add_argument("path")
     checkpoint_inspect.add_argument("--json", action="store_true")
@@ -2526,6 +2543,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     tokenizer_train = tokenizer_commands.add_parser("train")
     tokenizer_train.add_argument("config")
     tokenizer_train.set_defaults(handler=_tokenizer_train)
+    from sparselab.data.tokenizer_cli import register_verify_parser
+
+    register_verify_parser(tokenizer_commands)
     data = commands.add_parser("data")
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_prepare = data_commands.add_parser("prepare")
@@ -2712,6 +2732,9 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     training.add_argument("--run-id")
     training.add_argument("--resume")
+    training.add_argument(
+        "--spot-policy", type=Path, help="Separate operational spot-safety JSON policy"
+    )
     training.add_argument("--extend-budget")
     training.add_argument("--promote")
     training.add_argument("--recover")
@@ -3560,6 +3583,8 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
 def _read_only_command(args: argparse.Namespace) -> bool:
     from sparselab.campaign.cli import READ_ONLY_COMMANDS
 
+    if args.command == "tokenizer" and args.tokenizer_command == "verify":
+        return True
     if args.command == "iteration":
         return True
     if args.command in {"semantic", "memorization"}:
@@ -3610,6 +3635,8 @@ def _read_only_command(args: argparse.Namespace) -> bool:
 
 
 def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:
+    if args.command == "tokenizer" and args.tokenizer_command == "verify":
+        return []
     checks = storage_checks(resolve_work_dir(args.work_dir))
     for field in ("runs_dir", "store", "output"):
         value = getattr(args, field, None)

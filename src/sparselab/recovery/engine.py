@@ -35,6 +35,65 @@ def _manifest(source: Path | RecoveryManifest) -> tuple[RecoveryManifest, Path]:
     return load_manifest(path), path
 
 
+def _snapshot_inheritance(step: Any, source: Path, root: Path) -> dict[str, Any]:
+    """Cold-check declared ancestry before planning or any replay mutation."""
+    inheritance = step.snapshot_inheritance
+    if inheritance is None:
+        return {}
+    from sparselab.recovery.implementation_replay import (
+        _ANCESTRY_FORMAT,
+        _ancestry_changed_declarations,
+        _ancestry_parent_verified,
+        verify_replay_receipt,
+    )
+
+    parent_path = root / inheritance.parent_receipt
+    if parent_path.parent != root / "replay" / "receipts" or any(
+        path.is_symlink() for path in (parent_path, *parent_path.parents)
+    ):
+        raise ValueError(
+            "INVALID_PARENT_RECEIPT: parent must be task-owned and unlinked"
+        )
+    if sha256_file(parent_path) != inheritance.parent_receipt_sha256:
+        raise ValueError("INVALID_PARENT_RECEIPT: declared parent digest mismatch")
+    parent = verify_replay_receipt(parent_path)
+    if parent.get("status") != "MATCH" or parent.get("format") != _ANCESTRY_FORMAT:
+        raise ValueError("INVALID_PARENT_RECEIPT: successful parent required")
+    project = load_project(_reference(source, step.project))
+    if project.config.source_effects is not None:
+        raise ValueError(
+            "INVALID_ANCESTRY_REQUEST: effect-bound imports require native acquisition"
+        )
+    for item in project.sources:
+        if item.id in inheritance.snapshots and item.kind not in {
+            "git",
+            "huggingface_dataset",
+            "wikimedia_dump",
+        }:
+            raise ValueError(f"INHERITED_REUSE_UNAVAILABLE: {item.id}")
+    _, inherited, _ = _ancestry_parent_verified(
+        parent, tuple(inheritance.snapshots), project
+    )
+    if {
+        key: item["snapshot_sha256"] for key, item in inherited.items()
+    } != inheritance.snapshots:
+        raise ValueError("INVALID_PARENT_RECEIPT: inherited snapshot identity mismatch")
+    prior = parent["scientific_identity"]["snapshots"]
+    if prior != {**inheritance.snapshots, **inheritance.changed_snapshots}:
+        raise ValueError(
+            "INVALID_PARENT_RECEIPT: expected maps must cover entire parent"
+        )
+    if inheritance.changed_snapshots:
+        _ancestry_changed_declarations(parent, project, inheritance.changed_snapshots)
+    return {
+        "parent_receipt": parent_path,
+        "inherited_source_ids": tuple(inheritance.snapshots),
+        "expected_unchanged_snapshots": inheritance.snapshots,
+        "expected_changed_snapshots": inheritance.changed_snapshots,
+        "use_historical_project": True,
+    }
+
+
 def _pinned_inputs(manifest: RecoveryManifest, source: Path) -> list[dict[str, str]]:
     """Verify the source commit against the existing scientific declaration closure."""
     from sparselab.recovery.provenance import repository_root, verify_source_commit
@@ -326,6 +385,8 @@ def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for step in manifest.steps:
         expected = _expected(step)
+        if step.kind == "corpus_release" and step.snapshot_inheritance is not None:
+            _snapshot_inheritance(step, source, root)
         path = _location(step, root, source, paths, manifest.source_commit)
         if path is not None:
             paths[step.id] = path
@@ -364,14 +425,20 @@ def inspect_manifest(source: Path, work_root: Path) -> dict[str, Any]:
                     f"EXPECTED_DIGEST_MISMATCH: {step.id}: expected {expected}, actual {actual} at {path}"
                 )
             classification, reason, action = "PRESENT", "verified immutable bytes", None
-        elif (
-            step.kind == "corpus_release"
-            and implementations[step.id]["status"] != "MATCH"
+        elif step.kind == "corpus_release" and (
+            implementations[step.id]["status"] != "MATCH"
+            or step.snapshot_inheritance is not None
         ):
-            classification = implementations[step.id]["status"]
+            classification = (
+                "PINNED_IMPLEMENTATION_REPLAY_REQUIRED"
+                if step.snapshot_inheritance is not None
+                else implementations[step.id]["status"]
+            )
             reason = (
                 "historical Corpus Forge implementation is unavailable"
                 if classification == "MISSING_IMPLEMENTATION"
+                else "declared snapshot inheritance requires explicit verified replay"
+                if step.snapshot_inheritance is not None
                 else "historical identity-producing implementation differs; explicit replay required"
             )
             action = None
@@ -691,6 +758,7 @@ def reconstruct_manifest(
                     allow_network=allow_network,
                     expected_release_sha256=step.expected_release_sha256,
                     expected_build_sha256=step.expected_build_sha256,
+                    **_snapshot_inheritance(step, source, root),
                 )
                 path = Path(replay["path"])
                 replay_receipts.append(

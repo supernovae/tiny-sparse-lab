@@ -11,6 +11,7 @@ import importlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -1332,11 +1333,10 @@ def _replay_ancestry(
             if parent["corpus_work_root"] == str(work) and (
                 phase != "release"
                 or parent["phase"] != "build"
-                or set(receipt["expected_changed_snapshots"])
-                != {"v4_iac_cmake_build", "v4_runtime_metro_js"}
+                or not receipt["expected_changed_snapshots"]
             ):
                 raise ValueError(
-                    "INVALID_PARENT_RECEIPT: final in-place transition requires build-only parent and two changed declarations"
+                    "INVALID_PARENT_RECEIPT: final in-place transition requires build-only parent and changed declarations"
                 )
         elif receipt["expected_changed_snapshots"]:
             raise ValueError("INVALID_PARENT_RECEIPT: changed sources require parent")
@@ -1364,7 +1364,15 @@ def _replay_ancestry(
             _ancestry_changed_declarations(
                 parent, corpus, receipt["expected_changed_snapshots"]
             )
-        _ancestry_target_imports(parent, inherited, work, corpus.config.id)
+        imports = dict(inherited)
+        if parent is not None:
+            old_corpus = load_project(Path(parent["historical_project"]))
+            _, previous, _ = _ancestry_parent_verified(
+                parent, tuple(receipt["expected_changed_snapshots"]), old_corpus
+            )
+            imports.update(previous)
+        _stage_ancestry_imports(parent, imports, work, corpus)
+        _ancestry_target_imports(parent, imports, work, corpus.config.id)
         receipt["stage"] = "dependencies"
         environment = root / "replay" / "env" / commit
         _reject_symlink_ancestors(environment)
@@ -1883,6 +1891,119 @@ def _ancestry_changed_declarations(
             raise ValueError(f"CHANGED_DECLARATION_MISMATCH: {source_id}")
 
 
+def _stage_ancestry_imports(
+    parent: dict[str, Any] | None,
+    inherited: dict[str, dict[str, str]],
+    work: Path,
+    corpus: Any,
+) -> None:
+    """Publish fresh verified inheritance atomically, without any acquisition."""
+    from sparselab.corpus.acquisition import (
+        _project_sha,
+        _rename_noreplace,
+        _sync_dir,
+        _write_json,
+        declaration_sha256,
+        verify_acquisition,
+        verify_snapshot,
+    )
+
+    if parent is None or parent["corpus_work_root"] == str(work) or work.exists():
+        return
+    if corpus.config.source_effects is not None:
+        raise ValueError(
+            "INVALID_ANCESTRY_REQUEST: effect-bound imports require native acquisition"
+        )
+    _reject_symlink_ancestors(work)
+    work.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".inherit-", dir=work.parent) as temp:
+        staged = Path(temp) / "work"
+        base = staged / "corpora" / corpus.config.id
+        entries = {}
+        for source_id, identity in inherited.items():
+            origin = (
+                Path(parent["corpus_work_root"])
+                / "corpora"
+                / parent["project_id"]
+                / "snapshots"
+                / source_id
+                / identity["snapshot_sha256"]
+            )
+            _reject_symlink_ancestors(origin)
+            for member in origin.rglob("*"):
+                mode = member.lstat().st_mode
+                if not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
+                    raise ValueError("INVALID_PARENT_RECEIPT: unsafe inherited member")
+            before = verify_snapshot(origin)
+            if (
+                _ancestry_digest(origin / "manifest.json")
+                != identity["manifest_sha256"]
+            ):
+                raise ValueError("INVALID_PARENT_RECEIPT: inherited manifest changed")
+            target = base / "snapshots" / source_id / identity["snapshot_sha256"]
+            shutil.copytree(origin, target, symlinks=True)
+            for member in target.rglob("*"):
+                mode = member.lstat().st_mode
+                if not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
+                    raise ValueError("INVALID_PARENT_RECEIPT: unsafe copied member")
+            if (
+                verify_snapshot(target) != before
+                or _ancestry_digest(target / "manifest.json")
+                != identity["manifest_sha256"]
+            ):
+                raise ValueError("INVALID_PARENT_RECEIPT: inherited copy changed")
+            entries[source_id] = {
+                "declaration_sha256": before["declaration_sha256"],
+                "snapshot_sha256": identity["snapshot_sha256"],
+                "snapshot_path": str(
+                    work
+                    / "corpora"
+                    / corpus.config.id
+                    / "snapshots"
+                    / source_id
+                    / identity["snapshot_sha256"]
+                ),
+                "receipt": {"status": "acquired", "retrieval": before["retrieval"]},
+            }
+        # Preserve the parent's pre-acquisition inventory even with new sources.
+        # Only a complete unchanged inventory can pass offline verification.
+        lock = {
+            "schema_version": 1,
+            "project_id": corpus.config.id,
+            "project_sha256": _project_sha(corpus),
+            "sources": entries,
+        }
+        complete_unchanged = set(entries) == {
+            item.id for item in corpus.sources
+        } and all(
+            entries[item.id]["declaration_sha256"] == declaration_sha256(item)
+            for item in corpus.sources
+        )
+        if complete_unchanged:
+            for item in entries.values():
+                item["snapshot_path"] = str(
+                    staged / Path(item["snapshot_path"]).relative_to(work)
+                )
+            _write_json(base / "acquisition.json", lock)
+            verify_acquisition(corpus, staged)
+            for item in entries.values():
+                item["snapshot_path"] = str(
+                    work / Path(item["snapshot_path"]).relative_to(staged)
+                )
+        _write_json(base / "acquisition.json", lock)
+        for member in sorted(staged.rglob("*"), reverse=True):
+            if member.is_file():
+                with member.open("rb") as stream:
+                    os.fsync(stream.fileno())
+            elif member.is_dir():
+                _sync_dir(member)
+        _sync_dir(staged)
+        _rename_noreplace(staged, work)
+        _sync_dir(work.parent)
+    if complete_unchanged:
+        verify_acquisition(corpus, work)
+
+
 def _ancestry_target_imports(
     parent: dict[str, Any] | None,
     inherited: dict[str, dict[str, str]],
@@ -1911,7 +2032,10 @@ def _ancestry_target_imports(
             if candidate != work / "corpora" / project_id or candidate.is_symlink():
                 raise ValueError("UNSAFE_REPLAY_ROOT: unrelated corpus generation")
         for candidate in (work / "corpora" / project_id).iterdir():
-            if candidate != base or candidate.is_symlink():
+            if (
+                candidate not in {base, base.parent / "acquisition.json"}
+                or candidate.is_symlink()
+            ):
                 raise ValueError("UNSAFE_REPLAY_ROOT: unexpected existing corpus state")
         if {child.name for child in base.iterdir()} != set(inherited):
             raise ValueError("INVALID_PARENT_RECEIPT: target import ID set differs")
@@ -2202,8 +2326,7 @@ def _verify_ancestry_receipt(path: Path, seen: set[Path]) -> dict[str, Any]:
             and (
                 record["phase"] != "release"
                 or parent["phase"] != "build"
-                or set(record["expected_changed_snapshots"])
-                != {"v4_iac_cmake_build", "v4_runtime_metro_js"}
+                or not record["expected_changed_snapshots"]
             )
         ):
             raise ValueError("INVALID_REPLAY_RECEIPT: invalid in-place transition")

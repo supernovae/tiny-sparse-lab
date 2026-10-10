@@ -20,15 +20,14 @@ uv run --locked --extra cpu pytest -q tests/test_hf_auth.py
 ```
 
 Pushes to `main` and all PRs run one explicit Linux zero-model-work job:
-Ruff, the frozen decoding test hash, research lint, and selected safety,
+Ruff, research lint, and selected safety,
 compatibility, packing, panel and readiness nodes. The selected nodes include
-no optimizer update or model generation. The hosted qualification guard is
-retained as experimental tooling but is not part of ordinary CI. The
+no tokenizer fitting, model initialization, optimizer update or generation. The
 `workflow_dispatch` **Run workflow** menu defaults to `safe`; its
 `integration-linux`, `platform-macos` and `release-candidate` choices are
 manual model-bearing checks and require a separately reviewed allocation.
 No tag automatically starts model work. The release-candidate choice runs the
-broader Linux and macOS CPU suites. No tests were deleted; ordinary PR success
+broader Linux and macOS CPU suites. Ordinary PR success
 does not certify optimizer/generation integration or macOS behavior.
 
 For an explicit local full-suite run, use two workers, distributing whole test

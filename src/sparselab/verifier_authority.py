@@ -202,6 +202,10 @@ _PLAN_OPERATIONAL_EDGES = frozenset(
 
 def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
     result = _COMMON_EXCLUDED_EDGES | _PLAN_OPERATIONAL_EDGES
+    if kind == "source_snapshot":
+        # Snapshot verification needs worker identity schemas transitively,
+        # not the package's convenience exports for dispatch and transport.
+        result |= {("workers", "workers.transport")}
     if kind in {"file", "prepared_array", "prepared_data"}:
         result |= _ARRAY_EXCLUDED_EDGES
     if kind in _ARTIFACT_BRANCHES:
@@ -217,6 +221,10 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # imported names. A new use in a verifier, or any change to an existing user,
 # makes authority unavailable until the exclusion is explicitly re-audited.
 _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
+    (
+        "workers",
+        "workers.transport",
+    ): "ba1975a626825a9a98a0d65eb1d480b239f2145df09127ba4b8bcf0392d0d3d1",
     (
         "data.packing",
         "data.tokenizer",
@@ -340,7 +348,7 @@ _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
     (
         "experiments.plan",
         "campaign.plan",
-    ): "f9554766c9133a93501983b6e030a9913468ff55dd8d7c71369dca19dbef5650",
+    ): "2a02bc1d20f9f43903a9c22c641279554787e2d1a3cdf38bea0bc732398ebd4b",
     (
         "experiments.plan",
         "recovery.provenance",

@@ -26,42 +26,6 @@ interfaces, and preserve declaration and artifact identities.
 Activate only for a concrete workload; these do not block the current retained
 corpus preparation milestone.
 
-- [ ] **Source-bound held-out-item CLI adapter.** Expose
-  [`freeze_card03_items`](src/sparselab/evaluation/kml_card03_items.py) through the
-  existing evaluation CLI. Bind a cold-verifiable release, frozen family
-  inventory, reviewed item draft and fresh output directory; report immutable
-  item/chunk/denominator digests. Reject changed release, train-family leakage,
-  unbound offsets/digests, unreviewed or missing items, incomplete denominators,
-  malformed controls and existing output. Reusing already frozen items needs no
-  new authoring engine or publication step.
-- [ ] **Signed warm source-snapshot proof reuse.** Review the semantic import
-  closure and pinned exclusions: the source-snapshot authority scan currently
-  reaches the dynamic import in `recovery.implementation_replay` and declines a
-  signed proof. Preserve path-security and proof invalidation checks. Acceptance
-  requires authenticated warm hits plus cold fallback for changed authority or
-  inputs. Existing cold verification remains the accepted route.
-- [ ] **Read-only tokenizer-artifact CLI verification.** Add a native adapter
-  that binds the configured path to its manifest, origin and vocabulary and
-  reports digest/special-token IDs without fitting. Reject missing/tampered
-  outputs, underfilled vocabulary and changed config/source. Existing prepared
-  bundle verification already provides a cold path; transport budget reporting
-  is implemented and is not part of this gap.
-- [ ] **Acquisition receipt resource counters.** Extend bounded acquisition
-  receipts with measured per-shard expanded bytes and peak task-owned staging
-  bytes/inodes. Preserve legacy hashes when fields are absent. Fail closed for
-  required unavailable readings; retain interrupted-transfer counters. Test exact
-  caps, overlong lines and resume with mocked HTTP. Never infer or backfill
-  historical readings or reacquire only to fill optional fields.
-- [ ] **Declarative verified snapshot inheritance.** Expose existing Python
-  ancestry/reuse support in recovery declarations and CLI. Bind parent evidence
-  and selected source IDs; preserve snapshot identities without reacquisition.
-  Reject tampered parents and incompatible source declarations using generic
-  ancestry fixtures.
-- [ ] **Operational spot-safety policy.** Add a separately configured policy
-  based on observed checkpoint-write time, interruption notice, capacity and
-  measured restart cost. Record chosen operational cadence without changing
-  scientific settings. Cover unavailable observations and insufficient capacity;
-  existing checkpoint verification, retention and child resume are foundations.
 - [ ] **Managed Runpod/Vast allocation adapters.** Add explicit spending
   authorization, resource/region/price filters, expiring quotes, idempotent
   create/adopt tags and partial-create reconciliation. Distinguish stop/delete
@@ -80,6 +44,24 @@ corpus preparation milestone.
   supported attention/objectives, feeding, optimizer/RNG state codecs, same-backend
   full resume, cancellation and preemption with real TPU tests. An enum or CPU
   fixture does not establish TPU support.
+
+## Completed conditional code
+
+The first six conditional needs from merged PR #56 are implemented with
+[offline evidence and explicit qualification limits](docs/refactors/2026-10-conditional-lifecycle-code.md).
+These checkmarks close code scope, not production admission or runtime qualification.
+
+- [x] **Source-bound held-out-item CLI adapter.** Native `evaluation freeze-items`.
+- [x] **Signed warm source-snapshot proof reuse.** Authenticated hits and cold invalidation.
+- [x] **Read-only tokenizer-artifact CLI verification.** Native `tokenizer verify`.
+- [x] **Acquisition receipt resource counters.** Measured bounded-transfer receipts and retained interruption readings.
+- [x] **Declarative verified snapshot inheritance.** Recovery declarations, verified native imports and generic ancestry checks.
+- [x] **Operational spot-safety policy.** Separate direct-training policy and read-only planning; live interruption/resume qualification remains open.
+
+The next research target is **100M training targets**, subject to the
+[offline readiness assessment](docs/research/100m-readiness.md), retained-corpus
+verification and a new exact reviewed allocation. Historical 50M packets below
+retain their original identities and grant no 100M authority.
 
 ## Execution and qualification are tracked elsewhere
 

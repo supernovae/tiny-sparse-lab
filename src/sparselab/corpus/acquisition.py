@@ -20,6 +20,7 @@ import threading
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError
@@ -46,6 +47,130 @@ if TYPE_CHECKING:
     from sparselab.verification_proofs import ProofStore, VerificationMode
 
 ADAPTER_VERSION = "corpus-acquisition-v1"
+
+
+class _AcquisitionResources:
+    """Logical file bytes and inode entries in this source's private staging tree.
+
+    Observe at every growth boundary before deletion. Expanded bytes are bytes
+    returned by the JSONL decompressor, including a rejected overlong line;
+    Parquet has no equivalent stream reading and reports unavailable explicitly.
+    """
+
+    def __init__(self, root: Path, budget: TransportBudget | None = None):
+        self.root = root
+        self.budget = budget
+        self.index: int | None = None
+        self.expanded: int | None = 0
+        self.peak_bytes = 0
+        self.peak_inodes = 0
+        self.journal: Path | None = None
+        self.binding: dict[str, Any] = {}
+        self.status = "started"
+
+    def retain(self, source: SourceDeclaration, shard_path: str | None = None) -> None:
+        directory = self.root.parent / ".resource-receipts"
+        directory.mkdir(exist_ok=True)
+        if directory.is_symlink() or not directory.is_dir():
+            raise ValueError(
+                "resource receipt directory must be a nonsymlink directory"
+            )
+        descriptor, name = tempfile.mkstemp(
+            prefix="attempt-", suffix=".json", dir=directory
+        )
+        os.close(descriptor)
+        self.journal = Path(name)
+        self.binding = {
+            "source_id": source.id,
+            "declaration_sha256": declaration_sha256(source),
+            "staging_name": self.root.name,
+        }
+        if shard_path is not None:
+            self.binding["source_shard_path"] = shard_path
+        self.persist()
+
+    @contextmanager
+    def attempt(self, source: SourceDeclaration, shard_path: str) -> Iterator[None]:
+        if self.budget is None:
+            self.retain(source, shard_path)
+        try:
+            yield
+        except BaseException as error:
+            self.status = (
+                "interrupted"
+                if isinstance(error, (OSError, EOFError, KeyboardInterrupt, SystemExit))
+                else "failed"
+            )
+            self.persist()
+            raise
+        else:
+            self.status = "complete"
+            self.persist()
+
+    def observe(self) -> None:
+        try:
+            root_info = self.root.lstat()
+        except OSError as error:
+            self._unavailable(error)
+        if not stat.S_ISDIR(root_info.st_mode):
+            raise ValueError("required staging root must be a nonsymlink directory")
+        sizes = 0
+        inodes = 1  # the task-owned staging root itself
+        for directory, dirs, files in os.walk(self.root, onerror=self._unavailable):
+            for name in dirs + files:
+                info = (Path(directory) / name).lstat()
+                if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+                    raise ValueError("staging resource reading contains unsafe entry")
+                inodes += 1
+                if stat.S_ISREG(info.st_mode):
+                    sizes += info.st_size
+        self.peak_bytes = max(self.peak_bytes, sizes)
+        self.peak_inodes = max(self.peak_inodes, inodes)
+        self.persist()
+
+    @staticmethod
+    def _unavailable(error: OSError) -> None:
+        raise ValueError("required staging resource reading unavailable") from error
+
+    def persist(self) -> None:
+        if self.budget is not None and self.index is not None:
+            self.budget.record_resources(self.index, self.receipt())
+        if self.journal is not None:
+            descriptor, name = tempfile.mkstemp(
+                prefix=".write-", dir=self.journal.parent
+            )
+            os.close(descriptor)
+            temporary = Path(name)
+            try:
+                _write_json(
+                    temporary,
+                    {
+                        "schema_version": 1,
+                        **self.binding,
+                        "status": self.status,
+                        "resources": self.receipt(),
+                    },
+                )
+                os.replace(temporary, self.journal)
+                _sync_dir(self.journal.parent)
+            finally:
+                temporary.unlink(missing_ok=True)
+
+    def receipt(self) -> dict[str, Any]:
+        return {
+            "expanded_bytes": self.expanded,
+            "peak_staging_bytes": self.peak_bytes,
+            "peak_staging_inodes": self.peak_inodes,
+        }
+
+    @contextmanager
+    def output(self, target: Path) -> Iterator[Any]:
+        with target.open("wb") as output:
+            try:
+                yield output
+            finally:
+                output.flush()
+                self.observe()
 
 
 def _digest(value: object) -> str:
@@ -106,17 +231,27 @@ def _sync_dir(path: Path) -> None:
         os.close(descriptor)
 
 
-def _copy_stream(source: Any, target: Path, remaining: int) -> tuple[str, int]:
+def _copy_stream(
+    source: Any,
+    target: Path,
+    remaining: int,
+    resources: _AcquisitionResources | None = None,
+) -> tuple[str, int]:
     target.parent.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256()
     size = 0
     with target.open("xb") as output:
+        if resources is not None:
+            resources.observe()
         while chunk := source.read(min(1024 * 1024, remaining - size + 1)):
             size += len(chunk)
             if size > remaining:
                 raise ValueError("source exceeds declared max_bytes")
             digest.update(chunk)
             output.write(chunk)
+            if resources is not None:
+                output.flush()
+                resources.observe()
         output.flush()
         os.fsync(output.fileno())
     return digest.hexdigest(), size
@@ -319,12 +454,16 @@ def _bounded_git_acquire(
         raise ValueError("insufficient disk space for bounded Git blobs")
     files = []
     for blob in spec.bounded_blobs:
+        resources = _AcquisitionResources(staging, budget)
         budget.assert_transfer_available(
             source.id, blob.path, blob.max_bytes, allow_verified_retry=True
         )
         transfer_index = budget.reserve_transfer(
             source.id, blob.path, blob.max_bytes, allow_verified_retry=True
         )
+        resources.index = transfer_index
+        resources.expanded = None  # raw Git blobs have no expansion phase
+        resources.observe()
         url = (
             f"https://raw.githubusercontent.com/{owner}/{repository}/"
             f"{source.revision}/{quote(blob.path, safe='/')}"
@@ -336,7 +475,7 @@ def _bounded_git_acquire(
                 if _response_length(response) != blob.max_bytes:
                     raise ValueError("pinned Git blob Content-Length mismatch")
                 digest, copied = _copy_hf_body(
-                    response, target, blob.max_bytes, budget, transfer_index
+                    response, target, blob.max_bytes, budget, transfer_index, resources
                 )
             git_hasher = hashlib.sha1(f"blob {copied}\0".encode())
             with target.open("rb") as copied_blob:
@@ -634,6 +773,7 @@ def _copy_hf_body(
     limit: int,
     budget: TransportBudget | None,
     transfer_index: int | None,
+    resources: _AcquisitionResources | None = None,
 ) -> tuple[str, int]:
     length = _response_length(response)
     if length is None:
@@ -644,6 +784,8 @@ def _copy_hf_body(
     digest = hashlib.sha256()
     size = 0
     with target.open("xb") as output:
+        if resources is not None:
+            resources.observe()
         while True:
             remaining = limit - size
             if remaining == 0:
@@ -671,6 +813,9 @@ def _copy_hf_body(
                 budget.charge_transfer_actual(transfer_index, len(chunk))
             digest.update(chunk)
             output.write(chunk)
+            if resources is not None:
+                output.flush()
+                resources.observe()
             size += len(chunk)
         output.flush()
         os.fsync(output.fileno())
@@ -761,8 +906,14 @@ def _bounded_hf_rows(
     max_line_bytes: int,
     max_decompressed_bytes: int | None = None,
     budget: TransportBudget | None = None,
+    resources: _AcquisitionResources | None = None,
 ) -> Iterator[tuple[int, dict[str, Any]]]:
     if path.name.endswith(".parquet"):
+        if max_decompressed_bytes is not None:
+            raise ValueError("required expanded byte reading unavailable for Parquet")
+        if resources is not None:
+            resources.expanded = None
+            resources.persist()
         import pyarrow.parquet as pq
 
         index = 0
@@ -783,6 +934,8 @@ def _bounded_hf_rows(
             if not line:
                 break
             decompressed += len(line)
+            if resources is not None:
+                resources.expanded = decompressed
             if (
                 max_decompressed_bytes is not None
                 and decompressed > max_decompressed_bytes
@@ -813,175 +966,204 @@ def _bounded_hf_acquire(
     receipts: list[dict[str, Any]] = []
     total_bytes = 0
     total_rows = 0
+    if spec.max_decompressed_bytes is not None and any(
+        shard.path.endswith(".parquet") for shard in spec.bounded_shards
+    ):
+        raise ValueError("required expanded byte reading unavailable for Parquet")
     for shard in spec.bounded_shards:
-        if shard.declared_config is not None and budget is None:
-            raise ValueError("explicit HF shard metadata requires a transport budget")
-        url = hf_hub_url(
-            repo_id=repo_id,
-            filename=shard.path,
-            repo_type="dataset",
-            revision=source.revision,
-        )
-        if (
-            urlparse(url).scheme != "https"
-            or urlparse(url).hostname != "huggingface.co"
-        ):
-            raise ValueError("HF shard URL must point to the Hugging Face Hub")
-        headers = {"User-Agent": "SparseLab-Corpus-Forge/1"}
-        if auth.get("token"):
-            headers["Authorization"] = f"Bearer {auth['token']}"
-        request = urllib.request.Request(url, headers=headers)
-        input_path = staging / "hf-input" / shard.path
-        transfer_index = None
-        try:
-            if budget is not None:
-                budget.assert_transfer_available(
-                    source.id, shard.path, shard.max_shard_bytes
+        resources = _AcquisitionResources(staging, budget)
+        with resources.attempt(source, shard.path):
+            resources.observe()
+            if shard.declared_config is not None and budget is None:
+                raise ValueError(
+                    "explicit HF shard metadata requires a transport budget"
                 )
-                projected = budget.projected_disk_bytes()
-                if projected > budget.spec.max_disk_bytes:
-                    raise ValueError("transport budget disk allowance exhausted")
-                if shutil.disk_usage(staging).free < projected:
-                    raise ValueError("insufficient disk space for bounded HF shard")
-                _hf_pinned_metadata(source, spec, shard, headers, budget)
-                transfer_index = budget.reserve_transfer(
-                    source.id, shard.path, shard.max_shard_bytes
-                )
-                response, _ = _open_accounted(url, headers.copy(), budget)
-            else:
-                response = urllib.request.build_opener(_PrivateHubRedirect()).open(
-                    request, timeout=30
-                )
-            with response:
-                if urlparse(response.url).scheme != "https":
-                    raise ValueError("HF shard redirect must use HTTPS")
-                digest, input_bytes = _copy_hf_body(
-                    response, input_path, shard.max_shard_bytes, budget, transfer_index
-                )
-        except (*HUB_ACCESS_ERRORS, HTTPError) as error:
-            if budget is not None and transfer_index is not None:
-                budget.finish_transfer(transfer_index, success=False, interrupted=False)
-            raise_for_hub_auth(error, credential_supplied=bool(auth.get("token")))
-        except OSError, TimeoutError, EOFError:
-            if budget is not None and transfer_index is not None:
-                budget.finish_transfer(transfer_index, success=False, interrupted=True)
-            raise
-        except Exception:
-            if budget is not None and transfer_index is not None:
-                budget.finish_transfer(transfer_index, success=False, interrupted=False)
-            raise
-        if digest != shard.expected_sha256.lower():
-            if budget is not None and transfer_index is not None:
-                budget.finish_transfer(transfer_index, success=False)
-            raise ValueError(f"HF shard SHA-256 mismatch: {shard.path}")
-        if budget is not None and transfer_index is not None:
-            budget.finish_transfer(transfer_index, success=True)
-
-        output_name = shard.path + ".sample.jsonl"
-        target = staging / "files" / output_name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        selected: list[dict[str, Any]] = []
-        output_digest = hashlib.sha256()
-        output_bytes = 0
-        scanned = 0
-        with target.open("wb") as output:
-            for index, row in _bounded_hf_rows(
-                input_path,
-                limit=shard.max_scanned_rows,
-                max_line_bytes=spec.max_bytes,
-                max_decompressed_bytes=spec.max_decompressed_bytes,
-                budget=budget,
+            url = hf_hub_url(
+                repo_id=repo_id,
+                filename=shard.path,
+                repo_type="dataset",
+                revision=source.revision,
+            )
+            if (
+                urlparse(url).scheme != "https"
+                or urlparse(url).hostname != "huggingface.co"
             ):
-                scanned += 1
-                if not isinstance(row, dict) or spec.text_field not in row:
-                    raise ValueError(
-                        f"HF text field missing at {shard.path} row {index}"
+                raise ValueError("HF shard URL must point to the Hugging Face Hub")
+            headers = {"User-Agent": "SparseLab-Corpus-Forge/1"}
+            if auth.get("token"):
+                headers["Authorization"] = f"Bearer {auth['token']}"
+            request = urllib.request.Request(url, headers=headers)
+            input_path = staging / "hf-input" / shard.path
+            transfer_index = None
+            try:
+                if budget is not None:
+                    budget.assert_transfer_available(
+                        source.id, shard.path, shard.max_shard_bytes
                     )
-                if not isinstance(row[spec.text_field], str):
-                    raise TypeError(
-                        f"HF text field non-string at {shard.path} row {index}"
+                    projected = budget.projected_disk_bytes()
+                    if projected > budget.spec.max_disk_bytes:
+                        raise ValueError("transport budget disk allowance exhausted")
+                    if shutil.disk_usage(staging).free < projected:
+                        raise ValueError("insufficient disk space for bounded HF shard")
+                    _hf_pinned_metadata(source, spec, shard, headers, budget)
+                    transfer_index = budget.reserve_transfer(
+                        source.id, shard.path, shard.max_shard_bytes
                     )
-                if "_sparselab_source" in row:
-                    raise ValueError(
-                        "HF source row collides with reserved provenance field"
+                    resources.index = transfer_index
+                    resources.persist()
+                    response, _ = _open_accounted(url, headers.copy(), budget)
+                else:
+                    response = urllib.request.build_opener(_PrivateHubRedirect()).open(
+                        request, timeout=30
                     )
-                try:
-                    row_digest = hashlib.sha256(canonical_json(row)).hexdigest()
-                except (TypeError, ValueError) as error:
-                    raise ValueError(
-                        f"HF row is not canonical JSON: {shard.path} row {index}"
-                    ) from error
-                row_hash = hashlib.sha256(
-                    canonical_json([source.revision, shard.path, index])
-                ).hexdigest()
-                if int(row_hash, 16) % shard.hash_modulus not in shard.hash_remainders:
-                    continue
-                if total_rows >= spec.max_rows:
-                    raise ValueError("HF bounded selection exceeds max_rows")
-                envelope: dict[str, Any] = {
-                    "source_shard_path": shard.path,
-                    "source_shard_sha256": digest,
-                    "dataset_revision": source.revision,
-                    "source_row_index": index,
-                    "source_row_sha256": row_digest,
-                }
-                for key in (
-                    "url",
-                    "id",
-                    "dump",
-                    "score",
-                    "language",
-                    "language_score",
-                    "token_count",
-                    "blob_id",
-                    "repo_name",
-                    "path",
-                    "detected_licenses",
+                with response:
+                    if urlparse(response.url).scheme != "https":
+                        raise ValueError("HF shard redirect must use HTTPS")
+                    digest, input_bytes = _copy_hf_body(
+                        response,
+                        input_path,
+                        shard.max_shard_bytes,
+                        budget,
+                        transfer_index,
+                        resources,
+                    )
+            except (*HUB_ACCESS_ERRORS, HTTPError) as error:
+                if budget is not None and transfer_index is not None:
+                    budget.finish_transfer(
+                        transfer_index, success=False, interrupted=False
+                    )
+                raise_for_hub_auth(error, credential_supplied=bool(auth.get("token")))
+            except OSError, TimeoutError, EOFError:
+                if budget is not None and transfer_index is not None:
+                    budget.finish_transfer(
+                        transfer_index, success=False, interrupted=True
+                    )
+                raise
+            except Exception:
+                if budget is not None and transfer_index is not None:
+                    budget.finish_transfer(
+                        transfer_index, success=False, interrupted=False
+                    )
+                raise
+            if digest != shard.expected_sha256.lower():
+                if budget is not None and transfer_index is not None:
+                    budget.finish_transfer(transfer_index, success=False)
+                raise ValueError(f"HF shard SHA-256 mismatch: {shard.path}")
+            if budget is not None and transfer_index is not None:
+                budget.finish_transfer(transfer_index, success=True)
+
+            output_name = shard.path + ".sample.jsonl"
+            target = staging / "files" / output_name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            selected: list[dict[str, Any]] = []
+            output_digest = hashlib.sha256()
+            output_bytes = 0
+            scanned = 0
+            with resources.output(target) as output:
+                for index, row in _bounded_hf_rows(
+                    input_path,
+                    limit=shard.max_scanned_rows,
+                    max_line_bytes=spec.max_bytes,
+                    max_decompressed_bytes=spec.max_decompressed_bytes,
+                    budget=budget,
+                    resources=resources,
                 ):
-                    value = row.get(key)
-                    if isinstance(value, (str, int, float, bool)) or value is None:
-                        if key in row:
-                            envelope[key] = value
-                    elif key == "detected_licenses":
-                        envelope[key] = canonical_json(value).decode("utf-8")
-                line = canonical_json({**row, "_sparselab_source": envelope}) + b"\n"
-                if len(line) > spec.max_bytes - total_bytes - output_bytes:
-                    raise ValueError("HF bounded selection exceeds max_bytes")
-                output.write(line)
-                output_digest.update(line)
-                output_bytes += len(line)
-                total_rows += 1
-                selected.append(
-                    {
+                    scanned += 1
+                    if not isinstance(row, dict) or spec.text_field not in row:
+                        raise ValueError(
+                            f"HF text field missing at {shard.path} row {index}"
+                        )
+                    if not isinstance(row[spec.text_field], str):
+                        raise TypeError(
+                            f"HF text field non-string at {shard.path} row {index}"
+                        )
+                    if "_sparselab_source" in row:
+                        raise ValueError(
+                            "HF source row collides with reserved provenance field"
+                        )
+                    try:
+                        row_digest = hashlib.sha256(canonical_json(row)).hexdigest()
+                    except (TypeError, ValueError) as error:
+                        raise ValueError(
+                            f"HF row is not canonical JSON: {shard.path} row {index}"
+                        ) from error
+                    row_hash = hashlib.sha256(
+                        canonical_json([source.revision, shard.path, index])
+                    ).hexdigest()
+                    if (
+                        int(row_hash, 16) % shard.hash_modulus
+                        not in shard.hash_remainders
+                    ):
+                        continue
+                    if total_rows >= spec.max_rows:
+                        raise ValueError("HF bounded selection exceeds max_rows")
+                    envelope: dict[str, Any] = {
+                        "source_shard_path": shard.path,
+                        "source_shard_sha256": digest,
+                        "dataset_revision": source.revision,
                         "source_row_index": index,
                         "source_row_sha256": row_digest,
-                        "selection_hash": row_hash,
+                    }
+                    for key in (
+                        "url",
+                        "id",
+                        "dump",
+                        "score",
+                        "language",
+                        "language_score",
+                        "token_count",
+                        "blob_id",
+                        "repo_name",
+                        "path",
+                        "detected_licenses",
+                    ):
+                        value = row.get(key)
+                        if isinstance(value, (str, int, float, bool)) or value is None:
+                            if key in row:
+                                envelope[key] = value
+                        elif key == "detected_licenses":
+                            envelope[key] = canonical_json(value).decode("utf-8")
+                    line = (
+                        canonical_json({**row, "_sparselab_source": envelope}) + b"\n"
+                    )
+                    if len(line) > spec.max_bytes - total_bytes - output_bytes:
+                        raise ValueError("HF bounded selection exceeds max_bytes")
+                    output.write(line)
+                    output_digest.update(line)
+                    output_bytes += len(line)
+                    total_rows += 1
+                    selected.append(
+                        {
+                            "source_row_index": index,
+                            "source_row_sha256": row_digest,
+                            "selection_hash": row_hash,
+                        }
+                    )
+                output.flush()
+                os.fsync(output.fileno())
+            input_path.unlink()
+            if not selected:
+                target.unlink()
+            else:
+                total_bytes += output_bytes
+                inventory.append(
+                    {
+                        "path": output_name,
+                        "sha256": output_digest.hexdigest(),
+                        "size": output_bytes,
                     }
                 )
-            output.flush()
-            os.fsync(output.fileno())
-        input_path.unlink()
-        if not selected:
-            target.unlink()
-        else:
-            total_bytes += output_bytes
-            inventory.append(
+            receipts.append(
                 {
-                    "path": output_name,
-                    "sha256": output_digest.hexdigest(),
-                    "size": output_bytes,
+                    "source_shard_path": shard.path,
+                    "source_shard_sha256": digest,
+                    "source_shard_bytes": input_bytes,
+                    "resources": resources.receipt(),
+                    "scanned_rows": scanned,
+                    "selected_rows": selected,
+                    "output_path": output_name if selected else None,
                 }
             )
-        receipts.append(
-            {
-                "source_shard_path": shard.path,
-                "source_shard_sha256": digest,
-                "source_shard_bytes": input_bytes,
-                "scanned_rows": scanned,
-                "selected_rows": selected,
-                "output_path": output_name if selected else None,
-            }
-        )
     if not inventory:
         raise ValueError("HF bounded selection produced no rows")
     retrieval = {
@@ -1094,15 +1276,24 @@ _WIKI_PRIVATE_TITLE = re.compile(r"(?i)\b(?:private secrets?|confidential data)\
 class _BoundedXML:
     """Bound decompressed XML and reject document types before the XML parser sees them."""
 
-    def __init__(self, stream: Any, limit: int):
+    def __init__(
+        self, stream: Any, limit: int, resources: _AcquisitionResources | None = None
+    ):
         self.stream = stream
         self.limit = limit
         self.size = 0
         self.previous = b""
+        self.resources = resources
+        self.persisted_size = 0
 
     def read(self, size: int = -1) -> bytes:
         chunk = self.stream.read(min(65536, size if size >= 0 else 65536))
         self.size += len(chunk)
+        if self.resources is not None:
+            self.resources.expanded = self.size
+            if self.size - self.persisted_size >= 1024 * 1024:
+                self.resources.persist()
+                self.persisted_size = self.size
         if self.size > self.limit:
             raise ValueError("Wikimedia decompressed XML exceeds limit")
         combined = (self.previous + chunk).upper()
@@ -1193,12 +1384,17 @@ def _wiki_row(page: ET.Element, source: SourceDeclaration) -> dict[str, Any] | N
 
 
 def _acquire_wikimedia(
-    source: SourceDeclaration, staging: Path, offline: bool
+    source: SourceDeclaration,
+    staging: Path,
+    offline: bool,
+    resources: _AcquisitionResources | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if offline:
         raise ValueError("offline acquisition cannot fetch Wikimedia dump")
     spec = source.acquisition
     assert isinstance(spec, WikimediaDumpAcquisition)
+    resources = resources or _AcquisitionResources(staging)
+    resources.observe()
     opener = urllib.request.build_opener()
     headers = {
         "User-Agent": (
@@ -1228,8 +1424,9 @@ def _acquire_wikimedia(
         if response.url != source.canonical_uri:
             raise ValueError("Wikimedia dump redirect differs from pinned URI")
         digest, compressed_bytes = _copy_stream(
-            response, compressed, spec.max_compressed_bytes
+            response, compressed, spec.max_compressed_bytes, resources
         )
+    resources.observe()
     if spec.expected_sha256 and digest != spec.expected_sha256.lower():
         raise ValueError("Wikimedia compressed SHA-256 mismatch")
     source_sha1 = hashlib.sha1()
@@ -1242,8 +1439,11 @@ def _acquire_wikimedia(
     output_path = staging / "files" / output_name
     emitted = scanned = 0
     rows: list[dict[str, str]] = []
-    with bz2.open(compressed, "rb") as decompressed, output_path.open("wb") as output:
-        guarded = _BoundedXML(decompressed, spec.max_decompressed_bytes)
+    with (
+        bz2.open(compressed, "rb") as decompressed,
+        resources.output(output_path) as output,
+    ):
+        guarded = _BoundedXML(decompressed, spec.max_decompressed_bytes, resources)
         context = ET.iterparse(guarded, events=("start", "end"))
         root: ET.Element | None = None
         english_site = False
@@ -1292,6 +1492,7 @@ def _acquire_wikimedia(
             root.clear()
         output.flush()
         os.fsync(output.fileno())
+        resources.expanded = guarded.size
     compressed.unlink()
     if not rows:
         raise ValueError("Wikimedia bounded selection produced no pages")
@@ -1307,6 +1508,7 @@ def _acquire_wikimedia(
         "source_sha1": spec.expected_sha1.lower(),
         "source_sha256": digest,
         "compressed_bytes": compressed_bytes,
+        "resources": resources.receipt(),
         "scanned_pages": scanned,
         "selected_pages": rows,
         "output_path": output_name,
@@ -1809,8 +2011,12 @@ def acquire(
         parent = snapshot_root / source.id
         parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=".acquire-", dir=parent))
+        resources = None
         try:
             (staging / "files").mkdir()
+            if source.kind == "wikimedia_dump":
+                resources = _AcquisitionResources(staging)
+                resources.retain(source)
             retrieval: dict[str, Any] = {}
             if source.kind == "local":
                 files, retrieval = _acquire_local(source, project.root, staging)
@@ -1825,7 +2031,7 @@ def acquire(
                     source, staging, base / "hf-cache", False, budget
                 )
             elif source.kind == "wikimedia_dump":
-                files, retrieval = _acquire_wikimedia(source, staging, False)
+                files, retrieval = _acquire_wikimedia(source, staging, False, resources)
             else:
                 files = []
                 retrieval = {
@@ -1886,10 +2092,23 @@ def acquire(
                     "retrieval": retrieval,
                 },
             }
-        except Exception as error:
+        except BaseException as error:
+            if resources is not None:
+                resources.status = (
+                    "interrupted"
+                    if isinstance(
+                        error, (OSError, EOFError, KeyboardInterrupt, SystemExit)
+                    )
+                    else "failed"
+                )
+                resources.persist()
             if budget is not None:
                 budget.record_failure(source.id, error)
             raise
+        else:
+            if resources is not None:
+                resources.status = "complete"
+                resources.persist()
         finally:
             if staging.exists():
                 shutil.rmtree(staging)

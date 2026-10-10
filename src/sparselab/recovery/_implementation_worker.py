@@ -53,13 +53,6 @@ def _prepare_inheritance(
     if changed and (
         set(pre) != set(inherited) | set(changed)
         or any(pre[key] != sha for key, sha in changed.items())
-        or (
-            len(pre) == 123
-            and (
-                set(changed) != {"v4_iac_cmake_build", "v4_runtime_metro_js"}
-                or len(inherited) != 121
-            )
-        )
     ):
         raise ValueError("CHANGED_IDENTITY_MISMATCH: prior snapshot set differs")
     if any(

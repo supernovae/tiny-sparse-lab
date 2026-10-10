@@ -90,3 +90,11 @@ artifacts, and the native corpus artifact namespace before dispatch.
 The [retained development evidence](research/development-evidence.md#capacity-execution-measurements-and-implementation-notes)
 contains implementation details, measured comparisons and corrections from prior
 workloads. Those workloads do not define the reuse interface or your experiment.
+
+Source-snapshot warm proofs retain acquisition, source declarations and semantic
+verifier helpers in their authority closure. The worker package's transport-only
+convenience exports are excluded for this proof kind with a pinned AST-use
+signature; a new use requires re-audit. Snapshot proofs authenticate warm hits
+only in trusted registered stores. Authority changes, changed inputs, foreign
+signatures and unsafe paths still force cold verification or rejection. This
+does not authorize source acquisition or replace cold recovery authentication.

@@ -124,6 +124,21 @@ class TransportBudget:
             )
         ):
             raise ValueError("transport budget ledger counters are invalid")
+        for transfer in transfers:
+            if "resources" not in transfer:
+                continue  # Historical ledgers have no inferred readings.
+            readings = transfer["resources"]
+            if (
+                not isinstance(readings, dict)
+                or set(readings)
+                != {"expanded_bytes", "peak_staging_bytes", "peak_staging_inodes"}
+                or any(
+                    (type(value) is not int or value < 0)
+                    for key, value in readings.items()
+                    if key != "expanded_bytes" or value is not None
+                )
+            ):
+                raise ValueError("transport budget resource counters are invalid")
 
     def projected_disk_bytes(self) -> int:
         effects = (
@@ -367,3 +382,12 @@ class TransportBudget:
 
     def receipt(self) -> dict[str, Any]:
         return self._read()
+
+    def record_resources(self, index: int, readings: dict[str, Any]) -> None:
+        """Retain measured counters even after a transfer or parser fails."""
+
+        def update(state: dict[str, Any]) -> None:
+            state["transfers"][index]["resources"] = readings
+            self._validate_state(state)
+
+        self._mutate(update, check_deadline=False)

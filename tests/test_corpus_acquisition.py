@@ -1115,11 +1115,18 @@ def test_hf_transport_interruption_resume_and_exhaustion(
     assert state["source_charged"] == len(content)
     assert state["source_actual"] == 4
     assert state["transfers"][0]["status"] == "interrupted"
+    interrupted_resources = state["transfers"][0]["resources"]
+    assert interrupted_resources["peak_staging_bytes"] == 4
+    assert interrupted_resources["expanded_bytes"] == 0
     assert all(size <= len(content) or size <= 65536 for size in reads)
     acquire(load_project(recipe), root)
     state = TransportBudget(ledger_path, project).receipt()
     assert state["source_charged"] == 2 * len(content)
     assert state["source_actual"] == len(content) + 4
+    assert state["transfers"][0]["resources"] == interrupted_resources
+    assert state["transfers"][1]["resources"]["expanded_bytes"] == len(
+        b'{"text":"one"}\n'
+    )
     assert [item["status"] for item in state["transfers"]] == [
         "interrupted",
         "complete",
@@ -1635,6 +1642,11 @@ def test_wikimedia_bounded_xml_provenance_and_receipt(
     manifest = verify_snapshot(snapshot_path)
     receipt = manifest["retrieval"]
     assert receipt["source_sha256"] == hashlib.sha256(content).hexdigest()
+    assert receipt["resources"] == {
+        "expanded_bytes": len(xml),
+        "peak_staging_bytes": len(content) + manifest["files"][0]["size"],
+        "peak_staging_inodes": 5,
+    }
     assert receipt["scanned_pages"] == 3
     assert [(r["page_id"], r["revision_id"]) for r in receipt["selected_pages"]] == [
         ("17", "93")
@@ -1744,3 +1756,224 @@ def test_wikimedia_rejects_checksum_caps_and_doctype(
     recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, malicious)
     with pytest.raises(ValueError, match="DTD/entities"):
         acquire(load_project(recipe), tmp_path / "doctype")
+
+
+@pytest.mark.parametrize("cap_delta", [0, -1])
+def test_bounded_resource_readings_exact_expansion_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cap_delta: int
+) -> None:
+    raw = b'{"text":"one"}\n'
+    content = gzip.compress(raw, mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    source_path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_path.read_text())
+    source["acquisition"]["max_decompressed_bytes"] = len(raw) + cap_delta
+    _yaml(source_path, source)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger, project)
+    _mock_budgeted_hf_http(monkeypatch, content)
+    if cap_delta:
+        with pytest.raises(ValueError, match="max_decompressed_bytes"):
+            acquire(project, root)
+    else:
+        lock = acquire(project, root)
+        manifest = verify_snapshot(lock["sources"]["one"]["snapshot_path"])
+        counters = manifest["retrieval"]["shards"][0]["resources"]
+        assert counters["expanded_bytes"] == len(raw)
+        assert counters["peak_staging_bytes"] == len(content) + sum(
+            item["size"] for item in manifest["files"]
+        )
+        assert counters["peak_staging_inodes"] == 5
+    readings = TransportBudget(ledger, project).receipt()["transfers"][0]["resources"]
+    assert readings["expanded_bytes"] == len(raw)
+    assert readings["peak_staging_bytes"] >= len(content)
+
+
+def test_bounded_overlong_line_retains_measured_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = gzip.compress(b'{"text":"' + b"x" * 100 + b'"}\n', mtime=0)
+    recipe = _budgeted_hf_fixture(tmp_path, content)
+    source_path = recipe.parent / "sources/one.yaml"
+    source = yaml.safe_load(source_path.read_text())
+    source["acquisition"]["max_bytes"] = 20
+    _yaml(source_path, source)
+    project = load_project(recipe)
+    root = tmp_path / "work"
+    ledger = root / "corpora/example/transport-budget.sqlite"
+    TransportBudget.initialize(ledger, project)
+    _mock_budgeted_hf_http(monkeypatch, content)
+    with pytest.raises(ValueError, match="JSONL row exceeds"):
+        acquire(project, root)
+    readings = TransportBudget(ledger, project).receipt()["transfers"][0]["resources"]
+    assert readings["expanded_bytes"] == 21
+    assert readings["peak_staging_bytes"] == len(content)
+
+
+def test_required_staging_reading_failure_is_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.corpus.acquisition import _AcquisitionResources
+
+    def inaccessible(*args: object, **kwargs: object) -> object:
+        kwargs["onerror"](PermissionError("fixture inaccessible"))
+        return iter(())
+
+    monkeypatch.setattr(os, "walk", inaccessible)
+    with pytest.raises(
+        ValueError, match="required staging resource reading unavailable"
+    ):
+        _AcquisitionResources(tmp_path).observe()
+
+
+def test_parquet_required_expansion_reading_is_unavailable(tmp_path: Path) -> None:
+    from sparselab.corpus.acquisition import _bounded_hf_rows
+
+    with pytest.raises(ValueError, match="expanded byte reading unavailable"):
+        list(
+            _bounded_hf_rows(
+                tmp_path / "absent.parquet",
+                limit=1,
+                max_line_bytes=20,
+                max_decompressed_bytes=100,
+            )
+        )
+
+
+def test_staging_counters_include_empty_interrupted_input(tmp_path: Path) -> None:
+    from sparselab.corpus.acquisition import _AcquisitionResources
+
+    class Interrupted(io.BytesIO):
+        def __init__(self) -> None:
+            super().__init__()
+            self.headers = {"Content-Length": "1"}
+
+        def read(self, size: int = -1) -> bytes:
+            raise OSError("first read interrupted")
+
+    resources = _AcquisitionResources(tmp_path)
+    with pytest.raises(OSError, match="first read interrupted"):
+        _copy_hf_body(
+            Interrupted(), tmp_path / "input" / "one", 1, None, None, resources
+        )
+    assert resources.receipt() == {
+        "expanded_bytes": 0,
+        "peak_staging_bytes": 0,
+        "peak_staging_inodes": 3,
+    }
+    with pytest.raises(
+        ValueError, match="required staging resource reading unavailable"
+    ):
+        _AcquisitionResources(tmp_path / "missing").observe()
+    (tmp_path / "link").symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="nonsymlink directory"):
+        _AcquisitionResources(tmp_path / "link").observe()
+
+
+def test_wikimedia_interruption_retains_distinct_resource_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, b"<mediawiki/>")
+    build_opener = urllib.request.build_opener
+
+    class Interrupted(io.BytesIO):
+        def __init__(self, url: str) -> None:
+            super().__init__(b"tiny")
+            self.url = url
+
+        def read(self, size: int = -1) -> bytes:
+            if self.tell():
+                raise OSError("fixture interrupted dump")
+            return super().read(size)
+
+    class Opener:
+        def open(self, request: urllib.request.Request, *, timeout: int) -> object:
+            if request.full_url.endswith(".bz2"):
+                return Interrupted(request.full_url)
+            return build_opener().open(request, timeout=timeout)
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda: Opener())
+    root = tmp_path / "work"
+    parent = root / "corpora/example/snapshots/one"
+    project = load_project(recipe)
+    first = None
+    for _ in range(2):
+        with pytest.raises(OSError, match="fixture interrupted dump"):
+            acquire(project, root)
+        receipts = list((parent / ".resource-receipts").glob("attempt-*.json"))
+        assert not list(parent.glob(".acquire-*"))
+        if first is None:
+            assert len(receipts) == 1
+            first = (receipts[0], receipts[0].read_bytes())
+        else:
+            assert len(receipts) == 2
+            assert first[0].read_bytes() == first[1]
+        for path in receipts:
+            receipt = json.loads(path.read_bytes())
+            assert receipt["status"] == "interrupted"
+            assert receipt["source_id"] == "one"
+            assert receipt["declaration_sha256"] == declaration_sha256(
+                project.sources[0]
+            )
+            assert receipt["resources"] == {
+                "expanded_bytes": 0,
+                "peak_staging_bytes": 4,
+                "peak_staging_inodes": 4,
+            }
+
+
+def test_wikimedia_resource_journal_rejects_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recipe, _ = _wikimedia_fixture(tmp_path, monkeypatch, b"<mediawiki/>")
+    root = tmp_path / "work"
+    parent = root / "corpora/example/snapshots/one"
+    parent.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (parent / ".resource-receipts").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(
+        ValueError, match="resource receipt directory must be a nonsymlink"
+    ):
+        acquire(load_project(recipe), root)
+    assert list(outside.iterdir()) == []
+
+
+def test_hf_without_transport_ledger_retains_interrupted_shard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = b'{"text":"one"}\n'
+    shard_path = "default/train/data.jsonl"
+    recipe = _bounded_hf_fixture(tmp_path, content, shard_path, rows=1)
+    _mock_hf_stream(monkeypatch, content)
+    original = urllib.request.build_opener
+
+    class Interrupted(io.BytesIO):
+        def __init__(self, response: object) -> None:
+            super().__init__(content)
+            self.url = response.url
+            self.headers = response.headers
+
+        def read(self, size: int = -1) -> bytes:
+            if self.tell():
+                raise OSError("fixture interrupted HF")
+            return super().read(min(size, 4))
+
+    class Opener:
+        def open(self, request: object, **kwargs: object) -> object:
+            return Interrupted(original().open(request, **kwargs))
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_args: Opener())
+    root = tmp_path / "work"
+    with pytest.raises(OSError, match="fixture interrupted HF"):
+        acquire(load_project(recipe), root)
+    parent = root / "corpora/example/snapshots/one"
+    paths = list((parent / ".resource-receipts").glob("attempt-*.json"))
+    assert len(paths) == 1
+    receipt = json.loads(paths[0].read_bytes())
+    assert receipt["source_shard_path"] == shard_path
+    assert receipt["status"] == "interrupted"
+    assert receipt["resources"]["peak_staging_bytes"] == 4
+    assert not list(parent.glob(".acquire-*"))
