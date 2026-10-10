@@ -96,9 +96,11 @@ scope; the planning documents grant no runtime or spending approval.
   command supports it. Do not write Python to reimplement artifact hashing,
   counter checks, checkpoint selection, runtime checks or Campaign state.
 - At a new session boundary, use the bounded `readiness smoke --family dense`
-  when lab wiring needs checking; select additional affected families for code
-  changes. This runs tiny CPU training and resume, so use an isolated output.
-  It does not certify an accelerator or the real experiment's inputs.
+  when lab wiring needs checking **and model updates are authorized**; select
+  additional affected families for code changes. This runs tiny CPU training
+  and resume, so use an isolated output. It does not certify an accelerator or
+  the real experiment's inputs. For a zero-model task, use inspected tests and
+  read-only native checks instead.
 - Identify the actual delta first: declaration, data/tokenizer, code, runtime or
   location. Use nearest tests for changed code, actual-config `inspect` and
   `workspace preflight`, and config-specific staging where needed. A tested
@@ -134,6 +136,25 @@ scope; the planning documents grant no runtime or spending approval.
 - Never alter acceptance criteria after viewing final outcomes without recording
   a new protocol identity. Do not promote a baseline or finding automatically
   from metrics; promotion is a reviewed decision.
+
+### Bound preparation attempts
+
+- Keep the attempt contract, one common-root baseline, monitor policies, source
+  declarations and phase map as distinct authenticated inputs. Capture the
+  baseline once; render its **verified embedded identity** through native
+  `corpus render-declaration --workspace-baseline`, then use public `attempt
+  init` with that baseline, root and sealed policy. Do not fill the slot with
+  the receipt file hash or create a ledger before validation.
+- Derive phase labels and leaf/receipt/monitor paths from the checked-in map
+  through native `attempt phase-paths`. Use separate output namespaces and
+  pass the exact generated paths to the leaf, nested monitor and outer owned
+  supervisor. Keep the native pre-reservation alias check and exclusive writes;
+  a fixture should use the same public command and binding shapes as its packet.
+- Preparation evidence ends at its declared gate. A tiny zero-model fixture
+  establishes command wiring, not production admission, corpus supply, GPU
+  fit or model quality. Hardware, optimizer/generation and platform
+  qualifications are optional separate allocations unless a changed behavior
+  specifically depends on them. Preserve stopped ledgers and raw failures.
 
 ## Collaboration
 

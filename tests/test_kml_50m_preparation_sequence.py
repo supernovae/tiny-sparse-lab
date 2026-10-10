@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -38,13 +37,21 @@ from sparselab.corpus.release import freeze, verify_release
 from sparselab.corpus.release_review import verify_admission_review
 from sparselab.corpus.split_freeze import finalize_family_inventory, freeze_splits
 from sparselab.corpus.split_inventory import write_split_inventory
-from sparselab.operational_monitor import capture_workspace_baseline
 from sparselab.training.attempt_budget import AttemptBudget, AttemptContract
 from sparselab.training.attempt_commands import (
     classify_attempt_command,
     phase_output_paths,
 )
 from sparselab.training.manifest import canonical_json, sha256_file
+
+_PHASE_MAP = dict(
+    json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "experiments/research/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v2.json"
+        ).read_text()
+    )["phases"]
+)
 
 
 def _write_yaml(path: Path, value: dict) -> None:
@@ -572,7 +579,22 @@ def _authenticated_fixture_tokenizer(root: Path, release: Path) -> tuple[Path, P
 
 
 def _native(root: Path, *words: str) -> list[str]:
-    return [sys.executable, "-m", "sparselab", "--work-dir", str(root), *words]
+    return [
+        "uv",
+        "run",
+        "--locked",
+        "--no-sync",
+        "sparselab",
+        "--work-dir",
+        str(root),
+        *words,
+    ]
+
+
+def _out(paths: dict[str, Path | str], label: str) -> Path:
+    attempt = paths["attempt"]
+    assert isinstance(attempt, Path)
+    return phase_output_paths(attempt, label, _PHASE_MAP[label])["leaf"]
 
 
 def _phase(
@@ -583,8 +605,35 @@ def _phase(
 ) -> subprocess.CompletedProcess[str]:
     root = paths["root"]
     assert isinstance(root, Path)
-    phase_paths = phase_output_paths(root, label)
+    attempt = paths["attempt"]
+    assert isinstance(attempt, Path)
+    path_command = _native(
+        root,
+        "attempt",
+        "phase-paths",
+        "--attempt-root",
+        str(attempt),
+        "--label",
+        label,
+    )
+    if (leaf_name := _PHASE_MAP.get(label)) is not None:
+        path_command.extend(("--leaf-name", leaf_name))
+    generated = subprocess.run(
+        path_command,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+        env=paths["env"],
+    )
+    assert generated.returncode == 0, (generated.stdout, generated.stderr)
+    phase_paths = {
+        key: Path(value) for key, value in json.loads(generated.stdout).items()
+    }
     leaf = _native(root, *words)
+    classified = classify_attempt_command(leaf)
+    if "leaf" in phase_paths and "--output" in classified.options:
+        assert Path(str(classified.options["--output"])) == phase_paths["leaf"]
     guarded = _native(
         root,
         "monitor",
@@ -647,7 +696,9 @@ def _run(paths: dict[str, Path | str], label: str, *words: str) -> None:
     assert completed.returncode == 0, (label, completed.stdout, completed.stderr)
     root = paths["root"]
     assert isinstance(root, Path)
-    receipt = json.loads(phase_output_paths(root, label)["completion"].read_text())
+    attempt = paths["attempt"]
+    assert isinstance(attempt, Path)
+    receipt = json.loads(phase_output_paths(attempt, label)["completion"].read_text())
     assert receipt["living_descendants"] == 0
 
 
@@ -673,12 +724,30 @@ def _render(
 
 
 def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
-    (root / "logs").mkdir(exist_ok=True)
-    (root / "receipts").mkdir(exist_ok=True)
-    baseline = root / "baseline.json"
-    value = capture_workspace_baseline(root, baseline, seconds=2)
-    whole = root / "whole.yaml"
-    prep = root / "prep.yaml"
+    attempt = root / "attempt"
+    attempt.mkdir()
+    baseline = attempt / "workspace-baseline.json"
+    capture = subprocess.run(
+        _native(
+            root,
+            "monitor-baseline",
+            str(root),
+            "--output",
+            str(baseline),
+            "--seconds",
+            "2",
+            "--json",
+        ),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert capture.returncode == 0, (capture.stdout, capture.stderr)
+    for name in ("prep/sources", "prep/transforms", "receipts", "logs", "policies"):
+        (attempt / name).mkdir(parents=True)
+    whole = attempt / "policies" / "monitor-whole.yaml"
+    prep = attempt / "policies" / "monitor-preparation.yaml"
     policy = {
         "monitor_policy_version": 1,
         "interval_seconds": 0.1,
@@ -692,8 +761,8 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
     _write_yaml(prep, policy)
     project = load_project(acquisition)
     identity = "a" * 64
-    contract = root / "contract.json"
-    contract.write_bytes(
+    template = acquisition.parent / "attempt-contract.template.json"
+    template.write_bytes(
         canonical_json(
             {
                 "contract_version": 1,
@@ -704,7 +773,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
                 "max_wall_seconds": 600,
                 "content_identity_sha256": identity,
                 "monitor_policy_sha256": sha256_file(whole),
-                "workspace_baseline_sha256": value.sha256,
+                "workspace_baseline_sha256": "${VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256}",
                 "preparation_monitor_policy_sha256": sha256_file(prep),
                 "acquisition_project_sha256": sha256_file(acquisition),
                 "preparation_acquisition_identity_sha256": _project_sha(project),
@@ -722,19 +791,63 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
                 "require_admission_inspection_binding": True,
                 "preparation_only": True,
                 "offline_retained_sources_only": True,
+                "require_preledger_monitor_binding": True,
             }
         )
         + b"\n"
     )
-    ledger = root / "fixture-ledger.sqlite"
-    AttemptBudget.create_contract(
-        ledger, contract_path=contract, expected_sha256=sha256_file(contract)
+    contract = attempt / "attempt-contract.json"
+    rendered = subprocess.run(
+        _native(
+            root,
+            "corpus",
+            "render-declaration",
+            "--template",
+            str(template),
+            "--values-json",
+            "{}",
+            "--workspace-baseline",
+            str(baseline),
+            "--output",
+            str(contract),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
     )
+    assert rendered.returncode == 0, (rendered.stdout, rendered.stderr)
+    ledger = attempt / "attempt-ledger.sqlite"
+    initialized = subprocess.run(
+        _native(
+            root,
+            "attempt",
+            "init",
+            "--ledger",
+            str(ledger),
+            "--contract",
+            str(contract),
+            "--contract-sha256",
+            sha256_file(contract),
+            "--policy",
+            str(whole),
+            "--baseline",
+            str(baseline),
+            "--workspace",
+            str(root),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert initialized.returncode == 0, (initialized.stdout, initialized.stderr)
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root) + os.pathsep + env.get("PYTHONPATH", "")
     env["HF_HUB_OFFLINE"] = "1"
     return {
         "root": root,
+        "attempt": attempt,
         "ledger": ledger,
         "baseline": baseline,
         "whole": whole,
@@ -868,6 +981,13 @@ def test_offline_preparation_sequence_through_native_supervision(
         prefreeze_template,
         {
             **yaml.safe_load((recipe / "acquire.yaml").read_text()),
+            "sources": [
+                "sources/source-gutenberg.yaml",
+                "sources/source-pagerduty.yaml",
+                "sources/source-scoutflo.yaml",
+                "sources/source-wikimedia.yaml",
+            ],
+            "splits": "splits-placeholder.yaml",
             "release": "release-reviewed.yaml",
         },
     )
@@ -1035,7 +1155,9 @@ def test_offline_preparation_sequence_through_native_supervision(
             monitor_policy_path=paths["whole"],
             workspace_baseline_path=paths["baseline"],
             workspace_root=root,
-            completion=root / "logs" / "forbidden-direct-stage.json",
+            completion=phase_output_paths(paths["attempt"], "forbidden-direct-stage")[
+                "completion"
+            ],
         )
     denied_live = _phase(
         paths,
@@ -1054,20 +1176,23 @@ def test_offline_preparation_sequence_through_native_supervision(
         str(recipe / "acquire.yaml"),
         "--offline",
     )
+    application = _out(paths, "application-declaration")
+    _render(paths, "application-declaration", template, application)
+    draft_path = _out(paths, "admission-draft")
     _run(
         paths,
-        "draft-admission",
+        "admission-draft",
         "corpus",
         "admission-draft",
         str(recipe / "acquire.yaml"),
         "--template",
-        str(template),
+        str(application),
         "--policy-document",
         str(policy),
         "--output",
-        str(recipe / "draft.json"),
+        str(draft_path),
     )
-    draft = json.loads((recipe / "draft.json").read_text())
+    draft = json.loads(draft_path.read_text())
     assert all(
         sum(
             row["decision"] == "quarantine"
@@ -1076,15 +1201,15 @@ def test_offline_preparation_sequence_through_native_supervision(
         == 1
         for item in draft["sources"]
     )
-    inspection_path = recipe / "inspection.json"
+    inspection_path = _out(paths, "admission-inspection")
     _run(
         paths,
-        "inspect-admission",
+        "admission-inspection",
         "corpus",
         "inspect-admission",
         str(recipe / "acquire.yaml"),
         "--draft",
-        str(recipe / "draft.json"),
+        str(draft_path),
         "--policy-document",
         str(policy),
         "--selection",
@@ -1122,18 +1247,16 @@ def test_offline_preparation_sequence_through_native_supervision(
         )
         + b"\n"
     )
-    _render(
-        paths, "reviewed-admission", recipe / "draft.json", recipe / "admission.json"
-    )
-    admission = recipe / "admission.json"
+    admission = _out(paths, "reviewed-admission")
+    _render(paths, "reviewed-admission", draft_path, admission)
     _render(
         paths,
         "admission-review",
         admission_review_template,
-        admission.with_name(admission.name + ".review.json"),
+        _out(paths, "admission-review"),
         {
-            "DRAFT_PATH": str(recipe / "draft.json"),
-            "DRAFT_SHA256": sha256_file(recipe / "draft.json"),
+            "DRAFT_PATH": str(draft_path),
+            "DRAFT_SHA256": sha256_file(draft_path),
             "ADMISSION_SHA256": sha256_file(admission),
             "INSPECTION_PATH": str(inspection_path),
             "INSPECTION_SHA256": sha256_file(inspection_path),
@@ -1153,13 +1276,34 @@ def test_offline_preparation_sequence_through_native_supervision(
         paths,
         "reviewed-release-declaration",
         release_template,
-        recipe / "release-reviewed.yaml",
+        _out(paths, "reviewed-release-declaration"),
         {"ADMISSION_SHA256": sha256_file(admission)},
     )
-    prefreeze = recipe / "pre-freeze.yaml"
+    for label, source_id in (
+        ("source-scoutflo", "books"),
+        ("source-gutenberg", "books_rows"),
+        ("source-pagerduty", "incident"),
+        ("source-wikimedia", "wiki"),
+    ):
+        _render(
+            paths, label, recipe / "sources" / f"{source_id}.yaml", _out(paths, label)
+        )
+    _render(
+        paths,
+        "transform-declaration",
+        recipe / "transforms/lm.yaml",
+        _out(paths, "transform-declaration"),
+    )
+    _render(
+        paths,
+        "placeholder-split-declaration",
+        recipe / "splits-placeholder.yaml",
+        _out(paths, "placeholder-split-declaration"),
+    )
+    prefreeze = _out(paths, "pre-freeze-declaration")
     _render(paths, "pre-freeze-declaration", prefreeze_template, prefreeze)
     _bind(paths, "pre_freeze_project", prefreeze)
-    inventory = recipe / "inventory.jsonl"
+    inventory = _out(paths, "split-inventory")
     _run(
         paths,
         "split-inventory",
@@ -1170,7 +1314,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         str(inventory),
         "--json",
     )
-    clusters = recipe / "clusters.json"
+    clusters = _out(paths, "reviewed-family-decisions")
     _render(
         paths,
         "reviewed-family-decisions",
@@ -1178,7 +1322,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         clusters,
         {"INVENTORY_SHA256": sha256_file(inventory)},
     )
-    frozen = recipe / "splits-reviewed.yaml"
+    frozen = _out(paths, "family-freeze")
     _run(
         paths,
         "family-freeze",
@@ -1193,14 +1337,15 @@ def test_offline_preparation_sequence_through_native_supervision(
         str(frozen),
         "--json",
     )
-    _render(paths, "final-build-declaration", build_template, recipe / "build.yaml")
-    _bind(paths, "build_project", recipe / "build.yaml")
+    build_project = _out(paths, "final-build-declaration")
+    _render(paths, "final-build-declaration", build_template, build_project)
+    _bind(paths, "build_project", build_project)
     _run(
         paths,
         "offline-build",
         "corpus",
         "build",
-        str(recipe / "build.yaml"),
+        str(build_project),
         "--offline",
     )
     builds = list((root / "corpora" / "fixture-candidate" / "builds").iterdir())
@@ -1212,7 +1357,7 @@ def test_offline_preparation_sequence_through_native_supervision(
     assert verify_release(release)["release_id"] == release.name
     _run(paths, "release-audit", "corpus", "audit", str(release))
     _run(paths, "near-duplicate-audit", "corpus", "near-duplicates", str(release))
-    family = recipe / "family.jsonl"
+    family = _out(paths, "final-family")
     _run(
         paths,
         "final-family",
@@ -1225,7 +1370,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         str(family),
         "--json",
     )
-    lineage = recipe / "lineage.json"
+    lineage = _out(paths, "protected-lineage")
     _run(
         paths,
         "protected-lineage",
@@ -1269,7 +1414,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         "--json",
     )
     assert denied.returncode != 0 and "not been accepted" in denied.stderr
-    review = recipe / "release-acceptance.json"
+    review = _out(paths, "release-acceptance")
     _render(
         paths,
         "release-acceptance",
@@ -1286,7 +1431,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         },
     )
     _bind(paths, "release_acceptance", review)
-    measured = recipe / "measured-supply.json"
+    measured = _out(paths, "measure-accepted-supply")
     _run(
         paths,
         "measure-accepted-supply",
@@ -1307,7 +1452,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         "1024",
         "--json",
     )
-    mixture = recipe / "mixture.yaml"
+    mixture = _out(paths, "mixture-declaration")
     _render(
         paths,
         "mixture-declaration",
@@ -1315,7 +1460,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         mixture,
         {"RELEASE_PATH": str(release), "FAMILY_INVENTORY_PATH": str(family)},
     )
-    mixture_output = recipe / "mixture"
+    mixture_output = _out(paths, "materialize-mixture")
     _run(
         paths,
         "materialize-mixture",
@@ -1341,7 +1486,7 @@ def test_offline_preparation_sequence_through_native_supervision(
     validation_documents, validation_bytes = _split_stats(
         release / "lm/validation.jsonl", "lm"
     )
-    run_config = recipe / "prepared-run.yaml"
+    run_config = _out(paths, "prepared-run-declaration")
     _render(
         paths,
         "prepared-run-declaration",
@@ -1382,7 +1527,7 @@ def test_offline_preparation_sequence_through_native_supervision(
     assert rejected_bundle.returncode != 0
     assert "prepared config differs from accepted release" in rejected_bundle.stderr
     assert not (recipe / "forbidden-prepared-bundle").exists()
-    bundle = recipe / "prepared-bundle"
+    bundle = _out(paths, "publish-prepared-bundle")
     _run(
         paths,
         "publish-prepared-bundle",

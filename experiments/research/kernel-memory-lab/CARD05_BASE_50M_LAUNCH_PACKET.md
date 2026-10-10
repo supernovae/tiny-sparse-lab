@@ -195,7 +195,7 @@ output monitor covers comparisons written under both the new and historical
 run roots because both reside under the same common root.
 
 For the retained-only preparation sequence, `<new-owned-receipt>` and the inner
-monitor log path are generated from the checked-in [phase map](card05-base-50m/preparation-phase-paths-v1.json)
+monitor log path are generated from the checked-in [phase map](card05-base-50m/preparation-phase-paths-v2.json)
 with `S attempt phase-paths`; use its `completion` and `inner_monitor` fields,
 and its `leaf` field where the native command has `--output`. Do not assign
 one file to both a leaf and an owned receipt. The outer `.ready`, `.attempt.json`

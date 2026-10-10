@@ -18,9 +18,9 @@ from sparselab.training import attempt_budget as module
 from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
 from sparselab.training.attempt_commands import AttemptCommand, phase_output_paths
 
-_PHASE_MAP = (
+_PHASE_MAP_DIR = (
     Path(__file__).resolve().parents[1]
-    / "experiments/research/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v1.json"
+    / "experiments/research/kernel-memory-lab/card05-base-50m"
 )
 
 
@@ -212,13 +212,18 @@ def test_public_dispatch_rejects_b16_paths_before_reservation(tmp_path: Path) ->
     assert len(budget.status()["reservations"]) == 1
 
 
+@pytest.mark.parametrize(("version", "count"), [("v1", 31), ("v2", 32)])
 def test_complete_preparation_phase_paths_are_generated_and_disjoint(
     tmp_path: Path,
+    version: str,
+    count: int,
 ) -> None:
-    packet = json.loads(_PHASE_MAP.read_text())
-    assert packet["format"] == "sparselab-preparation-phase-paths-v1"
+    packet = json.loads(
+        (_PHASE_MAP_DIR / f"preparation-phase-paths-{version}.json").read_text()
+    )
+    assert packet["format"] == f"sparselab-preparation-phase-paths-{version}"
     phases = packet["phases"]
-    assert len(phases) == 31
+    assert len(phases) == count
     assert len({phase for phase, _ in phases}) == len(phases)
     required = {
         "verify-snapshots",
@@ -240,7 +245,7 @@ def test_complete_preparation_phase_paths_are_generated_and_disjoint(
         assert rendered["completion"].parent == attempt / "receipts"
         assert rendered["inner_monitor"].parent == attempt / "logs"
         if leaf_name is not None:
-            assert rendered["leaf"].parent == attempt / "prep"
+            assert rendered["leaf"].is_relative_to(attempt / "prep")
         completion = rendered["completion"]
         derived = (
             completion.with_name(completion.name + ".ready"),
@@ -281,6 +286,9 @@ def test_complete_preparation_phase_paths_are_generated_and_disjoint(
             attempt, "admission-draft", "admission-draft.json"
         ).items()
     }
+    for unsafe in ("../policy.yaml", "/absolute.json", "sources/../policy.yaml"):
+        with pytest.raises(ValueError, match="relative path"):
+            phase_output_paths(attempt, "admission-draft", unsafe)
 
 
 def _run_args(paths: dict[str, Path | str], completion: Path) -> dict[str, object]:

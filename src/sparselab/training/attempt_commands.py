@@ -34,8 +34,13 @@ def phase_output_paths(
     }
     if leaf_name is not None:
         leaf = Path(leaf_name)
-        if leaf.is_absolute() or leaf.name != leaf_name or leaf_name in {".", ".."}:
-            raise ValueError("leaf name must be a single filename")
+        if (
+            leaf.is_absolute()
+            or not leaf.parts
+            or any(part in {".", ".."} for part in leaf.parts)
+            or str(leaf) != leaf_name
+        ):
+            raise ValueError("leaf name must be a relative path beneath prep")
         paths["leaf"] = attempt_root / "prep" / leaf
     return paths
 
