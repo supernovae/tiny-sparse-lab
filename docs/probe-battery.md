@@ -37,21 +37,23 @@ edited record is rejected everywhere. A try stores its result in `try.json`
 under `probe`.
 
 ```text
-PROBE BATTERY  sparselab-probe-battery v2 · suite ec0544e7 · tier full (ran fast → standard → full) · 24.5s
-  candidate lab-try-20261010T154716Z-f24f162a  step 12 · 1.5k tokens · 43.2k params
-  baseline  lab-base-7e2b3094a1c9b4b2-try-20261010T154716Z-f24f162a  step 12 · 1.5k tokens · 43.2k params
+PROBE BATTERY  sparselab-probe-battery v3 · suite bc974a71 · tier full (ran fast → standard → full) · 22.6s
+  candidate lab-try-20261010T191906Z-6a192ff3  step 60 · 7.7k tokens · 98.7k params (43.4k active)
+  baseline  lab-base-43194de82c467490-try-20261010T191906Z-6a192ff3  step 60 · 7.7k tokens · 43.2k params
 
-  ✔ PASS        Held-out loss             4.083 vs 5.359    ◀◀◀◀◀│·····  Δ -1.276 (-23.8%) ±0.006   ppl 59.3
-  ✔ PASS        Calibration (ECE)         0.111 vs 0.143    ··◀◀◀│·····  Δ -0.032
-  ✔ PASS        Top-1 agreement           0.042                                                     JS 0.009 · KL 0.035 (near-identical: agreement uninformative)
-  ✔ PASS        Degeneration              0.841 vs 0.966    ··◀◀◀│·····  Δ -0.125                   distinct-2 0.02
-  ✔ PASS        Fact recall (reworded)    0.250 vs 0.250    ·····│·····  Δ +0.000 ±0.183            chance 0.25
-  ✔ PASS        Needle in context         0.167 vs 0.167    ·····│·····  Δ +0.000 ±0.000            by length ▂▂▂ (27/40/55 tok)
-  ✔ PASS        Standard tasks (lm-eval)  0.225 vs 0.225    ·····│·····  Δ +0.000                   lambada 0.00 hellaswag 0.20 arc 0.14 piqa 0.56
+  ✔ PASS        Held-out loss               3.247 vs 3.278    ···◀◀│·····  Δ -0.031 (-0.9%) ±0.005    ppl 25.7
+  ▲ WARN        Calibration (ECE)           0.296 vs 0.263    ·····│▶▶▶··  Δ +0.032                   
+             ↳ Confidence no longer tracks accuracy: check the LR schedule end, label smoothing or an output-scale change.
+  ✔ PASS        Top-1 agreement             0.964                                                     JS 0.018 · KL 0.073
+  ✔ PASS        Degeneration                0.690 vs 0.966    ◀◀◀◀◀│·····  Δ -0.276                   distinct-2 0.03
+  ⊘ SKIPPED     Fact recall (from weights)  candidate: inapplicable: the run trained on synthetic, not withheld_facts (no facts manifest to bind)
+  ✔ PASS        Fact recall (reworded)      0.250 vs 0.250    ·····│·····  Δ +0.000 ±0.000            chance 0.25
+  ✔ PASS        Needle in context           0.167 vs 0.167    ·····│·····  Δ +0.000 ±0.000            by length ▂▂▂ (27/40/55 tok)
+  ✔ PASS        Standard tasks (lm-eval)    0.215 vs 0.215    ·····│·····  Δ +0.000 ±0.000            lambada 0.00 hellaswag 0.20 arc 0.16 piqa 0.50
 
-  verdict ✔ PASS  next → LONGER RUN
+  verdict ▲ WARN  next → LONGER RUN
   Every tier holds up: schedule a longer run (more tokens or seeds) to confirm the gain. Probes screen; they do not prove usefulness.
-  guard   verdicts use the held-out split · ok · fact_recall dev +0.00 / held-out +0.00; needle dev +0.17 / held-out +0.00
+  guard   verdicts use the held-out split · ok · fact_recall dev +0.00 / held-out +0.00; needle dev +0.00 / held-out +0.00
   legend  meter ◀ better │ worse ▶ (full = fail threshold)
 ```
 
@@ -65,9 +67,10 @@ Probes run cheapest first: by tier, then declared cost.
 | Probe | Tier · cost | Metric | Judged on (warn / fail) | Hard | A failure suggests |
 |---|---|---|---|---|---|
 | Held-out loss | fast · 1 | mean token cross-entropy on the validation split, same eval protocol as the baseline | relative increase 0.5% / 3% | yes | the change hurts at this budget; revert or retune LR/warmup |
-| Calibration (ECE) | fast · 1 | top-1 expected calibration error, 15 equal-width bins (Guo et al. 2017) | +0.02 / +0.05 | no | confidence no longer tracks accuracy (schedule end, output scale) |
+| Calibration (ECE) | fast · 1 | top-1 expected calibration error, 15 equal-width bins (Guo et al. 2017); the non-empty bins are kept as a reliability diagram | +0.02 / +0.05 | no | confidence no longer tracks accuracy (schedule end, output scale) |
 | Top-1 agreement | fast · 1 | argmax agreement with the baseline on fixed held-out prompts, plus KL(base‖cand) and JS in nats | below 0.5 (warn only) | no | a large behavior shift; informative only together with loss |
 | Degeneration | fast · 2 | seq-rep-4 of greedy continuations (Welleck et al. 2019), distinct-1/2 (Li et al. 2016) | +0.05 / +0.20 | yes | loops: duplicated data, too-high LR, positional change |
+| Fact recall (from weights) | standard · 1 | closed-book: ranks the trained value of one of the run's own withheld-facts *training* facts (manifest of its `dataset.synthetic_seed`) among the values of the same relation, with no context; also reports never-trained control facts | −0.05 / −0.15 | no | the facts are not stored in the weights (runs trained on `withheld_facts` only; inapplicable elsewhere) |
 | Fact recall (reworded) | standard · 2 | ranks the stated answer among candidates from the same relation (mean token log-prob), asked in different words than the fact was stated; fractional tie credit | −0.05 / −0.15 | no | context handling or memory wiring |
 | Needle in context | standard · 3 | retrieve a code word stated at the start of a filler context at ~50/75/95% of `max_seq_len`; fractional tie credit | −0.05 / −0.15 | no | attention span, positions or sequence-length changes |
 | Standard tasks (lm-eval) | full · 4 | mean `acc` over lambada_openai, hellaswag, arc_easy, piqa at `limit=50` | −0.02 / −0.05 | no | treat small moves as noise at tiny scale |
@@ -86,9 +89,24 @@ arms, so their delta SE is the paired SE of the per-item credit differences
 (`paired_items`). A change within 2 SE counts as `pass` with a "within noise"
 note, never as a win or a regression.
 
-**Tiny-model honesty.** Fact recall is *in-context* (the fact is stated, then
-asked in other words), because a tiny model knows no facts; parametric recall
-lives in the withheld-facts study. When both models are near-uniform (JS < 0.01)
+**Tiny-model honesty.** The reworded fact recall probe is *in-context* (the
+fact is stated, then asked in other words), because a tiny model knows no
+facts. **Fact recall (from weights)** is the closed-book counterpart. It is
+bound to the facts the run actually trained on: the `withheld_facts` source
+trains on `split_facts(dataset.synthetic_seed)`
+(`sparselab.data.withheld_facts`), so the probe reads that seed from the run's
+resolved config, checks it against the run's prepared-data provenance
+(`data/manifest.json`) and builds the same seed's manifest. The held-out split
+asks each trained fact with its own prompt, the dev split rewords it, and the
+never-trained facts are reported as `control_accuracy`. A model that stored its
+training facts beats chance on the held-out split while the control stays at
+chance. The manifest seed and digest are recorded in `details.manifest_seed`
+and `details.manifest_sha256`; different seeds are different items, so they
+never pair. A run trained on another dataset, and every reference model, has
+no facts manifest: the probe is `skipped` with an "inapplicable" note (it does
+not make the battery incomplete). A `withheld_facts` run whose provenance is
+missing or disagrees with its config is `unavailable`, i.e. missing evidence
+with the reason, so trained facts are never scored as never-trained. When both models are near-uniform (JS < 0.01)
 top-1 agreement is meaningless and is reported as uninformative instead of
 warning. lm-eval tasks are borrowed for their established metric definitions,
 but tiny models sit at or near chance (≈0.25 hellaswag/arc_easy, 0.5 piqa, ≈0
@@ -99,7 +117,8 @@ records each task, the chance level and this caveat in the result.
 
 - `fast` (default for `try`): loss, calibration, agreement, degeneration; well
   under a second on the CPU smoke model.
-- `standard`: adds reworded fact recall and needle retrieval.
+- `standard`: adds fact recall from weights, reworded fact recall and needle
+  retrieval.
 - `full`: adds lm-eval. The `lmeval` extra stays optional: without it the probe
   is `unavailable` with the install hint and the battery is **incomplete**
   (see below), never a pass.
@@ -111,6 +130,19 @@ encoded together and split at the context's token count; an empty context is
 the end-of-text token) and scores every continuation token, windowing with
 maximal left context when a continuation is longer than `max_seq_len`. A task
 that produces no accuracy is an error, i.e. missing evidence.
+
+**Larger limits and more task families.** `sparselab probe RUN --tier full
+--lm-eval-tasks hellaswag,arc_challenge,winogrande --lm-eval-limit 500` runs any
+lm-eval tasks at any limit through the same adapter. Bad options (duplicate
+tasks, a limit below 1) are refused before any work. The probe suite and its
+digest do not change. The tasks, limit, task versions and per-item
+prompts/targets go into `details.benchmark_group`, so these results only ever
+compare with results run the same way, never with the default `limit=50`
+slice or the packaged references. Tasks the probe does not know get no chance
+level rather than a guessed one. An expensive run (thousands of items, many
+tasks, a 360M reference) is the same command on a bigger machine; CI tests
+the option handling and the benchmark-group separation without running
+lm-eval.
 
 A **hard** probe that fails (held-out loss, degeneration) stops the battery at
 once; the remaining probes are `skipped`. A NaN/inf loss raised by the native
@@ -211,6 +243,19 @@ Each probe row: `id`, `title`, `tier`, `cost`, `metric`, `higher_is_better`,
 loss), `delta_se`, `within_noise`, `improved`, `note`, `details`, `seconds`.
 Keys are stable within a format version; `tests/test_probes.py` pins them.
 
+Per-probe details that the dashboard and `compare` read. The ranking probes
+(both fact recalls and needle) keep `details.items`: per held-out item, the
+`answer`, what the candidate `picked` and its `credit`, `baseline_picked` and
+`baseline_credit` when a baseline ran, and the `prompt` (not for needle, whose
+prompts are long filler). They also keep `details.item_group`, the digest of
+the probe, the ranking protocol and the rendered items. Two results with
+different item groups are `not_comparable` ("different items"), never
+compared. Calibration keeps `details.reliability` (and `baseline_reliability`):
+the non-empty confidence bins with their mean confidence, accuracy and share of
+tokens, the same bins ECE is computed from. Suite v3 added fact recall from
+weights, the item records and the reliability bins; results from older suites
+keep their own digest and are compared only with each other.
+
 ## Reference models and `sparselab compare`
 
 Our runs should sit on a known curve, not only next to each other. Four public
@@ -235,9 +280,18 @@ uv run --locked --no-sync sparselab probe ref:SmolLM2-135M --tier full
 uv run --locked --no-sync sparselab compare --list-references
 ```
 
-Only the lm-eval probe applies to a reference (`--tier full` is required); its
-held-out loss on our validation split is never computed or compared, because
-it has its own tokenizer and training data. A reference is never a `--vs`
+A reference runs the probes that are defined at the text level (`--tier full`
+is required): **fact recall** (reworded, in-context), **fact recall from
+weights** and **lm-eval**. Recall items are rendered text (prompt, answer,
+candidates) scored by mean token log-prob under each model's own tokenizer, so
+`details.item_group` (a digest of the probe, the ranking protocol and the
+items) is the same for every model and fact recall compares across references
+and lab runs. Its held-out loss on our validation split is never computed or
+compared, because it has its own tokenizer and training data. The needle probe
+is *not* run on references. Its filler context is sized in the model's own
+tokens (~50/75/95% of `max_seq_len`), so its items differ per tokenizer and the
+result would never be comparable. A text-level needle with fixed character
+lengths is a follow-up. A reference is never a `--vs`
 baseline. Without the optional extras the command stops before any work with
 `uv sync --extra reference --extra lmeval`.
 
@@ -246,19 +300,23 @@ baseline. Without the optional extras the command stops before any work with
 record, so `compare`, the dashboard and CI use them without downloading a
 model. Measured on CPU (fp32, lm-eval 0.4.13, transformers 4.57.6) with the
 `full` tier's tasks at `limit=50`, zero-shot; two independent runs gave
-identical records. They were re-sealed when the benchmark group gained item
-prompt/target identities and the scoring-protocol version; the scored items,
-per-item outcomes, accuracies and checkpoint digests did not change:
+identical records. They were re-sealed for suite v3, which added the two
+text-level recall probes; the lm-eval items, per-item outcomes, accuracies,
+benchmark group and checkpoint digests did not change:
 
-| Reference | lambada_openai | hellaswag | arc_easy | piqa | mean `acc` |
-|---|---|---|---|---|---|
-| pythia-70m-deduped | 0.28 | 0.30 | 0.30 | 0.54 | 0.355 |
-| pythia-160m-deduped | 0.36 | 0.42 | 0.34 | 0.60 | 0.430 |
-| SmolLM2-135M | 0.36 | 0.44 | 0.52 | 0.62 | 0.485 |
-| SmolLM2-360M | 0.42 | 0.46 | 0.64 | 0.74 | 0.565 |
+| Reference | lambada_openai | hellaswag | arc_easy | piqa | mean `acc` | fact recall |
+|---|---|---|---|---|---|---|
+| pythia-70m-deduped | 0.28 | 0.30 | 0.30 | 0.54 | 0.355 | 0.688 |
+| pythia-160m-deduped | 0.36 | 0.42 | 0.34 | 0.60 | 0.430 | 0.938 |
+| SmolLM2-135M | 0.36 | 0.44 | 0.52 | 0.62 | 0.485 | 1.000 |
+| SmolLM2-360M | 0.42 | 0.46 | 0.64 | 0.74 | 0.565 | 1.000 |
 
 These are 50-item slices, not the published full-task numbers; compare them
-only with results in the same benchmark group (below). To refresh them, run
+only with results in the same benchmark group (below). Fact recall is 16
+held-out items with 4 candidates each (chance 0.25). Fact recall from weights
+is recorded as `skipped` (inapplicable): a public model was never trained on a
+withheld-facts manifest, so there are no trained facts to ask about. To refresh
+them, run
 `sparselab probe ref:NAME --tier full` for each reference and copy the sealed
 `probe.json` to `reference_results/NAME.json`; `tests/test_references.py`
 checks every packaged record against the pinned registry.
@@ -291,70 +349,81 @@ better/worse/within noise (|Δ| ≤ 2 paired SE), **NOT COMPARABLE** with the
 reason, or **MISSING EVIDENCE** with the command that produces it:
 
 ```text
-COMPARE  try-20261010T171944Z-43f2ff1d:candidate vs 4 point(s) · comparisons only within one eval/benchmark group
+COMPARE  lab-try-20261010T191906Z-6a192ff3@60 vs 4 point(s) · comparisons only within one eval/benchmark/item group
 
-    point                                      resident    active   tokens  held-out loss  lm-eval acc
-  ▶ try-20261010T171944Z-43f2ff1d:candidate       49.3k     49.3k     1.5k          5.347        0.220
-  ◆ pythia-70m-deduped                            70.4M     44.7M   299.9B              –        0.355
-  ◆ pythia-160m-deduped                          162.3M    123.7M   299.9B              –        0.430
-  ◆ SmolLM2-135M                                 134.5M    134.5M     2.0T              –        0.485
-  ◆ SmolLM2-360M                                 361.8M    361.8M     4.0T              –        0.565
+    point                                   resident    active   tokens  held-out loss  lm-eval acc  fact recall
+  ▶ lab-try-20261010T191906Z-6a192ff3@60       98.7k     43.4k     7.7k          3.247        0.215        0.250
+  ◆ pythia-70m-deduped                         70.4M     44.7M   299.9B              –        0.355        0.688
+  ◆ pythia-160m-deduped                       162.3M    123.7M   299.9B              –        0.430        0.938
+  ◆ SmolLM2-135M                              134.5M    134.5M     2.0T              –        0.485        1.000
+  ◆ SmolLM2-360M                              361.8M    361.8M     4.0T              –        0.565        1.000
 
   held-out loss (lower is better)
     ≠ NOT COMPARABLE vs pythia-70m-deduped, pythia-160m-deduped, SmolLM2-135M, SmolLM2-360M
-      ↳ reference models have their own tokenizer and training data, so held-out loss on our split is never comparable; use lm-eval accuracy
+      ↳ reference models have their own tokenizer and training data, so held-out loss on our split is never comparable; use lm-eval accuracy or fact recall
 
   lm-eval accuracy (higher is better)
-    ✖ WORSE         vs pythia-70m-deduped                        Δ -0.135 ±0.033  (subject measured in probe-20261010T182330Z-e7ef2268)
-    ✖ WORSE         vs pythia-160m-deduped                       Δ -0.210 ±0.037  (subject measured in probe-20261010T182330Z-e7ef2268)
-    ✖ WORSE         vs SmolLM2-135M                              Δ -0.265 ±0.038  (subject measured in probe-20261010T182330Z-e7ef2268)
-    ✖ WORSE         vs SmolLM2-360M                              Δ -0.345 ±0.039  (subject measured in probe-20261010T182330Z-e7ef2268)
+    ✖ WORSE         vs pythia-70m-deduped                     Δ -0.140 ±0.034
+    ✖ WORSE         vs pythia-160m-deduped                    Δ -0.215 ±0.038
+    ✖ WORSE         vs SmolLM2-135M                           Δ -0.270 ±0.040
+    ✖ WORSE         vs SmolLM2-360M                           Δ -0.350 ±0.040
+
+  fact recall (higher is better)
+    ✖ WORSE         vs pythia-70m-deduped                     Δ -0.438 ±0.128
+    ✖ WORSE         vs pythia-160m-deduped                    Δ -0.688 ±0.120
+    ✖ WORSE         vs SmolLM2-135M                           Δ -0.750 ±0.112
+    ✖ WORSE         vs SmolLM2-360M                           Δ -0.750 ±0.112
 
   reference curve (lm-eval accuracy)
-    ▶ try-20261010T171944Z-43f2ff1d:candidate   49.3k params                   0.220 █████████
-    ◆ pythia-70m-deduped                        70.4M params (44.7M active)    0.355 ██████████████
-    ◆ pythia-160m-deduped                       162.3M params (123.7M active)  0.430 █████████████████
-    ◆ SmolLM2-135M                              134.5M params                  0.485 ███████████████████
-    ◆ SmolLM2-360M                              361.8M params                  0.565 ███████████████████████
+    ▶ lab-try-20261010T191906Z-6a192ff3@60   98.7k params (43.4k active)    0.215 █████████
+    ◆ pythia-70m-deduped                     70.4M params (44.7M active)    0.355 ██████████████
+    ◆ pythia-160m-deduped                    162.3M params (123.7M active)  0.430 █████████████████
+    ◆ SmolLM2-135M                           134.5M params                  0.485 ███████████████████
+    ◆ SmolLM2-360M                           361.8M params                  0.565 ███████████████████████
     chance (task mean) 0.250
+
+  legend  Δ = subject − other ± paired SE · within noise = |Δ| ≤ 2 SE · resident = all weights · active = touched per token
 ```
 
-(A 49k-parameter smoke model trained on 1.5k tokens, so it sits below chance on
-this slice; the point is the placement, not the score.) `--json` emits
+(A 99k-parameter mixture-of-experts smoke model trained on 7.7k tokens, so it
+sits below chance on lm-eval and at chance on fact recall; the point is the
+placement, not the score.) `--json` emits
 `{subject, points, comparisons, curve}`.
 
 ## Dashboard
 
-`sparselab dashboard` has a **Probes** page (reads `WORK_DIR/lab`, or
-`--lab-dir`): live progress of a running battery, the verdict banner (with any
-missing evidence), per-probe results against the baseline with meters, charts
-and greedy samples, a "What the probes mean" explainer, history across tries and
-probes, and a Pareto view. The page reads records through the same verified
-reader as `report` and lists rejected (edited or unreadable) records instead of
-showing them.
+The [dashboard tour](dashboard.md) walks through every page. Probe results
+appear in four of them. **Experiments** shows the verdict banner (with any
+missing evidence), per-probe results against the baseline with meters, charts,
+per-probe trends, history and a side-by-side compare. **Models** has the
+checkpoint catalog and the Pareto view. **Behaviors** shows generations, recall
+hits and misses, needle by length and reliability diagrams. **Home** shows the
+latest verdict and the next command. Every page reads records through the same
+verified reader as `report` and lists rejected (edited or unreadable) records
+instead of showing them.
 
-The **Pareto view** plots quality (held-out loss, or lm-eval accuracy) against
-a cost: resident parameters, active parameters per token, resident or active
-weight bytes, training tokens or scoring latency (ms/token). *Resident* counts
-every weight in memory; *active* counts what one token touches (one embedding
-row, the routed experts, the looked-up memory rows), and a grey bar spans each
-checkpoint's active → resident range. Points come from every verified lab
-record through `sparselab.probes.points` (shared with `compare`): each scored
-arm of every `try`, including tries run with `--probe-tier none`, every probe
-target and baseline, and the packaged reference results (purple diamonds,
-lm-eval only). One point per (comparison group, checkpoint): compatible
-measurements are merged field by field, each keeping its newest available value
-with its source (`evidence`), so a newer record without latency does not drop an
-older record's latency. It plots only within one comparison group (`eval_group` for loss,
-`benchmark_group` for lm-eval), chosen with a selector that defaults to the
-selected result's group; hidden groups, points without the chosen cost and
-older records without a group are counted in a caption, never mixed in. The
-dotted frontier respects the metric's direction, the dashed line is the chance
-level, a log cost axis is on by default when references are present, and "How
-to read the Pareto view" explains it for learners.
+The **Pareto view** plots quality (held-out loss, lm-eval accuracy or fact
+recall) against a cost: resident parameters, active parameters per token,
+resident or active weight bytes, training tokens or scoring latency (ms/token).
+*Resident* counts every weight in memory; *active* counts what one token
+touches (one embedding row, the routed experts, the looked-up memory rows), and
+a grey bar spans each checkpoint's active → resident range. Points come from
+every verified lab record through `sparselab.probes.points` (shared with
+`compare`): each scored arm of every `try`, including tries run with
+`--probe-tier none`, every probe target and baseline, and the packaged
+reference results (purple diamonds, lm-eval and fact recall). One point per
+(comparison group, checkpoint): compatible measurements are merged field by
+field, each keeping its newest available value with its source (`evidence`),
+so a newer record without latency does not drop an older record's latency. It
+plots only within one comparison group (`eval_group` for loss,
+`benchmark_group` for lm-eval, `item_group` for fact recall), chosen with a
+selector that defaults to the selected result's group. Hidden groups, points
+without the chosen cost and older records without a group are counted in a
+caption, never mixed in. The dotted frontier respects the metric's direction,
+the dashed line is the chance level, a log cost axis is on by default when
+references are present, and "How to read the Pareto view" explains it for
+learners. Plain `sparselab train` runs join the view once
+`sparselab probe RUN --runs-dir DIR` scores them; the Models page lists the
+ones still unscored, with that command.
 
-![Pareto view: lab runs on the reference curve](assets/probe-pareto-references.png)
-
-![Pareto view: held-out loss vs active parameters](assets/probe-pareto-active.png)
-
-![Probe dashboard](assets/probe-dashboard.png)
+![Pareto view: lab runs on the reference curve](assets/dashboard-models-pareto.png)

@@ -143,9 +143,14 @@ def tie_credit(scores: Mapping[str, float], answer: str, rtol: float = 1e-9) -> 
     return 1.0 / len(tied) if answer in tied else 0.0
 
 
-def ranking_credit(loaded: Any, items: Sequence[Mapping[str, Any]]) -> list[float]:
-    """Fractional credit per item; candidates ranked by mean token log-prob."""
-    credits = []
+RANKING_PROTOCOL = "sparselab-ranking-v1: mean token log-prob, fractional ties"
+
+
+def ranking_scores(
+    loaded: Any, items: Sequence[Mapping[str, Any]]
+) -> list[dict[str, float]]:
+    """Per item, each candidate's mean token log-prob after the item's prefix."""
+    out = []
     for item in items:
         scores = {}
         for candidate in item["candidates"]:
@@ -153,8 +158,21 @@ def ranking_credit(loaded: Any, items: Sequence[Mapping[str, Any]]) -> list[floa
                 loaded, item["prefix"], f" {candidate}"
             )
             scores[candidate] = total / max(count, 1)
-        credits.append(tie_credit(scores, item["answer"]))
-    return credits
+        out.append(scores)
+    return out
+
+
+def top_candidate(scores: Mapping[str, float]) -> str:
+    """The model's pick (first of any tie, in candidate order)."""
+    return max(scores, key=lambda c: scores[c])
+
+
+def ranking_credit(loaded: Any, items: Sequence[Mapping[str, Any]]) -> list[float]:
+    """Fractional credit per item; candidates ranked by mean token log-prob."""
+    return [
+        tie_credit(scores, item["answer"])
+        for scores, item in zip(ranking_scores(loaded, items), items, strict=True)
+    ]
 
 
 class ValidationStats:

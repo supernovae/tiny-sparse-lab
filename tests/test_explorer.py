@@ -1,0 +1,311 @@
+"""Model explorer data layer on a tiny in-memory model (no training, CPU)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import numpy as np
+import pytest
+import torch
+import yaml
+
+from sparselab import explorer
+from sparselab.lab_context import LabCancelled, LabContext
+from sparselab.probes import scoring
+
+ROOT = Path(__file__).resolve().parents[1]
+WORDS = [
+    "<eos>",
+    "once",
+    "upon",
+    "a",
+    "time",
+    "the",
+    "dog",
+    "found",
+    "ball",
+    "in",
+    "park",
+    "and",
+    "ran",
+    "to",
+    "it",
+]
+
+
+def _config(**model: Any) -> Any:
+    from sparselab.config.models import RunConfig
+
+    raw = yaml.safe_load((ROOT / "configs/smoke_moe_cpu.yaml").read_text())
+    raw["model"].update(model)
+    return RunConfig.model_validate(raw)
+
+
+def _tokenizer() -> Any:
+    from tokenizers import Tokenizer
+    from tokenizers.decoders import WordPiece
+    from tokenizers.models import WordLevel
+    from tokenizers.pre_tokenizers import Whitespace
+
+    vocab = {w: i for i, w in enumerate([*WORDS, "<unk>", ".", ","])}
+    tokenizer = Tokenizer(WordLevel(vocab, unk_token="<unk>"))
+    tokenizer.pre_tokenizer = Whitespace()
+    tokenizer.decoder = WordPiece()
+    return tokenizer
+
+
+def _loaded(**model: Any) -> Any:
+    from sparselab.model.transformer import DenseLM
+
+    config = _config(**model)
+    torch.manual_seed(0)
+    lm = DenseLM(config.model, config.attention).eval()
+    return SimpleNamespace(
+        model=lm,
+        config=config,
+        tokenizer=_tokenizer(),
+        device=torch.device("cpu"),
+        identity={"run_id": "tiny", "checkpoint_sha256": "c" * 64, "step": 3},
+        engine=None,
+    )
+
+
+TEXT = "once upon a time the dog found a ball in the park and ran to it ."
+MOE_NGRAM = {
+    "num_kv_heads": 1,  # grouped-query attention: 2 query heads share 1 KV head
+    "memory": "ngram",
+    "memory_table_size": 97,
+    "memory_ngram_size": 2,
+    "memory_ngram_orders": (2, 3),
+    "memory_dim": 8,
+}
+
+
+def test_architecture_comes_from_the_config_alone() -> None:
+    arch = explorer.architecture(_config(**MOE_NGRAM))
+    assert [layer["index"] for layer in arch["layers"]] == [0, 1]
+    first = arch["layers"][0]
+    assert first["attention"]["heads"] == 2 and first["attention"]["kv_heads"] == 1
+    assert first["ffn"]["kind"] == "moe" and first["ffn"]["experts"] == 3
+    assert first["ffn"]["experts_per_token"] == 2 and first["ffn"]["shared_expert"]
+    assert arch["memory"]["kind"] == "ngram" and arch["memory"]["tables"] == 2
+    # The per-part counts add up to the inventory's total.
+    parts = (
+        arch["embedding_parameters"]
+        + arch["output_parameters"]
+        + sum(
+            layer["attention"]["parameters"]
+            + layer["ffn"]["parameters"]
+            + layer["norm_parameters"]
+            for layer in arch["layers"]
+        )
+        + arch["memory"]["parameters"]
+        + arch["hidden_dim"]  # final norm
+    )
+    assert parts == arch["inventory"]["total"]
+    assert explorer.size_check(arch) is None
+
+
+def test_size_guard_refuses_big_models_before_loading(tmp_path: Path) -> None:
+    arch = explorer.architecture(
+        _config(
+            hidden_dim=1024, num_heads=16, num_layers=24, ffn_dim=4096, vocab_size=32000
+        )
+    )
+    message = explorer.size_check(arch)
+    assert message and "limit" in message and "sparselab probe" in message
+
+
+def test_attention_probabilities_are_the_forward_passes_own_weights() -> None:
+    from sparselab.model.attention.dense import DenseAttention
+
+    for kv_heads in (2, 1):
+        torch.manual_seed(1)
+        attention = DenseAttention(32, 2, 16, 10_000.0, num_kv_heads=kv_heads)
+        x = torch.randn(1, 7, 32)
+        weights = attention.attention_probabilities(x)
+        assert weights.shape == (1, 2, 7, 7)
+        assert torch.allclose(weights.sum(-1), torch.ones(1, 2, 7))
+        assert torch.all(weights.triu(1) == 0)  # causal
+        # Rebuild the output from these weights: it equals forward(x).
+        value = attention._heads(attention.v_proj, x, attention.num_kv_heads)
+        grouped = (
+            weights.unflatten(1, (kv_heads, 2 // kv_heads)) if kv_heads < 2 else weights
+        )
+        mixed = attention._attend_values(grouped, value)
+        out = attention.out_proj(mixed.transpose(1, 2).reshape(1, 7, 32))
+        assert torch.allclose(out, attention(x), atol=1e-6)
+
+
+def test_explore_loaded_moe_memory_and_tokens() -> None:
+    loaded = _loaded(**MOE_NGRAM)
+    result = explorer.explore_loaded(loaded, TEXT)
+    ids = [scoring.eot(loaded), *scoring.encode(loaded, TEXT)]
+    tokens = result["tokens"]
+    assert [t["id"] for t in tokens] == ids and tokens[0]["loss"] is None
+    rows = scoring.log_probs(loaded, ids)
+    for t in tokens[1:]:
+        assert t["loss"] == pytest.approx(-rows[t["position"] - 1, t["id"]])
+        assert t["rank"] >= 1 and len(t["next_top"]) == explorer.TOP_K
+    assert tokens[2]["text"] == "upon"
+    # Attention: every dense layer, heads x T x T, rows sum to 1.
+    layers = result["attention"]["layers"]
+    assert set(layers) == {"0", "1"} and result["attention"]["note"] is None
+    weights = np.asarray(layers["0"])
+    assert weights.shape == (2, len(ids), len(ids))
+    assert np.allclose(weights.sum(-1), 1, atol=1e-3)
+    # Routing: each token picks experts_per_token experts per MoE layer.
+    routing = result["routing"]["0"]
+    assert len(routing["selected"]) == len(ids)
+    assert all(len(choice) == 2 for choice in routing["selected"])
+    assert sum(routing["counts"]) == 2 * len(ids)
+    # Memory: one address stream per (order, hash head) table, plus the gate.
+    memory = result["memory"]
+    assert memory["kind"] == "ngram" and len(memory["streams"]) == 2
+    for stream in memory["streams"]:
+        assert len(stream["addresses"]) == len(ids)
+        assert all(0 <= a < 97 for a in stream["addresses"])
+        for position, first in enumerate(stream["first_seen_at"]):
+            if first is not None:
+                assert first < position
+                assert stream["addresses"][first] == stream["addresses"][position]
+    assert len(memory["gate"]) == len(ids) and all(0 < g < 1 for g in memory["gate"])
+    # Weights: every stored tensor with a histogram over its (sampled) values.
+    names = [w["name"] for w in result["weights"]]
+    assert names == [n for n, _ in loaded.model.named_parameters()]
+    for w in result["weights"]:
+        assert sum(w["histogram"]["counts"]) == len(
+            range(0, w["numel"], w["histogram"]["sampled_every"])
+        )
+
+
+def test_explorer_notes_attention_it_cannot_show() -> None:
+    result = explorer.explore_loaded(_loaded(), TEXT)
+    assert result["memory"] is None
+    mla = _config()
+    arch = explorer.architecture(mla)
+    arch["layers"][1]["attention"]["kind"] = "mla"
+    view = explorer.attention_view(arch, {"0": np.ones((2, 3, 3))})
+    assert "mla" in view["note"] and "[1]" in view["note"]
+
+
+def test_explorer_stops_at_a_cancel_sentinel(tmp_path: Path) -> None:
+    sentinel = tmp_path / "CANCEL"
+    sentinel.touch()
+    with pytest.raises(LabCancelled):
+        explorer.explore_loaded(_loaded(), TEXT, context=LabContext(sentinel))
+
+
+def test_cache_is_sealed_and_rejects_edits(tmp_path: Path) -> None:
+    from sparselab.lab_records import seal, write_json_atomic
+
+    path = explorer.cache_path(tmp_path, "c" * 64, TEXT)
+    assert path != explorer.cache_path(tmp_path, "c" * 64, TEXT + "!")
+    path.parent.mkdir(parents=True)
+    value = seal({"format": explorer.EXPLORER_FORMAT, "created_at": "x", "text": TEXT})
+    write_json_atomic(path, value)
+    assert explorer.read_cached(path) == value
+    assert [v["text"] for v in explorer.cached_explorations(tmp_path)] == [TEXT]
+    write_json_atomic(path, {**value, "text": "edited"})
+    assert explorer.read_cached(path) is None
+    assert explorer.cached_explorations(tmp_path) == []
+
+
+def test_memory_view_flags_an_ngram_table_that_reads_one_token() -> None:
+    """A 257-row table with the 257 hash multiplier collapses each n-gram
+    order onto a single earlier token; a coprime table size does not."""
+    collapsed = explorer.explore_loaded(
+        _loaded(memory="ngram", memory_table_size=257, memory_ngram_size=2,
+                memory_ngram_orders=(2, 3), memory_dim=8),
+        TEXT,
+    )  # fmt: skip
+    offsets = [s["single_token_offset"] for s in collapsed["memory"]["streams"]]
+    assert sorted(offsets) == [1, 2]
+    healthy = explorer.explore_loaded(_loaded(**MOE_NGRAM), TEXT)
+    assert all(s["single_token_offset"] is None for s in healthy["memory"]["streams"])
+
+
+def _fake_run(tmp_path: Path) -> Path:
+    lab = tmp_path / "lab"
+    run = lab / "runs" / "tiny-run"
+    run.mkdir(parents=True)
+    (run / "manifest.json").write_text("{}")
+    (run / "resolved_config.yaml").write_text(_config(**MOE_NGRAM).model_dump_json())
+    return lab
+
+
+def _no_cache(lab: Path) -> None:
+    assert explorer.cached_explorations(lab) == []
+    assert not list((lab / "explorer").rglob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "error",
+    [MemoryError(), torch.OutOfMemoryError("CUDA out of memory")],
+    ids=["MemoryError", "torch.OutOfMemoryError"],
+)
+def test_loader_oom_is_a_clean_outcome_with_cleanup_and_no_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    """Loading sits inside the protected lifecycle: an OOM while loading is
+    a clear 'out of memory' outcome, cleanup runs, nothing is cached."""
+    lab = _fake_run(tmp_path)
+    released: list[bool] = []
+    monkeypatch.setattr(explorer, "release_memory", lambda: released.append(True))
+
+    def load() -> Any:
+        raise error
+
+    with pytest.raises(explorer.ExplorerUnavailable, match=r"out of memory .*load"):
+        explorer.explore("tiny-run", lab_dir=lab, text=TEXT, load=load)
+    assert released == [True]
+    _no_cache(lab)
+    # Any other loader failure propagates, and cleanup still runs.
+    with pytest.raises(ValueError, match="bad checkpoint"):
+        explorer.explore(
+            "tiny-run",
+            lab_dir=lab,
+            text=TEXT,
+            load=lambda: (_ for _ in ()).throw(ValueError("bad checkpoint")),
+        )
+    assert released == [True, True]
+    _no_cache(lab)
+
+
+def test_pre_load_stage_check_runs_before_the_loader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.lab_context import LabResourceExceeded
+    from sparselab.resource_envelope import ResourceEnvelope
+
+    lab = _fake_run(tmp_path)
+    calls: list[str] = []
+    released: list[bool] = []
+    monkeypatch.setattr(explorer, "release_memory", lambda: released.append(True))
+
+    def load() -> Any:
+        calls.append("load")
+        return _loaded(**MOE_NGRAM)
+
+    # Envelope violated: stops at the pre-load check, the loader never runs.
+    envelope = ResourceEnvelope(resource_envelope_version=1, min_disk_bytes=1 << 62)
+    with pytest.raises(LabResourceExceeded) as stopped:
+        explorer.explore(
+            "tiny-run", lab_dir=lab, text=TEXT, resource_envelope=envelope, load=load
+        )
+    assert stopped.value.phase == "load" and calls == [] and released == [True]
+    _no_cache(lab)
+
+    # Cancelled (sentinel touched once the exploration started): same.
+    class Cancelled(LabContext):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self.cancel_path.touch()
+
+    monkeypatch.setattr(explorer, "LabContext", Cancelled)
+    with pytest.raises(LabCancelled) as cancelled:
+        explorer.explore("tiny-run", lab_dir=lab, text=TEXT, load=load)
+    assert cancelled.value.phase == "load" and calls == [] and released == [True] * 2
+    _no_cache(lab)

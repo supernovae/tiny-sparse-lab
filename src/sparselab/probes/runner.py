@@ -13,10 +13,12 @@ measured so far and is ``incomplete``.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import json
 import math
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,7 +33,12 @@ from sparselab.lab_context import (
     is_out_of_memory,
     release_memory,
 )
-from sparselab.lab_records import PROBE_FORMAT, eval_group, write_json_atomic
+from sparselab.lab_records import (
+    PROBE_FORMAT,
+    comparison_group,
+    eval_group,
+    write_json_atomic,
+)
 from sparselab.probes import metrics, scoring
 from sparselab.probes.suite import (
     BY_ID,
@@ -39,6 +46,8 @@ from sparselab.probes.suite import (
     fact_items,
     needle_split,
     ordered,
+    parametric_items,
+    parametric_manifest_sha256,
     prompts,
     suite_identity,
     tiers_through,
@@ -65,6 +74,10 @@ class _NotComparable(Exception):
     pass
 
 
+class ProbeInapplicable(Exception):
+    """The probe does not apply to this checkpoint (recorded as skipped)."""
+
+
 @dataclass
 class Arm:
     """One side of a comparison: how to load it and what is already measured."""
@@ -77,8 +90,11 @@ class Arm:
 
 
 # Probes that mean the same thing for a public reference model: lm-eval tasks
-# are defined by the harness, not by our validation split or tokenizer.
-REFERENCE_PROBES = frozenset({"lm_eval"})
+# are defined by the harness, and the text-level ranking probes ask the same
+# strings of any tokenizer (their ``item_group`` proves it). Needle items are
+# sized in the model's own tokens, so they are not text-level.
+REFERENCE_PROBES = frozenset({"lm_eval", "fact_recall", "parametric_recall"})
+TEXT_PROBES = ("fact_recall", "parametric_recall", "needle")
 
 
 def as_arm(value: Any) -> Arm | None:
@@ -225,6 +241,98 @@ def recall_items(split: str) -> list[dict[str, Any]]:
     ]
 
 
+def parametric_recall_items(
+    split: str, *, seed: int, control: bool = False
+) -> list[dict]:
+    return [
+        {
+            "prefix": item["question"],
+            "answer": item["answer"],
+            "candidates": item["candidates"],
+        }
+        for item in parametric_items(split, seed=seed, control=control)
+    ]
+
+
+def parametric_binding(loaded: Any, *, reference: bool = False) -> dict[str, Any]:
+    """Bind closed-book recall to the facts this checkpoint actually trained on.
+
+    The ``withheld_facts`` source trains on ``split_facts(synthetic_seed)``;
+    the probe uses the same seed's manifest, read from the run's resolved
+    config and cross-checked against its prepared-data provenance
+    (``data/manifest.json``). A run (or reference model) not trained on
+    ``withheld_facts`` raises :class:`ProbeInapplicable`; a withheld-facts run
+    whose provenance is missing or disagrees raises :class:`ProbeUnsupported`
+    (missing evidence), so trained facts are never scored as never-trained.
+    """
+    if reference:
+        raise ProbeInapplicable(
+            "inapplicable: a pinned public model was not trained on a "
+            "withheld-facts manifest"
+        )
+    dataset = getattr(getattr(loaded, "config", None), "dataset", None)
+    source = getattr(dataset, "source", None)
+    if source is None:
+        raise ProbeUnsupported(
+            "no dataset provenance in the run config: cannot tell which facts "
+            "were trained"
+        )
+    if source != "withheld_facts":
+        raise ProbeInapplicable(
+            f"inapplicable: the run trained on {source}, not withheld_facts "
+            "(no facts manifest to bind)"
+        )
+    seed = getattr(dataset, "synthetic_seed", None)
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ProbeUnsupported("withheld_facts run records no synthetic_seed")
+    run = getattr(loaded, "run", None)
+    if isinstance(run, Path):
+        path = run / "data" / "manifest.json"
+        try:
+            recorded = json.loads(path.read_text(encoding="utf-8"))
+            prepared = recorded["cache_identity"]["dataset"]
+        except OSError, ValueError, KeyError, TypeError:
+            raise ProbeUnsupported(
+                "the run's prepared-data provenance (data/manifest.json) is "
+                "missing or unreadable: cannot bind the facts manifest"
+            ) from None
+        if (prepared.get("source"), prepared.get("synthetic_seed")) != (
+            source,
+            seed,
+        ):
+            raise ProbeUnsupported(
+                "the run's prepared data does not match its config "
+                f"(prepared {prepared.get('source')} seed "
+                f"{prepared.get('synthetic_seed')}, config {source} seed {seed})"
+            )
+    return {"seed": seed, "manifest_sha256": parametric_manifest_sha256(seed)}
+
+
+def item_group(probe: str, items: list[dict[str, Any]]) -> str:
+    """Two ranking results compare only on the same rendered items and scoring."""
+    return comparison_group(
+        {
+            "probe": probe,
+            "scoring": scoring.RANKING_PROTOCOL,
+            "items": [
+                {k: item[k] for k in ("prefix", "answer", "candidates")}
+                for item in items
+            ],
+        }
+    )
+
+
+def _ranked(loaded: Any, items: list[dict[str, Any]]) -> dict[str, Any]:
+    scores = scoring.ranking_scores(loaded, items)
+    return {
+        "credits": [
+            scoring.tie_credit(s, item["answer"])
+            for s, item in zip(scores, items, strict=True)
+        ],
+        "picked": [scoring.top_candidate(s) for s in scores],
+    }
+
+
 def needle_items(loaded: Any, split: str, fractions: list[float]) -> list[dict]:
     spec = needle_split(split)
     max_len = loaded.config.model.max_seq_len
@@ -287,6 +395,9 @@ def _measure(
             "value": metrics.expected_calibration_error(
                 val["confidences"], val["correct"], bins
             ),
+            "reliability": metrics.reliability_bins(
+                val["confidences"], val["correct"], bins
+            ),
             "positions": int(val["correct"].size),
             "bins": bins,
         }
@@ -309,24 +420,51 @@ def _measure(
                 for r in rows[:2]
             ],
         }
-    if spec.id in {"fact_recall", "needle"}:
+    if spec.id in TEXT_PROBES:
 
         def items(split: str) -> list[dict[str, Any]]:
             if spec.id == "fact_recall":
                 return recall_items(split)
+            if spec.id == "parametric_recall":
+                return parametric_recall_items(split, seed=binding["seed"])
             return needle_items(loaded, split, list(spec.params["length_fractions"]))
 
+        binding = (
+            parametric_binding(loaded, reference=arm.reference)
+            if spec.id == "parametric_recall"
+            else {}
+        )
         held = items("heldout")
-        credits = scoring.ranking_credit(loaded, held)
-        dev = scoring.ranking_credit(loaded, items("dev"))
-        return {
+        ranked = _ranked(loaded, held)
+        credits = ranked["credits"]
+        out = {
             "value": float(np.mean(credits)) if credits else None,
             "credits": credits,
-            "dev_credits": dev,
+            "picked": ranked["picked"],
+            "dev_credits": scoring.ranking_credit(loaded, items("dev")),
             "fractions": [i.get("fraction") for i in held],
             "tokens": [i.get("tokens") for i in held],
             "chance": 1 / len(held[0]["candidates"]) if held else None,
+            "item_group": item_group(spec.id, held),
+            "items": [
+                {
+                    "prompt": i["prefix"] if spec.id != "needle" else None,
+                    "answer": i["answer"],
+                    "fraction": i.get("fraction"),
+                    "tokens": i.get("tokens"),
+                }
+                for i in held
+            ],
         }
+        if spec.id == "parametric_recall":
+            control = _ranked(
+                loaded,
+                parametric_recall_items("heldout", seed=binding["seed"], control=True),
+            )
+            out["control_accuracy"] = float(np.mean(control["credits"]))
+            out["manifest_sha256"] = binding["manifest_sha256"]
+            out["manifest_seed"] = binding["seed"]
+        return out
     if spec.id == "lm_eval":
         from sparselab.probes.lm_eval_adapter import LmEvalUnavailable, run_lm_eval
 
@@ -351,6 +489,8 @@ def _measure_safely(
         measured = {"status": "not_comparable", "note": str(error)}
     except ProbeUnsupported as error:
         measured = {"status": "unavailable", "note": str(error)}
+    except ProbeInapplicable as error:
+        measured = {"status": "skipped", "note": str(error)}
     except Exception as error:
         if is_out_of_memory(error):
             raise
@@ -432,7 +572,7 @@ def _judge(
         }
     if (
         b is not None
-        and spec.id in {"token_agreement", "fact_recall", "needle"}
+        and spec.id in {"token_agreement", "needle"}
         and not comparable["tokenizer"]
     ):
         return {**row, "status": "not_comparable", "note": "tokenizers differ"}
@@ -478,7 +618,12 @@ def _judge(
         return row
     if spec.id == "calibration":
         row.update(judge(spec, t["value"], b["value"] if b else None))
-        row["details"] = {"bins": t["bins"], "positions": t["positions"]}
+        row["details"] = {
+            "bins": t["bins"],
+            "positions": t["positions"],
+            "reliability": t["reliability"],
+            "baseline_reliability": b["reliability"] if b else None,
+        }
         return row
     if spec.id == "token_agreement":
         if b is None:
@@ -512,7 +657,13 @@ def _judge(
             "baseline_samples": b["samples"] if b else [],
         }
         return row
-    if spec.id in {"fact_recall", "needle"}:
+    if spec.id in TEXT_PROBES:
+        if b is not None and t["item_group"] != b["item_group"]:
+            return {
+                **row,
+                "status": "not_comparable",
+                "note": "different items (prompts, answers or candidates differ)",
+            }
         se = _paired(t["credits"], b["credits"]) if b else None
         row.update(judge(spec, t["value"], b["value"] if b else None, se=se))
         details: dict[str, Any] = {
@@ -525,7 +676,32 @@ def _judge(
             "baseline_dev_accuracy": float(np.mean(b["dev_credits"]))
             if b and b["dev_credits"]
             else None,
+            "item_group": t["item_group"],
+            "scoring": scoring.RANKING_PROTOCOL,
+            # Per held-out item: what was asked, the answer, each arm's pick and
+            # credit (the Behaviors page shows the misses).
+            "items": [
+                {
+                    **{k: v for k, v in item.items() if v is not None},
+                    "picked": t["picked"][i],
+                    "credit": t["credits"][i],
+                    **(
+                        {
+                            "baseline_picked": b["picked"][i],
+                            "baseline_credit": b["credits"][i],
+                        }
+                        if b
+                        else {}
+                    ),
+                }
+                for i, item in enumerate(t["items"])
+            ],
         }
+        if spec.id == "parametric_recall":
+            details["control_accuracy"] = t["control_accuracy"]
+            details["baseline_control_accuracy"] = b["control_accuracy"] if b else None
+            details["manifest_sha256"] = t["manifest_sha256"]
+            details["manifest_seed"] = t["manifest_seed"]
         if spec.id == "needle":
             by_length: dict[str, dict[str, Any]] = {}
             for fraction in spec.params["length_fractions"]:
@@ -580,7 +756,36 @@ def _judge(
 # --- Battery ------------------------------------------------------------------
 
 
-def _require_complete_benchmark(results: list[dict[str, Any]]) -> None:
+def lm_eval_spec(
+    tasks: Sequence[str] | None = None, limit: int | None = None
+) -> ProbeSpec:
+    """The lm-eval probe, optionally with other tasks or a larger ``limit``.
+
+    Overrides change the benchmark, never the suite: they are recorded in the
+    row's ``benchmark_group``, so results compare only with the same tasks and
+    limit. Chance is only known for the default tasks (None otherwise).
+    """
+    spec = BY_ID["lm_eval"]
+    if tasks is None and limit is None:
+        return spec
+    chosen = list(tasks) if tasks is not None else list(spec.params["tasks"])
+    if not chosen or len(set(chosen)) != len(chosen):
+        raise ValueError("--lm-eval-tasks needs distinct task names")
+    if limit is not None and limit < 1:
+        raise ValueError("--lm-eval-limit must be at least 1")
+    known = spec.params["chance"]
+    return dataclasses.replace(
+        spec,
+        params={
+            **spec.params,
+            "tasks": chosen,
+            "limit": limit if limit is not None else spec.params["limit"],
+            "chance": {t: known.get(t) for t in chosen},
+        },
+    )
+
+
+def _require_complete_benchmark(results: list[dict[str, Any]], spec: ProbeSpec) -> None:
     """A reference's lm-eval row counts only with every task and item scored.
 
     An errored, skipped (stopped, OOM) or partial row names its unscored
@@ -588,7 +793,6 @@ def _require_complete_benchmark(results: list[dict[str, Any]]) -> None:
     """
     from sparselab.probes.lm_eval_adapter import missing_tasks
 
-    spec = BY_ID["lm_eval"]
     for row in results:
         if row["id"] != "lm_eval":
             continue
@@ -622,6 +826,7 @@ def run_battery(
     progress: Progress | None = None,
     context: LabContext | None = None,
     now: Callable[[], datetime] | None = None,
+    lm_eval: ProbeSpec | None = None,
 ) -> dict[str, Any]:
     """Run the battery through TIER and return one result (never raises on probes).
 
@@ -643,8 +848,11 @@ def run_battery(
             "a reference model is not a probe baseline; "
             "use `sparselab compare RESULT --references`"
         )
+    lm_spec = lm_eval or BY_ID["lm_eval"]
     specs = [
-        s for s in ordered(tier) if not t_arm.reference or s.id in REFERENCE_PROBES
+        lm_spec if s.id == "lm_eval" else s
+        for s in ordered(tier)
+        if not t_arm.reference or s.id in REFERENCE_PROBES
     ]
     results: list[dict[str, Any]] = []
     dev: dict[str, dict[str, Any]] = {}
@@ -813,14 +1021,14 @@ def run_battery(
         },
     )
     if t_arm.reference:
-        _require_complete_benchmark(results)
+        _require_complete_benchmark(results, lm_spec)
     verdict = decide(
         results,
         has_baseline=b_arm is not None,
         tiers_run=tiers_run,
         requested_tier=tier,
         guard=guard,
-        specs=BY_ID,
+        specs={**BY_ID, "lm_eval": lm_spec},
         stop=stop,
         reference=t_arm.reference,
     )

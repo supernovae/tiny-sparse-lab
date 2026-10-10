@@ -96,7 +96,8 @@ jobs:
   lab-loop:
     # Lab-mode loop-time guard (CPU only): tokenizer -> try (with the fast probe
     # tier) -> report on a tiny synthetic delta must finish well inside the
-    # 15-minute target; the probe battery's own tests ride along (~15 s).
+    # 15-minute target; the probe battery, explorer and lab-dashboard tests ride
+    # along.
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -123,7 +124,10 @@ jobs:
             --basetemp "$RUNNER_TEMP/lab-loop-pytest" \
             tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget \
             tests/test_probes.py \
-            tests/test_references.py
+            tests/test_references.py \
+            tests/test_probe_followups.py \
+            tests/test_explorer.py \
+            tests/test_dashboard_lab.py
 
   integration-linux:
     # Model work is manual-only. Dispatch requires its own reviewed allocation.

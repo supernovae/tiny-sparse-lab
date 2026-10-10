@@ -42,7 +42,7 @@ listed below and in the [runtime guide](docs/runtime.md).
 | Evaluation and review | Held-out loss, capability cards, checkpoint-bound suites, self-blind review | [Evidence](docs/evidence.md); promotion requires review. |
 | Native diagnostics | Supplied-vector semantic probes, continuation overlap, bounded preparation benchmarks and opt-in phase observations | [CLI guide](docs/using-sparselab.md#native-diagnostic-interfaces); mechanism/descriptive/operational evidence, not quality or promotion gates. |
 | Local, SSH, and supplied hosted execution | Explicit runtime selection, staging, independent worker queues, and optional relay-backed Colab | [Hosted environments](docs/hosted-environments.md); one device per run, no provider allocation or distributed training. |
-| Dashboard | Training telemetry, checkpoints, research catalog and verified reports | [Research views](docs/research/dashboard.md); read-only. |
+| Dashboard | Lab home with next steps, experiments and verdicts, model catalog and Pareto frontier, behaviors (generations, recall misses, calibration), a visual model explorer, plus training telemetry and research views | [Dashboard tour](docs/dashboard.md); [research views](docs/research/dashboard.md); read-only. |
 | Local model exploration | Raw completion, transcript chat, Streamlit comparisons and a loopback API | [Model guide](docs/tinytext-model-guide.md); [nonstreaming API](docs/local-api.md); verified local run required. |
 
 Watch loss curves, throughput, memory, and checkpoint history in the local
@@ -116,9 +116,13 @@ TRY_ID --references` places a result against other results and pinned
 [reference models](docs/probe-battery.md#reference-models-and-sparselab-compare)
 (Pythia-70M/160M, SmolLM2-135M/360M; sealed lm-eval results ship with the
 package, so nothing is downloaded), and the dashboard's Pareto view plots
-quality against resident vs. active parameters, memory, tokens and latency. See
-**[lab mode](docs/lab-mode.md)**; the full-provenance path below is for release
-runs.
+quality against resident vs. active parameters, memory, tokens and latency.
+`sparselab explore RUN` opens up a small checkpoint: attention maps, per-token
+loss, expert routing and memory lookups. The **[dashboard tour](docs/dashboard.md)**
+shows every page. See **[lab mode](docs/lab-mode.md)**; the full-provenance
+path below is for release runs.
+
+![Lab home: latest verdict and next steps](docs/assets/dashboard-home.png)
 
 ## Try an existing model
 

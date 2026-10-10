@@ -5,7 +5,7 @@
     "validation": true,
     "validation_reason": null
   },
-  "created_at": "2026-10-10T18:21:50.544991+00:00",
+  "created_at": "2026-10-10T19:58:56.640472+00:00",
   "format": "sparselab-probe-v1",
   "guard": {
     "overfit_suspected": false,
@@ -13,8 +13,172 @@
     "rule": "flag when the dev gain is beyond noise and exceeds the held-out gain by more than max(0.15, 2 SE)",
     "verdict_split": "heldout"
   },
-  "probe_id": "probe-20261010T182150Z-556b61ad",
+  "probe_id": "probe-20261010T195856Z-e97957b0",
   "probes": [
+    {
+      "baseline_value": null,
+      "cost": 1,
+      "delta": null,
+      "delta_se": null,
+      "details": {},
+      "explains": "Closed-book recall: the fact is NOT stated; the model must answer from its weights (or memory tables). Items are the training facts of the run's own withheld-facts manifest (bound to its `dataset.synthetic_seed`); the manifest's never-trained facts are a control that should stay at chance (above chance means leakage or a guessable answer). Only applies to runs trained on the `withheld_facts` dataset: other runs and reference models are marked inapplicable, and a run whose facts provenance is missing or inconsistent is missing evidence. Ranking with fractional tie credit.",
+      "hard": false,
+      "higher_is_better": true,
+      "id": "parametric_recall",
+      "improved": false,
+      "metric": "accuracy",
+      "note": "candidate: inapplicable: a pinned public model was not trained on a withheld-facts manifest",
+      "reference": "the run's withheld-facts manifest (dataset.synthetic_seed), candidate ranking",
+      "regression": null,
+      "seconds": 0.0,
+      "status": "skipped",
+      "suggests": "Recalls fewer trained facts without the fact in context: check memory wiring (tables, gates, addresses) or capacity changes.",
+      "thresholds": {
+        "fail": 0.15,
+        "mode": "delta_abs",
+        "warn": 0.05
+      },
+      "tier": "standard",
+      "title": "Fact recall (from weights)",
+      "uncertainty": "paired_items",
+      "value": null,
+      "within_noise": null
+    },
+    {
+      "baseline_value": null,
+      "cost": 2,
+      "delta": null,
+      "delta_se": null,
+      "details": {
+        "baseline_dev_accuracy": null,
+        "chance": 0.25,
+        "credit": "fractional_ties",
+        "dev_accuracy": 1.0,
+        "item_group": "7df9460f8b819baef0a2fa57dac6b3c0442d71dc640e048fabf3f0b9772d80b5",
+        "items": [
+          {
+            "answer": "red",
+            "credit": 1.0,
+            "picked": "red",
+            "prompt": "Ava's favorite color is red. Someone asked about the favorite color of Ava. It is"
+          },
+          {
+            "answer": "red",
+            "credit": 1.0,
+            "picked": "red",
+            "prompt": "Ava's favorite color is red. If you ask Ava for their favorite color, they say"
+          },
+          {
+            "answer": "blue",
+            "credit": 1.0,
+            "picked": "blue",
+            "prompt": "Ben's favorite color is blue. Someone asked about the favorite color of Ben. It is"
+          },
+          {
+            "answer": "blue",
+            "credit": 1.0,
+            "picked": "blue",
+            "prompt": "Ben's favorite color is blue. If you ask Ben for their favorite color, they say"
+          },
+          {
+            "answer": "green",
+            "credit": 1.0,
+            "picked": "green",
+            "prompt": "Cora's favorite color is green. Someone asked about the favorite color of Cora. It is"
+          },
+          {
+            "answer": "green",
+            "credit": 1.0,
+            "picked": "green",
+            "prompt": "Cora's favorite color is green. If you ask Cora for their favorite color, they say"
+          },
+          {
+            "answer": "gold",
+            "credit": 1.0,
+            "picked": "gold",
+            "prompt": "Dax's favorite color is gold. Someone asked about the favorite color of Dax. It is"
+          },
+          {
+            "answer": "gold",
+            "credit": 1.0,
+            "picked": "gold",
+            "prompt": "Dax's favorite color is gold. If you ask Dax for their favorite color, they say"
+          },
+          {
+            "answer": "otter",
+            "credit": 1.0,
+            "picked": "otter",
+            "prompt": "Eli's favorite animal is otter. Someone asked about the favorite animal of Eli. It is"
+          },
+          {
+            "answer": "otter",
+            "credit": 1.0,
+            "picked": "otter",
+            "prompt": "Eli's favorite animal is otter. If you ask Eli for their favorite animal, they say"
+          },
+          {
+            "answer": "panda",
+            "credit": 1.0,
+            "picked": "panda",
+            "prompt": "Fae's favorite animal is panda. Someone asked about the favorite animal of Fae. It is"
+          },
+          {
+            "answer": "panda",
+            "credit": 1.0,
+            "picked": "panda",
+            "prompt": "Fae's favorite animal is panda. If you ask Fae for their favorite animal, they say"
+          },
+          {
+            "answer": "falcon",
+            "credit": 1.0,
+            "picked": "falcon",
+            "prompt": "Gus's favorite animal is falcon. Someone asked about the favorite animal of Gus. It is"
+          },
+          {
+            "answer": "falcon",
+            "credit": 1.0,
+            "picked": "falcon",
+            "prompt": "Gus's favorite animal is falcon. If you ask Gus for their favorite animal, they say"
+          },
+          {
+            "answer": "turtle",
+            "credit": 1.0,
+            "picked": "turtle",
+            "prompt": "Hana's favorite animal is turtle. Someone asked about the favorite animal of Hana. It is"
+          },
+          {
+            "answer": "turtle",
+            "credit": 1.0,
+            "picked": "turtle",
+            "prompt": "Hana's favorite animal is turtle. If you ask Hana for their favorite animal, they say"
+          }
+        ],
+        "n": 16,
+        "scoring": "sparselab-ranking-v1: mean token log-prob, fractional ties"
+      },
+      "explains": "A fact is stated, then asked with a reworded held-out question; the model ranks candidate answers by mean token log-probability. Ties share credit (1/k for k tied at the top), so chance is 1/candidates.",
+      "hard": false,
+      "higher_is_better": true,
+      "id": "fact_recall",
+      "improved": false,
+      "metric": "accuracy",
+      "note": "absolute value; pass --vs BASELINE for a verdict",
+      "reference": "candidate ranking by mean answer log-probability",
+      "regression": null,
+      "seconds": 7.683,
+      "status": "info",
+      "suggests": "Worse at using a stated fact when asked in different words: check context handling (attention/positions) or memory wiring.",
+      "thresholds": {
+        "fail": 0.15,
+        "mode": "delta_abs",
+        "warn": 0.05
+      },
+      "tier": "standard",
+      "title": "Fact recall (reworded)",
+      "uncertainty": "paired_items",
+      "value": 1.0,
+      "within_noise": null
+    },
     {
       "baseline_value": null,
       "cost": 4,
@@ -243,7 +407,7 @@
               0.0
             ],
             "items_sha256": "1d16c0ce426275b2e5373123fd6053b6b9906eac09ef6e3cb1f595013a03b8bf",
-            "perplexity": 13.78117564437527
+            "perplexity": 13.781102045153533
           },
           "piqa": {
             "acc": 0.74,
@@ -315,7 +479,7 @@
       "note": "reference point: place results on it with `sparselab compare RESULT --references`",
       "reference": "lm-evaluation-harness acc (zero-shot)",
       "regression": null,
-      "seconds": 77.971,
+      "seconds": 78.202,
       "status": "info",
       "suggests": "Lower on standard zero-shot tasks; at tiny scale most tasks sit near chance, so treat small moves as noise.",
       "thresholds": {
@@ -331,8 +495,8 @@
     }
   ],
   "protocol": {},
-  "record_sha256": "bcff3c7394ab7e232841347a78072801522340e0025e6f72029c121231a12733",
-  "seconds": 84.298,
+  "record_sha256": "6b11a641fe406b59d793367366da49550a44dfcb9917ea0c3de6dcd711487679",
+  "seconds": 92.453,
   "stop": {
     "at": null,
     "kind": null,
@@ -341,13 +505,13 @@
   },
   "suite": {
     "name": "sparselab-probe-battery",
-    "sha256": "ec0544e78b2303deec540f317c237f28bfb4e61cb71bb372f864906cfb1478a0",
+    "sha256": "bc974a71841375e8788b612186f67a69d7d26598cd1325499b64ffbb5b484a50",
     "splits": {
-      "dev": "fa842e3ccc50076a8c3f11fe3104148ab3988c52997f7b6190bf796e6737f642",
-      "heldout": "afaf3327a0bae8edb692fd64461a93649c4d08ac6e7ebadbd37a8db323460b0c"
+      "dev": "171e87b37f1a44c35cb86ced6c622927c3e76a434953db87bdec98d3649bdb08",
+      "heldout": "347a88290e914d60e3c3cbab6d366da36fd2cbe7c58bd581f0375e5df0b2c58b"
     },
     "verdict_split": "heldout",
-    "version": 2
+    "version": 3
   },
   "target": {
     "active_parameter_bytes": 1447284480,
@@ -380,6 +544,7 @@
   },
   "tier": "full",
   "tiers_run": [
+    "standard",
     "full"
   ],
   "verdict": {

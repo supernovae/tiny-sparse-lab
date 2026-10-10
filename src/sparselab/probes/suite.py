@@ -20,10 +20,10 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from sparselab.data.withheld_facts import _FACTS
+from sparselab.data.withheld_facts import _FACTS, diagnostic_manifest, split_facts
 
 SUITE_NAME = "sparselab-probe-battery"
-SUITE_VERSION = 2
+SUITE_VERSION = 3
 TIERS = ("fast", "standard", "full")
 Mode = Literal["delta_rel", "delta_abs", "value_min"]
 
@@ -149,6 +149,36 @@ PROBES: tuple[ProbeSpec, ...] = (
         params={"credit": "fractional_ties"},
     ),
     ProbeSpec(
+        id="parametric_recall",
+        title="Fact recall (from weights)",
+        tier="standard",
+        cost=1,
+        metric="accuracy",
+        higher_is_better=True,
+        mode="delta_abs",
+        warn=0.05,
+        fail=0.15,
+        hard=False,
+        suggests="Recalls fewer trained facts without the fact in context: "
+        "check memory wiring (tables, gates, addresses) or capacity changes.",
+        explains="Closed-book recall: the fact is NOT stated; the model must "
+        "answer from its weights (or memory tables). Items are the training "
+        "facts of the run's own withheld-facts manifest (bound to its "
+        "`dataset.synthetic_seed`); the manifest's never-trained facts are a "
+        "control that should stay at chance (above chance means leakage or a "
+        "guessable answer). Only applies to runs trained on the "
+        "`withheld_facts` dataset: other runs and reference models are marked "
+        "inapplicable, and a run whose facts provenance is missing or "
+        "inconsistent is missing evidence. Ranking with fractional tie credit.",
+        reference="the run's withheld-facts manifest (dataset.synthetic_seed), "
+        "candidate ranking",
+        uncertainty="paired_items",
+        params={
+            "manifest_seed": "dataset.synthetic_seed",
+            "credit": "fractional_ties",
+        },
+    ),
+    ProbeSpec(
         id="needle",
         title="Needle in context",
         tier="standard",
@@ -272,6 +302,39 @@ def fact_items(split: str) -> list[dict[str, Any]]:
     return items
 
 
+def parametric_items(
+    split: str, *, seed: int, control: bool = False
+) -> list[dict[str, Any]]:
+    """Closed-book prompts for the withheld-facts manifest of ``seed``.
+
+    ``seed`` is the run's ``dataset.synthetic_seed`` (the seed its
+    ``withheld_facts`` training documents were built with; see
+    :func:`sparselab.probes.runner.parametric_binding`). ``heldout`` asks the
+    manifest's training facts with its canonical prompt, ``dev`` rewords them;
+    ``control`` asks the never-trained facts instead.
+    """
+    trained, never = split_facts(seed)
+    facts = never if control else trained
+    return [_parametric_item(fact, split) for fact in facts]
+
+
+def _parametric_item(fact: Any, split: str) -> dict[str, Any]:
+    prompt = (
+        _DEV_TEMPLATES[0].format(s=fact.subject, r=fact.relation)
+        if split == "dev"
+        else fact.prompt()
+    )
+    return {
+        "question": prompt,
+        "answer": fact.value,
+        "candidates": sorted({f.value for f in _FACTS if f.relation == fact.relation}),
+    }
+
+
+def parametric_manifest_sha256(seed: int) -> str:
+    return str(diagnostic_manifest(seed)["sha256"])
+
+
 def needle_split(split: str) -> dict[str, Any]:
     return {
         "needles": list(_HELDOUT_NEEDLES if split == "heldout" else _DEV_NEEDLES),
@@ -289,6 +352,9 @@ def split_payload(split: str) -> dict[str, Any]:
     return {
         "prompts": prompts(split),
         "facts": fact_items(split),
+        # The whole fact pool; each run's trained/control split is
+        # split_facts(dataset.synthetic_seed), bound at probe time.
+        "parametric_pool": [_parametric_item(fact, split) for fact in _FACTS],
         "needle": needle_split(split),
     }
 

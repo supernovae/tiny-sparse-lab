@@ -43,12 +43,15 @@ def mean_seq_rep_n(sequences: Iterable[Sequence[int]], n: int = 4) -> float | No
     return float(np.mean(values)) if values else None
 
 
-def expected_calibration_error(
+def reliability_bins(
     confidences: Sequence[float] | np.ndarray,
     correct: Sequence[bool] | np.ndarray,
     bins: int = 15,
-) -> float:
-    """ECE = sum_b |B_b|/N * |acc(B_b) - conf(B_b)| over equal-width bins."""
+) -> list[dict[str, float]]:
+    """Non-empty equal-width confidence bins: the data of a reliability diagram.
+
+    Each bin has its edges, mean confidence, accuracy and share of positions.
+    """
     conf = np.asarray(confidences, dtype=np.float64)
     hit = np.asarray(correct, dtype=np.float64)
     if conf.shape != hit.shape or conf.ndim != 1 or conf.size == 0:
@@ -57,12 +60,34 @@ def expected_calibration_error(
         raise ValueError("confidences must lie in [0, 1]")
     # Bin b covers (b/B, (b+1)/B]; confidence 0 joins the first bin.
     index = np.clip(np.ceil(conf * bins).astype(np.int64) - 1, 0, bins - 1)
-    total = 0.0
+    out = []
     for b in range(bins):
         members = index == b
         if members.any():
-            total += members.mean() * abs(hit[members].mean() - conf[members].mean())
-    return float(total)
+            out.append(
+                {
+                    "low": b / bins,
+                    "high": (b + 1) / bins,
+                    "confidence": float(conf[members].mean()),
+                    "accuracy": float(hit[members].mean()),
+                    "share": float(members.mean()),
+                }
+            )
+    return out
+
+
+def expected_calibration_error(
+    confidences: Sequence[float] | np.ndarray,
+    correct: Sequence[bool] | np.ndarray,
+    bins: int = 15,
+) -> float:
+    """ECE = sum_b |B_b|/N * |acc(B_b) - conf(B_b)| over equal-width bins."""
+    return float(
+        sum(
+            b["share"] * abs(b["accuracy"] - b["confidence"])
+            for b in reliability_bins(confidences, correct, bins)
+        )
+    )
 
 
 def log_softmax(logits: np.ndarray) -> np.ndarray:

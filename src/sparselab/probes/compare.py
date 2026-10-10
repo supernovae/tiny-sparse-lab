@@ -19,6 +19,7 @@ from sparselab.probes import metrics
 from sparselab.probes.points import (
     METRICS,
     collect_points,
+    mean_chance,
     metric_points,
     points_from_record,
     with_checkpoint_evidence,
@@ -28,7 +29,7 @@ from sparselab.reference_models import REFERENCES, is_reference, reference_for
 
 REFERENCE_LOSS_NOTE = (
     "reference models have their own tokenizer and training data, so held-out "
-    "loss on our split is never comparable; use lm-eval accuracy"
+    "loss on our split is never comparable; use lm-eval accuracy or fact recall"
 )
 NOISE_SE = 2.0  # |Δ| within 2 paired SE reads as noise
 STATUS_TEXT = {
@@ -137,6 +138,9 @@ def pair(
         hint = metric.missing_hint
         if metric_id == "lm_eval" and who.get("run_id"):
             hint = f"run `sparselab probe {who['run_id']} --tier full` (lmeval extra)"
+        elif metric_id == "fact_recall" and who.get("run_id"):
+            tier = "full" if who["kind"] == "reference" else "standard"
+            hint = f"run `sparselab probe {who['run_id']} --tier {tier}`"
         return {
             **out,
             "status": "missing_evidence",
@@ -164,8 +168,11 @@ def pair(
         se = metrics.ratio_difference_se(
             a["window_sums"], a["window_counts"], b["window_sums"], b["window_counts"]
         )
-    if metric_id == "lm_eval":
-        paired = metrics.task_mean_difference(a.get("items") or {}, b["items"] or {})
+    if metric_id != "heldout_loss":
+        # Per-item outcomes on both sides (lm-eval tasks, recall items).
+        paired = metrics.task_mean_difference(
+            a.get("items") or {}, b.get("items") or {}
+        )
         se = paired[1] if paired else None
     status = "higher" if delta > 0 else "lower"
     if se is not None and abs(delta) <= NOISE_SE * se or delta == 0:
@@ -231,10 +238,9 @@ def reference_curve(
         [*same, {**subject, **mine, "label": subject["label"], "subject": True}],
         key=lambda p: (p.get("active_parameters") or 0, p["label"]),
     )
-    chance = mine.get("chance") or {}
     return {
         "group": mine["group"],
-        "chance": sum(chance.values()) / len(chance) if chance else None,
+        "chance": mean_chance(mine.get("chance")),
         "points": rows,
         "excluded": len(refs) - len(same),
     }
@@ -289,11 +295,11 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
     lines = [
         _paint("COMPARE", "1", color)
         + f"  {subject['label']} vs {len(points) - 1} point(s) · comparisons only "
-        "within one eval/benchmark group",
+        "within one eval/benchmark/item group",
         "",
         _paint(
             f"    {'point':<{width}} {'resident':>9} {'active':>9} {'tokens':>8}"
-            f" {'held-out loss':>14} {'lm-eval acc':>12}",
+            f" {'held-out loss':>14} {'lm-eval acc':>12} {'fact recall':>12}",
             "2",
             color,
         ),
@@ -306,6 +312,7 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
             f" {_compact(point.get('tokens_seen')):>8}"
             f" {_metric_value(point, 'heldout_loss'):>14}"
             f" {_metric_value(point, 'lm_eval'):>12}"
+            f" {_metric_value(point, 'fact_recall'):>12}"
         )
     lines += _provenance(points, color)
     for metric_id, metric in METRICS.items():

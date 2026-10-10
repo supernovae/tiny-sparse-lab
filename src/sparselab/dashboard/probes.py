@@ -1,4 +1,4 @@
-"""Probe battery page: live progress, verdicts, per-probe results, history, Pareto."""
+"""Probe battery components shared by the lab pages: verdict, table, charts, Pareto."""
 
 from __future__ import annotations
 
@@ -15,87 +15,28 @@ from plotly.subplots import make_subplots
 from sparselab.dashboard.probe_data import (
     history_rows,
     live_batteries,
-    load_history,
+    probe_row,
+    result_group,
+)
+from sparselab.dashboard.ui import (
+    ACTION_TEXT,
+    SERIES,
+    STATUS_COLOR,
+    STATUS_ICON,
+    chip,
+    num,
 )
 from sparselab.probes.points import (
     COSTS,
     METRICS,
-    collect_points,
+    mean_chance,
     metric_points,
     pareto_frontier,
 )
-from sparselab.probes.suite import PROBES, suite_identity
+from sparselab.probes.suite import PROBES
 
-STATUS_COLOR = {
-    "pass": "#1a7f37",
-    "warn": "#b58100",
-    "fail": "#cf222e",
-    "info": "#0969da",
-    "skipped": "#6e7781",
-    "not_comparable": "#8250df",
-    "error": "#cf222e",
-    "unavailable": "#b58100",
-    "incomplete": "#8250df",
-    "baseline": "#8c959f",
-}
-STATUS_ICON = {
-    "pass": "✔",
-    "warn": "▲",
-    "fail": "✖",
-    "info": "•",
-    "skipped": "⊘",
-    "not_comparable": "≠",
-    "error": "!",
-    "unavailable": "○",
-    "incomplete": "…",
-}
-ACTION_TEXT = {
-    "abandon": "Abandon this idea",
-    "tweak": "Tweak and retry",
-    "rerun": "Fix the missing checks and re-run",
-    "escalate": "Escalate to the next tier",
-    "longer_run": "Schedule a longer run",
-    "compare": "Compare against a baseline",
-}
-_CSS = """
-<style>
-.pb-banner {border-radius: 14px; padding: 18px 22px; margin: 6px 0 14px 0;
-  color: white; box-shadow: 0 2px 10px rgba(0,0,0,.08);}
-.pb-banner h3 {margin: 0 0 4px 0; color: white;}
-.pb-banner p {margin: 2px 0; opacity: .95;}
-.pb-chip {display: inline-block; padding: 1px 10px; border-radius: 999px;
-  color: white; font-size: .78rem; font-weight: 600; letter-spacing: .02em;}
-.pb-table {width: 100%; border-collapse: collapse; font-size: .92rem;}
-.pb-table td, .pb-table th {padding: 7px 8px; border-bottom: 1px solid rgba(128,128,128,.18);
-  vertical-align: top; text-align: left;}
-.pb-table th {font-weight: 600; opacity: .7; font-size: .8rem; text-transform: uppercase;}
-.pb-meter {position: relative; width: 120px; height: 10px; border-radius: 6px;
-  background: rgba(128,128,128,.15); margin-top: 5px;}
-.pb-meter .mid {position: absolute; left: 50%; top: -2px; width: 2px; height: 14px;
-  background: rgba(128,128,128,.6);}
-.pb-meter .bar {position: absolute; top: 0; height: 10px; border-radius: 6px;}
-.pb-hint {opacity: .75; font-size: .82rem;}
-.pb-live {border: 1px dashed rgba(128,128,128,.5); border-radius: 12px; padding: 10px 14px;
-  margin-bottom: 10px;}
-</style>
-"""
-
-
-def _chip(status: str) -> str:
-    color = STATUS_COLOR.get(status, "#6e7781")
-    label = html.escape(status.replace("_", " ").upper())
-    return (
-        f'<span class="pb-chip" style="background:{color}">'
-        f"{STATUS_ICON.get(status, '?')} {label}</span>"
-    )
-
-
-def _num(value: Any, digits: int = 3) -> str:
-    if value is None:
-        return "–"
-    if isinstance(value, float):
-        return f"{value:.{digits}f}"
-    return html.escape(str(value))
+_chip = chip
+_num = num
 
 
 def _meter(row: dict[str, Any]) -> str:
@@ -196,8 +137,15 @@ def _detail(row: dict[str, Any]) -> str:
         return text
     if row["id"] == "repetition" and details.get("distinct_2") is not None:
         return f"distinct-1 {details['distinct_1']:.2f} · distinct-2 {details['distinct_2']:.2f}"
+    if row["id"] == "parametric_recall" and details.get("chance") is not None:
+        return (
+            f"chance {details['chance']:.2f} · never-trained control "
+            f"{num(details.get('control_accuracy'), 2)} · n={details.get('n')}"
+        )
     if row["id"] in {"fact_recall", "needle"} and details.get("chance") is not None:
         return f"chance {details['chance']:.2f} · n={details.get('n')}"
+    if row["id"] == "calibration" and details.get("reliability"):
+        return f"{len(details['reliability'])} confidence bins"
     if row["id"] == "lm_eval" and details.get("tasks"):
         return " · ".join(
             f"{task} {_num((v or {}).get('acc'), 2)}"
@@ -292,7 +240,10 @@ def _comparison_chart(result: dict[str, Any]) -> None:
             color="arm",
             markers=True,
             title="Needle retrieval by context length",
-            color_discrete_map={"candidate": "#0969da", "baseline": "#8c959f"},
+            color_discrete_map={
+                "candidate": SERIES["candidate"],
+                "baseline": SERIES["baseline"],
+            },
         )
         chance = needle["details"].get("chance")
         if chance:
@@ -424,8 +375,14 @@ KIND_STYLE = {
 }
 
 
-def _pareto(lab_dir: Path, selected: Any | None) -> None:
-    raw = collect_points(lab_dir)
+def own_group(result: dict[str, Any] | None, metric_id: str) -> str | None:
+    """The comparison group a result's own value was measured in."""
+    if not result:
+        return None
+    return result_group(result, probe_row(result, metric_id) or {"id": metric_id})
+
+
+def _pareto(raw: list[dict[str, Any]], selected: Any | None) -> None:
     controls = st.columns([2, 3])
     metric_id = controls[0].radio(
         "Quality",
@@ -434,7 +391,8 @@ def _pareto(lab_dir: Path, selected: Any | None) -> None:
         key="probe_pareto_metric",
         format_func=lambda m: METRICS[m].label,
         help="Held-out loss: our validation split (lab runs only). lm-eval "
-        "accuracy: public tasks, shared with the reference models.",
+        "accuracy: public tasks, shared with the reference models. Fact recall: "
+        "the in-context fact items, text-level, so references can share it.",
     )
     metric = METRICS[metric_id]
     axis = controls[1].radio(
@@ -455,22 +413,7 @@ def _pareto(lab_dir: Path, selected: Any | None) -> None:
     points = points.dropna(subset=["group"])
     counts = points["group"].value_counts()
     groups = list(counts.index)
-    own = None
-    if selected is not None:
-        target = selected.result.get("target") or {}
-        lm = next(
-            (
-                r
-                for r in selected.result.get("probes") or []
-                if r.get("id") == "lm_eval"
-            ),
-            {},
-        )
-        own = (
-            target.get("eval_group")
-            if metric_id == "heldout_loss"
-            else (lm.get("details") or {}).get("benchmark_group")
-        )
+    own = own_group(selected.result if selected is not None else None, metric_id)
     group = st.selectbox(
         f"Comparison group ({metric.group_label})",
         groups,
@@ -535,6 +478,20 @@ def _pareto(lab_dir: Path, selected: Any | None) -> None:
         table.sort_values(metric.label, ascending=not metric.higher_is_better),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "label": st.column_config.TextColumn("checkpoint", width="large"),
+            "parameters": st.column_config.NumberColumn(
+                "resident params", format="compact"
+            ),
+            "active_parameters": st.column_config.NumberColumn(
+                "active / token", format="compact"
+            ),
+            "tokens_seen": st.column_config.NumberColumn(
+                "training tokens", format="compact"
+            ),
+            metric.label: st.column_config.NumberColumn(format="%.4f"),
+            "frontier": st.column_config.CheckboxColumn("on frontier"),
+        },
     )
     _pareto_explainer()
 
@@ -601,12 +558,13 @@ def _pareto_figure(data: pd.DataFrame, axis: str, metric: Any, log_x: bool) -> A
                 + "tokens %{customdata[3]:,}<extra></extra>",
             )
         )
+    # One group per figure; any unknown task baseline omits the line.
     chance = [
-        sum(c.values()) / len(c)
+        mean_chance(c)
         for c in data.get("chance", pd.Series(dtype=object)).dropna()
-        if isinstance(c, dict) and c
+        if isinstance(c, dict)
     ]
-    if chance:
+    if chance and chance[0] is not None:
         figure.add_hline(
             y=chance[0],
             line_dash="dash",
@@ -647,81 +605,3 @@ def _live(lab_dir: Path) -> None:
         )
         if total:
             st.progress(done / total, text=f"{done}/{total} probes")
-
-
-def probe_page(lab_dir: Path) -> None:
-    st.markdown(_CSS, unsafe_allow_html=True)
-    identity = suite_identity()
-    st.header("Probe battery")
-    st.caption(
-        f"{identity['name']} v{identity['version']} · suite {identity['sha256'][:12]} · "
-        "cheap checks that filter ideas before a longer run · lab root "
-        f"{lab_dir}"
-    )
-    _live(lab_dir)
-    entries, rejected = load_history(lab_dir)
-    if rejected:
-        with st.expander(
-            f"⚠ {len(rejected)} record(s) rejected (edited or unreadable)"
-        ):
-            for path, reason in rejected:
-                st.markdown(f"`{html.escape(str(path))}`: {html.escape(reason)}")
-    if not entries:
-        st.info(
-            "No probe results yet. Run `sparselab try DELTA.yaml --vs BASELINE.yaml` "
-            "(the fast tier runs automatically) or `sparselab probe RUN --vs BASELINE`."
-        )
-        _explain()
-        st.subheader("Pareto view")
-        _pareto(lab_dir, None)
-        return
-    choice = st.selectbox(
-        "Result", range(len(entries)), format_func=lambda i: entries[i].label
-    )
-    entry = entries[choice]
-    result = entry.result
-    target = result.get("target") or {}
-    baseline = result.get("baseline") or {}
-    st.caption(
-        f"candidate **{target.get('run_id')}** (step {target.get('step')}) · "
-        + (
-            f"baseline **{baseline.get('run_id')}** · "
-            if baseline
-            else "no baseline · "
-        )
-        + f"suite {result['suite']['sha256'][:12]}"
-    )
-    if entry.comparison:
-        st.caption(
-            f"lab try verdict: {entry.comparison.get('verdict')} · "
-            + ", ".join(
-                f"{k}: {v.get('base')!r} → {v.get('variant')!r}"
-                for k, v in entry.delta.items()
-            )
-        )
-    _verdict_banner(result)
-    _metrics(result)
-    results_tab, explain_tab, history_tab, pareto_tab = st.tabs(
-        ["Results", "What the probes mean", "History", "Pareto"]
-    )
-    with results_tab:
-        _probe_table(result)
-        _comparison_chart(result)
-        samples = (
-            (next((r for r in result["probes"] if r["id"] == "repetition"), {}) or {})
-            .get("details", {})
-            .get("samples")
-        )
-        if samples:
-            with st.expander("Greedy samples (degeneration probe)"):
-                for sample in samples:
-                    st.markdown(
-                        f"**{html.escape(sample['prompt'])}** → "
-                        f"{html.escape(sample['continuation'])}"
-                    )
-    with explain_tab:
-        _explain()
-    with history_tab:
-        _history(entries)
-    with pareto_tab:
-        _pareto(lab_dir, entry)

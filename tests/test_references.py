@@ -21,6 +21,7 @@ from sparselab.lab_records import comparison_group, read_lab_record, write_seale
 from sparselab.probes import compare as compare_mod
 from sparselab.probes import lm_eval_adapter, metrics, runner
 from sparselab.probes.points import (
+    METRICS,
     collect_points,
     metric_points,
     packaged_reference_records,
@@ -28,7 +29,7 @@ from sparselab.probes.points import (
     points_from_record,
     probe_points,
 )
-from sparselab.probes.suite import BY_ID
+from sparselab.probes.suite import BY_ID, suite_identity
 from sparselab.reference_models import (
     REFERENCES,
     ReferenceRun,
@@ -196,7 +197,7 @@ def _summary(
     return summary
 
 
-def test_reference_arm_runs_only_lm_eval_and_records_identity(
+def test_reference_arm_runs_text_level_probes_and_lm_eval_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sparselab.probes.scoring import eot
@@ -208,9 +209,21 @@ def test_reference_arm_runs_only_lm_eval_and_records_identity(
     result = runner.run_battery(
         runner.Arm(load=lambda: loaded, reference=True), tier="full"
     )
-    assert [r["id"] for r in result["probes"]] == ["lm_eval"]
-    assert result["tiers_run"] == ["full"] and result["protocol"] == {}
-    row = result["probes"][0]
+    # Tokenizer-independent probes only: text-level recall and lm-eval.
+    assert [r["id"] for r in result["probes"]] == [
+        "parametric_recall",
+        "fact_recall",
+        "lm_eval",
+    ]
+    assert result["tiers_run"] == ["standard", "full"] and result["protocol"] == {}
+    # Closed-book recall needs the run's own facts manifest: a public model
+    # was never trained on one, so it is inapplicable (not missing evidence).
+    parametric, recall = result["probes"][:2]
+    assert parametric["status"] == "skipped" and parametric["value"] is None
+    assert "inapplicable" in parametric["note"]
+    assert recall["status"] == "info" and recall["details"]["item_group"]
+    assert len(recall["details"]["items"]) == recall["details"]["n"]
+    row = result["probes"][2]
     assert row["status"] == "info" and row["value"] == pytest.approx(38 / 50)
     assert result["verdict"]["status"] == "info"
     assert result["verdict"]["action"] == "compare"
@@ -288,6 +301,11 @@ def test_lm_eval_judge_refuses_other_benchmark_groups() -> None:
 
 def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
     records = packaged_reference_records()
+    # Text-level recall is scored on the same items for every model, so one
+    # item group spans all references (and any lab run).
+    item_groups = {
+        "fact_recall": runner.item_group("fact_recall", runner.recall_items("heldout"))
+    }
     names = set()
     groups = set()
     for path, record in records:
@@ -301,8 +319,19 @@ def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
         assert target["tokens_seen"] == ref.training_tokens
         assert len(target["checkpoint_sha256"]) == 64
         assert 0 < target["active_parameters"] <= target["parameters"]
-        (row,) = record["probes"]
-        assert row["id"] == "lm_eval" and 0 < row["value"] < 1
+        assert [r["id"] for r in record["probes"]] == [
+            "parametric_recall",
+            "fact_recall",
+            "lm_eval",
+        ]
+        assert record["suite"]["sha256"] == suite_identity()["sha256"]
+        parametric = record["probes"][0]
+        assert parametric["status"] == "skipped" and parametric["value"] is None
+        assert "inapplicable" in parametric["note"]
+        recall = record["probes"][1]
+        assert recall["details"]["item_group"] == item_groups["fact_recall"]
+        row = record["probes"][2]
+        assert 0 < row["value"] < 1
         details = row["details"]
         assert details["benchmark"]["limit"] == BY_ID["lm_eval"].params["limit"]
         assert set(details["tasks"]) == set(LM_TASKS)
@@ -320,7 +349,7 @@ def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
 def _ref_lm(name: str) -> dict[str, Any]:
     for _, record in packaged_reference_records():
         if record["target"]["reference"]["name"] == name:
-            return record["probes"][0]
+            return next(r for r in record["probes"] if r["id"] == "lm_eval")
     raise AssertionError(name)
 
 
@@ -514,8 +543,9 @@ def test_dashboard_pareto_renders_references_and_try_points(tmp_path: Path) -> N
         from pathlib import Path
 
         from sparselab.dashboard.probes import _pareto
+        from sparselab.probes.points import collect_points
 
-        _pareto(Path(lab), None)
+        _pareto(collect_points(Path(lab)), None)
 
     test = AppTest.from_function(app, args=(str(tmp_path),), default_timeout=60)
     test.run()
@@ -631,7 +661,7 @@ def _assert_reference_rerun(result: dict[str, Any], tasks: list[str]) -> None:
     assert (verdict["status"], verdict["action"]) == ("incomplete", "rerun")
     assert "sparselab compare" not in verdict["suggestion"]
     assert "unscored tasks: " + ", ".join(sorted(tasks)) in verdict["reasons"]
-    (row,) = result["probes"]
+    (row,) = [r for r in result["probes"] if r["id"] == "lm_eval"]
     assert row["status"] in {"error", "skipped"}
     assert "sparselab compare" not in (row.get("note") or "")
     # Never a point on the reference curve.
@@ -645,7 +675,7 @@ def test_failed_reference_task_is_incomplete_not_a_reference_point(
     error = RuntimeError("lm-eval returned no accuracy for: piqa")
     result = _reference_battery(monkeypatch, error)
     _assert_reference_rerun(result, list(LM_TASKS))
-    assert "piqa" in result["probes"][0]["note"]
+    assert "piqa" in result["probes"][-1]["note"]
 
     # Every task returned an accuracy but piqa scored only part of its items.
     items = {t: [1.0, 0.0] * 25 for t in LM_TASKS}
@@ -653,7 +683,7 @@ def test_failed_reference_task_is_incomplete_not_a_reference_point(
     partial["tasks"]["piqa"]["items"] = partial["tasks"]["piqa"]["items"][:10]
     result = _reference_battery(monkeypatch, partial)
     _assert_reference_rerun(result, ["piqa"])
-    assert "incomplete benchmark" in result["probes"][0]["note"]
+    assert "incomplete benchmark" in result["probes"][-1]["note"]
 
 
 def test_reference_oom_is_incomplete_not_a_reference_point(
@@ -715,3 +745,71 @@ def test_auto_added_references_resolve_like_named_ones(tmp_path: Path) -> None:
     lm = by_other["SmolLM2-135M"][1]
     assert lm["status"] != "not_comparable"
     assert lm["group"] == _ref_lm("SmolLM2-135M")["details"]["benchmark_group"]
+
+
+def test_custom_task_without_chance_compares_with_references_and_no_chance_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """winogrande has no known chance baseline: compare --references and the
+    Pareto figure omit the chance line (never a mean over the known tasks)."""
+    import pandas as pd
+
+    from sparselab.cli.main import main
+    from sparselab.dashboard.probes import _pareto_figure
+
+    spec = runner.lm_eval_spec(["piqa", "winogrande"], 20)
+    assert spec.params["chance"] == {"piqa": 0.5, "winogrande": None}
+
+    def harness(loaded: Any, tasks: list[str], limit: int) -> dict[str, Any]:
+        rows = {
+            task: {"acc": 0.55, "acc_metric": "acc", "items": [1.0, 0.0] * 10}
+            for task in tasks
+        }
+        benchmark = {"tasks": tasks, "limit": limit}
+        return {
+            "tasks": rows,
+            "version": "0.4.13",
+            "benchmark": benchmark,
+            "benchmark_group": comparison_group({"benchmark": benchmark}),
+            "mean_accuracy": 0.55,
+        }
+
+    monkeypatch.setattr(lm_eval_adapter, "run_lm_eval", harness)
+    measured = runner._measure_safely(spec, object(), runner.Arm(load=object), {})
+    row = runner._judge(spec, measured, None, {"validation": True}, {})
+    assert row["status"] == "info" and row["value"] == pytest.approx(0.55)
+    lab = tmp_path / "lab"
+    _probe_record(lab, "probe-wino", lm_row=row, group="w" * 64)
+
+    report = compare_mod.compare("probe-wino", [], lab_dir=lab, references=True)
+    assert report["curve"]["chance"] is None
+    assert report["curve"]["excluded"] == len(REFERENCES)
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "sparselab",
+            "--work-dir",
+            str(tmp_path),
+            "compare",
+            "probe-wino",
+            "--references",
+        ],
+    )
+    capsys.readouterr()
+    main()
+    out = capsys.readouterr().out
+    assert "reference curve" in out and "chance" not in out
+
+    lm = pd.DataFrame(metric_points(collect_points(lab), "lm_eval"))
+    mine = lm[lm["group"] == row["details"]["benchmark_group"]].reset_index(drop=True)
+    mine["frontier"] = True
+    figure = _pareto_figure(mine, "active_parameters", METRICS["lm_eval"], False)
+    assert not figure.layout.shapes
+    # Shared rule: unknown anywhere means no line; known everywhere is the mean.
+    from sparselab.probes.points import mean_chance
+
+    assert mean_chance({"piqa": 0.5, "winogrande": None}) is None
+    assert mean_chance({"piqa": 0.5, "arc_easy": 0.25}) == pytest.approx(0.375)
+    assert mean_chance({}) is None

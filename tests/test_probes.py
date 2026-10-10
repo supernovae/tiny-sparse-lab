@@ -47,6 +47,9 @@ PINNED_SUITE = {
     1: "68a1bba35e4dca50ba4cf45d49fd466c0a7c764ef2a1f02227753f930c4545f3",
     # v2: fractional tie credit, paired/clustered uncertainty declarations.
     2: "ec0544e78b2303deec540f317c237f28bfb4e61cb71bb372f864906cfb1478a0",
+    # v3: closed-book fact recall from the run's own withheld-facts manifest
+    # (bound to dataset.synthetic_seed; unreleased before PR #63 merged).
+    3: "bc974a71841375e8788b612186f67a69d7d26598cd1325499b64ffbb5b484a50",
 }
 
 RESULT_KEYS = {
@@ -757,7 +760,7 @@ def _fake_result(**verdict: Any) -> dict[str, Any]:
 def test_render_is_plain_without_color_and_shows_verdict_and_hints() -> None:
     text = render(_fake_result(), color=False)
     assert "\x1b[" not in text
-    assert text.startswith("PROBE BATTERY  sparselab-probe-battery v2")
+    assert text.startswith(f"PROBE BATTERY  sparselab-probe-battery v{SUITE_VERSION}")
     assert "✔ PASS" in text and "✖ FAIL" in text and "⊘ SKIPPED" in text
     assert "ppl 49.4" in text
     assert "↳ " + BY_ID["calibration"].suggests in text
@@ -1381,3 +1384,85 @@ def test_pareto_points_are_unique_per_group_and_checkpoint() -> None:
     assert by_group[long]["value"] == 3.0 and by_group[long]["source"] == "new-long"
     assert by_group[short]["value"] == 4.0
     assert {p["checkpoint_sha256"] for p in points} == {"same-checkpoint"}
+
+
+def test_explore_cli_reads_a_lab_run_through_the_verified_loader(
+    tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CI-safe explorer smoke: a real (tiny) lab run, explored and cached."""
+    from sparselab.explorer import EXPLORER_FORMAT, cached_explorations, explore
+
+    root, record = tried
+    run_id = record["arms"]["candidate"]["run_id"]
+    lab = root / "work" / "lab"
+    out = _cli(monkeypatch, capsys, root, "explore", run_id, "--text", "Once upon a")
+    assert out.startswith(f"EXPLORE  {run_id}")
+    assert "cache:" in out
+    (cached,) = cached_explorations(lab)
+    assert cached["format"] == EXPLORER_FORMAT
+    assert (
+        cached["target"]["checkpoint_sha256"]
+        == (record["arms"]["candidate"]["checkpoint_sha256"])
+    )
+    assert cached["attention"]["layers"] and cached["tokens"][1]["loss"] > 0
+    # Same checkpoint and text: served from the sealed cache.
+    again, path = explore(run_id, lab_dir=lab, text="Once upon a")
+    assert again["created_at"] == cached["created_at"] and path is not None
+
+
+def test_explore_cli_uses_the_shared_runtime_preparation_and_envelope(
+    tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """explore goes through _prepare_runtime_command like probe/try: the
+    device is authorized there and the envelope reaches every stage check."""
+    import sparselab.cli.main as cli_main
+    import sparselab.resource_envelope as envelopes
+
+    root, record = tried
+    run_id = record["arms"]["candidate"]["run_id"]
+    # Device selection goes through runtime preparation (CPU in CI): an
+    # unauthorized accelerator is rejected there, before anything loads.
+    with pytest.raises(SystemExit) as rejected:
+        _cli(monkeypatch, capsys, root, "explore", run_id, "--backend", "cuda")
+    assert "cuda requires --runtime-profile" in str(rejected.value)
+    seen: list[str] = []
+    native_require = cli_main.require_authorization
+
+    def require(config: Any, authorization: Any) -> None:
+        seen.append(config.runtime.backend)
+        native_require(config, authorization)
+
+    monkeypatch.setattr(cli_main, "require_authorization", require)
+    envelope = root / "envelope.yaml"
+    envelope.write_text(
+        yaml.safe_dump({"resource_envelope_version": 1, "max_rss_bytes": 1 << 50})
+    )
+    phases: list[str] = []
+    native_measure = LabContext.measure
+
+    def measure(self: LabContext) -> Any:
+        assert self.resource_envelope is not None
+        phases.append(self.phase)
+        return native_measure(self)
+
+    monkeypatch.setattr(LabContext, "measure", measure)
+    args = ("explore", run_id, "--text", "Once upon", "--refresh")
+    out = _cli(monkeypatch, capsys, root, *args, "--resource-envelope", str(envelope))
+    assert out.startswith(f"EXPLORE  {run_id}")
+    assert seen == ["cpu"]
+    assert phases[:2] == ["load", "weights"] and len(phases) >= 3
+    # A violation at a stage check stops the exploration cleanly.
+    monkeypatch.setattr(
+        envelopes,
+        "check_envelope",
+        lambda *_a, **_k: (_ for _ in ()).throw(ValueError("rss over the limit")),
+    )
+    with pytest.raises(SystemExit) as stopped:
+        _cli(monkeypatch, capsys, root, *args, "--resource-envelope", str(envelope))
+    assert "stopped" in str(stopped.value) and "rss over the limit" in str(
+        stopped.value
+    )

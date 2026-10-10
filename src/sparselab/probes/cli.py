@@ -10,7 +10,7 @@ from typing import Any
 
 from sparselab.lab_context import LabContext, LabSignal
 from sparselab.lab_records import read_lab_record, write_sealed
-from sparselab.probes.runner import Arm, progress_writer, run_battery
+from sparselab.probes.runner import Arm, lm_eval_spec, progress_writer, run_battery
 from sparselab.reference_models import load_reference, require_reference_extras
 
 
@@ -75,6 +75,8 @@ def run_probe(
     backend: str | None = None,
     authorization: Any = None,
     resource_envelope: Any = None,
+    lm_eval_tasks: list[str] | None = None,
+    lm_eval_limit: int | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """Run the battery and publish ``LAB/probes/<id>/probe.json`` (sealed).
 
@@ -85,6 +87,7 @@ def run_probe(
     """
     from sparselab.reference_models import is_reference, reference_for
 
+    lm_spec = lm_eval_spec(lm_eval_tasks, lm_eval_limit)  # bad options fail first
     if baseline_spec is not None and is_reference(baseline_spec):
         raise ValueError(
             "a reference model is not a probe baseline (different tokenizer and "
@@ -137,6 +140,7 @@ def run_probe(
                 fast_fail=fast_fail,
                 progress=progress,
                 context=context,
+                lm_eval=lm_spec,
             )
         except (LabSignal, KeyboardInterrupt, Exception) as error:
             # Only failures outside the battery's safe points land here
