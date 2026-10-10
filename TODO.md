@@ -66,10 +66,10 @@ These items take priority over new lifecycle, admission or orchestration code.
 - [ ] **Dead-code and legacy sweep.** Run coverage plus a dead-code scan
   (e.g. vulture) after the recent cleanup and remove experiment-specific code
   paths that the fast loop doesn't use.
-- [ ] **Loop-time CI check.** *Timed test exists
-  (`tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget`,
-  900 s budget); the `lab-loop` workflow job still needs to be added to CI.* Add a CI job that times the CPU smoke path from
-  YAML to report and fails if it regresses past the target.
+- [x] **Loop-time CI check.** *Done: the `lab-loop` CI job runs
+  `tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget`
+  on CPU for every PR and main (900 s budget).* Add a CI job that times the CPU
+  smoke path from YAML to report and fails if it regresses past the target.
 - [x] **Borrow before building.** *Now a rule in AGENTS.md §2.* For new training, eval or quantization needs,
   check nanoGPT/modded-nanogpt, litgpt, lm-evaluation-harness and llm-compressor
   (GPTQ/AWQ/SmoothQuant baselines) first and wrap them rather than reimplementing.

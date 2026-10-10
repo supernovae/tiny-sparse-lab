@@ -69,7 +69,7 @@ selected GPU environment. See [lab readiness](lab-readiness.md).
 Do not repeat the entire test suite for each budget or config iteration on the
 same tested revision. Code changes need nearest behavior tests and the relevant
 broader gate. Full CPU CI jobs are currently manual-only on both Linux and
-macOS; use [test-speed.md](test-speed.md) for the automatic checks and explicit
+macOS (the small timed `lab-loop` job is the one automatic CPU model run); use [test-speed.md](test-speed.md) for the automatic checks and explicit
 full-suite opt-in.
 
 ## Check the actual proposed configuration
