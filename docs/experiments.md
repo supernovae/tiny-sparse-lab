@@ -9,9 +9,10 @@ data, run stores, checkpoints, logs, and generated reports under the external pe
 Code gaps discovered during a campaign go to [`TODO.md`](../TODO.md); scientific
 next steps remain in the research roadmap/lifecycle.
 
-Start with [a complete training program](experiment-programs.md) for authored
-plans and checkpoint phases, or [the TinyStories microlab](tinystories-microlab.md)
-for a first model and a runnable matrix comparison.
+For one local comparison, start with [the TinyStories lab loop](tinystories-microlab.md)
+or [lab mode](lab-mode.md). This advanced guide covers independent queues and
+matrices; [training programs](experiment-programs.md) adds authored plans and
+checkpoint phases.
 
 Run each concrete configuration with its declared tokenizer, data source, engine/backend, precision, optimizer, sequence length, effective batch, token budget, and seed. Inspect first; do not infer parameter counts or scientific equivalence from a filename.
 
@@ -143,7 +144,7 @@ Matrix v1 uses an explicit base config and insertion-ordered axes with labeled d
 
 ## Architecture study campaigns
 
-An architecture study is an optional campaign wrapper over the existing explicit matrix format. It does not add a closed architecture registry or change `RunConfig`: every matrix coordinate still resolves to a normal concrete config, with the same dotted-path validation as `experiment submit --matrix`. Use direct training when that is simpler:
+An architecture study is an optional campaign wrapper over the existing explicit matrix format. It does not add a closed architecture registry or change `RunConfig`: every matrix coordinate still resolves to a normal concrete config, with the same dotted-path validation as `experiment submit --matrix`. Use [lab mode](lab-mode.md) for a single delta; direct training remains available for explicit run control:
 
 ```sh
 uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/my_architecture.yaml

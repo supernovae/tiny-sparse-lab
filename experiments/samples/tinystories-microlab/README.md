@@ -1,41 +1,32 @@
-# TinyStories iteration sample
+# TinyStories sample declarations
 
-Follow [the complete walkthrough](../../../docs/tinystories-microlab.md) from
-the checkout root. Copy the YAML declarations into a fresh external task workspace's `inputs/` directory before
-running them. Their `../tokenizer`, `../data` and `../runs` paths are anchored to
-the copied configs, so the payloads stay in that task workspace. Running templates
-directly from this directory would put payloads in the checkout.
+Start with the [lab walkthrough](../../../docs/tinystories-microlab.md).
+Copy only `source.yaml`, `tokenizer.yaml` and `run.yaml` into a fresh external
+workspace's `inputs/` directory, prepare the snapshot/tokenizer, and use `try`
+for the width comparison. Relative paths resolve against those copied YAML files.
+Lab runs live in `WORK_DIR/lab/runs`; direct-training configs name `../runs`.
 
-The sequence is one 40-update / 10,240-target baseline, native evaluation and
-generation, then a verified full-state PyTorch AdamW child ending at 80 cumulative
-updates / 20,480 targets. `continued.yaml` preserves the original effective
-40-update decay horizon. Change backend selections in both copied run configs
-together. Preserve parent bytes and negative outputs.
+The sample pins a TinyStories revision and excludes whole-document duplicates
+and train/validation overlap. Each baseline arm has 40 updates / 10,240 targets.
+Source acquisition uses network access; model work is a small teaching exercise,
+not a quality benchmark. Preserve prior data and negative or interrupted results.
 
-The optional matrix trains two separately labeled fresh FFN widths at the same
-baseline budget. It does not reuse the preceding direct baseline automatically.
-Its extra compute is explicit. A source download needs network access; the
-models and runs are tiny teaching fixtures, not quality benchmarks. Native
-checkpoint verification establishes integrity, not better stories.
+## Advanced declarations
 
-Only task-owned mutable payloads may be removed after checking that no worker
-is active; declarations and retained results stay available. The native commands
-and required gates are described in [the iteration guide](../../../docs/iteration.md).
-`source.yaml` pins the Hub repository and selection policy; native `data lock`
-and `data snapshot` materialize it through generic dataset interfaces. This new
-selection deduplicates whole documents and protects validation. Its identity is
-different from historical direct-prefix TinyStories runs; those inputs remain intact.
+These remain available for explicitly chosen exercises; they do not import a
+previous lab baseline automatically.
 
-The walkthrough also covers native `experiment bind-inputs`, a declared width
-comparison with checkpoint continuations, and progression toward larger models
-and full-source training. For a separate end-to-end exercise, copy `campaign.yaml`
-to the workspace root; it references declarations in `inputs/` and performs
-acquisition through evaluation and descriptive generation for three selected
-cells. `plan.yaml` also declares an optional wider child which this Campaign does
-not select. Neither route imports a prior baseline automatically.
+| File | Purpose | Native guide |
+| --- | --- | --- |
+| `continued.yaml` | PyTorch AdamW child: 80 cumulative updates / 20,480 targets, original 40-update decay horizon | [Checkpointing](../../../docs/checkpointing.md) |
+| `matrix.yaml` | Two fresh FFN widths at the baseline budget | [Experiments](../../../docs/experiments.md) |
+| `plan.yaml` | Width comparison with checkpoint-bound child phases | [Training programs](../../../docs/experiment-programs.md) |
+| `campaign.yaml` | Acquisition through evaluation for three selected cells; optional wider child unselected | [Campaigns](../../../docs/campaigns.md) |
 
-Coverage and pass budgets use native `data coverage` / `data budget`. Full-data
-execution needs separate resource admission; the sample is a bounded lesson.
-
-The [engineering acceptance record](acceptance.md) retains the scope, identities,
-results and limitations of a completed bounded Campaign using these interfaces.
+For those routes copy the required declarations into a separate workspace;
+`campaign.yaml` belongs at its root with the other YAML files in `inputs/`.
+Keep matched scientific settings and backend selections consistent before locking.
+Larger-source exercises use [dataset coverage and budgets](../../../docs/datasets.md).
+The original [acceptance record](acceptance.md) retains the completed Campaign's
+identities, measured results and limitations. It describes that execution, not
+the beginner lab walkthrough.

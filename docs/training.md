@@ -1,5 +1,9 @@
 # Training, checkpoints, and local continuation
 
+For an ordinary baseline/candidate comparison use [lab mode](lab-mode.md), or
+start with [TinyStories](tinystories-microlab.md). This reference explains direct
+training, runtime behavior and explicit checkpoint transitions.
+
 SparseLab packs plain token IDs with one EOS per document. A sequence may cross an EOS boundary: EOS separates records but does not create an attention mask. Source-acquisition budgets include EOS; training budgets count valid next-token targets.
 
 ## Local runtime contract

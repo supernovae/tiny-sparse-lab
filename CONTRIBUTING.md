@@ -12,10 +12,11 @@ uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4 \
   -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
 ```
 
-Automatic CI runs an explicit zero-model Linux selection on pull requests and
-pushes to `main`. Manual dispatch defaults to that same `safe` selection; the
-model-bearing integration, platform and full-suite choices require a separate
-reviewed allocation. New commits cancel superseded runs on the same ref.
+Automatic CI runs the explicit zero-model Linux `safe` job and the CPU
+`lab-loop` job on pull requests and pushes to `main`. The latter trains tiny
+models and exercises probes/explorer/dashboard. Manual `safe` dispatch runs
+both too; additional integration, platform and full-suite choices require a
+separate reviewed allocation. Do not dispatch those to validate documentation. New commits cancel superseded runs on the same ref.
 The manually selected full CPU suite runs on Linux x64 and macOS arm64, with up
 to four pytest workers and one BLAS/OpenMP thread per worker.
 Work stealing redistributes pending tests when one worker falls behind; module
@@ -52,9 +53,10 @@ export SPARSELAB_WORK_DIR=/data/sparselab
 ```
 
 Choose an external persistent filesystem with enough space for actual campaigns.
-Commit corpus/source-rights pins, ExperimentPlan/base run, evaluation suite and
-runtime requirement **before** acquisition, tokenizer fitting, preparation or
-training. Inspect `sparselab research snapshot <plan-or-campaign> --json` before
+For ordinary local experiments, follow [lab mode](docs/lab-mode.md); the sealed
+record captures source state and effective inputs. For **release work**, commit
+corpus/source-rights pins, ExperimentPlan/base run, evaluation suite and runtime
+requirement **before** acquisition, tokenizer fitting, preparation or training. Inspect `sparselab research snapshot <plan-or-campaign> --json` before
 expensive execution. Retain a compact verified evidence reference in Git instead
 of copying datasets/checkpoints into the repository. `scratch/` and optional
 `cache/` under the persistent root are disposable; neither is proof. A reviewed
@@ -75,6 +77,13 @@ CLI/DSL input, output and failure criteria in TODO.md instead of inventing a
 command or teaching a private script. Label placeholders and prerequisites, and
 use fresh task directories under the persistent work root. A config with an
 explicit in-checkout destination keeps it; setting the root does not relocate it.
+
+Keep the beginner route small: `try`, `report`, `probe`, `compare`, `explore`.
+Link advanced operations separately. Remove superseded instructions rather than
+adding deprecation labels, alias tables or compatibility walkthroughs. Preserve
+original evidence and research data; documentation cleanup never authorizes
+pruning run artifacts. Track proposed command removals in TODO before changing
+runtime behavior.
 
 Keep feature availability in the [README matrix](README.md#feature-matrix),
 runtime restrictions in [runtime](docs/runtime.md), and scientific lessons in the
