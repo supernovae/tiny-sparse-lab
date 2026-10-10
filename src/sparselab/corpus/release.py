@@ -311,6 +311,7 @@ def _validate_rows_v3(
     receipt = _load(
         root / ("build.json" if (root / "build.json").exists() else "manifest.json")
     )
+    identity = receipt.get("identity", receipt.get("build_identity"))
     pinned_snapshots = {row["source_id"]: row["sha256"] for row in receipt["snapshots"]}
     if len(pinned_snapshots) != len(receipt["snapshots"]) or pinned_snapshots != {
         source["id"]: source["snapshot_sha256"]
@@ -392,9 +393,7 @@ def _validate_rows_v3(
                     raise ValueError("document content digest mismatch")
                 _verify_cleaning_decision(
                     doc,
-                    receipt["identity"]["release"].get(
-                        "normalizer", "normalizer-nfc-markdown-v1"
-                    ),
+                    identity["release"].get("normalizer", "normalizer-nfc-markdown-v1"),
                 )
                 span_row = db.execute(
                     "SELECT data FROM spans WHERE id=?", (doc["document_id"],)
@@ -537,7 +536,7 @@ def _validate_rows_v3(
                     normalizer = (
                         "cnxml-text-v1"
                         if raw_path.suffix.lower() == ".cnxml"
-                        else receipt["identity"]["release"].get(
+                        else identity["release"].get(
                             "normalizer", "normalizer-nfc-markdown-v1"
                         )
                     )

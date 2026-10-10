@@ -1,0 +1,12 @@
+{
+  "format": "sparselab-admission-review-v2",
+  "decision": "ACCEPTED",
+  "reviewer": "${REVIEWER}",
+  "reviewed_on": "${REVIEWED_ON}",
+  "draft_path": "${DRAFT_PATH}",
+  "draft_sha256": "${DRAFT_SHA256}",
+  "admission_sha256": "${ADMISSION_SHA256}",
+  "inspection_path": "${INSPECTION_PATH}",
+  "inspection_sha256": "${INSPECTION_SHA256}",
+  "item_decisions": "${ITEM_DECISIONS_JSON}"
+}

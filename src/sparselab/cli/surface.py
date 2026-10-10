@@ -7,42 +7,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sparselab.evaluation.surface_studies import import_data_rich_v1, import_decoding_v1
 from sparselab.evaluation.surface_triage_import import import_triage_reports
 
 
 def _import(args: argparse.Namespace) -> None:
-    if args.source == "decoding-v1":
-        if not args.review_dir or not args.repository_root:
-            raise ValueError("decoding-v1 requires --review-dir and --repository-root")
-        result = import_decoding_v1(
-            args.review_dir,
-            args.repository_root,
-            args.output,
-            args.sample,
-            args.selection_seed,
-            args.presentation_seed,
-        )
-    elif args.source == "data-rich-v1":
-        if not args.campaign_root:
-            raise ValueError("data-rich-v1 requires --campaign-root")
-        result = import_data_rich_v1(
-            args.campaign_root,
-            args.output,
-            args.sample,
-            args.selection_seed,
-            args.presentation_seed,
-        )
-    else:
-        if not args.triage_run:
-            raise ValueError("triage requires repeated --triage-run RUN_ID RUNS_DIR")
-        result = import_triage_reports(
-            args.triage_run,
-            args.output,
-            args.sample,
-            args.selection_seed,
-            args.presentation_seed,
-        )
+    if not args.triage_run:
+        raise ValueError("triage requires repeated --triage-run RUN_ID RUNS_DIR")
+    result = import_triage_reports(
+        args.triage_run,
+        args.output,
+        args.sample,
+        args.selection_seed,
+        args.presentation_seed,
+    )
     import json
 
     print(json.dumps(result, sort_keys=True))
@@ -91,16 +68,13 @@ def add_commands(commands: argparse._SubParsersAction[argparse.ArgumentParser]) 
     surface = commands.add_parser("surface", help="Local self-blind checkpoint review")
     sub = surface.add_subparsers(dest="surface_command", required=True)
     importer = sub.add_parser("import", help="Seal existing verified generations")
-    importer.add_argument("source", choices=("decoding-v1", "data-rich-v1", "triage"))
+    importer.add_argument("source", choices=("triage",))
     importer.add_argument("--output", required=True)
     importer.add_argument(
         "--sample", choices=("quick", "standard", "full"), default="quick"
     )
     importer.add_argument("--selection-seed", type=int, default=0)
     importer.add_argument("--presentation-seed", type=int, default=0)
-    importer.add_argument("--review-dir")
-    importer.add_argument("--repository-root")
-    importer.add_argument("--campaign-root")
     importer.add_argument(
         "--triage-run", nargs=2, action="append", metavar=("RUN_ID", "RUNS_DIR")
     )

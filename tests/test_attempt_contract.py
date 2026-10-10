@@ -1,9 +1,10 @@
-"""Inspected zero-update v2 contract tests; subprocesses perform no model work."""
+"""Inspected zero-update contract tests; subprocesses perform no model work."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -15,6 +16,7 @@ import pytest
 from sparselab.operational_monitor import capture_workspace_baseline
 from sparselab.training import attempt_budget as module
 from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
+from sparselab.training.attempt_commands import AttemptCommand, phase_output_paths
 
 
 def _fixture(
@@ -23,6 +25,7 @@ def _fixture(
     updates: int = 0,
     seconds: float = 10,
     added_bytes: int | None = None,
+    nested: bool = False,
 ) -> tuple[AttemptBudget, dict[str, Path | str]]:
     root = tmp_path / "root"
     root.mkdir()
@@ -53,6 +56,15 @@ def _fixture(
                     policy_path.read_bytes()
                 ).hexdigest(),
                 "workspace_baseline_sha256": baseline.sha256,
+                **(
+                    {
+                        "preparation_monitor_policy_sha256": hashlib.sha256(
+                            policy_path.read_bytes()
+                        ).hexdigest()
+                    }
+                    if nested
+                    else {}
+                ),
             },
             sort_keys=True,
         )
@@ -69,6 +81,130 @@ def _fixture(
         "identity": identity,
         "sha": sha,
     }
+
+
+def test_public_dispatch_rejects_b16_paths_before_reservation(tmp_path: Path) -> None:
+    """The real CLI, ledger and both monitors exercise zero-model render work."""
+    budget, paths = _fixture(tmp_path, seconds=60, nested=True)
+    root = paths["root"]
+    assert isinstance(root, Path)
+    for name in ("prep", "receipts", "logs"):
+        (root / name).mkdir()
+    template = root / "prep" / "template.json"
+    template.write_text('{"fixture":true}\n')
+    alias = root / "prep" / "template-alias.json"
+    alias.symlink_to(template)
+    phase = phase_output_paths(root, "admission-draft", "admission-draft.json")
+
+    def dispatch(
+        output: Path, completion: Path, *, label: str
+    ) -> subprocess.CompletedProcess[str]:
+        leaf = [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(root),
+            "corpus",
+            "render-declaration",
+            "--template",
+            str(template),
+            "--values-json",
+            "{}",
+            "--output",
+            str(output),
+        ]
+        guarded = [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(root),
+            "monitor",
+            "--policy",
+            str(paths["policy"]),
+            "--log-dir",
+            str(phase["inner_monitor"]),
+            "--workspace",
+            str(root),
+            "--baseline",
+            str(paths["baseline"]),
+            "--",
+            *leaf,
+        ]
+        command = [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(root),
+            "attempt",
+            "run",
+            "--ledger",
+            str(budget.path),
+            "--label",
+            label,
+            "--activity",
+            "inspect",
+            "--content-identity-sha256",
+            str(paths["identity"]),
+            "--policy",
+            str(paths["policy"]),
+            "--baseline",
+            str(paths["baseline"]),
+            "--workspace",
+            str(root),
+            "--completion",
+            str(completion),
+            "--updates",
+            "0",
+            "--target-positions",
+            "0",
+            "--generation-calls",
+            "0",
+            "--generated-tokens",
+            "0",
+            "--receipt-kind",
+            "none",
+            "--",
+            *guarded,
+        ]
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=os.environ.copy(),
+            check=False,
+        )
+
+    for output, completion in (
+        (phase["leaf"], phase["leaf"]),
+        (
+            phase["completion"].with_name(phase["completion"].name + ".attempt.json"),
+            phase["completion"],
+        ),
+        (
+            phase["completion"].with_name(phase["completion"].name + ".monitor"),
+            phase["completion"],
+        ),
+        (phase["inner_monitor"], phase["completion"]),
+        (template, phase["completion"]),
+        (alias, phase["completion"]),
+    ):
+        result = dispatch(output, completion, label="collision")
+        assert result.returncode != 0
+        assert "attempt output" in result.stderr
+        assert not phase["leaf"].exists()
+        assert not phase["completion"].exists()
+        assert not phase["inner_monitor"].exists()
+        assert budget.status()["reservations"] == []
+    result = dispatch(phase["leaf"], phase["completion"], label="admission-draft")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert phase["leaf"].read_bytes() == template.read_bytes()
+    assert json.loads(phase["completion"].read_text())["living_descendants"] == 0
+    assert (phase["inner_monitor"] / "completion.json").exists()
+    assert len(budget.status()["reservations"]) == 1
 
 
 def _run_args(paths: dict[str, Path | str], completion: Path) -> dict[str, object]:
@@ -204,10 +340,8 @@ def test_identity_drift_and_tampered_counters_fail_closed(tmp_path: Path) -> Non
 
 def test_tampered_deadline_and_legacy_bypass_fail_closed(tmp_path: Path) -> None:
     budget, paths = _fixture(tmp_path)
-    with pytest.raises(AttemptBudgetError, match="reserve_vector"):
-        budget.reserve("bypass", 0)
-    with pytest.raises(AttemptBudgetError, match="run_contract"):
-        budget.run(["unmonitored"], reserve_updates=0)
+    for obsolete in ("create", "reserve", "run"):
+        assert not hasattr(budget, obsolete)
     with sqlite3.connect(budget.path) as connection:
         connection.execute(
             "UPDATE budget SET deadline_ns = deadline_ns + 1 WHERE id = 1"
@@ -225,20 +359,36 @@ def test_zero_update_training_and_warmup_are_refused_before_spawn(
     )
     with pytest.raises(AttemptBudgetError, match="zero-update"):
         budget.run_contract(
-            ["sparselab", "train"],
+            [
+                "sparselab",
+                "train",
+                "config.yaml",
+                "--run-id",
+                "run",
+                "--runs-dir",
+                str(paths["root"] / "runs"),
+            ],
             **(
                 _run_args(paths, paths["root"] / "train.json")
                 | {"activity": "train", "updates": 1}
             ),
         )
-    with pytest.raises(AttemptBudgetError, match="zero-update"):
+    with pytest.raises(AttemptBudgetError, match="stage must stop at validation"):
         budget.run_contract(
-            ["sparselab", "stage", "--through", "warmup"],
+            [
+                "sparselab",
+                "stage",
+                "config.yaml",
+                "--through",
+                "warmup",
+                "--output",
+                str(paths["root"] / "stage"),
+            ],
             **(
                 _run_args(paths, paths["root"] / "warmup.json") | {"activity": "warmup"}
             ),
         )
-    with pytest.raises(AttemptBudgetError, match="counter-free"):
+    with pytest.raises(AttemptBudgetError, match="direct native sparselab"):
         budget.run_contract(
             ["bash", "-c", "sparselab train"],
             **_run_args(paths, paths["root"] / "wrapped.json"),
@@ -253,10 +403,25 @@ def _alive(pid: int) -> bool:
         return False
 
 
+def _allow_harmless_supervisor_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep process-tree tests isolated from the production native allowlist."""
+    original = module.classify_attempt_command
+
+    def classify(command: list[str]) -> AttemptCommand:
+        if command[:2] == [sys.executable, "-c"]:
+            return AttemptCommand(
+                ("inspect", "fixture"), "inspect", "inspection", None, {}
+            )
+        return original(command)
+
+    monkeypatch.setattr(module, "classify_attempt_command", classify)
+
+
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux subreaper ownership")
 def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -294,6 +459,7 @@ def test_owned_runner_cleans_detached_worker_and_preserves_sentinel(
 def test_runtime_deadline_keeps_charge_and_zero_survivors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -313,6 +479,7 @@ def test_runtime_deadline_keeps_charge_and_zero_survivors(
 def test_outer_receipts_crossing_cap_cannot_return_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -360,6 +527,7 @@ def test_outer_receipts_crossing_cap_cannot_return_success(
 def test_policy_change_at_child_boundary_prevents_native_launch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _allow_harmless_supervisor_fixture(monkeypatch)
     monkeypatch.setattr(
         AttemptBudget, "_approved_counter_free_command", staticmethod(lambda _c: True)
     )
@@ -384,3 +552,59 @@ def test_policy_change_at_child_boundary_prevents_native_launch(
     assert json.loads(completion.read_text())["living_descendants"] == 0
     assert not (paths["root"] / "owned.json.monitor").exists()
     assert (paths["root"] / "owned.json.attempt.json").exists()
+
+
+def test_contract_deadline_and_clock_rollback_keep_charges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [1_000_000_000_000]
+    monkeypatch.setattr(module.time, "time_ns", lambda: now[0])
+    budget, paths = _fixture(tmp_path, seconds=10)
+    now[0] += 4_000_000_000
+    budget.reserve_vector(
+        "before deadline", generation_calls=1, content_identity_sha256=paths["identity"]
+    )
+    now[0] -= 1
+    with pytest.raises(AttemptBudgetError, match="clock moved backwards"):
+        budget.reserve_vector("rollback", content_identity_sha256=paths["identity"])
+    now[0] += 6_000_000_001
+    with pytest.raises(AttemptBudgetError, match="wall-time limit"):
+        budget.reserve_vector("late", content_identity_sha256=paths["identity"])
+    assert budget.status()["charged_generation_calls"] == 1
+
+
+def test_contract_creation_is_exclusive_and_invalid_inputs_leave_no_ledger(
+    tmp_path: Path,
+) -> None:
+    budget, paths = _fixture(tmp_path)
+    before = budget.path.read_bytes()
+    with pytest.raises(FileExistsError):
+        AttemptBudget.create_contract(
+            budget.path, contract_path=paths["contract"], expected_sha256=paths["sha"]
+        )
+    assert budget.path.read_bytes() == before
+    with pytest.raises(AttemptBudgetError, match="missing"):
+        AttemptBudget(tmp_path / "missing.sqlite").reserve_vector(
+            "missing", content_identity_sha256=paths["identity"]
+        )
+    invalid = json.loads(paths["contract"].read_text())
+    invalid["max_optimizer_updates"] = -1
+    paths["contract"].write_text(json.dumps(invalid))
+    with pytest.raises(AttemptBudgetError, match="invalid attempt contract"):
+        AttemptBudget.create_contract(
+            tmp_path / "invalid.sqlite",
+            contract_path=paths["contract"],
+            expected_sha256=hashlib.sha256(paths["contract"].read_bytes()).hexdigest(),
+        )
+    assert not (tmp_path / "invalid.sqlite").exists()
+
+
+def test_obsolete_ledger_version_is_not_a_current_input(tmp_path: Path) -> None:
+    budget, _ = _fixture(tmp_path)
+    with sqlite3.connect(budget.path) as connection:
+        connection.execute("UPDATE budget SET version = 1")
+    for inspect in (budget.status, budget.remaining_seconds):
+        with pytest.raises(
+            AttemptBudgetError, match="unsupported budget ledger version"
+        ):
+            inspect()

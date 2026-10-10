@@ -1,0 +1,89 @@
+{
+  "application_binding": {
+    "acquisition_lock_sha256": "${NEW_ACQUISITION_LOCK_SHA256}",
+    "project_sha256": "12604ffb8ccfe0351f6379ea0f781b3f9b45f6fb4ad9c8cfa80dd0b744f8b83c",
+    "sources": {
+      "kml_scale_pagerduty": {
+        "declaration_sha256": "8b4293a3f3cd434555ff95c45b3e40af4f5e445026f1b31efc3f6f022029b9d1",
+        "snapshot_sha256": "e040f260758cb00dd18e2a8a7b66a2e5d74455cbd26e1527304a52a81d984830"
+      },
+      "kml_scale_project_gutenberg": {
+        "declaration_sha256": "e6a5841624c0c86a4e80d67914a91b7eaf40c3391c58c3d3ff6a8b0dc54ecc32",
+        "snapshot_sha256": "db2ce3b1af503bb9444cc83f8e8fd1a72e603463ff0724ae41385f5d19627a1e"
+      },
+      "kml_scale_scoutflo": {
+        "declaration_sha256": "2fc7879758c96d4913b721fc474d6b5420ebad15366b781e7fcbe04d594527b4",
+        "snapshot_sha256": "574e06a4a327a3e25c04782c829b7015b8ba541da1d8e8f66ae3e4f1f7dfda0a"
+      },
+      "kml_scale_wikimedia": {
+        "declaration_sha256": "46743b8c67a1374c9c59c7caf13842970f81a57889a5937f9753440b09e33d1f",
+        "snapshot_sha256": "${NEW_WIKIMEDIA_SNAPSHOT_SHA256}"
+      }
+    }
+  },
+  "policy_id": "kml-card05-base-50m-application-v1",
+  "policy_sha256": "346aa91f8fd632ff949355e572f798ee50b5764dcb154f31b479a308c3c8dfc2",
+  "sources": [
+    {
+      "license_label": "Apache-2.0; private local US research with notice obligations",
+      "rights": {
+        "license_references": [
+          "https://github.com/PagerDuty/incident-response-docs/blob/464fc9d3e47e19e9d8da17cec1a41dc09624e95a/LICENSE"
+        ],
+        "notices": [
+          "Retain the pinned Apache-2.0 LICENSE, copyright, source path and change/NOTICE obligations for any later redistribution decision; local text publication is not approved."
+        ],
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "Apache-2.0",
+        "training_eligibility": "eligible_with_obligations"
+      },
+      "source_id": "kml_scale_pagerduty"
+    },
+    {
+      "license_label": "US public-domain selected component; private local research only",
+      "rights": {
+        "license_references": [
+          "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered",
+          "https://www.gutenberg.org/policy/license"
+        ],
+        "notices": [
+          "Retain work ID, source URL, pinned row identity and Project Gutenberg name/header treatment; exceptions and any text redistribution require separate review."
+        ],
+        "redistribution_mode": "metadata_reconstruction_only",
+        "training_eligibility": "eligible_with_obligations"
+      },
+      "source_id": "kml_scale_project_gutenberg"
+    },
+    {
+      "license_label": "MIT; private local US research with notice obligations",
+      "rights": {
+        "license_references": [
+          "https://github.com/Scoutflo/Scoutflo-SRE-Playbooks/blob/acc55da0224fda5eda580939a15bc60990e8e69f/LICENSE"
+        ],
+        "notices": [
+          "Retain the pinned Scoutflo copyright and complete MIT permission notice for any later copies/substantial portions; local text publication is not approved."
+        ],
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "MIT",
+        "training_eligibility": "eligible_with_obligations"
+      },
+      "source_id": "kml_scale_scoutflo"
+    },
+    {
+      "license_label": "CC-BY-SA-4.0; private local research with attribution obligations",
+      "rights": {
+        "license_references": [
+          "https://huggingface.co/datasets/common-pile/wikimedia_filtered",
+          "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use"
+        ],
+        "notices": [
+          "Retain pinned page/title and row identity, usable page/history attribution route, CC BY-SA 4.0 and later change/share-alike obligations; local text publication is not approved."
+        ],
+        "redistribution_mode": "metadata_reconstruction_only",
+        "spdx_expression": "CC-BY-SA-4.0",
+        "training_eligibility": "eligible_with_obligations"
+      },
+      "source_id": "kml_scale_wikimedia"
+    }
+  ]
+}

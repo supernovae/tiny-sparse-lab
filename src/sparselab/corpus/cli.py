@@ -50,6 +50,51 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(ledger.receipt(), sort_keys=True))
         return
+    if command == "budget-status":
+        from sparselab.corpus.transport_budget import TransportBudget
+
+        project = load_project(Path(args.project))
+        ledger = TransportBudget(
+            root / "corpora" / project.config.id / "transport-budget.sqlite", project
+        )
+        print(json.dumps(ledger.receipt(), sort_keys=True))
+        return
+    if command == "render-declaration":
+        from sparselab.corpus.declaration_render import render_declaration
+
+        print(
+            json.dumps(
+                render_declaration(
+                    Path(args.template),
+                    args.values_json,
+                    Path(args.output),
+                    root,
+                    workspace_baseline=(
+                        Path(args.workspace_baseline)
+                        if args.workspace_baseline is not None
+                        else None
+                    ),
+                ),
+                sort_keys=True,
+            )
+        )
+        return
+    if command == "alias-snapshot":
+        from sparselab.corpus.acquisition import alias_verified_snapshot
+
+        project = load_project(Path(args.project))
+        print(
+            json.dumps(
+                alias_verified_snapshot(
+                    project,
+                    root,
+                    source_id=args.source_id,
+                    snapshot=Path(args.snapshot),
+                ),
+                sort_keys=True,
+            )
+        )
+        return
     if command == "admission-draft":
         from sparselab.corpus.admission_draft import draft_admission_manifest
 
@@ -60,6 +105,24 @@ def _handle(args: argparse.Namespace) -> None:
             Path(args.template),
             Path(args.policy_document),
             Path(args.output),
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
+    if command == "inspect-admission":
+        from sparselab.corpus.admission_inspection import inspect_admission
+
+        project_path = Path(args.project)
+        result = inspect_admission(
+            load_project(project_path),
+            project_path,
+            root,
+            Path(args.draft),
+            Path(args.policy_document),
+            Path(args.selection),
+            Path(args.output),
+            max_input_bytes=args.max_input_bytes,
+            max_excerpt_bytes=args.max_excerpt_bytes,
+            max_output_bytes=args.max_output_bytes,
         )
         print(json.dumps(result, sort_keys=True))
         return
@@ -93,6 +156,22 @@ def _handle(args: argparse.Namespace) -> None:
             Path(args.release), Path(args.splits), Path(args.output)
         )
         print(json.dumps(result, sort_keys=True))
+        return
+    if command == "audit-protected-lineage":
+        from sparselab.corpus.protected_lineage import audit_protected_lineage
+
+        result = audit_protected_lineage(
+            Path(args.prior_release),
+            Path(args.candidate_release),
+            Path(args.prior_inventory),
+            Path(args.candidate_inventory),
+            Path(args.profile),
+            Path(args.suite),
+            Path(args.output),
+        )
+        print(json.dumps(result, sort_keys=True))
+        if result["status"] != "PASS":
+            raise ValueError("protected evaluation lineage collision")
         return
     if command in {"materialize-mixture", "verify-mixture"}:
         from sparselab.corpus.mixture import materialize_mixture, verify_mixture
@@ -144,13 +223,16 @@ def _handle(args: argparse.Namespace) -> None:
                 Path(args.tokenizer),
                 Path(args.policy),
                 Path(args.output),
-                evidence_commit=args.evidence_commit,
-                release_evidence=Path(args.release_evidence)
-                if args.release_evidence is not None
-                else None,
-                selection_evidence=Path(args.selection_evidence)
-                if args.selection_evidence is not None
-                else None,
+                tokenizer_origin_release=(
+                    _release_path(args.tokenizer_origin_release, root)
+                    if args.tokenizer_origin_release is not None
+                    else None
+                ),
+                family_inventory=(
+                    Path(args.family_inventory)
+                    if args.family_inventory is not None
+                    else None
+                ),
                 batch_documents=args.batch_documents,
                 batch_source_bytes=args.batch_source_bytes,
             )
@@ -242,6 +324,24 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     )
     command.add_argument("project")
     command.set_defaults(handler=_handle)
+    command = sub.add_parser("budget-status", help="Read the existing transport budget")
+    command.add_argument("project")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "render-declaration", help="Render one bounded JSON/YAML declaration"
+    )
+    command.add_argument("--template", required=True)
+    command.add_argument("--values-json", required=True)
+    command.add_argument("--output", required=True)
+    command.add_argument("--workspace-baseline")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "alias-snapshot", help="Cold-verify and alias one immutable retained snapshot"
+    )
+    command.add_argument("project")
+    command.add_argument("--source-id", required=True)
+    command.add_argument("--snapshot", required=True)
+    command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "admission-draft",
         help="Draft complete conservative decisions from verified acquired snapshots",
@@ -250,6 +350,17 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("--template", required=True)
     command.add_argument("--policy-document", required=True)
     command.add_argument("--output", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "inspect-admission",
+        help="Inspect a bounded deterministic sample before admission",
+    )
+    command.add_argument("project")
+    for flag in ("draft", "policy-document", "selection", "output"):
+        command.add_argument("--" + flag, required=True)
+    command.add_argument("--max-input-bytes", type=int, required=True)
+    command.add_argument("--max-excerpt-bytes", type=int, required=True)
+    command.add_argument("--max-output-bytes", type=int, required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "split-inventory", help="Record pre-build IDs from verified source snapshots"
@@ -265,6 +376,22 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("release")
     command.add_argument("--splits", required=True)
     command.add_argument("--output", required=True)
+    command.add_argument("--json", action="store_true")
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "audit-protected-lineage",
+        help="Cold-check protected evaluation documents against a candidate release",
+    )
+    for field in (
+        "prior-release",
+        "candidate-release",
+        "prior-inventory",
+        "candidate-inventory",
+        "profile",
+        "suite",
+        "output",
+    ):
+        command.add_argument(f"--{field}", required=True)
     command.add_argument("--json", action="store_true")
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
@@ -301,11 +428,10 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     )
     command.add_argument("release")
     command.add_argument("--tokenizer", required=True)
+    command.add_argument("--tokenizer-origin-release")
+    command.add_argument("--family-inventory")
     command.add_argument("--policy", required=True)
     command.add_argument("--output", required=True)
-    command.add_argument("--evidence-commit")
-    command.add_argument("--release-evidence")
-    command.add_argument("--selection-evidence")
     command.add_argument("--batch-documents", type=int, default=256)
     command.add_argument("--batch-source-bytes", type=int, default=1_048_576)
     command.add_argument("--json", action="store_true")

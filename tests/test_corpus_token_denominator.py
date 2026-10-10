@@ -19,7 +19,9 @@ from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 
 from sparselab.campaign.policy import CorpusReadinessPolicy
+from sparselab.config.loading import load_tokenizer_config
 from sparselab.corpus.acquisition import acquire
+from sparselab.corpus.export import export_release, verify_release_export
 from sparselab.corpus.pipeline import build
 from sparselab.corpus.project import load_project
 from sparselab.corpus.release import freeze
@@ -80,6 +82,88 @@ def frozen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path,
         )
     )
     return release, tokenizer, policy
+
+
+@pytest.fixture
+def cross_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, Path, Path, Path]:
+    """Two real local releases and a prebuilt tokenizer; no fitting or model work."""
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "state"))
+    recipe = tmp_path / "project"
+    shutil.copytree(Path("corpora/devmind-sample-v0"), recipe)
+    project = load_project(recipe / "corpus.yaml")
+    workspace = tmp_path / "workspace"
+    acquire(project, workspace, offline=False)
+    origin = freeze(build(project, workspace, offline=True), workspace)
+    policy = tmp_path / "cross-policy.yaml"
+    policy.write_text(
+        yaml.safe_dump(
+            {
+                "min_unique_train_tokens_by_domain": {
+                    name: 1
+                    for name in (
+                        "technical_docs",
+                        "code",
+                        "configs",
+                        "systems_scenarios",
+                    )
+                }
+            }
+        )
+    )
+    exported = export_release(
+        origin, "lm", Path("configs/runtime_smoke_cpu.yaml"), 300, workspace
+    )
+    config = load_tokenizer_config(exported / "tokenizer.yaml")
+    tokenizer = config.output_dir / "tokenizer.json"
+    tokenizer.parent.mkdir(parents=True)
+    vocab = {"[UNK]": 0, "<eos>": 1, "hello": 2, "world": 3}
+    vocab.update({f"unused-{index}": index for index in range(4, 300)})
+    model = Tokenizer(WordLevel(vocab, unk_token="[UNK]"))
+    model.pre_tokenizer = Whitespace()
+    model.save(str(tokenizer))
+    binding = verify_release_export(config.dataset)
+    (tokenizer.parent / "tokenizer_manifest.json").write_bytes(
+        canonical_json(
+            {
+                "source": "local_text",
+                "revision": origin.name,
+                "vocab_size": 300,
+                "sha256": sha256_file(tokenizer),
+                "corpus_export": binding,
+                "training_contract": {"corpus_export": binding},
+            }
+        )
+        + b"\n"
+    )
+    specification = yaml.safe_load((recipe / "release.yaml").read_text())
+    specification["normalizer"] = "normalizer-structure-v3"
+    (recipe / "release.yaml").write_text(yaml.safe_dump(specification))
+    project = load_project(recipe / "corpus.yaml")
+    target = freeze(build(project, workspace, offline=True), workspace)
+    assert target != origin
+    inventory = tmp_path / "target-families.jsonl"
+    from sparselab.corpus.jsonl_records import records_from_path
+
+    with inventory.open("wb") as stream:
+        for record in records_from_path(target / "documents.jsonl"):
+            doc = record.value
+            if doc["drop_reason"] is not None:
+                continue
+            stream.write(
+                canonical_json(
+                    {
+                        "document_id": doc["document_id"],
+                        "family_id": f"fixture-family:{doc['document_id']}",
+                        "split": doc["split"],
+                        "stratum": doc["domains"][0],
+                        "content_sha256": doc["content_sha256"],
+                    }
+                )
+                + b"\n"
+            )
+    return target, origin, tokenizer, policy, inventory
 
 
 def _synthetic(tmp_path: Path, rows: list[dict[str, object]]) -> Path:
@@ -305,6 +389,8 @@ def test_complete_receipt_reuse_and_mutation_refusal(
     )
     assert receipt["status"] == "COMPLETE"
     assert receipt["evidence"] is None
+    assert "tokenizer_origin_release_id" not in receipt
+    assert "family_inventory_sha256" not in receipt
     assert receipt["release_id"] == release.name
     assert receipt["documents_sha256"] == sha256_file(release / "documents.jsonl")
     assert receipt["tokenizer_sha256"] == sha256_file(tokenizer)
@@ -359,6 +445,244 @@ def test_complete_receipt_reuse_and_mutation_refusal(
     with pytest.raises(ValueError):
         measure_source_tokens(release, tokenizer, policy, output)
     assert output.read_bytes() == b'{"status":"COMPLETE"'
+
+
+def test_cross_release_origin_inventory_and_cli_reuse(
+    cross_release: tuple[Path, Path, Path, Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, origin, tokenizer, policy, inventory = cross_release
+    output = tmp_path / "cross.json"
+    command = [
+        sys.executable,
+        "-m",
+        "sparselab",
+        "corpus",
+        "measure-tokens",
+        str(target),
+        "--tokenizer",
+        str(tokenizer),
+        "--tokenizer-origin-release",
+        str(origin),
+        "--family-inventory",
+        str(inventory),
+        "--policy",
+        str(policy),
+        "--output",
+        str(output),
+        "--json",
+    ]
+    result = subprocess.run(
+        command, capture_output=True, text=True, check=False, timeout=120
+    )
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(result.stdout)
+    assert receipt == read_source_token_receipt(
+        output,
+        target,
+        tokenizer,
+        policy,
+        tokenizer_origin_release=origin,
+        family_inventory=inventory,
+    )
+    assert receipt["release_id"] == target.name
+    assert receipt["tokenizer_origin_release_id"] == origin.name
+    assert receipt["family_inventory_sha256"] == sha256_file(inventory)
+    assert receipt["tokenizer_sha256"] == sha256_file(tokenizer)
+    assert receipt["tokenizer_config_sha256"] == sha256_file(
+        tokenizer.parent.parent / "tokenizer.yaml"
+    )
+    assert receipt["documents_sha256"] == sha256_file(target / "documents.jsonl")
+    assert receipt["family_inventory_rows"] > 0
+    assert receipt["evidence"] is None
+    import sparselab.corpus.token_denominator as denominator
+
+    def no_scan(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("verified cached receipt must not encode content")
+
+    monkeypatch.setattr(denominator, "_measure_source_domains", no_scan)
+    assert (
+        measure_source_tokens(
+            target,
+            tokenizer,
+            policy,
+            output,
+            tokenizer_origin_release=origin,
+            family_inventory=inventory,
+        )
+        == receipt
+    )
+    with pytest.raises(ValueError, match="requires its tokenizer origin"):
+        read_source_token_receipt(output, target, tokenizer, policy)
+
+
+def test_cross_release_rejects_wrong_origin_tokenizer_and_inventory(
+    cross_release: tuple[Path, Path, Path, Path, Path], tmp_path: Path
+) -> None:
+    target, origin, tokenizer, policy, inventory = cross_release
+    output = tmp_path / "cross.json"
+    receipt = measure_source_tokens(
+        target,
+        tokenizer,
+        policy,
+        output,
+        tokenizer_origin_release=origin,
+        family_inventory=inventory,
+    )
+    assert receipt["status"] == "COMPLETE"
+    with pytest.raises(ValueError, match="origin"):
+        read_source_token_receipt(
+            output,
+            target,
+            tokenizer,
+            policy,
+            tokenizer_origin_release=target,
+            family_inventory=inventory,
+        )
+    with pytest.raises(ValueError, match="declared together"):
+        read_source_token_receipt(
+            output,
+            target,
+            tokenizer,
+            policy,
+            tokenizer_origin_release=origin,
+        )
+    with pytest.raises(TypeError, match="evidence_commit"):
+        measure_source_tokens(
+            target,
+            tokenizer,
+            policy,
+            tmp_path / "untrusted-reuse.json",
+            tokenizer_origin_release=origin,
+            family_inventory=inventory,
+            evidence_commit="0" * 40,
+            release_evidence=tmp_path / "release-evidence.json",
+            selection_evidence=tmp_path / "selection-evidence.json",
+        )
+    wrong = _tokenizer(tmp_path / "unbound-tokenizer")
+    with pytest.raises(ValueError, match="origin|tokenizer"):
+        read_source_token_receipt(
+            output,
+            target,
+            wrong,
+            policy,
+            tokenizer_origin_release=origin,
+            family_inventory=inventory,
+        )
+    changed = tmp_path / "changed-families.jsonl"
+    changed.write_bytes(
+        inventory.read_bytes().replace(b"fixture-family:", b"substituted-family:")
+    )
+    with pytest.raises(ValueError, match="binding mismatch"):
+        read_source_token_receipt(
+            output,
+            target,
+            tokenizer,
+            policy,
+            tokenizer_origin_release=origin,
+            family_inventory=changed,
+        )
+    omitted = tmp_path / "omitted-families.jsonl"
+    omitted.write_bytes(b"".join(inventory.read_bytes().splitlines(keepends=True)[1:]))
+    with pytest.raises(ValueError, match="omits"):
+        read_source_token_receipt(
+            output,
+            target,
+            tokenizer,
+            policy,
+            tokenizer_origin_release=origin,
+            family_inventory=omitted,
+        )
+    rows = [json.loads(line) for line in inventory.read_bytes().splitlines()]
+    train_family = next(row["family_id"] for row in rows if row["split"] == "train")
+    heldout = next(row for row in rows if row["split"] != "train")
+    heldout["family_id"] = train_family
+    leaked = tmp_path / "leaked-families.jsonl"
+    leaked.write_bytes(b"".join(canonical_json(row) + b"\n" for row in rows))
+    with pytest.raises(ValueError, match="leaks across splits"):
+        measure_source_tokens(
+            target,
+            tokenizer,
+            policy,
+            tmp_path / "leaked-output.json",
+            tokenizer_origin_release=origin,
+            family_inventory=leaked,
+        )
+    assert not (tmp_path / "leaked-output.json").exists()
+
+
+@pytest.mark.parametrize("changed", ["target", "origin", "tokenizer"])
+def test_cross_release_cold_read_rejects_altered_release(
+    cross_release: tuple[Path, Path, Path, Path, Path],
+    tmp_path: Path,
+    changed: str,
+) -> None:
+    target, origin, tokenizer, policy, inventory = cross_release
+    output = tmp_path / "cross.json"
+    measure_source_tokens(
+        target,
+        tokenizer,
+        policy,
+        output,
+        tokenizer_origin_release=origin,
+        family_inventory=inventory,
+    )
+    paths = {
+        "target": target / "documents.jsonl",
+        "origin": origin / "documents.jsonl",
+        "tokenizer": tokenizer,
+    }
+    with paths[changed].open("ab") as stream:
+        stream.write(b"\n")
+    with pytest.raises(ValueError):
+        read_source_token_receipt(
+            output,
+            target,
+            tokenizer,
+            policy,
+            tokenizer_origin_release=origin,
+            family_inventory=inventory,
+        )
+
+
+@pytest.mark.parametrize("changed", ["target", "origin", "inventory", "config"])
+def test_cross_release_scan_stability(
+    cross_release: tuple[Path, Path, Path, Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    changed: str,
+) -> None:
+    import sparselab.corpus.token_denominator as denominator
+
+    target, origin, tokenizer, policy, inventory = cross_release
+    original = denominator._measure_source_domains
+    paths = {
+        "target": target / "documents.jsonl",
+        "origin": origin / "documents.jsonl",
+        "inventory": inventory,
+        "config": tokenizer.parent.parent / "tokenizer.yaml",
+    }
+
+    def change_input(*args: object, **kwargs: object) -> dict:
+        measured = original(*args, **kwargs)
+        with paths[changed].open("ab") as stream:
+            stream.write(b"\n")
+        return measured
+
+    monkeypatch.setattr(denominator, "_measure_source_domains", change_input)
+    output = tmp_path / "unstable.json"
+    with pytest.raises(ValueError, match="changed during source scan"):
+        measure_source_tokens(
+            target,
+            tokenizer,
+            policy,
+            output,
+            tokenizer_origin_release=origin,
+            family_inventory=inventory,
+        )
+    assert not output.exists()
+    assert len(list(tmp_path.glob(".unstable.json.*.partial"))) == 1
 
 
 def test_batch_independent_scientific_identity_and_partial(
@@ -692,7 +1016,7 @@ def test_unrelated_evidence_sha_never_bypasses_full_verification(
 ) -> None:
     release, tokenizer, policy = frozen
     output = tmp_path / "untrusted.json"
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError, match="evidence_commit"):
         measure_source_tokens(
             release,
             tokenizer,
@@ -761,3 +1085,15 @@ print(json.dumps({"peak_rss_bytes":peak_bytes, "source_size":size, "rows":rows})
     measurements = json.loads(result.stdout)
     assert measurements["peak_rss_bytes"] < 512 * 1024 * 1024, measurements
     print(json.dumps(measurements, sort_keys=True))
+
+
+def test_receipt_cannot_reactivate_committed_evidence_trust(
+    frozen: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    release, tokenizer, policy = frozen
+    output = tmp_path / "receipt.json"
+    receipt = measure_source_tokens(release, tokenizer, policy, output)
+    receipt["evidence"] = {"commit": "0" * 40}
+    output.write_bytes(canonical_json(receipt) + b"\n")
+    with pytest.raises(ValueError, match="cold input authentication"):
+        read_source_token_receipt(output, release, tokenizer, policy)

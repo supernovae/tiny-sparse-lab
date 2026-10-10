@@ -1,0 +1,1520 @@
+{
+  "format": "research-history-path-map-v1",
+  "source_commit": "fb5b1d826428a8a7dc0a44c388de919db78bd7ec",
+  "scope": [
+    "dense-lm-decoding-v1",
+    "dense-lm-scale-v1",
+    "dense-lm-token-budget-v1",
+    "devmind-pretrain-v0",
+    "devmind-pretrain-v1",
+    "devmind-pretrain-v2",
+    "devmind-pretrain-v3",
+    "devmind-pretrain-v4",
+    "devmind-pretrain-v5",
+    "tinystories-dense-30m-data-rich-v1",
+    "kernel-memory-lab/card05-base-50m (historical parent only; current/ excluded)",
+    "kernel-memory-lab/corpus-scale (retired helpers and historical test allowlist)",
+    "kernel-memory-lab (superseded 50M launch/preparation packet documents)"
+  ],
+  "note": "Historical record bytes are unchanged. Embedded paths refer to their original layout and source revision. Deleted executable scaffolding is recoverable from source_commit; no current replay support is claimed.",
+  "entries": [
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/analyze.py",
+      "sha256": "cce7fc7752fff5763a9cc3e572be0b0108393a96f8d78e3f8d5c3f733869363d",
+      "bytes": 11357,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/development.json",
+      "sha256": "0a5ea9633cae160433e64d574d879cf72724d56462f26486386365a74d646eb4",
+      "bytes": 5102,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/development.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/development/30m-seed17.jsonl",
+      "sha256": "3331202307a8bb99b5a8c3101fb25b8328a945ea8138c6cce12792ced9e806ee",
+      "bytes": 178485,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/development/30m-seed17.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/development/30m-seed42.jsonl",
+      "sha256": "70ea38aef37e4eae7a5dd74765889b2340f6ff416ca78434fe6649cd5dfd11c7",
+      "bytes": 177760,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/development/30m-seed42.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/development/30m-seed73.jsonl",
+      "sha256": "e92c5d21b5d3b15d0840cb10f8519aa673765ffb913204e91717521fcf0e840f",
+      "bytes": 175325,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/development/30m-seed73.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/development/50m-seed17.jsonl",
+      "sha256": "6ad0395d6cd5f1ff215bb76ad270260dbfe0cdccf8f0214eeeded1afc60fd588",
+      "bytes": 181963,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/development/50m-seed17.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/development/50m-seed42.jsonl",
+      "sha256": "a18e43b3229186598fcc77705e29aeb25f867449fa88cfd50afa2bf68700e1af",
+      "bytes": 178674,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/development/50m-seed42.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/development/50m-seed73.jsonl",
+      "sha256": "c6a56b1c23fcd02ad9bef19ae69133948d2ecccca12b4e8b6cf5fb1b0a667e5d",
+      "bytes": 174932,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/development/50m-seed73.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/review-blind.json",
+      "sha256": "ced34f6f4e163f4c61691d8d5ccde0f0b235a5b9350781e7782256f98126f8e8",
+      "bytes": 203690,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/review-blind.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/runtime.json",
+      "sha256": "c5fb5bb53a5338fca36ea66acc5a8ce497837053306f1e2f1c72e66bb4a9a5fe",
+      "bytes": 1087,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/runtime.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/selection.json",
+      "sha256": "141a7efb4f7f022b4bad7d95895bb05fc7e968468d7eda7060095d3fadc9b1f6",
+      "bytes": 1391,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/selection.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/summary.json",
+      "sha256": "c2160fe143e98225778a313705197083384b708248d597f60849740eb5bab118",
+      "bytes": 113191,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/summary.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/test/30m-seed17.jsonl",
+      "sha256": "ec69fb291ad3bb9f135eb07fd92d167b2d67c4cb4bc72abf64a4d5ddea475753",
+      "bytes": 262053,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/test/30m-seed17.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/test/30m-seed42.jsonl",
+      "sha256": "7ac6be2aa14f656ef34d8ba959851ca27cd5bf01eab83d3b91e550a2dd62d9bd",
+      "bytes": 264906,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/test/30m-seed42.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/test/30m-seed73.jsonl",
+      "sha256": "46542507c7de8931629567a9485d2ed26e4a957a6c3c9ed72b81f5b4a73ef214",
+      "bytes": 263826,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/test/30m-seed73.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/test/50m-seed17.jsonl",
+      "sha256": "a40b929137fea7e76eb09d7a1ea225133a79144f4393ff2aa35286d30e9fd0c5",
+      "bytes": 262657,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/test/50m-seed17.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/test/50m-seed42.jsonl",
+      "sha256": "8bb0e698b319704cf15b54a175bedb882f323e1f9691e68599244cb7592f351b",
+      "bytes": 263601,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/test/50m-seed42.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/evidence/test/50m-seed73.jsonl",
+      "sha256": "dcb3e76b24dbd07e4b54d71ee69f5559112ffb24c2b72eeeca2a3d4756c75353",
+      "bytes": 261579,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/evidence/test/50m-seed73.jsonl"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/preregistration.json",
+      "sha256": "b1e7f667e51215f18f1adea1e5f2ea37e26ae05bdc3bf3856bbccfe2050e6de2",
+      "bytes": 6149,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/preregistration.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/protocol.md",
+      "sha256": "4a6366e6a75f03c095dc4175e6742b2270a16455701f9fc4396e28ef067849f4",
+      "bytes": 7808,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/results.md",
+      "sha256": "84a7c08074cce1b2dff6e92d21247bd2d33447ff75d3b4b6e43f2f7e7b9d736e",
+      "bytes": 14656,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/results.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/review.md",
+      "sha256": "51e4daca27cfc57da89a0c79fb0c4c756616e894cae2092624c8c8eed4b1e1ab",
+      "bytes": 2771,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/review.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/run.py",
+      "sha256": "415cd35bf72874986b6e0254e3e208d07923ea89b10744cfb00c447ede1d111b",
+      "bytes": 18818,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/dense-lm-decoding-v1/test.json",
+      "sha256": "7ffc8b0645b9f77764c2de045efaaa25d47ec4f7454243207b737a7d84d8d077",
+      "bytes": 11826,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-decoding-v1/test.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-scale-v1/evidence.json",
+      "sha256": "2533446ea7b6cd13524853a703493cb78ebac9b9b287e948f92ae096c1809db9",
+      "bytes": 168423,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-scale-v1/evidence.json"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-scale-v1/preregistration.md",
+      "sha256": "3cdf8c55a6042570d23c77d2f1dd6fc51b14a2c221d763d68d346644163177a7",
+      "bytes": 2551,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-scale-v1/preregistration.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-scale-v1/protocol.md",
+      "sha256": "b0cbd81dceaa9757cf0858e4252c775b2bb26087b8c536266e17b63c501f63dc",
+      "bytes": 8750,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-scale-v1/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-scale-v1/results.md",
+      "sha256": "f0ced9bdc2155384da63e464727ebb0af1b8225df6a2e827345a8ec7d416b84f",
+      "bytes": 15023,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-scale-v1/results.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-token-budget-v1/preregistration.md",
+      "sha256": "3cd186fb2a6b6f305672f85157b355d1f9960145076abb4eb2091418093e9e7a",
+      "bytes": 2638,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-token-budget-v1/preregistration.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-token-budget-v1/protocol.md",
+      "sha256": "28faabdda24b046b11a0c0c64f2587375703199c479fd8b3ba33052223ea7483",
+      "bytes": 5389,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-token-budget-v1/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/dense-lm-token-budget-v1/results.md",
+      "sha256": "da9585c1334dc931601d4dc4b587f4a6e64a35bd1dee6f835eb7cdafcd8f1ba4",
+      "bytes": 10228,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/dense-lm-token-budget-v1/results.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/abstention_unknown.json",
+      "sha256": "1eae4ef107813a531326badea7c6978e89ffbd7c561101954adca74b8f78f71e",
+      "bytes": 62368,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/abstention_unknown.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/code_config_understanding.json",
+      "sha256": "459ff9ff2d304a7a89f9c56a83d08b5753f403335edfdac1a0985410b4b53f64",
+      "bytes": 55027,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/code_config_understanding.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/inert_tool_protocol.json",
+      "sha256": "361d4ca465d38e28d9a6c827b1ba58482018f945e51f6dd52a678cb88dfa935e",
+      "bytes": 65035,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/inert_tool_protocol.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/next_diagnostic.json",
+      "sha256": "38f8d3f1dff2d38287403dc64ab311a665bea21c6a586bfcea576a8ecf0b331e",
+      "bytes": 61027,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/next_diagnostic.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/operational_risk.json",
+      "sha256": "958a613a91fdfd56a031436c29328109e357ffd3dcbeb016076c2336af96eefd",
+      "bytes": 63045,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/operational_risk.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/receipt.json",
+      "sha256": "68474cef44f3ed1c639382fe9c36996a2765ad8cc1207dc97691be016bc49e09",
+      "bytes": 1820,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/receipt.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/source_grounded_qa.json",
+      "sha256": "2682005e7a8089a4a1e39a520b3616883b6d748e4161f4a7ced3cf1fd501b663",
+      "bytes": 50713,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/source_grounded_qa.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/state_tracking.json",
+      "sha256": "8e9099532f97a318b3b8f31009109ec15e3b98528dfdf8bb5572403f93b5096b",
+      "bytes": 62872,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/state_tracking.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/stop_after_success.json",
+      "sha256": "2d0979c7ebc5ae836b56b21f2ccfd90e05e6f041ab6cb3e7846ecc9bc2b700f3",
+      "bytes": 65184,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/stop_after_success.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/technical_comprehension.json",
+      "sha256": "48979c74ba711e78b26527654b13bbaef563ad927a08008f1a83814ea22d7bbc",
+      "bytes": 52751,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/technical_comprehension.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/troubleshooting_cause.json",
+      "sha256": "bd6ceb056cf9dc6c10df20fe631a5336d093cb77932457a33499dc0fbc88e0dc",
+      "bytes": 59830,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/troubleshooting_cause.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/cards/verification.json",
+      "sha256": "bc1a74b80404cbff65cb3e165a825d22d64d7702ca8097e734753bb49cf793a0",
+      "bytes": 55761,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/cards/verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/freeze_cards.py",
+      "sha256": "9818a7c63a58797b43844368d30896bd2e0b79a7e641dcb8b75728f8084d675b",
+      "bytes": 10884,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/protocol.md",
+      "sha256": "0ed34daec1580e31811f02c5a2fbca458b417537010b58d5122f1ea5ab529f1d",
+      "bytes": 7122,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/source-report.md",
+      "sha256": "c3da54a4483479287c5c8f4b46ec14817db471db6ad6ceeeb72d8a2cb720dba6",
+      "bytes": 6219,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/source-report.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v0/tokenizer-report.md",
+      "sha256": "8d9a587094c20d9f5061b3a397d0c57a3202bc6fb64cec16e9a64ee1a7bed298",
+      "bytes": 2636,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v0/tokenizer-report.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/evidence.md",
+      "sha256": "223adc289f6ae980e9942c86a03078ac37fb7739645c8f71f8a530257ee64327",
+      "bytes": 7952,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/evidence.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/freeze_cards.py",
+      "sha256": "e00f9dcad548b305937e15e5096597ba44ad6fa8020fbeeef253cc4ab5e1e244",
+      "bytes": 16435,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/freeze_pilot_cards.py",
+      "sha256": "a118bb3e8d6844dbabc3e39fe02872eb16540c9d5657c566fe5572c9a8ef3429",
+      "bytes": 12112,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/protocol.md",
+      "sha256": "df226981003f99e533ecd5e86ec2aa1db806d0ba2cbc8f1f6aa69b1a982c0b2a",
+      "bytes": 6852,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/rights-copyleft.md",
+      "sha256": "0e67aa303fed16539d19f0e7a7edba2045dd611725c9f981272b75416f85bd98",
+      "bytes": 15045,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/rights-copyleft.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/rights-permissive.md",
+      "sha256": "310e2e3c04a36d2c2714ad55ca92b8ff0ca5e9399234636ee7b994fac0c059ab",
+      "bytes": 14539,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/rights-permissive.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/source-survey.md",
+      "sha256": "96590a3452fda82491e4b53722bef162a9b0baf9867b2b5e2c90f76401eaceb6",
+      "bytes": 12561,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/source-survey.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/tokenizer-bakeoff.yaml",
+      "sha256": "200bf5beafdb79a84bc8bcac21ac0a25f35e716c3b17ab6ffaa78215a7b1dc60",
+      "bytes": 289,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/tokenizer-bakeoff.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v1/tokenizer-probes.json",
+      "sha256": "e37c94b9bd436bea82b18f7073059def666fd5963854640abf0c32410eacc407",
+      "bytes": 4588,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v1/tokenizer-probes.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v2/protocol.md",
+      "sha256": "ff62d05b0a597574faaee3b6678f94125e12df39f11773d275a3dfd668b8506f",
+      "bytes": 14812,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v2/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v2/source-map-engineering.md",
+      "sha256": "622980621abf3208cbc7962c49674c47638a6528281f423dcffddb85a598cdee",
+      "bytes": 21027,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v2/source-map-engineering.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v2/source-map-web-academic.md",
+      "sha256": "dbf18cd6cee41add1909e39bfc3736277128986057bcc8b9ee20a776ba4d34bd",
+      "bytes": 21698,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v2/source-map-web-academic.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/audit_overlap.py",
+      "sha256": "36b93c576f7c16f6597aabc538a6d4da97ace91cc8a4a2cd37d3d1de7df904c3",
+      "bytes": 3984,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/classify_pes2o.py",
+      "sha256": "685a1e42ba76bcf571b99daccfff43f96d20c62112958ee245b6443f3adaef31",
+      "bytes": 5246,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/import_v2_snapshots.py",
+      "sha256": "55dd1fb27c568fbf09af2664d23a9eda9348ea526323087b87c853eaa845c751",
+      "bytes": 3241,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/measure_pool.py",
+      "sha256": "c6a4cf9ab8d5cad77434234c11478b7cf441ff67d763ee345a2587a31157b403",
+      "bytes": 7062,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/near-overlap.json",
+      "sha256": "35a38a9bc8f37027b98fb16e9c9fd1b803df7c738e3f85ccc371939b1e753a25",
+      "bytes": 126103,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v3/near-overlap.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/pes2o-incidence.json",
+      "sha256": "3ef937f3924d8271f8625b238092e78775a73eabe98c92ae08fe097e4a032eaa",
+      "bytes": 26282,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v3/pes2o-incidence.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/pool-measurement.json",
+      "sha256": "511ad62e9ccdbb769e3a070d03ced6a72c4ed2a1fdf099aa9e2765a89149edaf",
+      "bytes": 20888,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v3/pool-measurement.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/protocol.md",
+      "sha256": "cbab566a478367296a83fb39b0f78357a24df43a30868f7f698e4dd0ac1acb8b",
+      "bytes": 19922,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v3/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/source-quality.json",
+      "sha256": "bf49b0c24172b0b3ca2dc27ebda78c2a9d4888c562e4a2190282b6b0e30990f8",
+      "bytes": 120254,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v3/source-quality.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/source-research.md",
+      "sha256": "af9b6af47dc5d1133321739382ea1cd440b5ac7ee2778cff292b90e6c3cf2abc",
+      "bytes": 21391,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v3/source-research.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v3/source_quality.py",
+      "sha256": "451b587185e70a8545a6bd36bf8d96f727b5f968a2288b11d1020aa8a687e8ac",
+      "bytes": 3884,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/ancestry-replay-blocker.json",
+      "sha256": "1cad7ec4d2df0f0642d25bab4e7c00d5c7da050d5c8cc8826e8dd9cd8c101cf1",
+      "bytes": 9267,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/ancestry-replay-blocker.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/ancestry-replay-lineage.json",
+      "sha256": "8b3eb1f3c476e8e8668a5fff66978f57af3ae068ed702dcf26601c3c0fffcf7e",
+      "bytes": 2922,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/ancestry-replay-lineage.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/ancestry-replay-report.md",
+      "sha256": "75a50a27c15b980162e64c14b8094412f1bba5d59cb2e619acee95901a3c2633",
+      "bytes": 11995,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/ancestry-replay-report.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/audit_overlap.py",
+      "sha256": "accd9d24d3b6529f8e866b09b20205bcb525c16d3837fdb5b74b6bfeeb4dd275",
+      "bytes": 10639,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/measure_pool.py",
+      "sha256": "67c82d6dcf55c741e38e9cc00d763e9bd730dcc73c5d6a130a42afe55de9d649",
+      "bytes": 10085,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/model0-try2-blocker.json",
+      "sha256": "33821fe01b6b09b6f0614eb21872a8244dda1ba933ddd0bd6321f70dc9fc9516",
+      "bytes": 1878,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/model0-try2-blocker.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/model0-try2-preflight.json",
+      "sha256": "1ceb8994a8e2e0c73313e1d5d609f1b9d22a37147e9bf0223ddcaeebbcddb7d4",
+      "bytes": 3706,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/model0-try2-preflight.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/model0-try2-report.md",
+      "sha256": "fc1b5d13bd420b6d93c6eb3c01d089311ef00ab256e2e04ef9d476c0db02cda6",
+      "bytes": 9300,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/model0-try2-report.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/near-overlap.json",
+      "sha256": "401737cfb97d5e4d3a3a473a25cde1ab01d1e8a9a64fe918201b7cf035b0b63b",
+      "bytes": 131421,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/near-overlap.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-blocker.json",
+      "sha256": "25d586a1a145551f7a5dd0bb3e2923c4c773ca31c3ec5f2c849eee8e498f8b0b",
+      "bytes": 99261,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-blocker.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-implementation-inventory.json",
+      "sha256": "20d1036e37df95dec599a01c50d3793de0b59fc0bca22ef629247e9a4eb30472",
+      "bytes": 4044,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-implementation-inventory.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-launch.json",
+      "sha256": "d62a1dbbb7bbc6e8e1067babc062d26b7600501fffbaca515ee18985af95ff4a",
+      "bytes": 11719,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-launch.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-preflight.json",
+      "sha256": "a6d52841e0d54dd4dde0ae87d9881ed53ddbe9181a541617ba70c981438d8f3f",
+      "bytes": 26655,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-preflight.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-receipt.json",
+      "sha256": "ea873d9fc0792e1e9b013449f0039229d7220457fcf5a6b57d42c15838e78eec",
+      "bytes": 32393,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-receipt.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-report.md",
+      "sha256": "8aac42ec3847007449828f952e71801964341fd0cee488e45806567881b71774",
+      "bytes": 11208,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-report.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-smoke.json",
+      "sha256": "1c04ac470799c9f94c22baa39cb122298106e7269bf7272e604bc6e982d53762",
+      "bytes": 5072,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-smoke.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pinned-replay-verification.json",
+      "sha256": "47c6a584dc7633e6c5cf00b5696cb90eda509b2632eb2faf5a4184073705f9ad",
+      "bytes": 3192,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pinned-replay-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/pool-measurement.json",
+      "sha256": "8b4d29e8474bdd237049642112b4a61e5948a4569c7a2e44e58518a5c1cc9d3e",
+      "bytes": 43244,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/pool-measurement.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/protocol.md",
+      "sha256": "155e94ebc1350a2318981073f4524b3de8bcaac3efff71f2e79bc7b0ccf21f1f",
+      "bytes": 16471,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/recovery-pinned-replay.yaml",
+      "sha256": "97b886fcda40084da288a56e85c25af8fa7b5572b8b4d1cb8e006b1708be2796",
+      "bytes": 1060,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/recovery-pinned-replay.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/recovery-report.md",
+      "sha256": "6eea9e040129c7a07ef9e476824157a71f39a5323538b802cc75e80ba15a9edf",
+      "bytes": 6718,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/recovery-report.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/recovery.yaml",
+      "sha256": "2da6f3ba8c1fef0be51cfcac3b5470c8a0f074e708a3363ca1b0392be914d043",
+      "bytes": 963,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/recovery.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/replay_ancestry.py",
+      "sha256": "34febdfa879773032e5fb71c56fa30a8553d812d22805ca9334d24ebc9e205f1",
+      "bytes": 33383,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v4/source-quality.json",
+      "sha256": "39b2b2a4f39151db786bc281cee1285c83129838e8aa44fa3ac281f83d509763",
+      "bytes": 273413,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v4/source-quality.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/budget-measurement-policy.yaml",
+      "sha256": "8078be9e968583eb26eadfd19c3d4eb1d6cfb723c958038eba4fb4c6e26eab3b",
+      "bytes": 58,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/budget-measurement-policy.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/build-identity.json",
+      "sha256": "cd803725672e8f9c9572d6d194861213bb03dd4c77d33b59982c6cf83c408864",
+      "bytes": 36387,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/build-identity.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/compatibility-verification.json",
+      "sha256": "2a7e73e98f4b4a10943737b0ce3e90870e243897a238d37cb106489d693ea2b0",
+      "bytes": 1739,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/compatibility-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/corpus-expectations.json",
+      "sha256": "c67cd5c5082cd9948e5673b795b959a92b47b2bb6483a70acda52842a428e743",
+      "bytes": 12141,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/corpus-expectations.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/corpus-recovery-inspection.json",
+      "sha256": "322fd9c74629121e9f932ec0f668a3a307bf70cb5a057034bec83e5ec8fe4931",
+      "bytes": 2222,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/corpus-recovery-inspection.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/corpus-recovery.yaml",
+      "sha256": "1acdd7d67bd7d04609d24a7381ea49cffed41a0b1eecb9669992cc3ccdba982a",
+      "bytes": 917,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/corpus-recovery.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/crash-recovery.md",
+      "sha256": "e4d19b665e212bc1c64f7a2e5523c1ceb2e6bc576519fe147e4452d48e7e7e4c",
+      "bytes": 20805,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/crash-recovery.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/export-location-contract-verification.json",
+      "sha256": "7e9a2e109e76186335a457eb12a1a55117f376f84b48debb43030b1811365340",
+      "bytes": 6043,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/export-location-contract-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/generation-panel.json",
+      "sha256": "e09fc7a48ff3c369daee5def62057d3d827769e80aff9bb5ea5b5851d947fd5b",
+      "bytes": 440,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/generation-panel.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/historical-releases.json",
+      "sha256": "589353a7d9cd06d999ceaba3e75043102afba0b132d4cfe9da42bbe2c9d732d8",
+      "bytes": 2599,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/historical-releases.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/lm-view-measurement.json",
+      "sha256": "e47883fe1d508bf0b15626847d273d536d8a6071fb29926365d6f746adbafb8b",
+      "bytes": 2221,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/lm-view-measurement.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/local-readiness-post-streaming.json",
+      "sha256": "5a986af582f3bd1a010a8e694468351efaacb08624b0052525e6b0282d6dcb97",
+      "bytes": 1645,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/local-readiness-post-streaming.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-base-run.yaml",
+      "sha256": "2dfb5472fe8808f08d42011e03fa613b559e05ab1cc7c4276d71624c99ce4b1b",
+      "bytes": 2564,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-base-run.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-campaign.yaml",
+      "sha256": "0ffb42d7188cf5ce4ce7ab9a4437010776c7b4edf99011951e3417329d52b0f5",
+      "bytes": 3507,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-campaign.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-checkpoint-reference.json",
+      "sha256": "a766fea4a85f3a88a48832bf88c322024a2059d60aba54a8bcecabd91c422ed3",
+      "bytes": 1885,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-checkpoint-reference.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-corpus-input-phase-readiness.json",
+      "sha256": "49fe455da50d77a660fc0c65b157dbbe281078f14c08a8f5e0726dfc6086a185",
+      "bytes": 1282,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-corpus-input-phase-readiness.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-corpus-input-phase-source-compatibility.json",
+      "sha256": "a16118a6a9456fe838bd53cf62831d4cb714a874b0b373465e7db417bc305deb",
+      "bytes": 71628,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-corpus-input-phase-source-compatibility.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json",
+      "sha256": "04da1b35e7ed0a0447b0bab8fb5e2b70759493026eef33f5af52561460529e1e",
+      "bytes": 48142,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-evaluation-reference.json",
+      "sha256": "190555bd73f4cc05df7e02b41a026d23f98ee0c370cc02e11fb350d64db1acc7",
+      "bytes": 1954,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-evaluation-reference.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-execution.md",
+      "sha256": "f0b65ba9c1d3855072e633da94979d5a95039db44ed6e491e9090b77800857d8",
+      "bytes": 23957,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-execution.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-export-verification.json",
+      "sha256": "a670bbbda678b49969746c68a3d9488593f14fdfb0507216773dced98f62d828",
+      "bytes": 3358,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-export-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-family.yaml",
+      "sha256": "15406eb31ea77ba75ea279269951b4717b5781ac1dfa39b98e9e9d86a8f90bde",
+      "bytes": 1845,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-family.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-full-shape-deadline-readiness.json",
+      "sha256": "f32d46f9f1745f57e5a51e560899b17df9b68a5b9d4e71fa4cfb7fe35c365a14",
+      "bytes": 26146,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-full-shape-deadline-readiness.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-full-shape-stop.json",
+      "sha256": "413f0afd95ec75a66ee8cab5efebdf11feed65a7ab235cccdb1700a11631fea5",
+      "bytes": 33560,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-full-shape-stop.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-input-authentication-after-repair.json",
+      "sha256": "59953fa12cde458c19fb0673e4b666a1758aeba24f8ba486e57cb0fd3148b6f2",
+      "bytes": 3715,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-input-authentication-after-repair.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-lineage-verification.json",
+      "sha256": "d85209a128c14f483b78a5c61910e7e448859e86e2fb037e5073ff02a445866d",
+      "bytes": 7165,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-lineage-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-operational-source-compatibility.json",
+      "sha256": "688afaa337abf3f9770526451a075ca9ccd5a8b2441128b6be917c716292e3ed",
+      "bytes": 68127,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-operational-source-compatibility.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-pilot-deadline-audit.json",
+      "sha256": "ede8ad18defd0bbde953e4c6e019e9106ba93c0c30682c241c77a5b4a6bf0131",
+      "bytes": 2127,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-pilot-deadline-audit.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-pilot-deadline-readiness.json",
+      "sha256": "e7e167e962cb76be4e0de364e4556f59c516210041bf293671241545e3662182",
+      "bytes": 1864,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-pilot-deadline-readiness.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-pilot-deadline-source-compatibility.json",
+      "sha256": "6a25c60296824f747f336e0f6507050553db4c1ae06f10b5a4d99f12b0bfc94f",
+      "bytes": 70941,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-pilot-deadline-source-compatibility.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-plan-lock-acceptance.json",
+      "sha256": "b190f42e6c16ee1de1b710ba916bdea9d0e297a2d2d0e2c1153c93645f12d097",
+      "bytes": 22383,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-plan-lock-acceptance.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-plan-lock-stop.json",
+      "sha256": "4ace86ce2fc7ce4db13318b50386b54df8b26c76567b645c434bb11337144179",
+      "bytes": 25607,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-plan-lock-stop.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-plan.yaml",
+      "sha256": "a5e9ff11f5c71827ea576d42e321c41de31360653457e175bebafe1772d075b3",
+      "bytes": 2151,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-plan.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-preparation-stop.json",
+      "sha256": "2c49fa31cc587c107d57fcb83f818b50916f186f6f4a53907d919d741551c74b",
+      "bytes": 8028,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-preparation-stop.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-preparation-verification.json",
+      "sha256": "85354150278ea81f4924713d1735368a46f62efcc8268c6b9f1ee1580e27c570",
+      "bytes": 14935,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-preparation-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-procedural-audit.json",
+      "sha256": "3c50a8df65585d7d366afc3a4de9825b6165075509bec5d666aed2464dea4084",
+      "bytes": 6522,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-procedural-audit.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-recovery.yaml",
+      "sha256": "825206e067b8a70fdeeb108d04ee81dc18dc148b7f6a90cbe28e27d8be7d487d",
+      "bytes": 2353,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-recovery.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-result.json",
+      "sha256": "1e29476e3a3553769ea88169d919712d0ab5ac21f3526916d3b665895519b043",
+      "bytes": 39746,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-result.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-run.yaml",
+      "sha256": "30751353aab763f813ebd1928b9ab93ca83e15f3847b93ddcfb95fe05c7860c5",
+      "bytes": 3788,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-run.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-science.json",
+      "sha256": "5ffe6b44f76fdd303200963a9e1470240e9213874946a3dccfba07b90a71f839",
+      "bytes": 4045,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-science.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model0-thin-archive-reference.json",
+      "sha256": "bbab6947f7b7a5495215970a4e3ec5d16c5cf34dc042c5513f145168992013d6",
+      "bytes": 7694,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model0-thin-archive-reference.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model1-campaign.yaml",
+      "sha256": "fc05f1439a27ba5fd209ba04f65f3f19975f78d404e43afc0d9a8c238189c523",
+      "bytes": 4026,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model1-campaign.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model1-plan.yaml",
+      "sha256": "5c72be0eb30c6c3f92d2b96e3280ad35b4c6a501e88d9a3c7c454a6ecb7e0974",
+      "bytes": 7102,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model1-plan.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model1-preparation-reference.json",
+      "sha256": "3abb38fbca05d559824d5701b57048c1086e5cf8f68387612a5588c3035454e9",
+      "bytes": 5798,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model1-preparation-reference.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/model1-protocol.md",
+      "sha256": "4d795a49473f1d69baee98c987dbfd50e311a6c469ff1fd99be4a70f4a62eba5",
+      "bytes": 9065,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/model1-protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/preparation-amendment.json",
+      "sha256": "1fbe2dc99cbc1c6e5588e69bd3112c4d3882ff34d93f6f6b3774a88c463ccb9f",
+      "bytes": 2224,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/preparation-amendment.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/primary-interruption.json",
+      "sha256": "35d705a7a4299a2f3042e7911cfe78e05f92193c139fb0c5cebf19920e5aada7",
+      "bytes": 4130,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/primary-interruption.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/primary-resume-interruption.json",
+      "sha256": "bfb6c8a4bd7f4a05d4e6eb7f39f7355b0bd4fd14f8238cc9ee46c6ad6d0410bf",
+      "bytes": 6609,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/primary-resume-interruption.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/primary-verification.json",
+      "sha256": "42803d5e6b336521b9551367a38a3ce44dca074d769ad9c85e43d050569bcbd2",
+      "bytes": 15759,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/primary-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/producer.json",
+      "sha256": "156e36c632292d1b63f4150597551caa04fa1ac7e811f562fca269c534b4e2c9",
+      "bytes": 1482,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/producer.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/protocol.md",
+      "sha256": "b2c364ba41af2dbc5720c6a5f7cfc67b040e37afa098928ee60cbf9083af9558",
+      "bytes": 15453,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/readiness.yaml",
+      "sha256": "a7e9791a53791dd98a04f32b67e865165697649e0294223728a85d69c7bb6e86",
+      "bytes": 195,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/readiness.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/recovery-verification.json",
+      "sha256": "f3e1cf34d79c654552dff4f89f55032da4bf14a77c703fe147bc833fbf504ae1",
+      "bytes": 15178,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/recovery-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/runtime-post-streaming-prerequisite.json",
+      "sha256": "bcb9586d43a5f1175b7f8767ca846518e80583c23c931d0f1cd941994f410482",
+      "bytes": 2331,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/runtime-post-streaming-prerequisite.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/runtime-prerequisite.json",
+      "sha256": "363c36fdddb3161f68cdbeb3a326fd6b4313748373fb5c597780273b9747296b",
+      "bytes": 1353,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/runtime-prerequisite.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/source-intent.json",
+      "sha256": "6eae093e12a875dde5b16bbdbc1d650b89da9da48aa6ae162ea2f2a8184fae04",
+      "bytes": 45248,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/source-intent.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/source-token-implementation-verification.json",
+      "sha256": "654f50baba1b8c64c47aa4116f4cec2112e0cc42c6ce79b9b98aac188d1aa600",
+      "bytes": 7231,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/source-token-implementation-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/source-token-measurement-verification.json",
+      "sha256": "33dbfe716f4bfa8a770143860a6b68629f01fadeba9fb03bea881156cdd01595",
+      "bytes": 7962,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/source-token-measurement-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/streamed-accounting-verification.json",
+      "sha256": "71a351f8bbf88632be548eb902afdd288f76d858805ca9006c00525704a79831",
+      "bytes": 2287,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/streamed-accounting-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/suite.yaml",
+      "sha256": "6ec9b344351b8a8b3f9efd10cd754ca54646eb2079fad727d7531a486dbf90aa",
+      "bytes": 115,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/suite.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/tokenizer-bakeoff-memory-stop.json",
+      "sha256": "8d1b1fad571e58592fae50022cc1c764dee6a734006eed50aec5ac4847e700e1",
+      "bytes": 6222,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/tokenizer-bakeoff-memory-stop.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/tokenizer-bakeoff-verification.json",
+      "sha256": "b0cbde9750310e709b24bf426451f6aa2a9216af6067e7bf41b2603e18727203",
+      "bytes": 12350,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/tokenizer-bakeoff-verification.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/tokenizer-bakeoff.yaml",
+      "sha256": "5538d3e6cc2c3efb0fc5f96ca671d98c23fccd522bfa36ed0ef3f1139f31470b",
+      "bytes": 412,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/tokenizer-bakeoff.yaml"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/tokenizer-group-supply.json",
+      "sha256": "5d6432be9af8da7e28f71eaf5eafb12bc27b5709f844a81ee92ded6d5d45eee4",
+      "bytes": 16911,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/tokenizer-group-supply.json"
+    },
+    {
+      "original_path": "experiments/research/devmind-pretrain-v5/typed-corpus-artifact-verification.json",
+      "sha256": "9aa6a825a3357f35bed9f62a7c9a6fb84c34544f273aca8725706a9198a52d2a",
+      "bytes": 1241,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/devmind-pretrain-v5/typed-corpus-artifact-verification.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/CARD05_BASE_50M_LAUNCH_PACKET.md",
+      "sha256": "ae0babc79c45047a543302842d82e32e1a92418374a9884b55e29dc1ae2b79c4",
+      "bytes": 23143,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/CARD05_BASE_50M_LAUNCH_PACKET.md"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/CARD05_BASE_50M_RETAINED_PREPARATION_PACKET.md",
+      "sha256": "898da684c396010918ff17872b57ea5172eca0d908ed1750705d469300facb9c",
+      "bytes": 15900,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/CARD05_BASE_50M_RETAINED_PREPARATION_PACKET.md"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/APPLICATION_POLICY_PROSPECTIVE.md",
+      "sha256": "346aa91f8fd632ff949355e572f798ee50b5764dcb154f31b479a308c3c8dfc2",
+      "bytes": 1526,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/APPLICATION_POLICY_PROSPECTIVE.md"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/RUN_CONFIG_TEMPLATE.md",
+      "sha256": "4a796578f839faca3de75370da5a207f3c1a01e95eae9f07a7a3e6096355141c",
+      "bytes": 3461,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/RUN_CONFIG_TEMPLATE.md"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/RUN_CONFIG_TEMPLATE_REUSE_V2.md",
+      "sha256": "f0c8b14eb136964e0c010a0fc0b966e2b2ccee42bfbfe6bad868af4d6e3fb0b2",
+      "bytes": 3461,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/RUN_CONFIG_TEMPLATE_REUSE_V2.md"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/admission-inspection-selection-v1.json",
+      "sha256": "b45902993a7af1e9e994fb4f8f84aa8480f15fed3ce51a88c813835c3ecd02ef",
+      "bytes": 2488,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/admission-inspection-selection-v1.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/admission-review-v2.template.json",
+      "sha256": "7cb5d9fca280d5b608ab751f83bf8ae7f66625cda3acda65b5ee12ced1e8e197",
+      "bytes": 389,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/admission-review-v2.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/admission-review.template.json",
+      "sha256": "439a6d9d069980e1d0778e42d986d71cd0078600cbb267a95fe8a5d3763de125",
+      "bytes": 293,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/admission-review.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/application-template-reuse-v2.template.json",
+      "sha256": "7ca87ed9c1ccb512a5971722dc407c7894f930e45c948b6482335371501e968e",
+      "bytes": 4092,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/application-template-reuse-v2.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/application-template.template.json",
+      "sha256": "6c17a23e1dd305df9dbee75a27ae833160c826b386bc2f8b3c3a1ef115dec6e1",
+      "bytes": 4092,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/application-template.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/attempt-contract-preparation-only.template.json",
+      "sha256": "2d59da95d1b6acc6468d716415792deae971c127d1e24a9c6872cb475832d47a",
+      "bytes": 1646,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/attempt-contract-preparation-only.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/attempt-contract-reuse-v2.template.json",
+      "sha256": "016ce5d74ad99eec30ab1e59b0730cc63ac20e95175cc288770fb27083fb7ba6",
+      "bytes": 1849,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/attempt-contract-reuse-v2.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/attempt-contract.template.json",
+      "sha256": "4d2e45b0ae4e81491417d28c7e3f0dbb502512586e4809f3f6dd63a8304fc0a6",
+      "bytes": 1196,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/attempt-contract.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/family-clusters-reviewed.template.json",
+      "sha256": "185c803242d1df662d273c7fde75235ba9bbaa7540dafb49514edf96bf8186d6",
+      "bytes": 615,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/family-clusters-reviewed.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/mixture.template.yaml",
+      "sha256": "3ae49943d8e6980446a13261cc3f4c986cd6a85a4636879fd8aa9de0a8ed573a",
+      "bytes": 909,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/mixture.template.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/monitor-eval-output.yaml",
+      "sha256": "ff61318052cb5243f9421f592a0809ca02ea7718206a8bc1d133f9356036afe0",
+      "bytes": 346,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/monitor-eval-output.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/monitor-preparation.yaml",
+      "sha256": "c6878045025a63787338e4c7b707808da224179321b5e3c662ab4054784cfc4b",
+      "bytes": 288,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/monitor-preparation.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/monitor-whole.yaml",
+      "sha256": "6a3072ff667516e075974dd5dc27c675df7625bdef774c94a5c1d89171a45e46",
+      "bytes": 385,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/monitor-whole.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v1.json",
+      "sha256": "d8dec0e3f8e20bbf2e6077f9862383a38c09a3b952c0ddd4bda9fb6bd768e6b9",
+      "bytes": 1532,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v1.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v2.json",
+      "sha256": "38ae92a0079cd18da90dab2c5c6c191f143c38e27e69cf0cca2c3f1a284c598f",
+      "bytes": 1634,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v2.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/project-acquire-reuse-v2.yaml",
+      "sha256": "74e4326e261589bd0c29915911572074a71183fe7039b1f641faef069bcbc43c",
+      "bytes": 1597,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/project-acquire-reuse-v2.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/project-acquire.yaml",
+      "sha256": "6326d66589fa787fd3e85d834417d968b21eb6f808f1b6c85635ac255714aa51",
+      "bytes": 563,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/project-acquire.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/project-build-reuse-v2.template.yaml",
+      "sha256": "b8698bb8529c415f9e88b9013a70a9f94180429f48a5a83b7a2780fadd38d1e0",
+      "bytes": 1657,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/project-build-reuse-v2.template.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/project-build.template.yaml",
+      "sha256": "ea3b4281b8d11f889f35d0d6350c03f99f5b275ef965e214b5bf5f9226cc57b0",
+      "bytes": 603,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/project-build.template.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/project-pre-freeze-reuse-v2.template.yaml",
+      "sha256": "3cc3045f3d5af7e3b48a2930d0f509fd56d85e7fc0819f53bd2deaf00459acc1",
+      "bytes": 1774,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/project-pre-freeze-reuse-v2.template.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/release-acceptance.template.json",
+      "sha256": "3212c7685add11f948a108d363cd66f940e71ed8efd59b81705b85d17bafed31",
+      "bytes": 497,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/release-acceptance.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/release-quarantine.yaml",
+      "sha256": "4305d8d3651f7716dbc9bd159f3397b34d1dffb8223fc360677b74b9aa0a5b08",
+      "bytes": 358,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/release-quarantine.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/release-reviewed.template.yaml",
+      "sha256": "30bee33f534434039fe213b06201be39a98528ae8b5fb4a67d12a3d79bfb62b9",
+      "bytes": 499,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/release-reviewed.template.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/resource-envelope.yaml",
+      "sha256": "2fc4fb4a8916a6369c870e5a86077d2ae3ebb2883a2a5f350f9a98a7d95c6a76",
+      "bytes": 122,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/resource-envelope.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/selection.template.json",
+      "sha256": "dea67f1563f16c75f7c8d2fb629cf057c6e256789a0f0c5af55b5d0ec4071244",
+      "bytes": 517,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/selection.template.json"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/sources/pagerduty.yaml",
+      "sha256": "417ad8bb6d3dd8703ef2dae960481f7d3799323a101e0fce60bf222bfb249101",
+      "bytes": 5576,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/sources/pagerduty.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/sources/project-gutenberg.yaml",
+      "sha256": "077b5a44d12f74f17715ff300a29f966020781bd3fc8c0c8b53d1955ff9054ac",
+      "bytes": 1385,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/sources/project-gutenberg.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/sources/scoutflo.yaml",
+      "sha256": "e73f0f00c997cacb7130115e6ba01815237d2778a8c8a4228b99e85a84a979f9",
+      "bytes": 68923,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/sources/scoutflo.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/sources/wikimedia.yaml",
+      "sha256": "8b1bc912c301c1fbef96d63764771957c79ee73e54a56c69f9796bed730b2020",
+      "bytes": 1413,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/sources/wikimedia.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/splits-acquire.yaml",
+      "sha256": "0c0f3fd50fe7bf3e866bb68af74f55a221525a7bcf338393711d458a1427715a",
+      "bytes": 281,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/splits-acquire.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/token-floors.yaml",
+      "sha256": "b28dec094bfb43d7306f1bef252b5a3fcbdd6374752413ad1f16e9129599e727",
+      "bytes": 123,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/token-floors.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/card05-base-50m/transforms/lm.yaml",
+      "sha256": "1555dd55a12d69bc02cb37de4be493e00f704d65b52c4c0254ffe3f9de6bebd6",
+      "bytes": 162,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/card05-base-50m/transforms/lm.yaml"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/corpus-scale/check-evaluation-context.py",
+      "sha256": "5b854aa3419acb6cfd3f82ce39e95d456ba8f64a0c096d223fb50244ee7fbbb4",
+      "bytes": 9115,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/corpus-scale/evaluation-continuation-test-allowlist.md",
+      "sha256": "738418f8d222c50c8efbb5d52c16a2804bb76dbd3a3f94edbf8d162a48c18aeb",
+      "bytes": 2171,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/kernel-memory-lab/corpus-scale/evaluation-continuation-test-allowlist.md"
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/corpus-scale/make-evaluation-blind-worksheet.py",
+      "sha256": "ae17d2dcd4f3b00c37966108a72321e8b2cd2abfb744c6395b87016ec6f4547e",
+      "bytes": 3787,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/corpus-scale/run-offline-continuation.sh",
+      "sha256": "7dd86e3701c76a1de1b5a7a10c635100b044fbfae21dd647b59897980f1f1260",
+      "bytes": 1633,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/kernel-memory-lab/corpus-scale/validate-evaluation-reviews.py",
+      "sha256": "b377ee30447451578bc34a318984847e8b75a366ce1e85c5e942aba2ef8211fc",
+      "bytes": 7075,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/compare.py",
+      "sha256": "0b78e992227b253fc636afae176f4b161ae009e5dd723c413de5e46fb98ba043",
+      "bytes": 5744,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/endpoint-receipt.json",
+      "sha256": "a61bd720e96c418713586de3a2d0a68efc7e05999d42fd189addc14e0b39b035",
+      "bytes": 552,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/endpoint-receipt.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/evidence.json",
+      "sha256": "c928b823b6c899a2092c8ccda84af22e30f5dcb0641ba9dace6822793218ff14",
+      "bytes": 12316,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/evidence.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/index_evidence.py",
+      "sha256": "31940232a115f39cde34d9f237607ef7e08a08d0e276145f71f32b226dc4b5da",
+      "bytes": 4836,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/likelihood-sample.json",
+      "sha256": "4aa6a6816d46fa01b8c0fb09281038cf219f906b4fbdbfdea56b87da06dd4349",
+      "bytes": 659,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/likelihood-sample.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/long-prompts.json",
+      "sha256": "80646be047f434307f281222d82f40f388ee6dc57393acb4fda2279cff4a3af7",
+      "bytes": 4868,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/long-prompts.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/preregistration.json",
+      "sha256": "40cdaceb36f6064b2a2f06b68b0ba9390153bf4107094508069d4f9d5f32df6d",
+      "bytes": 1454,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/preregistration.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/protocol.md",
+      "sha256": "a410c552ec19c9d140f56c0cbc3fa7fbf64af756786fd0c7eccc8af0b449e4d8",
+      "bytes": 5726,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/protocol.md"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/results.md",
+      "sha256": "7d89e201b604c0b53ee613e0f1025219ac60755c0ba80730217da1a7213d1c46",
+      "bytes": 8193,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/results.md"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/run.py",
+      "sha256": "d6d8bb5e8b9ae0346430c9524dfb9b391416c8107cf6ab0e5ecb61f925e786c6",
+      "bytes": 16602,
+      "action": "deleted_obsolete_executable",
+      "archive_path": null
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/runtime-selection.json",
+      "sha256": "e5d3bedac79f7a83ef0e28698bc0691bc19e94daafe6941b47768f43cf52fbd3",
+      "bytes": 3446,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/runtime-selection.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/source-receipt.json",
+      "sha256": "36024fd7de4d2674bd1bd08f130fcbc7cfb2651febc5963e8fc786ddbe1e1750",
+      "bytes": 1355,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/source-receipt.json"
+    },
+    {
+      "original_path": "experiments/research/tinystories-dense-30m-data-rich-v1/tokenizer-selection.json",
+      "sha256": "e70cfbe8dce44981dfa11691ff574039c28f8ccf9aed1dea3593b48a258c95ad",
+      "bytes": 1039,
+      "action": "relocated_unchanged",
+      "archive_path": "experiments/research/history/tinystories-dense-30m-data-rich-v1/tokenizer-selection.json"
+    }
+  ]
+}

@@ -41,17 +41,86 @@ def _id(value: str, name: str) -> str:
 
 def handle_attempt(args: argparse.Namespace) -> None:
     """Dispatch one explicit ledger action; all work remains in AttemptBudget."""
+    if args.attempt_command == "run-phase":
+        from sparselab.cli.main import build_parser
+        from sparselab.training.preparation import (
+            compile_phase,
+            supervised_phase_command,
+        )
+
+        compiled = compile_phase(
+            args.plan,
+            _absolute(args.attempt_root, "attempt root"),
+            _id(args.label, "phase label"),
+            json.loads(args.bindings_json),
+        )
+        command = supervised_phase_command(
+            compiled,
+            work_root=args.workspace,
+            ledger=args.ledger,
+            label=args.label,
+            content_identity=args.content_identity_sha256,
+            whole_policy=args.policy,
+            preparation_policy=args.preparation_policy,
+            baseline=args.baseline,
+        )
+        # The same parser and handler enforce reservations, bindings and shutdown.
+        parsed = build_parser().parse_args(command[1:])
+        handle_attempt(parsed)
+        return
+    if args.attempt_command == "phase-command":
+        from sparselab.training.preparation import compile_phase
+
+        print(
+            json.dumps(
+                compile_phase(
+                    args.plan,
+                    _absolute(args.attempt_root, "attempt root"),
+                    _id(args.label, "phase label"),
+                    json.loads(args.bindings_json),
+                ),
+                sort_keys=True,
+            )
+        )
+        return
     ledger = _absolute(args.ledger, "ledger")
     if args.attempt_command == "init":
         budget = AttemptBudget.create_contract(
             ledger,
             contract_path=_absolute(args.contract, "contract"),
             expected_sha256=_digest(args.contract_sha256, "contract SHA-256"),
+            monitor_policy_path=(
+                _absolute(args.policy, "monitor policy")
+                if args.policy is not None
+                else None
+            ),
+            workspace_baseline_path=(
+                _absolute(args.baseline, "workspace baseline")
+                if args.baseline is not None
+                else None
+            ),
+            workspace_root=(
+                _absolute(args.workspace, "workspace")
+                if args.workspace is not None
+                else None
+            ),
         )
         print(json.dumps(budget.status(), sort_keys=True))
         return
     if args.attempt_command == "status":
         print(json.dumps(AttemptBudget(ledger).status(), sort_keys=True))
+        return
+    if args.attempt_command == "bind-artifact":
+        result = AttemptBudget(ledger).bind_resolved_artifact(
+            kind=args.kind,
+            path=_absolute(args.path, "resolved artifact"),
+            expected_sha256=_digest(args.sha256, "resolved artifact SHA-256"),
+            content_identity_sha256=_digest(
+                args.content_identity_sha256, "content identity"
+            ),
+            workspace_root=_absolute(args.workspace, "workspace"),
+        )
+        print(json.dumps(result, sort_keys=True))
         return
     if args.attempt_command != "run":
         raise ValueError("unknown attempt command")
@@ -134,19 +203,59 @@ def handle_attempt(args: argparse.Namespace) -> None:
 def register_attempt_parser(
     commands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
-    """Register bounded attempt commands without modifying legacy budget CLI."""
+    """Register the canonical public attempt interface."""
     attempt = commands.add_parser(
         "attempt", help="Use a cumulative native attempt contract"
     )
     actions = attempt.add_subparsers(dest="attempt_command", required=True)
+    phase_run = actions.add_parser(
+        "run-phase", help="Dispatch one canonical zero-model preparation phase"
+    )
+    phase_run.add_argument("--plan", type=Path, required=True)
+    phase_run.add_argument("--attempt-root", type=Path, required=True)
+    phase_run.add_argument("--label", required=True)
+    phase_run.add_argument("--bindings-json", default="{}")
+    for name in ("ledger", "workspace", "policy", "preparation-policy", "baseline"):
+        phase_run.add_argument(f"--{name}", type=Path, required=True)
+    phase_run.add_argument("--content-identity-sha256", required=True)
+    phase_run.set_defaults(handler=handle_attempt)
+    compile_command = actions.add_parser(
+        "phase-command", help="Expand canonical preparation arguments without execution"
+    )
+    compile_command.add_argument("--plan", type=Path, required=True)
+    compile_command.add_argument("--attempt-root", type=Path, required=True)
+    compile_command.add_argument("--label", required=True)
+    compile_command.add_argument("--bindings-json", default="{}")
+    compile_command.set_defaults(handler=handle_attempt)
     initialize = actions.add_parser("init")
     initialize.add_argument("--ledger", type=Path, required=True)
     initialize.add_argument("--contract", type=Path, required=True)
     initialize.add_argument("--contract-sha256", required=True)
+    initialize.add_argument("--policy", type=Path)
+    initialize.add_argument("--baseline", type=Path)
+    initialize.add_argument("--workspace", type=Path)
     initialize.set_defaults(handler=handle_attempt)
     status = actions.add_parser("status")
     status.add_argument("--ledger", type=Path, required=True)
     status.set_defaults(handler=handle_attempt)
+    bind = actions.add_parser("bind-artifact")
+    bind.add_argument("--ledger", type=Path, required=True)
+    bind.add_argument(
+        "--kind",
+        choices=(
+            "train_config",
+            "evaluation_baseline",
+            "pre_freeze_project",
+            "build_project",
+            "release_acceptance",
+        ),
+        required=True,
+    )
+    bind.add_argument("--path", type=Path, required=True)
+    bind.add_argument("--sha256", required=True)
+    bind.add_argument("--content-identity-sha256", required=True)
+    bind.add_argument("--workspace", type=Path, required=True)
+    bind.set_defaults(handler=handle_attempt)
     run = actions.add_parser("run")
     run.add_argument("--ledger", type=Path, required=True)
     run.add_argument("--label", required=True)

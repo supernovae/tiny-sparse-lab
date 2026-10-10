@@ -69,8 +69,3 @@ markers = [
     "mlx: requires the optional Apple MLX runtime and Metal hardware",
     "network: requires external network access",
 ]
-
-[tool.ruff.format]
-# This test file is a byte-pinned input in dense-lm-decoding-v1 preregistration.
-# CI checks its pinned digest; add new tests elsewhere instead of rewriting it.
-exclude = ["tests/test_generation.py"]

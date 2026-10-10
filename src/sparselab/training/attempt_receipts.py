@@ -1,4 +1,4 @@
-"""Authenticate native terminal counters before reconciling a v2 attempt."""
+"""Authenticate native terminal counters before reconciling an attempt contract."""
 
 from __future__ import annotations
 

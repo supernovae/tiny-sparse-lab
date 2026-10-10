@@ -59,8 +59,20 @@ def test_init_and_status_use_existing_budget_api(
 
         @classmethod
         def create_contract(
-            cls, path: Path, *, contract_path: Path, expected_sha256: str
+            cls,
+            path: Path,
+            *,
+            contract_path: Path,
+            expected_sha256: str,
+            monitor_policy_path: Path | None = None,
+            workspace_baseline_path: Path | None = None,
+            workspace_root: Path | None = None,
         ) -> FakeBudget:
+            assert (monitor_policy_path, workspace_baseline_path, workspace_root) == (
+                None,
+                None,
+                None,
+            )
             calls.append(("init", path, contract_path, expected_sha256))
             return cls(path)
 

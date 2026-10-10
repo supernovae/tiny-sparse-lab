@@ -1,0 +1,22 @@
+{
+  "contract_version": 1,
+  "max_optimizer_updates": 48829,
+  "max_actual_target_positions": 50000000,
+  "max_generation_calls": 16,
+  "max_generated_tokens": 1024,
+  "max_fixed_profile_forward_positions": 55000,
+  "max_nontraining_forward_positions": 170000,
+  "max_operational_validation_batches": 11,
+  "max_operational_validation_forward_positions": 11264,
+  "max_wall_seconds": 36000.0,
+  "content_identity_sha256": "${SEALED_CONTENT_IDENTITY_SHA256}",
+  "acquisition_project_sha256": "6326d66589fa787fd3e85d834417d968b21eb6f808f1b6c85635ac255714aa51",
+  "fixed_profile_sha256": "bb4c1b719b29fa96c4429516022a5038f0e3595b9d8ef63394bf0a17a5c6851d",
+  "fixed_family_inventory_sha256": "f3b506be3dcd9b99401c5dae72f6ef16b51441394e9a485913200e7eeaad1af5",
+  "monitor_policy_sha256": "${SEALED_MONITOR_POLICY_SHA256}",
+  "workspace_baseline_sha256": "${COMMON_STORAGE_BASELINE_SHA256}",
+  "preparation_monitor_policy_sha256": "c6878045025a63787338e4c7b707808da224179321b5e3c662ab4054784cfc4b",
+  "evaluation_monitor_policy_sha256": "ff61318052cb5243f9421f592a0809ca02ea7718206a8bc1d133f9356036afe0",
+  "require_resolved_train_config_binding": true,
+  "require_evaluation_baseline_binding": true
+}

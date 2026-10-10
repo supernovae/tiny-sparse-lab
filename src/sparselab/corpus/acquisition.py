@@ -1393,6 +1393,49 @@ def verify_snapshot(
     return _verify_snapshot_cold(path, _staged=_staged)
 
 
+def alias_verified_snapshot(
+    project: Project, work_root: Path, *, source_id: str, snapshot: Path
+) -> dict[str, str]:
+    """Reuse exact immutable snapshot bytes across projects without a transfer."""
+    if project.config.source_effects is not None:
+        raise ValueError("effect-bound reuse is performed by acquire preflight")
+    sources = [source for source in project.sources if source.id == source_id]
+    if len(sources) != 1 or sources[0].kind not in {
+        "git",
+        "huggingface_dataset",
+        "wikimedia_dump",
+    }:
+        raise ValueError("snapshot alias source is missing or not immutable")
+    root = work_root.resolve(strict=True)
+    if not snapshot.is_absolute() or snapshot.is_symlink():
+        raise ValueError("snapshot alias origin must be an absolute directory")
+    origin = snapshot.resolve(strict=True)
+    if root not in origin.parents or not origin.is_dir():
+        raise ValueError("snapshot alias origin is outside the persistent root")
+    manifest = verify_snapshot(origin, verification_mode="cold")
+    if (
+        manifest["source_id"] != source_id
+        or manifest["declaration_sha256"] != declaration_sha256(sources[0])
+        or manifest["declaration"] != source_declaration_payload(sources[0])
+    ):
+        raise ValueError("snapshot alias differs from current source declaration")
+    target = (
+        root / "corpora" / project.config.id / "snapshots" / source_id / origin.name
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(origin, target_is_directory=True)
+    if (
+        verify_snapshot(target, verification_mode="cold")["snapshot_sha256"]
+        != origin.name
+    ):
+        raise ValueError("snapshot alias failed cold readback")
+    return {
+        "source_id": source_id,
+        "snapshot_sha256": origin.name,
+        "alias": str(target),
+    }
+
+
 def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any]:
     path = Path(path)
     try:
@@ -1450,15 +1493,72 @@ def _verify_snapshot_cold(path: Path, *, _staged: bool = False) -> dict[str, Any
 
 def _project_sha(project: Project) -> str:
     """Only acquisition declarations bind the lock; release variants share snapshots."""
-    return _digest(
-        {
-            "project_id": project.config.id,
-            "sources": [
-                source_declaration_payload(s)
-                for s in sorted(project.sources, key=lambda s: s.id)
-            ],
-        }
+    identity = {
+        "project_id": project.config.id,
+        "sources": [
+            source_declaration_payload(s)
+            for s in sorted(project.sources, key=lambda s: s.id)
+        ],
+    }
+    if project.config.source_effects is not None:
+        identity["source_effects"] = [
+            item.model_dump(mode="json") for item in project.config.source_effects
+        ]
+    return _digest(identity)
+
+
+def _safe_snapshot_path(path: Path) -> None:
+    """Keep cold and proof-backed reuse subject to the same path-security rule."""
+    if not path.is_absolute() or any(
+        item.is_symlink() for item in (path, *path.parents)
+    ):
+        raise ValueError(f"unsafe snapshot origin or alias: {path}")
+    if path.exists():
+        from sparselab.experiments.artifacts import _safe_path
+
+        _safe_path(str(path), path / "manifest.json")
+
+
+def _retained_origin(work_root: Path, effect: Any) -> Path:
+    origin = (
+        work_root.absolute()
+        / "corpora"
+        / effect.origin_project_id
+        / "snapshots"
+        / effect.source_id
+        / effect.snapshot_sha256
     )
+    _safe_snapshot_path(origin)
+    return origin
+
+
+def _verify_retained(
+    project: Project,
+    work_root: Path,
+    source: SourceDeclaration,
+    effect: Any,
+    *,
+    proof_store: ProofStore | None,
+    verification_mode: VerificationMode,
+) -> tuple[Path, dict[str, Any]]:
+    if effect.origin_project_id == project.config.id:
+        raise ValueError("reuse-only origin must be another immutable project")
+    origin = _retained_origin(work_root, effect)
+    try:
+        manifest = verify_snapshot(
+            origin, proof_store=proof_store, verification_mode=verification_mode
+        )
+    except OSError as error:
+        raise ValueError(f"missing retained snapshot: {source.id}") from error
+    if (
+        manifest["source_id"] != source.id
+        or manifest["snapshot_sha256"] != effect.snapshot_sha256
+        or manifest["declaration_sha256"] != effect.declaration_sha256
+        or manifest["declaration"] != source_declaration_payload(source)
+        or not _reusable_immutable_adapter(source, manifest)
+    ):
+        raise ValueError(f"retained snapshot identity mismatch: {source.id}")
+    return origin, manifest
 
 
 def verify_acquisition(
@@ -1470,6 +1570,11 @@ def verify_acquisition(
     verification_mode: VerificationMode = "cold",
 ) -> dict[str, Any]:
     base = Path(work_root) / "corpora" / project.config.id
+    effects = (
+        {item.source_id: item for item in project.config.source_effects}
+        if project.config.source_effects is not None
+        else None
+    )
     selected = Path(lock_path) if lock_path is not None else base / "acquisition.json"
     if selected.is_symlink() or any(parent.is_symlink() for parent in selected.parents):
         raise ValueError("symlinked acquisition lock")
@@ -1486,6 +1591,25 @@ def verify_acquisition(
             entry = lock["sources"][source.id]
             if entry["declaration_sha256"] != declaration_sha256(source):
                 raise ValueError(f"declaration changed: {source.id}")
+            effect = effects[source.id] if effects is not None else None
+            if effect is not None and effect.effect == "reuse_only":
+                origin, _ = _verify_retained(
+                    project,
+                    Path(work_root),
+                    source,
+                    effect,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
+                if entry.get("reuse_origin") != {
+                    "project_id": effect.origin_project_id,
+                    "snapshot_sha256": effect.snapshot_sha256,
+                    "declaration_sha256": effect.declaration_sha256,
+                    "path": str(origin),
+                }:
+                    raise ValueError("retained origin binding mismatch")
+            elif effect is not None and "reuse_origin" in entry:
+                raise ValueError("acquired source claims an undeclared reuse origin")
             if source.redistribution == "rejected":
                 if (
                     entry["receipt"]["status"] != "rejected"
@@ -1496,6 +1620,8 @@ def verify_acquisition(
                     raise ValueError("invalid rejected receipt")
                 continue
             snapshot = base / "snapshots" / source.id / entry["snapshot_sha256"]
+            if effect is not None:
+                _safe_snapshot_path(snapshot.absolute())
             if entry["snapshot_path"] != str(snapshot.resolve()):
                 raise ValueError("snapshot path mismatch")
             manifest = verify_snapshot(
@@ -1535,6 +1661,26 @@ def acquire(
             proof_store=proof_store,
             verification_mode=verification_mode,
         )
+    effects = (
+        {item.source_id: item for item in project.config.source_effects}
+        if project.config.source_effects is not None
+        else None
+    )
+    retained: dict[str, tuple[Path, dict[str, Any]]] = {}
+    if effects is not None:
+        # Complete rights/source permission and all retained-byte checks happen
+        # before the first metadata request, transfer, or acquisition lock write.
+        for source in project.sources:
+            effect = effects[source.id]
+            if effect.effect == "reuse_only":
+                retained[source.id] = _verify_retained(
+                    project,
+                    Path(work_root),
+                    source,
+                    effect,
+                    proof_store=proof_store,
+                    verification_mode=verification_mode,
+                )
     snapshot_root = base / "snapshots"
     snapshot_root.mkdir(parents=True, exist_ok=True)
     budget = (
@@ -1545,6 +1691,56 @@ def acquire(
     entries = {}
     for source in project.sources:
         declared_digest = declaration_sha256(source)
+        effect = effects[source.id] if effects is not None else None
+        if effect is not None and effect.effect == "reuse_only":
+            origin, manifest = retained[source.id]
+            destination = snapshot_root / source.id / manifest["snapshot_sha256"]
+            _safe_snapshot_path(destination.absolute())
+            if not destination.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                staging = Path(
+                    tempfile.mkdtemp(prefix=".reuse-", dir=destination.parent)
+                )
+                try:
+                    shutil.rmtree(staging)
+                    shutil.copytree(origin, staging, symlinks=True)
+                    if (
+                        verify_snapshot(staging, _staged=True)["snapshot_sha256"]
+                        != manifest["snapshot_sha256"]
+                    ):
+                        raise ValueError("retained snapshot copy differs from origin")
+                    for member in sorted(staging.rglob("*"), reverse=True):
+                        if member.is_file():
+                            with member.open("rb") as stream:
+                                os.fsync(stream.fileno())
+                        elif member.is_dir():
+                            _sync_dir(member)
+                    _sync_dir(staging)
+                    _rename_noreplace(staging, destination)
+                    _sync_dir(destination.parent)
+                finally:
+                    if staging.exists():
+                        shutil.rmtree(staging)
+            copied = verify_snapshot(
+                destination,
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            if copied != manifest:
+                raise ValueError("retained snapshot copy identity mismatch")
+            entries[source.id] = {
+                "declaration_sha256": declared_digest,
+                "snapshot_sha256": manifest["snapshot_sha256"],
+                "snapshot_path": str(destination.resolve()),
+                "reuse_origin": {
+                    "project_id": effect.origin_project_id,
+                    "snapshot_sha256": effect.snapshot_sha256,
+                    "declaration_sha256": effect.declaration_sha256,
+                    "path": str(origin),
+                },
+                "receipt": {"status": "acquired", "retrieval": manifest["retrieval"]},
+            }
+            continue
         if source.redistribution == "rejected":
             entries[source.id] = {
                 "declaration_sha256": declared_digest,
@@ -1697,6 +1893,22 @@ def acquire(
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
+    if effects is not None:
+        # An origin changed during the permitted transfer cannot be sealed in
+        # the new lock merely because its preflight passed earlier.
+        for source in project.sources:
+            if effects[source.id].effect != "reuse_only":
+                continue
+            _, current = _verify_retained(
+                project,
+                Path(work_root),
+                source,
+                effects[source.id],
+                proof_store=proof_store,
+                verification_mode=verification_mode,
+            )
+            if current != retained[source.id][1]:
+                raise ValueError(f"retained origin changed before lock: {source.id}")
     lock = {
         "schema_version": 1,
         "project_id": project.config.id,

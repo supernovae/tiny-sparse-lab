@@ -1,0 +1,4 @@
+min_unique_train_tokens_by_domain:
+  general_prose: 20250000
+  explanatory_prose: 4500000
+  incident_response_docs: 250000

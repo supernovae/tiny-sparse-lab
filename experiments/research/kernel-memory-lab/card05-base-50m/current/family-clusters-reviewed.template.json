@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "inventory_sha256": "${INVENTORY_SHA256}",
+  "seed": "${REVIEWED_SPLIT_SEED}",
+  "source_strata": {
+    "kml_scale_pagerduty": "incident_response_docs",
+    "kml_scale_project_gutenberg": "general_prose",
+    "kml_scale_scoutflo": "incident_response_docs",
+    "kml_scale_wikimedia": "explanatory_prose"
+  },
+  "merges": "${REVIEWED_MERGES_JSON}",
+  "reviewer": "${REVIEWER}",
+  "reviewed_on": "${REVIEWED_ON}",
+  "prior_family_inventory": {
+    "path": "${PRIOR_FAMILY_INVENTORY_PATH}",
+    "sha256": "${PRIOR_FAMILY_INVENTORY_SHA256}",
+    "release_path": "${PRIOR_RELEASE_PATH}"
+  }
+}

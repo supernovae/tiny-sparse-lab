@@ -50,11 +50,22 @@ def _binding(project: Project) -> str:
             if source.kind == "git" and source.acquisition.bounded_blobs is not None
         ],
     }
+    if project.config.source_effects is not None:
+        value["source_effects"] = [
+            effect.model_dump(mode="json") for effect in project.config.source_effects
+        ]
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def _validate_scope(project: Project) -> None:
+    effects = (
+        {item.source_id: item for item in project.config.source_effects}
+        if project.config.source_effects is not None
+        else None
+    )
     for source in project.sources:
+        if effects is not None and effects[source.id].effect == "reuse_only":
+            continue
         if source.redistribution == "rejected" or source.kind in {
             "local",
             "deterministic_generator",
@@ -115,15 +126,25 @@ class TransportBudget:
             raise ValueError("transport budget ledger counters are invalid")
 
     def projected_disk_bytes(self) -> int:
+        effects = (
+            {item.source_id: item for item in self.project.config.source_effects}
+            if self.project.config.source_effects is not None
+            else None
+        )
+        transferring = [
+            source
+            for source in self.project.sources
+            if effects is None or effects[source.id].effect == "acquire"
+        ]
         bounded_hf = [
             source.acquisition
-            for source in self.project.sources
+            for source in transferring
             if source.kind == "huggingface_dataset"
             and source.acquisition.bounded_shards is not None
         ]
         bounded_git = [
             source.acquisition
-            for source in self.project.sources
+            for source in transferring
             if source.kind == "git" and source.acquisition.bounded_blobs is not None
         ]
         largest = [
@@ -143,11 +164,19 @@ class TransportBudget:
         if spec is None:
             raise ValueError("project has no transport budget")
         _validate_scope(project)
+        effects = (
+            {item.source_id: item for item in project.config.source_effects}
+            if project.config.source_effects is not None
+            else None
+        )
         if not any(
-            source.kind == "huggingface_dataset"
-            and source.acquisition.bounded_shards is not None
-            or source.kind == "git"
-            and source.acquisition.bounded_blobs is not None
+            (effects is None or effects[source.id].effect == "acquire")
+            and (
+                source.kind == "huggingface_dataset"
+                and source.acquisition.bounded_shards is not None
+                or source.kind == "git"
+                and source.acquisition.bounded_blobs is not None
+            )
             for source in project.sources
         ):
             raise ValueError("transport budget requires bounded shards or Git blobs")

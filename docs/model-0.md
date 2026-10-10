@@ -1,7 +1,7 @@
 # Run and inspect DevMind MODEL-0
 
 **MODEL-0 completed base pretraining; it is not a polished assistant.** The
-[canonical result](../experiments/research/devmind-pretrain-v5/model0-result.json)
+[canonical result](../experiments/research/history/devmind-pretrain-v5/model0-result.json)
 records one completed, evaluated, unpromoted run. It has no developer SFT or
 chat-tuning stage. The retained greedy samples are repetitive and language-mixed:
 a Python prefix produces repeated C/JavaScript-like blocks, SQL repeats
@@ -21,13 +21,13 @@ remain part of the result; a successful API response does not change them.
 | Terminal generation | `step_00005525_gen_000004` |
 | Checkpoint digest | `52aba43c269204ada5ce4101414f71aa7a8bbe116d5d1d58780eb2e2717d2709` |
 
-The [Family declaration](../experiments/research/devmind-pretrain-v5/model0-family.yaml)
+The [Family declaration](../experiments/research/history/devmind-pretrain-v5/model0-family.yaml)
 binds corpus, tokenizer, plan, checkpoint and evaluation identities. The
-[execution record](../experiments/research/devmind-pretrain-v5/model0-execution.md)
+[execution record](../experiments/research/history/devmind-pretrain-v5/model0-execution.md)
 preserves earlier censored attempts and their later same-attempt reconciliation.
 `READY_FOR_NEXT_STAGE` means the declared evidence policy passed; it does not
 mean instruction following, usefulness, promotion, publication or child resume
-was demonstrated. [MODEL-1's protocol](../experiments/research/devmind-pretrain-v5/model1-protocol.md)
+was demonstrated. [MODEL-1's protocol](../experiments/research/history/devmind-pretrain-v5/model1-protocol.md)
 is a future comparison declaration, not evidence that a later model exists.
 
 ## Artifact lifecycle and availability
@@ -73,7 +73,7 @@ CPU wheels into that environment. A new CPU sample is a new exploratory
 observation, not a reproduction claim for the original ROCm panel.
 
 If that directory is missing, stop at the evidence records and use the
-[recovery declaration](../experiments/research/devmind-pretrain-v5/model0-recovery.yaml)
+[recovery declaration](../experiments/research/history/devmind-pretrain-v5/model0-recovery.yaml)
 to establish what can actually be restored. An archive/reference is not proof
 that external payloads are available. No public model download or weight
 publication is implied. Do not bypass validation with bare weights, replace the

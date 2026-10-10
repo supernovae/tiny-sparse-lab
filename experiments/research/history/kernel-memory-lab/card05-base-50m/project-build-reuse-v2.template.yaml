@@ -1,0 +1,39 @@
+# Render only after reviewed admission and split freeze; never use acquire placeholder splits.
+schema_version: 1
+id: kernel-memory-lab-card05-base-50m-v2
+sources:
+  - sources/source-gutenberg.yaml
+  - sources/source-pagerduty.yaml
+  - sources/source-scoutflo.yaml
+  - sources/source-wikimedia.yaml
+transforms:
+  - transforms/lm.yaml
+splits: ${REVIEWED_SPLITS_FILE}
+release: release-reviewed.yaml
+source_effects:
+  - source_id: kml_scale_pagerduty
+    declaration_sha256: 8b4293a3f3cd434555ff95c45b3e40af4f5e445026f1b31efc3f6f022029b9d1
+    effect: reuse_only
+    origin_project_id: kernel-memory-lab-card05-base-v1
+    snapshot_sha256: e040f260758cb00dd18e2a8a7b66a2e5d74455cbd26e1527304a52a81d984830
+  - source_id: kml_scale_project_gutenberg
+    declaration_sha256: e6a5841624c0c86a4e80d67914a91b7eaf40c3391c58c3d3ff6a8b0dc54ecc32
+    effect: reuse_only
+    origin_project_id: kernel-memory-lab-card05-base-v1
+    snapshot_sha256: db2ce3b1af503bb9444cc83f8e8fd1a72e603463ff0724ae41385f5d19627a1e
+  - source_id: kml_scale_scoutflo
+    declaration_sha256: 2fc7879758c96d4913b721fc474d6b5420ebad15366b781e7fcbe04d594527b4
+    effect: reuse_only
+    origin_project_id: kernel-memory-lab-card05-base-v1
+    snapshot_sha256: 574e06a4a327a3e25c04782c829b7015b8ba541da1d8e8f66ae3e4f1f7dfda0a
+  - source_id: kml_scale_wikimedia
+    declaration_sha256: 46743b8c67a1374c9c59c7caf13842970f81a57889a5937f9753440b09e33d1f
+    effect: acquire
+transport_budget:
+  attempt_id: kml-card05-base-50m-v2
+  max_source_body_bytes: 960485500
+  max_metadata_body_bytes: 4194304
+  max_transfers: 946
+  max_retries_per_shard: 1
+  max_wall_seconds: 7200
+  max_disk_bytes: 8589934592

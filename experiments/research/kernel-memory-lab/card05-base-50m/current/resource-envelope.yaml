@@ -1,0 +1,5 @@
+resource_envelope_version: 1
+max_rss_bytes: 25769803776
+min_disk_bytes: 79456894976
+min_inodes: 11000
+spill_to_disk: true

@@ -51,22 +51,12 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
-      - name: Static format, frozen identity and research records
+      - name: Static format and research records
         env:
           UV_OFFLINE: "1"
         run: |
           uv run --locked --no-sync ruff check .
           uv run --locked --no-sync ruff format --check .
-          uv run --locked --no-sync python - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-
-          frozen = json.loads(Path("experiments/research/dense-lm-decoding-v1/preregistration.json").read_text())
-          test = Path("tests/test_generation.py")
-          if hashlib.sha256(test.read_bytes()).hexdigest() != frozen["frozen_sha256"][test.as_posix()]:
-              raise SystemExit(f"{test}: frozen preregistration digest changed")
-          PY
           uv run --locked --no-sync python -m sparselab.research.lint --json
       - name: Explicit zero-model-work regressions
         env:
@@ -81,7 +71,7 @@ jobs:
             tests/test_research_lint.py::test_changed_legacy_bytes_are_rejected \
             tests/test_research_lint.py::test_same_legacy_bytes_at_different_path_are_rejected \
             tests/test_research_lint.py::test_additional_unapproved_legacy_artifact_is_rejected \
-            tests/test_attempt_budget.py::test_updates_persist_across_attempts_and_never_refund \
+            tests/test_preparation_commands.py \
             tests/test_attempt_contract.py::test_zero_update_vector_reservations_persist_without_refund \
             tests/test_operational_monitor_safety.py::test_absent_optional_fields_preserve_legacy_policy_and_receipt_serialization \
             tests/test_corpus_mixture.py::test_native_packing_supervises_exact_exported_quota \

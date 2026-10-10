@@ -7,7 +7,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import yaml
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from sparselab.config.models import StrictModel
 from sparselab.corpus.rights import RightsPolicy
@@ -692,6 +692,32 @@ class TransportBudgetSpec(StrictModel):
         return value
 
 
+class SourceEffect(StrictModel):
+    source_id: str
+    declaration_sha256: str
+    effect: Literal["reuse_only", "acquire"]
+    origin_project_id: str | None = None
+    snapshot_sha256: str | None = None
+
+    @model_validator(mode="after")
+    def complete_binding(self) -> SourceEffect:
+        if not _ID.fullmatch(self.source_id) or not _HEX.fullmatch(
+            self.declaration_sha256
+        ):
+            raise ValueError("source effect needs a source ID and declaration SHA-256")
+        if self.effect == "reuse_only":
+            if (
+                self.origin_project_id is None
+                or not _ID.fullmatch(self.origin_project_id)
+                or self.snapshot_sha256 is None
+                or not _HEX.fullmatch(self.snapshot_sha256)
+            ):
+                raise ValueError("reuse-only source needs an exact immutable origin")
+        elif self.origin_project_id is not None or self.snapshot_sha256 is not None:
+            raise ValueError("acquired source cannot declare a reuse origin")
+        return self
+
+
 class ProjectConfig(StrictModel):
     schema_version: Literal[1]
     id: str
@@ -700,6 +726,14 @@ class ProjectConfig(StrictModel):
     splits: str
     release: str
     transport_budget: TransportBudgetSpec | None = None
+    source_effects: tuple[SourceEffect, ...] | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_compatibly(self, handler: Any) -> dict[str, Any]:
+        result = handler(self)
+        if self.source_effects is None:
+            result.pop("source_effects")
+        return result
 
     @field_validator("id")
     @classmethod
@@ -728,6 +762,10 @@ class ProjectConfig(StrictModel):
                     raise ValueError(f"invalid {group} declaration path: {path}")
         for path in (self.splits, self.release):
             safe_name(path)
+        if self.source_effects is not None:
+            ids = [item.source_id for item in self.source_effects]
+            if not ids or ids != sorted(set(ids)):
+                raise ValueError("source effects must be complete, sorted and unique")
         return self
 
 
@@ -748,6 +786,22 @@ class Project(StrictModel):
             raise ValueError(
                 "source rights schema must match release publication policy"
             )
+        if self.config.source_effects is not None:
+            from sparselab.corpus.acquisition import declaration_sha256
+
+            effects = {item.source_id: item for item in self.config.source_effects}
+            if set(effects) != {source.id for source in self.sources}:
+                raise ValueError("source effects must cover every declared source")
+            for source in self.sources:
+                effect = effects[source.id]
+                if effect.declaration_sha256 != declaration_sha256(source):
+                    raise ValueError(f"source effect declaration mismatch: {source.id}")
+                if effect.effect == "reuse_only" and source.kind not in {
+                    "git",
+                    "huggingface_dataset",
+                    "wikimedia_dump",
+                }:
+                    raise ValueError("reuse-only source must be immutable")
         return self
 
 

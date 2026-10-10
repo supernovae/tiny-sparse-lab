@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "run_id": "${NEW_RUN_ID}",
+  "runs_dir": "${NEW_ATTEMPT_ROOT}/runs",
+  "config": "${SEALED_RUN_CONFIG}",
+  "config_sha256": "${SEALED_RUN_CONFIG_SHA256}",
+  "profile": "${CHECKOUT}/experiments/research/kernel-memory-lab/CARD05_BASE_EVALUATION_PROFILE_V1.json",
+  "profile_sha256": "bb4c1b719b29fa96c4429516022a5038f0e3595b9d8ef63394bf0a17a5c6851d",
+  "steps": [0, 5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 48829],
+  "final_step": 48829,
+  "target_positions": 50000000
+}

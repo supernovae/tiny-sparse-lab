@@ -4,31 +4,10 @@ Surface Review separates **exploratory checkpoint chat** from a **sealed review 
 
 ## Import existing generations
 
-Each import requires a *new, nonexistent* output directory and verifies the indexed source bytes before selection. The ignored data-rich generation files remain in the separate campaign checkout and must be supplied explicitly; a missing file is an error, not permission to regenerate it.
-
-The first two importers understand specific retained study formats. Set
-`CAMPAIGN_ROOT` to the checkout containing the data-rich study packet and
-`REVIEW_DIR` to the retained decoding review directory. These are required
-existing inputs. For your own runs, prefer the triage importer below.
-Set `SPARSELAB_WORK_DIR` to your external work root.
-
-```sh
-uv run --locked sparselab surface import data-rich-v1 \
-  --campaign-root "$CAMPAIGN_ROOT" \
-  --sample quick --selection-seed 2026 --presentation-seed 2027 \
-  --output "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/data-rich-quick-2026"
-
-uv run --locked sparselab surface import decoding-v1 \
-  --review-dir "$REVIEW_DIR" \
-  --repository-root "$PWD" \
-  --sample quick --selection-seed 2026 --presentation-seed 2027 \
-  --output "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/decoding-quick-2026"
-
-uv run --locked sparselab surface review \
-  "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/data-rich-quick-2026" --port 8502
-```
-
-The decoding importer requires the original ignored `review/blind.json`, `key.json` and `test_sha256.json`, the six raw test JSONLs and checked-in evidence. Its 198 existing source pairs include both model-vs-model and within-model decoder comparisons. It preserves original A/B and the six original labels in **private provenance**, then makes a newly seeded anonymous presentation; the original old review is unchanged. The data-rich importer verifies the tracked evidence index and all three 165-cell generation files. Every matched prompt/decoder/RNG coordinate must have one successful row from each checkpoint: 55 greedy and 110 sampled coordinates per checkpoint, yielding 495 eligible unordered model pairs (not 495 independent prompts). These files and the checked-in study packets are read-only inputs.
+Each import requires a new, nonexistent output directory and verifies indexed
+source bytes before selection. The current importer consumes native triage
+reports. Experiment-specific decoding and data-rich import adapters are retired;
+their findings remain in the [inactive research history](../../experiments/research/history/).
 
 To compare compatible Tier-1 outputs from at least two verified, immutable post-train triage reports, provide the runs explicitly; no matching report/prompt/settings cells means no bundle:
 
@@ -39,7 +18,7 @@ uv run --locked sparselab surface import triage \
   --output "$SPARSELAB_WORK_DIR/experiments/surface-review/bundles/triage-standard-2026"
 ```
 
-`--sample quick` selects up to 12 eligible pairs, `standard` up to 32, and `full` all eligible pairs (495 for the complete data-rich panel, 198 for the old decoding panel). No vote affects the sample size. Candidate IDs are sorted canonically by prompt, decoder, RNG and unordered source pair; a seeded, deterministic greedy rule favors underrepresented category, source pairing, decoder, RNG and prompt in that order, then hashes the selection seed and candidate ID to break ties. A separate presentation seed deterministically shuffles the selected cases, makes opaque case IDs and assigns A/B orientation. Both seeds are signed decimal integers in private provenance; changing either requires a new output directory. No quality judgment enters selection. These are balanced *descriptive* subsets, not a random population estimate.
+`--sample quick` selects up to 12 eligible pairs, `standard` up to 32, and `full` all eligible pairs. No vote affects the sample size. Candidate IDs are sorted canonically by prompt, decoder, RNG and unordered source pair; a seeded, deterministic greedy rule favors underrepresented category, source pairing, decoder, RNG and prompt in that order, then hashes the selection seed and candidate ID to break ties. A separate presentation seed deterministically shuffles the selected cases, makes opaque case IDs and assigns A/B orientation. Both seeds are signed decimal integers in private provenance; changing either requires a new output directory. No quality judgment enters selection. These are balanced *descriptive* subsets, not a random population estimate.
 
 ## Answer and reveal
 
@@ -47,12 +26,12 @@ The review page is hosted by Streamlit on `127.0.0.1` and shows only the verifie
 
 | Applicability | Dimension IDs |
 |---|---|
-| Every data-rich or triage case | `prompt_adherence`, `repetition`, `readability_coherence`, `overall_preference` |
+| Every triage case | `prompt_adherence`, `repetition`, `readability_coherence`, `overall_preference` |
 | `entity_continuity`, `named_character_continuity` categories | additionally `entity_continuity` |
 | `object_continuity`, `color_attribute_continuity` categories | additionally `attribute_consistency` |
 | `cause_effect`, `temporal_ordering`, `location_permanence` categories | additionally `causal_temporal_coherence` |
 
-These seven IDs are the available canonical dimensions; only the declared applicable subset is voted for a given case. For imported decoding-v1, all six original dimensions map explicitly: `prompt_adherence` → `prompt_adherence`, `entities` → `entity_continuity`, `stated_attributes` → `attribute_consistency`, `temporal_causal_consistency` → `causal_temporal_coherence`, `repetition` → `repetition`, and `local_readability` → `readability_coherence`. Its original `uncertain` choice vocabulary and exact labels remain in private provenance. The new `cannot_tell` and `neither` are distinct; an `overall_preference` vote is **not invented** for an old six-dimension case.
+These seven IDs are the available canonical dimensions; only the declared applicable subset is voted for a given case.
 
 The v1 integrity chain is:
 

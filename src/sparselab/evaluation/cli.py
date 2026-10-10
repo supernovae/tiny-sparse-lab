@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import torch
@@ -47,6 +48,22 @@ def _fixed_slices(args: argparse.Namespace) -> None:
             args.json,
         )
         return
+    from sparselab.training.attempt_budget import AttemptBudget
+
+    if args.fixed_command == "score":
+        required = 4608 if args.mode == "utility" else 3084
+        if (
+            any(key.startswith("SPARSELAB_ATTEMPT_") for key in os.environ)
+            and args.max_forward_positions != required
+        ):
+            raise ValueError("fixed score requires its exact declared forward cap")
+        AttemptBudget.require_fixed_evaluation_allocation_from_environment(
+            fixed_positions=required, total_positions=required, calls=0, tokens=0
+        )
+    else:
+        AttemptBudget.require_fixed_evaluation_allocation_from_environment(
+            fixed_positions=0, total_positions=8 * 6112, calls=8, tokens=512
+        )
     loaded = load_run(
         args.run_id,
         Path(args.runs_dir),
@@ -72,6 +89,20 @@ def _fixed_slices(args: argparse.Namespace) -> None:
     result["identity"] = loaded.identity
     path = write_inference_result(loaded.run, "fixed-slices", result)
     _print({"output": str(path), **result}, args.json)
+
+
+def _fixed_selection(args: argparse.Namespace) -> None:
+    from sparselab.evaluation.fixed_selection import (
+        select_fixed_validation,
+        verify_fixed_selection,
+    )
+
+    result = (
+        select_fixed_validation(Path(args.declaration), Path(args.output))
+        if args.fixed_command == "select"
+        else verify_fixed_selection(Path(args.declaration), Path(args.receipt))
+    )
+    _print(result, args.json)
 
 
 def _print(payload: dict, json_output: bool) -> None:
@@ -195,6 +226,16 @@ def register_evaluation_parser(
                 )
                 command.add_argument("--max-forward-positions", type=int, required=True)
         command.set_defaults(handler=_fixed_slices)
+    select = fixed_actions.add_parser("select")
+    select.add_argument("declaration")
+    select.add_argument("--output", required=True)
+    select.add_argument("--json", action="store_true")
+    select.set_defaults(handler=_fixed_selection)
+    verify_selection = fixed_actions.add_parser("verify-selection")
+    verify_selection.add_argument("declaration")
+    verify_selection.add_argument("receipt")
+    verify_selection.add_argument("--json", action="store_true")
+    verify_selection.set_defaults(handler=_fixed_selection)
 
 
 def register_readiness_parser(subparsers: argparse._SubParsersAction) -> None:

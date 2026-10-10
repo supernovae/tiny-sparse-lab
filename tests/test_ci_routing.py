@@ -14,7 +14,7 @@ NODES = (
     "tests/test_research_lint.py::test_changed_legacy_bytes_are_rejected",
     "tests/test_research_lint.py::test_same_legacy_bytes_at_different_path_are_rejected",
     "tests/test_research_lint.py::test_additional_unapproved_legacy_artifact_is_rejected",
-    "tests/test_attempt_budget.py::test_updates_persist_across_attempts_and_never_refund",
+    "tests/test_preparation_commands.py",
     "tests/test_attempt_contract.py::test_zero_update_vector_reservations_persist_without_refund",
     "tests/test_operational_monitor_safety.py::test_absent_optional_fields_preserve_legacy_policy_and_receipt_serialization",
     "tests/test_corpus_mixture.py::test_native_packing_supervises_exact_exported_quota",
