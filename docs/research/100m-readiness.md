@@ -39,8 +39,10 @@ Source: [B7 preparation report](../../experiments/research/kernel-memory-lab/res
 These are distinct retained train content positions, excluding EOS, measured
 with tokenizer SHA-256
 `308b33a6edbed613f3caf5232b124a7c6105a7a3dc273c999725be51c3ffeaa9`.
-At two exposures B7 supplies at most **48,604,994 targets even with a changed
-mix**; at 81/18/1 the explanatory stratum limits the total to about **35.07M**.
+At two exposures B7 provides **48,604,994 content-position exposures excluding
+EOS**, even with a changed mix; this is not an exact supervised target capacity.
+At 81/18/1, the explanatory stratum limits content-position exposure capacity
+to about **35.07M**. Native mixture accounting establishes exact scheduled targets.
 Extra repetitions or relabeling domains would change the scientific protocol.
 
 The old 50M proposal's one extra Wikimedia bucket forecast (~1.55M unique
