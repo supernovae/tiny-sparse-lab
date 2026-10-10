@@ -13,11 +13,11 @@ Original protocols, artifacts, failed observations and identities remain authori
 
 [Compact baseline](../../artifacts/benchmarks/capacity-aware-execution-v1-baseline.json)
 binds exact JSON pointers into versioned
-[execution records](../../experiments/research/devmind-pretrain-v5/model0-execution.md),
-[preparation](../../experiments/research/devmind-pretrain-v5/model0-preparation-verification.json),
-[lock acceptance](../../experiments/research/devmind-pretrain-v5/model0-plan-lock-acceptance.json),
-[current-source readiness](../../experiments/research/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json)
-and [completed result](../../experiments/research/devmind-pretrain-v5/model0-result.json).
+[execution records](../../experiments/research/history/devmind-pretrain-v5/model0-execution.md),
+[preparation](../../experiments/research/history/devmind-pretrain-v5/model0-preparation-verification.json),
+[lock acceptance](../../experiments/research/history/devmind-pretrain-v5/model0-plan-lock-acceptance.json),
+[current-source readiness](../../experiments/research/history/devmind-pretrain-v5/model0-current-source-full-shape-readiness.json)
+and [completed result](../../experiments/research/history/devmind-pretrain-v5/model0-result.json).
 These are retrospective operational evidence, not new scientific results.
 
 | Boundary | Observed wall seconds | Interpretation |
@@ -562,15 +562,14 @@ Without an observer, these phase samples are unavailable.
 Records remain operational; endpoint RSS is not a lifetime/phase peak and
 missing accelerator probes produce unknown, not an accelerator-bound claim.
 
-## Campaign-specific measurement compatibility
+## Retired campaign-specific measurement shortcut
 
-The explicit `--evidence-commit`, `--release-evidence` and `--selection-evidence`
-option accepts only the reviewed DevMind v5 post-mount cold record and exact
-committed primary/selection blobs, with current manifest, tokenizer, report and
-winner-manifest hashes checked and documents authenticated during the scan.
-The chosen commit is an operator acceptance of that reviewed cold record, not
-an arbitrary SHA's assertion of authentication or a replacement verifier for
-unrelated releases. It does not establish indefinite external availability.
+The DevMind-only committed-evidence flags and trust implementation were removed
+in the lifecycle cleanup. Current measurement uses cold release/tokenizer
+verification, with an explicit tokenizer-origin release when reusing a retained
+tokenizer. The earlier proof and measurements remain unchanged in the
+[history archive](../../experiments/research/history/README.md); their existence
+does not authorize replay or replace verification of current inputs.
 
 ## Generation-panel integration history
 
@@ -649,7 +648,7 @@ Dense attention, sliding-window attention, MLA, MoE, and byte memory alter diffe
 
 ## Partial recovery declaration example
 
-The [DevMind v4 recovery declaration](../../experiments/research/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.
+The [DevMind v4 recovery declaration](../../experiments/research/history/devmind-pretrain-v4/recovery.yaml) is intentionally partial: its historical release SHA is expected only. Missing remote inputs/rights and MODEL-0 tokenizer, architecture/budget, runtime and evaluation declarations prevent any claim of recovered v4 model weights.
 
 ## Task-scoped ancestry replay
 
@@ -659,7 +658,7 @@ gates; each invocation attempts only the named next stage, re-verifies parents,
 and preserves the first failure without automatic retry:
 
 The original invocation is retained with the
-[ancestry replay record](../../experiments/research/devmind-pretrain-v4/ancestry-replay-report.md).
+[ancestry replay record](../../experiments/research/history/devmind-pretrain-v4/ancestry-replay-report.md).
 It is a historical recovery procedure, not a general native lab workflow.
 Declarative snapshot inheritance remains an explicit
 [implementation gap](../../TODO.md#p3--conditional-work-activate-for-a-concrete-workload);

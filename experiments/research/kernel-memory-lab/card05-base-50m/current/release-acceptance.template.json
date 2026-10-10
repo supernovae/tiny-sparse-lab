@@ -1,0 +1,13 @@
+{
+  "format": "sparselab-release-review-v1",
+  "decision": "ACCEPTED",
+  "reviewer": "${REVIEWER}",
+  "reviewed_on": "${REVIEWED_ON}",
+  "release_path": "${RELEASE_PATH}",
+  "release_id": "${RELEASE_ID}",
+  "release_manifest_sha256": "${RELEASE_MANIFEST_SHA256}",
+  "family_inventory_path": "${FAMILY_INVENTORY_PATH}",
+  "family_inventory_sha256": "${FAMILY_INVENTORY_SHA256}",
+  "protected_lineage_path": "${PROTECTED_LINEAGE_PATH}",
+  "protected_lineage_sha256": "${PROTECTED_LINEAGE_SHA256}"
+}

@@ -548,7 +548,7 @@ def test_cross_release_rejects_wrong_origin_tokenizer_and_inventory(
             policy,
             tokenizer_origin_release=origin,
         )
-    with pytest.raises(ValueError, match="cold verification"):
+    with pytest.raises(TypeError, match="evidence_commit"):
         measure_source_tokens(
             target,
             tokenizer,
@@ -1016,7 +1016,7 @@ def test_unrelated_evidence_sha_never_bypasses_full_verification(
 ) -> None:
     release, tokenizer, policy = frozen
     output = tmp_path / "untrusted.json"
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError, match="evidence_commit"):
         measure_source_tokens(
             release,
             tokenizer,
@@ -1085,3 +1085,15 @@ print(json.dumps({"peak_rss_bytes":peak_bytes, "source_size":size, "rows":rows})
     measurements = json.loads(result.stdout)
     assert measurements["peak_rss_bytes"] < 512 * 1024 * 1024, measurements
     print(json.dumps(measurements, sort_keys=True))
+
+
+def test_receipt_cannot_reactivate_committed_evidence_trust(
+    frozen: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    release, tokenizer, policy = frozen
+    output = tmp_path / "receipt.json"
+    receipt = measure_source_tokens(release, tokenizer, policy, output)
+    receipt["evidence"] = {"commit": "0" * 40}
+    output.write_bytes(canonical_json(receipt) + b"\n")
+    with pytest.raises(ValueError, match="cold input authentication"):
+        read_source_token_receipt(output, release, tokenizer, policy)

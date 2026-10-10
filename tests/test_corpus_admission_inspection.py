@@ -217,3 +217,32 @@ def test_inspection_rejects_changed_inputs_and_exhausted_caps(tmp_path: Path) ->
     )
     with pytest.raises(ValueError, match="snapshot byte mismatch"):
         verify_admission_inspection(inspection, root)
+
+
+def test_admission_review_rejects_obsolete_unbound_decisions(tmp_path: Path) -> None:
+    admission = tmp_path / "admission.json"
+    admission.write_text("{}")
+    receipt = admission.with_name(admission.name + ".review.json")
+    receipt.write_text(
+        json.dumps(
+            {
+                "format": "sparselab-admission-review-v1",
+                "decision": "ACCEPTED",
+                "reviewer": "Synthetic fixture only",
+                "reviewed_on": "2026-10-10",
+                "draft_path": str(admission),
+                "draft_sha256": sha256_file(admission),
+                "admission_sha256": sha256_file(admission),
+                "spot_audits": [
+                    {
+                        "source_id": "fixture",
+                        "location": "line 1",
+                        "outcome": "pass",
+                        "note": "Unbound synthetic review",
+                    }
+                ],
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="inspection-bound decision"):
+        verify_admission_review(admission, tmp_path)

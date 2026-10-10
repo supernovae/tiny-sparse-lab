@@ -133,16 +133,6 @@ def _scientific(receipt: dict[str, Any]) -> str:
         "domains",
         "rows_scanned",
     )
-    evidence = receipt["evidence"]
-    scientific_evidence = (
-        {
-            key: value
-            for key, value in evidence.items()
-            if key not in {"release_evidence", "selection_evidence", "report_path"}
-        }
-        if evidence is not None
-        else None
-    )
     from sparselab.campaign.state import digest
 
     bound = (
@@ -166,7 +156,7 @@ def _scientific(receipt: dict[str, Any]) -> str:
         {
             **{name: receipt[name] for name in fields},
             **bound,
-            "evidence": scientific_evidence,
+            "evidence": None,
         },
     )
 
@@ -491,15 +481,12 @@ def read_source_token_receipt(
         raise ValueError("source-token receipt requires its tokenizer origin")
     policy, policy_sha = _policy(policy_path)
     evidence = receipt.get("evidence")
-    if evidence is not None and not isinstance(evidence, dict):
-        raise ValueError("invalid evidence binding")
+    if evidence is not None:
+        raise ValueError("source-token receipt requires cold input authentication")
     manifest, bindings = _authenticate_inputs(
         release,
         tokenizer,
         tokenizer_origin_release=origin,
-        evidence_commit=evidence.get("commit") if evidence else None,
-        release_evidence=Path(evidence["release_evidence"]) if evidence else None,
-        selection_evidence=Path(evidence["selection_evidence"]) if evidence else None,
     )
     implementation, identity = _implementation()
     expected = {
@@ -580,9 +567,6 @@ def measure_source_tokens(
     *,
     tokenizer_origin_release: Path | None = None,
     family_inventory: Path | None = None,
-    evidence_commit: str | None = None,
-    release_evidence: Path | None = None,
-    selection_evidence: Path | None = None,
     batch_documents: int = TOKENIZER_BATCH_DOCUMENTS,
     batch_source_bytes: int = TOKENIZER_BATCH_SOURCE_BYTES,
 ) -> dict[str, Any]:
@@ -604,9 +588,6 @@ def measure_source_tokens(
         release,
         tokenizer,
         tokenizer_origin_release=origin,
-        evidence_commit=evidence_commit,
-        release_evidence=release_evidence,
-        selection_evidence=selection_evidence,
     )
     inventory_binding = (
         _family_inventory_binding(release, inventory, policy)
@@ -723,17 +704,6 @@ def measure_source_tokens(
                     inventory: inventory_binding[0],
                 }
             )
-        evidence = bindings["evidence"]
-        if evidence is not None:
-            for path_key, hash_key in (
-                ("release_evidence", "release_evidence_sha256"),
-                ("selection_evidence", "selection_evidence_sha256"),
-                ("report_path", "report_sha256"),
-            ):
-                stable_files[Path(evidence[path_key])] = evidence[hash_key]
-            stable_files[
-                Path(evidence["release_evidence"]).with_name("crash-recovery.md")
-            ] = evidence["cold_record_sha256"]
         if any(
             sha256_file(_safe_path(path)) != expected
             for path, expected in stable_files.items()

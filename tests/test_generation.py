@@ -211,6 +211,7 @@ def test_generation_ids_retain_tokens_hidden_by_text_stop_sequence() -> None:
         torch.device("cpu"),
     ) == ("hello", [])
 
+
 def test_byte_memory_uses_raw_leading_space_and_unicode_bytes_for_causal_addresses() -> (
     None
 ):

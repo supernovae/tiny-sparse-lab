@@ -56,23 +56,7 @@ questions are:
 
 - **Useful tasks:** establish one low-risk real task against an independent test population and a simple baseline, with declared error handling and human review.
 - **Corpus shape and synthetic fraction:** preregister paired releases from the same licensed source snapshots with declared shape/fraction filters, held-out source/world/template units, fixed tokenizer/target token budget and controlled model/seed/evaluation suites. Compare recall, paraphrase, troubleshooting, tool use and abstention separately; report negative and mixed effects rather than a universal synthetic percentage or shape ranking. The [Corpus Forge ledger](../corpus-provenance.md) provides measurement inputs, not an observed outcome.
-- **DevMind dense-control candidate:** [v0 A](../../experiments/research/devmind-pretrain-v0/source-report.md) froze source evidence and eleven underpowered cards; [v0 B](../../experiments/research/devmind-pretrain-v0/tokenizer-report.md) failed the nine-kind gate before fitting. The [v1 pilot evidence](../../experiments/research/devmind-pretrain-v1/evidence.md) seals a separate private metadata-only source candidate and underpowered diagnostic cards, resolves bounded lexical near-duplicates and preregisters six paired tokenizer kinds, but source origin/privacy/obligation and weight-publication review is still open; no tokenizer was fit, no distinct source-token supply measured and no model trained. Independent JSON/TOML/log kinds, broad-language coverage, ≥200 genuinely independent test parents per card and the original 150M-token DATA_RICH gate remain unresolved. Next: review selected file rights/content and publication policy; only then fit/measure the frozen bakeoff, choose supply-calibrated dense MODEL-0, and test ROCm/BF16 runtime on the provisioned worker before a fresh seed-42 plan. No corpus build, card or smoke substitutes for model quality or promotion.
-- **DevMind v3 engineering-source supply:** [v2's frozen candidate](../../experiments/research/devmind-pretrain-v2/protocol.md) has 49,120,567 distinct engineering train bytes; the separate [v3 immutable release and evidence](../../experiments/research/devmind-pretrain-v3/protocol.md#frozen-release-and-measured-source-supply) retain 510,860,750 developer bytes from first-party code/manual/spec sources, with 3,012 independent engineering validation/test documents and unchanged academic/web sources. The pinned peS2o title screen flags only 744 of 280,730 papers for topical review without relabeling them. At one other-source pass, 20/30/40% byte-proxy developer exposure requires 1.597/2.738/4.260 developer passes; near-overlap sampling finds Apache-license boilerplate pairs and leaves unsampled semantic independence unproved. **Decision `EXPAND_MORE`:** next independently versioned source/split protocol should add rights-reviewed SQL, JavaScript, shell, configs, operations, build/example/schema material and independent config/operator heldouts, then rerun exact/near leakage screens. No tokenizer or model was fit; no evidence of model quality or a model-weight license follows.
-- **DevMind v4 source decision:** the separate [v4 frozen release and measured evidence](../../experiments/research/devmind-pretrain-v4/protocol.md#frozen-release-and-retained-source-supply) retain 735,281,099 distinct developer train bytes and independent SQL, JS/TS, shell, build, operations and schema heldouts without changing v2/v3 or generic pools. At one pass through nondeveloper data, 25/30% descriptive byte-proxy share takes 1.480/1.903 developer passes. The aspirational 1.0–1.2 GB developer target was missed; small IaC/build/operator/example pools and bounded lexical overlap coverage remain explicit risks. The preregistered corpus-source decision is **READY_FOR_TOKENIZER**, not approval for model training or weights publication. A subsequent separately specified tokenizer/model study must measure quality, rights and exposure rather than collecting without a concrete new gap.
-- **DevMind v5 reproducible successor:** the separately committed
-  [v5 protocol](../../experiments/research/devmind-pretrain-v5/protocol.md)
-  preserves [v2/v3/v4 historical identities](../../experiments/research/devmind-pretrain-v5/historical-releases.json)
-  as nonreconstructable with the available authenticated closure. It copies all
-  123 reviewed final-v4 source declarations and heldouts without historical
-  snapshot imports, pins one fresh producer, and requires exact independent
-  build/release recovery before tokenizer selection and dense MODEL-0. The
-  [MODEL-0 result](../../experiments/research/devmind-pretrain-v5/model0-result.json)
-  now retains an accepted terminal full-state checkpoint.
-  [MODEL-1's equal-exposure protocol](../../experiments/research/devmind-pretrain-v5/model1-protocol.md)
-  freezes an additional 5,525 updates/45,260,800 targets with the original decay
-  horizon and unchanged scientific inputs. Cross-source full-state authorization,
-  a genuine child lock/Family pin and current-source pilot remain blockers;
-  MODEL-1 has not run.
+- **Historical DevMind work:** source expansion, failed recovery and the unpromoted MODEL-0 endpoint are archived in the [research history](../../experiments/research/history/README.md). The [lessons](../../experiments/research/history/LESSONS_LEARNED.md#devmind-source-supply-and-recovery) retain unresolved quality, rights, exposure and reproducibility limits. These archived successor proposals are not the current execution plan.
 - **Lexical Engram:** test transfer/generalization across independent task data, held-out wording/facts, seeds, and collision/capacity controls; keep token and byte results distinct.
 - **Portable byte Engram:** extend the negative two-case result to multiple recipient configurations and held-out cases; prove adapter updates leave source table bytes unchanged and retain disabled/random/frozen-only controls.
 - **Semantic EngramPack:** distinguish exact retrieval of supplied vectors from natural-language understanding. Any text-query capability first needs a reproducible encoder/space contract, an exercised query path, leakage-audited tasks, pack controls, and measured encoder/retrieval cost.
@@ -80,35 +64,19 @@ questions are:
 - **Learning and cost evidence:** add a versioned observation protocol for held-out outcomes, actual token/checkpoint boundaries, threshold censoring, wall/device time, and memory. Update duration is not end-to-end experiment time.
 - **Hardware:** CPU/Apple evidence cannot close CUDA/HIP/ROCm/XPU or real cross-host execution gates.
 
-## Dense-lm-v1 descendants
+## Archived dense and TinyStories findings
 
-The canonical lifecycle now promotes dense-lm-v1 as a bounded three-seed learning reference: seeds 42, 17, and 73 each completed 4,096 steps / 4,194,304 tokens; all fixed terminal gates passed; and endpoints were reached while learning, with no plateau observed. Terminal losses were 2.4824737093453306, 2.484718531778414, and 2.470433681211826, respectively. These results do not establish chat quality; OOD capability cards remain descriptive. Candidate validation passes independently; the unrelated Engram global validation error remains visible.
+The completed token-budget, model-scale, decoding and data-rich TinyStories
+studies now live in [research history](../../experiments/research/history/README.md).
+Their [source-linked lessons](../../experiments/research/history/LESSONS_LEARNED.md)
+separate lower held-out loss from mixed prose behavior, repetition from coherence,
+and changed exposure from new source supply. Retained reports and identities are
+unchanged; old executable study drivers have been removed. An archive is not a
+current launch packet or baseline-promotion decision.
 
-**Finding — dense-lm-token-budget-v1:** Increasing supervised target exposures from 4.19M to 16.78M consistently reduced held-out loss across all three dense reference seeds, but fixed-panel generation behavior did not improve monotonically. No plateau was observed at the terminal budget. The [scale-study control audit](../../experiments/research/dense-lm-scale-v1/protocol.md#prior-control-audit) verifies the unchanged pre-parent decay horizon and full-state lineage. This is not an automatic promotion; `dense-lm-v1` remains the promoted parent/reference.
-
-The completed [dense-lm-scale-v1 comparison](../../experiments/research/dense-lm-scale-v1/results.md) held the same 16.78M supervised targets, fixed dataset/optimizer/decay, ROCm backend and six greedy prompts across the mature ~30M dense reference and the ~50M dense candidate. At all three seeds the larger model had lower terminal held-out loss by 0.0496–0.0607 nats/target and higher runtime/memory cost; fixed stories remained mixed, including regressions in bread/object and causal continuity. [Frozen protocol](../../experiments/research/dense-lm-scale-v1/protocol.md), [input registration](../../experiments/research/dense-lm-scale-v1/preregistration.md), and [raw matched observations](../../experiments/research/dense-lm-scale-v1/evidence.json) preserve the decision boundary. No further baseline is promoted; this is neither an architecture novelty claim nor evidence of generally better prose.
-
-The executed [dense-lm-decoding-v1 study](../../experiments/research/dense-lm-decoding-v1/results.md) reused only the three paired mature checkpoints: 22 development prompts selected a supported non-greedy policy by a frozen mechanical rule, then 55 separate prompts were generated once under greedy and the selected policy. Sampling reduced n-gram loops in both widths but also exposed entity drift and an explicit color contradiction; matched 50M-versus-30M mechanical results on the independent prompts are mixed. An unopened human-review verdict is **unavailable**, not inferred from repetition or LM loss. The original six-prompt deterministic regression decoder and both preceding studies remain unchanged; [raw cells](../../experiments/research/dense-lm-decoding-v1/evidence/summary.json), [prompt hashes](../../experiments/research/dense-lm-decoding-v1/preregistration.json), and a [blind-review protocol](../../experiments/research/dense-lm-decoding-v1/review.md) are retained.
-
-**Finding — tinystories-dense-30m-data-rich-v1 (unpromoted):** The separately preregistered data-rich dense 30M seed-42 run completed 100,663,296 supervised target exposures and a verified full-state endpoint. Its full final 8,000-story held-out loss was 1.610636 nats/native target. On the identical frozen 256 raw stories, the new/old-30M/old-50M bits per UTF-8 byte were 0.668729/0.975226/0.955759; the opened test prompts still contained color contradictions. Source, tokenizer, context, schedule, and precision changed together, so no causal factor or subjective-quality ranking is established. [Results and evidence](../../experiments/research/tinystories-dense-30m-data-rich-v1/results.md) preserve the endpoint and raw outputs; an independent blinded behavior protocol is the next test, not automatic retraining or baseline promotion.
-
-**Open evidence question — independent prose preference:** a sealed
-[Surface Review v1](surface-review-v1.md) import can collect one self-blind
-reviewer's descriptive votes on existing outputs, but no population preference
-or inter-rater agreement follows. Establish whether study prompts are truly
-train-disjoint; then preregister a broader independently reviewed prompt
-sample and multiple readers before interpreting a subjective ranking. Neither
-those votes nor Tier-2 triage diagnostics isolate the effects of data variety,
-depth, tokenizer, budget, context and precision changed together in the
-data-rich comparison. This is a proposed scientific evidence gate, not a
-software implementation task or a promotion decision.
-
-The following descendants remain proposals, not executed work:
-
-- **dense-lm-generation-degeneration-v1:** a still-proposed *cross-milestone* study of seed, repetition, entity continuity and object/color continuity beyond the mature-endpoint decoding comparison. Preserve the established six-prompt regression panel and do not reuse the opened decoding test set for selection.
-- **MLA, Engram, FFN thinning, MoE, and sparse attention:** evaluate each as a separate controlled descendant, preserving baseline conditions and binding protocol/evidence before execution.
-
-Every further descendant must retain the baseline conditions for factors not explicitly varied, declare and bind its protocol and evidence before execution, and remain a proposal until actually run and reviewed.
+Any future continuation needs a new scientific question, explicit controls,
+independent review population and separately authorized execution. Opened prompt
+sets and historical source revisions remain historical evidence.
 
 ## Deferred capability: teacher-derived semantic representations
 
@@ -163,13 +131,13 @@ The intended walkthrough makes the feature path explicit:
 
 Current source boundaries: `SemanticQueryBatch` in `src/sparselab/engram/semantic.py` accepts pre-encoded vectors; `SemanticRetriever` verifies and retrieves from pack assets; `SemanticMemoryAdapter` applies the retrieved values. `src/sparselab/data/toy_worlds.py` encodes canonical structured keys for deterministic synthetic controls. These are useful interfaces and test fixtures, not a macro-model compiler. See [the current runtime contract](semantic-memory.md) for exact limits and testable behavior.
 
-## Proposed: Kernel Memory Lab
+## Current research: Kernel Memory Lab
 
-[Kernel Memory Lab](../../experiments/research/kernel-memory-lab/README.md) plans a
-fresh language/comprehension kernel with controlled external-memory experiments.
-All thirteen implementation/runtime cards remain unstarted. The future
-[calibrated expert track](../../experiments/research/kernel-memory-lab/EXPERT_TRACK.md)
-adds task-appropriate uncertainty, evidence, recovery and risk behavior only after
-foundation gates; its source catalog is a review queue, not an ingestion approval.
-No prior MODEL-0 checkpoint or reproduction is a prerequisite, and no baseline is
-promoted. Native Campaign state and verified receipts remain the execution record.
+[Kernel Memory Lab](../../experiments/research/kernel-memory-lab/README.md) is the
+current project. Consult its [status](../../experiments/research/kernel-memory-lab/STATUS.md)
+and [bootstrap](../../experiments/research/kernel-memory-lab/BOOTSTRAP.md) for
+accepted cards, stopped attempts and exact scope; the earlier statement that all
+thirteen cards were unstarted is obsolete. Production experiments remain paused
+during the offline interface cleanup. Historical allocations and archived models
+do not authorize a new run. Native Campaign state and verified receipts remain
+the execution record.

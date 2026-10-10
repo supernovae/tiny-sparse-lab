@@ -56,8 +56,8 @@ def write_panel(root, name, value):
     return path
 
 
-def test_existing_research_panel_is_supported():
-    source = Path("experiments/research/devmind-pretrain-v5/generation-panel.json")
+def test_current_panel_declaration_is_supported(tmp_path):
+    source = write_panel(tmp_path, "panel.json", declaration(["one", "two", "three"]))
     parsed = panel.load_panel(source)
     assert parsed.decoder.seed == 42
     assert len(parsed.prompts) == 3

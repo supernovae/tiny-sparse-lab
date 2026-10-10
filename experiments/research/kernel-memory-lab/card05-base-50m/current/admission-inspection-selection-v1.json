@@ -1,0 +1,47 @@
+{
+  "format": "sparselab-admission-inspection-selection-v1",
+  "seed": "kml-card03-scale-spot-audit-v1",
+  "normalizer": "normalizer-structure-v3",
+  "sources": [
+    {
+      "source_id": "kml_scale_pagerduty",
+      "exception_count": 4,
+      "strata": [
+        {"id": "before", "count": 2, "path_prefix": "docs/before/", "length_band": null, "issues_nonempty": null},
+        {"id": "during", "count": 2, "path_prefix": "docs/during/", "length_band": null, "issues_nonempty": null},
+        {"id": "after", "count": 2, "path_prefix": "docs/after/", "length_band": null, "issues_nonempty": null},
+        {"id": "remaining", "count": 2, "path_prefix": null, "length_band": null, "issues_nonempty": null}
+      ]
+    },
+    {
+      "source_id": "kml_scale_project_gutenberg",
+      "exception_count": 4,
+      "strata": [
+        {"id": "short", "count": 6, "path_prefix": null, "length_band": "short", "issues_nonempty": null},
+        {"id": "long", "count": 6, "path_prefix": null, "length_band": "long", "issues_nonempty": null}
+      ]
+    },
+    {
+      "source_id": "kml_scale_scoutflo",
+      "exception_count": 4,
+      "strata": [
+        {"id": "aws_proactive", "count": 4, "path_prefix": "AWS Playbooks/08-Proactive/", "length_band": null, "issues_nonempty": null},
+        {"id": "aws_direct", "count": 4, "path_prefix": "AWS Playbooks/", "length_band": null, "issues_nonempty": null},
+        {"id": "kubernetes_proactive", "count": 4, "path_prefix": "K8s Playbooks/13-Proactive/", "length_band": null, "issues_nonempty": null},
+        {"id": "kubernetes_direct", "count": 4, "path_prefix": "K8s Playbooks/", "length_band": null, "issues_nonempty": null},
+        {"id": "sentry", "count": 8, "path_prefix": "Sentry Playbooks/", "length_band": null, "issues_nonempty": null},
+        {"id": "outside_playbooks", "count": 0, "path_prefix": null, "length_band": null, "issues_nonempty": null}
+      ]
+    },
+    {
+      "source_id": "kml_scale_wikimedia",
+      "exception_count": 4,
+      "strata": [
+        {"id": "gap_short", "count": 6, "path_prefix": null, "length_band": "short", "issues_nonempty": true},
+        {"id": "gap_long", "count": 6, "path_prefix": null, "length_band": "long", "issues_nonempty": true},
+        {"id": "complete_short", "count": 6, "path_prefix": null, "length_band": "short", "issues_nonempty": false},
+        {"id": "complete_long", "count": 6, "path_prefix": null, "length_band": "long", "issues_nonempty": false}
+      ]
+    }
+  ]
+}

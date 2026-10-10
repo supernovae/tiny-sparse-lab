@@ -13,7 +13,6 @@ import json
 import math
 import os
 import re
-import signal
 import sqlite3
 import subprocess
 import sys
@@ -40,7 +39,7 @@ _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 class AttemptContract(BaseModel):
-    """One immutable, content-pinned v2 allocation across all phases and retries."""
+    """Canonical public v1 contract; durable ledger schema remains version 2."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     contract_version: Literal[1]
@@ -362,47 +361,6 @@ class AttemptBudget:
         if not path.is_absolute() or path.is_symlink():
             raise AttemptBudgetError("budget path must be absolute and not a symlink")
         self.path = path
-
-    @classmethod
-    def create(
-        cls, path: Path, *, max_updates: int, max_wall_seconds: float
-    ) -> AttemptBudget:
-        if type(max_updates) is not int or max_updates <= 0:
-            raise ValueError("max_updates must be a positive integer")
-        if (
-            isinstance(max_wall_seconds, bool)
-            or not isinstance(max_wall_seconds, (int, float))
-            or not math.isfinite(max_wall_seconds)
-            or max_wall_seconds <= 0
-        ):
-            raise ValueError("max_wall_seconds must be positive and finite")
-        budget = cls(path)
-        if not path.parent.is_dir():
-            raise AttemptBudgetError("budget parent directory must already exist")
-        started_ns = time.time_ns()
-        deadline_ns = started_ns + int(max_wall_seconds * 1_000_000_000)
-        if deadline_ns <= started_ns or deadline_ns > 2**63 - 1:
-            raise ValueError("max_wall_seconds is outside the ledger clock range")
-        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
-        os.close(descriptor)
-        with budget._connect() as connection:
-            connection.execute(
-                "CREATE TABLE budget ("
-                "id INTEGER PRIMARY KEY CHECK (id = 1), "
-                "version INTEGER NOT NULL, max_updates INTEGER NOT NULL, "
-                "used_updates INTEGER NOT NULL, started_ns INTEGER NOT NULL, "
-                "deadline_ns INTEGER NOT NULL, last_checked_ns INTEGER NOT NULL)"
-            )
-            connection.execute(
-                "CREATE TABLE reservations ("
-                "id INTEGER PRIMARY KEY, label TEXT NOT NULL, "
-                "updates INTEGER NOT NULL, reserved_ns INTEGER NOT NULL)"
-            )
-            connection.execute(
-                "INSERT INTO budget VALUES (1, 1, ?, 0, ?, ?, ?)",
-                (max_updates, started_ns, deadline_ns, started_ns),
-            )
-        return budget
 
     def bind_resolved_artifact(
         self,
@@ -791,7 +749,7 @@ class AttemptBudget:
             ).fetchone()
         except sqlite3.DatabaseError as error:
             raise AttemptBudgetError("invalid budget ledger") from error
-        if row is None or row[0] not in (1, 2):
+        if row is None or row[0] != 2:
             raise AttemptBudgetError("unsupported budget ledger version")
         return row[0]
 
@@ -887,44 +845,6 @@ class AttemptBudget:
         connection.execute("PRAGMA synchronous = FULL")
         return connection
 
-    @staticmethod
-    def _row(connection: sqlite3.Connection) -> tuple[int, int, int, int, int]:
-        try:
-            row = connection.execute(
-                "SELECT version, max_updates, used_updates, deadline_ns, "
-                "last_checked_ns FROM budget WHERE id = 1"
-            ).fetchone()
-        except sqlite3.DatabaseError as error:
-            raise AttemptBudgetError("invalid budget ledger") from error
-        if (
-            row is None
-            or len(row) != 5
-            or any(type(item) is not int for item in row)
-            or row[0] != 1
-            or row[1] <= 0
-            or not 0 <= row[2] <= row[1]
-            or row[3] <= row[4]
-        ):
-            raise AttemptBudgetError("invalid or expired budget ledger")
-        charged = connection.execute(
-            "SELECT COALESCE(SUM(updates), 0) FROM reservations"
-        ).fetchone()
-        if charged is None or charged[0] != row[2]:
-            raise AttemptBudgetError("reservation total disagrees with budget ledger")
-        return row
-
-    def _check(self, connection: sqlite3.Connection) -> tuple[int, int, int]:
-        _, maximum, used, deadline_ns, last_checked_ns = self._row(connection)
-        now_ns = time.time_ns()
-        if now_ns < last_checked_ns:
-            raise AttemptBudgetError("clock moved backwards; budget fails closed")
-        if now_ns >= deadline_ns:
-            raise AttemptBudgetError("shared wall-time limit reached")
-        connection.execute(
-            "UPDATE budget SET last_checked_ns = ? WHERE id = 1", (now_ns,)
-        )
-        return maximum, used, deadline_ns - now_ns
-
     def _check_v2(
         self, connection: sqlite3.Connection
     ) -> tuple[
@@ -944,34 +864,9 @@ class AttemptBudget:
     def remaining_seconds(self) -> float:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            if self._version(connection) == 1:
-                _, _, remaining_ns = self._check(connection)
-            else:
-                _, _, _, remaining_ns = self._check_v2(connection)
+            self._version(connection)
+            _, _, _, remaining_ns = self._check_v2(connection)
         return remaining_ns / 1_000_000_000
-
-    def reserve(self, label: str, updates: int) -> int:
-        if not label.strip() or type(updates) is not int or updates < 0:
-            raise ValueError("reservation requires a label and nonnegative updates")
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            if self._version(connection) != 1:
-                raise AttemptBudgetError("v2 ledger requires reserve_vector")
-            maximum, used, _ = self._check(connection)
-            if used + updates > maximum:
-                raise AttemptBudgetError(
-                    f"shared update limit: {used} charged + {updates} requested "
-                    f"> {maximum} approved"
-                )
-            connection.execute(
-                "UPDATE budget SET used_updates = ? WHERE id = 1", (used + updates,)
-            )
-            connection.execute(
-                "INSERT INTO reservations (label, updates, reserved_ns) "
-                "VALUES (?, ?, ?)",
-                (label, updates, time.time_ns()),
-            )
-        return maximum - used - updates
 
     def reserve_vector(
         self,
@@ -1114,7 +1009,7 @@ class AttemptBudget:
 
     @staticmethod
     def forward_allocation_active_from_environment() -> bool:
-        """Keep absent-field legacy attempts on their unchanged accounting path."""
+        """Discover forward limits from the current attempt contract."""
         path = os.environ.get("SPARSELAB_ATTEMPT_BUDGET_LEDGER")
         if not path:
             return False
@@ -1122,7 +1017,9 @@ class AttemptBudget:
         with budget._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             if budget._version(connection) != 2:
-                return False
+                raise AttemptBudgetError(
+                    "forward allocation requires a current contract ledger"
+                )
             contract, _, _, _ = budget._check_v2(connection)
             return contract.max_nontraining_forward_positions is not None
 
@@ -1259,142 +1156,98 @@ class AttemptBudget:
 
     def status(self) -> dict[str, object]:
         with self._connect() as connection:
-            if self._version(connection) == 2:
-                contract, maximum, used, deadline_ns, _ = self._row_v2(connection)
-                forward = self._forward_state(connection, contract)
-                started_ns = connection.execute(
-                    "SELECT started_ns FROM budget WHERE id = 1"
-                ).fetchone()[0]
-                rows = connection.execute(
-                    "SELECT label, updates, target_positions, generation_calls, "
-                    "generated_tokens, actual_updates, actual_targets, actual_calls, "
-                    "actual_tokens FROM reservations ORDER BY id"
-                ).fetchall()
-                status = {
-                    "version": 2,
-                    "contract_sha256": connection.execute(
-                        "SELECT contract_sha256 FROM budget WHERE id = 1"
-                    ).fetchone()[0],
-                    "content_identity_sha256": contract.content_identity_sha256,
-                    "max_updates": maximum[0],
-                    "charged_updates": used[0],
-                    "max_actual_target_positions": maximum[1],
-                    "charged_actual_target_positions": used[1],
-                    "max_generation_calls": maximum[2],
-                    "charged_generation_calls": used[2],
-                    "max_generated_tokens": maximum[3],
-                    "charged_generated_tokens": used[3],
-                    "max_wall_seconds": contract.max_wall_seconds,
-                    "started_at_utc": datetime.fromtimestamp(
-                        started_ns / 1e9, UTC
-                    ).isoformat(),
-                    "deadline_utc": datetime.fromtimestamp(
-                        deadline_ns / 1e9, UTC
-                    ).isoformat(),
-                    "remaining_wall_seconds": max(
-                        0.0, (deadline_ns - time.time_ns()) / 1e9
-                    ),
-                    "reservations": [
-                        {
-                            "label": label,
-                            "updates": updates,
-                            "target_positions": target_positions,
-                            "generation_calls": calls,
-                            "generated_tokens": tokens,
-                            "actual_updates": actual_updates,
-                            "actual_target_positions": actual_targets,
-                            "actual_generation_calls": actual_calls,
-                            "actual_generated_tokens": actual_tokens,
-                        }
-                        for (
-                            label,
-                            updates,
-                            target_positions,
-                            calls,
-                            tokens,
-                            actual_updates,
-                            actual_targets,
-                            actual_calls,
-                            actual_tokens,
-                        ) in rows
-                    ],
-                }
-                if connection.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' "
-                    "AND name='resolved_artifacts'"
-                ).fetchone():
-                    status["resolved_artifacts"] = [
-                        {"kind": kind, "path": path, "sha256": digest}
-                        for kind, path, digest in connection.execute(
-                            "SELECT kind, path, sha256 FROM resolved_artifacts ORDER BY kind"
-                        )
-                    ]
-                if forward is not None:
-                    forward_rows = connection.execute(
-                        "SELECT label, kind, positions FROM forward_reservations ORDER BY id"
-                    ).fetchall()
-                    status.update(
-                        max_fixed_profile_forward_positions=contract.max_fixed_profile_forward_positions,
-                        charged_fixed_profile_forward_positions=forward[0],
-                        max_nontraining_forward_positions=contract.max_nontraining_forward_positions,
-                        charged_nontraining_forward_positions=forward[1],
-                        forward_reservations=[
-                            {"label": label, "kind": kind, "positions": positions}
-                            for label, kind, positions in forward_rows
-                        ],
-                    )
-                    if contract.max_operational_validation_batches is not None:
-                        status.update(
-                            max_operational_validation_batches=contract.max_operational_validation_batches,
-                            charged_operational_validation_batches=forward[2],
-                            max_operational_validation_forward_positions=contract.max_operational_validation_forward_positions,
-                            charged_operational_validation_forward_positions=forward[3],
-                        )
-                return status
-            _, maximum, used, deadline_ns, _ = self._row(connection)
+            self._version(connection)
+            contract, maximum, used, deadline_ns, _ = self._row_v2(connection)
+            forward = self._forward_state(connection, contract)
             started_ns = connection.execute(
                 "SELECT started_ns FROM budget WHERE id = 1"
             ).fetchone()[0]
             rows = connection.execute(
-                "SELECT label, updates FROM reservations ORDER BY id"
+                "SELECT label, updates, target_positions, generation_calls, "
+                "generated_tokens, actual_updates, actual_targets, actual_calls, "
+                "actual_tokens FROM reservations ORDER BY id"
             ).fetchall()
-        return {
-            "max_updates": maximum,
-            "charged_updates": used,
-            "remaining_updates": maximum - used,
-            "max_wall_seconds": (deadline_ns - started_ns) / 1e9,
-            "started_at_utc": datetime.fromtimestamp(started_ns / 1e9, UTC).isoformat(),
-            "deadline_utc": datetime.fromtimestamp(deadline_ns / 1e9, UTC).isoformat(),
-            "remaining_wall_seconds": max(0.0, (deadline_ns - time.time_ns()) / 1e9),
-            "reservations": [
-                {"label": label, "updates": updates} for label, updates in rows
-            ],
-        }
-
-    def run(self, command: list[str], *, reserve_updates: int = 0) -> int:
-        if not command:
-            raise ValueError("command is required")
-        with self._connect() as connection:
-            if self._version(connection) != 1:
-                raise AttemptBudgetError("v2 ledger requires run_contract")
-        self.reserve("command: " + " ".join(command), reserve_updates)
-        self.remaining_seconds()
-        environment = os.environ.copy()
-        environment["SPARSELAB_ATTEMPT_BUDGET_LEDGER"] = str(self.path)
-        process = subprocess.Popen(command, env=environment, start_new_session=True)
-        try:
-            return process.wait(timeout=self.remaining_seconds())
-        except BaseException as error:
-            # The child owns a separate session: interrupting this supervisor
-            # does not interrupt it. Never leave it running without a deadline.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
-            if isinstance(error, (subprocess.TimeoutExpired, AttemptBudgetError)):
-                raise AttemptBudgetError("shared wall-time limit reached") from None
-            raise
+            status = {
+                "version": 2,
+                "contract_sha256": connection.execute(
+                    "SELECT contract_sha256 FROM budget WHERE id = 1"
+                ).fetchone()[0],
+                "content_identity_sha256": contract.content_identity_sha256,
+                "max_updates": maximum[0],
+                "charged_updates": used[0],
+                "max_actual_target_positions": maximum[1],
+                "charged_actual_target_positions": used[1],
+                "max_generation_calls": maximum[2],
+                "charged_generation_calls": used[2],
+                "max_generated_tokens": maximum[3],
+                "charged_generated_tokens": used[3],
+                "max_wall_seconds": contract.max_wall_seconds,
+                "started_at_utc": datetime.fromtimestamp(
+                    started_ns / 1e9, UTC
+                ).isoformat(),
+                "deadline_utc": datetime.fromtimestamp(
+                    deadline_ns / 1e9, UTC
+                ).isoformat(),
+                "remaining_wall_seconds": max(
+                    0.0, (deadline_ns - time.time_ns()) / 1e9
+                ),
+                "reservations": [
+                    {
+                        "label": label,
+                        "updates": updates,
+                        "target_positions": target_positions,
+                        "generation_calls": calls,
+                        "generated_tokens": tokens,
+                        "actual_updates": actual_updates,
+                        "actual_target_positions": actual_targets,
+                        "actual_generation_calls": actual_calls,
+                        "actual_generated_tokens": actual_tokens,
+                    }
+                    for (
+                        label,
+                        updates,
+                        target_positions,
+                        calls,
+                        tokens,
+                        actual_updates,
+                        actual_targets,
+                        actual_calls,
+                        actual_tokens,
+                    ) in rows
+                ],
+            }
+            if connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='resolved_artifacts'"
+            ).fetchone():
+                status["resolved_artifacts"] = [
+                    {"kind": kind, "path": path, "sha256": digest}
+                    for kind, path, digest in connection.execute(
+                        "SELECT kind, path, sha256 FROM resolved_artifacts ORDER BY kind"
+                    )
+                ]
+            if forward is not None:
+                forward_rows = connection.execute(
+                    "SELECT label, kind, positions FROM forward_reservations ORDER BY id"
+                ).fetchall()
+                status.update(
+                    max_fixed_profile_forward_positions=contract.max_fixed_profile_forward_positions,
+                    charged_fixed_profile_forward_positions=forward[0],
+                    max_nontraining_forward_positions=contract.max_nontraining_forward_positions,
+                    charged_nontraining_forward_positions=forward[1],
+                    forward_reservations=[
+                        {"label": label, "kind": kind, "positions": positions}
+                        for label, kind, positions in forward_rows
+                    ],
+                )
+                if contract.max_operational_validation_batches is not None:
+                    status.update(
+                        max_operational_validation_batches=contract.max_operational_validation_batches,
+                        charged_operational_validation_batches=forward[2],
+                        max_operational_validation_forward_positions=contract.max_operational_validation_forward_positions,
+                        charged_operational_validation_forward_positions=forward[3],
+                    )
+            return status
 
     def run_contract(
         self,
@@ -2463,16 +2316,6 @@ def _monitored_phase(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
-    initialize = commands.add_parser("init")
-    initialize.add_argument("--path", type=Path, required=True)
-    initialize.add_argument("--max-updates", type=int, required=True)
-    initialize.add_argument("--max-wall-seconds", type=float, required=True)
-    inspect = commands.add_parser("status")
-    inspect.add_argument("--path", type=Path, required=True)
-    execute = commands.add_parser("run")
-    execute.add_argument("--path", type=Path, required=True)
-    execute.add_argument("--reserve-updates", type=int, default=0)
-    execute.add_argument("command", nargs=argparse.REMAINDER)
     private = commands.add_parser("_monitored_phase", help=argparse.SUPPRESS)
     private.add_argument("--policy", type=Path, required=True)
     private.add_argument("--policy-sha256", required=True)
@@ -2496,19 +2339,6 @@ def main(argv: list[str] | None = None) -> int:
                 workspace=args.workspace,
                 log_dir=args.log_dir,
             )
-        if args.action == "init":
-            budget = AttemptBudget.create(
-                args.path,
-                max_updates=args.max_updates,
-                max_wall_seconds=args.max_wall_seconds,
-            )
-        else:
-            budget = AttemptBudget(args.path)
-        if args.action == "run":
-            command = args.command[1:] if args.command[:1] == ["--"] else args.command
-            return budget.run(command, reserve_updates=args.reserve_updates)
-        print(json.dumps(budget.status(), sort_keys=True))
-        return 0
     except (
         AttemptBudgetError,
         OSError,

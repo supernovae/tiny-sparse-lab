@@ -43,15 +43,37 @@ from sparselab.training.attempt_commands import (
     phase_output_paths,
 )
 from sparselab.training.manifest import canonical_json, sha256_file
+from sparselab.training.preparation import compile_phase
 
-_PHASE_MAP = dict(
-    json.loads(
-        (
-            Path(__file__).resolve().parents[1]
-            / "experiments/research/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v2.json"
-        ).read_text()
-    )["phases"]
+_PACKET = (
+    Path(__file__).resolve().parents[1]
+    / "experiments/research/kernel-memory-lab/card05-base-50m/current"
 )
+_PLAN = _PACKET / "preparation.json"
+_PHASE_MAP = {
+    label: item["leaf"]
+    for label, item in json.loads(_PLAN.read_text())["phases"].items()
+    if item.get("leaf")
+}
+
+
+def _fixture_template(recipe: Path, filename: str, **substitutions: object) -> Path:
+    """Load the operator template; substitute only explicitly named fixture data.
+
+    Paths in projects are deliberately never substituted: a broken production
+    source/split/transform/release literal must fail this connected sequence.
+    Synthetic rights/review decisions here apply only to generated fixture rows.
+    """
+    source = _PACKET / filename
+    payload = yaml.safe_load(source.read_text())
+    assert set(substitutions) <= set(payload)
+    payload.update(substitutions)
+    destination = recipe / filename
+    if source.suffix == ".json":
+        destination.write_bytes(canonical_json(payload) + b"\n")
+    else:
+        _write_yaml(destination, payload)
+    return destination
 
 
 def _write_yaml(path: Path, value: dict) -> None:
@@ -156,24 +178,21 @@ def test_reviewed_admission_cannot_substitute_an_edited_draft(tmp_path: Path) ->
     draft.write_text('{"decision":"quarantine"}\n', encoding="utf-8")
     admitted = tmp_path / "admission.json"
     admitted.write_text('{"decision":"admit"}\n', encoding="utf-8")
+    inspection = tmp_path / "inspection.json"
+    inspection.write_text("{}\n")
     (tmp_path / "admission.json.review.json").write_bytes(
         canonical_json(
             {
-                "format": "sparselab-admission-review-v1",
+                "format": "sparselab-admission-review-v2",
                 "decision": "ACCEPTED",
                 "reviewer": "Fixture reviewer",
                 "reviewed_on": "2026-10-09",
                 "draft_path": str(draft),
                 "draft_sha256": sha256_file(draft),
                 "admission_sha256": sha256_file(admitted),
-                "spot_audits": [
-                    {
-                        "source_id": "source",
-                        "location": "row-1",
-                        "outcome": "pass",
-                        "note": "Reviewed the row.",
-                    }
-                ],
+                "inspection_path": str(inspection),
+                "inspection_sha256": sha256_file(inspection),
+                "item_decisions": [],
             }
         )
     )
@@ -411,10 +430,26 @@ def _sources(root: Path, project_id: str) -> tuple[Path, dict[str, str]]:
 def _policy(recipe: Path, strata: dict[str, str]) -> tuple[Path, Path]:
     document = recipe / "policy.md"
     document.write_text("Reviewed fixture source policy, Apache-2.0 local use.\n")
+    # Production policy shape, with fixture-only source decisions and exact local
+    # project/lock/snapshot identities. No production decision is synthesized.
+    lock_path = recipe.parent / "corpora" / recipe.name / "acquisition.json"
+    lock = json.loads(lock_path.read_text())
     template = recipe / "application.json"
     template.write_bytes(
         canonical_json(
             {
+                **json.loads((_PACKET / "application.template.json").read_text()),
+                "application_binding": {
+                    "project_sha256": lock["project_sha256"],
+                    "acquisition_lock_sha256": sha256_file(lock_path),
+                    "sources": {
+                        source_id: {
+                            "declaration_sha256": row["declaration_sha256"],
+                            "snapshot_sha256": row["snapshot_sha256"],
+                        }
+                        for source_id, row in lock["sources"].items()
+                    },
+                },
                 "policy_id": "fixture-policy-v1",
                 "policy_sha256": sha256_file(document),
                 "sources": [
@@ -486,7 +521,7 @@ def _clusters(
     seed: str = "fixture-seed",
 ) -> None:
     payload = {
-        "schema_version": 1,
+        **json.loads((_PACKET / "family-clusters-reviewed.template.json").read_text()),
         "inventory_sha256": sha256_file(inventory),
         "seed": seed,
         "source_strata": strata,
@@ -504,6 +539,9 @@ def _clusters(
         "reviewer": "Fixture independent reviewer",
         "reviewed_on": "2026-10-09",
     }
+    # The initial tiny fixture has no prior release; the connected candidate
+    # substitutes its authenticated tiny predecessor into the actual template.
+    payload.pop("prior_family_inventory")
     if prior is not None:
         family, release = prior
         payload["prior_family_inventory"] = {
@@ -607,29 +645,7 @@ def _phase(
     assert isinstance(root, Path)
     attempt = paths["attempt"]
     assert isinstance(attempt, Path)
-    path_command = _native(
-        root,
-        "attempt",
-        "phase-paths",
-        "--attempt-root",
-        str(attempt),
-        "--label",
-        label,
-    )
-    if (leaf_name := _PHASE_MAP.get(label)) is not None:
-        path_command.extend(("--leaf-name", leaf_name))
-    generated = subprocess.run(
-        path_command,
-        capture_output=True,
-        text=True,
-        timeout=15,
-        check=False,
-        env=paths["env"],
-    )
-    assert generated.returncode == 0, (generated.stdout, generated.stderr)
-    phase_paths = {
-        key: Path(value) for key, value in json.loads(generated.stdout).items()
-    }
+    phase_paths = phase_output_paths(attempt, label, _PHASE_MAP.get(label))
     leaf = _native(root, *words)
     classified = classify_attempt_command(leaf)
     if "leaf" in phase_paths and "--output" in classified.options:
@@ -691,14 +707,44 @@ def _phase(
     )
 
 
-def _run(paths: dict[str, Path | str], label: str, *words: str) -> None:
-    completed = _phase(paths, label, *words)
+def _run(
+    paths: dict[str, Path | str], label: str, bindings: dict[str, str] | None = None
+) -> None:
+    phase = compile_phase(_PLAN, Path(paths["attempt"]), label, bindings or {})
+    completed = subprocess.run(
+        _native(
+            Path(paths["root"]),
+            "attempt",
+            "run-phase",
+            "--plan",
+            str(_PLAN),
+            "--attempt-root",
+            str(paths["attempt"]),
+            "--label",
+            label,
+            "--bindings-json",
+            json.dumps(bindings or {}),
+            "--ledger",
+            str(paths["ledger"]),
+            "--workspace",
+            str(paths["root"]),
+            "--policy",
+            str(paths["whole"]),
+            "--preparation-policy",
+            str(paths["prep"]),
+            "--baseline",
+            str(paths["baseline"]),
+            "--content-identity-sha256",
+            str(paths["identity"]),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=45,
+        check=False,
+        env=paths["env"],
+    )
     assert completed.returncode == 0, (label, completed.stdout, completed.stderr)
-    root = paths["root"]
-    assert isinstance(root, Path)
-    attempt = paths["attempt"]
-    assert isinstance(attempt, Path)
-    receipt = json.loads(phase_output_paths(attempt, label)["completion"].read_text())
+    receipt = json.loads(Path(phase["completion"]).read_text())
     assert receipt["living_descendants"] == 0
 
 
@@ -709,17 +755,14 @@ def _render(
     output: Path,
     values: dict[str, str] | None = None,
 ) -> None:
+    assert output == _out(paths, label)
     _run(
         paths,
         label,
-        "corpus",
-        "render-declaration",
-        "--template",
-        str(template),
-        "--values-json",
-        json.dumps(values or {}, sort_keys=True),
-        "--output",
-        str(output),
+        {
+            "TEMPLATE": str(template),
+            "VALUES_JSON": json.dumps(values or {}, sort_keys=True),
+        },
     )
 
 
@@ -761,40 +804,27 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
     _write_yaml(prep, policy)
     project = load_project(acquisition)
     identity = "a" * 64
-    template = acquisition.parent / "attempt-contract.template.json"
-    template.write_bytes(
-        canonical_json(
-            {
-                "contract_version": 1,
-                "max_optimizer_updates": 0,
-                "max_actual_target_positions": 0,
-                "max_generation_calls": 0,
-                "max_generated_tokens": 0,
-                "max_wall_seconds": 600,
-                "content_identity_sha256": identity,
-                "monitor_policy_sha256": sha256_file(whole),
-                "workspace_baseline_sha256": "${VERIFIED_WORKSPACE_BASELINE_IDENTITY_SHA256}",
-                "preparation_monitor_policy_sha256": sha256_file(prep),
-                "acquisition_project_sha256": sha256_file(acquisition),
-                "preparation_acquisition_identity_sha256": _project_sha(project),
-                "preparation_normalizer": "normalizer-structure-v3",
-                "admission_lock_sha256": sha256_file(
-                    root / "corpora" / project.config.id / "acquisition.json"
-                ),
-                "admission_policy_sha256": sha256_file(
-                    acquisition.parent / "policy.md"
-                ),
-                "admission_selection_sha256": sha256_file(
-                    acquisition.parent / "inspection-selection.json"
-                ),
-                "require_release_acceptance_binding": True,
-                "require_admission_inspection_binding": True,
-                "preparation_only": True,
-                "offline_retained_sources_only": True,
-                "require_preledger_monitor_binding": True,
-            }
-        )
-        + b"\n"
+    # Use the sealed operator contract shape with explicit tiny-fixture identity
+    # and resource substitutions. Baseline identity still comes from the public
+    # renderer, never the baseline receipt's file hash.
+    template = _fixture_template(
+        acquisition.parent,
+        "attempt-contract.template.json",
+        max_wall_seconds=600,
+        content_identity_sha256=identity,
+        monitor_policy_sha256=sha256_file(whole),
+        preparation_monitor_policy_sha256=sha256_file(prep),
+        acquisition_project_sha256=sha256_file(acquisition),
+        preparation_acquisition_identity_sha256=_project_sha(project),
+        admission_lock_sha256=sha256_file(
+            root / "corpora" / project.config.id / "acquisition.json"
+        ),
+        admission_policy_sha256=sha256_file(acquisition.parent / "policy.md"),
+        admission_selection_sha256=sha256_file(
+            acquisition.parent / "inspection-selection.json"
+        ),
+        fixed_profile_sha256=None,
+        fixed_family_inventory_sha256=None,
     )
     contract = attempt / "attempt-contract.json"
     rendered = subprocess.run(
@@ -939,15 +969,13 @@ def test_offline_preparation_sequence_through_native_supervision(
         "socket.socket.connect = blocked\n"
         "socket.create_connection = blocked\n"
     )
-    release_template = recipe / "release-reviewed.template.yaml"
-    release_spec = yaml.safe_load(
-        (root / "fixture-prior/release-reviewed.yaml").read_text()
+    release_template = _fixture_template(
+        recipe,
+        "release-reviewed.template.yaml",
+        mixture=yaml.safe_load(
+            (root / "fixture-prior/release-reviewed.yaml").read_text()
+        )["mixture"],
     )
-    release_spec["record_admission"] = {
-        "path": "admission.json",
-        "sha256": "${ADMISSION_SHA256}",
-    }
-    _write_yaml(release_template, release_spec)
     inspection_selection = recipe / "inspection-selection.json"
     inspection_selection.write_bytes(
         canonical_json(
@@ -975,21 +1003,16 @@ def test_offline_preparation_sequence_through_native_supervision(
         )
         + b"\n"
     )
-    admission_review_template = recipe / "admission-review.template.json"
-    prefreeze_template = recipe / "pre-freeze.template.yaml"
-    _write_yaml(
-        prefreeze_template,
-        {
-            **yaml.safe_load((recipe / "acquire.yaml").read_text()),
-            "sources": [
-                "sources/source-gutenberg.yaml",
-                "sources/source-pagerduty.yaml",
-                "sources/source-scoutflo.yaml",
-                "sources/source-wikimedia.yaml",
-            ],
-            "splits": "splits-placeholder.yaml",
-            "release": "release-reviewed.yaml",
-        },
+    admission_review_template = _PACKET / "admission-review.template.json"
+    fixture_project = yaml.safe_load((recipe / "acquire.yaml").read_text())
+    # Only corpus identities/effects and transport limits vary with tiny inputs.
+    # The actual operator source filenames and split references remain intact.
+    prefreeze_template = _fixture_template(
+        recipe,
+        "project-pre-freeze.template.yaml",
+        id=fixture_project["id"],
+        source_effects=None,
+        transport_budget=None,
     )
     cluster_template = recipe / "clusters.template.json"
     _clusters(
@@ -1001,14 +1024,12 @@ def test_offline_preparation_sequence_through_native_supervision(
     cluster_spec = json.loads(cluster_template.read_text())
     cluster_spec["inventory_sha256"] = "${INVENTORY_SHA256}"
     cluster_template.write_bytes(canonical_json(cluster_spec) + b"\n")
-    build_template = recipe / "build.template.yaml"
-    _write_yaml(
-        build_template,
-        {
-            **yaml.safe_load(prefreeze_template.read_text()),
-            "transforms": ["transforms/lm.yaml"],
-            "splits": "splits-reviewed.yaml",
-        },
+    build_template = _fixture_template(
+        recipe,
+        "project-build.template.yaml",
+        id=fixture_project["id"],
+        source_effects=None,
+        transport_budget=None,
     )
     prior_rows = [json.loads(line) for line in prior_family.read_text().splitlines()]
     protected = next(row for row in prior_rows if row["split"] == "test")
@@ -1041,48 +1062,23 @@ def test_offline_preparation_sequence_through_native_supervision(
             }
         )
     )
-    acceptance_template = recipe / "release-acceptance.template.json"
-    acceptance_template.write_bytes(
-        canonical_json(
-            {
-                "format": "sparselab-release-review-v1",
-                "decision": "ACCEPTED",
-                "reviewer": "Fixture independent reviewer",
-                "reviewed_on": "2026-10-09",
-                "release_path": "${RELEASE_PATH}",
-                "release_id": "${RELEASE_ID}",
-                "release_manifest_sha256": "${RELEASE_MANIFEST_SHA256}",
-                "family_inventory_path": "${FAMILY_INVENTORY_PATH}",
-                "family_inventory_sha256": "${FAMILY_INVENTORY_SHA256}",
-                "protected_lineage_path": "${PROTECTED_LINEAGE_PATH}",
-                "protected_lineage_sha256": "${PROTECTED_LINEAGE_SHA256}",
-            }
-        )
-        + b"\n"
-    )
+    acceptance_template = _PACKET / "release-acceptance.template.json"
     floors = recipe / "token-floors.yaml"
     _write_yaml(
         floors,
         {"min_unique_train_tokens_by_domain": {name: 1 for name in strata.values()}},
     )
-    mixture_template = recipe / "mixture.template.yaml"
-    _write_yaml(
-        mixture_template,
-        {
-            "schema_version": 1,
-            "release_path": "${RELEASE_PATH}",
-            "tokenizer_config": str(tokenizer_config),
-            "family_inventory": "${FAMILY_INVENTORY_PATH}",
-            "source_strata": strata,
-            "target_quotas": {
-                "general_prose": 40,
-                "incident_response_docs": 20,
-                "explanatory_prose": 40,
-            },
-            "seed": 17,
-            "max_exposures": 2,
-            "tokenizer_origin_release_id": prior_release.name,
+    mixture_template = _fixture_template(
+        recipe,
+        "mixture.template.yaml",
+        tokenizer_config=str(tokenizer_config),
+        source_strata=strata,
+        target_quotas={
+            "general_prose": 40,
+            "incident_response_docs": 20,
+            "explanatory_prose": 40,
         },
+        tokenizer_origin_release_id=prior_release.name,
     )
     base_config = load_config(Path("configs/runtime_smoke_cpu.yaml")).model_dump(
         mode="json"
@@ -1090,26 +1086,28 @@ def test_offline_preparation_sequence_through_native_supervision(
     base_config["name"] = "fixture-prepared-inputs-only"
     base_config["model"]["vocab_size"] = 300
     base_config["tokenizer"]["path"] = str(tokenizer_path)
-    base_config["dataset"] = {
-        "source": "local_token_mixture",
-        "revision": "${RELEASE_ID}",
-        "cache_dir": "${CACHE_DIR}",
-        "train_path": "${TRAIN_PATH}",
-        "validation_path": "${VALIDATION_PATH}",
-        "train_max_documents": "${TRAIN_DOCUMENTS}",
-        "validation_max_documents": "${VALIDATION_DOCUMENTS}",
+    operator_run = yaml.safe_load((_PACKET / "prepared-run.template.yaml").read_text())
+    fixture_dataset = {
+        **operator_run["dataset"],
         "train_max_tokens": 100,
-        "validation_max_tokens": "${VALIDATION_TOKENS}",
-        "license": "${LICENSE}",
-        "mixture_declaration_path": "${MIXTURE_DECLARATION_PATH}",
-        "mixture_output_path": "${MIXTURE_OUTPUT_PATH}",
+        "license": _licenses(prior_release),
     }
     base_config["training"].update(seq_len=16, max_steps=7, max_tokens=100)
     base_config["checkpoint"]["every_steps"] = 1
     base_config["evaluation"]["every_steps"] = 1
-    base_config["logging"]["root_dir"] = "${RUNS_DIR}"
-    run_template = recipe / "prepared-run.template.yaml"
-    _write_yaml(run_template, base_config)
+    run_template = _fixture_template(
+        recipe,
+        "prepared-run.template.yaml",
+        name=base_config["name"],
+        runtime=base_config["runtime"],
+        model=base_config["model"],
+        tokenizer=base_config["tokenizer"],
+        training=base_config["training"],
+        optimizer=base_config["optimizer"],
+        checkpoint=base_config["checkpoint"],
+        evaluation=base_config["evaluation"],
+        dataset=fixture_dataset,
+    )
     envelope = recipe / "resource-envelope.yaml"
     _write_yaml(
         envelope,
@@ -1169,12 +1167,7 @@ def test_offline_preparation_sequence_through_native_supervision(
     assert denied_live.returncode != 0
     assert "verified offline reuse only" in denied_live.stderr
     _run(
-        paths,
-        "verify-snapshots",
-        "corpus",
-        "acquire",
-        str(recipe / "acquire.yaml"),
-        "--offline",
+        paths, "verify-snapshots", {"ACQUISITION_PROJECT": str(recipe / "acquire.yaml")}
     )
     application = _out(paths, "application-declaration")
     _render(paths, "application-declaration", template, application)
@@ -1182,15 +1175,10 @@ def test_offline_preparation_sequence_through_native_supervision(
     _run(
         paths,
         "admission-draft",
-        "corpus",
-        "admission-draft",
-        str(recipe / "acquire.yaml"),
-        "--template",
-        str(application),
-        "--policy-document",
-        str(policy),
-        "--output",
-        str(draft_path),
+        {
+            "ACQUISITION_PROJECT": str(recipe / "acquire.yaml"),
+            "POLICY_DOCUMENT": str(policy),
+        },
     )
     draft = json.loads(draft_path.read_text())
     assert all(
@@ -1205,23 +1193,14 @@ def test_offline_preparation_sequence_through_native_supervision(
     _run(
         paths,
         "admission-inspection",
-        "corpus",
-        "inspect-admission",
-        str(recipe / "acquire.yaml"),
-        "--draft",
-        str(draft_path),
-        "--policy-document",
-        str(policy),
-        "--selection",
-        str(inspection_selection),
-        "--output",
-        str(inspection_path),
-        "--max-input-bytes",
-        "1048576",
-        "--max-excerpt-bytes",
-        "256",
-        "--max-output-bytes",
-        "262144",
+        {
+            "ACQUISITION_PROJECT": str(recipe / "acquire.yaml"),
+            "POLICY_DOCUMENT": str(policy),
+            "INSPECTION_SELECTION": str(inspection_selection),
+            "MAX_INPUT_BYTES": "1048576",
+            "MAX_EXCERPT_BYTES": "256",
+            "MAX_OUTPUT_BYTES": "262144",
+        },
     )
     inspected = json.loads(inspection_path.read_text())
     assert len(inspected["items"]) == len(strata)
@@ -1229,23 +1208,6 @@ def test_offline_preparation_sequence_through_native_supervision(
     assert all(item["decision"] == "qualify" for item in inspected["items"])
     assert all(
         item["raw_excerpt"] and item["cleaned_excerpt"] for item in inspected["items"]
-    )
-    admission_review_template.write_bytes(
-        canonical_json(
-            {
-                "format": "sparselab-admission-review-v2",
-                "decision": "ACCEPTED",
-                "reviewer": "Fixture independent reviewer",
-                "reviewed_on": "2026-10-10",
-                "draft_path": "${DRAFT_PATH}",
-                "draft_sha256": "${DRAFT_SHA256}",
-                "admission_sha256": "${ADMISSION_SHA256}",
-                "inspection_path": "${INSPECTION_PATH}",
-                "inspection_sha256": "${INSPECTION_SHA256}",
-                "item_decisions": "${ITEM_DECISIONS_JSON}",
-            }
-        )
-        + b"\n"
     )
     admission = _out(paths, "reviewed-admission")
     _render(paths, "reviewed-admission", draft_path, admission)
@@ -1255,6 +1217,8 @@ def test_offline_preparation_sequence_through_native_supervision(
         admission_review_template,
         _out(paths, "admission-review"),
         {
+            "REVIEWER": "Synthetic fixture reviewer",
+            "REVIEWED_ON": "2026-10-10",
             "DRAFT_PATH": str(draft_path),
             "DRAFT_SHA256": sha256_file(draft_path),
             "ADMISSION_SHA256": sha256_file(admission),
@@ -1277,7 +1241,9 @@ def test_offline_preparation_sequence_through_native_supervision(
         "reviewed-release-declaration",
         release_template,
         _out(paths, "reviewed-release-declaration"),
-        {"ADMISSION_SHA256": sha256_file(admission)},
+        {
+            "REVIEWED_ADMISSION_SHA256": sha256_file(admission),
+        },
     )
     for label, source_id in (
         ("source-scoutflo", "books"),
@@ -1304,16 +1270,7 @@ def test_offline_preparation_sequence_through_native_supervision(
     _render(paths, "pre-freeze-declaration", prefreeze_template, prefreeze)
     _bind(paths, "pre_freeze_project", prefreeze)
     inventory = _out(paths, "split-inventory")
-    _run(
-        paths,
-        "split-inventory",
-        "corpus",
-        "split-inventory",
-        str(prefreeze),
-        "--output",
-        str(inventory),
-        "--json",
-    )
+    _run(paths, "split-inventory")
     clusters = _out(paths, "reviewed-family-decisions")
     _render(
         paths,
@@ -1322,75 +1279,38 @@ def test_offline_preparation_sequence_through_native_supervision(
         clusters,
         {"INVENTORY_SHA256": sha256_file(inventory)},
     )
-    frozen = _out(paths, "family-freeze")
-    _run(
-        paths,
-        "family-freeze",
-        "corpus",
-        "freeze-splits",
-        str(prefreeze),
-        "--inventory",
-        str(inventory),
-        "--clusters",
-        str(clusters),
-        "--output",
-        str(frozen),
-        "--json",
-    )
+    _run(paths, "family-freeze")
     build_project = _out(paths, "final-build-declaration")
-    _render(paths, "final-build-declaration", build_template, build_project)
-    _bind(paths, "build_project", build_project)
-    _run(
+    _render(
         paths,
-        "offline-build",
-        "corpus",
-        "build",
-        str(build_project),
-        "--offline",
+        "final-build-declaration",
+        build_template,
+        build_project,
     )
+    _bind(paths, "build_project", build_project)
+    _run(paths, "offline-build")
     builds = list((root / "corpora" / "fixture-candidate" / "builds").iterdir())
     assert len(builds) == 1
-    _run(paths, "freeze-release", "corpus", "freeze", str(builds[0]))
+    _run(paths, "freeze-release", {"BUILD_PATH": str(builds[0])})
     releases = list((root / "corpora" / "fixture-candidate" / "releases").iterdir())
     assert len(releases) == 1
     release = releases[0]
     assert verify_release(release)["release_id"] == release.name
-    _run(paths, "release-audit", "corpus", "audit", str(release))
-    _run(paths, "near-duplicate-audit", "corpus", "near-duplicates", str(release))
+    _run(paths, "release-audit", {"RELEASE_PATH": str(release)})
+    _run(paths, "near-duplicate-audit", {"RELEASE_PATH": str(release)})
     family = _out(paths, "final-family")
-    _run(
-        paths,
-        "final-family",
-        "corpus",
-        "finalize-family-inventory",
-        str(release),
-        "--splits",
-        str(frozen),
-        "--output",
-        str(family),
-        "--json",
-    )
+    _run(paths, "final-family", {"RELEASE_PATH": str(release)})
     lineage = _out(paths, "protected-lineage")
     _run(
         paths,
         "protected-lineage",
-        "corpus",
-        "audit-protected-lineage",
-        "--prior-release",
-        str(prior_release),
-        "--candidate-release",
-        str(release),
-        "--prior-inventory",
-        str(prior_family),
-        "--candidate-inventory",
-        str(family),
-        "--profile",
-        str(profile),
-        "--suite",
-        str(suite),
-        "--output",
-        str(lineage),
-        "--json",
+        {
+            "RELEASE_PATH": str(release),
+            "PRIOR_RELEASE": str(prior_release),
+            "PRIOR_FAMILY": str(prior_family),
+            "PROFILE": str(profile),
+            "SUITE": str(suite),
+        },
     )
     assert json.loads(lineage.read_text())["status"] == "PASS"
     denied = _phase(
@@ -1421,6 +1341,8 @@ def test_offline_preparation_sequence_through_native_supervision(
         acceptance_template,
         review,
         {
+            "REVIEWER": "Synthetic fixture reviewer",
+            "REVIEWED_ON": "2026-10-10",
             "RELEASE_PATH": str(release),
             "RELEASE_ID": release.name,
             "RELEASE_MANIFEST_SHA256": sha256_file(release / "manifest.json"),
@@ -1431,26 +1353,16 @@ def test_offline_preparation_sequence_through_native_supervision(
         },
     )
     _bind(paths, "release_acceptance", review)
-    measured = _out(paths, "measure-accepted-supply")
     _run(
         paths,
         "measure-accepted-supply",
-        "corpus",
-        "measure-tokens",
-        str(release),
-        "--tokenizer",
-        str(tokenizer_path),
-        "--tokenizer-origin-release",
-        str(prior_release),
-        "--family-inventory",
-        str(family),
-        "--policy",
-        str(floors),
-        "--output",
-        str(measured),
-        "--batch-source-bytes",
-        "1024",
-        "--json",
+        {
+            "RELEASE_PATH": str(release),
+            "TOKENIZER_PATH": str(tokenizer_path),
+            "PRIOR_RELEASE": str(prior_release),
+            "TOKEN_FLOORS": str(floors),
+            "BATCH_SOURCE_BYTES": "1024",
+        },
     )
     mixture = _out(paths, "mixture-declaration")
     _render(
@@ -1458,29 +1370,14 @@ def test_offline_preparation_sequence_through_native_supervision(
         "mixture-declaration",
         mixture_template,
         mixture,
-        {"RELEASE_PATH": str(release), "FAMILY_INVENTORY_PATH": str(family)},
+        {
+            "VERIFIED_NEW_RELEASE_DIR": str(release),
+            "FINALIZED_NEW_FAMILY_INVENTORY": str(family),
+        },
     )
     mixture_output = _out(paths, "materialize-mixture")
-    _run(
-        paths,
-        "materialize-mixture",
-        "corpus",
-        "materialize-mixture",
-        str(mixture),
-        "--output",
-        str(mixture_output),
-        "--json",
-    )
-    _run(
-        paths,
-        "cold-verify-mixture",
-        "corpus",
-        "verify-mixture",
-        str(mixture),
-        "--output",
-        str(mixture_output),
-        "--json",
-    )
+    _run(paths, "materialize-mixture")
+    _run(paths, "cold-verify-mixture")
     mixture_receipt = json.loads((mixture_output / "receipt.json").read_text())
     assert sum(mixture_receipt["actual_target_tokens"].values()) == 100
     validation_documents, validation_bytes = _split_stats(
@@ -1493,17 +1390,17 @@ def test_offline_preparation_sequence_through_native_supervision(
         run_template,
         run_config,
         {
-            "RELEASE_ID": release.name,
-            "CACHE_DIR": str(recipe / "cache"),
-            "TRAIN_PATH": str(mixture_output / "train.tokens.jsonl"),
-            "VALIDATION_PATH": str(release / "lm/validation.jsonl"),
-            "TRAIN_DOCUMENTS": str(mixture_receipt["records"]),
-            "VALIDATION_DOCUMENTS": str(validation_documents),
-            "VALIDATION_TOKENS": str(validation_bytes + validation_documents + 1),
-            "LICENSE": _licenses(release),
-            "MIXTURE_DECLARATION_PATH": str(mixture),
-            "MIXTURE_OUTPUT_PATH": str(mixture_output),
-            "RUNS_DIR": str(recipe / "runs"),
+            "NEW_RELEASE_ID": release.name,
+            "NEW_CACHE_DIR": str(recipe / "cache"),
+            "VERIFIED_MIXTURE_DIR": str(mixture_output),
+            "VERIFIED_NEW_RELEASE_DIR": str(release),
+            "VERIFIED_MIXTURE_TRAIN_DOCUMENTS": str(mixture_receipt["records"]),
+            "VERIFIED_RELEASE_VALIDATION_DOCUMENTS": str(validation_documents),
+            "VERIFIED_RELEASE_VALIDATION_TOKENS": str(
+                validation_bytes + validation_documents + 1
+            ),
+            "SEALED_MIXTURE_DECLARATION": str(mixture),
+            "NEW_ATTEMPT_ROOT": str(paths["attempt"]),
         },
     )
     substituted_config = recipe / "substituted-prepared-run.yaml"
@@ -1527,30 +1424,12 @@ def test_offline_preparation_sequence_through_native_supervision(
     assert rejected_bundle.returncode != 0
     assert "prepared config differs from accepted release" in rejected_bundle.stderr
     assert not (recipe / "forbidden-prepared-bundle").exists()
-    bundle = _out(paths, "publish-prepared-bundle")
     _run(
         paths,
         "publish-prepared-bundle",
-        "data",
-        "prepared-inputs",
-        "publish",
-        str(run_config),
-        "--output",
-        str(bundle),
-        "--resource-envelope",
-        str(envelope),
-        "--tokenizer-batch-source-bytes",
-        "1024",
+        {"RESOURCE_ENVELOPE": str(envelope), "BATCH_SOURCE_BYTES": "1024"},
     )
-    _run(
-        paths,
-        "cold-verify-prepared-bundle",
-        "data",
-        "prepared-inputs",
-        "verify",
-        str(run_config),
-        str(bundle),
-    )
+    _run(paths, "cold-verify-prepared-bundle")
     status = AttemptBudget(paths["ledger"]).status()
     assert status["charged_updates"] == 0
     assert all(row["actual_updates"] == 0 for row in status["reservations"])

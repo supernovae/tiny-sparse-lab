@@ -1,211 +1,114 @@
 # Implementation backlog
 
-This file tracks only repository changes that require code. Scientific questions,
-campaign status, and proposed experiments belong in
-[`docs/research/roadmap.md`](docs/research/roadmap.md), the versioned research
-lifecycle, or a checked-in [`experiments/research/`](experiments/research/)
-record. Completed work remains discoverable in Git history and evidence records;
-it is not retained here as a second changelog.
+Only missing or defective code belongs here. Scientific milestones and execution
+status live in [the research roadmap](docs/research/roadmap.md) and
+[research records](experiments/research/). A passing fixture does not close a
+scientific gate. Each item needs code, focused regression coverage and public
+documentation; move it to a **Code task** issue when assigned. Reuse native
+interfaces, and preserve declaration and artifact identities.
 
-When a task moves to GitHub, use the **Code task** issue template and replace the
-item below with its issue link. A code item is complete only when its tests and
-documentation land. An experiment result, including a negative result, does not
-close a code item unless the named software acceptance criteria also pass.
+## Active code need
 
-Work from top to bottom within the active priorities. Favor reusable support for
-prepare → lock → dispatch → train/resume → evaluate → retain evidence. Campaign
-names, snapshot counts, prompts, seeds, and machine-specific measurements belong
-in declarations, regression fixtures, or evidence records, not special branches
-in shared lab code. Operational changes must preserve scientific settings and
-artifact identities.
+- [ ] **P2 — Shared read-only experiment-ledger projection.** Extend existing
+  [lifecycle readers](src/sparselab/research/lifecycle.py) and dashboard reporting
+  with one typed projection of questions, deltas/controls, protocol/checkpoint
+  identities, results/limitations, reviewed decisions, next tests and evidence
+  availability. Inputs are lifecycle declarations, verified report roots,
+  evidence references and an optional run store. CLI text/JSON and Research UI
+  must agree, preserve negative/interrupted/missing/unassessed rows, handle
+  duplicate references and relocation, and expose invalid-digest rejection.
+  Offline browsing must not create a run store. The
+  [curated ledger](docs/research/experiment-ledger.md) describes the reader need;
+  there is no public ledger command yet.
 
-## Experiment ergonomics
+## Conditional code needs
 
+Activate only for a concrete workload; these do not block the current retained
+corpus preparation milestone.
 
-### Rapid iteration
+- [ ] **Source-bound held-out-item CLI adapter.** Expose
+  [`freeze_card03_items`](src/sparselab/evaluation/kml_card03_items.py) through the
+  existing evaluation CLI. Bind a cold-verifiable release, frozen family
+  inventory, reviewed item draft and fresh output directory; report immutable
+  item/chunk/denominator digests. Reject changed release, train-family leakage,
+  unbound offsets/digests, unreviewed or missing items, incomplete denominators,
+  malformed controls and existing output. Reusing already frozen items needs no
+  new authoring engine or publication step.
+- [ ] **Signed warm source-snapshot proof reuse.** Review the semantic import
+  closure and pinned exclusions: the source-snapshot authority scan currently
+  reaches the dynamic import in `recovery.implementation_replay` and declines a
+  signed proof. Preserve path-security and proof invalidation checks. Acceptance
+  requires authenticated warm hits plus cold fallback for changed authority or
+  inputs. Existing cold verification remains the accepted route.
+- [ ] **Read-only tokenizer-artifact CLI verification.** Add a native adapter
+  that binds the configured path to its manifest, origin and vocabulary and
+  reports digest/special-token IDs without fitting. Reject missing/tampered
+  outputs, underfilled vocabulary and changed config/source. Existing prepared
+  bundle verification already provides a cold path; transport budget reporting
+  is implemented and is not part of this gap.
+- [ ] **Acquisition receipt resource counters.** Extend bounded acquisition
+  receipts with measured per-shard expanded bytes and peak task-owned staging
+  bytes/inodes. Preserve legacy hashes when fields are absent. Fail closed for
+  required unavailable readings; retain interrupted-transfer counters. Test exact
+  caps, overlong lines and resume with mocked HTTP. Never infer or backfill
+  historical readings or reacquire only to fill optional fields.
+- [ ] **Declarative verified snapshot inheritance.** Expose existing Python
+  ancestry/reuse support in recovery declarations and CLI. Bind parent evidence
+  and selected source IDs; preserve snapshot identities without reacquisition.
+  Reject tampered parents and incompatible source declarations using generic
+  ancestry fixtures.
+- [ ] **Operational spot-safety policy.** Add a separately configured policy
+  based on observed checkpoint-write time, interruption notice, capacity and
+  measured restart cost. Record chosen operational cadence without changing
+  scientific settings. Cover unavailable observations and insufficient capacity;
+  existing checkpoint verification, retention and child resume are foundations.
+- [ ] **Managed Runpod/Vast allocation adapters.** Add explicit spending
+  authorization, resource/region/price filters, expiring quotes, idempotent
+  create/adopt tags and partial-create reconciliation. Distinguish stop/delete
+  and storage billing; gate teardown on durable-result verification. Use provider
+  fixtures for expired quotes, duplicate resources, interruptions, billing
+  transitions and refusal without authorization.
+- [ ] **Additional SSH-provider lifecycle adapter, when needed.** Reuse the
+  existing endpoint discovery, explicit bootstrap, bounded transport, lifecycle
+  observation, synchronous relay and lost-runtime recovery contract. Cover
+  foreground execution, cancellation delivery, strict host keys and recovery
+  after lost runtime before advertising support; do not add another scheduler.
+- [ ] **Native CUDA sparse attention.** Implement when a planned NVIDIA workload
+  needs it. Preserve reference semantics; require hardware-gated correctness and
+  component benchmarks. Component speed is not end-to-end or quality evidence.
+- [ ] **Real PyTorch/XLA TPU backend.** Implement graph/compilation behavior,
+  supported attention/objectives, feeding, optimizer/RNG state codecs, same-backend
+  full resume, cancellation and preemption with real TPU tests. An enum or CPU
+  fixture does not establish TPU support.
 
-The workload is baseline → exposure extension → one-field contrast and repeated
-declared model campaigns. The [TinyStories walkthrough](docs/tinystories-microlab.md)
-is one teaching reference for that general workflow.
-Use the [existing native route](docs/iteration.md), including the read-only
-`iteration check`, direct `experiment bind-inputs` and exact-cell
-`experiment export-config` commands. Remaining work below must reuse those
-interfaces, not introduce another runner.
+## Execution and qualification are tracked elsewhere
 
-Pinned [dataset declarations](docs/datasets.md), resumable snapshots and preparation,
-coverage/pass budgets, typed Campaign input binding and existing-input staging
-are available through the lab. New Hub workloads use `dataset.source: snapshot`;
-historical dataset-specific inputs retain their original verifiers.
+Completed native Kernel Memory Lab work is linked from
+[STATUS](experiments/research/kernel-memory-lab/STATUS.md), including C05-T1–T11,
+C05-C1–C4 and C05-Q2. Existing snapshot/preparation, typed Campaign binding,
+`iteration check`, `experiment bind-inputs`, `experiment export-config`, corpus
+budget reporting and the shared rclone relay are shipped capabilities, not open
+implementation tasks. Their current public usage belongs in
+[iteration](docs/iteration.md), [datasets](docs/datasets.md) and
+[workers](docs/workers.md).
 
-### Experiment ledger projection
+Actual S3-compatible relay transfers, Drive OAuth enrollment/credential lifecycle,
+Drive cross-platform transfers, spot-loss recovery, live ROCm and hosted-platform
+acceptance are optional qualification work. Keep results and unavailable lanes in
+operational/research acceptance records; add a code item here only when a concrete
+missing behavior is exposed. Preserve narrow credentials, verified content
+identity, immutable conflicts and explicit paid-resource authorization during any
+separately authorized qualification. Local fixture success does not qualify a
+provider, platform or model run.
 
-- [ ] **P2 — Share an evidence-backed experiment ledger between CLI and dashboard.**
-  Extend the existing research lifecycle/report readers, rather than adding a
-  second registry or runner. Input: lifecycle declarations, verified report roots,
-  evidence references and an optional run store. Expose question, declared delta
-  and controls, protocol/checkpoint identity, result and limitations, reviewed
-  decision, next declared test and current evidence availability. Reuse one typed
-  read-only projection for CLI text/JSON and the Research page, with stable links
-  to original records. Preserve negative, interrupted, censored, missing and
-  unassessed rows; reject tampered evidence without hiding its rejection reason.
-  Do not infer promotion, rankings or live execution from historical findings.
-  Acceptance: matching CLI/UI rows, duplicate-reference handling, relocated or
-  missing evidence, invalid digests and offline browsing without creating a run
-  store. The [curated ledger](docs/research/experiment-ledger.md) defines the reader
-  need; no ledger command is shipped yet.
+The retained-only corpus milestone still needs real reviewed admission, protected
+lineage, measured supply, exact mixture and cold bundle evidence under a fresh
+bounded allocation. All stopped B11–B16 evidence remains historical, including
+B16's unverified outer receipt-based shutdown. B17 has no ledger and consumed no
+production allocation; its pinned authority does not transfer to a refactored
+head. No runtime work is authorized by this backlog.
 
-## P3 — Conditional work; activate for a concrete workload
-
-These remain implementation gaps, but should not displace P1/P2 without a
-documented workload need and the required acceptance environment.
-
-Completed Kernel Memory Lab native work is indexed in
-[STATUS](experiments/research/kernel-memory-lab/STATUS.md) and its linked C05-T1–T10,
-C05-C1–C4 and C05-Q2 evidence rather than repeated as open code tasks here.
-Optional live ROCm, real-panel/script parity, reviewer-independence and hosted
-platform qualification are separate review allocations, not prerequisites for
-the retained-only preparation milestone. The stopped B11–B16 attempts remain
-historical evidence; this backlog grants no runtime authority.
-
-- [ ] **Expose the Card 03 held-out item freeze through a typed native CLI.**
-  The new `sparselab.evaluation.kml_card03_items.freeze_card03_items` Python
-  API accepts a cold-verifiable corpus release, frozen family-inventory JSONL,
-  reviewed draft JSON and fresh output directory, and returns immutable item,
-  chunk and denominator digests. Add a small `sparselab evaluation
-  freeze-card03 ITEMS --release RELEASE --families INVENTORY --output OUTPUT
-  --json` adapter that reports those identities and fails on changed release,
-  train-family leakage, unbound chunk offsets/digests, unreviewed or missing
-  items, incomplete 20-by-10/40-by-10 denominators, malformed controls or an
-  existing output. Do not turn the adapter into a second authoring engine.
-  This optional publishing convenience is not needed to reuse the already
-  frozen Card 03 evaluation in the current preparation packet.
-
-- [ ] **Restore signed warm source-snapshot proof reuse without widening verifier authority.**
-  The current `source_snapshot` authority scan reaches the unrelated dynamic
-  import in `recovery.implementation_replay` and declines to record a signed
-  proof. `verified_reuse` correctly falls back to full cold verification, so
-  warm source-proof hits are not yet qualified. Review the exact semantic
-  import closure and pinned exclusions separately; do not skip path-security
-  or proof invalidation to create a nominal cache hit. Cold verification remains
-  the accepted retained-only route; this optimization does not block preparation.
-
-- [ ] **Expose native read-only tokenizer-artifact verification.** Existing
-  `sparselab corpus budget-status PROJECT` reads the transport ledger; that
-  portion is complete in [C05-T6](experiments/research/kernel-memory-lab/results/2026-10-09-card05-retained-preparation-sequence-offline.md).
-  A future `sparselab tokenizer verify CONFIG --json` adapter could bind the
-  configured path to its native manifest and declared origin/vocabulary, then
-  report digest and special-token IDs without fitting. Reject missing/tampered
-  outputs, underfilled vocabulary and changed config/source. This optional
-  inspection convenience is not a prerequisite for the accepted tokenizer or
-  preparation bundle, which have existing cold-verification paths.
-
-- [ ] **Retain bounded corpus decompression and temporary-storage high-water counters.** Kernel Memory Lab Card 03 P1 enforced the distinct expanded-stream and projected disk caps, but the native receipt does not report actual decompressed bytes or peak staging occupancy. Extend the existing bounded acquisition receipt, without changing legacy hashes when no new fields are present, to report per-shard bytes consumed from the expanded stream and peak task-owned staging bytes/inodes. Fail closed if a required reading is unavailable and preserve raw counters on interrupted transfers; test exact caps, overlong lines and resumed attempts with mocked HTTP. Do not backfill P1 with inferred measurements or require reacquisition only to fill historical optional fields.
-
-  This receipt enhancement is optional for the current zero-acquisition retained
-  preparation; its existing hard caps and monitoring remain mandatory.
-
-- [ ] **Implement native CUDA sparse attention.** Activate when a planned CUDA
-  workload needs this path and NVIDIA hardware is available. Preserve reference
-  semantics and add hardware-gated correctness tests and component benchmarks.
-  CPU or another accelerator cannot close this item; component speed does not
-  establish end-to-end throughput or model quality.
-- [ ] **Expose verified snapshot inheritance in recovery declarations.**
-  Activate when recurring corpus-version workflows need declarative reuse.
-  Verified ancestry/reuse already exists in Python APIs; extend the typed
-  recovery schema and CLI rather than adding another replay engine. Complete
-  when explicit parent evidence and selected source IDs preserve snapshot
-  identities without reacquisition, and tampered parents or incompatible source
-  declarations are rejected. Use generic ancestry fixtures rather than requiring
-  a particular campaign's versions or snapshot counts.
-- [ ] **Add an operational spot-safety policy.** Activate for a recurring spot
-  executor workload. Existing checkpoint cadence, retention, verification, and
-  explicit child resume are foundations, not missing features. Add a separately
-  configured policy using observed checkpoint write time, interruption notice,
-  workspace capacity, and measured restart cost; record its chosen cadence while
-  preserving scientific settings. Cover unavailable measurements, insufficient
-  capacity, and the separation of operational cadence from scientific identity.
-
-- [ ] **Add managed Runpod and Vast allocation adapters with explicit spending authorization.**
-  Require explicit authorization before any paid action; support price, region,
-  VRAM, CPU, RAM, and disk filters; retain quote expiry; use idempotent
-  create/adopt tags; reconcile partial creation; surface interruption notices;
-  distinguish stop-versus-delete and associated storage billing; and permit
-  teardown only after durable-result verification. Acceptance requires provider
-  fixtures for expired quotes, duplicate/adopted resources, partial-create
-  recovery, interruption, billing-state transitions, and refusal without
-  authorization.
-- [ ] **Add additional SSH-provider acceptance and an optional lifecycle adapter.**
-  Reuse the hosted endpoint-discovery, explicit-bootstrap, byte-transport,
-  lifecycle-observation, synchronous relay, and lost-runtime-recovery contract;
-  do not introduce another scheduler or change prepared-data identity.
-  Acceptance must prove bounded transport, foreground execution,
-  cancellation-intent delivery, strict host-key handling where SSH is used, and
-  explicit recovery after lost runtime before advertising provider support.
-- [ ] **Prioritize live acceptance of provider-neutral S3-compatible relays.**
-  The shared rclone relay and S3 profile example already exist; validate and
-  close any exposed compatibility gaps rather than adding an AWS-only SDK or
-  another storage/orchestration engine. Use S3-compatible storage for the next
-  hosted TinyStories/T4 acceptance before tackling Drive OAuth.
-  Cover Cloudflare R2 first, then representative alternatives such as Backblaze
-  B2's S3 API, Wasabi, DigitalOcean Spaces, and Scaleway Object Storage; retain
-  AWS S3 compatibility without making Amazon an infrastructure requirement.
-  Follow the [rclone S3 provider guidance](https://rclone.org/s3/) for explicit
-  provider, endpoint, region, bucket/prefix, signing and addressing settings.
-  Supply separate private controller/worker credentials scoped as narrowly as
-  the provider supports; document permission limitations, rotation and expiry.
-  No credentials in profiles, bundles, receipts, command logs or Git.
-  Acceptance must exercise native relay preflight, actual object put and cold
-  SHA-256 readback, immutable conflicts, partial/multipart failures, bounded
-  timeouts, authenticated commit publication, collection with the executor
-  unavailable, and full-state child resume from the last verified checkpoint.
-  Preserve unavailable quota and permission observations; do not trust ETags,
-  sizes or provider success text as content identity. Prove the same workflow
-  across macOS, Linux, Windows and WSL2 where supported, recording skipped lanes
-  without claiming native-Windows Colab support.
-  Compare current storage, request, egress, minimum-retention/minimum-billing
-  costs, region and measured upload/readback latency and throughput for the
-  actual workload; do not hardcode a cheapest/fastest provider. Paid resources
-  require explicit authorization. A local rclone filesystem round-trip does
-  not close any cloud-provider or T4 training gate.
-- [ ] **Defer Drive OAuth setup and unattended-credential lifecycle validation.**
-  Keep Drive as an optional relay using the same verified-copy contract, not a
-  required dependency of the S3/T4 path. Complete the dedicated Desktop OAuth
-  client and `drive.file` consent workflow with private, separate per-host
-  configs using the same client; verify app-created folder visibility and
-  actionable failures for missing/revoked consent, expired credentials, and
-  Testing-mode grants that expire after a week. Document safe headless worker
-  enrollment and refresh without interactive Colab login or token logging.
-  Colab ADC is not Drive authorization. The live Drive gate remains open:
-  no authorized client JSON or actual Drive API transfer has been supplied.
-  Never automatically publish an OAuth app, fall back to whole-Drive access,
-  or rely on rclone's retiring shared client to bypass this prerequisite.
-- [ ] **Validate Drive relay across macOS, Linux, Windows and WSL2.** Exercise
-  actual rclone Drive API put/readback, interrupted upload, immutable conflict,
-  checkpoint collection with the executor unavailable, and full-state child
-  resume using private per-host credentials and a dedicated test prefix.
-  Cover case/path rules, permissions, filesystem capacity, and process deadlines.
-  Test WSL2 with Linux-local roots separately from `/mnt/c` and native Windows;
-  retain unavailable lanes. Colab CLI currently advertises Linux/macOS only:
-  define a supported native-Windows execution/transport path before claiming
-  Windows Colab support. Compare Drive-desktop/FUSE file relays only as weaker
-  filesystem-visible copies; do not equate sync completion with API verification.
-- [ ] **Implement a real PyTorch/XLA TPU engine/backend.** Cover XLA graph and
-  compilation behavior, supported attention and objectives, data feeding,
-  optimizer/RNG state codecs, same-backend full resume, cancellation and
-  preemption, plus real TPU tests. Do not add an inert TPU enum member or claim
-  CPU/CUDA behavior as TPU support.
-
-## Boundaries and acceptance work
-
-Distributed training is deferred under the
-[single-host extension decision](docs/decisions/0015-single-host-extension-boundaries.md).
-It is not an active compatibility/refactoring task. A future proposal must
-define optimizer ownership, data partitioning, checkpoint identity, and MoE
-expert placement before implementation.
-
-Real spot/remote recovery validation belongs in operational acceptance records,
-following the existing [worker acceptance evidence](docs/workers.md#observed-acceptance--2026-09-23).
-Exercise abrupt loss, verified-generation selection, explicit child resume,
-remote artifact transfer, and storage retention before claiming spot cost or
-recovery benefits. Local loss/resume evidence does not close that gate; add code
-tasks here only for missing or defective behavior exposed by acceptance.
+Distributed training remains deferred under the
+[single-host decision](docs/decisions/0015-single-host-extension-boundaries.md).
+A future proposal needs optimizer ownership, partitioning, checkpoint identity
+and expert placement before implementation.

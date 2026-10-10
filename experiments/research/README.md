@@ -1,6 +1,12 @@
 # Research experiments
 
-Each subdirectory represents one real campaign or experiment family. Check in
+Current project: [Kernel Memory Lab](kernel-memory-lab/README.md), with its own
+[status and execution boundaries](kernel-memory-lab/STATUS.md). Completed dense,
+DevMind and TinyStories records are in [history](history/README.md); its
+[path map](history/path-map.json) resolves original locations without rewriting
+historical content or maintaining old study executables.
+
+Each active subdirectory represents one real campaign or experiment family. Check in
 only the material needed to understand and reproduce the design:
 
 - question, competing explanations, and falsifiable acceptance gates;
@@ -69,9 +75,11 @@ tokenizer bytes are excluded from this metadata-only closure.
 
 Current immutable bindings include `frozen_sha256`, `inputs_sha256`, explicit
 `bindings` path/digest objects, protocol/config/base-run path/digest objects, and
-`scientific-evidence-reference-v1` declaration hashes. Referenced declarations
+`scientific-evidence-reference-v1` declaration hashes. Active referenced declarations
 must stay available at their declared paths with the same bytes; amendments need
-new declarations, preserving earlier evidence. Historical implementation hashes
+new declarations, preserving earlier evidence. Archived records preserve bytes
+and original embedded paths, resolved through the history path map; they do not
+claim current executable reference closure. Historical implementation hashes
 and external archive inventories are not assertions about today's checkout.
 Evidence envelopes validate their recorded identity and verification scope;
 passing lint does not reverify an external checkpoint, dataset, or scientific

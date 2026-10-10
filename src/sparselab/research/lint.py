@@ -17,6 +17,13 @@ from sparselab.recovery.provenance import declaration_paths, declaration_referen
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _COMMIT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _RESEARCH = Path("experiments/research")
+_HISTORY = _RESEARCH / "history"
+_HISTORY_MAP = _HISTORY / "path-map.json"
+_HISTORY_METADATA = {
+    _HISTORY_MAP.as_posix(),
+    (_HISTORY / "README.md").as_posix(),
+    (_HISTORY / "LESSONS_LEARNED.md").as_posix(),
+}
 _FORBIDDEN_DIRS = {
     "checkpoints",
     "checkpoint",
@@ -65,10 +72,9 @@ _FORBIDDEN_SUFFIXES = {
 _RECORD_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".json", ".jsonl"}
 _MUTABLE_NAMES = {"metrics.jsonl", "events.jsonl", "stdout", "stderr", "run.db"}
 # Historical KML records are retained byte-for-byte. These bindings bypass only
-# the unsupported-suffix/JSONL-panel classification below, never path safety,
+# the active JSONL payload refusal below, never path safety,
 # tracked-file, mutable-output, size, or declaration validation for other files.
 _LEGACY_RECORD_SHA256 = {
-    "experiments/research/kernel-memory-lab/corpus-scale/run-offline-continuation.sh": "7dd86e3701c76a1de1b5a7a10c635100b044fbfae21dd647b59897980f1f1260",
     "experiments/research/kernel-memory-lab/results/2026-10-07-card03-review-index.jsonl": "eaeca027b321913ea59a938d01e1b878c80d7a54ee9a3201e2173360c81dbb5d",
     "experiments/research/kernel-memory-lab/results/evidence/card05-v2-language-final-scores.jsonl": "5a5b76046ddc7a670bf4f386e94ad17c9260185cf3290fcb23538d66fce41f43",
 }
@@ -78,6 +84,70 @@ def _sha(value: Any) -> str:
     if not isinstance(value, str) or not _SHA.fullmatch(value):
         raise ValueError("expected a lowercase SHA-256 digest")
     return value
+
+
+def _history_inventory(root: Path, tracked: set[str]) -> dict[str, tuple[str, int]]:
+    """Authenticate relocated bytes, without interpreting past executable schemas."""
+    source = _safe_file(root, root / _HISTORY_MAP, tracked)
+    if source.stat().st_size > 1024 * 1024:
+        raise ValueError("history path map exceeds the 1 MiB durable-record limit")
+    raw = read_document(source)
+    if raw.get("format") != "research-history-path-map-v1":
+        raise ValueError("unsupported history path map format")
+    if not isinstance(raw.get("source_commit"), str) or not _COMMIT.fullmatch(
+        raw["source_commit"]
+    ):
+        raise ValueError("history source_commit must be a full Git object ID")
+    if not isinstance(raw.get("entries"), list):
+        raise TypeError("history entries must be a list")
+    inventory: dict[str, tuple[str, int]] = {}
+    originals: set[str] = set()
+    for entry in raw["entries"]:
+        if not isinstance(entry, dict):
+            raise TypeError("history entry must be an object")
+        original, archived = entry.get("original_path"), entry.get("archive_path")
+        for name in (original,) + (() if archived is None else (archived,)):
+            if (
+                not isinstance(name, str)
+                or not name
+                or Path(name).is_absolute()
+                or "\\" in name
+                or any(part in {"", ".", ".."} for part in name.split("/"))
+            ):
+                raise ValueError(f"unsafe history path: {name!r}")
+        if not isinstance(original, str) or original in originals:
+            raise ValueError("missing or duplicate original history path")
+        originals.add(original)
+        sha = _sha(entry.get("sha256"))
+        size = entry.get("bytes")
+        if type(size) is not int or size < 0:
+            raise ValueError("history byte count must be a nonnegative integer")
+        if size > 1024 * 1024:
+            raise ValueError("archived record exceeds the 1 MiB durable-record limit")
+        if entry.get("action") == "deleted_obsolete_executable":
+            if archived is not None:
+                raise ValueError(
+                    "deleted historical executable cannot have archive path"
+                )
+            continue
+        if (
+            entry.get("action") != "relocated_unchanged"
+            or not isinstance(archived, str)
+            or not Path(archived).is_relative_to(_HISTORY)
+            or archived in _HISTORY_METADATA
+            or archived in inventory
+        ):
+            raise ValueError("invalid or duplicate archived history path")
+        target = _safe_file(root, root / archived, tracked)
+        if (
+            target.stat().st_size != size
+            or hashlib.sha256(target.read_bytes()).hexdigest() != sha
+        ):
+            raise ValueError(
+                f"archived research record digest or size mismatch: {archived}"
+            )
+        inventory[archived] = (sha, size)
+    return inventory
 
 
 def _safe_file(root: Path, path: Path, tracked: set[str]) -> Path:
@@ -114,6 +184,23 @@ def _binding(root: Path, source: Path, name: Any, sha: Any, tracked: set[str]) -
     target = _reference(root, source, name, tracked)
     if hashlib.sha256(target.read_bytes()).hexdigest() != expected:
         raise ValueError(f"reference digest mismatch: {name}")
+
+
+def _declaration_template(source: Path) -> bool:
+    """Check explicit data templates; native consumers validate rendered values."""
+    if not source.name.endswith((".template.yaml", ".template.json")):
+        return False
+    from sparselab.corpus.declaration_render import _SLOT
+
+    raw = source.read_bytes()
+    if b"${" not in raw:
+        return False  # A concrete declaration still receives full schema checks.
+    if b"${" in _SLOT.sub(b"", raw):
+        raise ValueError("invalid declaration template slot syntax")
+    # Reuse the strict data reader: mapping root, duplicate keys, invalid YAML/JSON
+    # and nonfinite values remain errors. Numeric slots are strings until rendering.
+    read_document(source)
+    return True
 
 
 def _evidence(root: Path, source: Path, raw: dict, tracked: set[str]) -> None:
@@ -261,103 +348,8 @@ def _document(
         binding = raw.get(key)
         if isinstance(binding, dict) and "path" in binding:
             _binding(root, source, binding["path"], binding.get("sha256"), tracked)
-    for split in ("development", "test"):
-        field = f"source_{split}_files"
-        if field in raw:
-            files = raw[field]
-            if not isinstance(files, dict) or not files:
-                raise ValueError(f"{field} must be a nonempty path/digest mapping")
-            for name, sha in files.items():
-                _binding(root, source, f"{split}/{name}", sha, tracked)
     if "reference_checkpoint_receipt" in raw:
         _reference(root, source, raw["reference_checkpoint_receipt"], tracked)
-
-
-def _review(root: Path, source: Path, rows: list, tracked: set[str]) -> None:
-    """Recognize the existing content-addressed blind comparison panel."""
-    fields = {
-        "pair_id",
-        "prompt",
-        "category",
-        "a",
-        "b",
-        "dimensions",
-        "allowed_votes",
-        "judgments",
-    }
-    if (
-        source.name != "review-blind.json"
-        or source.parent.name != "evidence"
-        or not rows
-    ):
-        raise ValueError("JSON arrays are only allowed for frozen blind review panels")
-    identifiers: set[str] = set()
-    for row in rows:
-        if not isinstance(row, dict) or set(row) != fields:
-            raise ValueError("invalid blind review panel row")
-        if any(
-            not isinstance(row[key], str) or not row[key]
-            for key in ("pair_id", "prompt", "category", "a", "b")
-        ):
-            raise ValueError("blind review row requires nonempty text fields")
-        if row["pair_id"] in identifiers:
-            raise ValueError("duplicate blind review pair ID")
-        identifiers.add(row["pair_id"])
-        if (
-            not isinstance(row["dimensions"], list)
-            or not row["dimensions"]
-            or any(not isinstance(item, str) or not item for item in row["dimensions"])
-            or row["allowed_votes"] != ["A", "B", "tie", "uncertain"]
-            or not isinstance(row["judgments"], list)
-        ):
-            raise ValueError("invalid blind review dimensions, votes, or judgments")
-    summary = _safe_file(root, source.parent / "summary.json", tracked)
-    blind = read_document(summary).get("blind_review")
-    if not isinstance(blind, dict) or blind.get("pair_count") != len(rows):
-        raise ValueError("blind review summary pair count mismatch")
-    _binding(root, source, source.name, blind.get("blind_sha256"), tracked)
-
-
-def _panel(root: Path, source: Path, tracked: set[str]) -> None:
-    """Allow the existing frozen decoding evidence, not arbitrary JSONL datasets."""
-    rows = [
-        json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()
-    ]
-    if not rows or not isinstance(rows[0], dict):
-        raise ValueError("evidence panel requires a header")
-    header = rows[0]
-    split = header.get("split")
-    if (
-        header.get("format") != "dense_lm_decoding_cells_v1"
-        or header.get("type") != "header"
-        or split not in {"development", "test"}
-        or source.parent.name != split
-        or source.parent.parent.name != "evidence"
-    ):
-        raise ValueError("JSONL payload is not a frozen decoding evidence panel")
-    if len(rows) < 2 or any(
-        not isinstance(row, dict) or row.get("type") != "cell" for row in rows[1:]
-    ):
-        raise ValueError("evidence panel requires cell records")
-    summary = _safe_file(root, source.parent.parent / "summary.json", tracked)
-    raw = read_document(summary)
-    files = raw.get(f"source_{split}_files")
-    if not isinstance(files, dict):
-        raise TypeError("evidence summary requires a source-file digest mapping")
-    expected = files.get(source.name)
-    _binding(root, source, source.name, expected, tracked)
-    campaign = source.parent.parent.parent
-    for key, name in (
-        ("preregistration_sha256", "preregistration.json"),
-        ("prompt_sha256", f"{split}.json"),
-    ):
-        _binding(
-            root,
-            source,
-            (campaign / name).relative_to(root).as_posix(),
-            header.get(key),
-            tracked,
-        )
 
 
 def lint_research(root: Path) -> dict[str, Any]:
@@ -372,6 +364,12 @@ def lint_research(root: Path) -> dict[str, Any]:
     paths = sorted(name for name in tracked if Path(name).is_relative_to(_RESEARCH))
     errors: list[dict[str, str]] = []
     visited: set[Path] = set()
+    history: dict[str, tuple[str, int]] = {}
+    if any(Path(name).is_relative_to(_HISTORY) for name in paths):
+        try:
+            history = _history_inventory(root, tracked)
+        except (ValueError, TypeError, KeyError, OSError) as error:
+            errors.append({"path": _HISTORY_MAP.as_posix(), "message": str(error)})
     for name in paths:
         source = root / name
         relative = Path(name).relative_to(_RESEARCH)
@@ -390,6 +388,10 @@ def lint_research(root: Path) -> dict[str, Any]:
                 raise ValueError(
                     "research record exceeds the 1 MiB durable-record limit"
                 )
+            if Path(name).is_relative_to(_HISTORY):
+                if name not in history and name not in _HISTORY_METADATA:
+                    raise ValueError("unindexed archived research record")
+                continue
             expected_legacy = _LEGACY_RECORD_SHA256.get(name)
             if expected_legacy is not None:
                 if hashlib.sha256(source.read_bytes()).hexdigest() != expected_legacy:
@@ -399,22 +401,14 @@ def lint_research(root: Path) -> dict[str, Any]:
                 raise ValueError(
                     "unsupported research record format; payloads belong outside the checkout"
                 )
-            if source.suffix.lower() == ".json":
-                raw = json.loads(source.read_text(encoding="utf-8"))
-                if isinstance(raw, dict):
-                    _document(root, source, read_document(source), tracked, visited)
-                elif isinstance(raw, list):
-                    _review(root, source, raw, tracked)
-                else:
-                    raise ValueError("research JSON must be an object or review array")
-            elif source.suffix.lower() in {".yaml", ".yml"}:
+            if _declaration_template(source):
+                continue
+            if source.suffix.lower() in {".json", ".yaml", ".yml"}:
                 _document(root, source, read_document(source), tracked, visited)
             elif source.suffix.lower() == ".jsonl":
-                if "evidence" not in relative.parts[:-1]:
-                    raise ValueError(
-                        "JSONL payloads belong outside research; only frozen evidence panels are allowed"
-                    )
-                _panel(root, source, tracked)
+                raise ValueError(
+                    "JSONL payloads belong outside active research records"
+                )
         except (ValueError, TypeError, KeyError, OSError) as error:
             errors.append({"path": name, "message": str(error)})
     if not paths:

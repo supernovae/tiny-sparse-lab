@@ -233,13 +233,6 @@ def _handle(args: argparse.Namespace) -> None:
                     if args.family_inventory is not None
                     else None
                 ),
-                evidence_commit=args.evidence_commit,
-                release_evidence=Path(args.release_evidence)
-                if args.release_evidence is not None
-                else None,
-                selection_evidence=Path(args.selection_evidence)
-                if args.selection_evidence is not None
-                else None,
                 batch_documents=args.batch_documents,
                 batch_source_bytes=args.batch_source_bytes,
             )
@@ -439,9 +432,6 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("--family-inventory")
     command.add_argument("--policy", required=True)
     command.add_argument("--output", required=True)
-    command.add_argument("--evidence-commit")
-    command.add_argument("--release-evidence")
-    command.add_argument("--selection-evidence")
     command.add_argument("--batch-documents", type=int, default=256)
     command.add_argument("--batch-source-bytes", type=int, default=1_048_576)
     command.add_argument("--json", action="store_true")

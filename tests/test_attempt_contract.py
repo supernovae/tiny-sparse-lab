@@ -1,4 +1,4 @@
-"""Inspected zero-update v2 contract tests; subprocesses perform no model work."""
+"""Inspected zero-update contract tests; subprocesses perform no model work."""
 
 from __future__ import annotations
 
@@ -17,11 +17,6 @@ from sparselab.operational_monitor import capture_workspace_baseline
 from sparselab.training import attempt_budget as module
 from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
 from sparselab.training.attempt_commands import AttemptCommand, phase_output_paths
-
-_PHASE_MAP_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "experiments/research/kernel-memory-lab/card05-base-50m"
-)
 
 
 def _fixture(
@@ -212,85 +207,6 @@ def test_public_dispatch_rejects_b16_paths_before_reservation(tmp_path: Path) ->
     assert len(budget.status()["reservations"]) == 1
 
 
-@pytest.mark.parametrize(("version", "count"), [("v1", 31), ("v2", 32)])
-def test_complete_preparation_phase_paths_are_generated_and_disjoint(
-    tmp_path: Path,
-    version: str,
-    count: int,
-) -> None:
-    packet = json.loads(
-        (_PHASE_MAP_DIR / f"preparation-phase-paths-{version}.json").read_text()
-    )
-    assert packet["format"] == f"sparselab-preparation-phase-paths-{version}"
-    phases = packet["phases"]
-    assert len(phases) == count
-    assert len({phase for phase, _ in phases}) == len(phases)
-    required = {
-        "verify-snapshots",
-        "admission-draft",
-        "admission-inspection",
-        "family-freeze",
-        "release-acceptance",
-        "measure-accepted-supply",
-        "materialize-mixture",
-        "publish-prepared-bundle",
-        "cold-verify-prepared-bundle",
-    }
-    assert required.issubset({phase for phase, _ in phases})
-    attempt = tmp_path / "attempt"
-    attempt.mkdir()
-    outputs: set[Path] = set()
-    for label, leaf_name in phases:
-        rendered = phase_output_paths(attempt, label, leaf_name)
-        assert rendered["completion"].parent == attempt / "receipts"
-        assert rendered["inner_monitor"].parent == attempt / "logs"
-        if leaf_name is not None:
-            assert rendered["leaf"].is_relative_to(attempt / "prep")
-        completion = rendered["completion"]
-        derived = (
-            completion.with_name(completion.name + ".ready"),
-            completion.with_name(completion.name + ".attempt.json"),
-            completion.with_name(completion.name + ".monitor"),
-        )
-        for path in (*rendered.values(), *derived):
-            assert all(
-                path != old
-                and not path.is_relative_to(old)
-                and not old.is_relative_to(path)
-                for old in outputs
-            )
-            outputs.add(path)
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "sparselab",
-            "attempt",
-            "phase-paths",
-            "--attempt-root",
-            str(attempt),
-            "--label",
-            "admission-draft",
-            "--leaf-name",
-            "admission-draft.json",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == {
-        key: str(value)
-        for key, value in phase_output_paths(
-            attempt, "admission-draft", "admission-draft.json"
-        ).items()
-    }
-    for unsafe in ("../policy.yaml", "/absolute.json", "sources/../policy.yaml"):
-        with pytest.raises(ValueError, match="relative path"):
-            phase_output_paths(attempt, "admission-draft", unsafe)
-
-
 def _run_args(paths: dict[str, Path | str], completion: Path) -> dict[str, object]:
     return {
         "activity": "inspect",
@@ -424,10 +340,8 @@ def test_identity_drift_and_tampered_counters_fail_closed(tmp_path: Path) -> Non
 
 def test_tampered_deadline_and_legacy_bypass_fail_closed(tmp_path: Path) -> None:
     budget, paths = _fixture(tmp_path)
-    with pytest.raises(AttemptBudgetError, match="reserve_vector"):
-        budget.reserve("bypass", 0)
-    with pytest.raises(AttemptBudgetError, match="run_contract"):
-        budget.run(["unmonitored"], reserve_updates=0)
+    for obsolete in ("create", "reserve", "run"):
+        assert not hasattr(budget, obsolete)
     with sqlite3.connect(budget.path) as connection:
         connection.execute(
             "UPDATE budget SET deadline_ns = deadline_ns + 1 WHERE id = 1"
@@ -452,7 +366,7 @@ def test_zero_update_training_and_warmup_are_refused_before_spawn(
                 "--run-id",
                 "run",
                 "--runs-dir",
-                str(paths["root"]),
+                str(paths["root"] / "runs"),
             ],
             **(
                 _run_args(paths, paths["root"] / "train.json")
@@ -638,3 +552,59 @@ def test_policy_change_at_child_boundary_prevents_native_launch(
     assert json.loads(completion.read_text())["living_descendants"] == 0
     assert not (paths["root"] / "owned.json.monitor").exists()
     assert (paths["root"] / "owned.json.attempt.json").exists()
+
+
+def test_contract_deadline_and_clock_rollback_keep_charges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [1_000_000_000_000]
+    monkeypatch.setattr(module.time, "time_ns", lambda: now[0])
+    budget, paths = _fixture(tmp_path, seconds=10)
+    now[0] += 4_000_000_000
+    budget.reserve_vector(
+        "before deadline", generation_calls=1, content_identity_sha256=paths["identity"]
+    )
+    now[0] -= 1
+    with pytest.raises(AttemptBudgetError, match="clock moved backwards"):
+        budget.reserve_vector("rollback", content_identity_sha256=paths["identity"])
+    now[0] += 6_000_000_001
+    with pytest.raises(AttemptBudgetError, match="wall-time limit"):
+        budget.reserve_vector("late", content_identity_sha256=paths["identity"])
+    assert budget.status()["charged_generation_calls"] == 1
+
+
+def test_contract_creation_is_exclusive_and_invalid_inputs_leave_no_ledger(
+    tmp_path: Path,
+) -> None:
+    budget, paths = _fixture(tmp_path)
+    before = budget.path.read_bytes()
+    with pytest.raises(FileExistsError):
+        AttemptBudget.create_contract(
+            budget.path, contract_path=paths["contract"], expected_sha256=paths["sha"]
+        )
+    assert budget.path.read_bytes() == before
+    with pytest.raises(AttemptBudgetError, match="missing"):
+        AttemptBudget(tmp_path / "missing.sqlite").reserve_vector(
+            "missing", content_identity_sha256=paths["identity"]
+        )
+    invalid = json.loads(paths["contract"].read_text())
+    invalid["max_optimizer_updates"] = -1
+    paths["contract"].write_text(json.dumps(invalid))
+    with pytest.raises(AttemptBudgetError, match="invalid attempt contract"):
+        AttemptBudget.create_contract(
+            tmp_path / "invalid.sqlite",
+            contract_path=paths["contract"],
+            expected_sha256=hashlib.sha256(paths["contract"].read_bytes()).hexdigest(),
+        )
+    assert not (tmp_path / "invalid.sqlite").exists()
+
+
+def test_obsolete_ledger_version_is_not_a_current_input(tmp_path: Path) -> None:
+    budget, _ = _fixture(tmp_path)
+    with sqlite3.connect(budget.path) as connection:
+        connection.execute("UPDATE budget SET version = 1")
+    for inspect in (budget.status, budget.remaining_seconds):
+        with pytest.raises(
+            AttemptBudgetError, match="unsupported budget ledger version"
+        ):
+            inspect()

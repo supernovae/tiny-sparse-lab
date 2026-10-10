@@ -17,15 +17,14 @@ from sparselab.archive import create_archive, verify_archive
 
 
 @pytest.fixture(scope="module")
-def devmind_recipe(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    repo = tmp_path_factory.mktemp("archive-devmind") / "repo"
+def partial_recipe(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    repo = tmp_path_factory.mktemp("archive-partial") / "repo"
     repo.mkdir()
-    original = Path(__file__).resolve().parents[1]
-    shutil.copytree(original / "corpora/devmind-v4", repo / "corpora/devmind-v4")
-    declaration = repo / "experiments/research/devmind-pretrain-v4"
+    declaration = repo / "experiments/research/fixture"
     declaration.mkdir(parents=True)
+    (repo / "README.md").write_text("Archive fixture; no runtime inputs.\n")
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    subprocess.run(["git", "-C", str(repo), "add", "corpora/devmind-v4"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "README.md"], check=True)
     subprocess.run(
         [
             "git",
@@ -37,19 +36,26 @@ def devmind_recipe(tmp_path_factory: pytest.TempPathFactory) -> Path:
             "user.email=test@example.invalid",
             "commit",
             "-qm",
-            "Pin DevMind scientific corpus declarations",
+            "Pin fixture repository",
         ],
         check=True,
     )
     pinned = subprocess.check_output(
         ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True
     ).strip()
-    recipe = yaml.safe_load(
-        (
-            original / "experiments/research/devmind-pretrain-v4/recovery.yaml"
-        ).read_text()
-    )
-    recipe["source_commit"] = pinned
+    recipe = {
+        "recovery_version": 1,
+        "id": "partial-fixture",
+        "source_commit": pinned,
+        "steps": [
+            {
+                "id": "reviewed-input",
+                "kind": "external_required",
+                "role": "tokenizer_selection",
+                "reason": "No reviewed tokenizer choice is declared in this fixture.",
+            }
+        ],
+    }
     source = declaration / "recovery.yaml"
     source.write_text(yaml.safe_dump(recipe))
     subprocess.run(
@@ -58,7 +64,7 @@ def devmind_recipe(tmp_path_factory: pytest.TempPathFactory) -> Path:
             "-C",
             str(repo),
             "add",
-            "experiments/research/devmind-pretrain-v4/recovery.yaml",
+            "experiments/research/fixture/recovery.yaml",
         ],
         check=True,
     )
@@ -80,28 +86,28 @@ def devmind_recipe(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return source
 
 
-def test_devmind_partial_thin_is_honest_and_portable_refuses(
-    tmp_path: Path, devmind_recipe: Path
+def test_partial_thin_is_honest_and_portable_refuses(
+    tmp_path: Path, partial_recipe: Path
 ) -> None:
     output = tmp_path / "thin.tar"
     state = tmp_path / "absent-state"
-    result = create_archive(devmind_recipe, "thin", output, work_root=state)
+    result = create_archive(partial_recipe, "thin", output, work_root=state)
     assert result["family_lineage"] == "NOT_DECLARED"
     assert any(row["kind"] == "external_required" for row in result["external"])
     verified = verify_archive(output)
     assert verified["unresolved_references"] == result["external"]
     assert not state.exists()
     with pytest.raises(FileExistsError):
-        create_archive(devmind_recipe, "thin", output, work_root=state)
+        create_archive(partial_recipe, "thin", output, work_root=state)
     with pytest.raises(ValueError, match="portable"):
         create_archive(
-            devmind_recipe, "portable", tmp_path / "portable.tar", work_root=state
+            partial_recipe, "portable", tmp_path / "portable.tar", work_root=state
         )
     assert not (tmp_path / "portable.tar").exists()
 
 
 def test_unsafe_archive_members_and_mutation_are_rejected(
-    tmp_path: Path, devmind_recipe: Path
+    tmp_path: Path, partial_recipe: Path
 ) -> None:
     source = tmp_path / "unsafe.tar"
     with tarfile.open(source, "w") as tar:
@@ -119,7 +125,7 @@ def test_unsafe_archive_members_and_mutation_are_rejected(
     with pytest.raises(ValueError, match="unsafe"):
         verify_archive(source)
     source = tmp_path / "good.tar"
-    create_archive(devmind_recipe, "thin", source, work_root=tmp_path / "state")
+    create_archive(partial_recipe, "thin", source, work_root=tmp_path / "state")
     with source.open("r+b") as handle:
         handle.seek(1024)
         original = handle.read(1)
@@ -131,15 +137,15 @@ def test_unsafe_archive_members_and_mutation_are_rejected(
 
 def test_declared_recovery_receipt_is_authenticated_in_thin_archive(
     tmp_path: Path,
-    devmind_recipe: Path,
+    partial_recipe: Path,
 ) -> None:
     from sparselab.campaign.state import digest
     from sparselab.recovery.engine import verify_recovery_receipt
     from sparselab.training.manifest import canonical_json, sha256_file
 
     repo = tmp_path / "repo"
-    shutil.copytree(devmind_recipe.parents[3], repo)
-    source = repo / devmind_recipe.relative_to(devmind_recipe.parents[3])
+    shutil.copytree(partial_recipe.parents[3], repo)
+    source = repo / partial_recipe.relative_to(partial_recipe.parents[3])
     recipe = yaml.safe_load(source.read_text())
     body = {
         "format": "sparselab-recovery-receipt-v1",

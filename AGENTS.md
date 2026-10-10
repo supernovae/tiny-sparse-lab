@@ -1,195 +1,90 @@
-# SparseLab agent guidance
+# SparseLab agent invariants
 
-Use this file for coding-agent behavior. Scientific truth comes from versioned
-configs, run artifacts, evidence records, and reviewed research decisions—not
-from an agent's confidence or a passing smoke test.
+## 1. Establish scope before execution
 
-## Start safely
+Read `README.md`, relevant nearby guidance, `TODO.md` for code work, and
+`docs/research/` for scientific work. Inspect Git state/history before editing;
+preserve other work and use an isolated checkout when experiments have pinned
+another checkout. Kernel Memory Lab work also requires its
+[bootstrap](experiments/research/kernel-memory-lab/BOOTSTRAP.md), current status,
+and selected scope. Planning documents and historical allocations grant no
+runtime or spending authority. Distinguish code, fixtures, experiments and
+evidence. An offline task permits only inspected static checks and explicitly
+bounded zero-model fixtures; readiness smoke, initialization, training and
+generation require their own authorization.
 
-1. Before substantial changes, read the relevant project guidance and nearby
-   documentation. Use `README.md` for project boundaries, `TODO.md` for code
-   work, and `docs/research/` for scientific work. Read only what the task needs.
-2. Inspect `git status` and relevant history before editing. Preserve user
-   changes and active run directories. Do not edit configs, code, checkpoints,
-   or manifests underneath an experiment that is currently running.
-3. For substantial work, identify whether it changes code, a sample experiment,
-   a research experiment, or evidence. Do not quietly turn one into another.
+## 2. Use the native, current public path
 
-For Kernel Memory Lab tasks, explicitly read
-[the scoped bootstrap](experiments/research/kernel-memory-lab/BOOTSTRAP.md) and
-its current status before acting. Follow the selected card and current authorized
-scope; the planning documents grant no runtime or spending approval.
+Reuse native dispatch, renderers, verifiers and monitors described in
+[the iteration guide](docs/iteration.md). Keep one current public command/schema
+path; update callers together instead of adding executable version forks,
+compatibility aliases or a second runner. Necessary historical readers belong
+in private, read-only compatibility code. Do not reimplement hashing, checkpoint
+selection, accounting or workflow state in task scripts. Record a genuinely
+missing operation with inputs and failure criteria in `TODO.md`.
 
-## Python environment
+For corpus preparation, use one authenticated phase map for command arguments,
+paths, bindings and template references, shared by operators and connected tests.
+Capture a common-root baseline once and render its **verified embedded identity**
+with public `corpus render-declaration --workspace-baseline`; initialize through
+public `attempt init` only after validation. Derive output, receipt and monitor
+paths through native `attempt phase-command` / `attempt run-phase`, preserving disjoint namespaces,
+pre-reservation collision checks and exclusive writes. Reuse-only inputs must
+fail closed without acquisition. Inspection before admission must not depend on
+an admitted release.
 
-- This project uses uv. Run Python, tests, and project commands through the locked
-  environment: `uv run --locked python ...`, `uv run --locked pytest ...`, and
-  `uv run --locked sparselab ...`.
-- Do not assume `python`, `pytest`, or `sparselab` is available directly on
-  `PATH`. Do not create another virtual environment or run `pip install` unless
-  the user explicitly requests it.
-- For CUDA, ROCm, XPU, or MLX work, follow the documented worker environment
-  instead of replacing its framework packages with the default locked CPU stack.
-  Use `uv run --locked --no-sync ...` for an already provisioned vendor environment.
-  Treat host OS/environment (Linux, macOS, WSL2) independently from backend/device;
-  do not infer a GPU vendor or capability from the host environment.
+## 3. Preserve identities, evidence and scientific settings
 
-## Workspaces and storage
+Never rewrite historical hashes, normalizer identities, receipts, failed runs or
+acceptance criteria to fit new code. Preserve negative, censored, interrupted and
+unavailable observations. A changed protocol needs a new identity; promotion
+requires review. Paths are locations, not scientific identities: relocation needs
+a verified binding, not edited receipts. Keep preparation, updates, evaluation,
+generation and reporting measurements separate. Do not silently change effective
+batch, data, tokenizer, seed, architecture, precision, token budget or optimizer.
+Fixtures establish wiring only; synthetic review decisions are never production
+admission, and successful commands are not scientific conclusions.
 
-- Select an external persistent root independent of checkout, branch, and
-  worktree. The default is `${XDG_DATA_HOME}/sparselab` when XDG is absolute
-  and nonempty, otherwise `~/.local/share/sparselab`; substantial campaigns
-  should use `export SPARSELAB_WORK_DIR=/data/sparselab` on an adequately sized
-  filesystem. Global `--work-dir` wins over the environment. A legacy relative
-  `SPARSELAB_WORK_DIR=sparselab-work` is an explicit override, not the default;
-  do not automatically migrate or delete it.
-- Name task workspaces under the persistent root, such as
-  `$SPARSELAB_WORK_DIR/experiments/runtime-forecasting/`, not for the CPU/GPU
-  backend. Keep backend/device choices in runtime parameters and run metadata,
-  with distinct run IDs sharing the task's `runs/` store.
-- The root contains downloads, immutable evidence, prepared data, checkpoints,
-  receipts and logs. Its `scratch/` contains disposable temporary files, and
-  optional `cache/` holds only reconstructable caches. Neither scratch nor cache
-  is scientific evidence. Do not use anonymous `/tmp` for long preparation,
-  training, checkpoints, downloads, or campaign output.
-- In-checkout overrides and configured long-lived output/cache paths there are
-  respected but warn `STORAGE_INSIDE_GIT_CHECKOUT`. Treat branch, checkout and
-  root paths as operational locations, not scientific identities; record source
-  commit and declaration/content digests. Explicit output/cache destinations
-  and old receipt paths retain their meaning. Relocation needs a new location
-  binding and verification, not rewriting old receipts.
-- Before expensive work, check free bytes and inodes for actual output locations
-  and estimate checkpoint/cache growth. Stop before launch if the safe margin is
-  inadequate. Never delete or prune data that the current task does not own.
-- Check in only small protocols, configs, summaries, and evidence references
-  intended to be durable and reviewable; keep mutable or large outputs in the
-  external persistent root.
+## 4. Bound resources and retain owned outputs
 
-## Configuration and performance
+Use a persistent work root outside Git: global `--work-dir` overrides
+`SPARSELAB_WORK_DIR`; otherwise use absolute nonempty `XDG_DATA_HOME/sparselab`
+or `~/.local/share/sparselab`. Respect explicit legacy locations. Store durable
+outputs by task, with backend/device in runtime metadata. Only disposable fixture
+scratch belongs in `/tmp`; retain evidence separately from reconstructable cache.
+Check bytes, inodes and expected growth before expensive work. Never mutate an
+active run, reset a spent ledger, prune unrelated data, or infer safe shutdown
+from a missing receipt. Reconcile interrupted attempts through native interfaces.
+Check in only small durable declarations, summaries and evidence references.
 
-- Inspect the effective config before running it. Use `sparselab inspect`, then a
-  disposable `sparselab stage --through smoke` or `--through warmup` when the
-  backend is available. A memory estimate is not proof of fit and a warmup is not
-  a scientific result.
-- Treat effective batch (`micro_batch_size * gradient_accumulation`) as a
-  scientific setting. When optimizing execution, first test divisible
-  microbatch/accumulation pairs that preserve it. Do not silently change sequence
-  length, optimizer, precision, token budget, seed, data, or architecture.
-- Prefer measured proposals over guesses. For each bounded candidate, record
-  target tokens/sec, step-time distribution after initialization, peak memory,
-  backend/device identity, and failures. Select the fastest stable candidate with
-  adequate headroom; write a new config/proposal instead of rewriting the source.
-- Do not chase a cosmetic 100% utilization number. Low CPU use can be normal for
-  accelerator-bound work; low accelerator use can reflect input stalls, tiny
-  kernels, synchronization, evaluation, checkpoint I/O, or memory pressure.
-  Diagnose the limiting phase before changing batch size or worker counts.
-- Keep preparation, optimizer updates, validation, checkpointing, evaluation,
-  generation, and reporting timings separate. Never present component timing as
-  end-to-end time or performance as model quality.
+## 5. Verify the changed behavior and its actual callers
 
-## Experiments and evidence
+Use the locked uv environment (`uv run --locked ...`), repository Ruff settings,
+and the documented vendor environment for accelerator work (`--no-sync` where
+already provisioned). Do not install packages or create another environment
+without authorization. Host OS does not identify the accelerator. Inspect test
+fixtures and transitive calls before choosing a bounded explicit test selection;
+do not launch broad tests blindly. Expand only for a changed behavior or required
+gate. Prefer deterministic identities, counters, transitions and failure checks
+to wall-clock assertions.
 
-### Use the lab for rapid iteration
+Connected preparation coverage must load checked-in production templates, use
+public baseline rendering/initialization and canonical phase arguments, and reach
+a cold prepared bundle on tiny fixtures. Declare fixture substitutions explicitly;
+never repair production literals silently. Before pruning a test, map its useful
+guarantees to retained coverage, including provenance, zero-network reuse,
+review/sample binding, protected families, collisions, accounting and shutdown.
+Review `git diff --check`, Git status and current documentation examples before
+handoff; report exact passed, failed and unrun checks plus remaining qualification.
 
-- Follow [the native iteration workflow](docs/iteration.md). Use the same native
-  commands and declarations a human would use; select `--json` only where the
-  command supports it. Do not write Python to reimplement artifact hashing,
-  counter checks, checkpoint selection, runtime checks or Campaign state.
-- At a new session boundary, use the bounded `readiness smoke --family dense`
-  when lab wiring needs checking **and model updates are authorized**; select
-  additional affected families for code changes. This runs tiny CPU training
-  and resume, so use an isolated output. It does not certify an accelerator or
-  the real experiment's inputs. For a zero-model task, use inspected tests and
-  read-only native checks instead.
-- Identify the actual delta first: declaration, data/tokenizer, code, runtime or
-  location. Use nearest tests for changed code, actual-config `inspect` and
-  `workspace preflight`, and config-specific staging where needed. A tested
-  unchanged revision does not need the full suite before every model iteration.
-- Prefer Campaign `status`, `next` and `explain` for declared workflows; these
-  expose blockers and bound inputs without launching training. Use composed
-  `run` for a single fresh teaching run and ExperimentPlan phases for checkpoint
-  chains. An interrupted attempt needs reconciliation or explicit resume, not
-  an invented fresh retry.
-- Reuse authenticated unchanged inputs through supported CLI verification
-  reuse. Use cold verification at a new trust boundary or when explicitly
-  requested; inspect proof misses and fallbacks rather than trusting file size
-  or remembered hashes. Family/archive/recovery checks retain their documented
-  cold behavior. Do not repeatedly rebuild a frozen tokenizer or dataset.
-- After a run, read native `evidence` and `triage`, verify the selected immutable
-  checkpoint and inspect completed ingestion separately. Triage reads retained
-  advice; it does not approve training, choose a new experiment or promote a
-  model. Keep raw negative and unavailable observations visible.
-- If a necessary check exists only as a Python API, record the exact missing
-  CLI/DSL operation with input/output and failure acceptance criteria in
-  `TODO.md`. Prefer a small typed adapter over a task-specific harness or a
-  second orchestration engine. Do not present a proposed command as shipped.
+## 6. Keep changes and collaboration reviewable
 
-- Copyable teaching material belongs in `experiments/samples/`. A real scientific
-  campaign belongs in `experiments/research/<campaign>/` and must bind its source
-  configs/protocol, acceptance gates, and evidence references. Mutable execution
-  output belongs under the external persistent root's `experiments/<campaign>/`.
-- Register scientific questions and next tests in the research lifecycle or
-  `docs/research/roadmap.md`; keep `TODO.md` for missing or defective code only.
-- Preserve failed, negative, censored, and interrupted runs. A completed command
-  proves execution; it does not prove usefulness, portability, causality, or
-  superiority. Report what changed, what stayed fixed, and what remains unproven.
-- Never alter acceptance criteria after viewing final outcomes without recording
-  a new protocol identity. Do not promote a baseline or finding automatically
-  from metrics; promotion is a reviewed decision.
-
-### Bound preparation attempts
-
-- Keep the attempt contract, one common-root baseline, monitor policies, source
-  declarations and phase map as distinct authenticated inputs. Capture the
-  baseline once; render its **verified embedded identity** through native
-  `corpus render-declaration --workspace-baseline`, then use public `attempt
-  init` with that baseline, root and sealed policy. Do not fill the slot with
-  the receipt file hash or create a ledger before validation.
-- Derive phase labels and leaf/receipt/monitor paths from the checked-in map
-  through native `attempt phase-paths`. Use separate output namespaces and
-  pass the exact generated paths to the leaf, nested monitor and outer owned
-  supervisor. Keep the native pre-reservation alias check and exclusive writes;
-  a fixture should use the same public command and binding shapes as its packet.
-- Preparation evidence ends at its declared gate. A tiny zero-model fixture
-  establishes command wiring, not production admission, corpus supply, GPU
-  fit or model quality. Hardware, optimizer/generation and platform
-  qualifications are optional separate allocations unless a changed behavior
-  specifically depends on them. Preserve stopped ledgers and raw failures.
-
-## Collaboration
-
-- Keep small, local tasks with one agent. For substantial independent work, use
-  parallel helpers when the benefit justifies their context and coordination cost.
-- Give helpers narrow objectives and relevant paths and invariants. Ask for
-  concise findings with evidence, changed paths, tests, and uncertainties.
-- Split writable work by owned files or components; use one writer per file and
-  review the integrated diff. Do not launch overlapping accelerator jobs on the
-  same physical device unless the experiment studies concurrency and the worker
-  lease path is in use.
-- Let the client and user choose models, reasoning effort, and concurrency.
-- Keep commits narrow and descriptive. Do not push, rewrite history, or delete
-  remote branches unless the user explicitly asks.
-- Before a long remote or accelerator run, finish the lab code change, run its
-  focused tests and local readiness smoke, commit it, and push the tested branch
-  when the task authorizes publishing it. Record the commit, dirty-tree status,
-  installed package/source identity, and effective config with the run. Launch
-  from that fixed checkout; use another checkout for later lab development.
-- A runner using an already tested code revision can perform the focused
-  `sparselab readiness smoke` and config-specific `inspect`/`stage` gates at a
-  new session boundary. Repeat broad tests when code changes or a required gate
-  calls for them, rather than spending accelerator time on unrelated suites.
-- Keep periodic, best, latest, and immediately previous verified checkpoints
-  according to the declared config. Verify a finalized generation before a
-  child resume, and never edit or prune an active run's files.
-
-## Verification
-
-- Run focused tests for changed behavior first, then the relevant broader suite.
-  Use the locked environment (`uv run --locked ...`) and the repository's Ruff
-  configuration.
-- Avoid wall-clock-sensitive assertions. Test raw counters, state transitions,
-  schemas, deterministic calculations, failure behavior, and null/unavailable
-  handling.
-- Before handoff, review `git diff --check`, `git status`, generated paths, and
-  documentation examples. State what was tested and identify every hardware or
-  long-run gate that was not exercised.
+Use one agent for small tasks; substantial independent work may use parallel
+helpers with narrow owned files, relevant invariants and concise evidence-backed
+handoffs. Review the integrated diff and avoid overlapping device jobs. Let the
+user/client choose models, reasoning effort and concurrency. Keep local commits
+narrow; publishing, history rewriting and remote deletion require authorization.
+Run experiments from a fixed tested revision and record commit, dirty state,
+package identity and effective config. Keep scientific milestones in research
+records and missing code in `TODO.md`; optional hardware/provider qualification
+is a separate allocation, not a reason to expand an offline refactor.

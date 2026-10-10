@@ -1,0 +1,11 @@
+monitor_policy_version: 1
+interval_seconds: 1.0
+termination_grace_seconds: 5.0
+max_tree_rss_bytes: 25769803776
+max_device_memory_bytes: 21474836480
+expected_device_uuid: cdff744c-0000-1000-8055-1c9de49f245d
+max_added_workspace_bytes: 77309411328
+max_added_workspace_inodes: 10000
+min_projected_disk_free_bytes: 2147483648
+min_projected_disk_free_inodes: 1000
+max_wall_seconds: 36000.0

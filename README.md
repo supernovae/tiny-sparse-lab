@@ -50,6 +50,8 @@ dashboard. Queue whole independent experiments on local or SSH workers when
 one machine isn't enough for your sweep. Each training run uses one process and
 one device; the controller schedules independent runs.
 
+For retained corpus preparation, use the [canonical corpus-to-bundle interface](docs/corpus-preparation.md). Historical research packets remain evidence, not alternate current launch paths.
+
 ## First run
 
 You need **Python 3.14** and [uv](https://docs.astral.sh/uv/). Clone the repository,

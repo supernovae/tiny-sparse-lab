@@ -112,50 +112,7 @@ def verify_admission_review(admission: Path, work_root: Path) -> dict[str, objec
                 "v2 admission review has incomplete, substituted or blocking decisions"
             )
         return review
-    if (
-        not isinstance(review, dict)
-        or set(review)
-        != {
-            "format",
-            "decision",
-            "reviewer",
-            "reviewed_on",
-            "draft_path",
-            "draft_sha256",
-            "admission_sha256",
-            "spot_audits",
-        }
-        or review["format"] != "sparselab-admission-review-v1"
-        or review["decision"] != "ACCEPTED"
-        or not isinstance(review["reviewer"], str)
-        or not review["reviewer"].strip()
-        or not isinstance(review["reviewed_on"], str)
-        or not review["reviewed_on"].strip()
-        or not isinstance(review["spot_audits"], list)
-        or not review["spot_audits"]
-        or any(
-            not isinstance(item, dict)
-            or set(item) != {"source_id", "location", "outcome", "note"}
-            or item["outcome"] not in {"pass", "block"}
-            or any(
-                not isinstance(item[field], str) or not item[field].strip()
-                for field in ("source_id", "location", "note")
-            )
-            for item in review["spot_audits"]
-        )
-    ):
-        raise ValueError("admission review is not an explicit item-level decision")
-    draft = Path(review["draft_path"])
-    if (
-        not draft.is_absolute()
-        or draft.is_symlink()
-        or not draft.resolve().is_relative_to(root)
-        or sha256_file(draft) != review["draft_sha256"]
-        or sha256_file(admission) != review["admission_sha256"]
-        or review["admission_sha256"] != review["draft_sha256"]
-    ):
-        raise ValueError("admission review draft or decision identity mismatch")
-    return review
+    raise ValueError("admission review requires an inspection-bound decision")
 
 
 def verify_release_review(

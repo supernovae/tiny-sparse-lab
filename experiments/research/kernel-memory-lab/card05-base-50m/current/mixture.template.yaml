@@ -1,0 +1,18 @@
+# Render after release admission, cold measurement and finalized family inventory.
+schema_version: 1
+release_path: ${VERIFIED_NEW_RELEASE_DIR}
+tokenizer_config: /srv/sparselab/state/experiments/kernel-memory-lab/corpora/kernel-memory-lab-card03-scale-retry1/exports/e893cb2e3c65f7f6360f73e4daa159dcec5da1b4c2c6f911ff5d9d549b815818/lm/b57de1d5857b918120baa86d0caef8c7813cf50d422b621adee3d12a0561c944/tokenizer.yaml
+family_inventory: ${FINALIZED_NEW_FAMILY_INVENTORY}
+source_strata:
+  kml_scale_pagerduty: incident_response_docs
+  kml_scale_project_gutenberg: general_prose
+  kml_scale_scoutflo: incident_response_docs
+  kml_scale_wikimedia: explanatory_prose
+target_quotas:
+  general_prose: 40500000
+  explanatory_prose: 9000000
+  incident_response_docs: 500000
+seed: 17
+max_exposures: 2
+order_policy: kml-card03-v1
+tokenizer_origin_release_id: e893cb2e3c65f7f6360f73e4daa159dcec5da1b4c2c6f911ff5d9d549b815818

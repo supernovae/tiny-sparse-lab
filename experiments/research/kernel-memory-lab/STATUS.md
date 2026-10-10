@@ -1,5 +1,11 @@
 # Current project status
 
+**Production paused for offline lifecycle consolidation.** New preparation uses
+[the canonical current packet](card05-base-50m/current/README.md). Historical
+launch packets below describe their own revisions and do not authorize a restart.
+[Archived research lessons](../history/LESSONS_LEARNED.md) inform the current lab;
+archived executors are inactive. The recorded scientific outcomes below are unchanged.
+
 Record revision: 2026-10-10.16
 Snapshot date: 2026-10-10
 Source audit revision: 06efc4db82ecf3da97b50cff518cba605ad27b33
