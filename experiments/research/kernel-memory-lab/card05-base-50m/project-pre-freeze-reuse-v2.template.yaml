@@ -4,12 +4,12 @@
 schema_version: 1
 id: kernel-memory-lab-card05-base-50m-v2
 sources:
-  - sources/pagerduty.yaml
-  - sources/project-gutenberg.yaml
-  - sources/scoutflo.yaml
-  - sources/wikimedia.yaml
+  - sources/source-gutenberg.yaml
+  - sources/source-pagerduty.yaml
+  - sources/source-scoutflo.yaml
+  - sources/source-wikimedia.yaml
 transforms: []
-splits: splits-acquire.yaml
+splits: splits-placeholder.yaml
 release: release-reviewed.yaml
 source_effects:
   - source_id: kml_scale_pagerduty
