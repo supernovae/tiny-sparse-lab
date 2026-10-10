@@ -1,4 +1,4 @@
-"""Local, read-only Streamlit dashboard for SparseLab run telemetry.
+"""Local, read-only Streamlit dashboard: the lab pages plus run telemetry.
 
 The app intentionally opens SQLite through ``dashboard.queries`` rather than the
 writer-side ExperimentStore, so loading a dashboard can never migrate a run store.
@@ -12,12 +12,13 @@ import sqlite3
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from sparselab.dashboard.probes import probe_page
+from sparselab.dashboard import lab_pages
 from sparselab.dashboard.queries import DashboardSnapshot, RunRecord, runs, snapshot
 from sparselab.dashboard.research import learn_page, research_page
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
@@ -942,8 +943,7 @@ def _run_page(root: Path, page: str, surface_dir: Path | None = None) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="SparseLab", layout="wide")
-    st.title("Tiny Sparse Lab")
+    st.set_page_config(page_title="Tiny Sparse Lab", page_icon="🔬", layout="wide")
     args = arguments()
     root = Path(args.runs_dir)
     reports_dir = Path(args.reports_dir)
@@ -951,61 +951,77 @@ def main() -> None:
     evidence_root = Path(args.evidence_root)
     surface_dir = Path(args.surface_dir) if args.surface_dir else None
     lab_dir = Path(args.lab_dir) if args.lab_dir else root.parent / "lab"
+    runs_dirs = [root, lab_dir / "runs"]
+    pages: dict[str, Any] = {}
+    lab = [
+        st.Page(
+            lambda: lab_pages.home_page(lab_dir, runs_dirs, pages),
+            title="Home",
+            icon=":material/home:",
+            url_path="home",
+            default=True,
+        ),
+        st.Page(
+            lambda: lab_pages.experiments_page(lab_dir),
+            title="Experiments",
+            icon=":material/science:",
+            url_path="experiments",
+        ),
+        st.Page(
+            lambda: lab_pages.models_page(lab_dir, runs_dirs),
+            title="Models",
+            icon=":material/scatter_plot:",
+            url_path="models",
+        ),
+        st.Page(
+            lambda: lab_pages.behaviors_page(lab_dir),
+            title="Behaviors",
+            icon=":material/chat:",
+            url_path="behaviors",
+        ),
+        st.Page(
+            lambda: lab_pages.explorer_page(lab_dir, runs_dirs),
+            title="Explorer",
+            icon=":material/account_tree:",
+            url_path="explorer",
+        ),
+    ]
+    pages.update({p.url_path: p for p in lab})
+    run_pages = [
+        st.Page(
+            (lambda name=name: _run_page(root, name, surface_dir))
+            if name == "training"
+            else (lambda name=name: _run_page(root, name)),
+            title=name.title(),
+            url_path=name,
+        )
+        for name in (
+            "overview",
+            "training",
+            "evaluation",
+            "architecture",
+            "runtime",
+            "memory",
+            "checkpoints",
+            "stages",
+        )
+    ]
     page = st.navigation(
-        [
-            st.Page(lambda: learn(), title="Learn", url_path="learn", default=True),
-            st.Page(
-                lambda: probe_page(lab_dir),
-                title="Probes",
-                url_path="probes",
-            ),
-            st.Page(
-                lambda: research_page(reports_dir, lifecycle, evidence_root),
-                title="Research",
-                url_path="research",
-            ),
-            st.Page(
-                lambda: _run_page(root, "overview"),
-                title="Overview",
-                url_path="overview",
-            ),
-            st.Page(
-                lambda: _run_page(root, "training", surface_dir),
-                title="Training",
-                url_path="training",
-            ),
-            st.Page(
-                lambda: _run_page(root, "evaluation"),
-                title="Evaluation",
-                url_path="evaluation",
-            ),
-            st.Page(
-                lambda: _run_page(root, "architecture"),
-                title="Architecture",
-                url_path="architecture",
-            ),
-            st.Page(
-                lambda: _run_page(root, "runtime"),
-                title="Runtime",
-                url_path="runtime",
-            ),
-            st.Page(
-                lambda: _run_page(root, "memory"),
-                title="Memory",
-                url_path="memory",
-            ),
-            st.Page(
-                lambda: _run_page(root, "checkpoints"),
-                title="Checkpoints",
-                url_path="checkpoints",
-            ),
-            st.Page(
-                lambda: _run_page(root, "stages"),
-                title="Stages",
-                url_path="stages",
-            ),
-        ]
+        {
+            "Lab": lab,
+            "Run telemetry": run_pages,
+            "Learn": [
+                st.Page(lambda: learn(), title="Learn", url_path="learn"),
+                st.Page(
+                    lambda: research_page(reports_dir, lifecycle, evidence_root),
+                    title="Research",
+                    url_path="research",
+                ),
+            ],
+        }
     )
+    st.sidebar.markdown("### 🔬 Tiny Sparse Lab")
+    st.sidebar.caption(f"lab {lab_dir}  \nruns {root}")
     page.run()
 
 

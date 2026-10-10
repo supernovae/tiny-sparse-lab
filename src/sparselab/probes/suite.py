@@ -20,10 +20,10 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from sparselab.data.withheld_facts import _FACTS
+from sparselab.data.withheld_facts import _FACTS, diagnostic_manifest, split_facts
 
 SUITE_NAME = "sparselab-probe-battery"
-SUITE_VERSION = 2
+SUITE_VERSION = 3
 TIERS = ("fast", "standard", "full")
 Mode = Literal["delta_rel", "delta_abs", "value_min"]
 
@@ -149,6 +149,30 @@ PROBES: tuple[ProbeSpec, ...] = (
         params={"credit": "fractional_ties"},
     ),
     ProbeSpec(
+        id="parametric_recall",
+        title="Fact recall (from weights)",
+        tier="standard",
+        cost=1,
+        metric="accuracy",
+        higher_is_better=True,
+        mode="delta_abs",
+        warn=0.05,
+        fail=0.15,
+        hard=False,
+        suggests="Recalls fewer trained facts without the fact in context: "
+        "check memory wiring (tables, gates, addresses) or capacity changes.",
+        explains="Closed-book recall: the fact is NOT stated; the model must "
+        "answer from its weights (or memory tables). Items are the training "
+        "facts of the withheld-facts manifest; the manifest's never-trained "
+        "facts are a control that should stay at chance (above chance means "
+        "leakage or a guessable answer). Most models were not trained on these "
+        "facts, so both sit near chance unless the run used the "
+        "`withheld_facts` dataset. Ranking with fractional tie credit.",
+        reference="withheld-facts manifest (seed 0), candidate ranking",
+        uncertainty="paired_items",
+        params={"manifest_seed": 0, "credit": "fractional_ties"},
+    ),
+    ProbeSpec(
         id="needle",
         title="Needle in context",
         tier="standard",
@@ -272,6 +296,41 @@ def fact_items(split: str) -> list[dict[str, Any]]:
     return items
 
 
+def parametric_items(split: str, *, control: bool = False) -> list[dict[str, Any]]:
+    """Closed-book prompts for the withheld-facts manifest (seed 0).
+
+    ``heldout`` asks the manifest's training facts with its canonical prompt,
+    ``dev`` rewords them; ``control`` asks the never-trained facts instead.
+    """
+    trained, never = split_facts(BY_ID["parametric_recall"].params["manifest_seed"])
+    facts = never if control else trained
+    items = []
+    for fact in facts:
+        prompt = (
+            _DEV_TEMPLATES[0].format(s=fact.subject, r=fact.relation)
+            if split == "dev"
+            else fact.prompt()
+        )
+        items.append(
+            {
+                "question": prompt,
+                "answer": fact.value,
+                "candidates": sorted(
+                    {f.value for f in _FACTS if f.relation == fact.relation}
+                ),
+            }
+        )
+    return items
+
+
+def parametric_manifest_sha256() -> str:
+    return str(
+        diagnostic_manifest(BY_ID["parametric_recall"].params["manifest_seed"])[
+            "sha256"
+        ]
+    )
+
+
 def needle_split(split: str) -> dict[str, Any]:
     return {
         "needles": list(_HELDOUT_NEEDLES if split == "heldout" else _DEV_NEEDLES),
@@ -289,6 +348,8 @@ def split_payload(split: str) -> dict[str, Any]:
     return {
         "prompts": prompts(split),
         "facts": fact_items(split),
+        "parametric": parametric_items(split),
+        "parametric_control": parametric_items(split, control=True),
         "needle": needle_split(split),
     }
 

@@ -156,6 +156,11 @@ def _extra(row: Mapping[str, Any]) -> str:
         return f"by length {sparkline(accs)} ({tokens} tok)"
     if row["id"] == "fact_recall" and details.get("chance") is not None:
         return f"chance {details['chance']:.2f}"
+    if row["id"] == "parametric_recall" and details.get("control_accuracy") is not None:
+        return (
+            f"never-trained control {details['control_accuracy']:.2f} "
+            f"(chance {details['chance']:.2f})"
+        )
     if row["id"] == "lm_eval" and details.get("tasks"):
         return " ".join(
             f"{task.split('_')[0]} {_num(v.get('acc'), 2)}"

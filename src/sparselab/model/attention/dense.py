@@ -86,13 +86,33 @@ class DenseAttention(nn.Module):
                 query, key, value, dropout_p=0.0, is_causal=True
             )
         else:
-            scores = self._attention(query, key)
-            scores.masked_fill_(self.causal_mask[:length, :length], float("-inf"))
-            probabilities = torch.softmax(scores.float(), dim=-1).to(value.dtype)
+            probabilities = self._probabilities(query, key, length).to(value.dtype)
             output = self._attend_values(probabilities, value)
         return self.out_proj(
             output.transpose(1, 2).contiguous().view(batch, length, hidden)
         )
+
+    def _probabilities(self, query: Tensor, key: Tensor, length: int) -> Tensor:
+        """Masked softmax attention weights (fp32), as the reference path uses."""
+        scores = self._attention(query, key)
+        scores.masked_fill_(self.causal_mask[:length, :length], float("-inf"))
+        return torch.softmax(scores.float(), dim=-1)
+
+    @torch.no_grad()
+    def attention_probabilities(self, x: Tensor) -> Tensor:
+        """Attention weights ``[batch, heads, query, key]`` for input X.
+
+        The same projections, RoPE, causal/window mask and softmax as the
+        reference forward (for SDPA too: SDPA computes the same weights
+        internally without exposing them). Used by the model explorer.
+        """
+        length = x.shape[1]
+        if length > self.causal_mask.shape[0]:
+            raise ValueError("sequence length exceeds configured attention context")
+        query = self.rope(self._heads(self.q_proj, x, self.num_heads))
+        key = self.rope(self._heads(self.k_proj, x, self.num_kv_heads))
+        weights = self._probabilities(query, key, length)
+        return weights.flatten(1, 2) if weights.ndim == 5 else weights
 
     def create_cache(
         self, batch: int, capacity: int, *, device: torch.device, dtype: torch.dtype

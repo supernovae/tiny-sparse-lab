@@ -28,7 +28,7 @@ from sparselab.probes.points import (
     points_from_record,
     probe_points,
 )
-from sparselab.probes.suite import BY_ID
+from sparselab.probes.suite import BY_ID, suite_identity
 from sparselab.reference_models import (
     REFERENCES,
     ReferenceRun,
@@ -196,7 +196,7 @@ def _summary(
     return summary
 
 
-def test_reference_arm_runs_only_lm_eval_and_records_identity(
+def test_reference_arm_runs_text_level_probes_and_lm_eval_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sparselab.probes.scoring import eot
@@ -208,9 +208,17 @@ def test_reference_arm_runs_only_lm_eval_and_records_identity(
     result = runner.run_battery(
         runner.Arm(load=lambda: loaded, reference=True), tier="full"
     )
-    assert [r["id"] for r in result["probes"]] == ["lm_eval"]
-    assert result["tiers_run"] == ["full"] and result["protocol"] == {}
-    row = result["probes"][0]
+    # Tokenizer-independent probes only: text-level recall and lm-eval.
+    assert [r["id"] for r in result["probes"]] == [
+        "parametric_recall",
+        "fact_recall",
+        "lm_eval",
+    ]
+    assert result["tiers_run"] == ["standard", "full"] and result["protocol"] == {}
+    for recall in result["probes"][:2]:
+        assert recall["status"] == "info" and recall["details"]["item_group"]
+        assert len(recall["details"]["items"]) == recall["details"]["n"]
+    row = result["probes"][2]
     assert row["status"] == "info" and row["value"] == pytest.approx(38 / 50)
     assert result["verdict"]["status"] == "info"
     assert result["verdict"]["action"] == "compare"
@@ -288,6 +296,11 @@ def test_lm_eval_judge_refuses_other_benchmark_groups() -> None:
 
 def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
     records = packaged_reference_records()
+    # Text-level recall is scored on the same items for every model, so one
+    # item group spans all references (and any lab run).
+    item_groups = {
+        "fact_recall": runner.item_group("fact_recall", runner.recall_items("heldout"))
+    }
     names = set()
     groups = set()
     for path, record in records:
@@ -301,8 +314,16 @@ def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
         assert target["tokens_seen"] == ref.training_tokens
         assert len(target["checkpoint_sha256"]) == 64
         assert 0 < target["active_parameters"] <= target["parameters"]
-        (row,) = record["probes"]
-        assert row["id"] == "lm_eval" and 0 < row["value"] < 1
+        assert [r["id"] for r in record["probes"]] == [
+            "parametric_recall",
+            "fact_recall",
+            "lm_eval",
+        ]
+        assert record["suite"]["sha256"] == suite_identity()["sha256"]
+        recall = record["probes"][1]
+        assert recall["details"]["item_group"] == item_groups["fact_recall"]
+        row = record["probes"][2]
+        assert 0 < row["value"] < 1
         details = row["details"]
         assert details["benchmark"]["limit"] == BY_ID["lm_eval"].params["limit"]
         assert set(details["tasks"]) == set(LM_TASKS)
@@ -320,7 +341,7 @@ def test_packaged_reference_results_are_sealed_and_match_the_registry() -> None:
 def _ref_lm(name: str) -> dict[str, Any]:
     for _, record in packaged_reference_records():
         if record["target"]["reference"]["name"] == name:
-            return record["probes"][0]
+            return next(r for r in record["probes"] if r["id"] == "lm_eval")
     raise AssertionError(name)
 
 
@@ -514,8 +535,9 @@ def test_dashboard_pareto_renders_references_and_try_points(tmp_path: Path) -> N
         from pathlib import Path
 
         from sparselab.dashboard.probes import _pareto
+        from sparselab.probes.points import collect_points
 
-        _pareto(Path(lab), None)
+        _pareto(collect_points(Path(lab)), None)
 
     test = AppTest.from_function(app, args=(str(tmp_path),), default_timeout=60)
     test.run()
@@ -631,7 +653,7 @@ def _assert_reference_rerun(result: dict[str, Any], tasks: list[str]) -> None:
     assert (verdict["status"], verdict["action"]) == ("incomplete", "rerun")
     assert "sparselab compare" not in verdict["suggestion"]
     assert "unscored tasks: " + ", ".join(sorted(tasks)) in verdict["reasons"]
-    (row,) = result["probes"]
+    (row,) = [r for r in result["probes"] if r["id"] == "lm_eval"]
     assert row["status"] in {"error", "skipped"}
     assert "sparselab compare" not in (row.get("note") or "")
     # Never a point on the reference curve.
@@ -645,7 +667,7 @@ def test_failed_reference_task_is_incomplete_not_a_reference_point(
     error = RuntimeError("lm-eval returned no accuracy for: piqa")
     result = _reference_battery(monkeypatch, error)
     _assert_reference_rerun(result, list(LM_TASKS))
-    assert "piqa" in result["probes"][0]["note"]
+    assert "piqa" in result["probes"][-1]["note"]
 
     # Every task returned an accuracy but piqa scored only part of its items.
     items = {t: [1.0, 0.0] * 25 for t in LM_TASKS}
@@ -653,7 +675,7 @@ def test_failed_reference_task_is_incomplete_not_a_reference_point(
     partial["tasks"]["piqa"]["items"] = partial["tasks"]["piqa"]["items"][:10]
     result = _reference_battery(monkeypatch, partial)
     _assert_reference_rerun(result, ["piqa"])
-    assert "incomplete benchmark" in result["probes"][0]["note"]
+    assert "incomplete benchmark" in result["probes"][-1]["note"]
 
 
 def test_reference_oom_is_incomplete_not_a_reference_point(

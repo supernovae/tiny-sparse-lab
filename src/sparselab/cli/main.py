@@ -131,6 +131,10 @@ def _dashboard(args: argparse.Namespace) -> None:
         str(args.port),
         "--server.headless",
         "true",
+        # One accessible accent (blue) instead of Streamlit's default red,
+        # which reads as "fail" next to the verdict colors.
+        "--theme.primaryColor",
+        "#0969da",
         "--",
         "--runs-dir",
         args.runs_dir,
@@ -2515,6 +2519,8 @@ def _probe(args: argparse.Namespace) -> None:
             backend=args.backend,
             authorization=args.runtime_authorization,
             resource_envelope=args.resource_envelope_value,
+            lm_eval_tasks=args.lm_eval_tasks.split(",") if args.lm_eval_tasks else None,
+            lm_eval_limit=args.lm_eval_limit,
         )
     except (ValueError, OSError, ReferenceUnavailable) as error:
         raise SystemExit(f"sparselab probe: {error}") from None
@@ -2527,6 +2533,46 @@ def _probe(args: argparse.Namespace) -> None:
         print(f"  record: {path}")
 
 
+def _explore(args: argparse.Namespace) -> None:
+    """Look inside a small checkpoint; cache the views for the dashboard."""
+    from sparselab.explorer import DEFAULT_TEXT, ExplorerUnavailable, explore
+    from sparselab.lab_mode import lab_root
+
+    try:
+        result, path = explore(
+            args.target,
+            lab_dir=lab_root(resolve_work_dir(args.work_dir), args.lab_dir),
+            runs_dir=Path(args.runs_dir) if args.runs_dir else None,
+            text=args.text or DEFAULT_TEXT,
+            backend=args.backend,
+            refresh=args.refresh,
+        )
+    except (ValueError, OSError, ExplorerUnavailable) as error:
+        raise SystemExit(f"sparselab explore: {error}") from None
+    if args.json:
+        print(json.dumps({**result, "cache": str(path) if path else None}, indent=2))
+        return
+    arch = result["architecture"]
+    inventory = arch["inventory"]
+    print(
+        f"EXPLORE  {result['target'].get('run_id')} · {inventory['total']:,} params "
+        f"({inventory['active_per_token']:,} active/token) · {len(arch['layers'])} layers"
+    )
+    if result.get("unavailable"):
+        print(f"  {result['unavailable']}")
+        return
+    tokens = [t for t in result["tokens"] if t["loss"] is not None]
+    mean = sum(t["loss"] for t in tokens) / len(tokens)
+    print(
+        f"  {len(result['tokens'])} tokens · mean loss {mean:.3f} · "
+        f"{len(result['attention']['layers'])} attention map(s) · "
+        f"routing {'yes' if result.get('routing') else 'n/a'} · "
+        f"memory {'yes' if result.get('memory') else 'n/a'} · {result['seconds']:.1f}s"
+    )
+    print(f"  cache: {path}")
+    print("  open the dashboard's Explorer page to see it: sparselab dashboard")
+
+
 # Help groups: lab-mode fast path first; release/full-provenance last. Every
 # registered command appears exactly once (see tests/test_lab_mode.py).
 FAST_PATH_COMMANDS = (
@@ -2534,6 +2580,7 @@ FAST_PATH_COMMANDS = (
     "probe",
     "report",
     "compare",
+    "explore",
     "inspect",
     "train",
     "eval",
@@ -2760,6 +2807,18 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         action="store_true",
         help="Run every probe in the tier even after a hard failure",
     )
+    probe.add_argument(
+        "--lm-eval-tasks",
+        metavar="T1,T2",
+        help="Full tier: lm-eval tasks instead of the suite's four (a new "
+        "benchmark group; compares only with the same tasks and limit)",
+    )
+    probe.add_argument(
+        "--lm-eval-limit",
+        type=int,
+        metavar="N",
+        help="Full tier: items per lm-eval task (default 50; a new benchmark group)",
+    )
     probe.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
     probe.add_argument("--runs-dir", help="Also look up run ids here")
     probe.add_argument(
@@ -2775,6 +2834,28 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     probe_runtime.add_argument("--runtime", metavar="ID")
     probe.add_argument("--json", action="store_true")
     probe.set_defaults(handler=_probe)
+    explore = commands.add_parser(
+        "explore",
+        help="Model explorer: architecture, weights, attention, routing, memory",
+        description=(
+            "Look inside a small checkpoint: architecture and parameter counts, "
+            "per-tensor weight statistics, per-token loss and top-k predictions, "
+            "attention patterns, MoE routing and memory-table lookups over a "
+            "text. Results are cached under LAB/explorer for the dashboard."
+        ),
+    )
+    explore.add_argument("target", help="Run id, run directory or checkpoint path")
+    explore.add_argument("--text", help="Text to analyse (default: a short story)")
+    explore.add_argument("--refresh", action="store_true", help="Ignore the cache")
+    explore.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
+    explore.add_argument("--runs-dir", help="Also look up run ids here")
+    explore.add_argument(
+        "--backend",
+        choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"),
+        default="cpu",
+    )
+    explore.add_argument("--json", action="store_true")
+    explore.set_defaults(handler=_explore)
     from sparselab.operational_monitor_cli import register_monitor_parser
     from sparselab.training.attempt_contract_cli import register_attempt_parser
 

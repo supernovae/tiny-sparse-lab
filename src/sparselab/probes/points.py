@@ -12,7 +12,9 @@ import here). Sources are verified lab records only (``lab_records``):
 
 A metric value only compares within its group: held-out loss within one
 ``eval_group`` (validation data, tokenizer, loss mask, protocol), lm-eval
-accuracy within one ``benchmark_group`` (tasks, task versions, shots, items).
+accuracy within one ``benchmark_group`` (tasks, task versions, shots, items),
+fact recall within one ``item_group`` (the same rendered prompts, answers and
+candidates under one ranking protocol; text-level, so tokenizer-independent).
 """
 
 from __future__ import annotations
@@ -56,7 +58,17 @@ METRICS = {
         "task versions differ)",
         missing_hint="run `sparselab probe RUN --tier full` (needs the lmeval extra)",
     ),
+    "fact_recall": Metric(
+        id="fact_recall",
+        label="fact recall",
+        group_label="item group",
+        higher_is_better=True,
+        not_comparable="different items (prompts, answers or candidates differ)",
+        missing_hint="run `sparselab probe RUN --tier standard`",
+    ),
 }
+# Probe rows whose ``details.items`` carry per-item credit (paired evidence).
+RANKING_METRICS = ("fact_recall",)
 
 # Cost axes: resident counts every weight held in memory, active counts what
 # one token touches (one embedding row, the routed experts and memory rows).
@@ -145,6 +157,27 @@ def probe_points(
                 "tasks": {t: r.get("acc") for t, r in (tasks or {}).items()},
                 "items": _lm_eval_items(tasks),
                 "chance": lm_details.get("chance"),
+            }
+        for metric_id in RANKING_METRICS:
+            row = _row(result, metric_id)
+            details = row.get("details") or {}
+            value = row.get("value" if candidate else "baseline_value")
+            if (
+                value is None
+                or row.get("status")
+                in {"error", "unavailable", "skipped", "not_comparable"}
+                or not details.get("item_group")
+            ):
+                continue
+            key = "credit" if candidate else "baseline_credit"
+            credits = [item.get(key) for item in details.get("items") or []]
+            metrics[metric_id] = {
+                "value": value,
+                "group": details["item_group"],
+                "items": {metric_id: credits}
+                if credits and None not in credits
+                else None,
+                "chance": {metric_id: details.get("chance")},
             }
         reference = who.get("reference")
         label = f"{who.get('run_id')}@{who.get('step')}"

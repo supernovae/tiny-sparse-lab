@@ -47,6 +47,8 @@ PINNED_SUITE = {
     1: "68a1bba35e4dca50ba4cf45d49fd466c0a7c764ef2a1f02227753f930c4545f3",
     # v2: fractional tie credit, paired/clustered uncertainty declarations.
     2: "ec0544e78b2303deec540f317c237f28bfb4e61cb71bb372f864906cfb1478a0",
+    # v3: closed-book fact recall from the withheld-facts manifest.
+    3: "8e628c9ba05c09795e5f90f1241db72333fe2521c359e8d2910d8972de75467d",
 }
 
 RESULT_KEYS = {
@@ -757,7 +759,7 @@ def _fake_result(**verdict: Any) -> dict[str, Any]:
 def test_render_is_plain_without_color_and_shows_verdict_and_hints() -> None:
     text = render(_fake_result(), color=False)
     assert "\x1b[" not in text
-    assert text.startswith("PROBE BATTERY  sparselab-probe-battery v2")
+    assert text.startswith(f"PROBE BATTERY  sparselab-probe-battery v{SUITE_VERSION}")
     assert "✔ PASS" in text and "✖ FAIL" in text and "⊘ SKIPPED" in text
     assert "ppl 49.4" in text
     assert "↳ " + BY_ID["calibration"].suggests in text
@@ -1381,3 +1383,29 @@ def test_pareto_points_are_unique_per_group_and_checkpoint() -> None:
     assert by_group[long]["value"] == 3.0 and by_group[long]["source"] == "new-long"
     assert by_group[short]["value"] == 4.0
     assert {p["checkpoint_sha256"] for p in points} == {"same-checkpoint"}
+
+
+def test_explore_cli_reads_a_lab_run_through_the_verified_loader(
+    tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CI-safe explorer smoke: a real (tiny) lab run, explored and cached."""
+    from sparselab.explorer import EXPLORER_FORMAT, cached_explorations, explore
+
+    root, record = tried
+    run_id = record["arms"]["candidate"]["run_id"]
+    lab = root / "work" / "lab"
+    out = _cli(monkeypatch, capsys, root, "explore", run_id, "--text", "Once upon a")
+    assert out.startswith(f"EXPLORE  {run_id}")
+    assert "cache:" in out
+    (cached,) = cached_explorations(lab)
+    assert cached["format"] == EXPLORER_FORMAT
+    assert (
+        cached["target"]["checkpoint_sha256"]
+        == (record["arms"]["candidate"]["checkpoint_sha256"])
+    )
+    assert cached["attention"]["layers"] and cached["tokens"][1]["loss"] > 0
+    # Same checkpoint and text: served from the sealed cache.
+    again, path = explore(run_id, lab_dir=lab, text="Once upon a")
+    assert again["created_at"] == cached["created_at"] and path is not None

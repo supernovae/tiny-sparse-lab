@@ -42,11 +42,21 @@ comparable only within one suite digest.
 To place a result on a known curve, run `sparselab compare RESULT
 --references` (records only, no compute). It compares a metric only within one
 comparison group (held-out loss: same `eval_group`; lm-eval: same
-`benchmark_group`) and otherwise reports `not_comparable` with the reason or
-`missing_evidence` with the command that produces it; never compare such pairs
-by hand. Reference models (`ref:NAME`) are scored on lm-eval only
-(`sparselab probe ref:NAME --tier full`, optional `reference` + `lmeval`
-extras) and are never a `--vs` baseline.
+`benchmark_group`; fact recall: same `item_group`) and otherwise reports
+`not_comparable` with the reason or `missing_evidence` with the command that
+produces it; never compare such pairs by hand. Reference models (`ref:NAME`)
+are scored on the text-level probes only (both fact recalls and lm-eval;
+`sparselab probe ref:NAME --tier full`, optional `reference` + `lmeval`
+extras) and are never a `--vs` baseline. `--lm-eval-tasks`/`--lm-eval-limit`
+make a new benchmark group, so such results never compare with the default
+slice.
+
+To look inside a small checkpoint (≤ 60M parameters), run `sparselab explore
+RUN [--text "…"] [--json]`. It reports the architecture, per-token loss and
+top-k, attention maps, weight statistics, expert routing and memory lookups,
+cached under `LAB/explorer`. It is descriptive, not a verdict.
+`sparselab dashboard` shows the same data for people (Home, Experiments,
+Models, Behaviors, Explorer; see `docs/dashboard.md`).
 
 Write proposal, binding and stop documents **only** for:
 

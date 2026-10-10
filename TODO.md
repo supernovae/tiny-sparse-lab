@@ -32,15 +32,42 @@ These items take priority over new lifecycle, admission or orchestration code.
   needle-in-context retrieval. Cheap metrics filter most ideas before any longer
   run. Probes are screening signals: keep a separate, untouched final evaluation
   because repeated selection on held-out probes turns them into development data.
-- [ ] **Probe battery follow-ups.** More dashboard charts (per-probe trends
-  over tries, needle accuracy by length across checkpoints, calibration
-  curves); broader benchmarks beyond the four lm-eval tasks at `limit=50`
-  (larger limits, more task families, a held-back final evaluation set that
-  agents never select on). Reference follow-ups: score references on the
-  tokenizer-independent standard-tier probes too (needs a text-level fact
-  recall/needle path), time references on one fixed device so they appear on
-  the latency axis, more checkpoints along the Pythia trajectory, and runs
-  outside `WORK_DIR/lab` (plain `sparselab train` runs) on the Pareto view.
+- [x] **Probe battery follow-ups (dashboard, text-level references, parametric
+  recall).** *Done:*
+  - per-probe trends over tries, needle accuracy by length across checkpoints
+    and calibration reliability diagrams (`details.reliability`) on the
+    redesigned dashboard ([tour](docs/dashboard.md));
+  - a closed-book **fact recall from weights** probe built from the
+    withheld-facts manifest, with a never-trained control (suite v3);
+  - a text-level ranking path (`details.item_group`) so references are scored
+    on fact recall as well as lm-eval and compare with lab runs on it;
+  - `--lm-eval-tasks`/`--lm-eval-limit` for larger limits and other task
+    families, kept in their own benchmark group;
+  - plain `sparselab train` runs are listed on the Models page with the
+    `sparselab probe RUN --runs-dir DIR` command that puts them on the Pareto
+    view ([docs](docs/probe-battery.md#dashboard)).
+- [ ] **Probe battery follow-ups (remaining).** Partial or not started:
+  - *partial:* needle is still not run on references, because its context is
+    sized in each model's own tokens. A text-level needle (fixed character
+    lengths) would make it comparable.
+  - *partial:* larger lm-eval limits and more task families have the mechanism
+    and tests, but no expensive run yet (e.g. all four references at
+    `--lm-eval-limit 500` plus winogrande/arc_challenge on a larger machine).
+  - a held-back final evaluation set that agents never select on;
+  - timing references on one fixed device so they appear on the latency axis;
+  - more checkpoints along the Pythia trajectory as references;
+  - probe and explorer support for MLX checkpoints and attached semantic packs
+    (both refuse them with a reason today).
+- [ ] **Fix: degenerate n-gram hash at `memory_table_size: 257`.** Found with the
+  model explorer's memory view. `TokenNgramMemory.addresses` multiplies by
+  `257 + 2·seed`, so with 257 rows every order-n address of hash head 0
+  reduces to the single token n−1 positions back, modulo 257. That hash head's
+  "n-gram" tables are really single-token tables. Affected n-gram configs:
+  `configs/capability_recall_ngram_cpu.yaml` (one hash head) and
+  `configs/smoke_memory_cpu.yaml` (head 0 of 2). Byte-memory configs use
+  precomputed addresses, a separate path this check did not cover. A coprime
+  row count or multiplier fixes it but changes checkpoints, so it needs its own
+  change and re-baselined results.
 - [x] **P1 — Known reference points.** *Done: `sparselab probe ref:NAME --tier
   full` scores pinned Pythia-70M/160M-deduped and SmolLM2-135M/360M (immutable
   commits, safe snapshots, weights digest) through the same lm-eval adapter;
@@ -52,7 +79,7 @@ These items take priority over new lifecycle, admission or orchestration code.
   Import SmolLM2 and Pythia checkpoints in
   the 70M–360M range (and reuse lm-evaluation-harness tasks where possible) so
   every result sits on a known curve instead of only comparing to our own runs.
-- [x] **P1 — Pareto view in the dashboard.** *Done: the Probes page plots
+- [x] **P1 — Pareto view in the dashboard.** *Done: the Models page plots
   held-out loss or lm-eval accuracy against resident or active parameters,
   resident or active weight bytes (memory), training tokens and scoring
   latency, for every scored try arm (with or without probes), probed

@@ -99,6 +99,9 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
         "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
         "tests/test_probes.py",
         "tests/test_references.py",
+        "tests/test_probe_followups.py",
+        "tests/test_explorer.py",
+        "tests/test_dashboard_lab.py",
     )
     assert not any(token in lab_command for token in ("-k", "-m", "-n", "--pyargs"))
 

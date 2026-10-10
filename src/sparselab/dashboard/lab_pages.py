@@ -1,0 +1,1113 @@
+"""The lab pages: Home, Experiments, Models, Behaviors, Explorer.
+
+Each page answers one researcher question, opens verdict-first, explains its
+numbers in plain words and, when empty, names the command that fills it.
+Data comes from :mod:`sparselab.dashboard.lab_data` (verified records only).
+"""
+
+from __future__ import annotations
+
+import html
+from collections.abc import Mapping, Sequence
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+
+from sparselab.dashboard import explorer_view as xv
+from sparselab.dashboard import lab_data
+from sparselab.dashboard.probe_data import ProbeEntry, probe_row
+from sparselab.dashboard.probes import (
+    _comparison_chart,
+    _explain,
+    _history,
+    _live,
+    _metrics,
+    _pareto,
+    _probe_table,
+    _verdict_banner,
+)
+from sparselab.dashboard.ui import (
+    SERIES,
+    STATUS_COLOR,
+    chip,
+    compact,
+    empty_state,
+    explainer,
+    figure_layout,
+    num,
+    page_header,
+    step_card,
+)
+from sparselab.probes.points import METRICS
+from sparselab.probes.suite import suite_identity
+from sparselab.reference_models import REFERENCES
+
+PageLinks = Mapping[str, Any]
+
+
+def _snapshot(lab_dir: Path) -> lab_data.LabSnapshot:
+    return lab_data.snapshot(lab_dir)
+
+
+def _when(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value).astimezone()
+    except ValueError:
+        return value
+    return moment.strftime("%b %d %H:%M %Z")
+
+
+def _rejected(snap: lab_data.LabSnapshot) -> None:
+    if snap.rejected:
+        with st.expander(
+            f"⚠ {len(snap.rejected)} record(s) rejected (edited or unreadable)"
+        ):
+            st.caption(
+                "Rejected records failed the seal check and are never shown as "
+                "results. Re-run the command that produced them."
+            )
+            for path, reason in snap.rejected:
+                st.markdown(f"`{html.escape(str(path))}`: {html.escape(reason)}")
+
+
+def _result_picker(entries: Sequence[ProbeEntry], key: str) -> ProbeEntry:
+    index = st.selectbox(
+        "Result",
+        range(len(entries)),
+        format_func=lambda i: entries[i].label,
+        key=key,
+        help="Newest first. Each result is one probe battery: a lab try's arms "
+        "or a `sparselab probe` run.",
+    )
+    return entries[index]
+
+
+def _activity_table(rows: list[dict[str, Any]]) -> None:
+    body = []
+    for row in rows:
+        verdict = (
+            chip(str(row["verdict"]))
+            if row.get("verdict")
+            else "<span class='pb-hint'>no probes</span>"
+        )
+        delta = row.get("loss_delta")
+        delta_text = "" if delta is None else f"Δ loss {delta:+.4f}"
+        body.append(
+            "<tr>"
+            f"<td>{verdict}</td>"
+            f"<td><b>{html.escape(str(row['what']))}</b><br>"
+            f"<span class='pb-hint'>{html.escape(row['kind'])} · "
+            f"{html.escape(row['id'])}</span></td>"
+            f"<td>{html.escape(str(row.get('outcome') or ''))}<br>"
+            f"<span class='pb-hint'>{delta_text}</span></td>"
+            f"<td class='pb-hint'>{html.escape(_when(row['when']))}</td>"
+            "</tr>"
+        )
+    st.markdown(
+        "<table class='pb-table'><tr><th>Verdict</th><th>What</th><th>Outcome</th>"
+        "<th>When</th></tr>" + "".join(body) + "</table>",
+        unsafe_allow_html=True,
+    )
+
+
+# --- Home -------------------------------------------------------------------
+
+
+def home_page(lab_dir: Path, runs_dirs: Sequence[Path], pages: PageLinks) -> None:
+    page_header(
+        "Lab home",
+        "What happened, and what should I do next?",
+        f"lab root {lab_dir}",
+    )
+    _live(lab_dir)
+    snap = _snapshot(lab_dir)
+    _rejected(snap)
+    if snap.empty:
+        empty_state(
+            "Your lab is empty",
+            "A lab try trains a baseline and one change side by side, scores both "
+            "on the same held-out split and runs the fast probe battery. The "
+            "reference models below are already scored, so the Models page works "
+            "before you train anything.",
+            [
+                "sparselab try DELTA.yaml --vs BASELINE.yaml",
+                "sparselab compare --list-references",
+            ],
+        )
+        _page_links(pages)
+        return
+    top = st.columns([3, 2])
+    with top[0]:
+        if snap.entries:
+            latest = snap.entries[0]
+            st.subheader("Latest verdict")
+            st.caption(latest.label)
+            _verdict_banner(latest.result)
+        else:
+            st.subheader("Latest try")
+            _activity_table(lab_data.activity(snap, 1))
+    with top[1]:
+        st.subheader("Next steps")
+        for step in lab_data.next_steps(snap, runs_dirs):
+            step_card(step["title"], step["why"], step["command"] or None)
+    references = {p["run_id"] for p in snap.points if p["kind"] == "reference"}
+    checkpoints = {p.get("checkpoint_sha256") for p in snap.points}
+    cols = st.columns(5)
+    cols[0].metric("Lab tries", len(snap.tries), help="`sparselab try` records")
+    cols[1].metric(
+        "Probe batteries",
+        len(snap.entries),
+        help="Probe results (from tries and `sparselab probe`)",
+    )
+    cols[2].metric(
+        "Checkpoints",
+        len(checkpoints - {None}),
+        help="Distinct verified checkpoints, references included",
+    )
+    cols[3].metric(
+        "Reference models",
+        len(references),
+        help="Pinned public checkpoints with sealed scores",
+    )
+    cols[4].metric(
+        "Explorations", len(snap.explorations), help="Cached `sparselab explore` views"
+    )
+    st.subheader("Recent activity")
+    _activity_table(lab_data.activity(snap))
+    _page_links(pages)
+
+
+def _page_links(pages: PageLinks) -> None:
+    if not pages:
+        return
+    st.subheader("Where to look")
+    blurbs = {
+        "experiments": "Did my change help? Verdicts, probe results, history, compare.",
+        "models": "Where does each checkpoint sit? Catalog, Pareto frontier, references.",
+        "behaviors": "What does it actually do? Generations, recall misses, needle, calibration.",
+        "explorer": "What is inside? Architecture, weights, attention, routing, memory.",
+    }
+    cols = st.columns(len(blurbs))
+    for col, (name, blurb) in zip(cols, blurbs.items(), strict=True):
+        if name in pages:
+            with col:
+                st.page_link(pages[name], label=pages[name].title, icon=None)
+                st.caption(blurb)
+
+
+# --- Experiments ------------------------------------------------------------
+
+
+def experiments_page(lab_dir: Path) -> None:
+    identity = suite_identity()
+    page_header(
+        "Experiments",
+        "Did my change help, and is the evidence good enough to act on?",
+        f"{identity['name']} v{identity['version']} · suite "
+        f"{identity['sha256'][:12]} · verdicts use the held-out item split only",
+    )
+    _live(lab_dir)
+    snap = _snapshot(lab_dir)
+    _rejected(snap)
+    if not snap.entries:
+        empty_state(
+            "No probe results yet",
+            "Run a lab try (the fast probe tier runs on both arms automatically) "
+            "or probe an existing run against a baseline.",
+            [
+                "sparselab try DELTA.yaml --vs BASELINE.yaml",
+                "sparselab probe RUN --vs BASELINE_RUN --tier standard",
+            ],
+        )
+        _unprobed_tries(snap)
+        _explain()
+        return
+    entry = _result_picker(snap.entries, "experiments_result")
+    result = entry.result
+    target = result.get("target") or {}
+    baseline = result.get("baseline") or {}
+    st.caption(
+        f"candidate **{target.get('run_id')}** (step {target.get('step')}) · "
+        + (
+            f"baseline **{baseline.get('run_id')}** · "
+            if baseline
+            else "no baseline · "
+        )
+        + f"suite {result['suite']['sha256'][:12]}"
+    )
+    if entry.delta:
+        st.caption(
+            "change: "
+            + ", ".join(
+                f"`{k}` {v.get('base')!r} → {v.get('variant')!r}"
+                for k, v in entry.delta.items()
+            )
+            + (
+                f" · try verdict: {lab_data.TRY_VERDICT_TEXT.get(str(entry.comparison.get('verdict')), entry.comparison.get('verdict'))}"
+                if entry.comparison
+                else ""
+            )
+        )
+    _verdict_banner(result)
+    _metrics(result)
+    results_tab, trends_tab, compare_tab, explain_tab = st.tabs(
+        ["Results", "History & trends", "Compare", "What the probes mean"]
+    )
+    with results_tab:
+        _probe_table(result)
+        _comparison_chart(result)
+    with trends_tab:
+        _trends(snap.entries)
+        st.markdown("**All results**")
+        _history(snap.entries)
+        _unprobed_tries(snap)
+    with compare_tab:
+        _compare(entry, snap)
+    with explain_tab:
+        _explain()
+
+
+def _unprobed_tries(snap: lab_data.LabSnapshot) -> None:
+    rows = lab_data.tries_without_probes(snap)
+    if rows:
+        with st.expander(f"{len(rows)} lab try(s) without a probe battery"):
+            st.caption(
+                "These tries recorded held-out loss only (`--probe-tier none` or an "
+                "older version). Probe the candidate to get a verdict:"
+            )
+            for row in rows:
+                st.markdown(f"**{html.escape(str(row['what']))}** · {row['id']}")
+                st.code(row["command"], language="bash")
+
+
+def _trends(entries: Sequence[ProbeEntry]) -> None:
+    frame = pd.DataFrame(lab_data.probe_trends(entries))
+    if frame.empty:
+        st.info("No probe values yet.")
+        return
+    titles = dict(zip(frame["probe"], frame["title"], strict=False))
+    probe = st.selectbox(
+        "Probe",
+        list(titles),
+        format_func=lambda p: titles[p],
+        key="experiments_trend_probe",
+    )
+    part = frame[frame["probe"] == probe].copy()
+    part["when"] = pd.to_datetime(part["when"], errors="coerce", utc=True)
+    if part["suite"].nunique() > 1:
+        st.warning(
+            "These values come from different probe suite versions; only rows with "
+            "the same suite digest share a scale."
+        )
+    figure = go.Figure()
+    figure.add_trace(
+        go.Scatter(
+            x=part["when"],
+            y=part["value"],
+            mode="markers+lines",
+            name="candidate",
+            line={"color": SERIES["candidate"]},
+            marker={
+                "size": 12,
+                "color": [STATUS_COLOR.get(s, "#6e7781") for s in part["status"]],
+                "line": {"width": 1, "color": "#24292f"},
+            },
+            customdata=part[["id", "status", "suite"]],
+            hovertemplate="%{customdata[0]}<br>%{y:.4f} · %{customdata[1]} · suite "
+            "%{customdata[2]}<extra></extra>",
+        )
+    )
+    based = part.dropna(subset=["baseline_value"])
+    if not based.empty:
+        figure.add_trace(
+            go.Scatter(
+                x=based["when"],
+                y=based["baseline_value"],
+                mode="markers",
+                name="baseline",
+                marker={"size": 9, "symbol": "x", "color": SERIES["baseline"]},
+            )
+        )
+    better = "higher" if part["higher_is_better"].iloc[0] else "lower"
+    st.plotly_chart(
+        figure_layout(
+            figure,
+            height=320,
+            title=f"{titles[probe]} per result ({better} is better; dot color = verdict)",
+        ),
+        use_container_width=True,
+    )
+
+
+def _compare(entry: ProbeEntry, snap: lab_data.LabSnapshot) -> None:
+    from sparselab.probes import compare as compare_mod
+
+    st.caption(
+        "Paired deltas with standard errors, one metric at a time and only "
+        "inside one comparison group; anything else is shown as not comparable, "
+        "never mixed in. Same engine as `sparselab compare`."
+    )
+    others = [e.key for e in snap.entries if e.key != entry.key]
+    cols = st.columns([3, 1])
+    chosen = cols[0].multiselect(
+        "Compare against", others, default=others[:2], key="experiments_compare_with"
+    )
+    references = cols[1].toggle(
+        "Reference models", value=True, key="experiments_compare_refs"
+    )
+    if not chosen and not references:
+        st.info("Pick results or switch on the reference models.")
+        return
+    try:
+        report = compare_mod.compare(
+            entry.key, chosen, lab_dir=snap.lab_dir, references=references
+        )
+    except (ValueError, KeyError) as error:
+        st.warning(f"Cannot compare: {error}")
+        return
+    body = []
+    for comparison in report["comparisons"]:
+        cells = []
+        for item in comparison["pairs"]:
+            word = compare_mod._verdict_word(item["status"], item["metric"])
+            tone = {
+                "better": "pass",
+                "worse": "fail",
+                "within_noise": "info",
+                "not_comparable": "not_comparable",
+                "missing_evidence": "skipped",
+            }.get(word, "info")
+            delta = (
+                ""
+                if item.get("delta") is None
+                else f"{item['delta']:+.4f}"
+                + ("" if item.get("se") is None else f" ±{item['se']:.4f}")
+            )
+            cells.append(
+                f"<td>{chip(tone, word)}"
+                f"<br>{delta}<br><span class='pb-hint'>"
+                f"{html.escape(str(item.get('note') or ''))}</span></td>"
+            )
+        body.append(
+            f"<tr><td><b>{html.escape(comparison['other'])}</b></td>{''.join(cells)}</tr>"
+        )
+    header = "".join(f"<th>{html.escape(m.label)}</th>" for m in METRICS.values())
+    st.markdown(
+        f"<p><b>{html.escape(report['subject']['label'])}</b> vs …</p>"
+        f"<table class='pb-table'><tr><th>Other</th>{header}</tr>{''.join(body)}</table>",
+        unsafe_allow_html=True,
+    )
+    explainer(
+        "How to read this",
+        "**better / worse** means the difference is larger than two paired "
+        "standard errors. **within noise** means it is not. **not comparable** "
+        "means the two values were measured on different data, tokenizers or "
+        "items (their comparison group differs), so no delta is shown. "
+        "**missing evidence** names the command that would measure it.",
+    )
+
+
+# --- Models -----------------------------------------------------------------
+
+
+def models_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
+    page_header(
+        "Models",
+        "Where does each checkpoint sit on cost vs quality, next to known models?",
+        "every verified checkpoint in the lab, plus pinned public references",
+    )
+    snap = _snapshot(lab_dir)
+    _rejected(snap)
+    catalog_tab, pareto_tab, refs_tab, unscored_tab = st.tabs(
+        ["Catalog", "Pareto frontier", "Reference models", "Not yet scored"]
+    )
+    with catalog_tab:
+        rows = lab_data.checkpoint_catalog(snap.points)
+        lab_rows = [r for r in rows if r["kind"] != "reference"]
+        if not lab_rows:
+            empty_state(
+                "No lab checkpoints yet",
+                "Checkpoints appear here once a try or a probe scores them.",
+                ["sparselab try DELTA.yaml --vs BASELINE.yaml"],
+            )
+        frame = pd.DataFrame(rows)
+        if not frame.empty:
+            st.dataframe(
+                frame[
+                    [
+                        "label",
+                        "kind",
+                        "parameters",
+                        "active_parameters",
+                        "tokens_seen",
+                        "heldout_loss",
+                        "fact_recall",
+                        "lm_eval",
+                        "checkpoint",
+                        "sources",
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True,
+                height=min(36 * (len(frame) + 1) + 4, 640),
+                column_config={
+                    "label": st.column_config.TextColumn("checkpoint", width="large"),
+                    "parameters": st.column_config.NumberColumn(
+                        "resident params", format="compact"
+                    ),
+                    "active_parameters": st.column_config.NumberColumn(
+                        "active / token", format="compact"
+                    ),
+                    "tokens_seen": st.column_config.NumberColumn(
+                        "training tokens", format="compact"
+                    ),
+                    "heldout_loss": st.column_config.NumberColumn(
+                        "held-out loss ↓", format="%.4f"
+                    ),
+                    "fact_recall": st.column_config.ProgressColumn(
+                        "fact recall ↑", min_value=0.0, max_value=1.0, format="%.2f"
+                    ),
+                    "lm_eval": st.column_config.ProgressColumn(
+                        "lm-eval acc ↑", min_value=0.0, max_value=1.0, format="%.3f"
+                    ),
+                    "checkpoint": st.column_config.TextColumn("sha256"),
+                },
+            )
+            st.caption(
+                "Newest value per metric. Values in one column are only comparable "
+                "inside one comparison group: use the Pareto tab or "
+                "`sparselab compare` for that."
+            )
+    with pareto_tab:
+        entry = snap.entries[0] if snap.entries else None
+        _pareto(snap.points, entry)
+    with refs_tab:
+        _references(snap)
+    with unscored_tab:
+        runs = lab_data.unscored_runs(runs_dirs, snap.points)
+        if not runs:
+            st.success(
+                "Every run in the run directories has been scored by a lab record."
+            )
+        else:
+            st.caption(
+                "Plain `sparselab train` runs that no try or probe has scored, so "
+                "they are missing from the catalog and the Pareto view. Probe one "
+                "to place it (add `--tier full` for lm-eval accuracy next to the "
+                "references):"
+            )
+            for run in runs:
+                st.markdown(f"**{html.escape(run['run_id'])}** · `{run['path']}`")
+                st.code(run["command"], language="bash")
+
+
+def _references(snap: lab_data.LabSnapshot) -> None:
+    by_label: dict[str, dict[str, Any]] = {}
+    for point in snap.points:
+        if point["kind"] == "reference":
+            by_label.setdefault(str(point.get("run_id")), point)
+    rows = []
+    for name, ref in REFERENCES.items():
+        point = by_label.get(f"ref:{name}") or {}
+        metrics = point.get("metrics") or {}
+        rows.append(
+            {
+                "reference": f"ref:{name}",
+                "family": ref.family,
+                "parameters": point.get("parameters"),
+                "training tokens": ref.training_tokens,
+                "lm-eval acc": (metrics.get("lm_eval") or {}).get("value"),
+                "fact recall": (metrics.get("fact_recall") or {}).get("value"),
+                "revision": ref.revision[:10],
+                "scored by": "packaged result"
+                if point.get("packaged")
+                else point.get("source"),
+            }
+        )
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "parameters": st.column_config.NumberColumn(format="compact"),
+            "training tokens": st.column_config.NumberColumn(format="compact"),
+            "lm-eval acc": st.column_config.NumberColumn(format="%.3f"),
+            "fact recall": st.column_config.NumberColumn(format="%.3f"),
+        },
+    )
+    explainer(
+        "Why references, and what they can and cannot tell you",
+        "Pinned public checkpoints, scored by the same lm-eval and text-level "
+        "fact-recall paths as lab runs and shipped as sealed records, so a lab "
+        "result sits on a known curve without downloading anything. They were "
+        "trained on 10⁵–10⁶× more tokens with their own tokenizers, so they "
+        "never appear on our held-out loss, and the needle probe (sized in each "
+        "model's own tokens) is not comparable either. Re-score one yourself "
+        "with `sparselab probe ref:NAME --tier full` (reference + lmeval extras).",
+        expanded=False,
+    )
+
+
+# --- Behaviors --------------------------------------------------------------
+
+
+def behaviors_page(lab_dir: Path) -> None:
+    page_header(
+        "Behaviors",
+        "What does the model actually do, and where does it fail?",
+        "outputs and per-item outcomes recorded by the probe battery",
+    )
+    snap = _snapshot(lab_dir)
+    _rejected(snap)
+    if not snap.entries:
+        empty_state(
+            "No behavior evidence yet",
+            "Generations, recall misses and calibration come from the standard "
+            "probe tier.",
+            ["sparselab probe RUN --tier standard"],
+        )
+        return
+    entry = _result_picker(snap.entries, "behaviors_result")
+    gen_tab, recall_tab, needle_tab, calib_tab = st.tabs(
+        ["Generations", "Fact recall", "Needle in a haystack", "Calibration"]
+    )
+    with gen_tab:
+        _generations(entry)
+    with recall_tab:
+        _recall(entry)
+    with needle_tab:
+        _needle(snap.entries)
+    with calib_tab:
+        _calibration(entry)
+
+
+def _generations(entry: ProbeEntry) -> None:
+    samples = lab_data.generations(entry)
+    row = probe_row(entry.result, "repetition") or {}
+    if not samples:
+        empty_state(
+            "No generations in this result",
+            "The degeneration probe (fast tier) records greedy continuations.",
+            [f"sparselab probe {(entry.result.get('target') or {}).get('run_id')}"],
+        )
+        return
+    details = row.get("details") or {}
+    cols = st.columns(3)
+    cols[0].metric(
+        "Repeated 4-grams (seq-rep-4)",
+        num(row.get("value")),
+        None if row.get("delta") is None else f"{row['delta']:+.3f} vs baseline",
+        delta_color="inverse",
+        help="Share of 4-grams in the continuation that already appeared in it. "
+        "Near 1 means the model loops.",
+    )
+    cols[1].metric("Distinct unigrams", num(details.get("distinct_1"), 2))
+    cols[2].metric("Distinct bigrams", num(details.get("distinct_2"), 2))
+    if (row.get("value") or 0) > 0.5:
+        st.warning(
+            "▲ Degeneration: more than half of the 4-grams repeat. Typical for "
+            "tiny or under-trained models; check longer training before judging "
+            "the idea."
+        )
+    has_base = any(s["baseline"] for s in samples)
+    for sample in samples:
+        st.markdown(f"**Prompt:** {html.escape(sample['prompt'])}")
+        cols = st.columns(2 if has_base else 1)
+        cols[0].markdown(
+            f"<div class='lab-card'><p class='pb-hint'>candidate</p>"
+            f"{html.escape(sample['candidate'])}</div>",
+            unsafe_allow_html=True,
+        )
+        if has_base:
+            cols[1].markdown(
+                f"<div class='lab-card'><p class='pb-hint'>baseline</p>"
+                f"{html.escape(sample['baseline'] or '–')}</div>",
+                unsafe_allow_html=True,
+            )
+
+
+def _items_table(items: list[dict[str, Any]], show_prompt: bool) -> None:
+    body = []
+    for item in items:
+        credit = item.get("credit")
+        tone = "pass" if credit == 1 else "fail" if credit == 0 else "warn"
+        base = item.get("baseline_credit")
+        base_cell = (
+            ""
+            if base is None
+            else f"<td>{html.escape(str(item.get('baseline_picked')))} "
+            f"<span class='pb-hint'>({base:.2f})</span></td>"
+        )
+        body.append(
+            "<tr>"
+            f"<td>{chip(tone, 'hit' if credit == 1 else 'miss' if credit == 0 else 'tie')}</td>"
+            + (
+                f"<td>{html.escape(str(item.get('prompt', '')))}</td>"
+                if show_prompt
+                else ""
+            )
+            + f"<td><b>{html.escape(str(item.get('answer')))}</b></td>"
+            f"<td>{html.escape(str(item.get('picked')))} "
+            f"<span class='pb-hint'>({num(credit, 2)})</span></td>{base_cell}</tr>"
+        )
+    has_base = any(i.get("baseline_credit") is not None for i in items)
+    st.markdown(
+        "<table class='pb-table'><tr><th>Outcome</th>"
+        + ("<th>Asked</th>" if show_prompt else "")
+        + "<th>Expected</th><th>Candidate picked</th>"
+        + ("<th>Baseline picked</th>" if has_base else "")
+        + "</tr>"
+        + "".join(body)
+        + "</table>",
+        unsafe_allow_html=True,
+    )
+
+
+def _recall(entry: ProbeEntry) -> None:
+    shown = False
+    for probe_id, title, explain in (
+        (
+            "fact_recall",
+            "In-context fact recall",
+            (
+                "The fact is stated in the prompt, then asked about after a "
+                "distractor. Tests whether the model can use its context."
+            ),
+        ),
+        (
+            "parametric_recall",
+            "Closed-book fact recall (from weights)",
+            (
+                "Facts from the withheld-facts training set, asked with no "
+                "context. Only meaningful for runs trained on `withheld_facts`; "
+                "the never-trained control facts should stay at chance."
+            ),
+        ),
+    ):
+        row = probe_row(entry.result, probe_id)
+        if not row or row.get("value") is None:
+            continue
+        shown = True
+        details = row.get("details") or {}
+        st.markdown(f"#### {title}")
+        st.caption(explain)
+        cols = st.columns(4)
+        cols[0].metric(
+            "Accuracy (held-out)", num(row["value"]), help="Fractional credit for ties."
+        )
+        cols[1].metric("Chance", num(details.get("chance"), 2))
+        cols[2].metric("Dev split", num(details.get("dev_accuracy")))
+        if probe_id == "parametric_recall":
+            cols[3].metric(
+                "Never-trained control", num(details.get("control_accuracy"))
+            )
+        else:
+            cols[3].metric("Items", details.get("n", "–"))
+        items = lab_data.recall_items(entry, probe_id)
+        if items:
+            misses = [i for i in items if (i.get("credit") or 0) < 1]
+            only = st.toggle(
+                f"Only misses ({len(misses)} of {len(items)})",
+                value=bool(misses),
+                key=f"behaviors_misses_{probe_id}",
+            )
+            _items_table(misses if only else items, show_prompt=True)
+        else:
+            st.caption(
+                "This result predates per-item records; re-probe to see each item."
+            )
+    if not shown:
+        target = (entry.result.get("target") or {}).get("run_id")
+        empty_state(
+            "No fact-recall evidence in this result",
+            "Fact recall runs in the standard tier.",
+            [f"sparselab probe {target} --tier standard"],
+        )
+
+
+def _needle(entries: Sequence[ProbeEntry]) -> None:
+    frame = pd.DataFrame(lab_data.needle_curves(entries))
+    if frame.empty:
+        empty_state(
+            "No needle results yet",
+            "The needle probe (standard tier) hides a fact at growing distances "
+            "in the context and asks for it at the end.",
+            ["sparselab probe RUN --tier standard"],
+        )
+        return
+    st.caption(
+        "Retrieval accuracy by context length, one line per checkpoint (newest "
+        "result of each). Lengths are in each model's own tokens."
+    )
+    figure = px.line(
+        frame,
+        x="tokens",
+        y="accuracy",
+        color="checkpoint",
+        markers=True,
+        color_discrete_sequence=px.colors.qualitative.Safe,
+    )
+    chance = frame["chance"].dropna()
+    if not chance.empty:
+        figure.add_hline(
+            y=float(chance.iloc[0]), line_dash="dot", annotation_text="chance"
+        )
+    st.plotly_chart(
+        figure_layout(
+            figure,
+            height=380,
+            title="Needle retrieval vs context length",
+            yaxis_range=[0, 1.05],
+            xaxis_title="context tokens",
+        ),
+        use_container_width=True,
+    )
+
+
+def _calibration(entry: ProbeEntry) -> None:
+    rows = lab_data.calibration_curves(entry)
+    row = probe_row(entry.result, "calibration") or {}
+    if not rows:
+        empty_state(
+            "No reliability bins in this result",
+            "Calibration (fast tier) records them from suite v3 on; re-probe to "
+            "draw the diagram.",
+            [f"sparselab probe {(entry.result.get('target') or {}).get('run_id')}"],
+        )
+        return
+    frame = pd.DataFrame(rows)
+    st.metric(
+        "Expected calibration error",
+        num(row.get("value")),
+        None if row.get("delta") is None else f"{row['delta']:+.3f} vs baseline",
+        delta_color="inverse",
+        help="Average gap between how confident the top guess is and how often "
+        "it is right, weighted by how many tokens fall in each bin.",
+    )
+    figure = go.Figure()
+    figure.add_trace(
+        go.Scatter(
+            x=[0, 1],
+            y=[0, 1],
+            mode="lines",
+            line={"dash": "dot", "color": "#8c959f"},
+            name="perfectly calibrated",
+        )
+    )
+    for arm in ("baseline", "candidate"):
+        part = frame[frame["arm"] == arm]
+        if part.empty:
+            continue
+        figure.add_trace(
+            go.Scatter(
+                x=part["confidence"],
+                y=part["accuracy"],
+                mode="lines+markers",
+                name=arm,
+                line={"color": SERIES[arm]},
+                marker={"size": 6 + 30 * part["share"]},
+                customdata=part[["share", "low", "high"]],
+                hovertemplate="confidence %{x:.2f} → accuracy %{y:.2f}<br>"
+                "%{customdata[0]:.1%} of tokens in [%{customdata[1]:.2f}, "
+                "%{customdata[2]:.2f})<extra></extra>",
+            )
+        )
+    st.plotly_chart(
+        figure_layout(
+            figure,
+            height=420,
+            title="Reliability diagram (marker size = share of tokens)",
+            xaxis_title="confidence of the top guess",
+            yaxis_title="how often it was right",
+            xaxis_range=[0, 1],
+            yaxis_range=[0, 1],
+        ),
+        use_container_width=True,
+    )
+    st.caption(
+        "Below the diagonal: over-confident. Above: under-confident. Tiny models "
+        "often sit in the low-confidence corner."
+    )
+
+
+# --- Explorer ---------------------------------------------------------------
+
+
+def _explorable_runs(
+    snap: lab_data.LabSnapshot, runs_dirs: Sequence[Path]
+) -> list[str]:
+    runs: list[str] = []
+    for point in snap.points:
+        run = point.get("run_id")
+        if run and not str(run).startswith("ref:") and run not in runs:
+            runs.append(str(run))
+    for root in runs_dirs:
+        if root and root.is_dir():
+            for run in sorted(root.iterdir()):
+                if (run / "manifest.json").is_file() and run.name not in runs:
+                    runs.append(run.name)
+    return runs
+
+
+def explorer_page(lab_dir: Path, runs_dirs: Sequence[Path]) -> None:
+    from sparselab import explorer as ex
+
+    page_header(
+        "Model explorer",
+        "What is inside this model, and how does it process a sentence?",
+        f"small checkpoints only (≤ {ex.MAX_PARAMETERS / 1e6:.0f}M parameters, "
+        f"≤ {ex.MAX_TOKENS} tokens) · computed on CPU through the verified "
+        "checkpoint loader and cached under LAB/explorer",
+    )
+    snap = _snapshot(lab_dir)
+    cached = snap.explorations
+    runs = _explorable_runs(snap, runs_dirs)
+    if not cached and not runs:
+        empty_state(
+            "Nothing to explore yet",
+            "Train or try a model first; then explore it here or from the CLI.",
+            ["sparselab try DELTA.yaml --vs BASELINE.yaml", "sparselab explore RUN"],
+        )
+        return
+    source = st.radio(
+        "Show",
+        ["Cached exploration", "Explore a run"],
+        horizontal=True,
+        key="explorer_source",
+        index=0 if cached else 1,
+    )
+    exploration: dict[str, Any] | None = None
+    if source == "Cached exploration":
+        if not cached:
+            st.info("No cached explorations yet; pick “Explore a run”.")
+            return
+        index = st.selectbox(
+            "Exploration",
+            range(len(cached)),
+            format_func=lambda i: (
+                f"{(cached[i].get('target') or {}).get('run_id')} · "
+                f"“{cached[i]['text'][:48]}” · {_when(cached[i]['created_at'])}"
+            ),
+            key="explorer_cached",
+        )
+        exploration = cached[index]
+    else:
+        cols = st.columns([2, 3])
+        run = cols[0].selectbox("Run", runs, key="explorer_run")
+        text = cols[1].text_input(
+            "Sample text", value=ex.DEFAULT_TEXT, key="explorer_text", max_chars=600
+        )
+        if st.button("Explore", type="primary", key="explorer_go"):
+            runs_dir = next((r for r in runs_dirs if r and (r / run).is_dir()), None)
+            with st.spinner("Loading the checkpoint and running one forward pass…"):
+                try:
+                    exploration, _ = ex.explore(
+                        run, lab_dir=lab_dir, runs_dir=runs_dir, text=text
+                    )
+                except ex.ExplorerUnavailable as error:
+                    st.warning(str(error))
+                    return
+                except (ValueError, FileNotFoundError, RuntimeError) as error:
+                    st.error(f"Could not explore {run}: {error}")
+                    return
+            st.session_state["explorer_last"] = exploration
+        exploration = exploration or st.session_state.get("explorer_last")
+        if exploration is None:
+            st.caption(
+                "Pick a run and a sample sentence, then press Explore. Same as "
+                f'`sparselab explore {run} --text "…"`.'
+            )
+            return
+    render_exploration(exploration)
+
+
+def render_exploration(exploration: Mapping[str, Any]) -> None:
+    arch = exploration["architecture"]
+    target = exploration.get("target") or {}
+    inv = arch.get("inventory") or {}
+    if exploration.get("unavailable"):
+        st.warning(f"⊘ Too big to explore here: {exploration['unavailable']}")
+        st.markdown(xv.architecture_html(arch), unsafe_allow_html=True)
+        return
+    tokens = exploration["tokens"]
+    losses = [t["loss"] for t in tokens if t["loss"] is not None]
+    cols = st.columns(5)
+    cols[0].metric("Resident parameters", compact(inv.get("total")))
+    cols[1].metric("Active per token", compact(inv.get("active_per_token")))
+    cols[2].metric("Layers", len(arch["layers"]))
+    cols[3].metric(
+        "Mean loss on the text",
+        f"{sum(losses) / len(losses):.2f}" if losses else "–",
+        help="Average next-token loss (nats) over the sample text.",
+    )
+    cols[4].metric("Tokens", len(tokens))
+    st.caption(
+        f"{target.get('run_id')} · step {target.get('step')} · checkpoint "
+        f"{str(target.get('checkpoint_sha256'))[:12]} · computed in "
+        f"{exploration.get('seconds', 0):.2f}s"
+        + (" · text truncated" if exploration.get("truncated") else "")
+    )
+    tabs = ["Architecture", "Tokens", "Attention", "Weights"]
+    if exploration.get("routing"):
+        tabs.append("Expert routing")
+    if exploration.get("memory"):
+        tabs.append("Memory lookups")
+    shown = dict(zip(tabs, st.tabs(tabs), strict=True))
+    with shown["Architecture"]:
+        cols = st.columns([3, 2])
+        with cols[0]:
+            st.markdown(xv.architecture_html(arch), unsafe_allow_html=True)
+        with cols[1]:
+            st.plotly_chart(xv.parameter_breakdown(arch), use_container_width=True)
+    with shown["Tokens"]:
+        st.markdown(xv.token_strip_html(tokens), unsafe_allow_html=True)
+        st.plotly_chart(xv.token_loss_figure(tokens), use_container_width=True)
+        position = st.slider(
+            "Next-token guesses after position",
+            0,
+            len(tokens) - 1,
+            min(3, len(tokens) - 1),
+            key="explorer_position",
+        )
+        token = tokens[position]
+        st.markdown(
+            f"After **{html.escape(''.join(t['text'] for t in tokens[1 : position + 1])[-80:])}** "
+            "the model's top guesses were:"
+        )
+        st.dataframe(
+            pd.DataFrame(token["next_top"])[["text", "p", "id"]],
+            hide_index=True,
+            column_config={
+                "text": "token",
+                "p": st.column_config.ProgressColumn(
+                    "probability", min_value=0.0, max_value=1.0, format="%.3f"
+                ),
+            },
+        )
+    with shown["Attention"]:
+        _attention(exploration, tokens)
+    with shown["Weights"]:
+        weights = exploration["weights"]
+        st.plotly_chart(xv.weight_norms(weights), use_container_width=True)
+        name = st.selectbox(
+            "Histogram of", [w["name"] for w in weights], key="explorer_weight"
+        )
+        st.plotly_chart(
+            xv.weight_histogram(next(w for w in weights if w["name"] == name)),
+            use_container_width=True,
+        )
+    if "Expert routing" in shown:
+        with shown["Expert routing"]:
+            _routing(exploration, tokens)
+    if "Memory lookups" in shown:
+        with shown["Memory lookups"]:
+            _memory(exploration, tokens)
+
+
+def _attention(exploration: Mapping[str, Any], tokens: list[dict[str, Any]]) -> None:
+    attention = exploration["attention"]
+    if attention.get("note"):
+        st.caption(f"ⓘ {attention['note']}")
+    layers = attention["layers"]
+    if not layers:
+        st.info("No layer exposes attention weights.")
+        return
+    cols = st.columns(2)
+    layer = cols[0].selectbox(
+        "Layer", sorted(layers, key=int), key="explorer_attention_layer"
+    )
+    heads = layers[layer]
+    head = cols[1].selectbox("Head", range(len(heads)), key="explorer_attention_head")
+    summary = xv.head_summary(heads[head])
+    stats = st.columns(4)
+    stats[0].metric(
+        "Looks back (mean tokens)",
+        f"{summary['mean_distance']:.1f}",
+        help="Average distance between a token and what it attends to.",
+    )
+    stats[1].metric(
+        "On the previous token",
+        f"{summary['previous_token_share']:.0%}",
+        help="High values suggest a previous-token head.",
+    )
+    stats[2].metric(
+        "On the first token",
+        f"{summary['first_token_share']:.0%}",
+        help="Many heads park unused attention on the first token (an attention sink).",
+    )
+    stats[3].metric(
+        "Spread (entropy, nats)",
+        f"{summary['mean_entropy']:.2f}",
+        help="0 = all weight on one key; higher = spread over many.",
+    )
+    st.plotly_chart(
+        xv.attention_figure(heads[head], tokens, f"Layer {layer} · head {head}"),
+        use_container_width=True,
+    )
+
+
+def _routing(exploration: Mapping[str, Any], tokens: list[dict[str, Any]]) -> None:
+    arch = exploration["architecture"]
+    routing = exploration["routing"]
+    st.caption(
+        "Which expert the router sent each token to, and with what gate weight. "
+        "Balanced load means every expert is used; collapse means one takes all."
+    )
+    for key in sorted(routing, key=int):
+        layer = routing[key]
+        experts = arch["layers"][int(key)]["ffn"]["experts"]
+        load = xv.expert_load(layer)
+        cols = st.columns([3, 1])
+        cols[0].plotly_chart(
+            xv.routing_figure(layer, tokens, experts, f"Layer {key} routing"),
+            use_container_width=True,
+        )
+        with cols[1]:
+            st.metric("Router entropy", f"{layer['entropy']:.2f}")
+            st.dataframe(
+                pd.DataFrame(
+                    {"expert": list(range(len(load))), "share of tokens": load}
+                ),
+                hide_index=True,
+                column_config={
+                    "share of tokens": st.column_config.ProgressColumn(
+                        min_value=0.0, max_value=1.0, format="%.2f"
+                    )
+                },
+            )
+
+
+def _memory(exploration: Mapping[str, Any], tokens: list[dict[str, Any]]) -> None:
+    memory = exploration["memory"]
+    st.caption(f"ⓘ {memory['note']}")
+    for stream in memory["streams"]:
+        offset = stream.get("single_token_offset")
+        if offset:  # offset 0 is a legitimate order-1 (unigram) table
+            st.warning(
+                f"▲ Table `{stream['table']}` reads the row of a single token "
+                f"({offset} back), not an "
+                "n-gram: every address equals that token id modulo the table "
+                "size. The hash may be degenerate for this table size (e.g. a "
+                "multiplier that is a multiple of the row count)."
+            )
+    reuse = xv.memory_reuse(memory)
+    cols = st.columns(max(1, len(reuse)))
+    for col, (table, share) in zip(cols, reuse.items(), strict=False):
+        col.metric(
+            f"Row reuse · {table}",
+            f"{share:.0%}",
+            help="Share of positions that read a row an earlier position read.",
+        )
+    figure = xv.gate_figure(memory, tokens)
+    if figure is not None:
+        st.plotly_chart(figure, use_container_width=True)
+    st.dataframe(
+        pd.DataFrame(xv.memory_rows(memory, tokens)),
+        hide_index=True,
+        use_container_width=True,
+    )
