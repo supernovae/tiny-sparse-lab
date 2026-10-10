@@ -132,4 +132,3 @@ or Campaign operation; every invocation rechecks config bindings and inventory.
 `--cold-verify` disables reuse on preparation, staging and Campaign
 `plan|status|next|explain|apply|resume|approve`. Imports and publication remain cold;
 see [snapshot verification lifetime](datasets.md#campaign-and-existing-input-reuse).
-
