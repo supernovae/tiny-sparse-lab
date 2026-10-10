@@ -119,6 +119,7 @@ def _probe_result() -> dict[str, Any]:
                 0.25,
                 chance=1 / 6,
                 n=6,
+                item_group="n" * 64,
                 by_length={
                     "0.5": {"tokens": 27, "accuracy": 0.5, "baseline_accuracy": 0.25}
                 },
@@ -452,3 +453,102 @@ def test_trends_never_join_results_from_different_benchmark_groups(
     assert group.index == 0
     group.select_index(1).run()
     assert trend_values(test) == [[0.4, 0.42]]
+
+
+def _needle_result(
+    probe_id: str, when: str, sha: str, group: str, tokens: int, acc: float, chance: Any
+) -> dict:
+    needle = _row(
+        "needle",
+        acc,
+        None,
+        chance=chance,
+        item_group=group,
+        by_length={
+            "0.5": {"tokens": tokens, "accuracy": acc},
+            "0.95": {"tokens": tokens * 2, "accuracy": acc / 2},
+        },
+    )
+    return {
+        **_probe_result(),
+        "probe_id": probe_id,
+        "created_at": when,
+        "target": {**CANDIDATE, "checkpoint_sha256": sha},
+        "probes": [_row("heldout_loss", 3.2, None), needle],
+    }
+
+
+def test_needle_chart_never_overlays_item_groups(tmp_path: Path) -> None:
+    """Needle lengths are per tokenizer/context: one item group per chart, one
+    curve per checkpoint (newest wins), chance from that group only."""
+    import json
+
+    small, big = "s" * 64, "b" * 64
+    for args in (
+        ("probe-21", "2026-10-10T10:00:00+00:00", "1" * 64, small, 27, 0.10, 1 / 6),
+        # Same checkpoint and group, newer: replaces probe-21's curve.
+        ("probe-22", "2026-10-10T11:00:00+00:00", "1" * 64, small, 27, 0.50, 1 / 6),
+        ("probe-23", "2026-10-10T11:30:00+00:00", "2" * 64, small, 27, 0.25, 1 / 6),
+        # Another tokenizer/context: other lengths, another item group.
+        ("probe-24", "2026-10-10T12:00:00+00:00", "3" * 64, big, 120, 0.75, 0.2),
+    ):
+        path = _mk(tmp_path / f"probes/{args[0]}/probe.json")
+        write_sealed(path, _needle_result(*args))
+    snap = lab_data.snapshot(tmp_path)
+    rows = lab_data.needle_curves(snap.entries)
+    per = {(r["checkpoint_sha256"], r["group"]) for r in rows}
+    assert per == {("1" * 64, small), ("2" * 64, small), ("3" * 64, big)}
+    one = [r for r in rows if r["checkpoint_sha256"] == "1" * 64]
+    assert [r["accuracy"] for r in one] == [0.5, 0.25]  # newest wins, 2 lengths
+
+    def needle_figure(test: AppTest) -> dict:
+        for chart in test.get("plotly_chart"):
+            figure = json.loads(chart.proto.spec)
+            if "Needle" in figure["layout"].get("title", {}).get("text", ""):
+                return figure
+        raise AssertionError("no needle chart")
+
+    test = _render("behaviors", tmp_path)
+    selector = test.selectbox(key="behaviors_needle_group")
+    assert len(selector.options) == 2 and selector.index == 0
+    # Newest result's group first: only the big-context checkpoint is drawn.
+    figure = needle_figure(test)
+    assert len(figure["data"]) == 1
+    assert _values(figure["data"][0]["x"]) == [120, 240]
+    (line,) = figure["layout"]["shapes"]
+    assert line["y0"] == pytest.approx(0.2)
+    assert "1 other item group(s) hidden" in _text(test)
+    selector.select_index(1).run()
+    figure = needle_figure(test)
+    assert len(figure["data"]) == 2  # one curve per checkpoint
+    assert all(_values(t["x"]) == [27, 54] for t in figure["data"])
+    (line,) = figure["layout"]["shapes"]
+    assert line["y0"] == pytest.approx(1 / 6)
+
+
+def test_needle_chance_is_omitted_when_the_group_disagrees(tmp_path: Path) -> None:
+    import json
+
+    from sparselab.probes.points import consistent_chance
+
+    assert consistent_chance([0.25, 0.25]) == pytest.approx(0.25)
+    assert consistent_chance([0.25, 0.2]) is None
+    assert consistent_chance([0.25, None]) is None
+    assert consistent_chance([float("nan")]) is None
+    assert consistent_chance([]) is None
+    group = "s" * 64
+    for args in (
+        ("probe-31", "2026-10-10T10:00:00+00:00", "1" * 64, group, 27, 0.5, 0.25),
+        ("probe-32", "2026-10-10T11:00:00+00:00", "2" * 64, group, 27, 0.5, None),
+    ):
+        write_sealed(
+            _mk(tmp_path / f"probes/{args[0]}/probe.json"), _needle_result(*args)
+        )
+    test = _render("behaviors", tmp_path)
+    for chart in test.get("plotly_chart"):
+        figure = json.loads(chart.proto.spec)
+        if "Needle" in figure["layout"].get("title", {}).get("text", ""):
+            assert not figure["layout"].get("shapes")
+            break
+    else:
+        raise AssertionError("no needle chart")

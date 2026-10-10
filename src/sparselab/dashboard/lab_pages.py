@@ -43,7 +43,7 @@ from sparselab.dashboard.ui import (
     page_header,
     step_card,
 )
-from sparselab.probes.points import METRICS
+from sparselab.probes.points import METRICS, consistent_chance
 from sparselab.probes.suite import suite_identity
 from sparselab.reference_models import REFERENCES
 
@@ -773,10 +773,39 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
             ["sparselab probe RUN --tier standard"],
         )
         return
+    # Needle lengths are in each model's own tokens: only one item group
+    # (same items, tokenizer and lengths) is drawn at a time.
+    ungrouped = int(frame["group"].isna().sum())
+    frame = frame.dropna(subset=["group"])
+    if frame.empty:
+        st.info(
+            "No needle result records its item group; re-probe to plot "
+            "retrieval by length."
+        )
+        return
+    frame = frame.sort_values("when", ascending=False)
+    groups = list(dict.fromkeys(frame["group"]))
+    counts = frame.groupby("group")["checkpoint_sha256"].nunique()
+    group = st.selectbox(
+        "Comparison group (item group)",
+        groups,
+        index=0,
+        key="behaviors_needle_group",
+        format_func=lambda g: f"{g[:12]} · {int(counts[g])} checkpoint(s)",
+        help="Needle items are sized in each model's own tokens; only results "
+        "with the same items, tokenizer and lengths share a scale.",
+    )
+    notes = []
+    if len(groups) > 1:
+        notes.append(f"{len(groups) - 1} other item group(s) hidden")
+    if ungrouped:
+        notes.append(f"{ungrouped} older point(s) recorded no item group")
     st.caption(
         "Retrieval accuracy by context length, one line per checkpoint (newest "
-        "result of each). Lengths are in each model's own tokens."
+        "result of each) within one item group."
+        + (" " + " · ".join(notes) if notes else "")
     )
+    frame = frame[frame["group"] == group].sort_values(["checkpoint", "tokens"])
     figure = px.line(
         frame,
         x="tokens",
@@ -785,11 +814,11 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
         markers=True,
         color_discrete_sequence=px.colors.qualitative.Safe,
     )
-    chance = frame["chance"].dropna()
-    if not chance.empty:
-        figure.add_hline(
-            y=float(chance.iloc[0]), line_dash="dot", annotation_text="chance"
-        )
+    chance = consistent_chance(
+        frame.drop_duplicates("checkpoint_sha256")["chance"].tolist()
+    )
+    if chance is not None:
+        figure.add_hline(y=chance, line_dash="dot", annotation_text="chance")
     st.plotly_chart(
         figure_layout(
             figure,

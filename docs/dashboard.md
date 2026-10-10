@@ -132,7 +132,11 @@ places it in the catalog and on the frontier.
   the same first candidate for every question (`red`, `panda`), which no
   aggregate accuracy would tell you.
 - **Needle in a haystack.** Retrieval accuracy against context length, one line
-  per checkpoint, with the chance line.
+  per checkpoint (its newest result) within one item group. Needle lengths are
+  in each model's own tokens, so results with other items, tokenizers or
+  lengths are another group: pick it in the selector (default: the newest
+  result's group; the others are counted as hidden). The chance line comes from
+  that group's own results and is omitted when it is unknown or they disagree.
 - **Calibration.** A reliability diagram (confidence of the top guess against
   how often it was right; marker size = share of tokens), candidate against
   baseline, with ECE.
@@ -161,9 +165,11 @@ Exploration goes through the same runtime preparation as `sparselab probe` and
 policy (an accelerator needs a runtime profile, exactly as for probe), and the
 checkpoint loads through the verified loader. `--resource-envelope FILE` is
 checked before the command and again before every explorer stage; a violation
-stops it with the reason. The dashboard page always explores on CPU. It stops
-at the next stage if `LAB/explorer/CANCEL` appears, and turns an out-of-memory
-error into a clear message. MLX checkpoints
+stops it with the reason. The dashboard page always explores on CPU. Loading the
+checkpoint is a stage like the others: the cancel sentinel and envelope are
+checked before it, an out-of-memory error while loading or exploring becomes a
+clear message, memory is released either way and nothing is cached. It stops
+at the next stage if `LAB/explorer/CANCEL` appears. MLX checkpoints
 and attached semantic packs are refused with a reason.
 
 ![Explorer: architecture and parameters (MoE run)](assets/dashboard-explorer.png)

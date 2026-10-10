@@ -388,27 +388,39 @@ def recall_items(entry: ProbeEntry, probe_id: str) -> list[dict[str, Any]]:
 
 
 def needle_curves(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
-    """Needle accuracy by context length for every checkpoint that ran it."""
+    """Needle accuracy by context length, one curve per (checkpoint, group).
+
+    Needle items are sized in each model's own tokens, so only results in one
+    ``item_group`` (same rendered items, tokenizer and lengths) share a scale;
+    ``group`` is that comparison identity (shared :func:`result_group`), None
+    for older records without one. The newest result per (checkpoint, group)
+    wins.
+    """
     rows = []
-    seen: set[str] = set()
-    for entry in entries:
+    seen: set[tuple[str, str | None]] = set()
+    for entry in sorted(entries, key=lambda e: e.created_at, reverse=True):
         row = probe_row(entry.result, "needle") or {}
         target = entry.result.get("target") or {}
         sha = str(target.get("checkpoint_sha256"))
-        by_length = (row.get("details") or {}).get("by_length") or {}
-        if not by_length or sha in seen:
+        details = row.get("details") or {}
+        by_length = details.get("by_length") or {}
+        group = result_group(entry.result, row) if row else None
+        if not by_length or (sha, group) in seen:
             continue
-        seen.add(sha)
+        seen.add((sha, group))
         for fraction, value in by_length.items():
             if value.get("accuracy") is None:
                 continue
             rows.append(
                 {
                     "checkpoint": f"{entry.key} ({target.get('run_id')})",
+                    "checkpoint_sha256": sha,
+                    "group": group,
+                    "when": entry.created_at,
                     "fraction": float(fraction),
                     "tokens": value.get("tokens"),
                     "accuracy": value["accuracy"],
-                    "chance": (row.get("details") or {}).get("chance"),
+                    "chance": details.get("chance"),
                 }
             )
     return rows

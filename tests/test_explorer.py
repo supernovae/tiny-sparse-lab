@@ -225,3 +225,87 @@ def test_memory_view_flags_an_ngram_table_that_reads_one_token() -> None:
     assert sorted(offsets) == [1, 2]
     healthy = explorer.explore_loaded(_loaded(**MOE_NGRAM), TEXT)
     assert all(s["single_token_offset"] is None for s in healthy["memory"]["streams"])
+
+
+def _fake_run(tmp_path: Path) -> Path:
+    lab = tmp_path / "lab"
+    run = lab / "runs" / "tiny-run"
+    run.mkdir(parents=True)
+    (run / "manifest.json").write_text("{}")
+    (run / "resolved_config.yaml").write_text(_config(**MOE_NGRAM).model_dump_json())
+    return lab
+
+
+def _no_cache(lab: Path) -> None:
+    assert explorer.cached_explorations(lab) == []
+    assert not list((lab / "explorer").rglob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "error",
+    [MemoryError(), torch.OutOfMemoryError("CUDA out of memory")],
+    ids=["MemoryError", "torch.OutOfMemoryError"],
+)
+def test_loader_oom_is_a_clean_outcome_with_cleanup_and_no_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    """Loading sits inside the protected lifecycle: an OOM while loading is
+    a clear 'out of memory' outcome, cleanup runs, nothing is cached."""
+    lab = _fake_run(tmp_path)
+    released: list[bool] = []
+    monkeypatch.setattr(explorer, "release_memory", lambda: released.append(True))
+
+    def load() -> Any:
+        raise error
+
+    with pytest.raises(explorer.ExplorerUnavailable, match=r"out of memory .*load"):
+        explorer.explore("tiny-run", lab_dir=lab, text=TEXT, load=load)
+    assert released == [True]
+    _no_cache(lab)
+    # Any other loader failure propagates, and cleanup still runs.
+    with pytest.raises(ValueError, match="bad checkpoint"):
+        explorer.explore(
+            "tiny-run",
+            lab_dir=lab,
+            text=TEXT,
+            load=lambda: (_ for _ in ()).throw(ValueError("bad checkpoint")),
+        )
+    assert released == [True, True]
+    _no_cache(lab)
+
+
+def test_pre_load_stage_check_runs_before_the_loader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.lab_context import LabResourceExceeded
+    from sparselab.resource_envelope import ResourceEnvelope
+
+    lab = _fake_run(tmp_path)
+    calls: list[str] = []
+    released: list[bool] = []
+    monkeypatch.setattr(explorer, "release_memory", lambda: released.append(True))
+
+    def load() -> Any:
+        calls.append("load")
+        return _loaded(**MOE_NGRAM)
+
+    # Envelope violated: stops at the pre-load check, the loader never runs.
+    envelope = ResourceEnvelope(resource_envelope_version=1, min_disk_bytes=1 << 62)
+    with pytest.raises(LabResourceExceeded) as stopped:
+        explorer.explore(
+            "tiny-run", lab_dir=lab, text=TEXT, resource_envelope=envelope, load=load
+        )
+    assert stopped.value.phase == "load" and calls == [] and released == [True]
+    _no_cache(lab)
+
+    # Cancelled (sentinel touched once the exploration started): same.
+    class Cancelled(LabContext):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self.cancel_path.touch()
+
+    monkeypatch.setattr(explorer, "LabContext", Cancelled)
+    with pytest.raises(LabCancelled) as cancelled:
+        explorer.explore("tiny-run", lab_dir=lab, text=TEXT, load=load)
+    assert cancelled.value.phase == "load" and calls == [] and released == [True] * 2
+    _no_cache(lab)

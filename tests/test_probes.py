@@ -1454,7 +1454,7 @@ def test_explore_cli_uses_the_shared_runtime_preparation_and_envelope(
     out = _cli(monkeypatch, capsys, root, *args, "--resource-envelope", str(envelope))
     assert out.startswith(f"EXPLORE  {run_id}")
     assert seen == ["cpu"]
-    assert phases[0] == "weights" and len(phases) >= 3
+    assert phases[:2] == ["load", "weights"] and len(phases) >= 3
     # A violation at a stage check stops the exploration cleanly.
     monkeypatch.setattr(
         envelopes,

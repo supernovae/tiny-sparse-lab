@@ -533,31 +533,36 @@ def explore(
     context = LabContext(
         folder / "CANCEL", resource_envelope=resource_envelope, workspace=lab_dir
     )
-    loaded = (
-        load
-        or (
-            lambda: load_target(
-                target,
-                lab_dir=lab_dir,
-                runs_dir=runs_dir,
-                backend=backend,
-                authorization=authorization,
-            )
+    loader = load or (
+        lambda: load_target(
+            target,
+            lab_dir=lab_dir,
+            runs_dir=runs_dir,
+            backend=backend,
+            authorization=authorization,
         )
-    )()
+    )
+    # Loading is part of the protected lifecycle: a pre-load stage check
+    # (cancel sentinel + resource envelope), the OOM handler and the cleanup
+    # cover it exactly like the exploration stages.
+    loaded = None
     try:
-        sha = str(loaded.identity.get("checkpoint_sha256"))
-        path = cache_path(lab_dir, sha, text)
-        cached = None if refresh else read_cached(path)
-        if cached is not None:
-            return cached, path
+        context.enter("explorer", "load")
+        context.checkpoint()
         try:
+            loaded = loader()
+            sha = str(loaded.identity.get("checkpoint_sha256"))
+            path = cache_path(lab_dir, sha, text)
+            cached = None if refresh else read_cached(path)
+            if cached is not None:
+                return cached, path
             result = explore_loaded(loaded, text, context=context, arch=arch)
         except Exception as error:
             if not is_out_of_memory(error):
                 raise
+            stage = context.phase or "load"
             raise ExplorerUnavailable(
-                f"out of memory while exploring: {type(error).__name__}"
+                f"out of memory while exploring ({stage}): {type(error).__name__}"
             ) from None
     finally:
         del loaded

@@ -19,6 +19,7 @@ candidates under one ranking protocol; text-level, so tokenizer-independent).
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from importlib import resources
@@ -99,9 +100,24 @@ def mean_chance(chance: Mapping[str, Any] | None) -> float | None:
     if not chance:
         return None
     values = list(chance.values())
-    if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in values):
+    if any(
+        not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v)
+        for v in values
+    ):
         return None
     return sum(values) / len(values)
+
+
+def consistent_chance(values: Iterable[Any]) -> float | None:
+    """One chance level shared by every result of a group, else None.
+
+    None when there are no results, any result's chance is unknown, or the
+    results disagree (they would not be on one scale).
+    """
+    known = list(values)
+    if not known or len({repr(v) for v in known}) != 1:
+        return None
+    return mean_chance({"chance": known[0]})
 
 
 def packaged_reference_records() -> list[tuple[Path, dict[str, Any]]]:
