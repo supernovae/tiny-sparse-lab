@@ -94,8 +94,9 @@ jobs:
             tests/test_ci_routing.py::test_ordinary_ci_selects_only_explicit_zero_model_nodes
 
   lab-loop:
-    # Lab-mode loop-time guard (CPU only): tokenizer -> try -> report on a tiny
-    # synthetic delta must finish well inside the 15-minute target.
+    # Lab-mode loop-time guard (CPU only): tokenizer -> try (with the fast probe
+    # tier) -> report on a tiny synthetic delta must finish well inside the
+    # 15-minute target; the probe battery's own tests ride along (~15 s).
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'safe'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -111,7 +112,7 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked --extra cpu --dev
-      - name: Timed lab loop (tokenizer -> try -> report)
+      - name: Timed lab loop (tokenizer -> try + probe -> report)
         env:
           UV_OFFLINE: "1"
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
@@ -120,7 +121,8 @@ jobs:
         run: |
           uv run --locked --no-sync pytest -q -s -p no:cacheprovider \
             --basetemp "$RUNNER_TEMP/lab-loop-pytest" \
-            tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget
+            tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget \
+            tests/test_probes.py
 
   integration-linux:
     # Model work is manual-only. Dispatch requires its own reviewed allocation.

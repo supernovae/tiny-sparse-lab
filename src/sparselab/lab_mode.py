@@ -32,9 +32,7 @@ import math
 import os
 import resource
 import secrets
-import signal
 import sys
-import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -42,7 +40,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-RECORD_FORMAT = "sparselab-lab-try-v1"
+from sparselab.lab_context import (
+    LabCancelled,
+    LabContext,
+    LabSignal,
+)
+from sparselab.lab_records import (
+    TRY_FORMAT as RECORD_FORMAT,
+)
+from sparselab.lab_records import (
+    canonical as _canonical,
+)
+from sparselab.lab_records import (
+    read_lab_record,
+    write_sealed,
+)
+
 DELTA_VERSION = 1
 _DELTA_KEYS = {"lab_delta_version", "question", "set"}
 EXIT_NOT_COMPARABLE = 3
@@ -61,12 +74,6 @@ class Candidate:
     source: Path
     settings: dict[str, Any]
     question: str | None
-
-
-def _canonical(value: Any) -> bytes:
-    from sparselab.training.manifest import canonical_json
-
-    return canonical_json(value)
 
 
 def lab_root(work_dir: Path, override: Path | None = None) -> Path:
@@ -334,72 +341,6 @@ def _peak_rss_bytes() -> int | None:
     return int(peak) if sys.platform == "darwin" else int(peak) * 1024
 
 
-class LabCancelled(Exception):
-    """The try stopped at a safe point before the comparison completed."""
-
-    def __init__(
-        self, arm: str | None, reason: str, row: dict[str, Any] | None, phase: str
-    ) -> None:
-        super().__init__(f"{arm} arm stopped during {phase}: {reason}")
-        self.arm = arm
-        self.reason = reason
-        self.row = row
-        self.phase = phase
-
-
-class _LabSignal(BaseException):
-    """Raised by the lab-mode signal handler outside the trainer's own handler."""
-
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
-        self.name = name
-
-
-class _Lifecycle:
-    """Track the current arm/phase and turn SIGINT/SIGTERM into a safe stop.
-
-    The trainer installs its own handlers while it trains (stopping at a
-    checkpointed step) and restores these afterwards, so evaluation, scoring and
-    record writing are covered too. After the first signal, or once the record
-    is being finalized, further signals are only noted and never interrupt the
-    record write.
-    """
-
-    def __init__(self, cancel_path: Path) -> None:
-        self.cancel_path = cancel_path
-        self.arm: str | None = None
-        self.phase = "setup"
-        self.row: dict[str, Any] | None = None
-        self.signals: list[str] = []
-        self.finalizing = False
-        self._previous: dict[int, Any] = {}
-
-    def _handle(self, signum: int, _frame: Any) -> None:
-        name = signal.Signals(signum).name
-        self.signals.append(name)
-        if not self.finalizing and len(self.signals) == 1:
-            raise _LabSignal(name)
-
-    def install(self) -> None:
-        if threading.current_thread() is not threading.main_thread():
-            return
-        for signum in (signal.SIGINT, signal.SIGTERM):
-            self._previous[signum] = signal.signal(signum, self._handle)
-
-    def restore(self) -> None:
-        for signum, handler in self._previous.items():
-            signal.signal(signum, handler)
-        self._previous.clear()
-
-    def enter(self, arm: str | None, phase: str) -> None:
-        self.arm, self.phase = arm, phase
-
-    def checkpoint(self) -> None:
-        """Honor the cancel sentinel at a safe point between phases."""
-        if self.cancel_path.exists():
-            raise LabCancelled(self.arm, "cancelled", self.row, self.phase)
-
-
 def eval_protocol(config: Any) -> dict[str, int]:
     """The evaluation windowing and batching both arms are scored with."""
     return {
@@ -438,34 +379,38 @@ def _train_and_score(
     reuse: bool,
     key: str | None,
     protocol: Mapping[str, int],
-    lifecycle: _Lifecycle,
-    cancel_path: Path,
+    context: LabContext,
     max_wall_seconds: float | None,
     authorization: Any,
-    resource_envelope: Any,
     tokenizer_batch_documents: int,
     tokenizer_batch_source_bytes: int,
     train_fn: Callable[..., str],
+    measurements: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Train (or reuse) and score one arm under CONTEXT.
+
+    With MEASUREMENTS, the scoring pass also records the probe battery's
+    validation statistics for this arm (one forward pass serves both).
+    """
     from sparselab.evaluation.inference import load_run, write_inference_result
 
     runs = config.logging.root_dir
-    lifecycle.row = None
-    lifecycle.enter(arm, "training")
-    lifecycle.checkpoint()
+    context.row = None
+    context.enter(arm, "training")
+    context.checkpoint()
     # The memory this arm trains with, hashed now (a reused baseline's key
     # already bound the same digests moments ago).
     packages = memory_packages(config)
-    lifecycle.checkpoint()
+    context.checkpoint()
     started = time.monotonic()
     if not reuse:
         returned = train_fn(
             config,
             run_id=run_id,
-            cancel_path=cancel_path,
+            cancel_path=context.cancel_path,
             max_wall_seconds=max_wall_seconds,
             authorization=authorization,
-            resource_envelope=resource_envelope,
+            resource_envelope=context.resource_envelope,
             tokenizer_batch_documents=tokenizer_batch_documents,
             tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
         )
@@ -485,14 +430,14 @@ def _train_and_score(
         "seed": config.seed,
         "memory_packages": packages,
     }
-    lifecycle.row = row
+    context.row = row
     if progress.get("status") != "completed":
         row["status"] = progress.get("status") or "interrupted"
         raise LabCancelled(
             arm, str(row["stop_reason"] or row["status"]), row, "training"
         )
-    lifecycle.checkpoint()
-    lifecycle.enter(arm, "scoring")
+    context.checkpoint()
+    context.enter(arm, "scoring")
     started = time.monotonic()
     loaded = load_run(run_id, runs, None, None, authorization=authorization)
     data = _data_identity(run)
@@ -518,7 +463,17 @@ def _train_and_score(
         "scored_blocks": min(blocks, used["batch_size"] * used["max_batches"]),
         "evaluator": "pytorch" if loaded.engine is None else "mlx",
     }
-    result = scored.evaluate()
+    stats = None
+    if measurements is not None and shareable:
+        from sparselab.probes.scoring import ValidationStats
+
+        stats = ValidationStats()
+    result = scored.evaluate(observer=stats)
+    if stats is not None and measurements is not None:
+        measurements[arm] = {
+            "checkpoint_sha256": loaded.identity.get("checkpoint_sha256"),
+            "validation": {**stats.result(result), "protocol": dict(protocol)},
+        }
     result.update(
         {
             "source": "lab_try_eval",
@@ -556,7 +511,7 @@ def _train_and_score(
             "code": _run_identity(run),
         }
     )
-    lifecycle.checkpoint()
+    context.checkpoint()
     return row
 
 
@@ -655,11 +610,6 @@ def compare(
     }
 
 
-def _seal(record: dict[str, Any]) -> dict[str, Any]:
-    body = {key: value for key, value in record.items() if key != "record_sha256"}
-    return {**body, "record_sha256": hashlib.sha256(_canonical(body)).hexdigest()}
-
-
 def write_record(
     path: Path, record: dict[str, Any], *, replace_started: bool = False
 ) -> dict[str, Any]:
@@ -668,51 +618,21 @@ def write_record(
     An existing record is never replaced, except that the final record of a try
     may replace that same try's own sealed ``started`` record.
     """
-    sealed = _seal(record)
-    payload = (
-        json.dumps(sealed, indent=2, sort_keys=True, default=str) + "\n"
-    ).encode()
-    temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
-    try:
-        with temporary.open("xb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if replace_started and (path.exists() or path.is_symlink()):
-            existing = read_record(path)
-            if existing.get("status") != "started" or existing.get(
-                "try_id"
-            ) != record.get("try_id"):
-                raise FileExistsError(f"lab try record already final: {path}")
-            os.replace(temporary, path)
-        else:
-            os.link(temporary, path)  # exclusive publish of a complete file
-    finally:
-        temporary.unlink(missing_ok=True)
-    try:
-        directory = os.open(path.parent, os.O_RDONLY)
-    except OSError:
-        return sealed
-    try:
-        os.fsync(directory)
-    except OSError:
-        pass
-    finally:
-        os.close(directory)
-    return sealed
+
+    def own_started(existing: Path) -> bool:
+        current = read_record(existing)
+        return current.get("status") == "started" and current.get(
+            "try_id"
+        ) == record.get("try_id")
+
+    return write_sealed(
+        path, record, may_replace=own_started if replace_started else None
+    )
 
 
 def read_record(path: Path) -> dict[str, Any]:
-    """Read a lab record and reject edited content."""
-    path = Path(path)
-    if path.is_dir():
-        path = path / "try.json"
-    record = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(record, dict) or record.get("format") != RECORD_FORMAT:
-        raise ValueError(f"not a lab try record: {path}")
-    if _seal(record)["record_sha256"] != record.get("record_sha256"):
-        raise ValueError(f"lab try record digest mismatch: {path}")
-    return record
+    """Read a lab try record and reject edited content (shared reader)."""
+    return read_lab_record(path, "try")[1]
 
 
 def run_try(
@@ -731,6 +651,7 @@ def run_try(
     fresh_baseline: bool = False,
     train_fn: Callable[..., str] | None = None,
     now: Callable[[], datetime] | None = None,
+    probe_tier: str | None = "fast",
 ) -> tuple[dict[str, Any], Path]:
     """Train/score baseline and candidate locally and write one lab record."""
     from sparselab.config.loading import load_config
@@ -764,8 +685,10 @@ def run_try(
     cancel_path = try_dir / "CANCEL"
     # Cancellation and a sealed 'started' record come before any parsing,
     # hashing or setup, so a stop at any point still leaves a final record.
-    lifecycle = _Lifecycle(cancel_path)
-    lifecycle.enter(None, "setup")
+    context = LabContext(
+        cancel_path, resource_envelope=resource_envelope, workspace=root
+    )
+    context.enter(None, "setup")
     record: dict[str, Any] = {
         "format": RECORD_FORMAT,
         "mode": "lab",
@@ -783,7 +706,7 @@ def run_try(
     }
     exit_status = 0
     setup_error: BaseException | None = None
-    lifecycle.install()
+    context.install()
     try:
         try:
             write_record(record_path, record)
@@ -792,7 +715,7 @@ def run_try(
                 "safe step",
                 file=sys.stderr,
             )
-            lifecycle.checkpoint()
+            context.check_cancel()
             candidate = read_candidate(candidate_path)
             require_current_dataset(load_config(baseline_path).dataset)
             baseline_file = baseline_path
@@ -830,13 +753,13 @@ def run_try(
                     candidate_file.parent,
                 ),
             )
-            lifecycle.checkpoint()
+            context.check_cancel()
             # Bind baseline reuse to tokenizer, data and memory-package contents
             # as they are now; the candidate's identity is hashed the same way.
             inputs = current_inputs(base_config)
-            lifecycle.checkpoint()
+            context.check_cancel()
             cand_inputs = current_inputs(cand_config)
-            lifecycle.checkpoint()
+            context.check_cancel()
             base_key = reuse_key(base_config, inputs)
             if not delta or base_key == reuse_key(cand_config, cand_inputs):
                 raise ValueError(
@@ -854,7 +777,7 @@ def run_try(
             )
             baseline_sha256 = _sha256_file(baseline_path)
             candidate_sha256 = _sha256_file(candidate.source)
-            lifecycle.checkpoint()
+            context.check_cancel()
         except LabCancelled:
             raise
         except Exception as error:
@@ -930,17 +853,17 @@ def run_try(
                 "max_wall_seconds_per_arm": max_wall_seconds,
             }
         )
+        measurements: dict[str, Any] | None = {} if probe_tier is not None else None
         common = {
-            "cancel_path": cancel_path,
             "max_wall_seconds": max_wall_seconds,
             "authorization": authorization,
-            "resource_envelope": resource_envelope,
+            "measurements": measurements,
             "tokenizer_batch_documents": tokenizer_batch_documents
             or TOKENIZER_BATCH_DOCUMENTS,
             "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes
             or TOKENIZER_BATCH_SOURCE_BYTES,
             "train_fn": train_fn,
-            "lifecycle": lifecycle,
+            "context": context,
         }
         protocol = eval_protocol(base_config)
         record["arms"]["baseline"] = _train_and_score(
@@ -962,7 +885,7 @@ def run_try(
             protocol=protocol,
             **common,
         )
-        lifecycle.enter("candidate", "comparison")
+        context.enter("candidate", "comparison")
         record["comparison"] = compare(
             record["arms"]["baseline"],
             record["arms"]["candidate"],
@@ -971,8 +894,30 @@ def run_try(
         record["status"] = "completed"
         if record["comparison"]["verdict"] == "NOT_COMPARABLE":
             exit_status = EXIT_NOT_COMPARABLE
+        if probe_tier is not None:
+            context.enter("candidate", "probing")
+            record["probe"] = _probe_arms(
+                record,
+                runs,
+                protocol,
+                probe_tier,
+                try_dir,
+                authorization,
+                context,
+                measurements or {},
+            )
+            # A signal stops the battery at a safe point; the partial result is
+            # already in the record. Honor it (and a late cancel) now.
+            if context.signals:
+                raise LabSignal(context.signals[0])
+            if (record["probe"].get("stop") or {}).get("kind") == "interrupted":
+                raise KeyboardInterrupt
+            context.check_cancel()
     except LabCancelled as error:
-        if error.arm is not None and error.row is not None:
+        if error.phase == "probing":
+            # Both arms are scored and compared; only the probe battery stopped.
+            record.setdefault("probe", {"status": "interrupted"})
+        elif error.arm is not None and error.row is not None:
             record["arms"][error.arm] = error.row
         record["status"] = "interrupted"
         record["interruption"] = {
@@ -981,16 +926,21 @@ def run_try(
             "reason": error.reason,
         }
         exit_status = EXIT_INTERRUPTED
-    except (_LabSignal, KeyboardInterrupt) as error:
-        if lifecycle.arm is not None and lifecycle.row is not None:
-            record["arms"][lifecycle.arm] = lifecycle.row
-        record.pop("comparison", None)
+    except (LabSignal, KeyboardInterrupt) as error:
+        if context.phase == "probing":
+            # Both arms are scored; only the optional probe battery stopped.
+            # Keep the finalized partial battery when there is one.
+            record.setdefault("probe", {"status": "interrupted"})
+        else:
+            if context.arm is not None and context.row is not None:
+                record["arms"][context.arm] = context.row
+            record.pop("comparison", None)
         record["status"] = "interrupted"
         record["interruption"] = {
-            "arm": lifecycle.arm,
-            "phase": lifecycle.phase,
+            "arm": context.arm,
+            "phase": context.phase,
             "reason": error.name
-            if isinstance(error, _LabSignal)
+            if isinstance(error, LabSignal)
             else "keyboard_interrupt",
         }
         exit_status = EXIT_INTERRUPTED
@@ -1001,19 +951,65 @@ def run_try(
             exit_status = 1
     finally:
         # From here on signals are noted, never raised, so the record is written.
-        lifecycle.finalizing = True
-        if lifecycle.signals:
-            record["signals_received"] = list(lifecycle.signals)
+        context.finalizing = True
+        if context.signals:
+            record["signals_received"] = list(context.signals)
         record["resources"]["wall_seconds"] = round(time.monotonic() - started, 3)
         record["resources"]["peak_rss_bytes"] = _peak_rss_bytes()
         record["exit_status"] = exit_status
         try:
             sealed = write_record(record_path, record, replace_started=True)
         finally:
-            lifecycle.restore()
+            context.restore()
     if setup_error is not None:
         raise setup_error
     return sealed, record_path
+
+
+def _probe_arms(
+    record: Mapping[str, Any],
+    runs: Path,
+    protocol: Mapping[str, int],
+    tier: str,
+    try_dir: Path,
+    authorization: Any,
+    context: LabContext,
+    measurements: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Probe the candidate vs the baseline under the try's own context.
+
+    Arms load one at a time; each reuses the validation statistics recorded by
+    its scoring pass (same checkpoint and protocol), so validation is never
+    scored twice. Probe problems never fail a try: cancellation, resources and
+    OOM stop the battery (``incomplete``) and the comparison stands.
+    """
+    from sparselab.evaluation.inference import load_run
+    from sparselab.probes.runner import Arm, progress_writer, run_battery
+
+    def arm(name: str) -> Arm:
+        row = record["arms"][name]
+        cache: dict[str, Any] = {}
+        scored = measurements.get(name) or {}
+        if scored.get("checkpoint_sha256") == row.get("checkpoint_sha256"):
+            cache["validation"] = scored.get("validation")
+        return Arm(
+            load=lambda: load_run(
+                row["run_id"], runs, None, None, authorization=authorization
+            ),
+            cache=cache,
+        )
+
+    try:
+        return run_battery(
+            arm("candidate"),
+            arm("baseline"),
+            tier=tier,
+            protocol=protocol,
+            progress=progress_writer(try_dir / "probe-progress.json"),
+            context=context,
+        )
+    except Exception as error:  # noqa: BLE001 - probes inform, never fail a try
+        return {"status": "error", "error": f"{type(error).__name__}: {error}"}
 
 
 def _fmt(value: Any, digits: int = 4) -> str:
@@ -1022,7 +1018,9 @@ def _fmt(value: Any, digits: int = 4) -> str:
     return "n/a" if value is None else str(value)
 
 
-def summarize(record: Mapping[str, Any], path: Path | None = None) -> str:
+def summarize(
+    record: Mapping[str, Any], path: Path | None = None, *, color: bool = False
+) -> str:
     """Human-readable comparison; ``--json`` carries the same record."""
     lines = [f"LAB TRY {record['try_id']}  status: {record['status']}  (lab mode)"]
     if record.get("question"):
@@ -1067,6 +1065,16 @@ def summarize(record: Mapping[str, Any], path: Path | None = None) -> str:
         f"  wall {_fmt(resources.get('wall_seconds'), 1)}s  "
         f"peak rss {_fmt(resources.get('peak_rss_bytes'))} bytes"
     )
+    probe = record.get("probe")
+    if isinstance(probe, Mapping) and probe.get("format"):
+        from sparselab.probes.render import render
+
+        lines.append("")
+        lines.append(render(probe, color=color))
+    elif isinstance(probe, Mapping):
+        lines.append(
+            f"  probe battery: {probe.get('status')} {probe.get('error') or ''}".rstrip()
+        )
     if path is not None:
         lines.append(f"  record: {path}")
     return "\n".join(lines)

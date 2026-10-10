@@ -362,6 +362,10 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     assert report.returncode == 0, report.stderr[-2000:]
     assert "verdict:" in report.stdout and record["try_id"] in report.stdout
     assert record["comparison"]["comparable"] is True
+    # The fast probe tier is part of every try and lands in the same record.
+    assert record["probe"]["tiers_run"] == ["fast"]
+    assert record["probe"]["verdict"]["action"]
+    assert "PROBE BATTERY" in report.stdout
     print(f"lab loop YAML->report: {elapsed:.1f}s (budget {LOOP_BUDGET_SECONDS}s)")
     assert elapsed < LOOP_BUDGET_SECONDS, f"lab loop took {elapsed:.1f}s"
 
@@ -486,10 +490,10 @@ _SIGTERM_DURING_SCORING = """
 import os, signal, sys
 from sparselab.evaluation import inference
 original = inference.InferenceRun.evaluate
-def evaluate(self):
+def evaluate(self, **kwargs):
     if self.run.name.startswith("lab-try-"):
         os.kill(os.getpid(), signal.SIGTERM)
-    return original(self)
+    return original(self, **kwargs)
 inference.InferenceRun.evaluate = evaluate
 from sparselab.cli.main import main
 sys.argv = ["sparselab", "try", sys.argv[1], "--vs", sys.argv[2]]
@@ -531,10 +535,10 @@ def test_cancel_during_baseline_scoring_is_never_reused(
     root, baseline = lab
     original = inference.InferenceRun.evaluate
 
-    def cancel_while_scoring(self):  # type: ignore[no-untyped-def]
+    def cancel_while_scoring(self, **kwargs):  # type: ignore[no-untyped-def]
         for marker in (root / "work/lab/tries").glob("*"):
             (marker / "CANCEL").touch()
-        return original(self)
+        return original(self, **kwargs)
 
     monkeypatch.setattr(inference.InferenceRun, "evaluate", cancel_while_scoring)
     record, _ = run_try(

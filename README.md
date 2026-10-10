@@ -109,7 +109,9 @@ the same held-out split and writes one sealed record with the config, seed, code
 revision, data digests, resource envelope and result. It skips plan locks,
 approvals, admission reviews and campaign reconciliation, but keeps storage and
 resource limits, data identity, safe cancellation and held-out checks. A tiny
-CPU smoke delta reaches its report in about 15 seconds. See
+CPU smoke delta reaches its report in about 15 seconds, including the fast
+**[probe battery](docs/probe-battery.md)** tier (`sparselab probe` runs more
+tiers on any checkpoint and recommends the next action). See
 **[lab mode](docs/lab-mode.md)**; the full-provenance path below is for release
 runs.
 

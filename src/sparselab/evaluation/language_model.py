@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -12,6 +13,10 @@ from torch.nn import functional
 from sparselab.data.allocation import OWNER_HYBRID, OWNER_LEXICAL
 from sparselab.data.packing import TokenBlockDataset
 from sparselab.engram.semantic import SemanticQueryBatch
+
+
+class NonFiniteLoss(ValueError, FloatingPointError):
+    """Native evaluation produced a NaN/inf loss (a numerical failure)."""
 
 
 def _device_rng_state(device: torch.device) -> torch.Tensor | None:
@@ -50,8 +55,13 @@ def evaluate(
     batch_size: int,
     max_batches: int,
     device: torch.device,
+    observer: Callable[[torch.Tensor, torch.Tensor], None] | None = None,
 ) -> dict[str, float | int | str | None]:
-    """Evaluate no more than ``max_batches`` and report exactly scored labels."""
+    """Evaluate no more than ``max_batches`` and report exactly scored labels.
+
+    ``observer(logits, targets)`` sees every scored batch (e.g. the probe
+    battery's per-window and calibration statistics) without a second pass.
+    """
     if batch_size <= 0 or max_batches <= 0:
         raise ValueError("batch_size and max_batches must be positive")
     was_training = model.training
@@ -125,7 +135,9 @@ def evaluate(
                     reduction="sum",
                 )
                 if not torch.isfinite(loss):
-                    raise ValueError("nonfinite validation loss")
+                    raise NonFiniteLoss("nonfinite validation loss")
+                if observer is not None:
+                    observer(logits, y)
                 valid = int((y != -100).sum())
                 if valid:
                     total += float(loss)

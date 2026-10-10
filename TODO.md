@@ -23,22 +23,38 @@ These items take priority over new lifecycle, admission or orchestration code.
   campaign reconciliation; it still records config, seed, code revision and
   data identity in one compact run record. Release mode keeps today's full
   provenance. Target: tiny-model smoke delta to report in under 15 minutes on CPU.
-- [ ] **P0 — Fast-fail probe battery.** A fixed, versioned suite that runs in
+- [x] **P0 — Fast-fail probe battery.** *Done: `sparselab probe` and the
+  fast tier inside every `try`, [probe battery](docs/probe-battery.md);
+  versioned suite digest, dev/held-out item splits with an overfit guard,
+  tiered fast-fail, verdict + next action, optional lm-eval backend.* A fixed, versioned suite that runs in
   minutes on any checkpoint: held-out perplexity delta vs. baseline, top-token
   agreement with baseline, fact recall with reworded (held-out) prompts, simple
   needle-in-context retrieval. Cheap metrics filter most ideas before any longer
-  run.
-- [ ] **P1 — Known reference points.** Import SmolLM2 and Pythia checkpoints in
+  run. Probes are screening signals: keep a separate, untouched final evaluation
+  because repeated selection on held-out probes turns them into development data.
+- [ ] **Probe battery follow-ups.** Reference models on the probe and Pareto
+  views (SmolLM2/Pythia scored by the same battery, see below); more dashboard
+  charts (per-probe trends over tries, needle accuracy by length across
+  checkpoints, calibration curves); broader benchmarks beyond the four lm-eval
+  tasks at `limit=50` (larger limits, more task families, a held-back final
+  evaluation set that agents never select on).
+- [ ] **P1 — Known reference points.** *Partial: `probe --tier full` wraps
+  lm-evaluation-harness tasks for our checkpoints; importing SmolLM2/Pythia
+  checkpoints is still open.* Import SmolLM2 and Pythia checkpoints in
   the 70M–360M range (and reuse lm-evaluation-harness tasks where possible) so
   every result sits on a known curve instead of only comparing to our own runs.
-- [ ] **P1 — Pareto view in the dashboard.** Plot quality against tokens,
+- [ ] **P1 — Pareto view in the dashboard.** *Partial: the Probes page plots
+  held-out loss against parameters, weight bytes, training tokens and latency
+  for probed candidates; active-vs-resident parameters and runs without probe
+  results are still open.* Plot quality against tokens,
   memory, latency and parameter count (resident vs. active), so trade-offs are
   visible instead of a single number.
 - [ ] **Directional — Memory-offload showcase experiment.** At fixed compute,
   dense vs. dense + Engram/memory; then swap the facts held in memory and check
   that recall follows the swap (portability). This is an experiment program
   rather than a single code task; code needs it exposes get filed here.
-- [ ] **Directional — Agent iteration loop.** An agent reads `evidence`/`triage`
+- [ ] **Directional — Agent iteration loop.** *The probe verdict
+  (`action`, `next_tier`) and held-out guard now exist for it.* An agent reads `evidence`/`triage`
   output, proposes the next single-variable delta and re-runs through lab mode.
   Keep a held-out probe split the agent never optimizes against, and persist a
   memory of prior attempts to avoid repeats.
@@ -49,9 +65,9 @@ These items take priority over new lifecycle, admission or orchestration code.
   much of the ceremony (proposal, binding and stop documents). Default agent
   runs to lab mode; require proposals only for release runs or paid compute
   above an explicit budget.
-- [x] **Shrink the CLI surface.** *Done for help output: `try`/`report` and the
-  fast path first, release commands grouped last; `probe`/`compare` arrive with
-  the probe battery. No commands were removed.* ~100 subcommands today. Put the fast path
+- [x] **Shrink the CLI surface.** *Done for help output: `try`/`probe`/`report`
+  and the fast path first, release commands grouped last; `compare` is still
+  open. No commands were removed.* ~100 subcommands today. Put the fast path
   (`try`, `probe`, `compare`, `report`) up front and move lifecycle/campaign
   commands under an `advanced`/`release` group in help output.
 - [ ] **Matrix-ify configs.** Replace hand-expanded seed/budget variants in
