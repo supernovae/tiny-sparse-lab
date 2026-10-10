@@ -268,3 +268,40 @@ as implementation provenance. Algorithm changes require explicit versions and
 deterministic regressions. Python AST equality is incident evidence only, not
 a semantic identity algorithm. This replay mechanism does not migrate old
 artifacts or introduce a new corpus identity schema.
+
+### Declared snapshot inheritance
+
+A `corpus_release` recovery step can bind verified parent replay evidence and
+exact source IDs through `snapshot_inheritance`:
+
+```yaml
+snapshot_inheritance:
+  parent_receipt: replay/receipts/parent.json
+  parent_receipt_sha256: <SHA-256 of the exact retained parent receipt bytes>
+  snapshots:
+    source_a: <unchanged snapshot SHA-256>
+  changed_snapshots: {}
+```
+
+The parent locator is relative to `--work-dir`, under `replay/receipts`; it is
+operational evidence, not a Git-relative source declaration. Pin both
+`expected_build_sha256` and `expected_release_sha256` on the step. The maps
+must cover the parent's snapshot IDs exactly; `changed_snapshots`, when used,
+records the **old** identities whose declarations must change. New source IDs
+remain governed by ordinary acquisition permission. Inherited sources must use
+immutable Git, Hugging Face, or Wikimedia adapters; effect-bound projects use
+the canonical corpus acquisition interface instead.
+
+Use the existing `recovery inspect` and `recovery plan` commands first. They
+cold-authenticate the parent receipt, acquisition closure, selected snapshot
+bytes, exact source declaration bytes and expected identities. Then explicitly
+invoke `recovery reconstruct MANIFEST --replay-pinned-implementation`. Native
+replay copies verified snapshots into a fresh owned work root, preserving their
+manifest bytes and identities; complete inherited inputs get an acquisition
+lock for offline reuse. Changed-source imports preserve prior snapshot evidence
+for the native worker's checks. Partial inheritance still requires separately
+authorized acquisition for missing sources; `--allow-network` is never implied.
+Conflicting existing work, symlinks, tampered parents and mismatched declarations
+fail closed. Producer replay is a separate execution allocation: the offline
+code tests cover import/staging, worker inheritance preflight and CLI wiring,
+not a production release replay.

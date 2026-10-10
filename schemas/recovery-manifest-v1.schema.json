@@ -138,6 +138,17 @@
         "project": {
           "title": "Project",
           "type": "string"
+        },
+        "snapshot_inheritance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SnapshotInheritance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -416,6 +427,42 @@
         "requirements"
       ],
       "title": "RuntimeRequirement",
+      "type": "object"
+    },
+    "SnapshotInheritance": {
+      "additionalProperties": false,
+      "description": "Pinned parent evidence in the work root and exact inherited identities.",
+      "properties": {
+        "changed_snapshots": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Changed Snapshots",
+          "type": "object"
+        },
+        "parent_receipt": {
+          "title": "Parent Receipt",
+          "type": "string"
+        },
+        "parent_receipt_sha256": {
+          "title": "Parent Receipt Sha256",
+          "type": "string"
+        },
+        "snapshots": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1,
+          "title": "Snapshots",
+          "type": "object"
+        }
+      },
+      "required": [
+        "parent_receipt",
+        "parent_receipt_sha256",
+        "snapshots"
+      ],
+      "title": "SnapshotInheritance",
       "type": "object"
     },
     "TokenizerTrain": {

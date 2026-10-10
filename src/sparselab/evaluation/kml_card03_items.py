@@ -421,3 +421,39 @@ def freeze_card03_items(
         if name is not None:
             Path(name).unlink(missing_ok=True)
     return result
+
+
+def freeze_item_directory(
+    release: Path, family_inventory: Path, draft: Path, output: Path
+) -> dict[str, Any]:
+    """Freeze a complete native manifest in an exclusively reserved directory."""
+    output = output.absolute()
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".heldout-", dir=output.parent) as scratch:
+        candidate = Path(scratch) / "items.json"
+        result = freeze_card03_items(release, family_inventory, draft, candidate)
+        # mkdir, unlike rename, never replaces a concurrent empty destination.
+        output.mkdir(exist_ok=False)
+        try:
+            os.link(candidate, output / "items.json")
+        except BaseException:
+            output.rmdir()
+            raise
+    denominators = {
+        key: result[key]
+        for key in ("category_denominators", "missing_evidence_denominators")
+    }
+    return {
+        "output": str(output / "items.json"),
+        "content_sha256": result["content_sha256"],
+        "manifest_sha256": sha256_file(output / "items.json"),
+        "items_sha256": _sha(result["items"]),
+        "chunks_sha256": _sha(result["chunks"]),
+        "denominators_sha256": _sha(denominators),
+        "release_id": result["release_id"],
+        "family_inventory_sha256": result["family_inventory_sha256"],
+        "complete_denominators": result["complete_denominators"],
+        **denominators,
+    }

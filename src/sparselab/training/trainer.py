@@ -98,6 +98,7 @@ from sparselab.training.pilot_progress import (
     pilot_phase,
 )
 from sparselab.training.preparation_guard import require_model_runtime_allowed
+from sparselab.training.spot_safety import SpotSafetyPolicy, check_spot_capacity
 from sparselab.training.stages import ExperimentStage, StageHistory
 from sparselab.training.throughput import summarize_training_progress
 
@@ -393,6 +394,19 @@ def _checkpoint_due(
     )
 
 
+def _checkpoint_watermarks(
+    step: int,
+    tokens: int,
+    elapsed: float,
+    previous: dict[str, float],
+    *,
+    operational_only: bool,
+) -> dict[str, float]:
+    if operational_only:
+        return previous.copy()
+    return {"step": float(step), "tokens": float(tokens), "minutes": elapsed}
+
+
 def _save(
     manager: CheckpointManager,
     engine: object,
@@ -523,6 +537,7 @@ def train(
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
     checkpoint_committed: Callable[[Path, CheckpointRecord], None] | None = None,
+    spot_policy: SpotSafetyPolicy | None = None,
 ) -> str:
     """Run one independent experiment, optionally bound to a stage bundle."""
     require_model_runtime_allowed()
@@ -569,6 +584,7 @@ def train(
         proof_store=proof_store,
         verification_mode=verification_mode,
         checkpoint_committed=checkpoint_committed,
+        spot_policy=spot_policy,
     )
     if _attempt_contract_suppresses_triage():
         return completed_run_id
@@ -626,6 +642,7 @@ def _train_impl(
     proof_store: ProofStore | None = None,
     verification_mode: Literal["cold", "verified_reuse"] = "cold",
     checkpoint_committed: Callable[[Path, CheckpointRecord], None] | None = None,
+    spot_policy: SpotSafetyPolicy | None = None,
 ) -> str:
 
     require_model_runtime_allowed()
@@ -815,6 +832,9 @@ def _train_impl(
                 f"run exists: {run_id}; explicit recovery creates a child; "
                 f"read-only recovery report: {json.dumps(report, sort_keys=True)}"
             )
+        spot_decision = (
+            check_spot_capacity(spot_policy, run) if spot_policy is not None else None
+        )
         if purpose == "training":
             from sparselab.workspace_preflight import (
                 require_storage,
@@ -1081,6 +1101,8 @@ def _train_impl(
                 resource_envelope, workspace=run, rss_bytes=current_process_rss_bytes()
             )
         run.mkdir(parents=True)
+        if spot_decision is not None:
+            _atomic_json(run / "spot_safety.json", spot_decision)
         if authorization is not None:
             _atomic_json(run / "runtime_authorization.json", authorization.as_dict())
         manager = CheckpointManager(run, keep_periodic=config.checkpoint.keep_periodic)
@@ -1383,15 +1405,26 @@ def _train_impl(
             )
             progress()
 
-        def save_boundary(validation: dict[str, object] | None) -> CheckpointRecord:
-            nonlocal latest_record, local_best, lineage_best, watermarks
+        spot_watermark = elapsed_seconds()
+
+        def save_boundary(
+            validation: dict[str, object] | None,
+            *,
+            operational_only: bool = False,
+        ) -> CheckpointRecord:
+            nonlocal latest_record, local_best, lineage_best, watermarks, spot_watermark
+            if spot_policy is not None:
+                check_spot_capacity(spot_policy, run)
             enter_stage(ExperimentStage.CHECKPOINTED)
             elapsed = elapsed_seconds()
-            watermarks = {
-                "step": float(step),
-                "tokens": float(tokens),
-                "minutes": elapsed,
-            }
+            spot_watermark = elapsed
+            watermarks = _checkpoint_watermarks(
+                step,
+                tokens,
+                elapsed,
+                watermarks,
+                operational_only=operational_only,
+            )
             loss_value = validation.get("loss") if validation else None
             if validation is not None and not isinstance(loss_value, (int, float)):
                 raise TypeError("validation report loss must be numeric")
@@ -2067,12 +2100,18 @@ def _train_impl(
                         or float(validation_loss) < local_best.validation_loss
                     )
                 )
-                if (
+                scientific_checkpoint = (
                     _checkpoint_due(config, step, tokens, elapsed, watermarks)
                     or terminal
                     or new_best
-                ):
-                    save_boundary(validation)
+                )
+                operational_checkpoint = spot_policy is not None and spot_policy.due(
+                    elapsed_seconds(), spot_watermark
+                )
+                if scientific_checkpoint or operational_checkpoint:
+                    save_boundary(
+                        validation, operational_only=not scientific_checkpoint
+                    )
                 if terminal:
                     status = (
                         "completed"

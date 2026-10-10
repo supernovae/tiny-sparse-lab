@@ -52,13 +52,49 @@ class Step(StrictModel):
         return value
 
 
+class SnapshotInheritance(StrictModel):
+    """Pinned parent evidence in the work root and exact inherited identities."""
+
+    parent_receipt: str
+    parent_receipt_sha256: str
+    snapshots: dict[str, str] = Field(min_length=1)
+    changed_snapshots: dict[str, str] = Field(default_factory=dict)
+
+    _parent = field_validator("parent_receipt")(_path)
+
+    @model_validator(mode="after")
+    def identities(self) -> SnapshotInheritance:
+        if not _SHA.fullmatch(self.parent_receipt_sha256):
+            raise ValueError("parent receipt requires a full SHA-256")
+        if set(self.snapshots) & set(self.changed_snapshots):
+            raise ValueError("inherited and changed source IDs overlap")
+        for source_id, sha in {**self.snapshots, **self.changed_snapshots}.items():
+            _identifier(source_id)
+            if not _SHA.fullmatch(sha):
+                raise ValueError("snapshot requires a full SHA-256")
+        return self
+
+
 class CorpusRelease(Step):
     kind: Literal["corpus_release"]
     project: str
     expected_release_sha256: str | None = None
     expected_build_sha256: str | None = None
+    snapshot_inheritance: SnapshotInheritance | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     _project = field_validator("project")(_path)
+
+    @model_validator(mode="after")
+    def inheritance_requires_identity(self) -> CorpusRelease:
+        if self.snapshot_inheritance is not None and (
+            self.expected_build_sha256 is None or self.expected_release_sha256 is None
+        ):
+            raise ValueError(
+                "snapshot inheritance requires expected build and release identities"
+            )
+        return self
 
 
 class CorpusExport(Step):

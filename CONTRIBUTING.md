@@ -12,10 +12,12 @@ uv run --locked --extra cpu pytest -q -n auto --maxprocesses=4 \
   -m "not mps and not mlx and not cuda and not rocm and not xpu and not network"
 ```
 
-CI runs on pull requests and pushes to `main`; use the workflow's manual dispatch
-for a branch without a PR. New commits cancel superseded runs on the same ref.
-Both Linux x64 and macOS arm64 run the full CPU suite, with up to four pytest
-workers (limited by physical cores) and one BLAS/OpenMP thread per worker.
+Automatic CI runs an explicit zero-model Linux selection on pull requests and
+pushes to `main`. Manual dispatch defaults to that same `safe` selection; the
+model-bearing integration, platform and full-suite choices require a separate
+reviewed allocation. New commits cancel superseded runs on the same ref.
+The manually selected full CPU suite runs on Linux x64 and macOS arm64, with up
+to four pytest workers and one BLAS/OpenMP thread per worker.
 Work stealing redistributes pending tests when one worker falls behind; module
 fixtures can be instantiated on more than one worker and must use isolated paths.
 The slowest 25 tests are printed in each job log. Full-suite jobs have a 30-minute

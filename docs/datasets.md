@@ -51,6 +51,33 @@ Corpus Forge's explicit files and checksummed shards remain available. Use
 per-split file bindings. This route serves sources needing explicit file control;
 it does not remove release/export requirements from a Forge training contract.
 
+Bounded Forge acquisition receipts record per-shard `resources.expanded_bytes`:
+the JSONL bytes returned by the decompressor for the consumed prefix, including
+any rejected overlong line prefix. This is not the full expanded shard size.
+Parquet reports this reading as unavailable (`null`); declaring a required
+`max_decompressed_bytes` cap for Parquet fails before acquisition. Raw bounded
+Git blobs also have no expansion reading. `peak_staging_bytes` counts logical
+regular-file bytes and `peak_staging_inodes` counts file/directory entries,
+including the private source staging root, through extraction. These readings
+exclude caches, the transport ledger, sealed-manifest overhead, filesystem block
+allocation and parser memory. Missing required staging readings fail closed.
+The transport ledger retains interrupted transfer readings across resume.
+Historical receipts without these fields remain unchanged: missing measurements
+are never inferred, backfilled or grounds for reacquisition.
+Wikimedia dump success receipts report the same staging peaks and XML bytes
+returned to the parser (which can include parser read-ahead beyond selected
+pages). Wikimedia retains operational per-attempt readings in the source
+snapshot parent's `.resource-receipts/attempt-*.json`, outside disposable
+staging. Each receipt binds the source declaration and staging name;
+failed/interrupted attempts survive cleanup and later attempts receive separate
+receipts. A `started` receipt after an abrupt process kill is unfinished evidence,
+not proof of safe shutdown. Operational journals do not change snapshot identity;
+new Wikimedia success measurements join its existing retrieval identity, while
+historical receipts and verified reuse remain unchanged.
+Bounded HF acquisition without a transport ledger uses the same retained
+operational receipts, one per shard attempt, additionally bound to the shard
+path. Budgeted HF/Git keep their readings in the transport ledger.
+
 An immutable Forge release can serve several experiments. Export it once for a
 particular view, base configuration and vocabulary, then retain the export's
 exact `dataset` and tokenizer declarations in each consumer configuration. Run

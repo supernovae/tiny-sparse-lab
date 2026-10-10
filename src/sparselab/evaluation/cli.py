@@ -18,6 +18,20 @@ from sparselab.evaluation.readiness import (
 from sparselab.evaluation.suite import run_suite, verify_evaluation_index
 
 
+def _freeze_items(args: argparse.Namespace) -> None:
+    from sparselab.evaluation.kml_card03_items import freeze_item_directory
+
+    _print(
+        freeze_item_directory(
+            Path(args.release),
+            Path(args.family_inventory),
+            Path(args.draft),
+            Path(args.output),
+        ),
+        args.json,
+    )
+
+
 def _fixed_slices(args: argparse.Namespace) -> None:
     from sparselab.config.loading import load_tokenizer_config
     from sparselab.evaluation.fixed_slices import (
@@ -181,6 +195,13 @@ def register_evaluation_parser(
     """Add `evaluation suite run` beneath the existing top-level subparsers."""
     evaluation = subparsers.add_parser("evaluation")
     commands = evaluation.add_subparsers(dest="evaluation_command", required=True)
+    freeze = commands.add_parser(
+        "freeze-items", help="Freeze complete reviewed source-bound held-out items."
+    )
+    for name in ("release", "family-inventory", "draft", "output"):
+        freeze.add_argument(f"--{name}", required=True)
+    freeze.add_argument("--json", action="store_true")
+    freeze.set_defaults(handler=_freeze_items)
     suite = commands.add_parser("suite")
     actions = suite.add_subparsers(dest="suite_command", required=True)
     run = actions.add_parser("run")
