@@ -40,7 +40,10 @@ from sparselab.corpus.split_freeze import finalize_family_inventory, freeze_spli
 from sparselab.corpus.split_inventory import write_split_inventory
 from sparselab.operational_monitor import capture_workspace_baseline
 from sparselab.training.attempt_budget import AttemptBudget, AttemptContract
-from sparselab.training.attempt_commands import classify_attempt_command
+from sparselab.training.attempt_commands import (
+    classify_attempt_command,
+    phase_output_paths,
+)
 from sparselab.training.manifest import canonical_json, sha256_file
 
 
@@ -573,10 +576,14 @@ def _native(root: Path, *words: str) -> list[str]:
 
 
 def _phase(
-    paths: dict[str, Path | str], label: str, *words: str
+    paths: dict[str, Path | str],
+    label: str,
+    *words: str,
+    completion_override: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     root = paths["root"]
     assert isinstance(root, Path)
+    phase_paths = phase_output_paths(root, label)
     leaf = _native(root, *words)
     guarded = _native(
         root,
@@ -584,7 +591,7 @@ def _phase(
         "--policy",
         str(paths["prep"]),
         "--log-dir",
-        str(root / "logs" / label),
+        str(phase_paths["inner_monitor"]),
         "--workspace",
         str(root),
         "--baseline",
@@ -611,7 +618,7 @@ def _phase(
         "--workspace",
         str(root),
         "--completion",
-        str(root / "logs" / f"{label}.json"),
+        str(completion_override or phase_paths["completion"]),
         "--updates",
         "0",
         "--target-positions",
@@ -640,7 +647,7 @@ def _run(paths: dict[str, Path | str], label: str, *words: str) -> None:
     assert completed.returncode == 0, (label, completed.stdout, completed.stderr)
     root = paths["root"]
     assert isinstance(root, Path)
-    receipt = json.loads((root / "logs" / f"{label}.json").read_text())
+    receipt = json.loads(phase_output_paths(root, label)["completion"].read_text())
     assert receipt["living_descendants"] == 0
 
 
@@ -667,6 +674,7 @@ def _render(
 
 def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
     (root / "logs").mkdir(exist_ok=True)
+    (root / "receipts").mkdir(exist_ok=True)
     baseline = root / "baseline.json"
     value = capture_workspace_baseline(root, baseline, seconds=2)
     whole = root / "whole.yaml"
@@ -678,7 +686,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
         "max_tree_rss_bytes": 4 * 1024**3,
         "max_added_workspace_bytes": 512 * 1024**2,
         "max_added_workspace_inodes": 5000,
-        "max_wall_seconds": 300,
+        "max_wall_seconds": 600,
     }
     _write_yaml(whole, policy)
     _write_yaml(prep, policy)
@@ -693,7 +701,7 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
                 "max_actual_target_positions": 0,
                 "max_generation_calls": 0,
                 "max_generated_tokens": 0,
-                "max_wall_seconds": 300,
+                "max_wall_seconds": 600,
                 "content_identity_sha256": identity,
                 "monitor_policy_sha256": sha256_file(whole),
                 "workspace_baseline_sha256": value.sha256,
@@ -765,6 +773,38 @@ def _bind(paths: dict[str, Path | str], kind: str, path: Path) -> None:
         env=paths["env"],
     )
     assert completed.returncode == 0, (completed.stdout, completed.stderr)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="owned-process fixture requires POSIX")
+def test_actual_admission_draft_collision_stops_before_leaf_and_reservation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "work"
+    root.mkdir()
+    recipe, strata = _sources(root, "fixture-candidate")
+    template, policy = _policy(recipe, strata)
+    (recipe / "inspection-selection.json").write_text("{}\n")
+    paths = _attempt(root, recipe / "acquire.yaml")
+    collision_output = recipe / "collision-draft.json"
+    denied = _phase(
+        paths,
+        "draft-collision",
+        "corpus",
+        "admission-draft",
+        str(recipe / "acquire.yaml"),
+        "--template",
+        str(template),
+        "--policy-document",
+        str(policy),
+        "--output",
+        str(collision_output),
+        completion_override=collision_output,
+    )
+    assert denied.returncode != 0
+    assert "attempt output path collision" in denied.stderr
+    assert not collision_output.exists()
+    assert not phase_output_paths(root, "draft-collision")["inner_monitor"].exists()
+    assert AttemptBudget(paths["ledger"]).status()["reservations"] == []
 
 
 @pytest.mark.skipif(os.name != "posix", reason="owned-process fixture requires POSIX")

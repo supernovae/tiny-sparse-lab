@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -15,7 +16,12 @@ import pytest
 from sparselab.operational_monitor import capture_workspace_baseline
 from sparselab.training import attempt_budget as module
 from sparselab.training.attempt_budget import AttemptBudget, AttemptBudgetError
-from sparselab.training.attempt_commands import AttemptCommand
+from sparselab.training.attempt_commands import AttemptCommand, phase_output_paths
+
+_PHASE_MAP = (
+    Path(__file__).resolve().parents[1]
+    / "experiments/research/kernel-memory-lab/card05-base-50m/preparation-phase-paths-v1.json"
+)
 
 
 def _fixture(
@@ -24,6 +30,7 @@ def _fixture(
     updates: int = 0,
     seconds: float = 10,
     added_bytes: int | None = None,
+    nested: bool = False,
 ) -> tuple[AttemptBudget, dict[str, Path | str]]:
     root = tmp_path / "root"
     root.mkdir()
@@ -54,6 +61,15 @@ def _fixture(
                     policy_path.read_bytes()
                 ).hexdigest(),
                 "workspace_baseline_sha256": baseline.sha256,
+                **(
+                    {
+                        "preparation_monitor_policy_sha256": hashlib.sha256(
+                            policy_path.read_bytes()
+                        ).hexdigest()
+                    }
+                    if nested
+                    else {}
+                ),
             },
             sort_keys=True,
         )
@@ -69,6 +85,201 @@ def _fixture(
         "contract": contract_path,
         "identity": identity,
         "sha": sha,
+    }
+
+
+def test_public_dispatch_rejects_b16_paths_before_reservation(tmp_path: Path) -> None:
+    """The real CLI, ledger and both monitors exercise zero-model render work."""
+    budget, paths = _fixture(tmp_path, seconds=60, nested=True)
+    root = paths["root"]
+    assert isinstance(root, Path)
+    for name in ("prep", "receipts", "logs"):
+        (root / name).mkdir()
+    template = root / "prep" / "template.json"
+    template.write_text('{"fixture":true}\n')
+    alias = root / "prep" / "template-alias.json"
+    alias.symlink_to(template)
+    phase = phase_output_paths(root, "admission-draft", "admission-draft.json")
+
+    def dispatch(
+        output: Path, completion: Path, *, label: str
+    ) -> subprocess.CompletedProcess[str]:
+        leaf = [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(root),
+            "corpus",
+            "render-declaration",
+            "--template",
+            str(template),
+            "--values-json",
+            "{}",
+            "--output",
+            str(output),
+        ]
+        guarded = [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(root),
+            "monitor",
+            "--policy",
+            str(paths["policy"]),
+            "--log-dir",
+            str(phase["inner_monitor"]),
+            "--workspace",
+            str(root),
+            "--baseline",
+            str(paths["baseline"]),
+            "--",
+            *leaf,
+        ]
+        command = [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "--work-dir",
+            str(root),
+            "attempt",
+            "run",
+            "--ledger",
+            str(budget.path),
+            "--label",
+            label,
+            "--activity",
+            "inspect",
+            "--content-identity-sha256",
+            str(paths["identity"]),
+            "--policy",
+            str(paths["policy"]),
+            "--baseline",
+            str(paths["baseline"]),
+            "--workspace",
+            str(root),
+            "--completion",
+            str(completion),
+            "--updates",
+            "0",
+            "--target-positions",
+            "0",
+            "--generation-calls",
+            "0",
+            "--generated-tokens",
+            "0",
+            "--receipt-kind",
+            "none",
+            "--",
+            *guarded,
+        ]
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=os.environ.copy(),
+            check=False,
+        )
+
+    for output, completion in (
+        (phase["leaf"], phase["leaf"]),
+        (
+            phase["completion"].with_name(phase["completion"].name + ".attempt.json"),
+            phase["completion"],
+        ),
+        (
+            phase["completion"].with_name(phase["completion"].name + ".monitor"),
+            phase["completion"],
+        ),
+        (phase["inner_monitor"], phase["completion"]),
+        (template, phase["completion"]),
+        (alias, phase["completion"]),
+    ):
+        result = dispatch(output, completion, label="collision")
+        assert result.returncode != 0
+        assert "attempt output" in result.stderr
+        assert not phase["leaf"].exists()
+        assert not phase["completion"].exists()
+        assert not phase["inner_monitor"].exists()
+        assert budget.status()["reservations"] == []
+    result = dispatch(phase["leaf"], phase["completion"], label="admission-draft")
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert phase["leaf"].read_bytes() == template.read_bytes()
+    assert json.loads(phase["completion"].read_text())["living_descendants"] == 0
+    assert (phase["inner_monitor"] / "completion.json").exists()
+    assert len(budget.status()["reservations"]) == 1
+
+
+def test_complete_preparation_phase_paths_are_generated_and_disjoint(
+    tmp_path: Path,
+) -> None:
+    packet = json.loads(_PHASE_MAP.read_text())
+    assert packet["format"] == "sparselab-preparation-phase-paths-v1"
+    phases = packet["phases"]
+    assert len(phases) == 31
+    assert len({phase for phase, _ in phases}) == len(phases)
+    required = {
+        "verify-snapshots",
+        "admission-draft",
+        "admission-inspection",
+        "family-freeze",
+        "release-acceptance",
+        "measure-accepted-supply",
+        "materialize-mixture",
+        "publish-prepared-bundle",
+        "cold-verify-prepared-bundle",
+    }
+    assert required.issubset({phase for phase, _ in phases})
+    attempt = tmp_path / "attempt"
+    attempt.mkdir()
+    outputs: set[Path] = set()
+    for label, leaf_name in phases:
+        rendered = phase_output_paths(attempt, label, leaf_name)
+        assert rendered["completion"].parent == attempt / "receipts"
+        assert rendered["inner_monitor"].parent == attempt / "logs"
+        if leaf_name is not None:
+            assert rendered["leaf"].parent == attempt / "prep"
+        completion = rendered["completion"]
+        derived = (
+            completion.with_name(completion.name + ".ready"),
+            completion.with_name(completion.name + ".attempt.json"),
+            completion.with_name(completion.name + ".monitor"),
+        )
+        for path in (*rendered.values(), *derived):
+            assert all(
+                path != old
+                and not path.is_relative_to(old)
+                and not old.is_relative_to(path)
+                for old in outputs
+            )
+            outputs.add(path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sparselab",
+            "attempt",
+            "phase-paths",
+            "--attempt-root",
+            str(attempt),
+            "--label",
+            "admission-draft",
+            "--leaf-name",
+            "admission-draft.json",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        key: str(value)
+        for key, value in phase_output_paths(
+            attempt, "admission-draft", "admission-draft.json"
+        ).items()
     }
 
 

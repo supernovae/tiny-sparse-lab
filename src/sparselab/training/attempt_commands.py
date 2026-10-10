@@ -22,6 +22,24 @@ class AttemptCommand:
     monitor: dict[str, str] | None = None
 
 
+def phase_output_paths(
+    attempt_root: Path, phase: str, leaf_name: str | None = None
+) -> dict[str, Path]:
+    """Derive separate namespaces for one attempt leaf and its supervisors."""
+    if not phase or not all(c.isalnum() or c in "-_" for c in phase):
+        raise ValueError("invalid attempt phase name")
+    paths = {
+        "completion": attempt_root / "receipts" / f"{phase}.outer-owned.json",
+        "inner_monitor": attempt_root / "logs" / f"{phase}.inner-monitor",
+    }
+    if leaf_name is not None:
+        leaf = Path(leaf_name)
+        if leaf.is_absolute() or leaf.name != leaf_name or leaf_name in {".", ".."}:
+            raise ValueError("leaf name must be a single filename")
+        paths["leaf"] = attempt_root / "prep" / leaf
+    return paths
+
+
 # Positionals, valued options, boolean options, effect. No abbreviated flags,
 # duplicate flags, extra operands or hidden shell/Python dispatch are accepted.
 _SHAPES: dict[str, tuple[int, set[str], set[str], str]] = {

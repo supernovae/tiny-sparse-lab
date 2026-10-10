@@ -31,7 +31,7 @@ from pydantic import (
     model_validator,
 )
 
-from sparselab.training.attempt_commands import classify_attempt_command
+from sparselab.training.attempt_commands import AttemptCommand, classify_attempt_command
 
 if TYPE_CHECKING:
     from sparselab.operational_monitor import MonitorPolicy, WorkspaceBaseline
@@ -194,6 +194,104 @@ def load_attempt_contract(
         return AttemptContract.model_validate_json(raw)
     except (OSError, ValidationError) as error:
         raise AttemptBudgetError(f"invalid attempt contract: {error}") from error
+
+
+def validate_attempt_paths(
+    command: AttemptCommand,
+    *,
+    ledger: Path,
+    completion: Path,
+    monitor_log_dir: Path,
+    monitor_policy: Path,
+    baseline: Path,
+) -> None:
+    """Reject output aliases before any attempt reservation or child launch.
+
+    Resolving existing ancestors catches symlink aliases, while the existing
+    dispatch checks continue to enforce their own path and write rules.
+    """
+    outputs = {
+        "outer completion": completion,
+        "outer ready": completion.with_name(completion.name + ".ready"),
+        "outer attempt receipt": completion.with_name(
+            completion.name + ".attempt.json"
+        ),
+        "outer monitor tree": monitor_log_dir,
+    }
+    if "--output" in command.options:
+        outputs["leaf output"] = Path(str(command.options["--output"]))
+    if command.operation == "train" and "--runs-dir" in command.options:
+        outputs["training runs tree"] = Path(str(command.options["--runs-dir"]))
+    inputs = {
+        "attempt ledger": ledger,
+        "attempt ledger WAL": ledger.with_name(ledger.name + "-wal"),
+        "attempt ledger SHM": ledger.with_name(ledger.name + "-shm"),
+        "workspace baseline": baseline,
+        "whole monitor policy": monitor_policy,
+    }
+    if command.monitor is not None:
+        outputs["inner monitor tree"] = Path(command.monitor["--log-dir"])
+        inputs["inner monitor policy"] = Path(command.monitor["--policy"])
+        inputs["inner monitor baseline"] = Path(command.monitor["--baseline"])
+    input_options = {
+        "--template",
+        "--workspace-baseline",
+        "--policy-document",
+        "--draft",
+        "--selection",
+        "--inventory",
+        "--clusters",
+        "--splits",
+        "--prior-release",
+        "--candidate-release",
+        "--prior-inventory",
+        "--candidate-inventory",
+        "--profile",
+        "--suite",
+        "--tokenizer",
+        "--tokenizer-origin-release",
+        "--family-inventory",
+        "--policy",
+        "--resource-envelope",
+        "--prepared-inputs",
+        "--stage-bundle",
+        "--release",
+        "--tokenizer-config",
+        "--checkpoint",
+        "--config",
+    }
+    for option in input_options & command.options.keys():
+        inputs[f"leaf {option}"] = Path(str(command.options[option]))
+    if command.operation not in {"monitor-baseline", "workspace preflight"}:
+        first = len(command.operation.split())
+        if len(command.args) > first:
+            inputs["leaf positional input"] = Path(command.args[first])
+        if command.operation in {
+            "data prepared-inputs verify",
+            "evaluation fixed-slices verify-selection",
+            "evaluation fixed-slices score",
+            "evaluation fixed-slices continuations",
+        }:
+            inputs["leaf second positional input"] = Path(command.args[first + 1])
+    canonical_outputs = {name: path.resolve() for name, path in outputs.items()}
+    canonical_inputs = {name: path.resolve() for name, path in inputs.items()}
+    for name, path in canonical_outputs.items():
+        for other_name, other in canonical_outputs.items():
+            if name >= other_name:
+                continue
+            if path == other or path in other.parents or other in path.parents:
+                raise AttemptBudgetError(
+                    f"attempt output path collision: {name} / {other_name}"
+                )
+        for input_name, input_path in canonical_inputs.items():
+            if (
+                path == input_path
+                or path in input_path.parents
+                or input_path in path.parents
+            ):
+                raise AttemptBudgetError(
+                    f"attempt output aliases protected input: {name} / {input_name}"
+                )
 
 
 class AttemptBudgetError(RuntimeError):
@@ -1353,6 +1451,14 @@ class AttemptBudget:
             classified = classify_attempt_command(command)
         except ValueError as error:
             raise AttemptBudgetError(str(error)) from error
+        validate_attempt_paths(
+            classified,
+            ledger=self.path,
+            completion=completion,
+            monitor_log_dir=monitor_log_dir,
+            monitor_policy=monitor_policy_path,
+            baseline=workspace_baseline_path,
+        )
         if contract.preparation_only and (
             classified.effect not in {"preparation", "inspection"}
             or activity != "inspect"

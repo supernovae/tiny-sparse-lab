@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from sparselab.training.attempt_budget import AttemptBudget
+from sparselab.training.attempt_commands import phase_output_paths
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
@@ -41,6 +42,17 @@ def _id(value: str, name: str) -> str:
 
 def handle_attempt(args: argparse.Namespace) -> None:
     """Dispatch one explicit ledger action; all work remains in AttemptBudget."""
+    if args.attempt_command == "phase-paths":
+        root = _absolute(args.attempt_root, "attempt root")
+        if not root.is_dir():
+            raise ValueError("attempt root must exist")
+        paths = phase_output_paths(root, _id(args.label, "phase label"), args.leaf_name)
+        print(
+            json.dumps(
+                {key: str(value) for key, value in paths.items()}, sort_keys=True
+            )
+        )
+        return
     ledger = _absolute(args.ledger, "ledger")
     if args.attempt_command == "init":
         budget = AttemptBudget.create_contract(
@@ -166,6 +178,11 @@ def register_attempt_parser(
         "attempt", help="Use a cumulative native attempt contract"
     )
     actions = attempt.add_subparsers(dest="attempt_command", required=True)
+    paths = actions.add_parser("phase-paths", help="Derive disjoint phase output paths")
+    paths.add_argument("--attempt-root", type=Path, required=True)
+    paths.add_argument("--label", required=True)
+    paths.add_argument("--leaf-name")
+    paths.set_defaults(handler=handle_attempt)
     initialize = actions.add_parser("init")
     initialize.add_argument("--ledger", type=Path, required=True)
     initialize.add_argument("--contract", type=Path, required=True)
