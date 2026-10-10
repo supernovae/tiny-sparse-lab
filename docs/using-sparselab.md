@@ -6,6 +6,10 @@ If the example tasks or terminology are unfamiliar, start with [From flashcards 
 
 For an end-to-end story model, follow the [TinyStories microlab](tinystories-microlab.md).
 For YAML plans and checkpoint chaining, use [training programs](experiment-programs.md).
+To compare one change against a baseline in a single command, use
+[lab mode](lab-mode.md): `sparselab try DELTA.yaml --vs BASELINE.yaml`, then
+`sparselab report TRY_ID`. `sparselab --help` lists the fast-path commands
+first and the release/full-provenance commands last.
 
 ## Prepare, inspect, and train
 

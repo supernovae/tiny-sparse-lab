@@ -12,7 +12,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -918,7 +918,10 @@ def _batch_calibrate(args: argparse.Namespace) -> None:
 def _readiness_smoke(args: argparse.Namespace) -> None:
     print(
         smoke_readiness(
-            Path(args.configs_root), Path(args.output), families=tuple(args.family)
+            Path(args.configs_root),
+            Path(args.output),
+            families=tuple(args.family),
+            command_timeout=None if args.command_timeout == 0 else args.command_timeout,
         )
     )
 
@@ -2407,6 +2410,157 @@ def _tokenizer_batch_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _try(args: argparse.Namespace) -> None:
+    """Lab mode: YAML delta (or config) vs baseline -> one scored comparison."""
+    from sparselab.lab_mode import run_try, summarize
+
+    try:
+        record, path = run_try(
+            Path(args.candidate),
+            Path(args.vs),
+            work_dir=resolve_work_dir(args.work_dir),
+            lab_dir=args.lab_dir,
+            seed=args.seed,
+            backend=args.backend,
+            max_wall_seconds=args.max_wall_seconds,
+            authorization=args.runtime_authorization,
+            resource_envelope=args.resource_envelope_value,
+            tokenizer_batch_documents=args.tokenizer_batch_documents,
+            tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+            fresh_baseline=args.fresh_baseline,
+        )
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"sparselab try: {error}") from None
+    if args.json:
+        print(json.dumps({**record, "record": str(path)}, indent=2, sort_keys=True))
+    else:
+        print(summarize(record, path))
+    if record["exit_status"]:
+        raise SystemExit(record["exit_status"])
+
+
+def _report(args: argparse.Namespace) -> None:
+    """Read one sealed lab try record without rerunning anything."""
+    from sparselab.lab_mode import lab_root, read_record, summarize
+
+    target = Path(args.record)
+    if not target.exists() and target.parent == Path():
+        target = lab_root(resolve_work_dir(args.work_dir), args.lab_dir) / "tries"
+        target = target / args.record
+    record = read_record(target)
+    if args.json:
+        print(json.dumps(record, indent=2, sort_keys=True))
+    else:
+        print(summarize(record, target))
+
+
+# Help groups: lab-mode fast path first; release/full-provenance last. Every
+# registered command appears exactly once (see tests/test_lab_mode.py).
+FAST_PATH_COMMANDS = (
+    "try",
+    "report",
+    "inspect",
+    "train",
+    "eval",
+    "evidence",
+    "triage",
+    "generate",
+    "chat",
+    "dashboard",
+    "readiness",
+)
+RELEASE_COMMANDS = (
+    "campaign",
+    "experiment",
+    "attempt",
+    "iteration",
+    "corpus",
+    "research",
+    "study",
+    "review",
+    "recovery",
+    "archive",
+    "family",
+    "controller",
+    "worker",
+    "run",
+    "hosted",
+    "monitor",
+    "monitor-baseline",
+)
+
+
+_FALLBACK_HELP = {
+    "inspect": "Show effective config, shape and memory estimate (read-only)",
+    "train": "Train one config locally (native trainer)",
+    "eval": "Score a run's checkpoint on its held-out validation split",
+    "generate": "Generate a raw continuation from a verified checkpoint",
+    "dashboard": "Local read-only training/research dashboard",
+    "readiness": "CPU wiring smoke checks for the shipped mechanisms",
+    "weights": "Import external weights with provenance",
+    "config": "Derive or migrate typed run configs",
+    "checkpoint": "Inspect or verify checkpoints",
+    "workspace": "Storage preflight and cleanup plans",
+    "runtime": "Runtime probes and status",
+    "tokenizer": "Train or verify tokenizers",
+    "data": "Prepare, verify and inspect training data",
+    "facts": "Synthetic fact manifests and recall evaluation",
+    "engram": "Export, inspect and pack Engram memory",
+    "stage": "Pilot a config through staged gates",
+    "batch": "Calibrate micro-batch size",
+    "model": "Checkpoint-bound reference exercises",
+    "evaluation": "Checkpoint-bound evaluation suites and fixed slices",
+}
+
+
+def _group_command_help(
+    parser: argparse.ArgumentParser,
+    commands: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    helps = {
+        action.dest: action.help or _FALLBACK_HELP.get(action.dest, "")
+        for action in commands._choices_actions
+    }
+    for name in commands.choices:
+        helps.setdefault(name, _FALLBACK_HELP.get(name, ""))
+    names = list(commands.choices)
+    tools = [
+        name
+        for name in names
+        if name not in FAST_PATH_COMMANDS and name not in RELEASE_COMMANDS
+    ]
+    missing = [
+        name for name in (*FAST_PATH_COMMANDS, *RELEASE_COMMANDS) if name not in names
+    ]
+    if missing:
+        raise AssertionError(f"help groups name unregistered commands: {missing}")
+    width = max(len(name) for name in names) + 2
+
+    def section(title: str, members: Sequence[str]) -> str:
+        rows = [f"  {name:<{width}}{helps.get(name, '')}".rstrip() for name in members]
+        return "\n".join((title, *rows))
+
+    parser.epilog = "\n\n".join(
+        (
+            section(
+                "Fast path (lab mode: YAML delta -> scored comparison):",
+                FAST_PATH_COMMANDS,
+            ),
+            section("Data, models and diagnostics:", tools),
+            section(
+                "Advanced / release (full provenance, approvals, campaigns):",
+                RELEASE_COMMANDS,
+            ),
+            "Start with: sparselab try DELTA.yaml --vs BASELINE.yaml",
+        )
+    )
+    parser.formatter_class = argparse.RawDescriptionHelpFormatter
+    commands.metavar = "COMMAND"
+    commands.help = "one of the commands grouped below"
+    # The grouped epilog replaces argparse's flat, registration-ordered list.
+    commands._choices_actions = []
+
+
 def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     runs_dir_default = str(resolve_work_dir(work_dir) / "runs")
     parser = argparse.ArgumentParser(
@@ -2425,6 +2579,50 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     commands = parser.add_subparsers(dest="command", required=True)
+    lab_try = commands.add_parser(
+        "try",
+        help="Lab mode: train/score a YAML delta against a baseline in one command",
+        description=(
+            "Derive the candidate from a lab delta (or take a full config), train "
+            "both arms locally, score both on the same held-out split and write one "
+            "compact record. Skips plan locks, approvals, admission reviews and "
+            "campaign reconciliation; keeps storage/resource limits, data identity, "
+            "safe cancellation and held-out checks."
+        ),
+    )
+    lab_try.add_argument(
+        "candidate", help="Lab delta YAML ({set: {dotted.field: value}}) or RunConfig"
+    )
+    lab_try.add_argument("--vs", required=True, help="Baseline RunConfig YAML")
+    lab_try.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
+    lab_try.add_argument("--seed", type=int, help="Override the seed of both arms")
+    lab_try.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    try_runtime = lab_try.add_mutually_exclusive_group()
+    try_runtime.add_argument("--runtime-profile", type=Path)
+    try_runtime.add_argument("--runtime", metavar="ID")
+    lab_try.add_argument("--resource-envelope", type=Path)
+    lab_try.add_argument(
+        "--max-wall-seconds",
+        type=float,
+        help="Optional per-arm wall limit; stops at a checkpointed step (default: none)",
+    )
+    lab_try.add_argument(
+        "--fresh-baseline",
+        action="store_true",
+        help="Retrain the baseline even if a completed identical one exists",
+    )
+    lab_try.add_argument("--json", action="store_true")
+    _tokenizer_batch_arguments(lab_try)
+    lab_try.set_defaults(handler=_try)
+    lab_report = commands.add_parser(
+        "report", help="Show a sealed lab try record (read-only)"
+    )
+    lab_report.add_argument("record", help="try.json, its folder, or a try id")
+    lab_report.add_argument("--lab-dir", type=Path)
+    lab_report.add_argument("--json", action="store_true")
+    lab_report.set_defaults(handler=_report)
     from sparselab.operational_monitor_cli import register_monitor_parser
     from sparselab.training.attempt_contract_cli import register_attempt_parser
 
@@ -2716,6 +2914,13 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     readiness_smoke.add_argument("--output", required=True)
     readiness_smoke.add_argument(
         "--family", action="append", choices=tuple(SMOKE_FAMILIES), default=[]
+    )
+    readiness_smoke.add_argument(
+        "--command-timeout",
+        type=float,
+        default=3600.0,
+        metavar="SECONDS",
+        help="Per-command bound for slow hosts (default: 3600; 0 disables)",
     )
     readiness_smoke.set_defaults(handler=_readiness_smoke)
     from sparselab.evaluation.cli import register_readiness_parser
@@ -3319,6 +3524,7 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     register_evaluation_parser(commands, runs_dir_default=runs_dir_default)
     register_family_parser(commands)
     register_archive_parser(commands)
+    _group_command_help(parser, commands)
     return parser
 
 
@@ -3444,6 +3650,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     args.runtime_authorization = None
     args.runtime_profile_loaded = None
     is_legacy = args.command in {
+        "try",
         "train",
         "stage",
         "eval",
@@ -3554,6 +3761,8 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
 
     if args.command in {"train", "stage", "run"}:
         config = load_config(Path(args.config))
+    elif args.command == "try":
+        config = load_config(Path(args.vs))
     else:
         from sparselab.config.models import RunConfig
 
@@ -3563,7 +3772,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         )
     backend_override = (
         args.backend
-        if args.command in {"train", "eval", "generate", "chat", "serve"}
+        if args.command in {"try", "train", "eval", "generate", "chat", "serve"}
         else None
     )
     if backend_override is not None:
@@ -3631,7 +3840,7 @@ def _read_only_command(args: argparse.Namespace) -> bool:
             "export",
             "tokenizer-bakeoff",
         }
-    return args.command in {"inspect", "checkpoint", "evidence", "triage"}
+    return args.command in {"inspect", "checkpoint", "evidence", "triage", "report"}
 
 
 def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:
@@ -3673,7 +3882,7 @@ def main() -> None:
             )
         parser.error(f"unrecognized arguments: {' '.join(extras)}")
     if (
-        args.command in {"stage", "train", "run"}
+        args.command in {"stage", "train", "run", "try"}
         or (args.command == "data" and args.data_command == "prepare")
         or (
             args.command == "data"
@@ -3735,6 +3944,10 @@ def main() -> None:
                 if args.data_command == "prepared-inputs"
                 else load_config(Path(args.config)).dataset.cache_dir
             )
+        elif args.command == "try":
+            from sparselab.lab_mode import lab_root
+
+            workspace = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)
         elif args.command == "experiment" and args.experiment_command == "prepare":
             from sparselab.experiments.plan import load_plan
 

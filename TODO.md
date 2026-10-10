@@ -16,7 +16,8 @@ These items take priority over new lifecycle, admission or orchestration code.
 
 ### Pillars
 
-- [ ] **P0 — Fast loop (`lab mode`).** One command takes a YAML change and a
+- [x] **P0 — Fast loop (`lab mode`).** *Done: `sparselab try` / `report`,
+  [lab mode](docs/lab-mode.md); a CPU smoke delta reaches its report in ~15 s.* One command takes a YAML change and a
   baseline and returns a scored comparison (e.g. `sparselab try <delta.yaml>
   --vs <baseline>`). Lab mode skips plan locks, approvals, admission reviews and
   campaign reconciliation; it still records config, seed, code revision and
@@ -44,11 +45,13 @@ These items take priority over new lifecycle, admission or orchestration code.
 
 ### Tactical cleanups
 
-- [ ] **Rewrite AGENTS.md for lab mode by default.** Agents currently generate
+- [x] **Rewrite AGENTS.md for lab mode by default.** Agents currently generate
   much of the ceremony (proposal, binding and stop documents). Default agent
   runs to lab mode; require proposals only for release runs or paid compute
   above an explicit budget.
-- [ ] **Shrink the CLI surface.** ~100 subcommands today. Put the fast path
+- [x] **Shrink the CLI surface.** *Done for help output: `try`/`report` and the
+  fast path first, release commands grouped last; `probe`/`compare` arrive with
+  the probe battery. No commands were removed.* ~100 subcommands today. Put the fast path
   (`try`, `probe`, `compare`, `report`) up front and move lifecycle/campaign
   commands under an `advanced`/`release` group in help output.
 - [ ] **Matrix-ify configs.** Replace hand-expanded seed/budget variants in
@@ -63,9 +66,11 @@ These items take priority over new lifecycle, admission or orchestration code.
 - [ ] **Dead-code and legacy sweep.** Run coverage plus a dead-code scan
   (e.g. vulture) after the recent cleanup and remove experiment-specific code
   paths that the fast loop doesn't use.
-- [ ] **Loop-time CI check.** Add a CI job that times the CPU smoke path from
+- [ ] **Loop-time CI check.** *Timed test exists
+  (`tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget`,
+  900 s budget); the `lab-loop` workflow job still needs to be added to CI.* Add a CI job that times the CPU smoke path from
   YAML to report and fails if it regresses past the target.
-- [ ] **Borrow before building.** For new training, eval or quantization needs,
+- [x] **Borrow before building.** *Now a rule in AGENTS.md §2.* For new training, eval or quantization needs,
   check nanoGPT/modded-nanogpt, litgpt, lm-evaluation-harness and llm-compressor
   (GPTQ/AWQ/SmoothQuant baselines) first and wrap them rather than reimplementing.
 - [ ] **Optional — served-identity export.** Emit a samesies-style signed

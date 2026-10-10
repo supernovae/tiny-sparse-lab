@@ -1,0 +1,360 @@
+"""Lab mode (`sparselab try`): fast local loop with retained safety rails.
+
+These tests train two-layer, 32-wide synthetic CPU models for a few dozen
+steps. They check wiring and the retained rails (record, data identity,
+held-out checks, safe cancellation, resource limits), not model quality.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+import yaml
+
+from sparselab.cli.main import FAST_PATH_COMMANDS, RELEASE_COMMANDS, build_parser
+from sparselab.config.loading import load_tokenizer_config
+from sparselab.data.tokenizer import train_tokenizer
+from sparselab.lab_mode import (
+    EXIT_INTERRUPTED,
+    EXIT_NOT_COMPARABLE,
+    read_candidate,
+    read_record,
+    run_try,
+)
+from sparselab.resource_envelope import ResourceEnvelope
+from sparselab.training.trainer import train
+
+ROOT = Path(__file__).resolve().parents[1]
+# Generous: the TODO target is 15 minutes on CPU; a quiet laptop needs ~15 s.
+LOOP_BUDGET_SECONDS = float(os.environ.get("SPARSELAB_LAB_LOOP_BUDGET_SECONDS", "900"))
+
+
+def _write_inputs(root: Path, *, train_tokenizer_now: bool = True) -> Path:
+    tokenizer = yaml.safe_load((ROOT / "configs/tokenizer_smoke.yaml").read_text())
+    tokenizer["output_dir"] = str(root / "tokenizer")
+    tokenizer["dataset"]["cache_dir"] = str(root / "data")
+    (root / "tokenizer.yaml").write_text(yaml.safe_dump(tokenizer, sort_keys=False))
+    config = yaml.safe_load((ROOT / "configs/smoke_cpu.yaml").read_text())
+    config["tokenizer"]["path"] = str(root / "tokenizer" / "tokenizer.json")
+    config["dataset"]["cache_dir"] = str(root / "data")
+    config["logging"]["root_dir"] = str(root / "unused-runs")
+    config["training"]["max_steps"] = 12
+    config["training"]["max_tokens"] = 1536
+    config["checkpoint"]["every_steps"] = 4
+    config["evaluation"]["every_steps"] = 4
+    baseline = root / "baseline.yaml"
+    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
+    if train_tokenizer_now:
+        train_tokenizer(load_tokenizer_config(root / "tokenizer.yaml"))
+    return baseline
+
+
+def _delta(root: Path, name: str, settings: dict[str, object]) -> Path:
+    path = root / name
+    path.write_text(yaml.safe_dump({"question": name, "set": settings}))
+    return path
+
+
+@pytest.fixture
+def lab(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    return tmp_path, _write_inputs(tmp_path)
+
+
+def test_try_writes_one_sealed_record_with_identity_and_heldout_scores(
+    lab: tuple[Path, Path],
+) -> None:
+    root, baseline = lab
+    delta = _delta(root, "wider.yaml", {"model.ffn_dim": 128})
+    record, path = run_try(delta, baseline, work_dir=root / "work")
+
+    assert path == root / "work/lab/tries" / record["try_id"] / "try.json"
+    assert read_record(path) == record
+    assert record["status"] == "completed" and record["exit_status"] == 0
+    assert record["mode"] == "lab"
+    assert record["delta"] == {"model.ffn_dim": {"base": 96, "variant": 128}}
+    assert record["declared_delta"] == {"model.ffn_dim": 128}
+    assert record["code"]["source_identity_sha256"]
+    assert "campaign_approval_and_reconciliation" in record["skipped_release_gates"]
+    for arm in ("baseline", "candidate"):
+        row = record["arms"][arm]
+        assert row["status"] == "completed"
+        assert row["seed"] == 42
+        assert row["heldout"]["split"] == "validation"
+        assert row["heldout"]["valid_targets"] > 0
+        assert Path(row["heldout"]["observation"]).is_file()
+        data = row["data"]
+        assert len(data["validation_sha256"]) == 64
+        assert data["validation_sha256"] != data["train_sha256"]
+        assert data["eval_data_sha256"]["validation"] == data["validation_sha256"]
+        assert row["checkpoint_sha256"]
+    comparison = record["comparison"]
+    assert comparison["comparable"] is True
+    assert comparison["verdict"] in {
+        "CANDIDATE_LOWER_LOSS",
+        "CANDIDATE_HIGHER_LOSS",
+        "TIE",
+    }
+    assert comparison["heldout_loss_delta"] == pytest.approx(
+        record["arms"]["candidate"]["heldout"]["loss"]
+        - record["arms"]["baseline"]["heldout"]["loss"]
+    )
+
+    # A second idea against the same baseline reuses the verified baseline run.
+    second, _ = run_try(
+        _delta(root, "lr.yaml", {"optimizer.peak": 0.006}),
+        baseline,
+        work_dir=root / "work",
+    )
+    assert second["arms"]["baseline"]["reused"] is True
+    assert second["arms"]["baseline"]["run_id"] == record["arms"]["baseline"]["run_id"]
+    assert (
+        second["arms"]["candidate"]["run_id"] != record["arms"]["candidate"]["run_id"]
+    )
+
+
+def test_tampered_record_is_rejected(lab: tuple[Path, Path]) -> None:
+    root, baseline = lab
+    _, path = run_try(
+        _delta(root, "d.yaml", {"model.ffn_dim": 64}), baseline, work_dir=root / "work"
+    )
+    edited = json.loads(path.read_text())
+    edited["comparison"]["verdict"] = "CANDIDATE_LOWER_LOSS"
+    edited["arms"]["candidate"]["heldout"]["loss"] = 0.0
+    path.chmod(0o644)
+    path.write_text(json.dumps(edited))
+    with pytest.raises(ValueError, match="digest mismatch"):
+        read_record(path)
+
+
+@pytest.mark.parametrize(
+    ("settings", "failed"),
+    [
+        ({"dataset.validation_max_tokens": 2048}, "same_validation_data"),
+        ({"evaluation.max_batches": 2}, "same_scored_targets"),
+    ],
+)
+def test_heldout_changes_are_not_comparable(
+    lab: tuple[Path, Path], settings: dict[str, object], failed: str
+) -> None:
+    root, baseline = lab
+    record, _ = run_try(
+        _delta(root, "h.yaml", settings), baseline, work_dir=root / "work"
+    )
+    assert record["status"] == "completed"
+    assert record["comparison"]["verdict"] == "NOT_COMPARABLE"
+    assert failed in record["comparison"]["failed"]
+    assert "heldout_loss_delta" not in record["comparison"]
+    assert record["exit_status"] == EXIT_NOT_COMPARABLE
+
+
+def test_cancellation_stops_at_checkpointed_boundary_and_is_recorded(
+    lab: tuple[Path, Path],
+) -> None:
+    root, baseline = lab
+    calls: list[str] = []
+
+    def cancel_then_train(config, **kwargs):
+        calls.append(kwargs["run_id"])
+        kwargs["cancel_path"].touch()  # as `touch CANCEL` from another shell
+        return train(config, **kwargs)
+
+    record, path = run_try(
+        _delta(root, "c.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=root / "work",
+        train_fn=cancel_then_train,
+    )
+    assert record["status"] == "interrupted"
+    assert record["exit_status"] == EXIT_INTERRUPTED
+    assert record["interruption"] == {"arm": "baseline", "reason": "cancelled"}
+    assert "comparison" not in record and "candidate" not in record["arms"]
+    assert len(calls) == 1  # the candidate never started
+    run = root / "work/lab/runs" / calls[0]
+    assert record["arms"]["baseline"]["run_dir"] == str(run)
+    assert record["arms"]["baseline"]["status"] == "interrupted"
+    assert json.loads((run / "progress.json").read_text())["status"] == "interrupted"
+    assert (run / "checkpoints" / "latest.json").is_file()
+    assert read_record(path)["status"] == "interrupted"
+
+    # The interrupted baseline is preserved and never reused or mutated.
+    record, _ = run_try(
+        _delta(root, "c2.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=root / "work",
+    )
+    assert record["status"] == "completed"
+    assert record["arms"]["baseline"]["reused"] is False
+    assert record["arms"]["baseline"]["run_id"] != calls[0]
+    assert json.loads((run / "progress.json").read_text())["status"] == "interrupted"
+
+
+def test_sigint_from_the_cli_stops_safely_and_records_interruption(
+    tmp_path: Path,
+) -> None:
+    baseline = _write_inputs(tmp_path)
+    config = yaml.safe_load(baseline.read_text())
+    config["training"]["max_steps"] = 200_000  # about an hour on one CPU core
+    config["training"]["max_tokens"] = 200_000 * 128
+    config["checkpoint"]["every_steps"] = 100_000  # keep storage preflight small
+    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
+    delta = _delta(tmp_path, "s.yaml", {"model.ffn_dim": 128})
+    work = tmp_path / "work"
+    process = subprocess.Popen(
+        [sys.executable, "-m", "sparselab", "try", str(delta), "--vs", str(baseline)],
+        env={**os.environ, "SPARSELAB_WORK_DIR": str(work)},
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 300
+        while time.monotonic() < deadline:
+            progress = list((work / "lab/runs").glob("*/progress.json"))
+            if progress and json.loads(progress[0].read_text()).get("step", 0) > 0:
+                break
+            assert process.poll() is None, "try exited before training started"
+            time.sleep(0.2)
+        else:
+            pytest.fail("training never started")
+        process.send_signal(signal.SIGINT)
+        stdout, _ = process.communicate(timeout=300)
+    finally:
+        if process.poll() is None:
+            process.kill()
+    assert process.returncode == EXIT_INTERRUPTED
+    assert "stopped safely: arm=baseline reason=signal" in stdout
+    (record_path,) = (work / "lab/tries").glob("*/try.json")
+    record = read_record(record_path)
+    assert record["status"] == "interrupted"
+    (progress_path,) = (work / "lab/runs").glob("*/progress.json")
+    assert json.loads(progress_path.read_text())["status"] == "interrupted"
+    assert (progress_path.parent / "checkpoints/latest.json").is_file()
+
+
+def test_wall_limit_is_opt_in_and_stops_safely(lab: tuple[Path, Path]) -> None:
+    root, baseline = lab
+    record, _ = run_try(
+        _delta(root, "w.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=root / "work",
+        max_wall_seconds=1e-9,
+    )
+    assert record["status"] == "interrupted"
+    assert record["interruption"]["reason"] == "wall_time_limit"
+    assert record["resources"]["max_wall_seconds_per_arm"] == 1e-9
+
+
+def test_resource_envelope_is_enforced_before_training(
+    lab: tuple[Path, Path],
+) -> None:
+    root, baseline = lab
+    calls: list[str] = []
+    envelope = ResourceEnvelope(
+        resource_envelope_version=1, min_disk_bytes=2**62
+    )  # more disk than any host has
+    with pytest.raises((ValueError, OSError)):
+        run_try(
+            _delta(root, "r.yaml", {"model.ffn_dim": 128}),
+            baseline,
+            work_dir=root / "work",
+            resource_envelope=envelope,
+            train_fn=lambda *a, **k: calls.append("trained") or "never",
+        )
+    assert calls == []
+    (record_path,) = (root / "work/lab/tries").glob("*/try.json")
+    assert read_record(record_path)["status"] == "failed"
+
+
+def test_storage_preflight_refuses_runs_that_do_not_fit(
+    lab: tuple[Path, Path],
+) -> None:
+    root, baseline = lab
+    record, _ = run_try(
+        _delta(
+            root,
+            "huge.yaml",
+            {"training.max_steps": 10**9, "training.max_tokens": 128 * 10**9},
+        ),
+        baseline,
+        work_dir=root / "work",
+    )
+    assert record["status"] == "failed"
+    assert record["arms"]["baseline"]["status"] == "completed"
+    assert "storage preflight failed" in record["failure"]
+    assert "candidate" not in record["arms"]
+
+
+def test_noop_and_malformed_deltas_are_refused(lab: tuple[Path, Path]) -> None:
+    root, baseline = lab
+    with pytest.raises(ValueError, match="does not change"):
+        run_try(
+            _delta(root, "same.yaml", {"model.ffn_dim": 96}),
+            baseline,
+            work_dir=root / "work",
+        )
+    bad = root / "bad.yaml"
+    bad.write_text("set: {}\n")
+    with pytest.raises(ValueError, match="nonempty"):
+        read_candidate(bad)
+    bad.write_text("sett:\n  model.ffn_dim: 1\n")
+    with pytest.raises(ValueError, match="unexpected"):
+        read_candidate(bad)
+    assert read_candidate(baseline).kind == "config"
+
+
+def test_help_lists_fast_path_first_and_every_command_once() -> None:
+    parser = build_parser()
+    text = parser.format_help()
+    epilog = parser.epilog or ""
+    (commands,) = [action for action in parser._actions if action.dest == "command"]
+    names = set(commands.choices)
+    assert {"try", "report", "campaign", "experiment", "attempt"} <= names
+    listed = [
+        line.split()[0]
+        for line in epilog.splitlines()
+        if line.startswith("  ") and line.strip()
+    ]
+    assert sorted(listed) == sorted(names)
+    assert listed[: len(FAST_PATH_COMMANDS)] == list(FAST_PATH_COMMANDS)
+    assert listed[-len(RELEASE_COMMANDS) :] == list(RELEASE_COMMANDS)
+    assert text.index("Fast path") < text.index("Advanced / release")
+
+
+def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
+    """Loop-time guard: YAML delta -> scored report through the public CLI."""
+    baseline = _write_inputs(tmp_path, train_tokenizer_now=False)
+    delta = _delta(tmp_path, "loop.yaml", {"model.ffn_dim": 128})
+    environment = {**os.environ, "SPARSELAB_WORK_DIR": str(tmp_path / "work")}
+
+    def cli(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-m", "sparselab", *args],
+            env=environment,
+            cwd=tmp_path,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    started = time.monotonic()
+    tokenizer = cli("tokenizer", "train", str(tmp_path / "tokenizer.yaml"))
+    assert tokenizer.returncode == 0, tokenizer.stderr[-2000:]
+    tried = cli("try", str(delta), "--vs", str(baseline), "--json")
+    assert tried.returncode == 0, tried.stderr[-2000:]
+    record = json.loads(tried.stdout)
+    report = cli("report", record["try_id"])
+    elapsed = time.monotonic() - started
+    assert report.returncode == 0, report.stderr[-2000:]
+    assert "verdict:" in report.stdout and record["try_id"] in report.stdout
+    assert record["comparison"]["comparable"] is True
+    print(f"lab loop YAML->report: {elapsed:.1f}s (budget {LOOP_BUDGET_SECONDS}s)")
+    assert elapsed < LOOP_BUDGET_SECONDS, f"lab loop took {elapsed:.1f}s"
