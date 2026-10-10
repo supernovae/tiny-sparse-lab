@@ -689,3 +689,29 @@ def test_compare_uses_the_checkpoints_measurement_in_the_shared_group(
     assert {p["evidence"] for p in pairs} == {"probe-fresh"}
     assert "subject measured in probe-fresh" in compare_mod.render(report)
     assert report["curve"]["excluded"] == 0
+
+
+def test_auto_added_references_resolve_like_named_ones(tmp_path: Path) -> None:
+    # An older local result of the same reference checkpoint, in a stale group,
+    # must not hide the packaged result in the subject's group.
+    packaged = dict(packaged_reference_records())
+    path = next(p for p in packaged if p.name == "SmolLM2-135M.json")
+    old = json.loads(json.dumps(packaged[path]))
+    old.pop("record_sha256", None)
+    old["probe_id"] = "probe-old-ref"
+    old["created_at"] = "2026-10-10T15:00:00+00:00"  # newer than the packaged one
+    for row in old["probes"]:
+        if row["id"] == "lm_eval":
+            row["details"]["benchmark_group"] = "0" * 64
+    local = tmp_path / "probes" / "probe-old-ref" / "probe.json"
+    local.parent.mkdir(parents=True)
+    write_sealed(local, old)
+    _probe_record(tmp_path, "probe-1", lm_row=_comparable_lm_row(), group="h" * 64)
+
+    auto = compare_mod.compare("probe-1", [], lab_dir=tmp_path, references=True)
+    named = compare_mod.compare("probe-1", ["ref:SmolLM2-135M"], lab_dir=tmp_path)
+    by_other = {c["other"]: c["pairs"] for c in auto["comparisons"]}
+    assert by_other["SmolLM2-135M"] == named["comparisons"][0]["pairs"]
+    lm = by_other["SmolLM2-135M"][1]
+    assert lm["status"] != "not_comparable"
+    assert lm["group"] == _ref_lm("SmolLM2-135M")["details"]["benchmark_group"]

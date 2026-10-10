@@ -192,7 +192,7 @@ def compare(
     if references:
         named = {o["checkpoint_sha256"] for o in others}
         for name in REFERENCES:
-            point = _reference_point(f"ref:{name}", pool)
+            point = resolve_point(f"ref:{name}", lab_dir, pool)
             if point["checkpoint_sha256"] not in named | {subject["checkpoint_sha256"]}:
                 others.append(point)
     if not others:
