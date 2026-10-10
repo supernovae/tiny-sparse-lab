@@ -111,25 +111,34 @@ def run_probe(
 
     context.install()
     try:
-        result = run_battery(
-            arm(target_spec),
-            arm(baseline_spec) if baseline_spec is not None else None,
-            tier=tier,
-            fast_fail=fast_fail,
-            progress=progress,
-            context=context,
-        )
-    except (LabSignal, KeyboardInterrupt, Exception) as error:
+        try:
+            result = run_battery(
+                arm(target_spec),
+                arm(baseline_spec) if baseline_spec is not None else None,
+                tier=tier,
+                fast_fail=fast_fail,
+                progress=progress,
+                context=context,
+            )
+        except (LabSignal, KeyboardInterrupt, Exception) as error:
+            # Only failures outside the battery's safe points land here
+            # (run_battery finalizes signals and stops itself).
+            context.finalizing = True
+            name = error.name if isinstance(error, LabSignal) else type(error).__name__
+            progress({"state": "failed", "error": f"{name}: {error}"})
+            if isinstance(error, (LabSignal, KeyboardInterrupt)):
+                raise KeyboardInterrupt from None
+            raise
+        # Signals are only noted from here on, so the record is always written.
         context.finalizing = True
-        name = error.name if isinstance(error, LabSignal) else type(error).__name__
-        progress({"state": "failed", "error": f"{name}: {error}"})
-        if isinstance(error, (LabSignal, KeyboardInterrupt)):
-            raise KeyboardInterrupt from None
-        raise
+        path = folder / "probe.json"
+        sealed = write_sealed(path, {**result, "probe_id": probe_id})
     finally:
         context.restore()
-    path = folder / "probe.json"
-    sealed = write_sealed(path, {**result, "probe_id": probe_id})
+    if context.signals or result["stop"]["kind"] == "interrupted":
+        # The partial battery is published (incomplete); now honor the signal.
+        print(f"probe {probe_id}: interrupted; partial record: {path}", file=sys.stderr)
+        raise KeyboardInterrupt
     return sealed, path
 
 

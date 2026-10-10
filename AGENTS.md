@@ -22,12 +22,13 @@ comparison, not a release, promotion or scientific conclusion.
 
 Every try also runs the fast [probe battery](docs/probe-battery.md) tier; use
 `sparselab probe RUN --vs BASE --tier standard|full --json` for more. Act on
-`probe.verdict.action`: `abandon` (a hard probe failed: drop the idea),
+`probe.verdict.action`: `abandon` (a hard probe failed, including a NaN/inf
+loss reported as a numerical failure: drop or fix the idea),
 `tweak` (change one setting; `suggestion` names what the failing probe
 implicates), `rerun` (the battery is incomplete: `verdict.missing` names each
 check that produced no evidence, such as lm-eval not installed, a probe error,
-or a cancel/resource/OOM stop; fix it and re-run, never read it as a pass),
-`escalate` (re-probe at `next_tier`), `longer_run` (all tiers pass and loss
+or a cancel/signal/resource/OOM stop; fix it and re-run, never read it as a
+pass), `escalate` (re-probe at `next_tier`), `longer_run` (all tiers pass and loss
 improved: worth a larger budget, still in lab mode) or `compare` (add `--vs`).
 Probes are screening signals, not proof that an idea is useful. Selecting on
 the held-out probes again and again turns them into development data, so any

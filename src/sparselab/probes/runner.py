@@ -27,6 +27,7 @@ import numpy as np
 from sparselab.lab_context import (
     LabCancelled,
     LabContext,
+    LabSignal,
     is_out_of_memory,
     release_memory,
 )
@@ -42,7 +43,14 @@ from sparselab.probes.suite import (
     suite_identity,
     tiers_through,
 )
-from sparselab.probes.verdict import MISSING_STATUSES, decide, judge, overfit_guard
+from sparselab.probes.verdict import (
+    INCOMPLETE_STOPS,
+    MISSING_STATUSES,
+    decide,
+    judge,
+    numerical_failure,
+    overfit_guard,
+)
 
 RESULT_FORMAT = PROBE_FORMAT
 NEAR_IDENTICAL_JS = 0.01
@@ -133,7 +141,16 @@ def validation(loaded: Any, arm: Arm, protocol: Mapping[str, int]) -> dict[str, 
     from sparselab.lab_mode import _with_eval_protocol
 
     stats = scoring.ValidationStats()
-    native = _with_eval_protocol(loaded, protocol).evaluate(observer=stats)
+    try:
+        native = _with_eval_protocol(loaded, protocol).evaluate(observer=stats)
+    except FloatingPointError as error:
+        # NaN/inf loss from the native evaluator: a numerical failure, kept
+        # as an outcome (not a probe error) so the battery can hard-fail on it.
+        arm.cache["validation"] = {
+            "numerical_failure": str(error),
+            "protocol": dict(protocol),
+        }
+        return arm.cache["validation"]
     arm.cache["validation"] = {**stats.result(native), "protocol": dict(protocol)}
     return arm.cache["validation"]
 
@@ -207,6 +224,16 @@ def _measure(
     """Everything one arm contributes to SPEC; judged later against the other."""
     if spec.id in {"heldout_loss", "calibration"}:
         val = validation(loaded, arm, protocol)
+        if "numerical_failure" in val:
+            if spec.id == "heldout_loss":
+                return {
+                    "value": math.nan,
+                    "numerical_failure": val["numerical_failure"],
+                }
+            return {
+                "status": "error",
+                "note": f"numerical failure: {val['numerical_failure']}",
+            }
         if spec.id == "heldout_loss":
             return {
                 "value": val["loss"],
@@ -360,6 +387,18 @@ def _judge(
         and not comparable["tokenizer"]
     ):
         return {**row, "status": "not_comparable", "note": "tokenizers differ"}
+    if spec.id == "heldout_loss" and (b or {}).get("numerical_failure"):
+        # The reference is broken: nothing can be judged against it.
+        note = f"baseline: numerical failure: {b['numerical_failure']}"
+        return {**row, "status": "error", "note": note}
+    if spec.id == "heldout_loss" and t.get("numerical_failure"):
+        row.update(judge(spec, math.nan, b["value"] if b else None))
+        row.update(
+            status="fail",
+            note=f"numerical failure: {t['numerical_failure']}",
+            details={"numerical_failure": t["numerical_failure"]},
+        )
+        return row
     if spec.id == "heldout_loss":
         se = (
             metrics.ratio_difference_se(
@@ -601,9 +640,8 @@ def run_battery(
             row["seconds"] = round(time.monotonic() - tick, 3)
             results.append(row)
             if fast_fail and row["status"] == "fail" and spec.hard:
-                stop_battery(
-                    "fast_fail", spec.id, f"fast-fail: hard failure in {spec.id}"
-                )
+                what = "numerical failure" if numerical_failure(row) else "hard failure"
+                stop_battery("fast_fail", spec.id, f"fast-fail: {what} in {spec.id}")
                 return
 
     try:
@@ -640,6 +678,12 @@ def run_battery(
             open_arm(t_arm, "candidate", measure_candidate, tier_specs)
     except LabCancelled as error:
         stop_battery(error.kind, state.get("current"), error.reason)
+    except (LabSignal, KeyboardInterrupt) as error:
+        # Ctrl-C/SIGTERM: keep everything measured so far and finalize the
+        # result; the caller re-raises after publishing it.
+        release_memory()
+        name = error.name if isinstance(error, LabSignal) else "keyboard_interrupt"
+        stop_battery("interrupted", state.get("current"), f"interrupted: {name}")
     except Exception as error:
         if not is_out_of_memory(error):
             raise
@@ -649,6 +693,10 @@ def run_battery(
             state.get("current"),
             f"out of memory: {type(error).__name__}: {error}",
         )
+    if context is not None:
+        # From here on signals are noted, never raised, so the partial result
+        # and its progress state are finalized; callers check context.signals.
+        context.finalizing = True
     done = {r["id"] for r in results}
     for spec in specs:
         if spec.id not in done:
@@ -700,7 +748,7 @@ def run_battery(
         "seconds": round(time.monotonic() - started, 3),
     }
     report(
-        "stopped" if stop["kind"] in {"cancelled", "resources", "oom"} else "done",
+        "stopped" if stop["kind"] in INCOMPLETE_STOPS else "done",
         None,
         None,
     )

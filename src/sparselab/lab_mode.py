@@ -906,7 +906,12 @@ def run_try(
                 context,
                 measurements or {},
             )
-            # Honor a cancel that arrived while the battery finished.
+            # A signal stops the battery at a safe point; the partial result is
+            # already in the record. Honor it (and a late cancel) now.
+            if context.signals:
+                raise LabSignal(context.signals[0])
+            if (record["probe"].get("stop") or {}).get("kind") == "interrupted":
+                raise KeyboardInterrupt
             context.check_cancel()
     except LabCancelled as error:
         if error.phase == "probing":
@@ -924,7 +929,8 @@ def run_try(
     except (LabSignal, KeyboardInterrupt) as error:
         if context.phase == "probing":
             # Both arms are scored; only the optional probe battery stopped.
-            record["probe"] = {"status": "interrupted"}
+            # Keep the finalized partial battery when there is one.
+            record.setdefault("probe", {"status": "interrupted"})
         else:
             if context.arm is not None and context.row is not None:
                 record["arms"][context.arm] = context.row

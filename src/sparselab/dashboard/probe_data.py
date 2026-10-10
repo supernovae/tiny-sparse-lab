@@ -173,12 +173,13 @@ def history_rows(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
 
 
 def pareto_points(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
-    """One point per checkpoint (newest result wins), candidates and baselines.
+    """One point per (eval group, checkpoint), newest result wins.
 
-    Each point carries its ``eval_group`` (validation data, tokenizer, loss
-    mask and eval protocol); only points in one group are comparable.
+    ``eval_group`` identifies the validation data, tokenizer, loss mask and eval
+    protocol; only points in one group are comparable. The same checkpoint
+    scored under two protocols is two points, one in each group.
     """
-    points: dict[str, dict[str, Any]] = {}
+    points: dict[tuple[str | None, str], dict[str, Any]] = {}
     for entry in entries:  # newest first
         result = entry.result
         loss = probe_row(result, "heldout_loss") or {}
@@ -189,12 +190,12 @@ def pareto_points(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
         ):
             if not who or value is None or not who.get("checkpoint_sha256"):
                 continue
-            key = who["checkpoint_sha256"]
+            key = (who.get("eval_group"), who["checkpoint_sha256"])
             if key in points:
                 continue
             details = loss.get("details") or {}
             points[key] = {
-                "checkpoint": key,
+                "checkpoint": who["checkpoint_sha256"],
                 "label": f"{who.get('run_id')}@{who.get('step')}",
                 "run_id": who.get("run_id"),
                 "role": role,

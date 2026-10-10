@@ -39,7 +39,8 @@ unavailable optional tier, a resource-envelope violation or an out-of-memory
 error makes the battery `incomplete` (action `rerun`, gaps listed in
 `probe.verdict.missing`) and the comparison stands. `CANCEL` or a signal during
 probing marks the try `interrupted` at `phase: probing` and keeps both scored
-arms and the comparison.
+arms, the comparison and the finalized partial battery (completed probes kept,
+unrun probes listed as missing evidence).
 
 Use `--json` for the full record. A baseline is reused only when an earlier try
 *completed* with the same reuse key: effective config, code (source identity)

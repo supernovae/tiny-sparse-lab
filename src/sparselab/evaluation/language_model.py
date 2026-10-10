@@ -15,6 +15,10 @@ from sparselab.data.packing import TokenBlockDataset
 from sparselab.engram.semantic import SemanticQueryBatch
 
 
+class NonFiniteLoss(ValueError, FloatingPointError):
+    """Native evaluation produced a NaN/inf loss (a numerical failure)."""
+
+
 def _device_rng_state(device: torch.device) -> torch.Tensor | None:
     if device.type == "cuda":
         return torch.cuda.get_rng_state(device)
@@ -131,7 +135,7 @@ def evaluate(
                     reduction="sum",
                 )
                 if not torch.isfinite(loss):
-                    raise ValueError("nonfinite validation loss")
+                    raise NonFiniteLoss("nonfinite validation loss")
                 if observer is not None:
                     observer(logits, y)
                 valid = int((y != -100).sum())

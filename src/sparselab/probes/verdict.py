@@ -24,7 +24,7 @@ STATUSES = (
 # A row in one of these states is a check that should have run and did not.
 MISSING_STATUSES = frozenset({"unavailable", "not_comparable", "error"})
 # Battery stops that leave requested checks unrun (fast-fail stops do not).
-INCOMPLETE_STOPS = frozenset({"cancelled", "resources", "oom"})
+INCOMPLETE_STOPS = frozenset({"cancelled", "resources", "oom", "interrupted"})
 ACTIONS = ("abandon", "tweak", "rerun", "escalate", "longer_run", "compare")
 NOISE_SIGMAS = 2.0
 OVERFIT_GAP = 0.15
@@ -160,6 +160,18 @@ def missing_evidence(
     return missing
 
 
+NUMERICAL_SUGGESTION = (
+    "Numerical failure: the candidate's loss is NaN/inf. Lower the learning "
+    "rate or lengthen warmup, check precision and initialization, and look for "
+    "a division or log of zero before trying again."
+)
+
+
+def numerical_failure(row: Mapping[str, Any]) -> str | None:
+    """The numerical-failure message of a probe row, if it has one."""
+    return (row.get("details") or {}).get("numerical_failure")
+
+
 def _verdict(
     status: str,
     action: str,
@@ -197,6 +209,19 @@ def decide(
     """
     missing = missing_evidence(results, stop)
     by_id = {row["id"]: row for row in results}
+    numerical = [r for r in results if numerical_failure(r)]
+    if numerical:
+        # A NaN/inf loss is a decisive outcome with or without a baseline.
+        return _verdict(
+            "fail",
+            "abandon",
+            [
+                f"hard fail: {r['id']} (numerical failure: {numerical_failure(r)})"
+                for r in numerical
+            ],
+            NUMERICAL_SUGGESTION,
+            missing,
+        )
     last = tiers_run[-1] if tiers_run else requested_tier
     next_tier = (
         TIERS[TIERS.index(last) + 1] if last in TIERS and last != TIERS[-1] else None

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import signal
 import sys
 import weakref
 from collections.abc import Callable
@@ -1133,10 +1135,43 @@ def test_report_rejects_an_edited_probe_record(
         _cli(monkeypatch, capsys, root, "report", str(path))
 
 
-def test_cancel_during_probing_keeps_the_training_comparison(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def _stop_on_candidate_calibration(
+    monkeypatch: pytest.MonkeyPatch, stop: Callable[[], None]
 ) -> None:
-    from sparselab.lab_mode import run_try
+    """Stop once the candidate's held-out loss row is complete.
+
+    Arms run baseline first, so the second calibration measurement is the
+    candidate's, after its held-out loss was judged.
+    """
+    measure = runner._measure
+    seen: list[str] = []
+
+    def measure_then_stop(spec, loaded, arm, protocol):
+        if spec.id == "calibration":
+            seen.append(spec.id)
+            if len(seen) == 2:
+                stop()
+        return measure(spec, loaded, arm, protocol)
+
+    monkeypatch.setattr(runner, "_measure", measure_then_stop)
+
+
+def _assert_partial(probe: dict[str, Any], kind: str) -> None:
+    rows = {r["id"]: r for r in probe["probes"]}
+    assert rows["heldout_loss"]["status"] in {"pass", "warn"}  # kept
+    assert rows["heldout_loss"]["value"] is not None
+    assert rows["repetition"]["status"] == "skipped"
+    assert probe["stop"]["stopped"] is True and probe["stop"]["kind"] == kind
+    verdict = probe["verdict"]
+    assert verdict["status"] == "incomplete" and verdict["action"] == "rerun"
+    assert any("repetition" in m["id"] for m in verdict["missing"])
+
+
+@pytest.mark.parametrize("how", ["cancel", "signal"])
+def test_try_stopped_during_probing_keeps_partial_battery_and_comparison(
+    how: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.lab_mode import read_record, run_try
 
     baseline = _write_inputs(tmp_path)
     delta = tmp_path / "wider.yaml"
@@ -1144,24 +1179,116 @@ def test_cancel_during_probing_keeps_the_training_comparison(
         yaml.safe_dump({"question": "wider?", "set": {"model.ffn_dim": 128}})
     )
     work = tmp_path / "work"
-    measure = runner._measure
 
-    def cancel_then_measure(spec, loaded, arm, protocol):
-        cancels = list((work / "lab/tries").glob("*/CANCEL"))
-        if not cancels:
+    def stop() -> None:
+        if how == "signal":
+            os.kill(os.getpid(), signal.SIGTERM)
+        else:
             (next((work / "lab/tries").glob("*/")) / "CANCEL").touch()
-        return measure(spec, loaded, arm, protocol)
 
-    monkeypatch.setattr(runner, "_measure", cancel_then_measure)
+    _stop_on_candidate_calibration(monkeypatch, stop)
     record, code = run_try(delta, baseline, work_dir=work)
     assert record["status"] == "interrupted" and code != 0
     assert record["interruption"]["phase"] == "probing"
-    probe = record["probe"]
-    assert probe["stop"]["kind"] == "cancelled"
-    assert probe["verdict"]["action"] == "rerun"
-    # The completed training comparison survives the cancelled battery.
-    assert record["comparison"]["heldout_loss_delta"] is not None
-    assert record["arms"]["candidate"]["heldout"]["loss"] is not None
+    if how == "signal":
+        assert record["interruption"]["reason"] == "SIGTERM"
+    # The sealed record on disk carries the finalized partial battery.
+    (path,) = (work / "lab/tries").glob("*/try.json")
+    sealed = read_record(path)
+    _assert_partial(sealed["probe"], "interrupted" if how == "signal" else "cancelled")
+    # The completed training comparison survives the stopped battery.
+    assert sealed["comparison"]["heldout_loss_delta"] is not None
+    assert sealed["arms"]["candidate"]["heldout"]["loss"] is not None
+    progress = json.loads((path.parent / "probe-progress.json").read_text())
+    assert progress["state"] == "stopped"
+
+
+def test_standalone_probe_signal_publishes_the_partial_battery(
+    tried: tuple[Path, dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sparselab.lab_records import read_lab_record
+
+    root, record = tried
+    before = set((root / "work/lab/probes").glob("*/"))
+    _stop_on_candidate_calibration(
+        monkeypatch, lambda: os.kill(os.getpid(), signal.SIGTERM)
+    )
+    with pytest.raises(SystemExit) as exited:
+        _cli(
+            monkeypatch,
+            capsys,
+            root,
+            "probe",
+            record["arms"]["candidate"]["run_id"],
+            "--vs",
+            record["arms"]["baseline"]["run_id"],
+        )
+    assert exited.value.code == 130
+    (folder,) = set((root / "work/lab/probes").glob("*/")) - before
+    _, sealed = read_lab_record(folder / "probe.json", "probe")
+    _assert_partial(sealed, "interrupted")
+    assert sealed["stop"]["reason"] == "interrupted: SIGTERM"
+    progress = json.loads((folder / "progress.json").read_text())
+    assert progress["state"] == "stopped"
+    assert signal.getsignal(signal.SIGTERM) is not None  # handlers restored
+
+
+def test_nonfinite_native_loss_is_a_numerical_hard_failure(
+    tried: tuple[Path, dict[str, Any]],
+) -> None:
+    """A NaN loss from the real evaluator stops the battery: abandon, not rerun."""
+    import torch
+
+    from sparselab.probes.cli import load_target
+
+    root, record = tried
+    lab = root / "work/lab"
+
+    def arm(name: str, poison: bool) -> runner.Arm:
+        def load() -> Any:
+            loaded = load_target(
+                record["arms"][name]["run_id"],
+                lab_dir=lab,
+                runs_dir=None,
+                backend=None,
+                authorization=None,
+            )
+            if poison:
+                with torch.no_grad():
+                    for parameter in loaded.model.parameters():
+                        parameter.fill_(float("nan"))
+            return loaded
+
+        return runner.Arm(load=load)
+
+    result = runner.run_battery(
+        arm("candidate", True), arm("baseline", False), tier="standard"
+    )
+    loss = result["probes"][0]
+    assert loss["id"] == "heldout_loss" and loss["status"] == "fail"
+    assert loss["note"] == "numerical failure: nonfinite validation loss"
+    assert loss["details"]["numerical_failure"] == "nonfinite validation loss"
+    assert result["stop"]["kind"] == "fast_fail"
+    assert result["stop"]["reason"] == "fast-fail: numerical failure in heldout_loss"
+    assert all(r["status"] == "skipped" for r in result["probes"][1:])
+    verdict = result["verdict"]
+    assert verdict["status"] == "fail" and verdict["action"] == "abandon"
+    assert verdict["reasons"] == [
+        "hard fail: heldout_loss (numerical failure: nonfinite validation loss)"
+    ]
+    assert "Numerical failure" in verdict["suggestion"]
+    assert verdict["missing"] == []
+    text = render(result, color=False)
+    assert "numerical failure" in text and "ABANDON" in text
+
+    # A broken baseline is not the candidate's fault: missing evidence instead.
+    flipped = runner.run_battery(
+        arm("candidate", False), arm("baseline", True), tier="fast"
+    )
+    assert flipped["probes"][0]["status"] == "error"
+    assert flipped["verdict"]["action"] == "rerun"
 
 
 def test_dashboard_history_reads_verified_records(
@@ -1208,3 +1335,38 @@ def test_dashboard_history_reads_verified_records(
         probe["baseline"]["checkpoint_sha256"],
     } <= set(checkpoints)
     assert {p["eval_group"] for p in points} == {probe["target"]["eval_group"]}
+
+
+def test_pareto_points_are_unique_per_group_and_checkpoint() -> None:
+    from sparselab.dashboard.probe_data import ProbeEntry, pareto_points
+
+    validation = {"validation_sha256": "v", "tokenizer_sha256": "t"}
+    short = runner._eval_group(validation, {"seq_len": 32, "batch_size": 4})
+    long = runner._eval_group(validation, {"seq_len": 64, "batch_size": 4})
+    assert short != long
+
+    def entry(key: str, group: str, loss: float) -> ProbeEntry:
+        who = {
+            "run_id": "cand",
+            "step": 12,
+            "checkpoint_sha256": "same-checkpoint",
+            "eval_group": group,
+            "parameters": 1000,
+        }
+        row = runner._row(BY_ID["heldout_loss"], status="pass", value=loss)
+        result = {"target": who, "baseline": None, "probes": [row], "verdict": {}}
+        return ProbeEntry(key, "probe", key, Path(key), result, None, {}, None)
+
+    # Newest first: the same checkpoint under two protocols, and a stale repeat.
+    points = pareto_points(
+        [
+            entry("new-long", long, 3.0),
+            entry("short", short, 4.0),
+            entry("old-long", long, 9.0),
+        ]
+    )
+    by_group = {p["eval_group"]: p for p in points}
+    assert len(points) == 2 and set(by_group) == {short, long}
+    assert by_group[long]["loss"] == 3.0 and by_group[long]["source"] == "new-long"
+    assert by_group[short]["loss"] == 4.0
+    assert {p["checkpoint"] for p in points} == {"same-checkpoint"}

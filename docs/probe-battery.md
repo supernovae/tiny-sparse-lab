@@ -110,7 +110,13 @@ maximal left context when a continuation is longer than `max_seq_len`. A task
 that produces no accuracy is an error, i.e. missing evidence.
 
 A **hard** probe that fails (held-out loss, degeneration) stops the battery at
-once; the remaining probes are `skipped`. Any other failure finishes the current
+once; the remaining probes are `skipped`. A NaN/inf loss raised by the native
+evaluator is a **numerical failure**, a distinct outcome rather than a probe
+error: the held-out loss row fails with `details.numerical_failure`, the battery
+stops (`fast-fail: numerical failure in heldout_loss`) and the verdict is
+`fail`/`abandon` with a numerical-failure reason and suggestion, even without a
+baseline. If the *baseline* is the one that fails numerically, nothing can be
+judged against it and the row is `error` (missing evidence). Any other failure finishes the current
 tier but the battery does not escalate ("not promising"). `--no-fast-fail` runs
 everything. A probe that crashes is recorded as `error`; it never sinks the try,
 but it is missing evidence: the battery does not escalate past it and the
@@ -132,12 +138,17 @@ the try's own context (the same `CANCEL` sentinel, `--resource-envelope` and
 SIGINT/SIGTERM handling as training and scoring); standalone `probe` creates
 `LAB/probes/<id>/CANCEL` as its sentinel and accepts `--resource-envelope` too.
 The context is checked before each arm and before every probe. `stop.kind`
-records why a battery stopped: `fast_fail` (hard failure), `not_promising`
+records why a battery stopped: `fast_fail` (hard failure, including a
+numerical failure), `not_promising`
 (a failure in an earlier tier), `missing_evidence` (an earlier tier is
 incomplete), `cancelled` (sentinel), `resources` (envelope violated) or `oom`
 (host `MemoryError` or a torch out-of-memory error, which stops further probe
-work instead of becoming an error row). Everything measured before the stop is
-kept. Inside `try`, a stopped battery never undoes the training comparison: a
+work instead of becoming an error row) or `interrupted` (Ctrl-C or SIGTERM).
+Everything measured before the stop is kept: on a signal the battery is
+finalized (unrun probes listed as missing evidence, verdict `incomplete`), the
+progress file is marked `stopped` and the sealed record is published before the
+command exits (130 for standalone `probe`; `try` records `interrupted` at
+`phase: probing`). Inside `try`, a stopped battery never undoes the training comparison: a
 cancel during probing marks the try `interrupted` and keeps both scored arms and
 the comparison; resources or OOM leave the try `completed` with an incomplete
 battery.
@@ -154,6 +165,7 @@ actions are:
 
 | Condition (first match) | status | action |
 |---|---|---|
+| numerical failure (NaN/inf held-out loss) | fail | `abandon` |
 | no baseline | info | `compare` |
 | a hard probe failed | fail | `abandon` |
 | any probe failed | fail | `tweak` (that probe's hint) |
@@ -204,8 +216,10 @@ and greedy samples, a "What the probes mean" explainer, history across tries and
 probes, and a Pareto view of held-out loss against parameters, weight bytes,
 training tokens or latency. The page reads records through the same verified
 reader as `report` and lists rejected (edited or unreadable) records instead of
-showing them. The Pareto view plots one point per checkpoint (candidates and
-baselines, newest result wins) and only within one comparison group
+showing them. The Pareto view plots one point per (comparison group,
+checkpoint) for candidates and baselines, newest result wins, so the same
+checkpoint scored under two protocols keeps a point in each group. It plots
+only within one comparison group
 (`eval_group`), chosen with a selector that defaults to the selected result's
 group.
 
