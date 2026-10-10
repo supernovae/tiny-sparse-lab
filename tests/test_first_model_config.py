@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sparselab.config.loading import load_config
+from sparselab.lab_mode import eval_protocol
 from sparselab.model.inspection import inspection_report
 
 CUDA = Path("configs/first_model_20m_cuda.yaml")
@@ -14,9 +15,12 @@ def test_first_model_configs_share_one_model_and_eval_protocol() -> None:
     cuda, cpu = load_config(CUDA), load_config(CPU)
 
     assert cuda.model == cpu.model
+    # The rest of a try's protocol identity (validation/tokenizer digests,
+    # packing, scored blocks) derives from these shared inputs.
     assert cuda.dataset == cpu.dataset
     assert cuda.tokenizer == cpu.tokenizer
-    assert cuda.training.seq_len == cpu.training.seq_len == 512
+    assert eval_protocol(cuda) == eval_protocol(cpu)
+    assert eval_protocol(cuda) == {"seq_len": 512, "batch_size": 16, "max_batches": 32}
     assert cuda.dataset.source == "fineweb_edu"
     assert cuda.dataset.revision == FINEWEB_EDU_REVISION
     assert inspection_report(cuda)["total"] == 17_308_032
