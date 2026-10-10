@@ -1,147 +1,89 @@
 # Implementation backlog
 
-Only missing or defective code belongs here, plus the lab-velocity pillars below
-(items marked **Directional** are experiment direction rather than single code tasks). Scientific milestones and execution
-status live in [the research roadmap](docs/research/roadmap.md) and
+Only open work belongs here: priorities first, then experiments, then parked
+items. Done items are deleted, not checked off. Scientific milestones and
+execution status live in [the research roadmap](docs/research/roadmap.md) and
 [research records](experiments/research/). A passing fixture does not close a
-scientific gate. Each item needs code, focused regression coverage and public
-documentation; move it to a **Code task** issue when assigned. Reuse native
-interfaces, and preserve declaration and artifact identities.
+scientific gate. Each code item needs code, focused regression coverage and
+public documentation; move it to a **Code task** issue when assigned. Reuse
+native interfaces, and preserve declaration and artifact identities.
 
-## Lab velocity: break the ceremony loop
+## Priorities
 
-Goal: an idea expressed as a YAML delta reaches a scored comparison against a
-known baseline the same day, with full provenance reserved for release runs.
-These items take priority over new lifecycle, admission or orchestration code.
+Land in this order, one small PR each.
 
-### Pillars
+1. **PR2 — Test health.**
+   - Known failures on clean `main`: `test_evaluation_suite.py` signed
+     replay/reuse (2), `test_attempt_contract.py::test_outer_receipts_crossing_cap_cannot_return_success`,
+     `test_workers_cli.py::test_composed_run_observes_reconnection_and_artifact_completion`
+     and `test_operational_monitor_safety.py` (4).
+   - About 65 more failures in a full local run (verifier-authority exclusion
+     signatures such as `('data.packing', 'resource_envelope')`, snapshot
+     authority, verification reuse, story-artifact reuse, campaign,
+     operational monitor, and workspace hygiene on
+     `docs/research/sample-report.md` size). CI's PR jobs run only an explicit
+     node list, so these went unnoticed.
+   - The full CPU suite takes over 25 minutes. Split it into a fast tier
+     (every PR) and a full tier (nightly or manual).
+   - The "inadequate measured RAM after reserve" preflight trips under
+     parallel pytest workers (`-n 6` on a 16 GB box). Scale the reserve per
+     worker or mark those tests serial.
+2. **PR3 — Evaluation integrity.**
+   - A held-back final evaluation set that agents never select on.
+   - A text-level needle (fixed character lengths) so needle also runs on
+     references.
+   - Fact recall: every tiny lab model picks the first candidate for every
+     question (`red`, `panda`); find the bias and pin it with a test.
+   - Fold `_reference_point` into `resolve_point`.
+   - The probe verdict prints "Promising: escalate" on a try whose
+     comparison is `NOT_COMPARABLE`; a non-comparable try must not escalate.
+   - The per-try held-out-loss error bar (window-clustered SE) is about 10x
+     smaller than seed-to-seed spread at tiny budgets. Report a seed floor or
+     require paired seeds before a verdict claims a win.
+3. **PR4 — References expansion.** Time the references on one fixed device so
+   they appear on the latency axis; add more Pythia trajectory checkpoints;
+   run all references at `--lm-eval-limit 500` plus winogrande and
+   arc_challenge (the mechanism exists, the expensive run does not).
+4. **PR5 — MLX and semantic packs in probe/explorer.** Both refuse MLX
+   checkpoints and attached semantic packs with a reason today.
+5. **PR6 — Cleanups.**
+   - Matrix-ify configs: replace hand-expanded seed/budget variants (e.g.
+     `context_study_*`) with one matrix declaration each.
+   - Archive the kernel-memory-lab paper trail: move CARD proposals and
+     per-step result notes under `experiments/research/history/`, leaving one
+     STATUS page with current decisions and links.
+   - Dead-code and legacy sweep with coverage plus vulture; remove
+     experiment-specific paths the fast loop does not use.
 
-- [x] **P0 — Fast loop (`lab mode`).** *Done: `sparselab try` / `report`,
-  [lab mode](docs/lab-mode.md); a CPU smoke delta reaches its report in ~15 s.* One command takes a YAML change and a
-  baseline and returns a scored comparison (e.g. `sparselab try <delta.yaml>
-  --vs <baseline>`). Lab mode skips plan locks, approvals, admission reviews and
-  campaign reconciliation; it still records config, seed, code revision and
-  data identity in one compact run record. Release mode keeps today's full
-  provenance. Target: tiny-model smoke delta to report in under 15 minutes on CPU.
-- [x] **P0 — Fast-fail probe battery.** *Done: `sparselab probe` and the
-  fast tier inside every `try`, [probe battery](docs/probe-battery.md);
-  versioned suite digest, dev/held-out item splits with an overfit guard,
-  tiered fast-fail, verdict + next action, optional lm-eval backend.* A fixed, versioned suite that runs in
-  minutes on any checkpoint: held-out perplexity delta vs. baseline, top-token
-  agreement with baseline, fact recall with reworded (held-out) prompts, simple
-  needle-in-context retrieval. Cheap metrics filter most ideas before any longer
-  run. Probes are screening signals: keep a separate, untouched final evaluation
-  because repeated selection on held-out probes turns them into development data.
-- [x] **Probe battery follow-ups (dashboard, text-level references, parametric
-  recall).** *Done:*
-  - per-probe trends over tries, needle accuracy by length across checkpoints
-    and calibration reliability diagrams (`details.reliability`) on the
-    redesigned dashboard ([tour](docs/dashboard.md));
-  - a closed-book **fact recall from weights** probe built from the run's
-    own withheld-facts manifest (its `dataset.synthetic_seed`), with a
-    never-trained control; inapplicable to other runs and references (suite
-    v3);
-  - a text-level ranking path (`details.item_group`) so references are scored
-    on fact recall as well as lm-eval and compare with lab runs on it;
-  - `--lm-eval-tasks`/`--lm-eval-limit` for larger limits and other task
-    families, kept in their own benchmark group;
-  - plain `sparselab train` runs are listed on the Models page with the
-    `sparselab probe RUN --runs-dir DIR` command that puts them on the Pareto
-    view ([docs](docs/probe-battery.md#dashboard)).
-- [ ] **Probe battery follow-ups (remaining).** Partial or not started:
-  - *partial:* needle is still not run on references, because its context is
-    sized in each model's own tokens. A text-level needle (fixed character
-    lengths) would make it comparable.
-  - *partial:* larger lm-eval limits and more task families have the mechanism
-    and tests, but no expensive run yet (e.g. all four references at
-    `--lm-eval-limit 500` plus winogrande/arc_challenge on a larger machine).
-  - a held-back final evaluation set that agents never select on;
-  - timing references on one fixed device so they appear on the latency axis;
-  - more checkpoints along the Pythia trajectory as references;
-  - probe and explorer support for MLX checkpoints and attached semantic packs
-    (both refuse them with a reason today).
-- [x] **Fix: degenerate memory hashes at `memory_table_size: 257`.** *Done:
-  one shared helper (`sparselab.address_hash`) now serves `TokenNgramMemory`,
-  lexical mining and the portability campaign, plus the raw-byte
-  `table_address`. A table size whose legacy multiplier shares a factor with
-  it (multiples of 257 for head 0 and raw bytes, e.g. 259 for head 1) mixes in
-  the prime field 2³¹−1 and reduces once at the end (`token-ngram-recurrence-v2`,
-  `mix31-terminal-v2`). Every coprime size keeps its legacy addresses bit for
-  bit (`tests/test_memory_hash.py`).* Found with the model explorer's memory
-  view: with 257 rows, hash head 0 of every n-gram table was a single-token
-  table (the oldest token in the window, modulo 257), and every raw-byte
-  address was row 0, because `hash_bytes` ends with `* 257`.
-  **Baselines predate the fix:** results, checkpoints and prepared byte
-  caches from `capability_recall_ngram_cpu`, `smoke_memory_cpu`,
-  `smoke_byte_memory_cpu`, `smoke_combined_cpu`, `withheld_bytes_cpu` and
-  `withheld_bpe_cpu` were trained with degenerate addressing. Re-run their
-  baselines before comparing against them. Lab-mode baseline reuse already
-  retrains them, because the code identity changed. Prepared caches are keyed
-  by source identity, so they are rebuilt too. Portable packs at those sizes
-  recorded as `poly257-terminal-v1` are refused.
-- [x] **P1 — Known reference points.** *Done: `sparselab probe ref:NAME --tier
-  full` scores pinned Pythia-70M/160M-deduped and SmolLM2-135M/360M (immutable
-  commits, safe snapshots, weights digest) through the same lm-eval adapter;
-  their sealed results ship in `probes/reference_results/` so CI and the
-  dashboard never download a model; `sparselab compare RESULT --references`
-  places any result on that curve with paired SEs, only within one benchmark
-  group (otherwise NOT COMPARABLE / MISSING EVIDENCE),
-  [docs](docs/probe-battery.md#reference-models-and-sparselab-compare).*
-  Import SmolLM2 and Pythia checkpoints in
-  the 70M–360M range (and reuse lm-evaluation-harness tasks where possible) so
-  every result sits on a known curve instead of only comparing to our own runs.
-- [x] **P1 — Pareto view in the dashboard.** *Done: the Models page plots
-  held-out loss or lm-eval accuracy against resident or active parameters,
-  resident or active weight bytes (memory), training tokens and scoring
-  latency, for every scored try arm (with or without probes), probed
-  checkpoints and the reference models, per comparison group, with the
-  frontier and a learner explainer.* Plot quality against tokens,
-  memory, latency and parameter count (resident vs. active), so trade-offs are
-  visible instead of a single number.
-- [ ] **Directional — Memory-offload showcase experiment.** At fixed compute,
-  dense vs. dense + Engram/memory; then swap the facts held in memory and check
-  that recall follows the swap (portability). This is an experiment program
-  rather than a single code task; code needs it exposes get filed here.
-- [ ] **Directional — Agent iteration loop.** *The probe verdict
-  (`action`, `next_tier`) and held-out guard now exist for it.* An agent reads `evidence`/`triage`
-  output, proposes the next single-variable delta and re-runs through lab mode.
-  Keep a held-out probe split the agent never optimizes against, and persist a
-  memory of prior attempts to avoid repeats.
+## Experiments
 
-### Tactical cleanups
+Run through lab mode ([first model](docs/first-model.md),
+[lab mode](docs/lab-mode.md)). Code needs they expose get filed above.
 
-- [x] **Rewrite AGENTS.md for lab mode by default.** Agents currently generate
-  much of the ceremony (proposal, binding and stop documents). Default agent
-  runs to lab mode; require proposals only for release runs or paid compute
-  above an explicit budget.
-- [x] **Shrink the CLI surface.** *Done for help output: `try`/`probe`/`report`/
-  `compare` and the fast path first, release commands grouped last. No commands
-  were removed.* ~100 subcommands today. Put the fast path
-  (`try`, `probe`, `compare`, `report`) up front and move lifecycle/campaign
-  commands under an `advanced`/`release` group in help output.
-- [ ] **Matrix-ify configs.** Replace hand-expanded seed/budget variants in
-  `configs/` (e.g. the `context_study_*` files) with one matrix declaration each.
-- [ ] **Archive the kernel-memory-lab paper trail.** Move CARD proposals and
-  per-step result notes under `experiments/research/history/`, leaving one
-  STATUS page with current decisions and links.
-- [ ] **Unblock a real 100M run on an existing dataset.** Train the 100M target
-  on an already-available corpus (e.g. a FineWeb-Edu sample) in lab mode rather
-  than waiting on retained-corpus admission; treat retained-corpus work as a
-  release-mode track.
-- [ ] **Dead-code and legacy sweep.** Run coverage plus a dead-code scan
-  (e.g. vulture) after the recent cleanup and remove experiment-specific code
-  paths that the fast loop doesn't use.
-- [x] **Loop-time CI check.** *Done: the `lab-loop` CI job runs
-  `tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget`
-  on CPU for every PR and main (900 s budget).* Add a CI job that times the CPU
-  smoke path from YAML to report and fails if it regresses past the target.
-- [x] **Borrow before building.** *Now a rule in AGENTS.md §2.* For new training, eval or quantization needs,
-  check nanoGPT/modded-nanogpt, litgpt, lm-evaluation-harness and llm-compressor
-  (GPTQ/AWQ/SmoothQuant baselines) first and wrap them rather than reimplementing.
-- [ ] **Optional — served-identity export.** Emit a samesies-style signed
-  manifest for exported checkpoints so lab provenance carries through to serving.
+- **Real 100M run on an existing dataset.** Train the 100M target on an
+  already-available corpus (e.g. a FineWeb-Edu sample) in lab mode, without
+  waiting on retained-corpus admission; retained-corpus work stays a
+  release-mode track. The next research target is **100M training targets**,
+  subject to the [offline readiness assessment](docs/research/100m-readiness.md).
+- **Memory-offload showcase.** At fixed compute, dense vs. dense +
+  Engram/memory; then swap the facts held in memory and check that recall
+  follows the swap (portability). Re-run the hash-affected baselines first
+  ([first model](docs/first-model.md#re-baseline-the-hash-affected-configs)).
+- **Agent iteration loop.** The probe verdict (`action`, `next_tier`) and
+  held-out guard exist. An agent reads `evidence`/`triage` output, proposes
+  the next single-variable delta and re-runs through lab mode. Keep a held-out
+  probe split the agent never optimizes against, and persist a memory of prior
+  attempts to avoid repeats.
 
-## Active code need
+## Parked (low priority)
+
+- **GPU instrumentation.** WSL2 on the 5900x desktop, self-hosted
+  CUDA/ROCm/MLX CI runners, Colab.
+- **Served-identity export.** Emit a samesies-style signed manifest for
+  exported checkpoints so lab provenance carries through to serving.
+- The P2 experiment-ledger projection and the conditional code needs below.
+
+## Parked: experiment-ledger projection
 
 - [ ] **P2 — Shared read-only experiment-ledger projection.** Extend existing
   [lifecycle readers](src/sparselab/research/lifecycle.py) and dashboard reporting
@@ -155,7 +97,7 @@ These items take priority over new lifecycle, admission or orchestration code.
   [curated ledger](docs/research/experiment-ledger.md) describes the reader need;
   there is no public ledger command yet.
 
-## Conditional code needs
+## Parked: conditional code needs
 
 Activate only for a concrete workload; these do not block the current retained
 corpus preparation milestone.
@@ -178,24 +120,6 @@ corpus preparation milestone.
   supported attention/objectives, feeding, optimizer/RNG state codecs, same-backend
   full resume, cancellation and preemption with real TPU tests. An enum or CPU
   fixture does not establish TPU support.
-
-## Completed conditional code
-
-The first six conditional needs from merged PR #56 are implemented with
-[offline evidence and explicit qualification limits](docs/refactors/2026-10-conditional-lifecycle-code.md).
-These checkmarks close code scope, not production admission or runtime qualification.
-
-- [x] **Source-bound held-out-item CLI adapter.** Native `evaluation freeze-items`.
-- [x] **Signed warm source-snapshot proof reuse.** Authenticated hits and cold invalidation.
-- [x] **Read-only tokenizer-artifact CLI verification.** Native `tokenizer verify`.
-- [x] **Acquisition receipt resource counters.** Measured bounded-transfer receipts and retained interruption readings.
-- [x] **Declarative verified snapshot inheritance.** Recovery declarations, verified native imports and generic ancestry checks.
-- [x] **Operational spot-safety policy.** Separate direct-training policy and read-only planning; live interruption/resume qualification remains open.
-
-The next research target is **100M training targets**, subject to the
-[offline readiness assessment](docs/research/100m-readiness.md), retained-corpus
-verification and a new exact reviewed allocation. Historical 50M packets below
-retain their original identities and grant no 100M authority.
 
 ## Execution and qualification are tracked elsewhere
 

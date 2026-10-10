@@ -141,7 +141,8 @@ frontend. Interface support does not imply instruction-following quality.
 
 ## Iterate with the lab
 
-Start in [lab mode](docs/lab-mode.md) (`sparselab try`). When a result is worth
+Start in [lab mode](docs/lab-mode.md) (`sparselab try`); [first real model](docs/first-model.md)
+walks one 17M FineWeb-Edu model through try, seeds, probes, references and the explorer. When a result is worth
 releasing, declare it, inspect its effective settings and storage, pilot the actual
 config when needed, then run through the existing queue or Campaign. Read native
 `evidence` and `triage` afterward; preserve the parent and compare checkpoint-bound
