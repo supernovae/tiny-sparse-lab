@@ -30,9 +30,13 @@ LAB TRY try-20261010T052417Z-b9361b7d  status: completed  (lab mode)
 
 Use `--json` for the full record. A baseline is reused only when an earlier try
 *completed* with the same reuse key: effective config, code (source identity)
-and the tokenizer and dataset input files hashed **now**, plus a matching
-prepared tokenizer digest. Editing a training file, validation file or tokenizer
-therefore retrains the baseline; interrupted or failed tries are never reused.
+and the tokenizer, dataset input files and external memory packages
+(`model.memory_package_path`, `training.portability_manifest_path`) hashed
+**now**, plus a matching prepared tokenizer digest. Editing a training file,
+validation file, tokenizer or memory package therefore retrains the baseline;
+interrupted or failed tries are never reused. A delta that points at a different
+memory package is an explicit changed variable (`memory_packages` in the
+record); otherwise both arms must have trained with identical package contents.
 Pass `--fresh-baseline` to retrain anyway.
 
 `--seed N` is authoritative: both arms use seed N, overriding any seed in the
@@ -54,8 +58,8 @@ as release parents, and for paid compute.
 |---|---|
 | Resource limits | Native storage preflight before training; optional `--resource-envelope` (checked before any work); optional `--max-wall-seconds` per arm. There is no implicit short timeout. |
 | Data identity | Each arm records tokenizer, train and validation digests and the prepared-data manifest digest; the record also carries the source identity, Git commit/dirty state, seed and both configs (the candidate is derived with a `config derive` receipt). |
-| Safe cancellation | Covers the whole try: training, scoring and the record write. Ctrl-C, SIGTERM or `touch <try>/CANCEL` stops training at a checkpointed step boundary; outside training (loading, scoring) `try` handles SIGINT/SIGTERM itself and checks `CANCEL` between phases. The record is published atomically (temp file, fsync, exclusive link) as `interrupted` with `arm`, `phase` (`training` or `scoring`) and `reason`; interrupted tries are kept and never reused. |
-| Held-out checks | Both arms are scored by native checkpoint-bound evaluation under **one shared evaluation protocol**: the baseline's eval `seq_len` (context windows), batch size and batch count over the same tokenized validation bytes. Each arm records `eval_protocol` (split, validation and tokenizer digests, packing version, windowing, batching, scored blocks, evaluator) and its sha256. The comparison requires the same protocol, validation bytes, tokenizer, scored targets and training data (unless the delta changes `dataset.*`/`tokenizer.*`), and a validation split distinct from train; otherwise the verdict is `NOT_COMPARABLE` (exit 3) and no delta is reported. A candidate whose model cannot take the baseline's eval window (e.g. smaller `model.max_seq_len`) is `NOT_COMPARABLE`. |
+| Safe cancellation | Covers the whole try: setup and input hashing, training, scoring and the record write. Before any parsing or hashing, `try` installs its SIGINT/SIGTERM/CANCEL handling and writes a sealed `started` record; a stop during setup finalizes it as `interrupted` at `phase: setup`. Ctrl-C, SIGTERM or `touch <try>/CANCEL` stops training at a checkpointed step boundary; outside training (loading, scoring) `try` handles SIGINT/SIGTERM itself and checks `CANCEL` between phases. The record is published atomically (temp file, fsync, exclusive link) as `interrupted` with `arm`, `phase` (`setup`, `training` or `scoring`) and `reason`; interrupted tries are kept and never reused. |
+| Held-out checks | Both arms are scored by native checkpoint-bound evaluation under **one shared evaluation protocol**: the baseline's eval `seq_len` (context windows), batch size and batch count over the same tokenized validation bytes. Each arm records `eval_protocol` (split, validation and tokenizer digests, packing version, objective mode and validation loss-mask digest, windowing, batching, scored blocks, evaluator) and its sha256, so assistant-only and whole-transcript scoring on identical tokens are never compared. The comparison requires the same protocol, validation bytes, tokenizer, scored targets and training data (unless the delta changes `dataset.*`/`tokenizer.*`), and a validation split distinct from train; otherwise the verdict is `NOT_COMPARABLE` (exit 3) and no delta is reported. A candidate whose model cannot take the baseline's eval window (e.g. smaller `model.max_seq_len`) is `NOT_COMPARABLE`. |
 
 Records live in `WORK_DIR/lab/tries/<try_id>/try.json` and runs in
 `WORK_DIR/lab/runs` (override with `--lab-dir`). A record carries its own

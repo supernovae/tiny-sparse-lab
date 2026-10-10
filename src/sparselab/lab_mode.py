@@ -47,6 +47,10 @@ DELTA_VERSION = 1
 _DELTA_KEYS = {"lab_delta_version", "question", "set"}
 EXIT_NOT_COMPARABLE = 3
 EXIT_INTERRUPTED = 130
+_LIMIT_SEED = "single local comparison with one seed per arm; not a significance test"
+_LIMIT_SCOPE = (
+    "lab records are not release, promotion or scientific-conclusion evidence"
+)
 
 
 @dataclass(frozen=True)
@@ -162,8 +166,28 @@ def _path_digest(path: Path) -> str | dict[str, str]:
     return "missing"
 
 
+# External memory artifacts a run loads by path: the portable Engram package
+# (``model.memory_package_path``, a file or folder) and the learned-portability
+# manifest (``training.portability_manifest_path``), which pins its world data by
+# digest. Their *contents* are part of what a run trained with.
+MEMORY_PACKAGE_FIELDS = (
+    ("model", "memory_package_path"),
+    ("training", "portability_manifest_path"),
+)
+
+
+def memory_packages(config: Any) -> dict[str, Any]:
+    """Content digests, computed now, of every memory package CONFIG references."""
+    packages: dict[str, Any] = {}
+    for section, field in MEMORY_PACKAGE_FIELDS:
+        value = getattr(getattr(config, section), field, None)
+        if value is not None:
+            packages[f"{section}.{field}"] = _path_digest(Path(value))
+    return packages
+
+
 def current_inputs(config: Any) -> dict[str, Any]:
-    """Hash the tokenizer and dataset inputs as they are on disk right now."""
+    """Hash tokenizer, dataset and memory-package inputs as they are on disk now."""
     from sparselab.data.packing import _tokenizer_sha256
     from sparselab.data.tokenizer import load_tokenizer
 
@@ -185,6 +209,7 @@ def current_inputs(config: Any) -> dict[str, Any]:
         value = getattr(config.dataset, field, None)
         if value is not None:
             inputs["dataset_paths"][field] = _path_digest(Path(value))
+    inputs["memory_packages"] = memory_packages(config)
     inputs["sha256"] = hashlib.sha256(_canonical(inputs)).hexdigest()
     return inputs
 
@@ -366,7 +391,7 @@ class _Lifecycle:
             signal.signal(signum, handler)
         self._previous.clear()
 
-    def enter(self, arm: str, phase: str) -> None:
+    def enter(self, arm: str | None, phase: str) -> None:
         self.arm, self.phase = arm, phase
 
     def checkpoint(self) -> None:
@@ -428,6 +453,10 @@ def _train_and_score(
     lifecycle.row = None
     lifecycle.enter(arm, "training")
     lifecycle.checkpoint()
+    # The memory this arm trains with, hashed now (a reused baseline's key
+    # already bound the same digests moments ago).
+    packages = memory_packages(config)
+    lifecycle.checkpoint()
     started = time.monotonic()
     if not reuse:
         returned = train_fn(
@@ -454,6 +483,7 @@ def _train_and_score(
         "stop_reason": _stop_reason(progress),
         "train_seconds": None if reuse else round(train_seconds, 3),
         "seed": config.seed,
+        "memory_packages": packages,
     }
     lifecycle.row = row
     if progress.get("status") != "completed":
@@ -481,6 +511,9 @@ def _train_and_score(
         "validation_sha256": data["validation_sha256"],
         "tokenizer_sha256": data["tokenizer_sha256"],
         "packing_version": _packing_version(run),
+        # Which positions are scored: identical tokens and target counts can
+        # still differ in position under assistant-only objectives.
+        **_supervision_identity(run),
         **used,
         "scored_blocks": min(blocks, used["batch_size"] * used["max_batches"]),
         "evaluator": "pytorch" if loaded.engine is None else "mlx",
@@ -527,6 +560,18 @@ def _train_and_score(
     return row
 
 
+def _supervision_identity(run: Path) -> dict[str, Any]:
+    """Objective mode and a digest of the validation loss mask actually scored."""
+    manifest = json.loads((run / "data" / "manifest.json").read_text())
+    supervision = manifest.get("supervision") if isinstance(manifest, dict) else None
+    kind = supervision.get("kind") if isinstance(supervision, dict) else None
+    mask = run / "data" / "validation_supervision.npy"
+    return {
+        "objective": kind or "all_tokens",
+        "supervision_mask_sha256": _sha256_file(mask) if mask.is_file() else None,
+    }
+
+
 def _packing_version(run: Path) -> Any:
     manifest = json.loads((run / "data" / "manifest.json").read_text())
     return manifest.get("packing_version") if isinstance(manifest, dict) else None
@@ -540,8 +585,10 @@ def heldout_checks(
     """Refuse comparisons that are not scored on identical held-out inputs."""
     base_data = baseline["data"]
     cand_data = candidate["data"]
-    data_declared = any(
-        name.startswith(("dataset.", "tokenizer.")) for name in changed_variables
+    changed = list(changed_variables)
+    data_declared = any(name.startswith(("dataset.", "tokenizer.")) for name in changed)
+    memory_declared = any(
+        f"{section}.{field}" in changed for section, field in MEMORY_PACKAGE_FIELDS
     )
     checks = {
         "validation_distinct_from_train": all(
@@ -561,6 +608,10 @@ def heldout_checks(
             base_data["train_sha256"] == cand_data["train_sha256"]
             and base_data["train_sha256"] is not None
         ),
+        # Both arms trained with the same memory package contents, unless the
+        # delta explicitly changes the package.
+        "same_memory_packages": memory_declared
+        or baseline.get("memory_packages") == candidate.get("memory_packages"),
         "same_eval_protocol": baseline.get("eval_protocol_sha256") is not None
         and baseline.get("eval_protocol_sha256")
         == candidate.get("eval_protocol_sha256"),
@@ -609,8 +660,14 @@ def _seal(record: dict[str, Any]) -> dict[str, Any]:
     return {**body, "record_sha256": hashlib.sha256(_canonical(body)).hexdigest()}
 
 
-def write_record(path: Path, record: dict[str, Any]) -> dict[str, Any]:
-    """Seal and publish RECORD atomically; an existing record is never replaced."""
+def write_record(
+    path: Path, record: dict[str, Any], *, replace_started: bool = False
+) -> dict[str, Any]:
+    """Seal and publish RECORD atomically.
+
+    An existing record is never replaced, except that the final record of a try
+    may replace that same try's own sealed ``started`` record.
+    """
     sealed = _seal(record)
     payload = (
         json.dumps(sealed, indent=2, sort_keys=True, default=str) + "\n"
@@ -621,7 +678,15 @@ def write_record(path: Path, record: dict[str, Any]) -> dict[str, Any]:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        os.link(temporary, path)  # exclusive publish of a complete file
+        if replace_started and (path.exists() or path.is_symlink()):
+            existing = read_record(path)
+            if existing.get("status") != "started" or existing.get(
+                "try_id"
+            ) != record.get("try_id"):
+                raise FileExistsError(f"lab try record already final: {path}")
+            os.replace(temporary, path)
+        else:
+            os.link(temporary, path)  # exclusive publish of a complete file
     finally:
         temporary.unlink(missing_ok=True)
     try:
@@ -690,219 +755,247 @@ def run_try(
     root = lab_root(Path(work_dir), lab_dir)
     runs = root / "runs"
     baseline_path = Path(baseline_path).absolute()
-    candidate = read_candidate(Path(candidate_path))
-    baseline_source = load_config(baseline_path)
-    require_current_dataset(baseline_source.dataset)
-
+    candidate_path = Path(candidate_path).absolute()
     stamp = started_at.strftime("%Y%m%dT%H%M%SZ")
     try_id = f"try-{stamp}-{secrets.token_hex(4)}"
     try_dir = root / "tries" / try_id
     try_dir.mkdir(parents=True, exist_ok=False)
-    try:
-        baseline_file = baseline_path
-        if seed is not None:
-            baseline_file = try_dir / "baseline.yaml"
-            derive_config(baseline_path, baseline_file, {"seed": seed})
-        declared: dict[str, Any] | None = None
-        if candidate.kind == "delta":
-            settings = dict(candidate.settings)
-            if seed is not None:
-                # --seed is authoritative for both arms, over any delta seed.
-                settings["seed"] = seed
-            candidate_file = try_dir / "candidate.yaml"
-            declared = derive_config(baseline_path, candidate_file, settings)[
-                "declared_delta"
-            ]
-        else:
-            candidate_file = candidate.source
-            if seed is not None:
-                candidate_file = try_dir / "candidate.yaml"
-                derive_config(candidate.source, candidate_file, {"seed": seed})
-        base_config = _with_backend(
-            _with_runs_dir(load_config(baseline_file), runs), backend
-        )
-        cand_config = _with_backend(
-            _with_runs_dir(load_config(candidate_file), runs), backend
-        )
-        require_current_dataset(cand_config.dataset)
-        delta = _delta(
-            _config(patchable_config(load_config(baseline_file)), baseline_file.parent),
-            _config(
-                patchable_config(load_config(candidate_file)), candidate_file.parent
-            ),
-        )
-        if not delta or _config_key(base_config) == _config_key(cand_config):
-            raise ValueError("candidate does not change any setting from the baseline")
-        # Bind baseline reuse to the tokenizer and data contents as they are now.
-        inputs = current_inputs(base_config)
-        base_key = reuse_key(base_config, inputs)
-        # Resource limits are checked before any training starts.
-        envelope_reading = (
-            check_envelope(
-                resource_envelope,
-                workspace=root,
-                rss_bytes=current_process_rss_bytes(),
-            )
-            if resource_envelope is not None
-            else None
-        )
-    except Exception as error:
-        # Keep the failed attempt visible instead of leaving an unexplained folder.
-        write_record(
-            try_dir / "try.json",
-            {
-                "format": RECORD_FORMAT,
-                "mode": "lab",
-                "try_id": try_id,
-                "created_at": started_at.isoformat(),
-                "inputs": {
-                    "baseline": {"path": str(baseline_path)},
-                    "candidate": {"path": str(candidate.source)},
-                },
-                "status": "failed",
-                "failure": f"{type(error).__name__}: {error}",
-                "exit_status": 2,
-            },
-        )
-        raise
+    record_path = try_dir / "try.json"
     cancel_path = try_dir / "CANCEL"
-    runs.mkdir(parents=True, exist_ok=True)
-    print(
-        f"lab try {try_id}: touch {cancel_path} (or Ctrl-C) to stop at a safe step",
-        file=sys.stderr,
-    )
-    reuse_id = (
-        None if fresh_baseline else _reusable_baseline(root, runs, base_key, inputs)
-    )
-    new_id = f"lab-base-{base_key[:16]}-{try_id}"
-    changed_variables = sorted(delta)
+    # Cancellation and a sealed 'started' record come before any parsing,
+    # hashing or setup, so a stop at any point still leaves a final record.
+    lifecycle = _Lifecycle(cancel_path)
+    lifecycle.enter(None, "setup")
     record: dict[str, Any] = {
         "format": RECORD_FORMAT,
         "mode": "lab",
         "try_id": try_id,
         "created_at": started_at.isoformat(),
-        "question": candidate.question,
         "inputs": {
-            "baseline": {
-                "path": str(baseline_path),
-                "sha256": _sha256_file(baseline_path),
-            },
-            "candidate": {
-                "kind": candidate.kind,
-                "path": str(candidate.source),
-                "sha256": _sha256_file(candidate.source),
-                "derived_config": str(candidate_file),
-            },
+            "baseline": {"path": str(baseline_path)},
+            "candidate": {"path": str(candidate_path)},
             "seed_override": seed,
             "backend_override": backend,
         },
-        "declared_delta": declared,
-        "delta": delta,
-        "changed_variables": changed_variables,
-        "seed": {
-            "override": seed,
-            "baseline": base_config.seed,
-            "candidate": cand_config.seed,
-            "changed_by_delta": "seed" in delta,
-        },
-        "baseline_inputs": inputs,
-        "eval_protocol": eval_protocol(base_config),
-        "code": {
-            "source_identity_sha256": source_identity()["sha256"],
-            **code_revision(),
-        },
-        "resources": {
-            "resource_envelope": None
-            if resource_envelope is None
-            else resource_envelope.model_dump(mode="json"),
-            "envelope_reading": envelope_reading,
-            "max_wall_seconds_per_arm": max_wall_seconds,
-            "cancel_path": str(cancel_path),
-        },
-        "skipped_release_gates": [
-            "experiment_plan_lock",
-            "campaign_approval_and_reconciliation",
-            "corpus_admission_review",
-            "proposal_binding_stop_documents",
-        ],
-        "limitations": [
-            "single local comparison with one seed per arm; not a significance test",
-            "lab records are not release, promotion or scientific-conclusion evidence",
-        ],
+        "resources": {"cancel_path": str(cancel_path)},
         "arms": {},
-        "status": "running",
+        "status": "started",
     }
-    common = {
-        "cancel_path": cancel_path,
-        "max_wall_seconds": max_wall_seconds,
-        "authorization": authorization,
-        "resource_envelope": resource_envelope,
-        "tokenizer_batch_documents": tokenizer_batch_documents
-        or TOKENIZER_BATCH_DOCUMENTS,
-        "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes
-        or TOKENIZER_BATCH_SOURCE_BYTES,
-        "train_fn": train_fn,
-    }
-    lifecycle = _Lifecycle(cancel_path)
-    protocol = eval_protocol(base_config)
     exit_status = 0
+    setup_error: BaseException | None = None
     lifecycle.install()
     try:
         try:
-            record["arms"]["baseline"] = _train_and_score(
-                arm="baseline",
-                config=base_config,
-                run_id=reuse_id or new_id,
-                reuse=reuse_id is not None,
-                key=base_key,
-                protocol=protocol,
-                lifecycle=lifecycle,
-                **common,
+            write_record(record_path, record)
+            print(
+                f"lab try {try_id}: touch {cancel_path} (or Ctrl-C) to stop at a "
+                "safe step",
+                file=sys.stderr,
             )
-            record["eval_protocol"] = record["arms"]["baseline"]["eval_protocol"]
-            record["arms"]["candidate"] = _train_and_score(
-                arm="candidate",
-                config=cand_config,
-                run_id=f"lab-{try_id}",
-                reuse=False,
-                key=None,
-                protocol=protocol,
-                lifecycle=lifecycle,
-                **common,
+            lifecycle.checkpoint()
+            candidate = read_candidate(candidate_path)
+            require_current_dataset(load_config(baseline_path).dataset)
+            baseline_file = baseline_path
+            if seed is not None:
+                baseline_file = try_dir / "baseline.yaml"
+                derive_config(baseline_path, baseline_file, {"seed": seed})
+            declared: dict[str, Any] | None = None
+            if candidate.kind == "delta":
+                settings = dict(candidate.settings)
+                if seed is not None:
+                    # --seed is authoritative for both arms, over any delta seed.
+                    settings["seed"] = seed
+                candidate_file = try_dir / "candidate.yaml"
+                declared = derive_config(baseline_path, candidate_file, settings)[
+                    "declared_delta"
+                ]
+            else:
+                candidate_file = candidate.source
+                if seed is not None:
+                    candidate_file = try_dir / "candidate.yaml"
+                    derive_config(candidate.source, candidate_file, {"seed": seed})
+            base_config = _with_backend(
+                _with_runs_dir(load_config(baseline_file), runs), backend
             )
-            lifecycle.enter("candidate", "comparison")
-            record["comparison"] = compare(
-                record["arms"]["baseline"],
-                record["arms"]["candidate"],
-                changed_variables,
+            cand_config = _with_backend(
+                _with_runs_dir(load_config(candidate_file), runs), backend
             )
-            record["status"] = "completed"
-            if record["comparison"]["verdict"] == "NOT_COMPARABLE":
-                exit_status = EXIT_NOT_COMPARABLE
-        except LabCancelled as error:
-            if error.arm is not None and error.row is not None:
-                record["arms"][error.arm] = error.row
-            record["status"] = "interrupted"
-            record["interruption"] = {
-                "arm": error.arm,
-                "phase": error.phase,
-                "reason": error.reason,
+            require_current_dataset(cand_config.dataset)
+            delta = _delta(
+                _config(
+                    patchable_config(load_config(baseline_file)), baseline_file.parent
+                ),
+                _config(
+                    patchable_config(load_config(candidate_file)),
+                    candidate_file.parent,
+                ),
+            )
+            lifecycle.checkpoint()
+            # Bind baseline reuse to tokenizer, data and memory-package contents
+            # as they are now; the candidate's identity is hashed the same way.
+            inputs = current_inputs(base_config)
+            lifecycle.checkpoint()
+            cand_inputs = current_inputs(cand_config)
+            lifecycle.checkpoint()
+            base_key = reuse_key(base_config, inputs)
+            if not delta or base_key == reuse_key(cand_config, cand_inputs):
+                raise ValueError(
+                    "candidate does not change any setting from the baseline"
+                )
+            # Resource limits are checked before any training starts.
+            envelope_reading = (
+                check_envelope(
+                    resource_envelope,
+                    workspace=root,
+                    rss_bytes=current_process_rss_bytes(),
+                )
+                if resource_envelope is not None
+                else None
+            )
+            baseline_sha256 = _sha256_file(baseline_path)
+            candidate_sha256 = _sha256_file(candidate.source)
+            lifecycle.checkpoint()
+        except LabCancelled:
+            raise
+        except Exception as error:
+            # Keep the failed attempt visible, then surface the setup error.
+            record["status"] = "failed"
+            record["failure"] = f"{type(error).__name__}: {error}"
+            exit_status = 2
+            setup_error = error
+            raise
+        runs.mkdir(parents=True, exist_ok=True)
+        reuse_id = (
+            None if fresh_baseline else _reusable_baseline(root, runs, base_key, inputs)
+        )
+        new_id = f"lab-base-{base_key[:16]}-{try_id}"
+        changed_variables = sorted(delta)
+        memory_changed = any(
+            f"{section}.{field}" in delta for section, field in MEMORY_PACKAGE_FIELDS
+        )
+        record.update(
+            {
+                "question": candidate.question,
+                "inputs": {
+                    "baseline": {"path": str(baseline_path), "sha256": baseline_sha256},
+                    "candidate": {
+                        "kind": candidate.kind,
+                        "path": str(candidate.source),
+                        "sha256": candidate_sha256,
+                        "derived_config": str(candidate_file),
+                    },
+                    "seed_override": seed,
+                    "backend_override": backend,
+                },
+                "declared_delta": declared,
+                "delta": delta,
+                "changed_variables": changed_variables,
+                "seed": {
+                    "override": seed,
+                    "baseline": base_config.seed,
+                    "candidate": cand_config.seed,
+                    "changed_by_delta": "seed" in delta,
+                },
+                "memory_packages": {
+                    "baseline": inputs["memory_packages"],
+                    "candidate": cand_inputs["memory_packages"],
+                    "changed_by_delta": memory_changed,
+                },
+                "baseline_inputs": inputs,
+                "candidate_inputs": cand_inputs,
+                "eval_protocol": eval_protocol(base_config),
+                "code": {
+                    "source_identity_sha256": source_identity()["sha256"],
+                    **code_revision(),
+                },
+                "skipped_release_gates": [
+                    "experiment_plan_lock",
+                    "campaign_approval_and_reconciliation",
+                    "corpus_admission_review",
+                    "proposal_binding_stop_documents",
+                ],
+                "limitations": [
+                    _LIMIT_SEED,
+                    _LIMIT_SCOPE,
+                ],
+                "status": "running",
             }
-            exit_status = EXIT_INTERRUPTED
-        except (_LabSignal, KeyboardInterrupt) as error:
-            if lifecycle.arm is not None and lifecycle.row is not None:
-                record["arms"][lifecycle.arm] = lifecycle.row
-            record.pop("comparison", None)
-            record["status"] = "interrupted"
-            record["interruption"] = {
-                "arm": lifecycle.arm,
-                "phase": lifecycle.phase,
-                "reason": error.name
-                if isinstance(error, _LabSignal)
-                else "keyboard_interrupt",
+        )
+        record["resources"].update(
+            {
+                "resource_envelope": None
+                if resource_envelope is None
+                else resource_envelope.model_dump(mode="json"),
+                "envelope_reading": envelope_reading,
+                "max_wall_seconds_per_arm": max_wall_seconds,
             }
-            exit_status = EXIT_INTERRUPTED
-        except Exception as error:  # noqa: BLE001 - every failure is retained in the record
+        )
+        common = {
+            "cancel_path": cancel_path,
+            "max_wall_seconds": max_wall_seconds,
+            "authorization": authorization,
+            "resource_envelope": resource_envelope,
+            "tokenizer_batch_documents": tokenizer_batch_documents
+            or TOKENIZER_BATCH_DOCUMENTS,
+            "tokenizer_batch_source_bytes": tokenizer_batch_source_bytes
+            or TOKENIZER_BATCH_SOURCE_BYTES,
+            "train_fn": train_fn,
+            "lifecycle": lifecycle,
+        }
+        protocol = eval_protocol(base_config)
+        record["arms"]["baseline"] = _train_and_score(
+            arm="baseline",
+            config=base_config,
+            run_id=reuse_id or new_id,
+            reuse=reuse_id is not None,
+            key=base_key,
+            protocol=protocol,
+            **common,
+        )
+        record["eval_protocol"] = record["arms"]["baseline"]["eval_protocol"]
+        record["arms"]["candidate"] = _train_and_score(
+            arm="candidate",
+            config=cand_config,
+            run_id=f"lab-{try_id}",
+            reuse=False,
+            key=None,
+            protocol=protocol,
+            **common,
+        )
+        lifecycle.enter("candidate", "comparison")
+        record["comparison"] = compare(
+            record["arms"]["baseline"],
+            record["arms"]["candidate"],
+            changed_variables,
+        )
+        record["status"] = "completed"
+        if record["comparison"]["verdict"] == "NOT_COMPARABLE":
+            exit_status = EXIT_NOT_COMPARABLE
+    except LabCancelled as error:
+        if error.arm is not None and error.row is not None:
+            record["arms"][error.arm] = error.row
+        record["status"] = "interrupted"
+        record["interruption"] = {
+            "arm": error.arm,
+            "phase": error.phase,
+            "reason": error.reason,
+        }
+        exit_status = EXIT_INTERRUPTED
+    except (_LabSignal, KeyboardInterrupt) as error:
+        if lifecycle.arm is not None and lifecycle.row is not None:
+            record["arms"][lifecycle.arm] = lifecycle.row
+        record.pop("comparison", None)
+        record["status"] = "interrupted"
+        record["interruption"] = {
+            "arm": lifecycle.arm,
+            "phase": lifecycle.phase,
+            "reason": error.name
+            if isinstance(error, _LabSignal)
+            else "keyboard_interrupt",
+        }
+        exit_status = EXIT_INTERRUPTED
+    except Exception as error:  # noqa: BLE001 - every failure is retained in the record
+        if setup_error is None:
             record["status"] = "failed"
             record["failure"] = f"{type(error).__name__}: {error}"
             exit_status = 1
@@ -915,10 +1008,12 @@ def run_try(
         record["resources"]["peak_rss_bytes"] = _peak_rss_bytes()
         record["exit_status"] = exit_status
         try:
-            sealed = write_record(try_dir / "try.json", record)
+            sealed = write_record(record_path, record, replace_started=True)
         finally:
             lifecycle.restore()
-    return sealed, try_dir / "try.json"
+    if setup_error is not None:
+        raise setup_error
+    return sealed, record_path
 
 
 def _fmt(value: Any, digits: int = 4) -> str:

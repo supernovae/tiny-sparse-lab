@@ -590,3 +590,251 @@ def test_seed_change_in_delta_is_an_explicit_changed_variable(
     }
     assert record["changed_variables"] == ["seed"]
     assert record["arms"]["candidate"]["seed"] == 43
+
+
+# --- Second review (PR #60): each test failed before its fix. ---------------
+
+
+def _portable_memory_baseline(root: Path) -> tuple[Path, Path]:
+    """A baseline that trains with an external portable Engram package."""
+    import torch
+
+    from sparselab.model.portable_engram import export_portable_engram
+
+    baseline = _write_inputs(root)
+    package = root / "memory.engram"
+    export_portable_engram(
+        torch.randn(17, 5, generator=torch.Generator().manual_seed(0)),
+        package,
+        ngram_size=3,
+    )
+    config = yaml.safe_load(baseline.read_text())
+    config["model"].update(
+        {
+            "memory": "portable",
+            "memory_table_size": 17,
+            "memory_ngram_size": 3,
+            "memory_dim": 5,
+            "memory_package_path": str(package),
+        }
+    )
+    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
+    return baseline, package
+
+
+def test_changed_memory_package_retrains_baseline_and_is_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import torch
+
+    from sparselab.model.portable_engram import export_portable_engram
+
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    baseline, package = _portable_memory_baseline(tmp_path)
+    first, _ = run_try(
+        _delta(tmp_path, "a.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    assert first["comparison"]["comparable"] is True
+    old_digest = first["arms"]["baseline"]["memory_packages"][
+        "model.memory_package_path"
+    ]
+    # Same path, same config: new memory contents on disk, not in the delta.
+    package.unlink()
+    export_portable_engram(
+        torch.randn(17, 5, generator=torch.Generator().manual_seed(1)),
+        package,
+        ngram_size=3,
+    )
+    second, _ = run_try(
+        _delta(tmp_path, "b.yaml", {"model.ffn_dim": 64}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    base, cand = second["arms"]["baseline"], second["arms"]["candidate"]
+    assert base["reused"] is False
+    assert base["memory_packages"] == cand["memory_packages"]
+    assert base["memory_packages"]["model.memory_package_path"] != old_digest
+    assert second["comparison"]["checks"]["same_memory_packages"] is True
+    assert second["memory_packages"]["changed_by_delta"] is False
+
+    # A delta that swaps the package is an explicit changed variable.
+    other = tmp_path / "other.engram"
+    export_portable_engram(
+        torch.randn(17, 5, generator=torch.Generator().manual_seed(2)),
+        other,
+        ngram_size=3,
+    )
+    third, _ = run_try(
+        _delta(tmp_path, "c.yaml", {"model.memory_package_path": str(other)}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    assert third["arms"]["baseline"]["reused"] is True
+    assert "model.memory_package_path" in third["changed_variables"]
+    assert third["memory_packages"]["changed_by_delta"] is True
+    assert third["comparison"]["checks"]["same_memory_packages"] is True
+    assert (
+        third["arms"]["baseline"]["memory_packages"]
+        != third["arms"]["candidate"]["memory_packages"]
+    )
+
+
+def _chat_baseline(root: Path) -> Path:
+    """A local_chat baseline whose loss mode can differ on identical tokens."""
+    baseline = _write_inputs(root)
+    for mode in ("all_tokens", "assistant_only"):
+        for split, count in (("train", 300), ("validation", 60)):
+            lines = [
+                json.dumps(
+                    {
+                        "format_version": 2,
+                        "loss_mode": mode,
+                        "messages": [
+                            {"role": "user", "content": f"{split} question {n}?"},
+                            {
+                                "role": "assistant",
+                                "content": f"the answer to {split} {n} is {n * 7}.",
+                            },
+                        ],
+                    }
+                )
+                for n in range(count)
+            ]
+            (root / f"{split}-{mode}.jsonl").write_text("\n".join(lines) + "\n")
+    config = yaml.safe_load(baseline.read_text())
+    config["dataset"].update(
+        {
+            "source": "local_chat",
+            "train_path": str(root / "train-all_tokens.jsonl"),
+            "validation_path": str(root / "validation-all_tokens.jsonl"),
+            "license": "CC0-1.0",
+            "train_max_documents": 300,
+            "validation_max_documents": 60,
+        }
+    )
+    config["dataset"].pop("synthetic_seed", None)
+    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
+    return baseline
+
+
+def test_supervision_mask_is_part_of_the_eval_protocol(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    baseline = _chat_baseline(tmp_path)
+    record, _ = run_try(
+        _delta(
+            tmp_path,
+            "mask.yaml",
+            {
+                "dataset.train_path": str(tmp_path / "train-assistant_only.jsonl"),
+                "dataset.validation_path": str(
+                    tmp_path / "validation-assistant_only.jsonl"
+                ),
+            },
+        ),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    base, cand = record["arms"]["baseline"], record["arms"]["candidate"]
+    # Identical validation tokens; only the scored positions differ.
+    assert base["data"]["validation_sha256"] == cand["data"]["validation_sha256"]
+    assert base["eval_protocol"]["objective"] == "all_tokens"
+    assert cand["eval_protocol"]["objective"] == "token-loss-mask-v1"
+    assert (
+        base["eval_protocol"]["supervision_mask_sha256"]
+        != cand["eval_protocol"]["supervision_mask_sha256"]
+    )
+    assert record["comparison"]["verdict"] == "NOT_COMPARABLE"
+    assert "same_eval_protocol" in record["comparison"]["failed"]
+
+
+_SIGNAL_DURING_HASHING = """
+import os, signal, sys
+import sparselab.lab_mode as lab
+original = lab._path_digest
+def digest(path):
+    os.kill(os.getpid(), signal.SIGTERM)
+    return original(path)
+lab._path_digest = digest
+from sparselab.cli.main import main
+sys.argv = ["sparselab", "try", sys.argv[1], "--vs", sys.argv[2]]
+main()
+"""
+
+
+def test_sigterm_during_input_hashing_writes_interrupted_setup_record(
+    tmp_path: Path,
+) -> None:
+    baseline = _local_text_baseline(tmp_path)
+    delta = _delta(tmp_path, "h.yaml", {"model.ffn_dim": 128})
+    work = tmp_path / "work"
+    completed = subprocess.run(
+        [sys.executable, "-c", _SIGNAL_DURING_HASHING, str(delta), str(baseline)],
+        env={**os.environ, "SPARSELAB_WORK_DIR": str(work)},
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=600,
+    )
+    assert completed.returncode == EXIT_INTERRUPTED, completed.stderr[-2000:]
+    (record_path,) = (work / "lab/tries").glob("*/try.json")
+    assert not list(record_path.parent.glob(".*.tmp"))
+    record = read_record(record_path)
+    assert record["status"] == "interrupted"
+    assert record["interruption"] == {
+        "arm": None,
+        "phase": "setup",
+        "reason": "SIGTERM",
+    }
+    assert record["arms"] == {}
+    assert not (work / "lab/runs").exists() or not list(
+        (work / "lab/runs").glob("lab-*")
+    )
+
+
+def test_cancel_during_setup_finalizes_the_started_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sparselab.lab_mode as lab
+
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    baseline = _local_text_baseline(tmp_path)
+    original = lab._path_digest
+    seen: list[dict[str, object]] = []
+
+    def digest(path: Path):  # type: ignore[no-untyped-def]
+        (try_dir,) = (tmp_path / "work/lab/tries").glob("*")
+        seen.append(read_record(try_dir / "try.json"))
+        (try_dir / "CANCEL").touch()
+        return original(path)
+
+    monkeypatch.setattr(lab, "_path_digest", digest)
+    record, path = run_try(
+        _delta(tmp_path, "c.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    # A sealed 'started' record existed before any input hashing.
+    assert seen and seen[0]["status"] == "started"
+    assert seen[0]["try_id"] == record["try_id"]
+    assert record["status"] == "interrupted"
+    assert record["interruption"] == {
+        "arm": None,
+        "phase": "setup",
+        "reason": "cancelled",
+    }
+    assert record["exit_status"] == EXIT_INTERRUPTED
+    assert read_record(path) == record
+    # Interrupted setup is never a reuse source: the next try trains a baseline.
+    monkeypatch.setattr(lab, "_path_digest", original)
+    again, _ = run_try(
+        _delta(tmp_path, "d.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    assert again["status"] == "completed"
+    assert again["arms"]["baseline"]["reused"] is False
