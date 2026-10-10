@@ -21,7 +21,7 @@ All arithmetic is plain ``*``, ``+`` and ``%`` on non-negative values below
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from math import gcd
 from typing import Final
 
@@ -104,3 +104,56 @@ def mixed_byte_address(value: bytes, table_size: int) -> int:
         address = (address * MIX_MULTIPLIER + byte + 1) % MIX_MODULUS
     address = (address * MIX_MULTIPLIER) % MIX_MODULUS
     return address % table_size
+
+
+def _model_int(model: Mapping[str, object], key: str, default: int) -> int:
+    value = model.get(key, default)
+    return value if type(value) is int else default
+
+
+def memory_schemes(model: Mapping[str, object], *, legacy: bool = False) -> dict:
+    """Address schemes a model config's memory tables use under current code.
+
+    ``legacy=True`` gives what pre-fix code used for the same config (v1
+    everywhere). Byte and portable memories read raw-byte addresses; n-gram
+    memory hashes one table per (order, hash head), so it lists every head.
+    """
+    kind = model.get("memory", "none")
+    table_size = _model_int(model, "memory_table_size", 0)
+    if kind == "none" or table_size <= 0:
+        return {}
+    if kind in {"byte", "portable"}:
+        return {"byte": BYTE_SCHEME_V1 if legacy else byte_scheme(table_size)}
+    if kind == "ngram":
+        heads = max(_model_int(model, "memory_hash_heads", 1), 1)
+        return {
+            "token": [
+                TOKEN_SCHEME_V1 if legacy else token_scheme(table_size, head)
+                for head in range(heads)
+            ]
+        }
+    return {}
+
+
+def memory_addressing_identity(model: Mapping[str, object]) -> dict | None:
+    """The marker bound into architecture identity, or None when unchanged.
+
+    Only configs whose addresses differ from pre-fix code get a marker, so
+    every unaffected run keeps its architecture digest. A checkpoint trained
+    by pre-fix code at an affected size carries the digest without it and is
+    therefore recognisably legacy rather than silently reinterpreted.
+    """
+    current = memory_schemes(model)
+    return current if current != memory_schemes(model, legacy=True) else None
+
+
+def token_addressing_marker(table_size: int, hash_heads: int) -> dict[str, list[str]]:
+    """Extra addressing-identity field for token tables whose scheme changed.
+
+    Empty for unaffected sizes, so every existing token addressing identity is
+    unchanged; affected sizes must name the v2 heads they were built with.
+    """
+    schemes = [token_scheme(table_size, head) for head in range(max(hash_heads, 1))]
+    if all(scheme == TOKEN_SCHEME_V1 for scheme in schemes):
+        return {}
+    return {"hashing": schemes}

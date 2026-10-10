@@ -9,11 +9,14 @@ addresses bit-for-bit, so existing checkpoints and packs stay valid.
 
 from __future__ import annotations
 
+import json
 import random
+import sys
 from pathlib import Path
 
 import pytest
 import torch
+from test_training import config as training_config
 
 from sparselab.address_hash import (
     BYTE_SCHEME_V1,
@@ -21,17 +24,30 @@ from sparselab.address_hash import (
     TOKEN_SCHEME_V1,
     TOKEN_SCHEME_V2,
     byte_scheme,
+    token_addressing_marker,
     token_ngram_address,
     token_scheme,
 )
+from sparselab.cli.main import main
+from sparselab.config.models import RunConfig
 from sparselab.data.byte_hash import hash_bytes, table_address
 from sparselab.data.lexical_mining import _address_for_key
+from sparselab.model import portable_engram
 from sparselab.model.memory import TokenNgramMemory
 from sparselab.model.portable_engram import (
+    PortableEngramManifest,
     export_portable_engram,
     load_portable_engram,
 )
 from sparselab.research.portability_campaign import _token_address
+from sparselab.training import manifest as manifest_module
+from sparselab.training.manifest import architecture_sha256, trained_memory_addressing
+from sparselab.training.trainer import train
+
+
+def read_manifest_unverified(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
 
 TABLE_SIZES = (257, 514, 251, 1021)
 VOCAB = 512
@@ -158,26 +174,149 @@ def test_byte_scheme_marks_multiples_of_257() -> None:
     assert byte_scheme(256) == BYTE_SCHEME_V1
 
 
-def test_portable_pack_records_and_requires_the_table_size_scheme(
+def test_portable_pack_label_is_explicit_and_must_match_the_table_size(
     tmp_path: Path,
 ) -> None:
     table = torch.zeros((257, 4), dtype=torch.float32)
-    manifest = export_portable_engram(table, tmp_path / "new.enbyte", ngram_size=3)
+    # The default label is the legacy scheme; it is never inferred from rows,
+    # so a 257-row table cannot be packaged without an explicit v2 label...
+    with pytest.raises(ValueError, match="cannot be exported"):
+        export_portable_engram(table, tmp_path / "default.enbyte", ngram_size=3)
+    with pytest.raises(ValueError, match="cannot be exported"):
+        export_portable_engram(
+            table, tmp_path / "old.enbyte", ngram_size=3, hashing=BYTE_SCHEME_V1
+        )
+    assert not list(tmp_path.iterdir())
+    # ...and a v2 label is refused where current code addresses with v1.
+    with pytest.raises(ValueError, match="cannot be exported"):
+        export_portable_engram(
+            torch.zeros((256, 4)), tmp_path / "x.enbyte", ngram_size=3,
+            hashing=BYTE_SCHEME_V2,
+        )  # fmt: skip
+
+    manifest = export_portable_engram(
+        table, tmp_path / "new.enbyte", ngram_size=3, hashing=BYTE_SCHEME_V2
+    )
     assert manifest.hashing == BYTE_SCHEME_V2
     load_portable_engram(
         tmp_path / "new.enbyte", expected_shape=(257, 4), expected_ngram_size=3
     )
-
-    export_portable_engram(
-        table, tmp_path / "old.enbyte", ngram_size=3, hashing=BYTE_SCHEME_V1
-    )
-    with pytest.raises(ValueError, match="addressing algorithm is unsupported"):
-        load_portable_engram(
-            tmp_path / "old.enbyte", expected_shape=(257, 4), expected_ngram_size=3
-        )
-
     legacy = torch.zeros((256, 4), dtype=torch.float32)
     assert (
         export_portable_engram(legacy, tmp_path / "legacy.enbyte", ngram_size=3).hashing
         == BYTE_SCHEME_V1
     )
+
+
+def test_pre_fix_packs_at_affected_sizes_are_refused_by_the_consumer(
+    tmp_path: Path,
+) -> None:
+    """A package minted by pre-fix code (v1 label, 257 rows) cannot be loaded."""
+    package = tmp_path / "prefix.enbyte"
+    table = torch.zeros((257, 4), dtype=torch.float32)
+    manifest = PortableEngramManifest(
+        1, "raw-utf8-v1", BYTE_SCHEME_V1, 3, 257, 4, portable_engram._digest(table)
+    )
+    torch.save({"manifest": manifest.as_dict(), "table": table}, package)
+    with pytest.raises(ValueError, match="addressing algorithm is unsupported"):
+        load_portable_engram(package, expected_shape=(257, 4), expected_ngram_size=3)
+
+
+def _model(**overrides: object) -> dict[str, object]:
+    return {
+        "memory": "ngram", "memory_table_size": 257, "memory_hash_heads": 2,
+        "memory_ngram_size": 3, **overrides,
+    }  # fmt: skip
+
+
+def test_architecture_identity_binds_changed_memory_addressing() -> None:
+    affected = {"model": _model(), "attention": {}}
+    assert architecture_sha256(affected) != architecture_sha256(
+        affected, memory_addressing=False
+    )
+    assert trained_memory_addressing(affected, architecture_sha256(affected)) == {
+        "token": [TOKEN_SCHEME_V2, TOKEN_SCHEME_V1]
+    }
+    legacy_digest = architecture_sha256(affected, memory_addressing=False)
+    assert trained_memory_addressing(affected, legacy_digest) == {
+        "token": [TOKEN_SCHEME_V1, TOKEN_SCHEME_V1]
+    }
+    with pytest.raises(ValueError, match="no known memory addressing"):
+        trained_memory_addressing(affected, "0" * 64)
+    byte = {"model": _model(memory="byte", memory_hash_heads=1), "attention": {}}
+    assert trained_memory_addressing(byte, architecture_sha256(byte)) == {
+        "byte": BYTE_SCHEME_V2
+    }
+    # Unaffected configs keep their pre-fix architecture digest exactly.
+    for model in (
+        _model(memory_table_size=1021),
+        _model(memory="byte", memory_table_size=1021, memory_hash_heads=1),
+        {"memory": "none", "memory_table_size": 0},
+    ):
+        unaffected = {"model": model, "attention": {}}
+        assert architecture_sha256(unaffected) == architecture_sha256(
+            unaffected, memory_addressing=False
+        )
+
+
+def _byte_run_config(root: Path, table_size: int) -> RunConfig:
+    base = training_config(root)
+    return base.model_copy(
+        update={
+            "model": base.model.model_copy(
+                update={
+                    "memory": "byte",
+                    "memory_table_size": table_size,
+                    "memory_ngram_size": 3,
+                    "memory_dim": 4,
+                }
+            ),
+            "training": base.training.model_copy(update={"max_steps": 2}),
+            "optimizer": base.optimizer.model_copy(update={"warmup_steps": 0}),
+        }
+    )
+
+
+def _export(
+    monkeypatch: pytest.MonkeyPatch, runs: Path, run_id: str, output: Path
+) -> None:
+    argv = ["sparselab", "engram", "export", run_id, "--output", str(output)]
+    monkeypatch.setattr(sys, "argv", [*argv, "--runs-dir", str(runs)])
+    main()
+
+
+def test_pre_fix_257_checkpoint_cannot_mint_a_v2_pack_by_re_export(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _byte_run_config(tmp_path, 257)
+    runs = config.logging.root_dir
+    # Train exactly as pre-fix code recorded it: no addressing in the identity.
+    with monkeypatch.context() as patch:
+        patch.setattr(manifest_module, "memory_addressing_identity", lambda _: None)
+        train(config, run_id="prefix")
+    recorded = read_manifest_unverified(runs / "prefix" / "manifest.json")
+    assert trained_memory_addressing(
+        recorded["effective_config"], recorded["architecture_sha256"]
+    ) == {"byte": BYTE_SCHEME_V1}
+
+    output = tmp_path / "prefix.enbyte"
+    with pytest.raises(ValueError, match="pre-fix degenerate memory addressing"):
+        _export(monkeypatch, runs, "prefix", output)
+    assert not output.exists()
+
+    # A table trained (and bound) under current code exports as v2 and loads.
+    train(config, run_id="fixed")
+    fixed = tmp_path / "fixed.enbyte"
+    _export(monkeypatch, runs, "fixed", fixed)
+    package = load_portable_engram(
+        fixed, expected_shape=(257, 4), expected_ngram_size=3
+    )
+    assert package.manifest.hashing == BYTE_SCHEME_V2
+
+
+def test_token_addressing_identity_names_changed_heads_only() -> None:
+    assert token_addressing_marker(8192, 1) == {}
+    assert token_addressing_marker(1021, 2) == {}
+    assert token_addressing_marker(257, 2) == {
+        "hashing": [TOKEN_SCHEME_V2, TOKEN_SCHEME_V1]
+    }

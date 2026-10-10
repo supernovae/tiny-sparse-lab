@@ -15,7 +15,7 @@ from typing import Any
 import torch
 from safetensors.torch import load_file
 
-from sparselab.address_hash import byte_scheme
+from sparselab.address_hash import byte_scheme, token_addressing_marker
 from sparselab.config.models import RunConfig
 from sparselab.engram.packs import verify_pack
 from sparselab.model.inspection import named_tensor_inventory
@@ -1416,6 +1416,9 @@ def initialize_memory_artifact(
                 "hash_heads": config.model.memory_hash_heads,
                 "rows": config.model.memory_table_size,
                 "embedding_dim": config.model.memory_dim,
+                **token_addressing_marker(
+                    config.model.memory_table_size, config.model.memory_hash_heads
+                ),
             }
         else:
             if config.model.memory != "byte" or model.memory is None:
@@ -1465,6 +1468,9 @@ def initialize_memory_artifact(
             "hash_heads": config.model.memory_hash_heads,
             "rows": config.model.memory_table_size,
             "embedding_dim": config.model.memory_dim,
+            **token_addressing_marker(
+                config.model.memory_table_size, config.model.memory_hash_heads
+            ),
         }
         if memory["addressing"] != expected:
             raise ValueError(

@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 from torch import Tensor, nn
 
-from sparselab.address_hash import byte_scheme
+from sparselab.address_hash import BYTE_SCHEME_V1, byte_scheme
 from sparselab.model.memory import MemoryDiagnostics, _diagnostics
 
 FORMAT_VERSION = 1
@@ -52,9 +52,16 @@ def export_portable_engram(
     *,
     ngram_size: int,
     normalization: str = "raw-utf8-v1",
-    hashing: str | None = None,
+    hashing: str = BYTE_SCHEME_V1,
 ) -> PortableEngramManifest:
-    """Write immutable latent table weights without a backbone-specific adapter."""
+    """Write immutable latent table weights without a backbone-specific adapter.
+
+    ``hashing`` is the scheme the table was *trained* with; it is never inferred
+    from the row count. A trained checkpoint passes its verified scheme
+    (``trained_memory_addressing``). The label must also be the scheme current
+    code addresses this table size with, so a table trained under pre-fix
+    degenerate addressing cannot be packaged under any label.
+    """
     if table.ndim != 2:
         raise ValueError(
             "portable Engram table must have shape [table_size, embedding_dim]"
@@ -62,8 +69,12 @@ def export_portable_engram(
     if ngram_size < 1:
         raise ValueError("portable Engram ngram_size must be positive")
     weights = table.detach().cpu().contiguous()
-    if hashing is None:
-        hashing = byte_scheme(weights.shape[0])
+    if hashing != byte_scheme(weights.shape[0]):
+        raise ValueError(
+            f"portable Engram table trained with {hashing!r} addressing cannot be "
+            f"exported: {weights.shape[0]} rows are addressed with "
+            f"{byte_scheme(weights.shape[0])!r}; retrain the table"
+        )
     manifest = PortableEngramManifest(
         FORMAT_VERSION,
         normalization,

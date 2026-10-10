@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from safetensors.torch import save_file
 
-from sparselab.address_hash import token_ngram_address
+from sparselab.address_hash import token_addressing_marker, token_ngram_address
 from sparselab.data.allocation import (
     OWNER_LEXICAL,
     OWNER_NEURAL,
@@ -236,6 +236,7 @@ def _memory_artifact(
             "hash_heads": 1,
             "rows": _TABLE_SIZE,
             "embedding_dim": _VALUE_DIM,
+            **token_addressing_marker(_TABLE_SIZE, 1),
         }
         tensor_sha256 = hashlib.sha256(table.numpy().tobytes()).hexdigest()
     else:
@@ -1408,6 +1409,7 @@ def build_portability_run_manifest(
                 "hash_heads": 1,
                 "rows": _TABLE_SIZE,
                 "embedding_dim": _VALUE_DIM,
+                **token_addressing_marker(_TABLE_SIZE, 1),
             }
             if representation == "token"
             else {
