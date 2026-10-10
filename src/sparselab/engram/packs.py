@@ -29,6 +29,7 @@ from pydantic import (
 )
 from safetensors import SafetensorError
 
+from sparselab.address_hash import byte_scheme
 from sparselab.config.models import StrictModel
 from sparselab.engram.records import (
     MAX_RECORD_BYTES,
@@ -173,10 +174,12 @@ class LexicalComponent(StrictModel):
     def _valid(self) -> LexicalComponent:
         if self.format_version != 1:
             raise ValueError("unsupported lexical format version")
-        if self.normalization != "raw-utf8-v1" or self.hashing != "poly257-terminal-v1":
-            raise ValueError("unsupported lexical addressing contract")
         if min(self.ngram_size, self.table_size, self.embedding_dim) <= 0:
             raise ValueError("lexical dimensions and ngram_size must be positive")
+        if self.normalization != "raw-utf8-v1" or self.hashing != byte_scheme(
+            self.table_size
+        ):
+            raise ValueError("unsupported lexical addressing contract")
         _require_sha(self.table_sha256, "table_sha256")
         return self
 

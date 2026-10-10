@@ -13,6 +13,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Final
 
+from sparselab.address_hash import (
+    TOKEN_SCHEME_V1,
+    TOKEN_SCHEME_V2,
+    token_ngram_address,
+    token_uses_legacy,
+)
 from sparselab.data.conversations import iter_conversations
 from sparselab.data.tokenizer import load_tokenizer
 from sparselab.training.manifest import canonical_json, sha256_file
@@ -30,6 +36,16 @@ MAX_ADDRESS_BITMAP_BITS: Final = 512 * 1024 * 1024
 MAX_HASH_OPERATIONS: Final = 50_000_000
 MAX_UNIQUE_NGRAMS: Final = 1_000_000
 MAX_UNIQUE_NGRAM_COMPONENTS: Final = 8_000_000
+
+
+_V1_RECURRENCE: Final = (
+    "address=(address*(257+hash_head*2)+shifted_token_id)%table_size"
+)
+_V2_RECURRENCE: Final = (
+    "per hash head: v1 recurrence when gcd(257+hash_head*2,table_size)==1, else "
+    "address=(address*(1103515245+hash_head*2)+shifted_token_id+1)%(2**31-1) "
+    "and a final %table_size"
+)
 
 
 def _positive_int(value: object, name: str, maximum: int) -> int:
@@ -58,11 +74,7 @@ def _ngram_key(token_ids: list[int], position: int, order: int) -> tuple[int, ..
 
 
 def _address_for_key(ngram_key: tuple[int, ...], *, table_size: int, head: int) -> int:
-    address = head + 1
-    multiplier = 257 + head * 2
-    for shifted in ngram_key:
-        address = (address * multiplier + shifted) % table_size
-    return address
+    return token_ngram_address(ngram_key, table_size, head)
 
 
 def _file(path: Path, name: str) -> Path:
@@ -224,8 +236,19 @@ def analyze_training_corpus(
         ],
         "empirical_unigram_entropy_bits_per_token": entropy_bits,
         "addressing": {
-            "algorithm": "token-ngram-recurrence-v1",
-            "recurrence": "address=(address*(257+hash_head*2)+shifted_token_id)%table_size",
+            **(
+                {
+                    "algorithm": TOKEN_SCHEME_V1,
+                    "recurrence": _V1_RECURRENCE,
+                }
+                if all(
+                    token_uses_legacy(table_size, head) for head in range(hash_heads)
+                )
+                else {
+                    "algorithm": TOKEN_SCHEME_V2,
+                    "recurrence": _V2_RECURRENCE,
+                }
+            ),
             "initial_address": "hash_head+1",
             "document_boundary": "zero_padded",
             "collision_key": "distinct zero-padded token n-gram keys across corpus",

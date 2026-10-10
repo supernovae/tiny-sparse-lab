@@ -60,16 +60,25 @@ These items take priority over new lifecycle, admission or orchestration code.
   - more checkpoints along the Pythia trajectory as references;
   - probe and explorer support for MLX checkpoints and attached semantic packs
     (both refuse them with a reason today).
-- [ ] **Fix: degenerate n-gram hash at `memory_table_size: 257`.** Found with the
-  model explorer's memory view. `TokenNgramMemory.addresses` multiplies by
-  `257 + 2·seed`, so with 257 rows every order-n address of hash head 0
-  reduces to the single token n−1 positions back, modulo 257. That hash head's
-  "n-gram" tables are really single-token tables. Affected n-gram configs:
-  `configs/capability_recall_ngram_cpu.yaml` (one hash head) and
-  `configs/smoke_memory_cpu.yaml` (head 0 of 2). Byte-memory configs use
-  precomputed addresses, a separate path this check did not cover. A coprime
-  row count or multiplier fixes it but changes checkpoints, so it needs its own
-  change and re-baselined results.
+- [x] **Fix: degenerate memory hashes at `memory_table_size: 257`.** *Done:
+  one shared helper (`sparselab.address_hash`) now serves `TokenNgramMemory`,
+  lexical mining and the portability campaign, plus the raw-byte
+  `table_address`. A table size whose legacy multiplier shares a factor with
+  it (multiples of 257 for head 0 and raw bytes, e.g. 259 for head 1) mixes in
+  the prime field 2³¹−1 and reduces once at the end (`token-ngram-recurrence-v2`,
+  `mix31-terminal-v2`). Every coprime size keeps its legacy addresses bit for
+  bit (`tests/test_memory_hash.py`).* Found with the model explorer's memory
+  view: with 257 rows, hash head 0 of every n-gram table was a single-token
+  table (the oldest token in the window, modulo 257), and every raw-byte
+  address was row 0, because `hash_bytes` ends with `* 257`.
+  **Baselines predate the fix:** results, checkpoints and prepared byte
+  caches from `capability_recall_ngram_cpu`, `smoke_memory_cpu`,
+  `smoke_byte_memory_cpu`, `smoke_combined_cpu`, `withheld_bytes_cpu` and
+  `withheld_bpe_cpu` were trained with degenerate addressing. Re-run their
+  baselines before comparing against them. Lab-mode baseline reuse already
+  retrains them, because the code identity changed. Prepared caches are keyed
+  by source identity, so they are rebuilt too. Portable packs at those sizes
+  recorded as `poly257-terminal-v1` are refused.
 - [x] **P1 — Known reference points.** *Done: `sparselab probe ref:NAME --tier
   full` scores pinned Pythia-70M/160M-deduped and SmolLM2-135M/360M (immutable
   commits, safe snapshots, weights digest) through the same lm-eval adapter;

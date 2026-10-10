@@ -213,18 +213,49 @@ def test_cache_is_sealed_and_rejects_edits(tmp_path: Path) -> None:
     assert explorer.cached_explorations(tmp_path) == []
 
 
-def test_memory_view_flags_an_ngram_table_that_reads_one_token() -> None:
-    """A 257-row table with the 257 hash multiplier collapses each n-gram
-    order onto a single earlier token; a coprime table size does not."""
-    collapsed = explorer.explore_loaded(
-        _loaded(memory="ngram", memory_table_size=257, memory_ngram_size=2,
-                memory_ngram_orders=(2, 3), memory_dim=8),
-        TEXT,
-    )  # fmt: skip
+def _legacy_collapsed_addresses(
+    self: Any, input_ids: torch.Tensor, order: int | None = None, seed: int = 0
+) -> torch.Tensor:
+    """The pre-fix head-0 hash at 257 rows: the oldest token mod table size."""
+    order = self.ngram_size if order is None else order
+    shifted = torch.zeros_like(input_ids)
+    offset = order - 1
+    shifted[:, offset:] = input_ids[:, : input_ids.shape[1] - offset]
+    return shifted % self.table_size
+
+
+def test_memory_view_flags_an_ngram_table_that_reads_one_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The detector flags a table whose addresses are one earlier token's id
+    (what the legacy 257 multiplier produced at 257 rows)."""
+    from sparselab.model.memory import TokenNgramMemory
+
+    config = {
+        "memory": "ngram",
+        "memory_table_size": 257,
+        "memory_ngram_size": 2,
+        "memory_ngram_orders": (2, 3),
+        "memory_dim": 8,
+    }
+    with monkeypatch.context() as patch:
+        patch.setattr(TokenNgramMemory, "addresses", _legacy_collapsed_addresses)
+        collapsed = explorer.explore_loaded(_loaded(**config), TEXT)
     offsets = [s["single_token_offset"] for s in collapsed["memory"]["streams"]]
     assert sorted(offsets) == [1, 2]
     healthy = explorer.explore_loaded(_loaded(**MOE_NGRAM), TEXT)
     assert all(s["single_token_offset"] is None for s in healthy["memory"]["streams"])
+
+
+def test_memory_view_no_longer_flags_a_257_row_table() -> None:
+    """Regression for the 257 hash fix: the same 257-row table now hashes
+    real n-grams, so no stream reads a single earlier token."""
+    fixed = explorer.explore_loaded(
+        _loaded(memory="ngram", memory_table_size=257, memory_ngram_size=2,
+                memory_ngram_orders=(2, 3), memory_dim=8),
+        TEXT,
+    )  # fmt: skip
+    assert all(s["single_token_offset"] is None for s in fixed["memory"]["streams"])
 
 
 def _fake_run(tmp_path: Path) -> Path:

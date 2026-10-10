@@ -250,7 +250,16 @@ def _facts_transfer_evaluate(args: argparse.Namespace) -> None:
 
 
 def _engram_export(args: argparse.Namespace) -> None:
+    from sparselab.training.manifest import read_manifest, trained_memory_addressing
+
+    # load_run refuses a run trained with pre-fix degenerate addressing; the
+    # scheme exported is the one the hash-verified run manifest recorded at
+    # training time, never one inferred from the table's row count.
     loaded = load_run(args.run_id, Path(args.runs_dir), args.checkpoint, args.backend)
+    verified = read_manifest(Path(args.runs_dir) / args.run_id / "manifest.json")
+    trained = trained_memory_addressing(
+        verified["effective_config"], verified["architecture_sha256"]
+    )
     if loaded.engine is not None:
         raise ValueError(
             "Engram export is unsupported for native MLX runs; MLX supports dense "
@@ -258,10 +267,14 @@ def _engram_export(args: argparse.Namespace) -> None:
         )
     if not isinstance(loaded.model.memory, ByteAddressMemory):
         raise TypeError("Engram export requires a byte-memory run")
+    hashing = trained.get("byte")
+    if not isinstance(hashing, str):
+        raise TypeError("run records no raw-byte memory addressing")
     manifest = export_portable_engram(
         loaded.model.memory.table.weight,
         Path(args.output),
         ngram_size=loaded.config.model.memory_ngram_size,
+        hashing=hashing,
     )
     print(json.dumps(manifest.as_dict(), sort_keys=True))
 
@@ -2135,6 +2148,7 @@ def _research_portability_report(args: argparse.Namespace) -> None:
 
 
 def _research_portability_probe_byte(args: argparse.Namespace) -> None:
+    from sparselab.address_hash import byte_scheme
     from sparselab.data.byte_hash import table_address
 
     raw = args.text.encode("utf-8")
@@ -2143,7 +2157,7 @@ def _research_portability_probe_byte(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "normalization": "raw-utf8-v1",
-                "hashing": "poly257-terminal-v1",
+                "hashing": byte_scheme(args.table_size),
                 "utf8_byte_length": len(raw),
                 "ngram_size": args.ngram_size,
                 "terminal_bytes_hex": terminal.hex(),
