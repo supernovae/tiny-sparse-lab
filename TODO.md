@@ -1,11 +1,75 @@
 # Implementation backlog
 
-Only missing or defective code belongs here. Scientific milestones and execution
+Only missing or defective code belongs here, plus the lab-velocity pillars below
+(items marked **Directional** are experiment direction rather than single code tasks). Scientific milestones and execution
 status live in [the research roadmap](docs/research/roadmap.md) and
 [research records](experiments/research/). A passing fixture does not close a
 scientific gate. Each item needs code, focused regression coverage and public
 documentation; move it to a **Code task** issue when assigned. Reuse native
 interfaces, and preserve declaration and artifact identities.
+
+## Lab velocity: break the ceremony loop
+
+Goal: an idea expressed as a YAML delta reaches a scored comparison against a
+known baseline the same day, with full provenance reserved for release runs.
+These items take priority over new lifecycle, admission or orchestration code.
+
+### Pillars
+
+- [ ] **P0 — Fast loop (`lab mode`).** One command takes a YAML change and a
+  baseline and returns a scored comparison (e.g. `sparselab try <delta.yaml>
+  --vs <baseline>`). Lab mode skips plan locks, approvals, admission reviews and
+  campaign reconciliation; it still records config, seed, code revision and
+  data identity in one compact run record. Release mode keeps today's full
+  provenance. Target: tiny-model smoke delta to report in under 15 minutes on CPU.
+- [ ] **P0 — Fast-fail probe battery.** A fixed, versioned suite that runs in
+  minutes on any checkpoint: held-out perplexity delta vs. baseline, top-token
+  agreement with baseline, fact recall with reworded (held-out) prompts, simple
+  needle-in-context retrieval. Cheap metrics filter most ideas before any longer
+  run.
+- [ ] **P1 — Known reference points.** Import SmolLM2 and Pythia checkpoints in
+  the 70M–360M range (and reuse lm-evaluation-harness tasks where possible) so
+  every result sits on a known curve instead of only comparing to our own runs.
+- [ ] **P1 — Pareto view in the dashboard.** Plot quality against tokens,
+  memory, latency and parameter count (resident vs. active), so trade-offs are
+  visible instead of a single number.
+- [ ] **Directional — Memory-offload showcase experiment.** At fixed compute,
+  dense vs. dense + Engram/memory; then swap the facts held in memory and check
+  that recall follows the swap (portability). This is an experiment program
+  rather than a single code task; code needs it exposes get filed here.
+- [ ] **Directional — Agent iteration loop.** An agent reads `evidence`/`triage`
+  output, proposes the next single-variable delta and re-runs through lab mode.
+  Keep a held-out probe split the agent never optimizes against, and persist a
+  memory of prior attempts to avoid repeats.
+
+### Tactical cleanups
+
+- [ ] **Rewrite AGENTS.md for lab mode by default.** Agents currently generate
+  much of the ceremony (proposal, binding and stop documents). Default agent
+  runs to lab mode; require proposals only for release runs or paid compute
+  above an explicit budget.
+- [ ] **Shrink the CLI surface.** ~100 subcommands today. Put the fast path
+  (`try`, `probe`, `compare`, `report`) up front and move lifecycle/campaign
+  commands under an `advanced`/`release` group in help output.
+- [ ] **Matrix-ify configs.** Replace hand-expanded seed/budget variants in
+  `configs/` (e.g. the `context_study_*` files) with one matrix declaration each.
+- [ ] **Archive the kernel-memory-lab paper trail.** Move CARD proposals and
+  per-step result notes under `experiments/research/history/`, leaving one
+  STATUS page with current decisions and links.
+- [ ] **Unblock a real 100M run on an existing dataset.** Train the 100M target
+  on an already-available corpus (e.g. a FineWeb-Edu sample) in lab mode rather
+  than waiting on retained-corpus admission; treat retained-corpus work as a
+  release-mode track.
+- [ ] **Dead-code and legacy sweep.** Run coverage plus a dead-code scan
+  (e.g. vulture) after the recent cleanup and remove experiment-specific code
+  paths that the fast loop doesn't use.
+- [ ] **Loop-time CI check.** Add a CI job that times the CPU smoke path from
+  YAML to report and fails if it regresses past the target.
+- [ ] **Borrow before building.** For new training, eval or quantization needs,
+  check nanoGPT/modded-nanogpt, litgpt, lm-evaluation-harness and llm-compressor
+  (GPTQ/AWQ/SmoothQuant baselines) first and wrap them rather than reimplementing.
+- [ ] **Optional — served-identity export.** Emit a samesies-style signed
+  manifest for exported checkpoints so lab provenance carries through to serving.
 
 ## Active code need
 
