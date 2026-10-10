@@ -98,6 +98,7 @@ def test_ordinary_ci_selects_only_explicit_zero_model_nodes() -> None:
     assert tuple(token for token in lab_command if token.startswith("tests/")) == (
         "tests/test_lab_mode.py::test_cpu_smoke_loop_yaml_to_report_within_budget",
         "tests/test_probes.py",
+        "tests/test_references.py",
     )
     assert not any(token in lab_command for token in ("-k", "-m", "-n", "--pyargs"))
 

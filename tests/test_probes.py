@@ -17,7 +17,7 @@ import pytest
 import yaml
 
 from sparselab.lab_context import LabContext
-from sparselab.lab_records import seal
+from sparselab.lab_records import eval_group, seal
 from sparselab.probes import lm_eval_adapter, metrics, runner, scoring
 from sparselab.probes.render import meter, render, sparkline
 from sparselab.probes.suite import (
@@ -99,6 +99,8 @@ IDENTITY_KEYS = {
     "tokens_seen",
     "parameters",
     "parameter_bytes",
+    "active_parameters",
+    "active_parameter_bytes",
     "tokenizer_sha256",
     "validation_sha256",
     "max_seq_len",
@@ -1300,8 +1302,11 @@ def test_dashboard_history_reads_verified_records(
         history_rows,
         live_batteries,
         load_history,
+    )
+    from sparselab.probes.points import (
+        metric_points,
         pareto_frontier,
-        pareto_points,
+        points_from_record,
     )
 
     root, record = tried
@@ -1326,26 +1331,31 @@ def test_dashboard_history_reads_verified_records(
     assert [path for path, _ in dropped] == [edited]
 
     # Pareto points: one per checkpoint, grouped by eval protocol identity.
-    points = pareto_points(entries)
-    checkpoints = [p["checkpoint"] for p in points]
+    # The try arms and the probe battery of the same checkpoints agree on the
+    # eval group, so they collapse into one point each.
+    path = root / "work/lab/tries" / record["try_id"] / "try.json"
+    points = metric_points(points_from_record("try", record, path), "heldout_loss")
+    checkpoints = [p["checkpoint_sha256"] for p in points]
     assert len(checkpoints) == len(set(checkpoints))
     probe = record["probe"]
     assert {
         probe["target"]["checkpoint_sha256"],
         probe["baseline"]["checkpoint_sha256"],
-    } <= set(checkpoints)
-    assert {p["eval_group"] for p in points} == {probe["target"]["eval_group"]}
+    } == set(checkpoints)
+    assert {p["group"] for p in points} == {probe["target"]["eval_group"]}
+    for arm in record["arms"].values():
+        assert arm["eval_group"] == probe["target"]["eval_group"]
 
 
 def test_pareto_points_are_unique_per_group_and_checkpoint() -> None:
-    from sparselab.dashboard.probe_data import ProbeEntry, pareto_points
+    from sparselab.probes.points import metric_points, probe_points
 
     validation = {"validation_sha256": "v", "tokenizer_sha256": "t"}
-    short = runner._eval_group(validation, {"seq_len": 32, "batch_size": 4})
-    long = runner._eval_group(validation, {"seq_len": 64, "batch_size": 4})
+    short = eval_group(validation, {"seq_len": 32, "batch_size": 4})
+    long = eval_group(validation, {"seq_len": 64, "batch_size": 4})
     assert short != long
 
-    def entry(key: str, group: str, loss: float) -> ProbeEntry:
+    def entry(key: str, group: str, loss: float) -> list[dict[str, Any]]:
         who = {
             "run_id": "cand",
             "step": 12,
@@ -1355,18 +1365,19 @@ def test_pareto_points_are_unique_per_group_and_checkpoint() -> None:
         }
         row = runner._row(BY_ID["heldout_loss"], status="pass", value=loss)
         result = {"target": who, "baseline": None, "probes": [row], "verdict": {}}
-        return ProbeEntry(key, "probe", key, Path(key), result, None, {}, None)
+        return probe_points(result, source=key, path=None, packaged=False)
 
     # Newest first: the same checkpoint under two protocols, and a stale repeat.
-    points = pareto_points(
+    points = metric_points(
         [
-            entry("new-long", long, 3.0),
-            entry("short", short, 4.0),
-            entry("old-long", long, 9.0),
-        ]
+            *entry("new-long", long, 3.0),
+            *entry("short", short, 4.0),
+            *entry("old-long", long, 9.0),
+        ],
+        "heldout_loss",
     )
-    by_group = {p["eval_group"]: p for p in points}
+    by_group = {p["group"]: p for p in points}
     assert len(points) == 2 and set(by_group) == {short, long}
-    assert by_group[long]["loss"] == 3.0 and by_group[long]["source"] == "new-long"
-    assert by_group[short]["loss"] == 4.0
-    assert {p["checkpoint"] for p in points} == {"same-checkpoint"}
+    assert by_group[long]["value"] == 3.0 and by_group[long]["source"] == "new-long"
+    assert by_group[short]["value"] == 4.0
+    assert {p["checkpoint_sha256"] for p in points} == {"same-checkpoint"}

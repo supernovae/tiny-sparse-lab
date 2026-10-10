@@ -32,21 +32,32 @@ These items take priority over new lifecycle, admission or orchestration code.
   needle-in-context retrieval. Cheap metrics filter most ideas before any longer
   run. Probes are screening signals: keep a separate, untouched final evaluation
   because repeated selection on held-out probes turns them into development data.
-- [ ] **Probe battery follow-ups.** Reference models on the probe and Pareto
-  views (SmolLM2/Pythia scored by the same battery, see below); more dashboard
-  charts (per-probe trends over tries, needle accuracy by length across
-  checkpoints, calibration curves); broader benchmarks beyond the four lm-eval
-  tasks at `limit=50` (larger limits, more task families, a held-back final
-  evaluation set that agents never select on).
-- [ ] **P1 — Known reference points.** *Partial: `probe --tier full` wraps
-  lm-evaluation-harness tasks for our checkpoints; importing SmolLM2/Pythia
-  checkpoints is still open.* Import SmolLM2 and Pythia checkpoints in
+- [ ] **Probe battery follow-ups.** More dashboard charts (per-probe trends
+  over tries, needle accuracy by length across checkpoints, calibration
+  curves); broader benchmarks beyond the four lm-eval tasks at `limit=50`
+  (larger limits, more task families, a held-back final evaluation set that
+  agents never select on). Reference follow-ups: score references on the
+  tokenizer-independent standard-tier probes too (needs a text-level fact
+  recall/needle path), time references on one fixed device so they appear on
+  the latency axis, more checkpoints along the Pythia trajectory, and runs
+  outside `WORK_DIR/lab` (plain `sparselab train` runs) on the Pareto view.
+- [x] **P1 — Known reference points.** *Done: `sparselab probe ref:NAME --tier
+  full` scores pinned Pythia-70M/160M-deduped and SmolLM2-135M/360M (immutable
+  commits, safe snapshots, weights digest) through the same lm-eval adapter;
+  their sealed results ship in `probes/reference_results/` so CI and the
+  dashboard never download a model; `sparselab compare RESULT --references`
+  places any result on that curve with paired SEs, only within one benchmark
+  group (otherwise NOT COMPARABLE / MISSING EVIDENCE),
+  [docs](docs/probe-battery.md#reference-models-and-sparselab-compare).*
+  Import SmolLM2 and Pythia checkpoints in
   the 70M–360M range (and reuse lm-evaluation-harness tasks where possible) so
   every result sits on a known curve instead of only comparing to our own runs.
-- [ ] **P1 — Pareto view in the dashboard.** *Partial: the Probes page plots
-  held-out loss against parameters, weight bytes, training tokens and latency
-  for probed candidates; active-vs-resident parameters and runs without probe
-  results are still open.* Plot quality against tokens,
+- [x] **P1 — Pareto view in the dashboard.** *Done: the Probes page plots
+  held-out loss or lm-eval accuracy against resident or active parameters,
+  resident or active weight bytes (memory), training tokens and scoring
+  latency, for every scored try arm (with or without probes), probed
+  checkpoints and the reference models, per comparison group, with the
+  frontier and a learner explainer.* Plot quality against tokens,
   memory, latency and parameter count (resident vs. active), so trade-offs are
   visible instead of a single number.
 - [ ] **Directional — Memory-offload showcase experiment.** At fixed compute,
@@ -65,9 +76,9 @@ These items take priority over new lifecycle, admission or orchestration code.
   much of the ceremony (proposal, binding and stop documents). Default agent
   runs to lab mode; require proposals only for release runs or paid compute
   above an explicit budget.
-- [x] **Shrink the CLI surface.** *Done for help output: `try`/`probe`/`report`
-  and the fast path first, release commands grouped last; `compare` is still
-  open. No commands were removed.* ~100 subcommands today. Put the fast path
+- [x] **Shrink the CLI surface.** *Done for help output: `try`/`probe`/`report`/
+  `compare` and the fast path first, release commands grouped last. No commands
+  were removed.* ~100 subcommands today. Put the fast path
   (`try`, `probe`, `compare`, `report`) up front and move lifecycle/campaign
   commands under an `advanced`/`release` group in help output.
 - [ ] **Matrix-ify configs.** Replace hand-expanded seed/budget variants in

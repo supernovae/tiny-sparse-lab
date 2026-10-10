@@ -28,6 +28,9 @@ def encode(loaded: Any, text: str) -> list[int]:
 
 
 def eot(loaded: Any) -> int:
+    declared = getattr(loaded, "eot_token_id", None)  # reference models
+    if declared is not None:
+        return int(declared)
     token = loaded.tokenizer.token_to_id("<eos>")
     return int(token) if token is not None else 0
 

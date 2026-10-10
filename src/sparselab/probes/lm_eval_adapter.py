@@ -17,6 +17,7 @@ public scale, not to separate two smoke checkpoints.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from collections.abc import Sequence
 from typing import Any
@@ -93,18 +94,59 @@ def build_lm(loaded: Any) -> Any:
 
 
 def summarize_results(results: dict[str, Any], tasks: Sequence[str]) -> dict[str, Any]:
-    """Pick each task's harness accuracy (acc, else acc_norm) and average."""
+    """Each task's harness accuracy (acc, else acc_norm), per-item outcomes and
+    the benchmark group that decides which results may be compared."""
     rows: dict[str, Any] = {}
+    samples = results.get("samples") or {}
     for task in tasks:
         metrics = (results.get("results") or {}).get(task) or {}
-        acc = metrics.get("acc,none", metrics.get("acc_norm,none"))
+        metric = "acc" if "acc,none" in metrics else "acc_norm"
+        logged = sorted(samples.get(task) or [], key=lambda item: item["doc_id"])
         rows[task] = {
-            "acc": acc,
+            "acc": metrics.get(f"{metric},none"),
+            "acc_metric": metric if f"{metric},none" in metrics else None,
             "acc_norm": metrics.get("acc_norm,none"),
             "perplexity": metrics.get("perplexity,none"),
+            "items": [float(item[metric]) for item in logged if metric in item],
+            "items_sha256": hashlib.sha256(
+                "\n".join(str(item.get("doc_hash")) for item in logged).encode()
+            ).hexdigest()
+            if logged
+            else None,
         }
     values = [row["acc"] for row in rows.values() if row["acc"] is not None]
-    return {"tasks": rows, "mean_accuracy": float(np.mean(values)) if values else None}
+    return {
+        "tasks": rows,
+        "mean_accuracy": float(np.mean(values)) if values else None,
+        "benchmark": benchmark_identity(results, tasks, rows),
+    }
+
+
+def benchmark_identity(
+    results: dict[str, Any], tasks: Sequence[str], rows: dict[str, Any]
+) -> dict[str, Any]:
+    """What must match for two lm-eval results to be compared: tasks, task
+    versions, shots, the metric per task and the exact scored items."""
+    versions = results.get("versions") or {}
+    shots = results.get("n-shot") or {}
+    return {
+        "harness": "lm-evaluation-harness",
+        "tasks": list(tasks),
+        "task_versions": {t: versions.get(t) for t in tasks},
+        "num_fewshot": {t: shots.get(t, 0) for t in tasks},
+        "metric": {t: rows[t]["acc_metric"] for t in tasks},
+        "items_sha256": {t: rows[t]["items_sha256"] for t in tasks},
+    }
+
+
+def benchmark_group(summary: dict[str, Any]) -> str | None:
+    """Comparison group of an lm-eval summary (None when incomplete)."""
+    from sparselab.lab_records import comparison_group
+
+    identity = summary.get("benchmark")
+    if not identity or any(v is None for v in identity["items_sha256"].values()):
+        return None
+    return comparison_group(identity)
 
 
 def run_lm_eval(loaded: Any, tasks: Sequence[str], limit: int) -> dict[str, Any]:
@@ -117,7 +159,7 @@ def run_lm_eval(loaded: Any, tasks: Sequence[str], limit: int) -> dict[str, Any]
         tasks=list(tasks),
         limit=limit,
         bootstrap_iters=0,
-        log_samples=False,
+        log_samples=True,
         random_seed=0,
         numpy_random_seed=0,
         torch_random_seed=0,
@@ -129,4 +171,6 @@ def run_lm_eval(loaded: Any, tasks: Sequence[str], limit: int) -> dict[str, Any]
     if missing:
         # A task without its metric is missing evidence, not a low score.
         raise RuntimeError(f"lm-eval returned no accuracy for: {', '.join(missing)}")
+    summary["benchmark"]["limit"] = limit
+    summary["benchmark_group"] = benchmark_group(summary)
     return summary

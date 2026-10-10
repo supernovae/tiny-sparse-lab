@@ -23,6 +23,9 @@ uv run --locked --extra cpu sparselab report probe-20261010T150839Z-ece5a739
 # Standard lm-eval tasks (optional extra).
 uv sync --locked --extra cpu --extra lmeval
 uv run --locked --extra cpu --extra lmeval sparselab probe RUN --vs BASE --tier full
+
+# Place a result on the reference curve (reads records; no download, no compute).
+uv run --locked --extra cpu sparselab compare TRY_OR_PROBE_ID --references
 ```
 
 A target is a run directory, a checkpoint directory inside a run, or a run id
@@ -207,20 +210,130 @@ Each probe row: `id`, `title`, `tier`, `cost`, `metric`, `higher_is_better`,
 loss), `delta_se`, `within_noise`, `improved`, `note`, `details`, `seconds`.
 Keys are stable within a format version; `tests/test_probes.py` pins them.
 
+## Reference models and `sparselab compare`
+
+Our runs should sit on a known curve, not only next to each other. Four public
+checkpoints in the 70M–360M range are pinned in
+`sparselab.reference_models` (immutable Hugging Face commits, safe snapshots
+only: static metadata and `*.safetensors`, no pickles, remote code or
+quantization configs; the same rules as the Pythia trajectory adapter):
+
+| Reference | Repository @ commit | Resident / active params | Training tokens (model card) |
+|---|---|---|---|
+| `ref:pythia-70m-deduped` | `EleutherAI/pythia-70m-deduped@9a7c847e` (step 143000) | 70.4M / 44.7M | 299,892,736,000 |
+| `ref:pythia-160m-deduped` | `EleutherAI/pythia-160m-deduped@c54a0e0b` (step 143000) | 162.3M / 123.7M | 299,892,736,000 |
+| `ref:SmolLM2-135M` | `HuggingFaceTB/SmolLM2-135M@93efa2f0` | 134.5M / 134.5M | "2T" |
+| `ref:SmolLM2-360M` | `HuggingFaceTB/SmolLM2-360M@f8027fd0` | 361.8M / 361.8M | "4T" |
+
+A reference is scored by the same battery, the same token-scoring path and the
+same lm-eval adapter as our checkpoints:
+
+```sh
+uv sync --locked --extra cpu --extra reference --extra lmeval
+uv run --locked --no-sync sparselab probe ref:SmolLM2-135M --tier full
+uv run --locked --no-sync sparselab compare --list-references
+```
+
+Only the lm-eval probe applies to a reference (`--tier full` is required); its
+held-out loss on our validation split is never computed or compared, because
+it has its own tokenizer and training data. A reference is never a `--vs`
+baseline. Without the optional extras the command stops before any work with
+`uv sync --extra reference --extra lmeval`.
+
+**Packaged results.** The sealed probe records of all four references ship in
+`src/sparselab/probes/reference_results/` and are verified on read like any lab
+record, so `compare`, the dashboard and CI use them without downloading a
+model. Measured on CPU (fp32, lm-eval 0.4.13, transformers 4.57.6) with the
+`full` tier's tasks at `limit=50`, zero-shot; two independent runs gave
+identical records:
+
+| Reference | lambada_openai | hellaswag | arc_easy | piqa | mean `acc` |
+|---|---|---|---|---|---|
+| pythia-70m-deduped | 0.28 | 0.30 | 0.30 | 0.54 | 0.355 |
+| pythia-160m-deduped | 0.36 | 0.42 | 0.34 | 0.60 | 0.430 |
+| SmolLM2-135M | 0.36 | 0.44 | 0.52 | 0.62 | 0.485 |
+| SmolLM2-360M | 0.42 | 0.46 | 0.64 | 0.74 | 0.565 |
+
+These are 50-item slices, not the published full-task numbers; compare them
+only with results in the same benchmark group (below). To refresh them, run
+`sparselab probe ref:NAME --tier full` for each reference and copy the sealed
+`probe.json` to `reference_results/NAME.json`; `tests/test_references.py`
+checks every packaged record against the pinned registry.
+
+**Comparison groups.** A number is only compared with numbers measured the same
+way:
+
+- held-out loss within one `eval_group` (validation data, tokenizer, loss mask,
+  eval protocol), as before;
+- lm-eval accuracy within one `benchmark_group`: a digest of the tasks, task
+  versions, shots, `limit`, the metric used per task and the exact item hashes
+  the harness scored (`details.benchmark`). Each task's per-item outcomes are
+  kept (`details.tasks.<task>.items`) so two results in the same group get a
+  **paired** standard error: per-task paired SEs combined as `sqrt(Σ se_t²)/T`.
+  The battery's own lm-eval row uses the same paired SE, and refuses a
+  baseline in another benchmark group (`not_comparable`).
+
+`sparselab compare RESULT [RESULT…] [--references] [--json]` reads sealed
+records only (a try/probe id, a record path or `ref:NAME`; the first is the
+subject) and prints one table of points and, per metric, each pair as
+better/worse/within noise (|Δ| ≤ 2 paired SE), **NOT COMPARABLE** with the
+reason, or **MISSING EVIDENCE** with the command that produces it:
+
+```text
+COMPARE  try-20261010T171944Z-43f2ff1d:candidate vs 4 point(s) · comparisons only within one eval/benchmark group
+
+    point                                      resident    active   tokens  held-out loss  lm-eval acc
+  ▶ try-20261010T171944Z-43f2ff1d:candidate       49.3k     49.3k     1.5k          5.347        0.220
+  ◆ pythia-70m-deduped                            70.4M     44.7M   299.9B              –        0.355
+  ◆ pythia-160m-deduped                          162.3M    123.7M   299.9B              –        0.430
+  ◆ SmolLM2-135M                                 134.5M    134.5M     2.0T              –        0.485
+  ◆ SmolLM2-360M                                 361.8M    361.8M     4.0T              –        0.565
+
+  held-out loss (lower is better)
+    ≠ NOT COMPARABLE vs pythia-70m-deduped, pythia-160m-deduped, SmolLM2-135M, SmolLM2-360M
+      ↳ reference models have their own tokenizer and training data, so held-out loss on our split is never comparable; use lm-eval accuracy
+
+  lm-eval accuracy (higher is better)
+    ✖ WORSE         vs pythia-70m-deduped                        Δ -0.135 ±0.033
+    ✖ WORSE         vs pythia-160m-deduped                       Δ -0.210 ±0.037
+    ✖ WORSE         vs SmolLM2-135M                              Δ -0.265 ±0.038
+    ✖ WORSE         vs SmolLM2-360M                              Δ -0.345 ±0.039
+```
+
+(A 49k-parameter smoke model trained on 1.5k tokens, so it sits below chance on
+this slice; the point is the placement, not the score.) `--json` emits
+`{subject, points, comparisons, curve}`.
+
 ## Dashboard
 
 `sparselab dashboard` has a **Probes** page (reads `WORK_DIR/lab`, or
 `--lab-dir`): live progress of a running battery, the verdict banner (with any
 missing evidence), per-probe results against the baseline with meters, charts
 and greedy samples, a "What the probes mean" explainer, history across tries and
-probes, and a Pareto view of held-out loss against parameters, weight bytes,
-training tokens or latency. The page reads records through the same verified
+probes, and a Pareto view. The page reads records through the same verified
 reader as `report` and lists rejected (edited or unreadable) records instead of
-showing them. The Pareto view plots one point per (comparison group,
-checkpoint) for candidates and baselines, newest result wins, so the same
-checkpoint scored under two protocols keeps a point in each group. It plots
-only within one comparison group
-(`eval_group`), chosen with a selector that defaults to the selected result's
-group.
+showing them.
+
+The **Pareto view** plots quality (held-out loss, or lm-eval accuracy) against
+a cost: resident parameters, active parameters per token, resident or active
+weight bytes, training tokens or scoring latency (ms/token). *Resident* counts
+every weight in memory; *active* counts what one token touches (one embedding
+row, the routed experts, the looked-up memory rows), and a grey bar spans each
+checkpoint's active → resident range. Points come from every verified lab
+record through `sparselab.probes.points` (shared with `compare`): each scored
+arm of every `try`, including tries run with `--probe-tier none`, every probe
+target and baseline, and the packaged reference results (purple diamonds,
+lm-eval only). One point per (comparison group, checkpoint), newest result
+wins. It plots only within one comparison group (`eval_group` for loss,
+`benchmark_group` for lm-eval), chosen with a selector that defaults to the
+selected result's group; hidden groups, points without the chosen cost and
+older records without a group are counted in a caption, never mixed in. The
+dotted frontier respects the metric's direction, the dashed line is the chance
+level, a log cost axis is on by default when references are present, and "How
+to read the Pareto view" explains it for learners.
+
+![Pareto view: lab runs on the reference curve](assets/probe-pareto-references.png)
+
+![Pareto view: held-out loss vs active parameters](assets/probe-pareto-active.png)
 
 ![Probe dashboard](assets/probe-dashboard.png)

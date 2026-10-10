@@ -111,7 +111,12 @@ approvals, admission reviews and campaign reconciliation, but keeps storage and
 resource limits, data identity, safe cancellation and held-out checks. A tiny
 CPU smoke delta reaches its report in about 15 seconds, including the fast
 **[probe battery](docs/probe-battery.md)** tier (`sparselab probe` runs more
-tiers on any checkpoint and recommends the next action). See
+tiers on any checkpoint and recommends the next action). `sparselab compare
+TRY_ID --references` places a result against other results and pinned
+[reference models](docs/probe-battery.md#reference-models-and-sparselab-compare)
+(Pythia-70M/160M, SmolLM2-135M/360M; sealed lm-eval results ship with the
+package, so nothing is downloaded), and the dashboard's Pareto view plots
+quality against resident vs. active parameters, memory, tokens and latency. See
 **[lab mode](docs/lab-mode.md)**; the full-provenance path below is for release
 runs.
 

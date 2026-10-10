@@ -8,7 +8,7 @@ try) and ``probes/*/probe.json`` (``sparselab probe``). Live progress comes from
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -170,58 +170,3 @@ def history_rows(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
             }
         )
     return rows
-
-
-def pareto_points(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
-    """One point per (eval group, checkpoint), newest result wins.
-
-    ``eval_group`` identifies the validation data, tokenizer, loss mask and eval
-    protocol; only points in one group are comparable. The same checkpoint
-    scored under two protocols is two points, one in each group.
-    """
-    points: dict[tuple[str | None, str], dict[str, Any]] = {}
-    for entry in entries:  # newest first
-        result = entry.result
-        loss = probe_row(result, "heldout_loss") or {}
-        verdict = (result.get("verdict") or {}).get("status")
-        for role, who, value in (
-            ("candidate", result.get("target"), loss.get("value")),
-            ("baseline", result.get("baseline"), loss.get("baseline_value")),
-        ):
-            if not who or value is None or not who.get("checkpoint_sha256"):
-                continue
-            key = (who.get("eval_group"), who["checkpoint_sha256"])
-            if key in points:
-                continue
-            details = loss.get("details") or {}
-            points[key] = {
-                "checkpoint": who["checkpoint_sha256"],
-                "label": f"{who.get('run_id')}@{who.get('step')}",
-                "run_id": who.get("run_id"),
-                "role": role,
-                "eval_group": who.get("eval_group"),
-                "loss": value,
-                "parameters": who.get("parameters"),
-                "parameter_bytes": who.get("parameter_bytes"),
-                "tokens_seen": who.get("tokens_seen"),
-                "ms_per_token": details.get("ms_per_token")
-                if role == "candidate"
-                else None,
-                "verdict": verdict if role == "candidate" else "baseline",
-                "source": entry.key,
-            }
-    return list(points.values())
-
-
-def pareto_frontier(
-    points: Sequence[tuple[float, float]],
-) -> list[int]:
-    """Indices of points not dominated when minimizing both coordinates."""
-    order = sorted(range(len(points)), key=lambda i: (points[i][0], points[i][1]))
-    frontier: list[int] = []
-    best = float("inf")
-    for index in order:
-        if points[index][1] < best:
-            frontier.append(index)
-            best = points[index][1]
-    return frontier

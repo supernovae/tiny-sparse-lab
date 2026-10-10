@@ -2469,11 +2469,40 @@ def _report(args: argparse.Namespace) -> None:
         print(summarize(record, target, color=use_color()))
 
 
+def _compare(args: argparse.Namespace) -> None:
+    """Place sealed results against each other and pinned reference models."""
+    from sparselab.lab_mode import lab_root
+    from sparselab.probes.compare import as_json, compare, render, render_references
+    from sparselab.probes.points import collect_points
+    from sparselab.probes.render import use_color
+
+    lab_dir = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)
+    try:
+        if args.list_references:
+            print(render_references(collect_points(lab_dir), color=use_color()))
+            return
+        if not args.results:
+            raise ValueError("name a result (try/probe id, record path or ref:NAME)")
+        report = compare(
+            args.results[0],
+            args.results[1:],
+            lab_dir=lab_dir,
+            references=args.references,
+        )
+    except (ValueError, OSError, KeyError) as error:
+        raise SystemExit(f"sparselab compare: {error}") from None
+    if args.json:
+        print(json.dumps(as_json(report), indent=2, sort_keys=True))
+    else:
+        print(render(report, color=use_color()))
+
+
 def _probe(args: argparse.Namespace) -> None:
     """Run the fast-fail probe battery on a run or checkpoint."""
     from sparselab.lab_mode import lab_root
     from sparselab.probes.cli import run_probe
     from sparselab.probes.render import render, use_color
+    from sparselab.reference_models import ReferenceUnavailable
 
     try:
         result, path = run_probe(
@@ -2487,7 +2516,7 @@ def _probe(args: argparse.Namespace) -> None:
             authorization=args.runtime_authorization,
             resource_envelope=args.resource_envelope_value,
         )
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, ReferenceUnavailable) as error:
         raise SystemExit(f"sparselab probe: {error}") from None
     except KeyboardInterrupt:
         raise SystemExit(130) from None
@@ -2504,6 +2533,7 @@ FAST_PATH_COMMANDS = (
     "try",
     "probe",
     "report",
+    "compare",
     "inspect",
     "train",
     "eval",
@@ -2676,6 +2706,37 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     lab_report.add_argument("--lab-dir", type=Path)
     lab_report.add_argument("--json", action="store_true")
     lab_report.set_defaults(handler=_report)
+    lab_compare = commands.add_parser(
+        "compare",
+        help="Compare sealed results with each other and with reference models",
+        description=(
+            "Place a try/probe result against other results and, with "
+            "--references, against pinned SmolLM2/Pythia checkpoints. Each "
+            "metric is compared only within one comparison group (held-out "
+            "loss: same eval group; lm-eval: same benchmark group); otherwise "
+            "the pair is reported NOT COMPARABLE or MISSING EVIDENCE. Reads "
+            "records only; nothing is re-scored or downloaded."
+        ),
+    )
+    lab_compare.add_argument(
+        "results",
+        nargs="*",
+        metavar="RESULT",
+        help="try/probe id, record path or ref:NAME; the first is the subject",
+    )
+    lab_compare.add_argument(
+        "--references",
+        action="store_true",
+        help="Also compare with every pinned reference model result",
+    )
+    lab_compare.add_argument(
+        "--list-references",
+        action="store_true",
+        help="List pinned reference models and which have results",
+    )
+    lab_compare.add_argument("--lab-dir", type=Path)
+    lab_compare.add_argument("--json", action="store_true")
+    lab_compare.set_defaults(handler=_compare)
     probe = commands.add_parser(
         "probe",
         help="Fast-fail probe battery on a run or checkpoint (optionally vs a baseline)",
@@ -2687,7 +2748,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
             "Stops early on a hard failure and recommends a next action."
         ),
     )
-    probe.add_argument("target", help="Run id, run directory or checkpoint path")
+    probe.add_argument(
+        "target",
+        help="Run id, run directory, checkpoint path, or ref:NAME for a pinned "
+        "reference model (--tier full; see `sparselab compare --list-references`)",
+    )
     probe.add_argument("--vs", metavar="BASELINE", help="Baseline run or checkpoint")
     probe.add_argument("--tier", choices=("fast", "standard", "full"), default="fast")
     probe.add_argument(
@@ -3860,7 +3925,14 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         from sparselab.config.models import RunConfig
         from sparselab.lab_mode import lab_root
         from sparselab.probes.cli import resolve_target
+        from sparselab.reference_models import is_reference
 
+        if is_reference(args.target):
+            # Pinned public checkpoints load in-process through transformers
+            # on the CPU; there is no SparseLab run config to authorize.
+            if profile is not None or workers:
+                raise ValueError("runtime profiles do not apply to ref: models")
+            return
         run, _ = resolve_target(
             args.target,
             lab_dir=lab_root(resolve_work_dir(args.work_dir), args.lab_dir),
@@ -3947,7 +4019,14 @@ def _read_only_command(args: argparse.Namespace) -> bool:
             "export",
             "tokenizer-bakeoff",
         }
-    return args.command in {"inspect", "checkpoint", "evidence", "triage", "report"}
+    return args.command in {
+        "inspect",
+        "checkpoint",
+        "evidence",
+        "triage",
+        "report",
+        "compare",
+    }
 
 
 def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:

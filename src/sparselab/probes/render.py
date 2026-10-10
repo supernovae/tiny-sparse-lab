@@ -73,10 +73,19 @@ def _num(value: Any, digits: int = 3) -> str:
 def _compact(value: Any) -> str:
     if not isinstance(value, (int, float)) or value is None:
         return "–"
-    for unit, size in (("B", 1e9), ("M", 1e6), ("k", 1e3)):
+    for unit, size in (("T", 1e12), ("B", 1e9), ("M", 1e6), ("k", 1e3)):
         if abs(value) >= size:
             return f"{value / size:.1f}{unit}"
     return str(int(value))
+
+
+def params_text(who: Mapping[str, Any]) -> str:
+    """``135M params`` or ``162M params (106M active)`` when they differ."""
+    total, active = who.get("parameters"), who.get("active_parameters")
+    text = f"{_compact(total)} params"
+    if active is not None and total is not None and active != total:
+        text += f" ({_compact(active)} active)"
+    return text
 
 
 def sparkline(values: Sequence[float | None]) -> str:
@@ -169,10 +178,20 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
         if who is None:
             continue
         lines.append(
-            f"  {label} {who['run_id']}  step {who.get('step')} · "
+            f"  {label} {who['run_id']}  step {_num(who.get('step'))} · "
             f"{_compact(who.get('tokens_seen'))} tokens · "
-            f"{_compact(who.get('parameters'))} params"
+            f"{params_text(who)}"
         )
+        ref = who.get("reference")
+        if ref:
+            lines.append(
+                _paint(
+                    f"            {ref['repo_id']}@{ref['revision'][:12]} · "
+                    f"{ref['license']} · weights {who['checkpoint_sha256'][:12]}",
+                    "2",
+                    color,
+                )
+            )
     lines.append("")
     title_width = max(len(row["title"]) for row in result["probes"])
     for row in result["probes"]:

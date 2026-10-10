@@ -16,8 +16,13 @@ from sparselab.dashboard.probe_data import (
     history_rows,
     live_batteries,
     load_history,
+)
+from sparselab.probes.points import (
+    COSTS,
+    METRICS,
+    collect_points,
+    metric_points,
     pareto_frontier,
-    pareto_points,
 )
 from sparselab.probes.suite import PROBES, suite_identity
 
@@ -378,74 +383,251 @@ def _history(entries: list[Any]) -> None:
         )
 
 
-def _pareto(entries: list[Any], selected: Any) -> None:
-    points = pd.DataFrame(pareto_points(entries))
-    if points.empty:
-        st.info("The Pareto view needs at least one result with a held-out loss.")
-        return
-    groups = list(dict.fromkeys(points["eval_group"].dropna()))
-    own = (selected.result.get("target") or {}).get("eval_group")
-    default = groups.index(own) if own in groups else 0
+PARETO_EXPLAINER = """
+**Reading the chart.** Each dot is one checkpoint: up or down is quality,
+left or right is what it cost. The dotted line is the **Pareto frontier**:
+checkpoints no other checkpoint beats on *both* cost and quality. Ideas worth
+keeping move the frontier; a dot behind it is dominated.
+
+**Resident vs. active parameters.** *Resident* counts every weight held in
+memory. *Active* counts what one token actually touches: one row of the
+input embedding table, only the routed experts of a mixture-of-experts layer,
+only the looked-up rows of a memory table. Sparse ideas trade resident memory
+for fewer active parameters, so look at both axes. The grey bar spans a
+checkpoint's active → resident count.
+
+**Comparison groups.** A number only means something next to numbers measured
+the same way. Held-out loss compares within one *eval group* (same validation
+data, tokenizer, loss mask and eval protocol); lm-eval accuracy within one
+*benchmark group* (same tasks, task versions, shots and items). Other groups
+are hidden, never mixed in.
+
+**Reference points (◆).** Pinned public checkpoints (Pythia, SmolLM2) scored
+by the same lm-eval path as our runs, so a result sits on a known curve. They
+were trained on hundreds of billions to trillions of tokens with their own
+tokenizers, so they only appear on lm-eval accuracy, never on our held-out
+loss. At tiny scale most tasks sit near chance (dashed line); use
+`sparselab compare RESULT --references` for paired deltas with standard errors.
+"""
+PARAMETER_SPANS = {
+    "parameters": ("active_parameters", "parameters"),
+    "active_parameters": ("active_parameters", "parameters"),
+    "parameter_bytes": ("active_parameter_bytes", "parameter_bytes"),
+    "active_parameter_bytes": ("active_parameter_bytes", "parameter_bytes"),
+}
+KIND_STYLE = {
+    "reference": ("diamond", "#8250df", "reference model"),
+    "try": ("circle", "#0969da", "lab try arm"),
+    "probe": ("square", "#1a7f37", "probed checkpoint"),
+}
+
+
+def _pareto(lab_dir: Path, selected: Any | None) -> None:
+    raw = collect_points(lab_dir)
     controls = st.columns([2, 3])
-    group = controls[0].selectbox(
-        "Comparison group",
-        groups,
-        index=default,
-        key="probe_pareto_group",
-        format_func=lambda g: (
-            f"{g[:12]} · {int((points['eval_group'] == g).sum())} checkpoints"
-        ),
-        help="Only checkpoints scored on the same validation data, tokenizer, "
-        "loss mask and eval protocol share a loss scale.",
+    metric_id = controls[0].radio(
+        "Quality",
+        list(METRICS),
+        horizontal=True,
+        key="probe_pareto_metric",
+        format_func=lambda m: METRICS[m].label,
+        help="Held-out loss: our validation split (lab runs only). lm-eval "
+        "accuracy: public tasks, shared with the reference models.",
     )
+    metric = METRICS[metric_id]
     axis = controls[1].radio(
         "Cost axis",
-        ("parameters", "parameter_bytes", "tokens_seen", "ms_per_token"),
+        list(COSTS),
         horizontal=True,
         key="probe_pareto_axis",
-        format_func=lambda name: {
-            "parameters": "parameters",
-            "parameter_bytes": "resident weight bytes",
-            "tokens_seen": "training tokens",
-            "ms_per_token": "latency (ms/token)",
-        }[name],
+        format_func=lambda name: COSTS[name],
     )
-    data = points[points["eval_group"] == group].dropna(subset=["loss", axis])
-    data = data.reset_index(drop=True)
-    if data.empty:
-        st.info(f"No checkpoints in this group record {axis}.")
-        return
-    if len(groups) > 1:
-        st.caption(
-            f"{len(groups) - 1} other comparison group(s) hidden: their losses are "
-            "on a different scale."
+    points = pd.DataFrame(metric_points(raw, metric_id))
+    if points.empty:
+        st.info(
+            f"No checkpoint has {metric.label} yet. To get it, {metric.missing_hint}."
         )
-    front = pareto_frontier(list(zip(data[axis], data["loss"], strict=True)))
-    data["frontier"] = data.index.isin(front)
-    chart = px.scatter(
-        data,
-        x=axis,
-        y="loss",
-        color="verdict",
-        symbol="role",
-        hover_data=["label", "checkpoint", "source"],
-        color_discrete_map=STATUS_COLOR,
-        title="Quality vs cost per checkpoint: lower-left is better; the line is "
-        "the Pareto frontier",
+        _pareto_explainer()
+        return
+    ungrouped = int(points["group"].isna().sum())
+    points = points.dropna(subset=["group"])
+    counts = points["group"].value_counts()
+    groups = list(counts.index)
+    own = None
+    if selected is not None:
+        target = selected.result.get("target") or {}
+        lm = next(
+            (
+                r
+                for r in selected.result.get("probes") or []
+                if r.get("id") == "lm_eval"
+            ),
+            {},
+        )
+        own = (
+            target.get("eval_group")
+            if metric_id == "heldout_loss"
+            else (lm.get("details") or {}).get("benchmark_group")
+        )
+    group = st.selectbox(
+        f"Comparison group ({metric.group_label})",
+        groups,
+        index=groups.index(own) if own in groups else 0,
+        key=f"probe_pareto_group_{metric_id}",
+        format_func=lambda g: (
+            f"{g[:12]} · {int(counts[g])} checkpoint(s), "
+            f"{int(((points['group'] == g) & (points['kind'] == 'reference')).sum())}"
+            " reference(s)"
+        ),
+        help="Only checkpoints measured the same way share a scale; see the "
+        "explainer below.",
     )
+    data = points[points["group"] == group]
+    missing_axis = int(data[axis].isna().sum())
+    data = data.dropna(subset=[axis]).reset_index(drop=True)
+    has_refs = bool((data["kind"] == "reference").any())
+    log_x = st.toggle(
+        "Log cost axis",
+        value=has_refs,
+        key=f"probe_pareto_log_{metric_id}",
+        help="References are 10–100× larger than lab runs; a log axis keeps both "
+        "readable.",
+    )
+    notes = []
+    if len(groups) > 1:
+        notes.append(f"{len(groups) - 1} other {metric.group_label}(s) hidden")
+    if missing_axis:
+        notes.append(
+            f"{missing_axis} checkpoint(s) without {COSTS[axis]}"
+            + (" (references are not timed)" if axis == "ms_per_token" else "")
+        )
+    if ungrouped:
+        notes.append(
+            f"{ungrouped} older result(s) recorded no {metric.group_label}; "
+            "re-score them to place them"
+        )
+    if notes:
+        st.caption(" · ".join(notes))
+    if data.empty:
+        st.info(f"No checkpoint in this group records {COSTS[axis]}.")
+        _pareto_explainer()
+        return
+    front = pareto_frontier(
+        list(zip(data[axis], data["value"], strict=True)),
+        maximize=metric.higher_is_better,
+    )
+    data["frontier"] = data.index.isin(front)
+    st.plotly_chart(_pareto_figure(data, axis, metric, log_x), use_container_width=True)
+    table = data[
+        [
+            "label",
+            "kind",
+            "parameters",
+            "active_parameters",
+            "tokens_seen",
+            "value",
+            "frontier",
+        ]
+    ].rename(columns={"value": metric.label, "kind": "source"})
+    st.dataframe(
+        table.sort_values(metric.label, ascending=not metric.higher_is_better),
+        use_container_width=True,
+        hide_index=True,
+    )
+    _pareto_explainer()
+
+
+def _pareto_figure(data: pd.DataFrame, axis: str, metric: Any, log_x: bool) -> Any:
+    figure = go.Figure()
+    span = PARAMETER_SPANS.get(axis)
+    if span is not None:
+        low, high = span
+        xs: list[Any] = []
+        ys: list[Any] = []
+        for _, row in data.dropna(subset=[low, high]).iterrows():
+            if row[low] != row[high]:
+                xs += [row[low], row[high], None]
+                ys += [row["value"], row["value"], None]
+        if xs:
+            figure.add_trace(
+                go.Scatter(
+                    x=xs,
+                    y=ys,
+                    mode="lines",
+                    line={"color": "#afb8c1", "width": 5},
+                    name="active → resident",
+                    hoverinfo="skip",
+                )
+            )
     frontier = data[data["frontier"]].sort_values(axis)
-    chart.add_trace(
+    figure.add_trace(
         go.Scatter(
             x=frontier[axis],
-            y=frontier["loss"],
+            y=frontier["value"],
             mode="lines",
-            line={"color": "#0969da", "dash": "dot"},
-            name="frontier",
+            line={"color": "#0969da", "dash": "dot", "shape": "hv"},
+            name="Pareto frontier",
         )
     )
-    chart.update_traces(marker_size=12, selector={"mode": "markers"})
-    chart.update_layout(height=380, margin={"l": 10, "r": 10, "t": 40, "b": 10})
-    st.plotly_chart(chart, use_container_width=True)
+    for kind, (symbol, color, name) in KIND_STYLE.items():
+        part = data[data["kind"] == kind]
+        if part.empty:
+            continue
+        figure.add_trace(
+            go.Scatter(
+                x=part[axis],
+                y=part["value"],
+                mode="markers+text" if kind == "reference" else "markers",
+                text=part["label"] if kind == "reference" else None,
+                textposition="top center",
+                marker={
+                    "symbol": symbol,
+                    "size": 14 if kind == "reference" else 12,
+                    "color": color,
+                    "line": {
+                        "width": [3 if f else 1 for f in part["frontier"]],
+                        "color": "#24292f",
+                    },
+                },
+                name=name,
+                customdata=part[
+                    ["label", "parameters", "active_parameters", "tokens_seen"]
+                ],
+                hovertemplate="<b>%{customdata[0]}</b><br>"
+                + f"{metric.label} %{{y:.4f}}<br>"
+                + "resident %{customdata[1]:,} · active %{customdata[2]:,}<br>"
+                + "tokens %{customdata[3]:,}<extra></extra>",
+            )
+        )
+    chance = [
+        sum(c.values()) / len(c)
+        for c in data.get("chance", pd.Series(dtype=object)).dropna()
+        if isinstance(c, dict) and c
+    ]
+    if chance:
+        figure.add_hline(
+            y=chance[0],
+            line_dash="dash",
+            line_color="#8c959f",
+            annotation_text="chance (task mean)",
+            annotation_position="bottom right",
+        )
+    better = "up" if metric.higher_is_better else "down"
+    figure.update_layout(
+        title=f"{metric.label} vs {COSTS[axis]} · better is {better} and left",
+        xaxis_title=COSTS[axis],
+        yaxis_title=metric.label,
+        xaxis_type="log" if log_x else "linear",
+        height=440,
+        margin={"l": 10, "r": 10, "t": 50, "b": 10},
+        legend={"orientation": "h", "y": -0.2},
+    )
+    return figure
+
+
+def _pareto_explainer() -> None:
+    with st.expander("How to read the Pareto view", expanded=False):
+        st.markdown(PARETO_EXPLAINER)
 
 
 @st.fragment(run_every=2)
@@ -488,6 +670,8 @@ def probe_page(lab_dir: Path) -> None:
             "(the fast tier runs automatically) or `sparselab probe RUN --vs BASELINE`."
         )
         _explain()
+        st.subheader("Pareto view")
+        _pareto(lab_dir, None)
         return
     choice = st.selectbox(
         "Result", range(len(entries)), format_func=lambda i: entries[i].label
@@ -538,4 +722,4 @@ def probe_page(lab_dir: Path) -> None:
     with history_tab:
         _history(entries)
     with pareto_tab:
-        _pareto(entries, entry)
+        _pareto(lab_dir, entry)
