@@ -238,7 +238,7 @@ Normal measurement authenticates the complete release and tokenizer through
 their existing verifiers, sharing the release proof only within this operation.
 Historical evidence overrides are restricted compatibility paths, not a general
 way to skip verification. Their scope is preserved in the
-[development notes](research/development-evidence.md#campaign-specific-measurement-compatibility).
+[development notes](research/development-evidence.md#retired-campaign-specific-measurement-shortcut).
 Use normal native measurement and authenticated receipts for new declarations.
 
 A token-only Campaign readiness policy may consume a canonical receipt instead

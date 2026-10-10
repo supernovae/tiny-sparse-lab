@@ -1,9 +1,12 @@
-# Probe battery: fast-fail checks for any checkpoint
+# Probe battery: fast-fail checks for native checkpoints
 
 The probe battery is a small, versioned suite of cheap checks that tells you, in
-seconds to minutes, whether an idea is worth a longer run. It runs on any
-checkpoint, against a baseline checkpoint, and ends with a machine-readable
+seconds to minutes, whether an idea is worth a longer run. It scores supported native PyTorch
+checkpoints, optionally against a baseline checkpoint, and ends with a machine-readable
 verdict and a recommended next action.
+
+MLX checkpoints and attached semantic packs are currently refused; text-level
+reference models have a separate full-tier path described below.
 
 **Probes screen; they do not prove usefulness.** A pass means "nothing obvious
 broke and loss moved the right way on a small fixed sample", nothing more.

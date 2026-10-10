@@ -11,7 +11,7 @@ The trainer records the auxiliary loss plus per-layer router entropy, maximum ex
 Run the CPU smoke:
 
 ```sh
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-smoke
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_moe_cpu.yaml --run-id moe-smoke
 ```
 
 Compare it with `configs/smoke_cpu.yaml` only at matching tokenizer, data, and token budget. Total parameters include all routed experts; active-per-token accounting includes only the selected experts and an optional shared expert.

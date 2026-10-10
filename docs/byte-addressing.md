@@ -17,8 +17,8 @@ The shared `smoke` scale uses a 257-entry table for token memory, but byte hashi
 The `byte-engram` smoke lesson was scaffolded and run with offline data. After explicitly training its tokenizer, preparing data, and probing an initialized model, `café` mapped to `[189, 119, 246, 37, 94]` in the 263-entry table: five distinct nonzero slots. The prepared training and validation caches also used table size 263; their address arrays contained 111 and 104 distinct slots, with 26,779 and 799 nonzero positions, respectively. Training completed two optimizer steps with `--stop-after-step 2`. This verifies address diversity, cache preparation, and an actual update—not retrieval quality.
 
 ```sh
-uv run --locked sparselab data prepare configs/smoke_byte_memory_cpu.yaml
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/smoke_byte_memory_cpu.yaml --run-id byte-memory
-uv run --locked sparselab eval byte-memory
-uv run --locked sparselab generate byte-memory --prompt "Once upon a time" --max-new-tokens 24
+uv run --locked --extra cpu sparselab data prepare configs/smoke_byte_memory_cpu.yaml
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/smoke_byte_memory_cpu.yaml --run-id byte-memory
+uv run --locked --extra cpu sparselab eval byte-memory
+uv run --locked --extra cpu sparselab generate byte-memory --prompt "Once upon a time" --max-new-tokens 24
 ```

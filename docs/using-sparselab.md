@@ -35,6 +35,7 @@ tracks implementation work. There is no `advanced` or `release` command alias.
 
 | Need | Guide |
 | --- | --- |
+| Train a larger first model with repeated seeds | [17.3M FineWeb-Edu walkthrough](first-model.md) |
 | Understand verdicts, tiers and references | [Probe battery](probe-battery.md) |
 | Browse experiments, model comparisons and internals | [Dashboard](dashboard.md) |
 | Select CPU, ROCm, CUDA, XPU, MPS or MLX | [Runtime](runtime.md), [hosted environments](hosted-environments.md) |

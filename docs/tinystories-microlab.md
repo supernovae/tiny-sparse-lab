@@ -110,6 +110,7 @@ of repeatedly tuning against the probe items.
 
 ## Go further
 
+- [First model](first-model.md): a larger FineWeb-Edu lab exercise after this lesson.
 - [Lab mode](lab-mode.md): reuse, cancellation, resource limits and record semantics.
 - [Training and checkpoints](training.md): direct training and verified continuation.
 - [Training programs](experiment-programs.md): matrices and checkpoint phases.

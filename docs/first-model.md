@@ -57,18 +57,24 @@ scoring and probes run in fp32.
 **GPU.** Accelerators need a registered runtime
 ([runtime](runtime.md#machine-local-runtime-environments)); a `--backend`
 flag alone does not authorize one. Provision one once, then pass the same
-`GPU` flags to every training command below:
+`GPU` flags to every training command below. Choose exactly one device block.
 
 ```sh
 export SPARSELAB_RUNTIME_DIR="$HOME/.local/share/sparselab/runtimes"
+```
 
-# NVIDIA CUDA (Linux x86_64, existing Python 3.14):
+**NVIDIA CUDA** (Linux x86_64, existing Python 3.14):
+
+```sh
 uv run --locked --no-sync sparselab runtime env provision cuda-gpu \
   --recipe cuda-cu126-v1 --python "$(command -v python3.14)" --json
 uv run --locked --no-sync sparselab runtime env doctor cuda-gpu --precision bf16 --json
 GPU=(--runtime cuda-gpu)
+```
 
-# AMD ROCm (RX 7900 XTX / gfx1100, Linux or WSL2 with AMD's driver stack):
+**AMD ROCm** (RX 7900 XTX / gfx1100, Linux or WSL2 with AMD's driver stack):
+
+```sh
 uv run --locked --no-sync sparselab runtime env provision rocm-7900xtx \
   --recipe rocm-gfx1100-v1 --json
 uv run --locked --no-sync sparselab runtime env doctor rocm-7900xtx --precision bf16 --json

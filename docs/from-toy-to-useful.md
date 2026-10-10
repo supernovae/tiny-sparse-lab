@@ -4,6 +4,10 @@
 
 This guide explains the strange `amber → lumen` example, gives a normal starting chat prompt, and walks from today's small experiments toward a useful narrow assistant. It distinguishes **what runs today**, **what still needs training**, and **framework extensions that are not implemented**.
 
+For a first experiment, use [the TinyStories lab loop](tinystories-microlab.md).
+This guide is the advanced instruction-learning route and includes retained
+observations from earlier runs.
+
 Jump to: [normal chat prompts](#a-normal-starting-prompt) · [runnable small learner](#5-a-smaller-instruction-learner-before-the-100m-run) · [a useful domain task](#6-turn-the-exercise-into-a-useful-job) · [parameter and memory scaling](#8-do-more-parameters-make-this-a-better-assistant).
 
 ## 1. What does “amber means lumen” mean?
@@ -148,20 +152,20 @@ The modest budget is for studying learning, not a quality guarantee. Copy the co
 Then exercise the real path before a full run:
 
 ```sh
-uv run --locked sparselab inspect configs/instruction_starter.yaml --json
-uv run --locked sparselab data prepare configs/instruction_starter.yaml
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter-pilot --stop-after-step 2
-uv run --locked sparselab checkpoint verify sparselab-work/runs/instruction-starter-pilot/checkpoints/latest.json --json
-uv run --locked sparselab eval instruction-starter-pilot
+uv run --locked --extra cpu sparselab inspect configs/instruction_starter.yaml --json
+uv run --locked --extra cpu sparselab data prepare configs/instruction_starter.yaml
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter-pilot --stop-after-step 2
+uv run --locked --extra cpu sparselab checkpoint verify sparselab-work/runs/instruction-starter-pilot/checkpoints/latest.json --json
+uv run --locked --extra cpu sparselab eval instruction-starter-pilot --runs-dir sparselab-work/runs
 ```
 
 The two-step run should be interrupted at a safe boundary with a verifiable checkpoint. It verifies execution, **not learning quality**. It uses the configured training schedule; it is not a hidden warmup for the next run. Start the learning run fresh:
 
 ```sh
-uv run --locked sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter
-uv run --locked sparselab eval instruction-starter
-uv run --locked sparselab chat instruction-starter --system "You are a concise local assistant." --max-new-tokens 32
-uv run --locked sparselab evidence instruction-starter --json
+uv run --locked --extra cpu sparselab train --runs-dir sparselab-work/runs configs/instruction_starter.yaml --run-id instruction-starter
+uv run --locked --extra cpu sparselab eval instruction-starter --runs-dir sparselab-work/runs
+uv run --locked --extra cpu sparselab chat instruction-starter --runs-dir sparselab-work/runs --system "You are a concise local assistant." --max-new-tokens 32
+uv run --locked --extra cpu sparselab evidence instruction-starter --runs-dir sparselab-work/runs --json
 ```
 
 Keep a short development questionnaire: greetings, arithmetic, a definition, rewordings, an unrelated question, and a request to correct an earlier answer. Record mistakes as well as good answers. Use a separate frozen set for a final claim; the synthetic validation split alone is not semantic generalization evidence.

@@ -16,7 +16,8 @@ Automatic CI runs the explicit zero-model Linux `safe` job and the CPU
 `lab-loop` job on pull requests and pushes to `main`. The latter trains tiny
 models and exercises probes/explorer/dashboard. Manual `safe` dispatch runs
 both too; additional integration, platform and full-suite choices require a
-separate reviewed allocation. Do not dispatch those to validate documentation. New commits cancel superseded runs on the same ref.
+separate reviewed allocation. Do not dispatch those to validate documentation.
+New commits cancel superseded runs on the same ref.
 The manually selected full CPU suite runs on Linux x64 and macOS arm64, with up
 to four pytest workers and one BLAS/OpenMP thread per worker.
 Work stealing redistributes pending tests when one worker falls behind; module
@@ -56,7 +57,8 @@ Choose an external persistent filesystem with enough space for actual campaigns.
 For ordinary local experiments, follow [lab mode](docs/lab-mode.md); the sealed
 record captures source state and effective inputs. For **release work**, commit
 corpus/source-rights pins, ExperimentPlan/base run, evaluation suite and runtime
-requirement **before** acquisition, tokenizer fitting, preparation or training. Inspect `sparselab research snapshot <plan-or-campaign> --json` before
+requirement **before** acquisition, tokenizer fitting, preparation or training.
+Inspect `sparselab research snapshot <plan-or-campaign> --json` before
 expensive execution. Retain a compact verified evidence reference in Git instead
 of copying datasets/checkpoints into the repository. `scratch/` and optional
 `cache/` under the persistent root are disposable; neither is proof. A reviewed
