@@ -10,11 +10,14 @@ reconciliation, corpus admission reviews and proposal/stop documents. It keeps:
 
 * resource limits: storage preflight, optional ``ResourceEnvelope`` and an
   optional, caller-chosen wall limit (no implicit short timeout);
-* data identity: tokenizer, train and validation digests for each arm;
-* safe cancellation: SIGINT/SIGTERM or a cancel sentinel stop training at a
-  checkpointed step boundary and the record says so;
-* held-out checks: both arms are scored on the same validation bytes, with the
-  same tokenizer and scored-target count, or the comparison is refused.
+* data identity: tokenizer, train and validation digests for each arm, and a
+  cached baseline is reused only when the inputs hashed *now* still match;
+* safe cancellation: SIGINT/SIGTERM or a cancel sentinel stop the try at a safe
+  point (checkpointed step, or before/after scoring) and an interrupted record
+  is still written atomically;
+* held-out checks: both arms are scored under one shared evaluation protocol
+  (same tokenized validation bytes, context windows and batch boundaries) with
+  the same tokenizer, or the comparison is refused.
 
 A lab record is evidence of one local comparison, not a release, promotion or
 scientific conclusion. Release runs keep the full ExperimentPlan/Campaign path.
@@ -22,14 +25,18 @@ scientific conclusion. Release runs keep the full ExperimentPlan/Campaign path.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import math
+import os
 import resource
 import secrets
+import signal
 import sys
+import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -125,6 +132,72 @@ def _config_key(config: Any) -> str:
     ).hexdigest()
 
 
+# Dataset path fields that are inputs to preparation. ``cache_dir`` holds derived
+# products and ``mixture_output_path`` is written by preparation, so neither is
+# part of the current input identity.
+_INPUT_PATH_FIELDS = (
+    "train_path",
+    "validation_path",
+    "source_manifest_path",
+    "allocation_manifest_path",
+    "corpus_release_path",
+    "corpus_export_path",
+    "mixture_declaration_path",
+)
+
+
+def _path_digest(path: Path) -> str | dict[str, str]:
+    """Content digest of an input file, or of every file under an input folder."""
+    if path.is_symlink():
+        return {"symlink": os.readlink(path)}
+    if path.is_file():
+        return _sha256_file(path)
+    if path.is_dir():
+        tree = {
+            str(child.relative_to(path)): _sha256_file(child)
+            for child in sorted(path.rglob("*"))
+            if child.is_file() and not child.is_symlink()
+        }
+        return {"tree_sha256": hashlib.sha256(_canonical(tree)).hexdigest()}
+    return "missing"
+
+
+def current_inputs(config: Any) -> dict[str, Any]:
+    """Hash the tokenizer and dataset inputs as they are on disk right now."""
+    from sparselab.data.packing import _tokenizer_sha256
+    from sparselab.data.tokenizer import load_tokenizer
+
+    tokenizer_path = Path(config.tokenizer.path)
+    try:
+        # Same digest prepared data records: the complete serialized tokenizer.
+        tokenizer_sha256 = _tokenizer_sha256(load_tokenizer(tokenizer_path))
+    except Exception:  # noqa: BLE001 - an unreadable tokenizer is never reusable
+        tokenizer_sha256 = "unreadable"
+    inputs: dict[str, Any] = {
+        "tokenizer_sha256": tokenizer_sha256,
+        "tokenizer_file_sha256": _sha256_file(tokenizer_path)
+        if tokenizer_path.is_file()
+        else "missing",
+        "dataset_source": config.dataset.source,
+        "dataset_paths": {},
+    }
+    for field in _INPUT_PATH_FIELDS:
+        value = getattr(config.dataset, field, None)
+        if value is not None:
+            inputs["dataset_paths"][field] = _path_digest(Path(value))
+    inputs["sha256"] = hashlib.sha256(_canonical(inputs)).hexdigest()
+    return inputs
+
+
+def reuse_key(config: Any, inputs: Mapping[str, Any]) -> str:
+    """Config + code + current tokenizer/data contents; any change retrains."""
+    return hashlib.sha256(
+        _canonical(
+            {"config_key": _config_key(config), "inputs_sha256": inputs["sha256"]}
+        )
+    ).hexdigest()
+
+
 def _progress(run: Path) -> dict[str, Any]:
     path = run / "progress.json"
     if path.is_symlink() or not path.is_file():
@@ -145,20 +218,40 @@ def _stop_reason(progress: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _reusable_baseline(runs: Path, prefix: str) -> tuple[str | None, str]:
-    """Find a completed baseline with the same effective config and source."""
-    attempts = sorted(
-        path.name
-        for path in runs.glob(prefix + "*")
-        if path.is_dir()
-        and not path.is_symlink()
-        and (path.name == prefix or path.name[len(prefix) :].startswith("-"))
-    )
-    for name in attempts:
-        if _progress(runs / name).get("status") == "completed":
-            return name, prefix
-    # Never mutate or reuse an interrupted attempt; start a new one beside it.
-    return None, prefix if not attempts else f"{prefix}-{len(attempts) + 1}"
+def _reusable_baseline(
+    root: Path, runs: Path, key: str, inputs: Mapping[str, Any]
+) -> str | None:
+    """Return a baseline run proven current by a completed, sealed try record.
+
+    A baseline is reused only when an earlier try *completed* with the same
+    reuse key (config, code and the tokenizer/data contents hashed now), its run
+    still reports completion, and its prepared tokenizer digest equals the
+    tokenizer on disk now. Interrupted or failed tries are never a source.
+    """
+    candidates: list[tuple[str, str]] = []
+    for path in (root / "tries").glob("*/try.json"):
+        try:
+            record = read_record(path)
+        except OSError, ValueError, TypeError:
+            continue
+        base = (record.get("arms") or {}).get("baseline") or {}
+        if (
+            record.get("status") == "completed"
+            and base.get("reuse_key") == key
+            and isinstance(base.get("run_id"), str)
+        ):
+            candidates.append((str(record.get("created_at")), base["run_id"]))
+    for _, run_id in sorted(candidates, reverse=True):
+        run = runs / run_id
+        if run.is_symlink() or _progress(run).get("status") != "completed":
+            continue
+        try:
+            data = _data_identity(run)
+        except OSError, ValueError, TypeError:
+            continue
+        if data["tokenizer_sha256"] == inputs["tokenizer_sha256"]:
+            return run_id
+    return None
 
 
 def _data_identity(run: Path) -> dict[str, Any]:
@@ -217,13 +310,99 @@ def _peak_rss_bytes() -> int | None:
 
 
 class LabCancelled(Exception):
-    """Training stopped at a safe boundary before the comparison completed."""
+    """The try stopped at a safe point before the comparison completed."""
 
-    def __init__(self, arm: str, reason: str, row: dict[str, Any]) -> None:
-        super().__init__(f"{arm} arm stopped before completion: {reason}")
+    def __init__(
+        self, arm: str | None, reason: str, row: dict[str, Any] | None, phase: str
+    ) -> None:
+        super().__init__(f"{arm} arm stopped during {phase}: {reason}")
         self.arm = arm
         self.reason = reason
         self.row = row
+        self.phase = phase
+
+
+class _LabSignal(BaseException):
+    """Raised by the lab-mode signal handler outside the trainer's own handler."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self.name = name
+
+
+class _Lifecycle:
+    """Track the current arm/phase and turn SIGINT/SIGTERM into a safe stop.
+
+    The trainer installs its own handlers while it trains (stopping at a
+    checkpointed step) and restores these afterwards, so evaluation, scoring and
+    record writing are covered too. After the first signal, or once the record
+    is being finalized, further signals are only noted and never interrupt the
+    record write.
+    """
+
+    def __init__(self, cancel_path: Path) -> None:
+        self.cancel_path = cancel_path
+        self.arm: str | None = None
+        self.phase = "setup"
+        self.row: dict[str, Any] | None = None
+        self.signals: list[str] = []
+        self.finalizing = False
+        self._previous: dict[int, Any] = {}
+
+    def _handle(self, signum: int, _frame: Any) -> None:
+        name = signal.Signals(signum).name
+        self.signals.append(name)
+        if not self.finalizing and len(self.signals) == 1:
+            raise _LabSignal(name)
+
+    def install(self) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            return
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            self._previous[signum] = signal.signal(signum, self._handle)
+
+    def restore(self) -> None:
+        for signum, handler in self._previous.items():
+            signal.signal(signum, handler)
+        self._previous.clear()
+
+    def enter(self, arm: str, phase: str) -> None:
+        self.arm, self.phase = arm, phase
+
+    def checkpoint(self) -> None:
+        """Honor the cancel sentinel at a safe point between phases."""
+        if self.cancel_path.exists():
+            raise LabCancelled(self.arm, "cancelled", self.row, self.phase)
+
+
+def eval_protocol(config: Any) -> dict[str, int]:
+    """The evaluation windowing and batching both arms are scored with."""
+    return {
+        "seq_len": config.training.seq_len,
+        "batch_size": config.training.micro_batch_size,
+        "max_batches": config.evaluation.max_batches,
+    }
+
+
+def _with_eval_protocol(loaded: Any, protocol: Mapping[str, int]) -> Any:
+    """Score a loaded run under PROTOCOL without touching its training config."""
+    config = loaded.config
+    return dataclasses.replace(
+        loaded,
+        config=config.model_copy(
+            update={
+                "training": config.training.model_copy(
+                    update={
+                        "seq_len": protocol["seq_len"],
+                        "micro_batch_size": protocol["batch_size"],
+                    }
+                ),
+                "evaluation": config.evaluation.model_copy(
+                    update={"max_batches": protocol["max_batches"]}
+                ),
+            }
+        ),
+    )
 
 
 def _train_and_score(
@@ -232,6 +411,9 @@ def _train_and_score(
     config: Any,
     run_id: str,
     reuse: bool,
+    key: str | None,
+    protocol: Mapping[str, int],
+    lifecycle: _Lifecycle,
     cancel_path: Path,
     max_wall_seconds: float | None,
     authorization: Any,
@@ -243,6 +425,9 @@ def _train_and_score(
     from sparselab.evaluation.inference import load_run, write_inference_result
 
     runs = config.logging.root_dir
+    lifecycle.row = None
+    lifecycle.enter(arm, "training")
+    lifecycle.checkpoint()
     started = time.monotonic()
     if not reuse:
         returned = train_fn(
@@ -264,17 +449,50 @@ def _train_and_score(
         "run_id": run_id,
         "run_dir": str(run),
         "reused": reuse,
+        "reuse_key": key,
         "status": progress.get("status"),
         "stop_reason": _stop_reason(progress),
         "train_seconds": None if reuse else round(train_seconds, 3),
+        "seed": config.seed,
     }
+    lifecycle.row = row
     if progress.get("status") != "completed":
         row["status"] = progress.get("status") or "interrupted"
-        raise LabCancelled(arm, str(row["stop_reason"] or row["status"]), row)
+        raise LabCancelled(
+            arm, str(row["stop_reason"] or row["status"]), row, "training"
+        )
+    lifecycle.checkpoint()
+    lifecycle.enter(arm, "scoring")
     started = time.monotonic()
     loaded = load_run(run_id, runs, None, None, authorization=authorization)
-    result = loaded.evaluate()
-    result.update({"source": "lab_try_eval", "identity": loaded.identity})
+    data = _data_identity(run)
+    shareable = (
+        protocol["seq_len"] <= loaded.config.model.max_seq_len and loaded.engine is None
+    )
+    # Score under the shared protocol when the model can; otherwise score
+    # natively and let the differing protocol identity refuse the comparison.
+    scored = _with_eval_protocol(
+        loaded, protocol if shareable else eval_protocol(loaded.config)
+    )
+    used = eval_protocol(scored.config)
+    blocks = len(scored.validation_dataset())
+    protocol_identity = {
+        "split": "validation",
+        "validation_sha256": data["validation_sha256"],
+        "tokenizer_sha256": data["tokenizer_sha256"],
+        "packing_version": _packing_version(run),
+        **used,
+        "scored_blocks": min(blocks, used["batch_size"] * used["max_batches"]),
+        "evaluator": "pytorch" if loaded.engine is None else "mlx",
+    }
+    result = scored.evaluate()
+    result.update(
+        {
+            "source": "lab_try_eval",
+            "identity": loaded.identity,
+            "eval_protocol": protocol_identity,
+        }
+    )
     observation = write_inference_result(loaded.run, "eval", result)
     identity = loaded.identity
     row.update(
@@ -285,7 +503,10 @@ def _train_and_score(
             "step": identity.get("step"),
             "tokens_seen": identity.get("tokens_seen"),
             "parameters": (identity.get("parameter_inventory") or {}).get("total"),
-            "seed": config.seed,
+            "eval_protocol": protocol_identity,
+            "eval_protocol_sha256": hashlib.sha256(
+                _canonical(protocol_identity)
+            ).hexdigest(),
             "heldout": {
                 "split": "validation",
                 "loss": result["loss"],
@@ -295,20 +516,33 @@ def _train_and_score(
                 "observation": str(observation),
             },
             "data": {
-                **_data_identity(run),
+                **data,
                 "eval_data_sha256": identity.get("data_sha256"),
                 "eval_tokenizer_sha256": identity.get("tokenizer_sha256"),
             },
             "code": _run_identity(run),
         }
     )
+    lifecycle.checkpoint()
     return row
 
 
-def heldout_checks(baseline: Mapping[str, Any], candidate: Mapping[str, Any]) -> dict:
+def _packing_version(run: Path) -> Any:
+    manifest = json.loads((run / "data" / "manifest.json").read_text())
+    return manifest.get("packing_version") if isinstance(manifest, dict) else None
+
+
+def heldout_checks(
+    baseline: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    changed_variables: Iterable[str] = (),
+) -> dict:
     """Refuse comparisons that are not scored on identical held-out inputs."""
     base_data = baseline["data"]
     cand_data = candidate["data"]
+    data_declared = any(
+        name.startswith(("dataset.", "tokenizer.")) for name in changed_variables
+    )
     checks = {
         "validation_distinct_from_train": all(
             data["validation_sha256"] is not None
@@ -320,6 +554,16 @@ def heldout_checks(baseline: Mapping[str, Any], candidate: Mapping[str, Any]) ->
         and base_data["validation_sha256"] is not None,
         "same_tokenizer": base_data["eval_tokenizer_sha256"]
         == cand_data["eval_tokenizer_sha256"],
+        # Unless the delta declares a data change, both arms train on the same
+        # current prepared bytes (a cached baseline cannot predate an edit).
+        "same_training_data": data_declared
+        or (
+            base_data["train_sha256"] == cand_data["train_sha256"]
+            and base_data["train_sha256"] is not None
+        ),
+        "same_eval_protocol": baseline.get("eval_protocol_sha256") is not None
+        and baseline.get("eval_protocol_sha256")
+        == candidate.get("eval_protocol_sha256"),
         "same_scored_targets": baseline["heldout"]["valid_targets"]
         == candidate["heldout"]["valid_targets"]
         and baseline["heldout"]["valid_targets"] > 0,
@@ -334,8 +578,12 @@ def heldout_checks(baseline: Mapping[str, Any], candidate: Mapping[str, Any]) ->
     }
 
 
-def compare(baseline: Mapping[str, Any], candidate: Mapping[str, Any]) -> dict:
-    checks = heldout_checks(baseline, candidate)
+def compare(
+    baseline: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    changed_variables: Iterable[str] = (),
+) -> dict:
+    checks = heldout_checks(baseline, candidate, changed_variables)
     if not checks["comparable"]:
         return {"verdict": "NOT_COMPARABLE", **checks}
     base_loss = float(baseline["heldout"]["loss"])
@@ -362,9 +610,30 @@ def _seal(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_record(path: Path, record: dict[str, Any]) -> dict[str, Any]:
+    """Seal and publish RECORD atomically; an existing record is never replaced."""
     sealed = _seal(record)
-    with path.open("x", encoding="utf-8") as handle:
-        handle.write(json.dumps(sealed, indent=2, sort_keys=True, default=str) + "\n")
+    payload = (
+        json.dumps(sealed, indent=2, sort_keys=True, default=str) + "\n"
+    ).encode()
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, path)  # exclusive publish of a complete file
+    finally:
+        temporary.unlink(missing_ok=True)
+    try:
+        directory = os.open(path.parent, os.O_RDONLY)
+    except OSError:
+        return sealed
+    try:
+        os.fsync(directory)
+    except OSError:
+        pass
+    finally:
+        os.close(directory)
     return sealed
 
 
@@ -438,7 +707,8 @@ def run_try(
         if candidate.kind == "delta":
             settings = dict(candidate.settings)
             if seed is not None:
-                settings.setdefault("seed", seed)
+                # --seed is authoritative for both arms, over any delta seed.
+                settings["seed"] = seed
             candidate_file = try_dir / "candidate.yaml"
             declared = derive_config(baseline_path, candidate_file, settings)[
                 "declared_delta"
@@ -461,9 +731,11 @@ def run_try(
                 patchable_config(load_config(candidate_file)), candidate_file.parent
             ),
         )
-        base_key = _config_key(base_config)
-        if not delta or base_key == _config_key(cand_config):
+        if not delta or _config_key(base_config) == _config_key(cand_config):
             raise ValueError("candidate does not change any setting from the baseline")
+        # Bind baseline reuse to the tokenizer and data contents as they are now.
+        inputs = current_inputs(base_config)
+        base_key = reuse_key(base_config, inputs)
         # Resource limits are checked before any training starts.
         envelope_reading = (
             check_envelope(
@@ -499,12 +771,11 @@ def run_try(
         f"lab try {try_id}: touch {cancel_path} (or Ctrl-C) to stop at a safe step",
         file=sys.stderr,
     )
-    baseline_prefix = f"lab-base-{base_key[:16]}"
-    reuse_id, new_id = (
-        (None, f"{baseline_prefix}-{try_id}")
-        if fresh_baseline
-        else _reusable_baseline(runs, baseline_prefix)
+    reuse_id = (
+        None if fresh_baseline else _reusable_baseline(root, runs, base_key, inputs)
     )
+    new_id = f"lab-base-{base_key[:16]}-{try_id}"
+    changed_variables = sorted(delta)
     record: dict[str, Any] = {
         "format": RECORD_FORMAT,
         "mode": "lab",
@@ -527,6 +798,15 @@ def run_try(
         },
         "declared_delta": declared,
         "delta": delta,
+        "changed_variables": changed_variables,
+        "seed": {
+            "override": seed,
+            "baseline": base_config.seed,
+            "candidate": cand_config.seed,
+            "changed_by_delta": "seed" in delta,
+        },
+        "baseline_inputs": inputs,
+        "eval_protocol": eval_protocol(base_config),
         "code": {
             "source_identity_sha256": source_identity()["sha256"],
             **code_revision(),
@@ -563,46 +843,81 @@ def run_try(
         or TOKENIZER_BATCH_SOURCE_BYTES,
         "train_fn": train_fn,
     }
+    lifecycle = _Lifecycle(cancel_path)
+    protocol = eval_protocol(base_config)
     exit_status = 0
+    lifecycle.install()
     try:
-        record["arms"]["baseline"] = _train_and_score(
-            arm="baseline",
-            config=base_config,
-            run_id=reuse_id or new_id,
-            reuse=reuse_id is not None,
-            **common,
-        )
-        record["arms"]["candidate"] = _train_and_score(
-            arm="candidate",
-            config=cand_config,
-            run_id=f"lab-{try_id}",
-            reuse=False,
-            **common,
-        )
-        record["comparison"] = compare(
-            record["arms"]["baseline"], record["arms"]["candidate"]
-        )
-        record["status"] = "completed"
-        if record["comparison"]["verdict"] == "NOT_COMPARABLE":
-            exit_status = EXIT_NOT_COMPARABLE
-    except LabCancelled as error:
-        record["arms"][error.arm] = error.row
-        record["status"] = "interrupted"
-        record["interruption"] = {"arm": error.arm, "reason": error.reason}
-        exit_status = EXIT_INTERRUPTED
-    except KeyboardInterrupt:
-        record["status"] = "interrupted"
-        record["interruption"] = {"arm": None, "reason": "keyboard_interrupt"}
-        exit_status = EXIT_INTERRUPTED
-    except Exception as error:  # noqa: BLE001 - every failure is retained in the record
-        record["status"] = "failed"
-        record["failure"] = f"{type(error).__name__}: {error}"
-        exit_status = 1
+        try:
+            record["arms"]["baseline"] = _train_and_score(
+                arm="baseline",
+                config=base_config,
+                run_id=reuse_id or new_id,
+                reuse=reuse_id is not None,
+                key=base_key,
+                protocol=protocol,
+                lifecycle=lifecycle,
+                **common,
+            )
+            record["eval_protocol"] = record["arms"]["baseline"]["eval_protocol"]
+            record["arms"]["candidate"] = _train_and_score(
+                arm="candidate",
+                config=cand_config,
+                run_id=f"lab-{try_id}",
+                reuse=False,
+                key=None,
+                protocol=protocol,
+                lifecycle=lifecycle,
+                **common,
+            )
+            lifecycle.enter("candidate", "comparison")
+            record["comparison"] = compare(
+                record["arms"]["baseline"],
+                record["arms"]["candidate"],
+                changed_variables,
+            )
+            record["status"] = "completed"
+            if record["comparison"]["verdict"] == "NOT_COMPARABLE":
+                exit_status = EXIT_NOT_COMPARABLE
+        except LabCancelled as error:
+            if error.arm is not None and error.row is not None:
+                record["arms"][error.arm] = error.row
+            record["status"] = "interrupted"
+            record["interruption"] = {
+                "arm": error.arm,
+                "phase": error.phase,
+                "reason": error.reason,
+            }
+            exit_status = EXIT_INTERRUPTED
+        except (_LabSignal, KeyboardInterrupt) as error:
+            if lifecycle.arm is not None and lifecycle.row is not None:
+                record["arms"][lifecycle.arm] = lifecycle.row
+            record.pop("comparison", None)
+            record["status"] = "interrupted"
+            record["interruption"] = {
+                "arm": lifecycle.arm,
+                "phase": lifecycle.phase,
+                "reason": error.name
+                if isinstance(error, _LabSignal)
+                else "keyboard_interrupt",
+            }
+            exit_status = EXIT_INTERRUPTED
+        except Exception as error:  # noqa: BLE001 - every failure is retained in the record
+            record["status"] = "failed"
+            record["failure"] = f"{type(error).__name__}: {error}"
+            exit_status = 1
     finally:
+        # From here on signals are noted, never raised, so the record is written.
+        lifecycle.finalizing = True
+        if lifecycle.signals:
+            record["signals_received"] = list(lifecycle.signals)
         record["resources"]["wall_seconds"] = round(time.monotonic() - started, 3)
         record["resources"]["peak_rss_bytes"] = _peak_rss_bytes()
         record["exit_status"] = exit_status
-        sealed = write_record(try_dir / "try.json", record)
+        try:
+            sealed = write_record(try_dir / "try.json", record)
+        finally:
+            lifecycle.restore()
     return sealed, try_dir / "try.json"
 
 
@@ -646,7 +961,10 @@ def summarize(record: Mapping[str, Any], path: Path | None = None) -> str:
             )
     if record.get("interruption"):
         stop = record["interruption"]
-        lines.append(f"  stopped safely: arm={stop['arm']} reason={stop['reason']}")
+        lines.append(
+            f"  stopped safely: arm={stop['arm']} phase={stop.get('phase')} "
+            f"reason={stop['reason']}"
+        )
     if record.get("failure"):
         lines.append(f"  failure: {record['failure']}")
     resources = record.get("resources", {})

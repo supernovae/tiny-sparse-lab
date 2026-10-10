@@ -138,7 +138,9 @@ def test_tampered_record_is_rejected(lab: tuple[Path, Path]) -> None:
     ("settings", "failed"),
     [
         ({"dataset.validation_max_tokens": 2048}, "same_validation_data"),
-        ({"evaluation.max_batches": 2}, "same_scored_targets"),
+        # The baseline's 32-token eval windows cannot be shared with a model
+        # whose context is 16 tokens, so the protocols differ (review fix #2).
+        ({"model.max_seq_len": 16, "training.seq_len": 16}, "same_eval_protocol"),
     ],
 )
 def test_heldout_changes_are_not_comparable(
@@ -174,7 +176,11 @@ def test_cancellation_stops_at_checkpointed_boundary_and_is_recorded(
     )
     assert record["status"] == "interrupted"
     assert record["exit_status"] == EXIT_INTERRUPTED
-    assert record["interruption"] == {"arm": "baseline", "reason": "cancelled"}
+    assert record["interruption"] == {
+        "arm": "baseline",
+        "phase": "training",
+        "reason": "cancelled",
+    }
     assert "comparison" not in record and "candidate" not in record["arms"]
     assert len(calls) == 1  # the candidate never started
     run = root / "work/lab/runs" / calls[0]
@@ -231,7 +237,7 @@ def test_sigint_from_the_cli_stops_safely_and_records_interruption(
         if process.poll() is None:
             process.kill()
     assert process.returncode == EXIT_INTERRUPTED
-    assert "stopped safely: arm=baseline reason=signal" in stdout
+    assert "stopped safely: arm=baseline phase=training reason=signal" in stdout
     (record_path,) = (work / "lab/tries").glob("*/try.json")
     record = read_record(record_path)
     assert record["status"] == "interrupted"
@@ -358,3 +364,229 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     assert record["comparison"]["comparable"] is True
     print(f"lab loop YAML->report: {elapsed:.1f}s (budget {LOOP_BUDGET_SECONDS}s)")
     assert elapsed < LOOP_BUDGET_SECONDS, f"lab loop took {elapsed:.1f}s"
+
+
+# --- Review fixes (PR #60): each test failed before its fix. -----------------
+
+
+def _local_text_baseline(root: Path) -> Path:
+    """A local_text baseline whose train file can be edited between tries."""
+    baseline = _write_inputs(root)
+    words = [
+        "the",
+        "quick",
+        "brown",
+        "fox",
+        "jumps",
+        "over",
+        "a",
+        "lazy",
+        "dog",
+        "while",
+        "birds",
+        "sing",
+    ]
+    for split, count in (("train", 400), ("validation", 60)):
+        lines = [
+            json.dumps(
+                {
+                    "text": f"{split} story {n}: "
+                    + " ".join(words[(n * 5 + k) % len(words)] for k in range(12))
+                }
+            )
+            for n in range(count)
+        ]
+        (root / f"{split}.jsonl").write_text("\n".join(lines) + "\n")
+    config = yaml.safe_load(baseline.read_text())
+    config["dataset"].update(
+        {
+            "source": "local_text",
+            "train_path": str(root / "train.jsonl"),
+            "validation_path": str(root / "validation.jsonl"),
+            "license": "CC0-1.0",
+            "train_max_documents": 400,
+            "validation_max_documents": 60,
+        }
+    )
+    config["dataset"].pop("synthetic_seed", None)
+    baseline.write_text(yaml.safe_dump(config, sort_keys=False))
+    return baseline
+
+
+def test_edited_training_data_retrains_instead_of_reusing_stale_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SPARSELAB_WORK_DIR", str(tmp_path / "work"))
+    baseline = _local_text_baseline(tmp_path)
+    first, _ = run_try(
+        _delta(tmp_path, "a.yaml", {"model.ffn_dim": 128}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    assert first["comparison"]["comparable"] is True
+    # Same paths and config, different training bytes; validation unchanged.
+    train = tmp_path / "train.jsonl"
+    train.write_text(train.read_text().replace("fox", "cat"))
+    second, _ = run_try(
+        _delta(tmp_path, "b.yaml", {"optimizer.peak": 0.006}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    base, cand = second["arms"]["baseline"], second["arms"]["candidate"]
+    assert base["reused"] is False
+    assert base["run_id"] != first["arms"]["baseline"]["run_id"]
+    assert base["data"]["train_sha256"] == cand["data"]["train_sha256"]
+    assert (
+        base["data"]["train_sha256"]
+        != first["arms"]["baseline"]["data"]["train_sha256"]
+    )
+    assert (
+        base["data"]["validation_sha256"]
+        == first["arms"]["baseline"]["data"]["validation_sha256"]
+    )
+    assert second["comparison"]["comparable"] is True
+    assert second["comparison"]["checks"]["same_training_data"] is True
+    # Unchanged inputs still reuse the current baseline.
+    third, _ = run_try(
+        _delta(tmp_path, "c.yaml", {"model.ffn_dim": 64}),
+        baseline,
+        work_dir=tmp_path / "work",
+    )
+    assert third["arms"]["baseline"]["reused"] is True
+    assert third["arms"]["baseline"]["run_id"] == base["run_id"]
+
+
+def test_shared_eval_protocol_holds_context_windows_fixed(
+    lab: tuple[Path, Path],
+) -> None:
+    root, baseline = lab
+    # Same scored-token count (4x32 vs 8x16), different context boundaries.
+    record, _ = run_try(
+        _delta(
+            root,
+            "ctx.yaml",
+            {"training.seq_len": 16, "training.micro_batch_size": 8},
+        ),
+        baseline,
+        work_dir=root / "work",
+    )
+    base, cand = record["arms"]["baseline"], record["arms"]["candidate"]
+    assert base["eval_protocol"]["seq_len"] == 32
+    assert cand["eval_protocol"] == base["eval_protocol"]
+    assert cand["eval_protocol_sha256"] == base["eval_protocol_sha256"]
+    assert record["eval_protocol"] == base["eval_protocol"]
+    # Before the fix each arm was scored with its own windows (16 vs 32 tokens)
+    # while still reporting matching scored-target counts.
+    assert cand["heldout"]["batches"] == base["heldout"]["batches"]
+    assert record["comparison"]["checks"]["same_eval_protocol"] is True
+    assert record["comparison"]["comparable"] is True
+
+
+_SIGTERM_DURING_SCORING = """
+import os, signal, sys
+from sparselab.evaluation import inference
+original = inference.InferenceRun.evaluate
+def evaluate(self):
+    if self.run.name.startswith("lab-try-"):
+        os.kill(os.getpid(), signal.SIGTERM)
+    return original(self)
+inference.InferenceRun.evaluate = evaluate
+from sparselab.cli.main import main
+sys.argv = ["sparselab", "try", sys.argv[1], "--vs", sys.argv[2]]
+main()
+"""
+
+
+def test_sigterm_during_scoring_writes_sealed_interrupted_record(
+    tmp_path: Path,
+) -> None:
+    baseline = _write_inputs(tmp_path)
+    delta = _delta(tmp_path, "t.yaml", {"model.ffn_dim": 128})
+    work = tmp_path / "work"
+    completed = subprocess.run(
+        [sys.executable, "-c", _SIGTERM_DURING_SCORING, str(delta), str(baseline)],
+        env={**os.environ, "SPARSELAB_WORK_DIR": str(work)},
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=600,
+    )
+    assert completed.returncode == EXIT_INTERRUPTED, completed.stderr[-2000:]
+    (record_path,) = (work / "lab/tries").glob("*/try.json")
+    assert not list(record_path.parent.glob("*.tmp"))
+    record = read_record(record_path)
+    assert record["status"] == "interrupted"
+    assert record["interruption"]["arm"] == "candidate"
+    assert record["interruption"]["phase"] == "scoring"
+    assert record["interruption"]["reason"] == "SIGTERM"
+    assert "comparison" not in record
+
+
+def test_cancel_during_baseline_scoring_is_never_reused(
+    lab: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.evaluation import inference
+
+    root, baseline = lab
+    original = inference.InferenceRun.evaluate
+
+    def cancel_while_scoring(self):  # type: ignore[no-untyped-def]
+        for marker in (root / "work/lab/tries").glob("*"):
+            (marker / "CANCEL").touch()
+        return original(self)
+
+    monkeypatch.setattr(inference.InferenceRun, "evaluate", cancel_while_scoring)
+    record, _ = run_try(
+        _delta(root, "x.yaml", {"model.ffn_dim": 128}), baseline, work_dir=root / "work"
+    )
+    assert record["status"] == "interrupted"
+    assert record["interruption"] == {
+        "arm": "baseline",
+        "phase": "scoring",
+        "reason": "cancelled",
+    }
+    interrupted_baseline = record["arms"]["baseline"]["run_id"]
+    monkeypatch.setattr(inference.InferenceRun, "evaluate", original)
+    again, _ = run_try(
+        _delta(root, "y.yaml", {"model.ffn_dim": 128}), baseline, work_dir=root / "work"
+    )
+    assert again["status"] == "completed"
+    assert again["arms"]["baseline"]["reused"] is False
+    assert again["arms"]["baseline"]["run_id"] != interrupted_baseline
+
+
+def test_seed_option_is_authoritative_for_both_arms(lab: tuple[Path, Path]) -> None:
+    root, baseline = lab
+    record, _ = run_try(
+        _delta(root, "s.yaml", {"model.ffn_dim": 128, "seed": 42}),
+        baseline,
+        work_dir=root / "work",
+        seed=17,
+    )
+    assert record["arms"]["baseline"]["seed"] == 17
+    assert record["arms"]["candidate"]["seed"] == 17
+    assert record["seed"] == {
+        "override": 17,
+        "baseline": 17,
+        "candidate": 17,
+        "changed_by_delta": False,
+    }
+    assert "seed" not in record["delta"]
+
+
+def test_seed_change_in_delta_is_an_explicit_changed_variable(
+    lab: tuple[Path, Path],
+) -> None:
+    root, baseline = lab
+    record, _ = run_try(
+        _delta(root, "s.yaml", {"seed": 43}), baseline, work_dir=root / "work"
+    )
+    assert record["seed"] == {
+        "override": None,
+        "baseline": 42,
+        "candidate": 43,
+        "changed_by_delta": True,
+    }
+    assert record["changed_variables"] == ["seed"]
+    assert record["arms"]["candidate"]["seed"] == 43
