@@ -142,6 +142,12 @@ def _dashboard(args: argparse.Namespace) -> None:
     command.extend(["--evidence-root", args.evidence_root])
     if args.surface_dir is not None:
         command.extend(["--surface-dir", args.surface_dir])
+    from sparselab.lab_mode import lab_root
+
+    lab_dir = args.lab_dir or lab_root(
+        resolve_work_dir(getattr(args, "work_dir", None))
+    )
+    command.extend(["--lab-dir", str(lab_dir)])
     subprocess.run(command, check=True)
 
 
@@ -2428,36 +2434,80 @@ def _try(args: argparse.Namespace) -> None:
             tokenizer_batch_documents=args.tokenizer_batch_documents,
             tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
             fresh_baseline=args.fresh_baseline,
+            probe_tier=None if args.probe_tier == "none" else args.probe_tier,
         )
     except (ValueError, OSError) as error:
         raise SystemExit(f"sparselab try: {error}") from None
     if args.json:
         print(json.dumps({**record, "record": str(path)}, indent=2, sort_keys=True))
     else:
-        print(summarize(record, path))
+        from sparselab.probes.render import use_color
+
+        print(summarize(record, path, color=use_color()))
     if record["exit_status"]:
         raise SystemExit(record["exit_status"])
 
 
 def _report(args: argparse.Namespace) -> None:
-    """Read one sealed lab try record without rerunning anything."""
+    """Read one sealed lab try or probe record without rerunning anything."""
     from sparselab.lab_mode import lab_root, read_record, summarize
+    from sparselab.probes.cli import read_probe
+    from sparselab.probes.render import render, use_color
 
     target = Path(args.record)
+    root = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)
     if not target.exists() and target.parent == Path():
-        target = lab_root(resolve_work_dir(args.work_dir), args.lab_dir) / "tries"
-        target = target / args.record
+        kind = "probes" if args.record.startswith("probe-") else "tries"
+        target = root / kind / args.record
+    probe_file = target / "probe.json" if target.is_dir() else target
+    if probe_file.name == "probe.json" and probe_file.is_file():
+        result = read_probe(probe_file)
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print(render(result, color=use_color()))
+            print(f"  record: {probe_file}")
+        return
     record = read_record(target)
     if args.json:
         print(json.dumps(record, indent=2, sort_keys=True))
     else:
-        print(summarize(record, target))
+        print(summarize(record, target, color=use_color()))
+
+
+def _probe(args: argparse.Namespace) -> None:
+    """Run the fast-fail probe battery on a run or checkpoint."""
+    from sparselab.lab_mode import lab_root
+    from sparselab.probes.cli import run_probe
+    from sparselab.probes.render import render, use_color
+
+    try:
+        result, path = run_probe(
+            args.target,
+            args.vs,
+            lab_dir=lab_root(resolve_work_dir(args.work_dir), args.lab_dir),
+            runs_dir=Path(args.runs_dir) if args.runs_dir else None,
+            tier=args.tier,
+            fast_fail=not args.no_fast_fail,
+            backend=args.backend,
+            authorization=args.runtime_authorization,
+        )
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"sparselab probe: {error}") from None
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
+    if args.json:
+        print(json.dumps({**result, "record": str(path)}, indent=2, sort_keys=True))
+    else:
+        print(render(result, color=use_color()))
+        print(f"  record: {path}")
 
 
 # Help groups: lab-mode fast path first; release/full-provenance last. Every
 # registered command appears exactly once (see tests/test_lab_mode.py).
 FAST_PATH_COMMANDS = (
     "try",
+    "probe",
     "report",
     "inspect",
     "train",
@@ -2613,16 +2663,53 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         action="store_true",
         help="Retrain the baseline even if a completed identical one exists",
     )
+    lab_try.add_argument(
+        "--probe-tier",
+        choices=("none", "fast", "standard", "full"),
+        default="fast",
+        help="Probe battery tier run on both arms after scoring (default: fast)",
+    )
     lab_try.add_argument("--json", action="store_true")
     _tokenizer_batch_arguments(lab_try)
     lab_try.set_defaults(handler=_try)
     lab_report = commands.add_parser(
         "report", help="Show a sealed lab try record (read-only)"
     )
-    lab_report.add_argument("record", help="try.json, its folder, or a try id")
+    lab_report.add_argument(
+        "record", help="try.json/probe.json, its folder, or a try/probe id"
+    )
     lab_report.add_argument("--lab-dir", type=Path)
     lab_report.add_argument("--json", action="store_true")
     lab_report.set_defaults(handler=_report)
+    probe = commands.add_parser(
+        "probe",
+        help="Fast-fail probe battery on a run or checkpoint (optionally vs a baseline)",
+        description=(
+            "Score a run or checkpoint with the versioned probe suite, cheapest "
+            "probes first: held-out loss and calibration, top-1 agreement and "
+            "divergence vs a baseline, degeneration, reworded fact recall, "
+            "needle-in-context and (full tier, optional extra) lm-eval tasks. "
+            "Stops early on a hard failure and recommends a next action."
+        ),
+    )
+    probe.add_argument("target", help="Run id, run directory or checkpoint path")
+    probe.add_argument("--vs", metavar="BASELINE", help="Baseline run or checkpoint")
+    probe.add_argument("--tier", choices=("fast", "standard", "full"), default="fast")
+    probe.add_argument(
+        "--no-fast-fail",
+        action="store_true",
+        help="Run every probe in the tier even after a hard failure",
+    )
+    probe.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
+    probe.add_argument("--runs-dir", help="Also look up run ids here")
+    probe.add_argument(
+        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+    )
+    probe_runtime = probe.add_mutually_exclusive_group()
+    probe_runtime.add_argument("--runtime-profile", type=Path)
+    probe_runtime.add_argument("--runtime", metavar="ID")
+    probe.add_argument("--json", action="store_true")
+    probe.set_defaults(handler=_probe)
     from sparselab.operational_monitor_cli import register_monitor_parser
     from sparselab.training.attempt_contract_cli import register_attempt_parser
 
@@ -3490,6 +3577,11 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     dashboard.add_argument(
         "--surface-dir", help="Optional read-only Surface Review overlay"
     )
+    dashboard.add_argument(
+        "--lab-dir",
+        type=Path,
+        help="Lab root for the Probes page (default: WORK_DIR/lab)",
+    )
     dashboard.set_defaults(handler=_dashboard)
     from sparselab.iteration_cli import register_parser as register_iteration_parser
 
@@ -3651,6 +3743,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     args.runtime_profile_loaded = None
     is_legacy = args.command in {
         "try",
+        "probe",
         "train",
         "stage",
         "eval",
@@ -3763,6 +3856,19 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         config = load_config(Path(args.config))
     elif args.command == "try":
         config = load_config(Path(args.vs))
+    elif args.command == "probe":
+        from sparselab.config.models import RunConfig
+        from sparselab.lab_mode import lab_root
+        from sparselab.probes.cli import resolve_target
+
+        run, _ = resolve_target(
+            args.target,
+            lab_dir=lab_root(resolve_work_dir(args.work_dir), args.lab_dir),
+            runs_dir=Path(args.runs_dir) if args.runs_dir else None,
+        )
+        config = RunConfig.model_validate_json(
+            (run / "resolved_config.yaml").read_text(encoding="utf-8")
+        )
     else:
         from sparselab.config.models import RunConfig
 
@@ -3772,7 +3878,8 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         )
     backend_override = (
         args.backend
-        if args.command in {"try", "train", "eval", "generate", "chat", "serve"}
+        if args.command
+        in {"try", "probe", "train", "eval", "generate", "chat", "serve"}
         else None
     )
     if backend_override is not None:

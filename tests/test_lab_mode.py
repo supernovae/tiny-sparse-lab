@@ -362,6 +362,10 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     assert report.returncode == 0, report.stderr[-2000:]
     assert "verdict:" in report.stdout and record["try_id"] in report.stdout
     assert record["comparison"]["comparable"] is True
+    # The fast probe tier is part of every try and lands in the same record.
+    assert record["probe"]["tiers_run"] == ["fast"]
+    assert record["probe"]["verdict"]["action"]
+    assert "PROBE BATTERY" in report.stdout
     print(f"lab loop YAML->report: {elapsed:.1f}s (budget {LOOP_BUDGET_SECONDS}s)")
     assert elapsed < LOOP_BUDGET_SECONDS, f"lab loop took {elapsed:.1f}s"
 

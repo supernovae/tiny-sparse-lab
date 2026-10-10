@@ -17,6 +17,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from sparselab.dashboard.probes import probe_page
 from sparselab.dashboard.queries import DashboardSnapshot, RunRecord, runs, snapshot
 from sparselab.dashboard.research import learn_page, research_page
 from sparselab.evaluation.post_train_triage import read_triage, triage_summary
@@ -63,6 +64,7 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--lifecycle")
     parser.add_argument("--evidence-root", default=".")
     parser.add_argument("--surface-dir")
+    parser.add_argument("--lab-dir")
     args, _ = parser.parse_known_args()
     return args
 
@@ -948,9 +950,15 @@ def main() -> None:
     lifecycle = Path(args.lifecycle) if args.lifecycle else None
     evidence_root = Path(args.evidence_root)
     surface_dir = Path(args.surface_dir) if args.surface_dir else None
+    lab_dir = Path(args.lab_dir) if args.lab_dir else root.parent / "lab"
     page = st.navigation(
         [
             st.Page(lambda: learn(), title="Learn", url_path="learn", default=True),
+            st.Page(
+                lambda: probe_page(lab_dir),
+                title="Probes",
+                url_path="probes",
+            ),
             st.Page(
                 lambda: research_page(reports_dir, lifecycle, evidence_root),
                 title="Research",

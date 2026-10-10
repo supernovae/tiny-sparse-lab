@@ -28,6 +28,13 @@ LAB TRY try-20261010T052417Z-b9361b7d  status: completed  (lab mode)
   verdict: CANDIDATE_LOWER_LOSS  Δ held-out loss -0.0313
 ```
 
+Every try then runs the fast [probe battery](probe-battery.md) tier on both
+arms (held-out loss with paired SE, calibration, top-1 agreement, degeneration)
+and prints a verdict with a next action; the result is stored in the record
+under `probe`. Pass `--probe-tier standard|full` for more probes or `none` to
+skip. Probe problems never fail a try: an error is recorded as
+`probe.status: error` and the comparison stands.
+
 Use `--json` for the full record. A baseline is reused only when an earlier try
 *completed* with the same reuse key: effective config, code (source identity)
 and the tokenizer, dataset input files and external memory packages

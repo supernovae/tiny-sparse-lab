@@ -731,6 +731,7 @@ def run_try(
     fresh_baseline: bool = False,
     train_fn: Callable[..., str] | None = None,
     now: Callable[[], datetime] | None = None,
+    probe_tier: str | None = "fast",
 ) -> tuple[dict[str, Any], Path]:
     """Train/score baseline and candidate locally and write one lab record."""
     from sparselab.config.loading import load_config
@@ -971,6 +972,12 @@ def run_try(
         record["status"] = "completed"
         if record["comparison"]["verdict"] == "NOT_COMPARABLE":
             exit_status = EXIT_NOT_COMPARABLE
+        if probe_tier is not None:
+            lifecycle.enter("candidate", "probing")
+            lifecycle.checkpoint()
+            record["probe"] = _probe_arms(
+                record, runs, protocol, probe_tier, try_dir, authorization
+            )
     except LabCancelled as error:
         if error.arm is not None and error.row is not None:
             record["arms"][error.arm] = error.row
@@ -982,9 +989,13 @@ def run_try(
         }
         exit_status = EXIT_INTERRUPTED
     except (_LabSignal, KeyboardInterrupt) as error:
-        if lifecycle.arm is not None and lifecycle.row is not None:
-            record["arms"][lifecycle.arm] = lifecycle.row
-        record.pop("comparison", None)
+        if lifecycle.phase == "probing":
+            # Both arms are scored; only the optional probe battery stopped.
+            record["probe"] = {"status": "interrupted"}
+        else:
+            if lifecycle.arm is not None and lifecycle.row is not None:
+                record["arms"][lifecycle.arm] = lifecycle.row
+            record.pop("comparison", None)
         record["status"] = "interrupted"
         record["interruption"] = {
             "arm": lifecycle.arm,
@@ -1016,13 +1027,53 @@ def run_try(
     return sealed, record_path
 
 
+def _probe_arms(
+    record: Mapping[str, Any],
+    runs: Path,
+    protocol: Mapping[str, int],
+    tier: str,
+    try_dir: Path,
+    authorization: Any,
+) -> dict[str, Any]:
+    """Run the probe battery on the candidate vs the baseline (never fatal)."""
+    from sparselab.evaluation.inference import load_run
+    from sparselab.probes.runner import progress_writer, run_battery
+
+    try:
+        candidate = load_run(
+            record["arms"]["candidate"]["run_id"],
+            runs,
+            None,
+            None,
+            authorization=authorization,
+        )
+        baseline = load_run(
+            record["arms"]["baseline"]["run_id"],
+            runs,
+            None,
+            None,
+            authorization=authorization,
+        )
+        return run_battery(
+            candidate,
+            baseline,
+            tier=tier,
+            protocol=protocol,
+            progress=progress_writer(try_dir / "probe-progress.json"),
+        )
+    except Exception as error:  # noqa: BLE001 - probes inform, never fail a try
+        return {"status": "error", "error": f"{type(error).__name__}: {error}"}
+
+
 def _fmt(value: Any, digits: int = 4) -> str:
     if isinstance(value, float):
         return f"{value:.{digits}f}"
     return "n/a" if value is None else str(value)
 
 
-def summarize(record: Mapping[str, Any], path: Path | None = None) -> str:
+def summarize(
+    record: Mapping[str, Any], path: Path | None = None, *, color: bool = False
+) -> str:
     """Human-readable comparison; ``--json`` carries the same record."""
     lines = [f"LAB TRY {record['try_id']}  status: {record['status']}  (lab mode)"]
     if record.get("question"):
@@ -1067,6 +1118,16 @@ def summarize(record: Mapping[str, Any], path: Path | None = None) -> str:
         f"  wall {_fmt(resources.get('wall_seconds'), 1)}s  "
         f"peak rss {_fmt(resources.get('peak_rss_bytes'))} bytes"
     )
+    probe = record.get("probe")
+    if isinstance(probe, Mapping) and probe.get("format"):
+        from sparselab.probes.render import render
+
+        lines.append("")
+        lines.append(render(probe, color=color))
+    elif isinstance(probe, Mapping):
+        lines.append(
+            f"  probe battery: {probe.get('status')} {probe.get('error') or ''}".rstrip()
+        )
     if path is not None:
         lines.append(f"  record: {path}")
     return "\n".join(lines)

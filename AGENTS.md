@@ -20,6 +20,18 @@ ExperimentPlans, and do not request Campaign approvals. Iterate: read the
 record, change one setting, try again. A lab record is evidence of one local
 comparison, not a release, promotion or scientific conclusion.
 
+Every try also runs the fast [probe battery](docs/probe-battery.md) tier; use
+`sparselab probe RUN --vs BASE --tier standard|full --json` for more. Act on
+`probe.verdict.action`: `abandon` (a hard probe failed: drop the idea),
+`tweak` (change one setting; `suggestion` names what the failing probe
+implicates), `escalate` (re-probe at `next_tier`), `longer_run` (all tiers
+pass and loss improved: worth a larger budget, still in lab mode) or `compare`
+(add `--vs`). Verdicts use only the held-out item split. Do not edit probe
+items, thresholds or prompts to make an idea pass, and do not iterate against
+the dev split: `guard.overfit_suspected` means you are fitting the probes; change
+the idea instead. Any suite change needs a `SUITE_VERSION` bump, and results are
+comparable only within one suite digest.
+
 Write proposal, binding and stop documents **only** for:
 
 - **release runs**: results that will be promoted, published, cited as a
