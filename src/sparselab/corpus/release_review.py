@@ -48,6 +48,71 @@ def verify_admission_review(admission: Path, work_root: Path) -> dict[str, objec
         raise ValueError("admission review receipt is missing or symlinked")
     review = json.loads(receipt_path.read_text(encoding="utf-8"))
     if (
+        isinstance(review, dict)
+        and review.get("format") == "sparselab-admission-review-v2"
+    ):
+        from sparselab.corpus.admission_inspection import verify_admission_inspection
+
+        required = {
+            "format",
+            "decision",
+            "reviewer",
+            "reviewed_on",
+            "draft_path",
+            "draft_sha256",
+            "admission_sha256",
+            "inspection_path",
+            "inspection_sha256",
+            "item_decisions",
+        }
+        if (
+            set(review) != required
+            or review["decision"] != "ACCEPTED"
+            or not isinstance(review["reviewer"], str)
+            or not review["reviewer"].strip()
+            or not isinstance(review["reviewed_on"], str)
+            or not review["reviewed_on"].strip()
+            or not isinstance(review["item_decisions"], list)
+        ):
+            raise ValueError("invalid v2 admission review")
+        draft = Path(review["draft_path"])
+        inspection_path = Path(review["inspection_path"])
+        if (
+            not draft.is_absolute()
+            or draft.is_symlink()
+            or not draft.resolve().is_relative_to(root)
+            or not inspection_path.is_absolute()
+            or inspection_path.is_symlink()
+            or not inspection_path.resolve().is_relative_to(root)
+            or sha256_file(draft) != review["draft_sha256"]
+            or sha256_file(admission) != review["admission_sha256"]
+            or review["draft_sha256"] != review["admission_sha256"]
+            or sha256_file(inspection_path) != review["inspection_sha256"]
+        ):
+            raise ValueError("v2 admission review identity mismatch")
+        inspection = verify_admission_inspection(inspection_path, root)
+        if inspection["draft_sha256"] != review["draft_sha256"]:
+            raise ValueError("v2 admission inspection draft mismatch")
+        expected_ids = [item["item_id"] for item in inspection["items"]]
+        decisions = review["item_decisions"]
+        if (
+            len(set(expected_ids)) != len(expected_ids)
+            or len(decisions) != len(expected_ids)
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"item_id", "outcome", "note"}
+                or item.get("item_id") != expected
+                or item.get("outcome") != "pass"
+                or not isinstance(item.get("note"), str)
+                or not item["note"].strip()
+                for item, expected in zip(decisions, expected_ids, strict=True)
+            )
+        ):
+            raise ValueError(
+                "v2 admission review has incomplete, substituted or blocking decisions"
+            )
+        return review
+    if (
         not isinstance(review, dict)
         or set(review)
         != {

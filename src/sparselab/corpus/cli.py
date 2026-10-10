@@ -108,6 +108,24 @@ def _handle(args: argparse.Namespace) -> None:
         )
         print(json.dumps(result, sort_keys=True))
         return
+    if command == "inspect-admission":
+        from sparselab.corpus.admission_inspection import inspect_admission
+
+        project_path = Path(args.project)
+        result = inspect_admission(
+            load_project(project_path),
+            project_path,
+            root,
+            Path(args.draft),
+            Path(args.policy_document),
+            Path(args.selection),
+            Path(args.output),
+            max_input_bytes=args.max_input_bytes,
+            max_excerpt_bytes=args.max_excerpt_bytes,
+            max_output_bytes=args.max_output_bytes,
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
     if command == "split-inventory":
         from sparselab.corpus.split_inventory import write_split_inventory
 
@@ -339,6 +357,17 @@ def add_commands(commands: argparse._SubParsersAction) -> None:
     command.add_argument("--template", required=True)
     command.add_argument("--policy-document", required=True)
     command.add_argument("--output", required=True)
+    command.set_defaults(handler=_handle)
+    command = sub.add_parser(
+        "inspect-admission",
+        help="Inspect a bounded deterministic sample before admission",
+    )
+    command.add_argument("project")
+    for flag in ("draft", "policy-document", "selection", "output"):
+        command.add_argument("--" + flag, required=True)
+    command.add_argument("--max-input-bytes", type=int, required=True)
+    command.add_argument("--max-excerpt-bytes", type=int, required=True)
+    command.add_argument("--max-output-bytes", type=int, required=True)
     command.set_defaults(handler=_handle)
     command = sub.add_parser(
         "split-inventory", help="Record pre-build IDs from verified source snapshots"

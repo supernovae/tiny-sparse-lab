@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D52 — pre-admission inspection correction authorized offline, 2026-10-10
+
+- The owner authorized one bounded native pre-admission inspection correction and offline connected preparation qualification after C05-B15. It requires exact snapshot/draft/policy/normalizer/sample bindings, a supervised public command, complete unique nonblocking selected-item decisions, Git and JSONL fixture coverage through a cold prepared bundle, and a distinct retained-only preparation-only proposal.
+- No production ledger, acquisition, corpus admission, tokenizer fitting, model forward, generation, optimizer update, staging, GPU use, cloud spend or training was authorized. B11–B15 and all historical receipts remain unchanged. [C05-T8](results/2026-10-10-card05-pre-admission-inspection-offline.md) is fixture-scope evidence only; the new [preparation-only proposal](CARD05_BASE_50M_PREPARATION_ONLY_PROPOSAL.md) still needs separate approval.
+
 ## KML-D51 — retained-only 50M attempt stopped at admission review, 2026-10-10
 
 - The owner approved one fresh conditional local attempt at exact clean `52b681c1b71f73dfd4ec52e91102e3e0c087c6bc` under the retained proposal and corrected packets. It required zero network or retries, a new native baseline/ledger, reviewed v3 preparation gates, then conditional fresh training and bounded evaluation. Code changes during execution, attempt restart/resume, cloud use, merge and Card 06 progression were excluded.

@@ -73,6 +73,15 @@ class AttemptContract(BaseModel):
     preparation_normalizer: (
         Literal["normalizer-structure-v2", "normalizer-structure-v3"] | None
     ) = Field(default=None, exclude_if=lambda value: value is None)
+    admission_lock_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    admission_policy_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    admission_selection_sha256: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     fixed_profile_sha256: str | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -94,10 +103,16 @@ class AttemptContract(BaseModel):
     require_release_acceptance_binding: bool = Field(
         default=False, exclude_if=lambda value: value is False
     )
+    require_admission_inspection_binding: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
     require_preledger_monitor_binding: bool = Field(
         default=False, exclude_if=lambda value: value is False
     )
     offline_retained_sources_only: bool = Field(
+        default=False, exclude_if=lambda value: value is False
+    )
+    preparation_only: bool = Field(
         default=False, exclude_if=lambda value: value is False
     )
 
@@ -117,6 +132,9 @@ class AttemptContract(BaseModel):
         "evaluation_monitor_policy_sha256",
         "acquisition_project_sha256",
         "preparation_acquisition_identity_sha256",
+        "admission_lock_sha256",
+        "admission_policy_sha256",
+        "admission_selection_sha256",
         "fixed_profile_sha256",
         "fixed_family_inventory_sha256",
     )
@@ -132,6 +150,18 @@ class AttemptContract(BaseModel):
             self.preparation_normalizer is None
         ):
             raise ValueError("preparation identity and normalizer must be paired")
+        if self.require_admission_inspection_binding and any(
+            value is None
+            for value in (
+                self.admission_lock_sha256,
+                self.admission_policy_sha256,
+                self.admission_selection_sha256,
+                self.preparation_normalizer,
+            )
+        ):
+            raise ValueError(
+                "inspected admission requires lock, policy, selection and normalizer identities"
+            )
         fixed = self.max_fixed_profile_forward_positions
         total = self.max_nontraining_forward_positions
         if (fixed is None) != (total is None):
@@ -168,6 +198,25 @@ def load_attempt_contract(
 
 class AttemptBudgetError(RuntimeError):
     """The shared attempt budget is missing, invalid, or exhausted."""
+
+
+def _verify_admission_contract_binding(
+    contract: AttemptContract, review: dict[str, object]
+) -> None:
+    if not contract.require_admission_inspection_binding:
+        return
+    if review.get("format") != "sparselab-admission-review-v2":
+        raise AttemptBudgetError("preparation requires inspected admission")
+    inspection = json.loads(
+        Path(str(review["inspection_path"])).read_text(encoding="utf-8")
+    )
+    if (
+        inspection.get("acquisition_lock_sha256") != contract.admission_lock_sha256
+        or inspection.get("policy_sha256") != contract.admission_policy_sha256
+        or inspection.get("selection_sha256") != contract.admission_selection_sha256
+        or inspection.get("normalizer") != contract.preparation_normalizer
+    ):
+        raise AttemptBudgetError("inspected admission differs from contract identities")
 
 
 def validate_contract_monitor_inputs(
@@ -333,13 +382,17 @@ class AttemptBudget:
                     != project.release.record_admission.sha256
                 ):
                     raise AttemptBudgetError("preparation project identity differs")
-                if contract.require_release_acceptance_binding:
-                    verify_admission_review(
+                if (
+                    contract.require_release_acceptance_binding
+                    or contract.require_admission_inspection_binding
+                ):
+                    admission_review = verify_admission_review(
                         project_path(
                             project.root, project.release.record_admission.path
                         ),
                         root,
                     )
+                    _verify_admission_contract_binding(contract, admission_review)
                 if kind == "build_project":
                     if pre_freeze_binding is None:
                         raise AttemptBudgetError("pre-freeze project is not bound")
@@ -461,10 +514,14 @@ class AttemptBudget:
                 != reference.sha256
             ):
                 raise AttemptBudgetError("bound preparation project identity changed")
-            if contract.require_release_acceptance_binding:
-                verify_admission_review(
+            if (
+                contract.require_release_acceptance_binding
+                or contract.require_admission_inspection_binding
+            ):
+                admission_review = verify_admission_review(
                     project_path(project.root, reference.path), root
                 )
+                _verify_admission_contract_binding(contract, admission_review)
         if kind == "release_acceptance":
             from sparselab.corpus.release_review import verify_release_review
 
@@ -1296,6 +1353,11 @@ class AttemptBudget:
             classified = classify_attempt_command(command)
         except ValueError as error:
             raise AttemptBudgetError(str(error)) from error
+        if contract.preparation_only and (
+            classified.effect not in {"preparation", "inspection"}
+            or activity != "inspect"
+        ):
+            raise AttemptBudgetError("preparation-only attempt forbids model work")
         if (
             classified.work_dir is not None
             and classified.work_dir.resolve() != resolved_root
@@ -1343,12 +1405,38 @@ class AttemptBudget:
                 "corpus alias-snapshot",
                 "corpus acquire",
                 "corpus admission-draft",
+                "corpus inspect-admission",
             }
             and contract.acquisition_project_sha256 is not None
             and hashlib.sha256(Path(classified.args[2]).read_bytes()).hexdigest()
             != contract.acquisition_project_sha256
         ):
             raise AttemptBudgetError("acquisition project differs from contract")
+        if (
+            contract.require_admission_inspection_binding
+            and classified.operation == "corpus inspect-admission"
+        ):
+            from sparselab.corpus.project import load_project
+
+            project = load_project(Path(classified.args[2]))
+            lock_path = (
+                resolved_root / "corpora" / project.config.id / "acquisition.json"
+            )
+            if (
+                hashlib.sha256(
+                    Path(str(classified.options["--selection"])).read_bytes()
+                ).hexdigest()
+                != contract.admission_selection_sha256
+                or hashlib.sha256(
+                    Path(str(classified.options["--policy-document"])).read_bytes()
+                ).hexdigest()
+                != contract.admission_policy_sha256
+                or hashlib.sha256(lock_path.read_bytes()).hexdigest()
+                != contract.admission_lock_sha256
+            ):
+                raise AttemptBudgetError(
+                    "admission inspection input differs from contract"
+                )
         preparation_kind = {
             "corpus split-inventory": "pre_freeze_project",
             "corpus freeze-splits": "pre_freeze_project",

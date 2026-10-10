@@ -129,7 +129,16 @@ def test_data_only_render_and_legacy_contract_compatibility(tmp_path: Path) -> N
     assert "preparation_normalizer" not in payload
     assert "offline_retained_sources_only" not in payload
     assert "require_release_acceptance_binding" not in payload
+    assert "require_admission_inspection_binding" not in payload
+    assert "admission_lock_sha256" not in payload
+    assert "admission_policy_sha256" not in payload
+    assert "admission_selection_sha256" not in payload
+    assert "preparation_only" not in payload
     assert "require_preledger_monitor_binding" not in payload
+    with pytest.raises(ValueError, match="inspected admission requires"):
+        AttemptContract.model_validate(
+            {**payload, "require_admission_inspection_binding": True}
+        )
 
 
 def test_reviewed_admission_cannot_substitute_an_edited_draft(tmp_path: Path) -> None:
@@ -166,11 +175,103 @@ def _sources(root: Path, project_id: str) -> tuple[Path, dict[str, str]]:
     recipe = root / project_id
     strata = {
         "books": "general_prose",
+        "books_rows": "general_prose",
         "incident": "incident_response_docs",
         "wiki": "explanatory_prose",
     }
     files_by_source: dict[str, list[tuple[str, bytes]]] = {}
+    retrieval_by_source: dict[str, dict] = {}
     for source_id, stratum in strata.items():
+        if source_id == "books_rows":
+            shard = "fixture-books.json.gz"
+            sample = shard + ".sample.jsonl"
+            selected = []
+            rendered = []
+            for index, license_label in enumerate(("Public Domain", "Copyrighted")):
+                record = {
+                    "id": str(100 + index),
+                    "metadata": {
+                        "license": license_label,
+                        "url": f"https://www.gutenberg.org/ebooks/{100 + index}",
+                        "title": f"Fixture book {index}",
+                        "provenance": f"{shard}:{index + 1}",
+                        "language": "en",
+                    },
+                    "text": (
+                        f"Fixture book {index} explains a clear sequence of events. "
+                        "Readers can follow the account and understand the result. "
+                    )
+                    * 3,
+                }
+                digest = hashlib.sha256(canonical_json(record)).hexdigest()
+                selected.append(
+                    {"source_row_index": index, "source_row_sha256": digest}
+                )
+                rendered.append(
+                    {
+                        **record,
+                        "_sparselab_source": {
+                            "id": record["id"],
+                            "dataset_revision": "a" * 40,
+                            "source_shard_path": shard,
+                            "source_shard_sha256": "b" * 64,
+                            "source_row_index": index,
+                            "source_row_sha256": digest,
+                        },
+                    }
+                )
+            files_by_source[source_id] = [
+                (sample, b"".join(canonical_json(row) + b"\n" for row in rendered))
+            ]
+            retrieval_by_source[source_id] = {
+                "shards": [
+                    {
+                        "output_path": sample,
+                        "source_shard_path": shard,
+                        "source_shard_sha256": "b" * 64,
+                        "selected_rows": selected,
+                    }
+                ]
+            }
+            _write_yaml(
+                recipe / "sources" / f"{source_id}.yaml",
+                {
+                    "schema_version": 2,
+                    "id": source_id,
+                    "kind": "huggingface_dataset",
+                    "canonical_uri": "https://huggingface.co/datasets/common-pile/project_gutenberg_filtered",
+                    "revision": "a" * 40,
+                    "license": "Public Domain source claim",
+                    "license_url": "https://www.gutenberg.org/policy/license",
+                    "rights": {
+                        "training_eligibility": "review_required",
+                        "redistribution_mode": "review_required",
+                    },
+                    "domains": [stratum],
+                    "document_kinds": ["prose"],
+                    "source_family": source_id,
+                    "acquisition": {
+                        "config": "default",
+                        "split": "train",
+                        "text_field": "text",
+                        "max_rows": 2,
+                        "max_bytes": 65536,
+                        "bounded_shards": [
+                            {
+                                "path": shard,
+                                "expected_sha256": "b" * 64,
+                                "max_shard_bytes": 65536,
+                                "max_scanned_rows": 2,
+                                "hash_modulus": 1,
+                                "hash_remainders": [0],
+                                "declared_config": "default",
+                                "declared_split": "train",
+                            }
+                        ],
+                    },
+                },
+            )
+            continue
         files = []
         for index in range(12):
             number = 0 if index == 10 else index
@@ -273,7 +374,9 @@ def _sources(root: Path, project_id: str) -> tuple[Path, dict[str, str]]:
             "declaration_sha256": declaration_sha256(source),
             "adapter": _adapter(source),
             "files": files,
-            "retrieval": {"fixture": "network-disabled immutable snapshot"},
+            "retrieval": retrieval_by_source.get(
+                source.id, {"fixture": "network-disabled immutable snapshot"}
+            ),
             "snapshot_sha256": identity,
         }
         (snapshot / "manifest.json").write_bytes(canonical_json(manifest) + b"\n")
@@ -307,11 +410,19 @@ def _policy(recipe: Path, strata: dict[str, str]) -> tuple[Path, Path]:
                 "sources": [
                     {
                         "source_id": source_id,
-                        "license_label": "Apache-2.0 local research",
+                        "license_label": (
+                            "US public-domain local research"
+                            if source_id == "books_rows"
+                            else "Apache-2.0 local research"
+                        ),
                         "rights": {
                             "training_eligibility": "eligible_with_obligations",
                             "redistribution_mode": "metadata_reconstruction_only",
-                            "spdx_expression": "Apache-2.0",
+                            **(
+                                {}
+                                if source_id == "books_rows"
+                                else {"spdx_expression": "Apache-2.0"}
+                            ),
                             "license_references": [
                                 "https://www.apache.org/licenses/LICENSE-2.0"
                             ],
@@ -378,6 +489,7 @@ def _clusters(
                 ],
             }
             for source_id in strata
+            if source_id != "books_rows"
         ],
         "reviewer": "Fixture independent reviewer",
         "reviewed_on": "2026-10-09",
@@ -399,7 +511,7 @@ def _prior(root: Path) -> tuple[Path, Path, dict[str, str]]:
     result = draft_admission_manifest(
         load_project(recipe / "acquire.yaml"), root, template, policy, admission
     )
-    assert result["counts"] == {"qualify": 33, "exclude": 0, "quarantine": 3}
+    assert result["counts"] == {"qualify": 34, "exclude": 0, "quarantine": 4}
     _reviewed_release(recipe, admission)
     project = load_project(recipe / "pre-freeze.yaml")
     inventory = recipe / "inventory.jsonl"
@@ -589,7 +701,18 @@ def _attempt(root: Path, acquisition: Path) -> dict[str, Path | str]:
                 "acquisition_project_sha256": sha256_file(acquisition),
                 "preparation_acquisition_identity_sha256": _project_sha(project),
                 "preparation_normalizer": "normalizer-structure-v3",
+                "admission_lock_sha256": sha256_file(
+                    root / "corpora" / project.config.id / "acquisition.json"
+                ),
+                "admission_policy_sha256": sha256_file(
+                    acquisition.parent / "policy.md"
+                ),
+                "admission_selection_sha256": sha256_file(
+                    acquisition.parent / "inspection-selection.json"
+                ),
                 "require_release_acceptance_binding": True,
+                "require_admission_inspection_binding": True,
+                "preparation_only": True,
                 "offline_retained_sources_only": True,
             }
         )
@@ -672,23 +795,26 @@ def test_offline_preparation_sequence_through_native_supervision(
         "sha256": "${ADMISSION_SHA256}",
     }
     _write_yaml(release_template, release_spec)
-    admission_review_template = recipe / "admission-review.template.json"
-    admission_review_template.write_bytes(
+    inspection_selection = recipe / "inspection-selection.json"
+    inspection_selection.write_bytes(
         canonical_json(
             {
-                "format": "sparselab-admission-review-v1",
-                "decision": "ACCEPTED",
-                "reviewer": "Fixture independent reviewer",
-                "reviewed_on": "2026-10-09",
-                "draft_path": "${DRAFT_PATH}",
-                "draft_sha256": "${DRAFT_SHA256}",
-                "admission_sha256": "${ADMISSION_SHA256}",
-                "spot_audits": [
+                "format": "sparselab-admission-inspection-selection-v1",
+                "seed": "fixture-pre-admission-review-v1",
+                "normalizer": "normalizer-structure-v3",
+                "sources": [
                     {
                         "source_id": source_id,
-                        "location": "docs/00.md",
-                        "outcome": "pass",
-                        "note": "Covered fixture prose; exception remains quarantined.",
+                        "exception_count": 1,
+                        "strata": [
+                            {
+                                "id": "all",
+                                "count": 1,
+                                "path_prefix": None,
+                                "length_band": None,
+                                "issues_nonempty": None,
+                            }
+                        ],
                     }
                     for source_id in strata
                 ],
@@ -696,6 +822,7 @@ def test_offline_preparation_sequence_through_native_supervision(
         )
         + b"\n"
     )
+    admission_review_template = recipe / "admission-review.template.json"
     prefreeze_template = recipe / "pre-freeze.template.yaml"
     _write_yaml(
         prefreeze_template,
@@ -836,6 +963,40 @@ def test_offline_preparation_sequence_through_native_supervision(
         },
     )
     paths = _attempt(root, recipe / "acquire.yaml")
+    denied_model = _phase(
+        paths,
+        "forbidden-model-stage",
+        "stage",
+        str(recipe / "missing-config.yaml"),
+        "--through",
+        "validate",
+        "--output",
+        str(recipe / "forbidden-stage"),
+    )
+    assert denied_model.returncode != 0
+    assert (
+        "training or staging cannot be hidden in a nested monitor"
+        in denied_model.stderr
+    )
+    with pytest.raises(Exception, match="preparation-only attempt forbids model work"):
+        AttemptBudget(paths["ledger"]).run_contract(
+            _native(
+                root,
+                "stage",
+                str(recipe / "missing-config.yaml"),
+                "--through",
+                "validate",
+                "--output",
+                str(recipe / "forbidden-direct-stage"),
+            ),
+            activity="inspect",
+            label="forbidden-direct-stage",
+            content_identity_sha256=str(paths["identity"]),
+            monitor_policy_path=paths["whole"],
+            workspace_baseline_path=paths["baseline"],
+            workspace_root=root,
+            completion=root / "logs" / "forbidden-direct-stage.json",
+        )
     denied_live = _phase(
         paths,
         "forbidden-live-acquisition",
@@ -868,8 +1029,58 @@ def test_offline_preparation_sequence_through_native_supervision(
     )
     draft = json.loads((recipe / "draft.json").read_text())
     assert all(
-        sum(row["decision"] == "quarantine" for row in item["files"]) == 1
+        sum(
+            row["decision"] == "quarantine"
+            for row in item.get("files", item.get("records", []))
+        )
+        == 1
         for item in draft["sources"]
+    )
+    inspection_path = recipe / "inspection.json"
+    _run(
+        paths,
+        "inspect-admission",
+        "corpus",
+        "inspect-admission",
+        str(recipe / "acquire.yaml"),
+        "--draft",
+        str(recipe / "draft.json"),
+        "--policy-document",
+        str(policy),
+        "--selection",
+        str(inspection_selection),
+        "--output",
+        str(inspection_path),
+        "--max-input-bytes",
+        "1048576",
+        "--max-excerpt-bytes",
+        "256",
+        "--max-output-bytes",
+        "262144",
+    )
+    inspected = json.loads(inspection_path.read_text())
+    assert len(inspected["items"]) == len(strata)
+    assert len(inspected["quarantine_exceptions"]) == len(strata)
+    assert all(item["decision"] == "qualify" for item in inspected["items"])
+    assert all(
+        item["raw_excerpt"] and item["cleaned_excerpt"] for item in inspected["items"]
+    )
+    admission_review_template.write_bytes(
+        canonical_json(
+            {
+                "format": "sparselab-admission-review-v2",
+                "decision": "ACCEPTED",
+                "reviewer": "Fixture independent reviewer",
+                "reviewed_on": "2026-10-10",
+                "draft_path": "${DRAFT_PATH}",
+                "draft_sha256": "${DRAFT_SHA256}",
+                "admission_sha256": "${ADMISSION_SHA256}",
+                "inspection_path": "${INSPECTION_PATH}",
+                "inspection_sha256": "${INSPECTION_SHA256}",
+                "item_decisions": "${ITEM_DECISIONS_JSON}",
+            }
+        )
+        + b"\n"
     )
     _render(
         paths, "reviewed-admission", recipe / "draft.json", recipe / "admission.json"
@@ -884,6 +1095,18 @@ def test_offline_preparation_sequence_through_native_supervision(
             "DRAFT_PATH": str(recipe / "draft.json"),
             "DRAFT_SHA256": sha256_file(recipe / "draft.json"),
             "ADMISSION_SHA256": sha256_file(admission),
+            "INSPECTION_PATH": str(inspection_path),
+            "INSPECTION_SHA256": sha256_file(inspection_path),
+            "ITEM_DECISIONS_JSON": json.dumps(
+                [
+                    {
+                        "item_id": item["item_id"],
+                        "outcome": "pass",
+                        "note": "Fixture source notice and selected content reviewed.",
+                    }
+                    for item in inspected["items"]
+                ]
+            ),
         },
     )
     _render(

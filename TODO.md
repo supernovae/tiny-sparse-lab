@@ -273,7 +273,7 @@ experiment or a merge.
   floors, ROCm and model quality remain future execution gates; B11–B13 remain
   stopped and unchanged.
 
-- [ ] **Inspect verified pre-admission corpus rows through a bounded native command.**
+- [x] **Inspect verified pre-admission corpus rows through a bounded native command.**
   C05-B15 cold-verified the four retained snapshots and produced a v2 admission
   draft, then stopped before admission review: `corpus sample`/`review` require
   a frozen release, but that release requires reviewed admission first. Expose
@@ -282,12 +282,13 @@ experiment or a merge.
   clear-screen strata, reports stable row/file identities, bounded source-text
   excerpts and source/notice/exception fields, and fails on changed lock,
   snapshot, draft, source policy or selection rules. Do not auto-accept the
-  sample or change row decisions. Add tiny offline tests for deterministic
-  selection, source binding, malformed or missing text, quarantine exclusion
-  and hard output/resource limits. The reviewer still records item-level
-  decisions through the existing supervised declaration renderer. Preserve the
-  B15 ledger and draft as stopped evidence; a corrected packet and separate
-  attempt decision are required before production work resumes.
+  sample or change row decisions. The v1 inspection receipt and v2 admission
+  review bind exact selected IDs and require complete nonblocking decisions;
+  focused offline tests cover source binding, changed inputs, quarantine
+  separation and hard input/output limits. The reviewer still records item-level
+  decisions through the existing supervised declaration renderer. The B15
+  ledger and draft remain stopped evidence; the corrected packet and a separate
+  preparation-only attempt decision are required before production work resumes.
 
 - [x] **Bind the verified common-root baseline before a 50M ledger exists.**
   C05-B14 stopped at dispatch because its contract used the baseline file hash
