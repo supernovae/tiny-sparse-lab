@@ -2,6 +2,11 @@
 
 Append entries; do not rewrite earlier decisions. Correct a decision with a new entry citing it. No experimental go/no-go decision or runtime approval is recorded at delivery.
 
+## KML-D53 — retained-only preparation attempt stopped at receipt collision, 2026-10-10
+
+- The owner approved one fresh preparation-only attempt at exact clean `01b2939320f9d7320649336681e2ed62ee320ce9` under the [separate proposal](CARD05_BASE_50M_PREPARATION_ONLY_PROPOSAL.md) and corrected packet. It permitted the four authenticated retained snapshots, genuine inspected admission review and downstream preparation only after its gates, under the declared 14,400-second, memory, storage, inode and reviewer ceilings. It prohibited acquisition requests, model work, code changes during execution, restart and resume.
+- [C05-B16](results/2026-10-10-card05-50m-preparation-attempt1-receipt-collision.md) records the single initialized ledger and three zero-model phase reservations. Offline source verification and application rendering completed; the admission-draft leaf wrote its unreviewed draft, then the outer supervisor failed because its completion path was the same file. The inner owned receipt and later process inventory found no surviving workload, but the outer completion receipt is absent and reconciliation failed. No inspected admission, release, supply, mixture or bundle was accepted. This allocation is spent; B11–B15 remain unchanged. Any correction and fresh attempt need separate authority.
+
 ## KML-D52 — pre-admission inspection correction authorized offline, 2026-10-10
 
 - The owner authorized one bounded native pre-admission inspection correction and offline connected preparation qualification after C05-B15. It requires exact snapshot/draft/policy/normalizer/sample bindings, a supervised public command, complete unique nonblocking selected-item decisions, Git and JSONL fixture coverage through a cold prepared bundle, and a distinct retained-only preparation-only proposal.
