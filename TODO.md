@@ -56,10 +56,10 @@ These items take priority over new lifecycle, admission or orchestration code.
 - [ ] **Archive the kernel-memory-lab paper trail.** Move CARD proposals and
   per-step result notes under `experiments/research/history/`, leaving one
   STATUS page with current decisions and links.
-- [ ] **Unblock a real 50M run on an existing dataset.** Train the next size on
-  an already-available corpus (TinyStories/FineWeb-Edu sample) in lab mode
-  rather than waiting on retained-corpus admission; treat retained-corpus work
-  as a release-mode track.
+- [ ] **Unblock a real 100M run on an existing dataset.** Train the 100M target
+  on an already-available corpus (e.g. a FineWeb-Edu sample) in lab mode rather
+  than waiting on retained-corpus admission; treat retained-corpus work as a
+  release-mode track.
 - [ ] **Dead-code and legacy sweep.** Run coverage plus a dead-code scan
   (e.g. vulture) after the recent cleanup and remove experiment-specific code
   paths that the fast loop doesn't use.
