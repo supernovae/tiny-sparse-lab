@@ -15,6 +15,7 @@ from typing import Any
 import torch
 from safetensors.torch import load_file
 
+from sparselab.address_hash import byte_scheme
 from sparselab.config.models import RunConfig
 from sparselab.engram.packs import verify_pack
 from sparselab.model.inspection import named_tensor_inventory
@@ -1424,7 +1425,7 @@ def initialize_memory_artifact(
             expected = {
                 "format_version": 1,
                 "normalization": "raw-utf8-v1",
-                "hashing": "poly257-terminal-v1",
+                "hashing": byte_scheme(config.model.memory_table_size),
                 "ngram_size": config.model.memory_ngram_size,
                 "table_size": config.model.memory_table_size,
                 "embedding_dim": config.model.memory_dim,
@@ -1497,7 +1498,7 @@ def initialize_memory_artifact(
         expected = {
             "format_version": 1,
             "normalization": "raw-utf8-v1",
-            "hashing": "poly257-terminal-v1",
+            "hashing": byte_scheme(config.model.memory_table_size),
             "ngram_size": config.model.memory_ngram_size,
             "table_size": config.model.memory_table_size,
             "embedding_dim": config.model.memory_dim,

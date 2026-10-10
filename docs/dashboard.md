@@ -209,10 +209,11 @@ and attached semantic packs are refused with a reason.
   collision), each table's reuse rate and the per-token memory gate. When every
   address of an n-gram table is just one earlier token's id modulo the table
   size, a warning says the table is acting as a single-token table. In the demo
-  this caught a real problem: with `memory_table_size: 257` the n-gram hash
-  multiplier (257) is a multiple of the row count, so the order-2 and order-3
-  tables read the previous token and the one before it, not n-grams (see
-  TODO.md).
+  this caught a real problem: with `memory_table_size: 257` the legacy n-gram
+  hash multiplier (257) was a multiple of the row count, so the order-2 and
+  order-3 tables read the previous token and the one before it, not n-grams.
+  The hash now switches to a mixed scheme at such sizes (`sparselab.address_hash`,
+  see TODO.md); the screenshot predates the fix.
 
 ## For developers
 

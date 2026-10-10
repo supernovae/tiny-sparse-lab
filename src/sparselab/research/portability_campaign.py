@@ -14,6 +14,7 @@ import numpy as np
 import torch
 from safetensors.torch import save_file
 
+from sparselab.address_hash import token_ngram_address
 from sparselab.data.allocation import (
     OWNER_LEXICAL,
     OWNER_NEURAL,
@@ -162,11 +163,11 @@ def _key_prompt(fact: ProducerFact) -> tuple[str, str]:
 
 
 def _token_address(token_ids: list[int], order: int, table_size: int) -> int:
-    address = 1
-    for offset in range(order):
-        token_id = token_ids[-1 - offset] if offset < len(token_ids) else 0
-        address = (address * (257) + token_id) % table_size
-    return address
+    key = (
+        token_ids[-1 - offset] if offset < len(token_ids) else 0
+        for offset in range(order)
+    )
+    return token_ngram_address(key, table_size, 0)
 
 
 def _memory_artifact(

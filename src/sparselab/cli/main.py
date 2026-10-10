@@ -2135,6 +2135,7 @@ def _research_portability_report(args: argparse.Namespace) -> None:
 
 
 def _research_portability_probe_byte(args: argparse.Namespace) -> None:
+    from sparselab.address_hash import byte_scheme
     from sparselab.data.byte_hash import table_address
 
     raw = args.text.encode("utf-8")
@@ -2143,7 +2144,7 @@ def _research_portability_probe_byte(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "normalization": "raw-utf8-v1",
-                "hashing": "poly257-terminal-v1",
+                "hashing": byte_scheme(args.table_size),
                 "utf8_byte_length": len(raw),
                 "ngram_size": args.ngram_size,
                 "terminal_bytes_hex": terminal.hex(),

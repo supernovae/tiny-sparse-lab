@@ -7,6 +7,12 @@ from dataclasses import dataclass, replace
 import torch
 from torch import Tensor, nn
 
+from sparselab.address_hash import (
+    token_address_finish,
+    token_address_init,
+    token_address_step,
+)
+
 
 @dataclass(frozen=True)
 class MemoryDiagnostics:
@@ -79,7 +85,10 @@ class TokenNgramMemory(nn.Module):
         """Hash only IDs at or before each position for one order/hash head."""
         batch, length = input_ids.shape
         address = torch.full(
-            (batch, length), seed + 1, dtype=torch.long, device=input_ids.device
+            (batch, length),
+            token_address_init(seed),
+            dtype=torch.long,
+            device=input_ids.device,
         )
         order = self.ngram_size if order is None else order
         for offset in range(order):
@@ -88,10 +97,8 @@ class TokenNgramMemory(nn.Module):
                 shifted = input_ids
             elif offset < length:
                 shifted[:, offset:] = input_ids[:, :-offset]
-            address = torch.remainder(
-                address * (257 + seed * 2) + shifted, self.table_size
-            )
-        return address
+            address = token_address_step(address, shifted, self.table_size, seed)
+        return token_address_finish(address, self.table_size, seed)
 
     def _apply_addresses(self, hidden: Tensor, addresses: list[Tensor]) -> Tensor:
         tables = (self.table, *self.extra_tables)

@@ -10,6 +10,7 @@ from pathlib import Path
 import torch
 from torch import Tensor, nn
 
+from sparselab.address_hash import byte_scheme
 from sparselab.model.memory import MemoryDiagnostics, _diagnostics
 
 FORMAT_VERSION = 1
@@ -51,7 +52,7 @@ def export_portable_engram(
     *,
     ngram_size: int,
     normalization: str = "raw-utf8-v1",
-    hashing: str = "poly257-terminal-v1",
+    hashing: str | None = None,
 ) -> PortableEngramManifest:
     """Write immutable latent table weights without a backbone-specific adapter."""
     if table.ndim != 2:
@@ -61,6 +62,8 @@ def export_portable_engram(
     if ngram_size < 1:
         raise ValueError("portable Engram ngram_size must be positive")
     weights = table.detach().cpu().contiguous()
+    if hashing is None:
+        hashing = byte_scheme(weights.shape[0])
     manifest = PortableEngramManifest(
         FORMAT_VERSION,
         normalization,
@@ -125,7 +128,7 @@ def load_portable_engram(
         raise ValueError("portable Engram addressing conflicts with configured memory")
     if expected_ngram_size is not None and (
         manifest.normalization != "raw-utf8-v1"
-        or manifest.hashing != "poly257-terminal-v1"
+        or manifest.hashing != byte_scheme(manifest.table_size)
     ):
         raise ValueError("portable Engram addressing algorithm is unsupported")
     if expected_shape is not None:
