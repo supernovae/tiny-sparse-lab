@@ -155,6 +155,15 @@ _COMMON_EXCLUDED_EDGES = frozenset(
 _ARRAY_EXCLUDED_EDGES = frozenset(
     {
         ("data.packing", "corpus.export"),
+        # Only _prepare_data calls verify_mixture_dataset before packing and
+        # binds the authenticated receipt digest into cache_identity. Loading
+        # packed bytes checks that identity, manifest and member digests without
+        # replaying source preparation. Semantic tokenizer/stage domains retain
+        # this edge; the importing packing module remains digested in all kinds.
+        # Tightening mixture verification does not retrospectively invalidate
+        # warm packed-byte proofs: they rely on the preparation receipt identity.
+        # Current semantic verification is a separate authority boundary.
+        ("data.packing", "corpus.mixture"),
         ("data.packing", "data.allocation"),
         ("data.packing", "data.byte_hash"),
         ("data.packing", "data.conversations"),
@@ -222,7 +231,15 @@ def _excluded_edges(kind: str) -> frozenset[tuple[str, str]]:
 # makes authority unavailable until the exclusion is explicitly re-audited.
 # data.packing edges re-audited 2026-10-10: since ba6370d only _prepare_data
 # (token-mixture preparation) changed; no verifier gained a use of an excluded name.
+# corpus.mixture audited 2026-10-11: its sole import/use is in _prepare_data;
+# load_prepared_data/_verified_receipt and prepared artifact verification do not
+# call it. Pin that import and its complete owner, as for the other preparation
+# edges, so any new verifier use or owner change requires another audit.
 _EXCLUSION_SIGNATURES: dict[tuple[str, str], str] = {
+    (
+        "data.packing",
+        "corpus.mixture",
+    ): "da6e9e2c9a6cae6b57750d41052ab064f09c47143ea626e5f05dc277d4da63c6",
     (
         "workers",
         "workers.transport",
