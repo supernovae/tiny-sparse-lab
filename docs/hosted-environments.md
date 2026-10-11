@@ -253,7 +253,7 @@ uv run --locked --extra cpu sparselab worker relay check "$WORK/relay.yaml" \
   --worker colab-t4-acceptance --store "$WORK/runs" --json
 uv run --locked --extra cpu sparselab runtime attention "$WORK/inputs/run-t4.yaml" \
   --worker colab-t4-acceptance --store "$WORK/runs" --json
-uv run --locked --extra cpu sparselab run "$WORK/inputs/run-t4.yaml" \
+uv run --locked --extra cpu sparselab experiment submit "$WORK/inputs/run-t4.yaml" --wait \
   --worker colab-t4-acceptance --store "$WORK/runs"
 ```
 

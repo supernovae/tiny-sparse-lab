@@ -14,12 +14,17 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.config.loading import load_config
+from sparselab.data.encoding import (
+    TOKENIZER_BATCH_DOCUMENTS,
+    TOKENIZER_BATCH_SOURCE_BYTES,
+)
 from sparselab.experiments.matrix import expand
 from sparselab.training.manifest import config_sha256
 from sparselab.workdir import ensure_scratch_dir
 
 _BACKENDS = ("cpu", "mps", "cuda", "rocm", "xpu", "metal")
 _ENGINES = ("pytorch", "mlx")
+_TRANSFER_TIMEOUT = 1800
 _TERMINAL_QUEUE_STATES = frozenset({"CANCELLED", "COMPLETE", "FAILED", "INTERRUPTED"})
 
 
@@ -27,7 +32,7 @@ def _json(value: object) -> None:
     print(json.dumps(value, sort_keys=True, indent=2, default=str))
 
 
-def _controller(store: Path, *, transfer_timeout: float = 1800):
+def _controller(store: Path, *, transfer_timeout: float = _TRANSFER_TIMEOUT):
     from sparselab.workers.controller import Controller
 
     return Controller(store, transfer_timeout=transfer_timeout)
@@ -308,11 +313,31 @@ def _matrix_requests(args: argparse.Namespace) -> list[dict[str, object]]:
     ]
 
 
+def validate_submit_args(args: argparse.Namespace) -> None:
+    """Reject incompatible submission shapes before any execution preflight."""
+    if bool(args.config) == bool(args.matrix):
+        raise ValueError("provide exactly one of CONFIG or --matrix")
+    if args.matrix and (
+        args.wait
+        or args.runtime is not None
+        or args.runtime_profile is not None
+        or args.resource_envelope is not None
+        or args.tokenizer_batch_documents is not None
+        or args.tokenizer_batch_source_bytes is not None
+        or args.transfer_timeout is not None
+    ):
+        raise ValueError(
+            "--wait, runtime selection, resource envelope, tokenizer batching and "
+            "transfer timeout require CONFIG, not --matrix"
+        )
+    if args.dry_run and not args.matrix:
+        raise ValueError("--dry-run is only available with --matrix")
+
+
 def _experiment_submit(args: argparse.Namespace) -> None:
     from sparselab.data.legacy import require_current_dataset
 
-    if bool(args.config) == bool(args.matrix):
-        raise ValueError("provide exactly one of CONFIG or --matrix")
+    validate_submit_args(args)
     if args.matrix:
         requests = _matrix_requests(args)
         if args.dry_run:
@@ -322,17 +347,13 @@ def _experiment_submit(args: argparse.Namespace) -> None:
         submissions = _controller(Path(args.store)).submit_many(requests)
         _json([submission.model_dump(mode="json") for submission in submissions])
         return
-    if args.dry_run:
-        raise ValueError("--dry-run is only available with --matrix")
     config = load_config(Path(args.config))
     require_current_dataset(config.dataset)
-    submission = _controller(Path(args.store)).submit(
-        config,
-        worker=args.worker,
-        stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
-        promote=Path(args.promote) if args.promote else None,
-    )
-    _json(submission.model_dump(mode="json"))
+    controller, submission = _submit_config(args, config)
+    if args.wait:
+        _wait_for_submission(controller, submission)
+    else:
+        _json(submission.model_dump(mode="json"))
 
 
 def _experiment_list(args: argparse.Namespace) -> None:
@@ -417,10 +438,10 @@ def _wait_for_run(controller: Any, run_id: str) -> dict[str, object]:
             time.sleep(controller.poll_seconds)
 
 
-def _run(args: argparse.Namespace) -> None:
-    config = load_config(Path(args.config))
+def _submit_config(args: argparse.Namespace, config: Any) -> tuple[Any, Any]:
     worker_name = args.worker
-    if worker_name is None:
+    local = worker_name is None and (args.wait or args.runtime or args.runtime_profile)
+    if local:
         from sparselab.staging import inspect_runtime
         from sparselab.workers.models import WorkerDefinition
 
@@ -430,8 +451,15 @@ def _run(args: argparse.Namespace) -> None:
                 f"selected backend {runtime.backend} requires --runtime-profile "
                 "or a registered --worker"
             )
-    controller = _controller(Path(args.store), transfer_timeout=args.transfer_timeout)
-    if worker_name is None:
+    controller = _controller(
+        Path(args.store),
+        transfer_timeout=(
+            args.transfer_timeout
+            if args.transfer_timeout is not None
+            else _TRANSFER_TIMEOUT
+        ),
+    )
+    if local:
         root = controller.root.resolve()
         namespace = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:12]
         worker_name = f"local-{runtime.engine}-{runtime.backend}-{config.runtime.device_index}-{namespace}"
@@ -457,9 +485,21 @@ def _run(args: argparse.Namespace) -> None:
         stage_bundle=Path(args.stage_bundle) if args.stage_bundle else None,
         promote=Path(args.promote) if args.promote else None,
         resource_envelope=args.resource_envelope_value,
-        tokenizer_batch_documents=args.tokenizer_batch_documents,
-        tokenizer_batch_source_bytes=args.tokenizer_batch_source_bytes,
+        tokenizer_batch_documents=(
+            args.tokenizer_batch_documents
+            if args.tokenizer_batch_documents is not None
+            else TOKENIZER_BATCH_DOCUMENTS
+        ),
+        tokenizer_batch_source_bytes=(
+            args.tokenizer_batch_source_bytes
+            if args.tokenizer_batch_source_bytes is not None
+            else TOKENIZER_BATCH_SOURCE_BYTES
+        ),
     )
+    return controller, submission
+
+
+def _wait_for_submission(controller: Any, submission: Any) -> None:
     try:
         result = _wait_for_run(controller, submission.run_id)
     except KeyboardInterrupt:
@@ -550,7 +590,28 @@ def add_commands(
     submit = experiment_commands.add_parser("submit")
     submit.add_argument("config", nargs="?")
     submit.add_argument("--matrix")
-    submit.add_argument("--worker")
+    runtime_source = submit.add_mutually_exclusive_group()
+    runtime_source.add_argument("--worker")
+    runtime_source.add_argument("--runtime-profile", type=Path)
+    runtime_source.add_argument("--runtime", metavar="ID")
+    submit.add_argument(
+        "--wait",
+        action="store_true",
+        help="Drive or observe one CONFIG until terminal artifact ingestion; defaults to a local worker",
+    )
+    submit.add_argument("--resource-envelope", type=Path)
+    submit.add_argument(
+        "--transfer-timeout",
+        type=float,
+        default=None,
+        help=f"Finite deadline in seconds for each bundle or artifact transfer RPC (default: {_TRANSFER_TIMEOUT})",
+    )
+    from sparselab.cli.main import _tokenizer_batch_arguments
+
+    _tokenizer_batch_arguments(submit)
+    submit.set_defaults(
+        tokenizer_batch_documents=None, tokenizer_batch_source_bytes=None
+    )
     submit.add_argument("--stage-bundle")
     submit.add_argument("--promote")
     submit.add_argument("--dry-run", action="store_true")
@@ -591,31 +652,8 @@ def add_commands(
     run_controller.add_argument(
         "--transfer-timeout",
         type=float,
-        default=1800,
+        default=_TRANSFER_TIMEOUT,
         help="Finite deadline in seconds for each bundle or artifact transfer RPC",
     )
     _store_argument(run_controller, default_store)
     run_controller.set_defaults(handler=_controller_run)
-
-    run = subparsers.add_parser(
-        "run", help="Submit one independent run and wait for its outcome"
-    )
-    run.add_argument("config")
-    runtime_source = run.add_mutually_exclusive_group()
-    runtime_source.add_argument("--worker")
-    run.add_argument("--stage-bundle")
-    run.add_argument("--promote")
-    run.add_argument(
-        "--transfer-timeout",
-        type=float,
-        default=1800,
-        help="Finite deadline in seconds for each bundle or artifact transfer RPC",
-    )
-    runtime_source.add_argument("--runtime-profile", type=Path)
-    runtime_source.add_argument("--runtime", metavar="ID")
-    run.add_argument("--resource-envelope", type=Path)
-    from sparselab.cli.main import _tokenizer_batch_arguments
-
-    _tokenizer_batch_arguments(run)
-    _store_argument(run, default_store)
-    run.set_defaults(handler=_run)

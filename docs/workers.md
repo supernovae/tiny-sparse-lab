@@ -44,9 +44,33 @@ sparselab experiment resume RUN_ID --worker cpu-one --store "$WORK/runs"
 
 `--worker NAME` is a hard binding. Without one, queued submissions use eligible idle registered workers; a preferred worker is only a tie-breaker. Eligibility checks engine, backend, features, tested precision, required schema/codecs, source identity, and measured memory requirements. Unknown capacity never satisfies a numeric minimum. No eligible worker means `QUEUED` with a reason, not a silently changed configuration.
 
-For a single composed local experiment, `sparselab run CONFIG --store ROOT` registers a controller-scoped local endpoint and drives the same queue, isolated smoke/warmup, training, and ingestion path. `run CONFIG --worker NAME` targets an existing worker. If another controller owns the store lock, `run` observes it rather than competing for assignments. `train CONFIG` remains the direct single-host entry point and does not silently run staging pilots.
+Use `try DELTA.yaml --vs BASELINE.yaml` for a local comparison. For advanced
+queue dispatch, `experiment submit CONFIG --store ROOT` queues work for a
+registered worker; add `--worker NAME` to select one explicitly. Use
+`experiment submit CONFIG --wait --store ROOT` to drive or observe the queue
+through terminal artifact ingestion. With `--wait` and no worker selection it
+registers a controller-scoped local endpoint; `--runtime ID` or
+`--runtime-profile PROFILE` selects an authorized local interpreter. Runtime
+selection also supports submission without waiting: the submission stays queued
+until a controller processes that store. If none is running, execute
+`sparselab controller run --store ROOT` with the same store to process the
+existing queue entry. Submitting again creates another experiment; it does not
+resume processing the queued entry. If another controller owns the store lock,
+waiting observes it rather than competing for assignments.
+Single-config submissions accept resource envelopes, tokenizer batch limits
+and transfer deadlines. Matrix submissions retain their declared worker
+requirements and atomic submission; waiting and these single-config options
+are not supported for matrices.
 
-`controller run` and composed `run` accept `--transfer-timeout SECONDS` (default 1800). It is a finite per-RPC deadline for bundle and artifact transfers, including hashing and transmission; increase it explicitly for a slow link or large input. Metadata requests have shorter bounded deadlines. Killing the controller never authorizes re-execution of an assigned optimizer attempt.
+Ctrl-C while waiting disconnects the observer without cancelling the worker.
+Use the printed `experiment collect` or `experiment cancel` command to reconcile
+or explicitly cancel it. Completion waits for artifact ingestion; a failed,
+cancelled, interrupted or unresolved Colab outcome exits nonzero. `train CONFIG`
+provides direct checkpoint transitions without silently running staging pilots.
+See [launch contracts](launch-contracts.md) for the distinct release and
+preparation interfaces.
+
+`controller run` and single-config `experiment submit` accept `--transfer-timeout SECONDS` (default 1800). It is a finite per-RPC deadline for bundle and artifact transfers, including hashing and transmission; increase it explicitly for a slow link or large input. Metadata requests have shorter bounded deadlines. Killing the controller never authorizes re-execution of an assigned optimizer attempt.
 
 ## Machine-local runtime selection
 
@@ -196,7 +220,7 @@ Each configured worker has one logical slot. Host-wide OS leases additionally se
 - A lost executor is finalized only after its attempt claim and inherited resource holders are gone. It remains `UNKNOWN`; verified finalized generations are available for an explicit child resume. Missing crash-window manifest/checkpoint projections can be reconstructed from those verified files without creating an echo outbox. Conflicting metadata is rejected, never overwritten.
 - Resume creates a new visible child with the selected full-state digest. It requires compatible same-engine/backend training state and a remaining scientific budget. Complete budgets cannot resume. Source/runtime drift requires explicit `--allow-runtime-drift` and remains best-effort, not an architecture/data compatibility bypass.
 
-Execution state and `ingestion_status` are separate durable facts. A remotely complete receipt does not mean its checkpoints are already locally available. Composed `run` waits for `COMPLETE` or `NOT_REQUIRED` ingestion for every terminal outcome, including cancellation and failure. Queued cancellation and failures with no run artifacts require no transfer; they do not fabricate a checkpoint. Full resume is admitted only after verified local ingestion. Artifact-transfer errors remain visible and can be retried without rerunning the optimizer.
+Execution state and `ingestion_status` are separate durable facts. A remotely complete receipt does not mean its checkpoints are already locally available. `experiment submit CONFIG --wait` waits for `COMPLETE` or `NOT_REQUIRED` ingestion for every terminal outcome, including cancellation and failure. Queued cancellation and failures with no run artifacts require no transfer; they do not fabricate a checkpoint. Full resume is admitted only after verified local ingestion. Artifact-transfer errors remain visible and can be retried without rerunning the optimizer.
 
 ## Local aggregation and integrity
 

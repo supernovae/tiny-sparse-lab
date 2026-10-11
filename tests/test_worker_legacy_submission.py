@@ -1,10 +1,10 @@
 """Queue authoring rejects retired inputs before opening or mutating a store."""
 
-from argparse import Namespace
 from types import SimpleNamespace
 
 import pytest
 
+from sparselab.cli.main import build_parser
 from sparselab.workers import cli
 
 
@@ -26,10 +26,12 @@ def test_retired_queue_submission_rejected_before_controller(
         "_controller",
         lambda path: pytest.fail("retired inputs opened a submission store"),
     )
-    args = Namespace(
-        config=None if matrix else "old.yaml",
-        matrix="matrix.yaml" if matrix else None,
-        dry_run=False,
+    args = build_parser().parse_args(
+        [
+            "experiment",
+            "submit",
+            *(["--matrix", "matrix.yaml"] if matrix else ["old.yaml"]),
+        ]
     )
     with pytest.raises(ValueError, match="retired for new execution"):
         cli._experiment_submit(args)
@@ -41,6 +43,8 @@ def test_historical_matrix_dry_run_remains_read_only(monkeypatch):
     monkeypatch.setattr(
         cli, "_controller", lambda path: pytest.fail("dry run opened a store")
     )
-    args = Namespace(config=None, matrix="historical.yaml", dry_run=True)
+    args = build_parser().parse_args(
+        ["experiment", "submit", "--matrix", "historical.yaml", "--dry-run"]
+    )
     cli._experiment_submit(args)
     assert observed == [args]

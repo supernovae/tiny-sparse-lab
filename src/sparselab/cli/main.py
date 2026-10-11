@@ -2631,7 +2631,6 @@ RELEASE_COMMANDS = (
     "family",
     "controller",
     "worker",
-    "run",
     "hosted",
     "monitor",
     "monitor-baseline",
@@ -3931,10 +3930,19 @@ def _campaign_evaluation_workers(args: argparse.Namespace) -> list[Any]:
     return [definition] if definition is not None else []
 
 
+def _is_config_submission(args: argparse.Namespace) -> bool:
+    return (
+        args.command == "experiment"
+        and args.experiment_command == "submit"
+        and args.config is not None
+    )
+
+
 def _prepare_runtime_command(args: argparse.Namespace) -> None:
     """Gate direct execution before the CLI creates its scratch directory."""
     args.runtime_authorization = None
     args.runtime_profile_loaded = None
+    is_submission = _is_config_submission(args)
     is_legacy = args.command in {
         "try",
         "probe",
@@ -3945,7 +3953,6 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
         "generate",
         "chat",
         "serve",
-        "run",
     }
     is_experiment = args.command == "experiment" and args.experiment_command in {
         "bind",
@@ -3968,6 +3975,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     )
     if not (
         is_legacy
+        or is_submission
         or is_experiment
         or is_campaign
         or is_snapshot
@@ -3981,7 +3989,10 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     profile_path = getattr(args, "runtime_profile", None)
     if runtime_id is not None and profile_path is not None:
         raise ValueError("--runtime and --runtime-profile are mutually exclusive")
-    if args.command == "run" and args.worker is not None:
+    if is_submission and (
+        args.worker is not None
+        or (not args.wait and runtime_id is None and profile_path is None)
+    ):
         if runtime_id is not None or profile_path is not None:
             raise ValueError(
                 "--worker and --runtime/--runtime-profile are mutually exclusive"
@@ -4047,7 +4058,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     if is_experiment or is_campaign or is_snapshot:
         return
 
-    if args.command in {"train", "stage", "run"}:
+    if args.command in {"train", "stage"} or is_submission:
         config = load_config(Path(args.config))
     elif args.command == "try":
         config = load_config(Path(args.vs))
@@ -4168,7 +4179,10 @@ def _command_storage_checks(args: argparse.Namespace) -> list[dict[str, str]]:
         if value:
             checks.extend(storage_checks(Path(value), kind=field))
     config_path = getattr(args, "config", None)
-    if config_path and args.command in {"train", "stage", "data", "tokenizer", "run"}:
+    if config_path and (
+        args.command in {"train", "stage", "data", "tokenizer"}
+        or _is_config_submission(args)
+    ):
         config = (
             load_tokenizer_config(Path(config_path))
             if args.command == "tokenizer"
@@ -4197,8 +4211,16 @@ def main() -> None:
                 args.campaign_command, f"unrecognized arguments: {' '.join(extras)}"
             )
         parser.error(f"unrecognized arguments: {' '.join(extras)}")
+    if args.command == "experiment" and args.experiment_command == "submit":
+        from sparselab.workers.cli import validate_submit_args
+
+        try:
+            validate_submit_args(args)
+        except ValueError as error:
+            parser.error(str(error))
     if (
-        args.command in {"stage", "train", "run", "try"}
+        args.command in {"stage", "train", "try"}
+        or _is_config_submission(args)
         or (args.command == "data" and args.data_command == "prepare")
         or (
             args.command == "data"
@@ -4208,7 +4230,12 @@ def main() -> None:
         or (args.command == "experiment" and args.experiment_command == "prepare")
     ):
         validate_tokenizer_batch_limits(
-            args.tokenizer_batch_documents, args.tokenizer_batch_source_bytes
+            args.tokenizer_batch_documents
+            if args.tokenizer_batch_documents is not None
+            else TOKENIZER_BATCH_DOCUMENTS,
+            args.tokenizer_batch_source_bytes
+            if args.tokenizer_batch_source_bytes is not None
+            else TOKENIZER_BATCH_SOURCE_BYTES,
         )
     if getattr(args, "resource_envelope", None) is not None:
         try:
@@ -4232,9 +4259,13 @@ def main() -> None:
             raise
         from sparselab.data.legacy import require_current_dataset
 
-        if args.command in {"train", "stage", "run"} or (
-            args.command == "data"
-            and args.data_command in {"prepare", "bakeoff", "prepared-inputs"}
+        if (
+            args.command in {"train", "stage"}
+            or _is_config_submission(args)
+            or (
+                args.command == "data"
+                and args.data_command in {"prepare", "bakeoff", "prepared-inputs"}
+            )
         ):
             require_current_dataset(load_config(Path(args.config)).dataset)
         elif args.command == "tokenizer" and args.tokenizer_command == "train":
@@ -4243,7 +4274,7 @@ def main() -> None:
     except (ValueError, OSError) as error:
         raise SystemExit(f"sparselab: {error}") from None
     if args.resource_envelope_value is not None:
-        if args.command == "run":
+        if _is_config_submission(args):
             workspace = Path(args.store)
         elif args.command == "stage":
             workspace = Path(args.output)
