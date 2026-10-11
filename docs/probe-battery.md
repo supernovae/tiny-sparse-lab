@@ -239,8 +239,8 @@ actions are:
 | held-out loss improved beyond noise, tiers left | pass/warn | `escalate` with `next_tier` |
 | held-out loss improved beyond noise, all tiers run | pass/warn | `longer_run` |
 | otherwise (no measurable gain) | pass/warn | `tweak` |
-| `probe --final`, battery complete (applied last, whatever the row above) | status kept | `report` (terminal; `next_tier` null; never escalate, tweak or re-run) |
-| `probe --final`, battery incomplete | incomplete | `rerun` the same `--final` unchanged (names the gaps) |
+| `probe --final`, any requested evidence missing (whatever the row above, including no-baseline `info` and a soft `fail`), unless a NaN/inf loss or hard failure decided it | incomplete | `rerun` the same `--final` unchanged (names the gaps) |
+| `probe --final`, otherwise (complete, or decided by a NaN/inf loss or hard failure) | status kept | `report` (terminal; `next_tier` null; never escalate, tweak or re-run) |
 
 ## Held-out guard and the held-back final split
 

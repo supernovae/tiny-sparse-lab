@@ -239,21 +239,35 @@ FINAL_RERUN_SUGGESTION = (
 
 
 def final_verdict(verdict: Mapping[str, Any]) -> dict[str, Any]:
-    """Terminal form of a completed ``--final`` verdict.
+    """Terminal form of a ``--final`` verdict, or an unchanged re-run.
 
-    Status and reasons are kept; the action becomes ``report`` with no next
-    tier and a suggestion that never invites selection (escalate, tweak or a
-    longer run). An incomplete final battery may only be re-run unchanged.
+    The choice follows the evidence, not the status: any requested check that
+    produced no evidence (``missing``: unavailable, error, not comparable, a
+    cancel/resource/OOM stop) makes the final battery ``incomplete`` with
+    action ``rerun`` (the same ``--final``, unchanged), whatever status
+    ``decide`` gave it (e.g. ``info`` without a baseline, or a soft ``fail``).
+    Only a decisive failure (``abandon``: a NaN/inf loss or a hard probe
+    failure) is terminal despite gaps. A complete battery keeps its status and
+    reasons and becomes ``report`` with no next tier and a suggestion that
+    never invites selection (escalate, tweak or a longer run).
     """
     reasons = [*verdict.get("reasons", []), "final verdict: held-back final split"]
-    if verdict.get("status") == "incomplete":
-        missing = ", ".join(m["id"] for m in verdict.get("missing") or []) or "?"
+    missing = list(verdict.get("missing") or [])
+    decisive = verdict.get("action") == "abandon"
+    if verdict.get("status") == "incomplete" or (missing and not decisive):
+        named = ", ".join(str(m.get("id")) for m in missing) or "?"
+        gaps = [
+            f"missing evidence: {m.get('id')} ({m.get('status')})"
+            for m in missing
+            if f"missing evidence: {m.get('id')} ({m.get('status')})" not in reasons
+        ]
         return {
             **verdict,
+            "status": "incomplete",
             "action": "rerun",
             "next_tier": None,
-            "reasons": reasons,
-            "suggestion": FINAL_RERUN_SUGGESTION.format(missing=missing),
+            "reasons": [*gaps, *reasons],
+            "suggestion": FINAL_RERUN_SUGGESTION.format(missing=named),
         }
     return {
         **verdict,

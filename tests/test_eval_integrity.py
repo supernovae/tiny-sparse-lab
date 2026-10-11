@@ -576,3 +576,93 @@ def test_incomplete_final_verdict_reruns_unchanged() -> None:
     )
     assert out["action"] == "rerun" and out["next_tier"] is None
     assert "needle" in out["suggestion"] and "unchanged" in out["suggestion"]
+
+
+# --- Final verdicts with missing evidence stay retryable -----------------------
+
+LM_EVAL_MISSING = {
+    "id": "lm_eval",
+    "status": "unavailable",
+    "note": "lm-eval not installed",
+}
+
+
+def _decide_final(results: list[dict[str, Any]], *, has_baseline: bool) -> Any:
+    from sparselab.probes.verdict import final_verdict
+
+    ordinary = decide(
+        results,
+        has_baseline=has_baseline,
+        tiers_run=["fast", "standard", "full"],
+        requested_tier="full",
+        guard=None,
+        specs=BY_ID,
+    )
+    return ordinary, final_verdict(ordinary)
+
+
+def test_no_baseline_final_with_missing_evidence_is_rerun() -> None:
+    ordinary, out = _decide_final([_loss_row(), LM_EVAL_MISSING], has_baseline=False)
+    assert ordinary["status"] == "info" and ordinary["missing"]  # the review path
+    assert out["status"] == "incomplete" and out["action"] == "rerun"
+    assert out["next_tier"] is None
+    assert "lm_eval" in out["suggestion"] and "unchanged" in out["suggestion"]
+    assert "missing evidence: lm_eval (unavailable)" in out["reasons"]
+    # Complete and without a baseline: terminal.
+    _, done = _decide_final([_loss_row()], has_baseline=False)
+    assert done["status"] == "info" and done["action"] == "report"
+
+
+def test_soft_fail_with_missing_evidence_is_rerun_but_decisive_failures_report() -> (
+    None
+):
+    soft = {"id": "calibration", "status": "fail"}
+    _, out = _decide_final([_loss_row(), soft, LM_EVAL_MISSING], has_baseline=True)
+    assert out["action"] == "rerun" and out["status"] == "incomplete"
+    hard = {"id": "heldout_loss", "status": "fail"}
+    assert BY_ID["heldout_loss"].hard
+    _, out = _decide_final([hard, LM_EVAL_MISSING], has_baseline=True)
+    assert out["action"] == "report" and out["status"] == "fail"
+    nan = _loss_row(status="fail", details={"numerical_failure": "nan"}, value=None)
+    for has_baseline in (True, False):
+        _, out = _decide_final([nan, LM_EVAL_MISSING], has_baseline=has_baseline)
+        assert out["action"] == "report" and out["status"] == "fail"
+
+
+@pytest.mark.parametrize("nan_loss", [False, True], ids=["lm-eval-missing", "nan-loss"])
+def test_no_baseline_final_battery_without_lm_eval(
+    monkeypatch: pytest.MonkeyPatch, nan_loss: bool
+) -> None:
+    """`probe RUN --tier full --final --no-fast-fail` without --vs or lm-eval."""
+    real_judge = runner._judge
+
+    def measure(spec: Any, loaded: Any, arm: Any, protocol: Any) -> dict[str, Any]:
+        if spec.id == "lm_eval":
+            raise runner.ProbeUnsupported("lm-eval not installed")
+        if spec.id == "heldout_loss" and nan_loss:
+            return {"value": float("nan"), "numerical_failure": "nan"}
+        return {"value": 0.5}
+
+    def judge(spec: Any, t: Any, b: Any, comparable: Any, dev: Any) -> Any:
+        if "status" in t or "numerical_failure" in t:
+            return real_judge(spec, t, b, comparable, dev)
+        return {**runner._row(spec), "status": "info", "value": t["value"]}
+
+    monkeypatch.setattr(runner, "_measure", measure)
+    monkeypatch.setattr(runner, "_judge", judge)
+    result = runner.run_battery(
+        _primed_arm("aaa"),
+        None,
+        final=True,
+        tier="full",
+        fast_fail=False,
+        protocol={"seq_len": 32},
+    )
+    verdict = result["verdict"]
+    assert [m["id"] for m in verdict["missing"]] == ["lm_eval"]
+    assert verdict["next_tier"] is None
+    if nan_loss:  # a numerical failure stays decisive despite the gap
+        assert verdict["status"] == "fail" and verdict["action"] == "report"
+    else:
+        assert verdict["status"] == "incomplete" and verdict["action"] == "rerun"
+        assert "re-run --final" not in verdict["suggestion"]

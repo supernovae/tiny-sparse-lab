@@ -38,8 +38,9 @@ check that produced no evidence, such as lm-eval not installed, a probe error,
 or a cancel/signal/resource/OOM stop; fix it and re-run, never read it as a
 pass), `escalate` (re-probe at `next_tier`), `longer_run` (all tiers pass and loss
 improved: worth a larger budget, still in lab mode), `compare` (add `--vs`) or
-`report` (a completed `--final` verdict: terminal, report it as is; an
-incomplete one says `rerun` the same `--final` unchanged).
+`report` (a completed `--final` verdict: terminal, report it as is; a final
+battery with any missing evidence, with or without `--vs`, says `rerun` the
+same `--final` unchanged unless a NaN/inf or hard failure decided it).
 Probes are screening signals, not proof that an idea is useful. Selecting on
 the held-out probes again and again turns them into development data, so any
 claim that an idea is better needs a separate, untouched final evaluation
