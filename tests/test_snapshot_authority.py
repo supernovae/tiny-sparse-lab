@@ -135,6 +135,27 @@ def test_existing_mixture_alias_use_in_inventory_verifier_requires_reaudit(
         authority.verifier_authority(kind, 1)
 
 
+@pytest.mark.parametrize("kind", ["file", "prepared_array", "prepared_data"])
+def test_mixture_preparation_owner_change_requires_reaudit(monkeypatch, kind):
+    packing = authority.Path(authority.__file__).parent / "data" / "packing.py"
+    read = authority.Path.read_bytes
+    raw = read(packing)
+    call = b"        token_mixture = verify_mixture_dataset(\n"
+    assert raw.count(call) == 1
+    changed_owner = raw.replace(call, b"        pass\n" + call, 1)
+    # Pin the mixture owner itself even if another shared-owner exclusion is
+    # checked first during the closure walk.
+    pinned = authority._EXCLUSION_SIGNATURES[("data.packing", "corpus.mixture")]
+    assert authority._exclusion_signature(changed_owner, "corpus.mixture") != pinned
+
+    def changed(path):
+        return changed_owner if path == packing else read(path)
+
+    monkeypatch.setattr(authority.Path, "read_bytes", changed)
+    with pytest.raises(ValueError, match="verifier exclusion needs review"):
+        authority.verifier_authority(kind, 1)
+
+
 def test_all_declared_domains_have_reviewed_closures():
     for kind in authority._CLOSURES:
         result = authority.verifier_authority(kind, 1)

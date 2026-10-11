@@ -160,6 +160,9 @@ _ARRAY_EXCLUDED_EDGES = frozenset(
         # packed bytes checks that identity, manifest and member digests without
         # replaying source preparation. Semantic tokenizer/stage domains retain
         # this edge; the importing packing module remains digested in all kinds.
+        # Tightening mixture verification does not retrospectively invalidate
+        # warm packed-byte proofs: they rely on the preparation receipt identity.
+        # Current semantic verification is a separate authority boundary.
         ("data.packing", "corpus.mixture"),
         ("data.packing", "data.allocation"),
         ("data.packing", "data.byte_hash"),
