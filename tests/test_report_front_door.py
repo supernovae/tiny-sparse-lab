@@ -193,17 +193,18 @@ def test_research_report_retains_native_availability_and_next_tests(
 
 
 def test_invalid_triage_shape_stays_visible(tmp_path, monkeypatch, capsys):
-    run = tmp_path / "runs" / "run"
-    run.mkdir(parents=True)
-    (run / "manifest.json").write_text("{}")
+    from test_post_train_triage import _triage_shape_fixture, _write_triage_shape
+
+    payload = _triage_shape_fixture(tmp_path)
+    payload["core"] = None
+    path = _write_triage_shape(tmp_path, payload)
     monkeypatch.setattr(
         cli, "experiment_evidence", lambda path: {"quality_observations": []}
     )
-
-    def invalid(*args):
-        raise TypeError("post-train triage missing core")
-
-    monkeypatch.setattr(cli, "read_triage", invalid)
+    # The envelope's evidence reader requires a manifest location; the malformed
+    # triage is rejected by the real reader before its manifest-binding check.
+    (path.parent.parent / "manifest.json").write_text("{}")
+    before = _snapshot(tmp_path)
     _report(
         monkeypatch,
         tmp_path / "absent-work",
@@ -211,12 +212,53 @@ def test_invalid_triage_shape_stays_visible(tmp_path, monkeypatch, capsys):
         "--kind",
         "run",
         "--runs-dir",
-        str(run.parent),
+        str(tmp_path),
         "--json",
     )
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["triage"]["status"] == "UNKNOWN"
-    assert "missing core" in payload["triage"]["reason"]
+    result = json.loads(capsys.readouterr().out)
+    assert result["triage"]["status"] == "UNKNOWN"
+    assert "missing core" in result["triage"]["reason"]
+    assert _snapshot(tmp_path) == before
+    assert not (tmp_path / "absent-work").exists()
+
+
+@pytest.mark.parametrize(
+    "bug", [TypeError("unexpected reader bug"), KeyError("unexpected reader bug")]
+)
+@pytest.mark.parametrize("boundary", ["reader", "cli_helper", "run_report"])
+def test_unexpected_triage_reader_bugs_propagate(tmp_path, monkeypatch, bug, boundary):
+    from test_post_train_triage import _triage_shape_fixture, _write_triage_shape
+
+    from sparselab.evaluation import post_train_triage as triage
+
+    path = _write_triage_shape(tmp_path, _triage_shape_fixture(tmp_path))
+    (path.parent.parent / "manifest.json").write_text("{}")
+    before = _snapshot(tmp_path)
+
+    def broken(*args):
+        raise bug
+
+    monkeypatch.setattr(triage, "_json", broken)
+    monkeypatch.setattr(
+        cli, "experiment_evidence", lambda path: {"quality_observations": []}
+    )
+    with pytest.raises(type(bug), match="unexpected reader bug"):
+        if boundary == "reader":
+            triage.read_triage("run", tmp_path)
+        elif boundary == "cli_helper":
+            cli._triage_report("run", tmp_path)
+        else:
+            _report(
+                monkeypatch,
+                tmp_path / "absent-work",
+                "run",
+                "--kind",
+                "run",
+                "--runs-dir",
+                str(tmp_path),
+                "--json",
+            )
+    assert _snapshot(tmp_path) == before
     assert not (tmp_path / "absent-work").exists()
 
 
@@ -236,6 +278,10 @@ def test_attempt_grammar_uses_current_report_path():
     assert classify_attempt_command(command).effect == "inspection"
     with pytest.raises(ValueError, match="unreviewed native attempt operation"):
         classify_attempt_command(["sparselab", "evidence", "run"])
+    with pytest.raises(ValueError, match="missing native positional input"):
+        classify_attempt_command(
+            ["sparselab", "report", "--kind", "research", "--config", "/report.yaml"]
+        )
 
 
 @pytest.mark.parametrize(

@@ -105,3 +105,126 @@ def test_viewer_rejects_unsafe_run_and_conflicting_artifacts(tmp_path: Path) -> 
     (directory / "outside.json").symlink_to(tmp_path / "unowned.json")
     with pytest.raises(ValueError):
         read_triage("run", tmp_path)
+
+
+def _triage_shape_fixture(tmp_path: Path) -> dict:
+    """A sealed advisory fixture with unknown diagnostics; no model work."""
+    from sparselab.evaluation import post_train_triage as triage
+
+    return {
+        "format": triage.FORMAT,
+        "inputs": {},
+        "core": {
+            "integrity": {"status": "UNKNOWN"},
+            "loss": {"trend": "insufficient_history", "points": []},
+        },
+        "tier1": {"status": "UNKNOWN", "greedy": [], "sampled": []},
+        "surfaces": {
+            "review": {"applicability": "UNKNOWN", "observation": "NOT_TESTED"}
+        },
+        "triggers": {
+            code: {
+                "fired": None,
+                "operands": {},
+                "threshold": None,
+                "missing_data_reason": "fixture",
+            }
+            for code in triage._TRIGGERS
+        },
+        "diagnostics": {
+            code: {
+                "status": "UNKNOWN",
+                "estimated_cost_class": "negligible",
+                "requires_training": False,
+            }
+            for code in triage._TRIGGERS
+        },
+        "recommendations": [
+            {
+                "action": "inspect",
+                "trigger": triage._TRIGGERS[0],
+                "estimated_cost_class": "negligible",
+                "requires_training": False,
+            }
+        ],
+        "known_unknowns": [],
+    }
+
+
+def _write_triage_shape(tmp_path: Path, payload: object) -> Path:
+    from sparselab.evaluation.post_train_triage import _sha
+    from sparselab.training.manifest import canonical_json, sha256_file
+
+    if isinstance(payload, dict):
+        payload["identity"] = {
+            "sha256": _sha(payload),
+            "run_id": "run",
+            "manifest_sha256": _sha({"run_id": "run"}),
+        }
+    folder = tmp_path / "run" / "post-train-triage"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "fixture.json"
+    path.write_bytes(canonical_json(payload) + b"\n")
+    sealed = folder / (sha256_file(path) + ".json")
+    path.rename(sealed)
+    return sealed
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        (("core",), None),
+        (("recommendations",), {}),
+        (("known_unknowns",), {}),
+        (("core", "integrity", "status"), []),
+        (("core", "loss", "trend"), {}),
+        (("tier1", "status"), []),
+        (("surfaces", "review", "applicability"), []),
+        (("surfaces", "review", "observation"), {}),
+        (("diagnostics", "LOSS_BEHAVIOR_DIVERGENCE", "status"), []),
+        (("diagnostics", "LOSS_BEHAVIOR_DIVERGENCE", "estimated_cost_class"), {}),
+        (("recommendations", 0, "estimated_cost_class"), []),
+        ((), []),
+    ],
+)
+def test_malformed_sealed_triage_is_value_error_and_cli_unknown(tmp_path, field, value):
+    from sparselab.cli.main import _triage_report
+
+    payload = _triage_shape_fixture(tmp_path)
+    if field:
+        current = payload
+        for key in field[:-1]:
+            current = current[key]
+        current[field[-1]] = value
+    else:
+        payload = value
+    path = _write_triage_shape(tmp_path, payload)
+    before = path.read_bytes()
+    with pytest.raises(ValueError):
+        read_triage("run", tmp_path)
+    report, reason = _triage_report("run", tmp_path)
+    assert report is None
+    assert "invalid or ambiguous artifact" in reason
+    assert path.read_bytes() == before
+
+
+def test_valid_shape_fixture_and_nonobject_progress(tmp_path, monkeypatch):
+    from sparselab.evaluation import post_train_triage as triage
+
+    payload = _triage_shape_fixture(tmp_path)
+    path = _write_triage_shape(tmp_path, payload)
+    monkeypatch.setattr(triage, "read_manifest", lambda path: {"run_id": "run"})
+    progress = tmp_path / "run" / "progress.json"
+    progress.write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "manifest_sha256": payload["identity"]["manifest_sha256"],
+            }
+        )
+    )
+    assert read_triage("run", tmp_path) == payload
+    progress.write_text("[]")
+    with pytest.raises(ValueError, match="expected JSON object"):
+        read_triage("run", tmp_path)
+    assert path.read_bytes()

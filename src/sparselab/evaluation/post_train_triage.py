@@ -11,6 +11,7 @@ import re
 import sqlite3
 import uuid
 from collections import Counter
+from collections.abc import Collection
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -83,7 +84,7 @@ def _owned(run: Path, relative: str, *, directory: bool = False) -> Path:
 def _json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text())
     if not isinstance(value, dict):
-        raise TypeError(f"expected JSON object: {path.name}")
+        raise ValueError(f"expected JSON object: {path.name}")  # noqa: TRY004 - serialized artifact
     return value
 
 
@@ -1407,6 +1408,11 @@ def _card_surface(
     }
 
 
+def _triage_choice(value: object, choices: Collection[str]) -> bool:
+    """Reject malformed JSON scalars before membership can raise an incidental TypeError."""
+    return isinstance(value, str) and value in choices
+
+
 def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
     """Read one verified run-local immutable report; never choose between conflicts."""
     run = _run_path(run_id, runs_dir)
@@ -1438,36 +1444,41 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
         raise ValueError("post-train triage schema/run mismatch")
     for key in ("inputs", "core", "tier1", "surfaces", "triggers", "diagnostics"):
         if not isinstance(payload.get(key), dict):
-            raise TypeError(f"post-train triage missing {key}")
+            raise ValueError(f"post-train triage missing {key}")  # noqa: TRY004 - serialized artifact
     if not isinstance(payload.get("recommendations"), list) or not isinstance(
         payload.get("known_unknowns"), list
     ):
-        raise TypeError("post-train triage malformed recommendations/unknowns")
+        raise ValueError("post-train triage malformed recommendations/unknowns")  # noqa: TRY004 - serialized artifact
     core = payload["core"]
     endpoint = core.get("integrity")
-    if not isinstance(endpoint, dict) or endpoint.get("status") not in {
-        "PASS",
-        "FAIL",
-        "UNKNOWN",
-    }:
+    if not isinstance(endpoint, dict) or not _triage_choice(
+        endpoint.get("status"),
+        {
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+        },
+    ):
         raise ValueError("post-train triage malformed integrity status")
     loss = core.get("loss")
     if (
         not isinstance(loss, dict)
-        or loss.get("trend")
-        not in {
-            "insufficient_history",
-            "regressing",
-            "still_improving",
-            "plateau_possible",
-            "unclear",
-        }
+        or not _triage_choice(
+            loss.get("trend"),
+            {
+                "insufficient_history",
+                "regressing",
+                "still_improving",
+                "plateau_possible",
+                "unclear",
+            },
+        )
         or not isinstance(loss.get("points"), list)
     ):
         raise ValueError("post-train triage malformed loss trajectory")
     tier1 = payload["tier1"]
     if (
-        tier1.get("status") not in {"OBSERVED", "AVAILABLE", "UNKNOWN"}
+        not _triage_choice(tier1.get("status"), {"OBSERVED", "AVAILABLE", "UNKNOWN"})
         or not isinstance(tier1.get("greedy"), list)
         or not isinstance(tier1.get("sampled"), list)
     ):
@@ -1487,25 +1498,31 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
         diagnostic = payload["diagnostics"].get(code)
         if (
             not isinstance(diagnostic, dict)
-            or diagnostic.get("status")
-            not in {
-                "NOT_APPLICABLE",
-                "NOT_NEEDED",
-                "AVAILABLE",
-                "RECOMMENDED",
-                "OBSERVED",
-                "UNKNOWN",
-            }
-            or diagnostic.get("estimated_cost_class") not in _COST
+            or not _triage_choice(
+                diagnostic.get("status"),
+                {
+                    "NOT_APPLICABLE",
+                    "NOT_NEEDED",
+                    "AVAILABLE",
+                    "RECOMMENDED",
+                    "OBSERVED",
+                    "UNKNOWN",
+                },
+            )
+            or not _triage_choice(diagnostic.get("estimated_cost_class"), _COST)
             or type(diagnostic.get("requires_training")) is not bool
         ):
             raise ValueError(f"post-train triage malformed diagnostic: {code}")
     for name, surface in payload["surfaces"].items():
         if (
             not isinstance(surface, dict)
-            or surface.get("applicability")
-            not in {"APPLICABLE", "NOT_APPLICABLE", "UNKNOWN"}
-            or surface.get("observation") not in {"OBSERVED", "NOT_TESTED", "INVALID"}
+            or not _triage_choice(
+                surface.get("applicability"),
+                {"APPLICABLE", "NOT_APPLICABLE", "UNKNOWN"},
+            )
+            or not _triage_choice(
+                surface.get("observation"), {"OBSERVED", "NOT_TESTED", "INVALID"}
+            )
         ):
             raise ValueError(f"post-train triage malformed surface: {name}")
     for item in payload["recommendations"]:
@@ -1513,7 +1530,7 @@ def read_triage(run_id: str, runs_dir: Path) -> dict[str, object] | None:
             not isinstance(item, dict)
             or not isinstance(item.get("action"), str)
             or not isinstance(item.get("trigger"), str)
-            or item.get("estimated_cost_class") not in _COST
+            or not _triage_choice(item.get("estimated_cost_class"), _COST)
             or type(item.get("requires_training")) is not bool
         ):
             raise ValueError("post-train triage malformed recommendation")

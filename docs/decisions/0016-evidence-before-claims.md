@@ -18,6 +18,14 @@ Treat evidence levels distinctly: behavior tests, artifact verification, a check
 
 The project can report exactly what a run demonstrated without claiming broad model quality or untested accelerator correctness. The added work stays local and file-based. Future MXFP4, RISC, or ASIC paths remain explicit implementations with their own configuration, numerical contract, and evidence; they are not inferred from current FP32 reference runs.
 
+## Interface update — 2026-10-11
+
+The historical decision above names the interface used at the time. Its current
+result-reading path is `sparselab report RUN_ID --kind run`, which keeps verified
+checkpoint observations separate from advisory triage. See [result reports](../result-reports.md)
+for the consolidated readers. This pointer changes neither the historical
+claims nor the identities or evidence of executed runs.
+
 ## Related decisions
 
 - [ADR 0014](0014-scale-experiments.md) governs bounded scale comparisons.

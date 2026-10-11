@@ -43,7 +43,9 @@ held-out observations, and `read_triage` for saved advisory diagnostics. Its
 A declaration's `surface_dir` adds the existing independent `surface_review` overlay. Negative
 observations, rejected checkpoint/report digests and missing reports remain in
 the native evidence payload. Missing or invalid triage stays `UNKNOWN` with its
-reason; it never becomes a pass. If the run evidence reader cannot read its
+reason; it never becomes a pass. Malformed artifact shapes raise `ValueError`
+at the reader boundary; unexpected reader `TypeError`/`KeyError` bugs propagate
+instead of becoming `UNKNOWN`. If the run evidence reader cannot read its
 inputs, the envelope reports `missing_evidence` or `invalid_evidence` and exits
 1 after rendering. A rejected individual observation remains visible in the
 native `rejected_reports` list. Triage advice is not a release decision.
@@ -54,6 +56,10 @@ native evidence availability and diagnostics intact. Declaration `study` or
 `protocol_sha256` scopes prior-design diagnostics as before. Next tests are
 reviewed declarations, not instructions authorizing execution. `research validate`
 and baseline inspection retain their distinct verification and identity roles.
+
+Only record and run reports are attempt-dispatchable inspection commands.
+`report --kind research` is a direct read-only CLI view outside the reviewed
+attempt grammar, as the former research status/next views were.
 
 All report kinds read existing artifacts, create no run store and start no
 training, model loading, probe evaluation or collection. Interrupted sealed

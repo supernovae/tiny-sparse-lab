@@ -988,7 +988,7 @@ def _triage_report(
 ) -> tuple[dict[str, object] | None, str | None]:
     try:
         report = read_triage(run_id, runs_dir)
-    except (OSError, ValueError, TypeError, KeyError) as error:
+    except (OSError, ValueError) as error:
         return None, f"invalid or ambiguous artifact: {error}"
     if report is None:
         return None, "no verified post-train triage artifact"

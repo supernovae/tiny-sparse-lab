@@ -35,7 +35,10 @@ surface_dir: /path/to/surface-review-bundles
 ```
 
 Set `RUN_ID` and `RUNS_DIR` to your retained run and its store, and
-`SURFACE_DIR` to the review bundles described in the Surface Review guide:
+`SURFACE_DIR` to the review bundles described in the Surface Review guide. Set
+`surface_dir` in `report.yaml` to that same directory: `report` reads its YAML
+selector, while the dashboard command below uses `$SURFACE_DIR`. The report
+declaration does not expand environment variables.
 
 ```sh
 uv run --locked sparselab report "$RUN_ID" --kind run \
