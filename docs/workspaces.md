@@ -113,6 +113,75 @@ Sampling cannot discover a process that was born and orphaned entirely between
 samples; plan critical workloads accordingly. Missing requested metrics fail
 closed; monitoring does not resume, retry or authenticate scientific inputs.
 
+## Shared Linux runner ownership
+
+Opt into the same native monitor with all three paths below. Every contender
+on a host must use the same paths on a local filesystem with reliable `flock`
+and `fsync`. The actual CPU host/SSH alias is `cpu`; it runs CPU workloads.
+The agreed lock paths and suggested local state locations are:
+
+| Host | Canonical lock | Blocked marker | Receipt directory |
+| --- | --- | --- | --- |
+| `cpu` | `~/src/.lab-cpu-runner.lock` | `~/src/.lab-cpu-runner.blocked` | `~/src/.lab-cpu-runner-state` |
+| `rocm` | `~/src/.lab-rocm.lock` | `~/src/.lab-rocm.blocked` | `~/src/.lab-rocm-state` |
+
+Marker and receipt locations are configurable so an external runner can keep
+its existing marker convention; agree on one triplet before adopting this tool.
+Parent directories must already exist, belong to the caller, and exclude group
+and other write access. The tool creates a missing lock and state directory;
+existing regular files must have one link, belong to the caller, and exclude
+group/other writes. Symlinked lock/state entries are refused. These are trusted
+local owner files, not a boundary against malicious workloads under that UID.
+Never unlink, replace or truncate the lock: its inode is the stable lock identity.
+
+For a CPU command already authorized by the owner (use a fresh log directory):
+
+```sh
+uv run --locked --no-sync sparselab monitor --policy /data/sparselab/monitor.yaml \
+  --workspace /data/sparselab --log-dir /data/sparselab/logs/unique-launch \
+  --runner-lock "$HOME/src/.lab-cpu-runner.lock" \
+  --runner-state "$HOME/src/.lab-cpu-runner-state" \
+  --runner-blocked "$HOME/src/.lab-cpu-runner.blocked" -- \
+  python -c 'print("tiny CPU command")'
+```
+
+Invoke the workload directly. Do not wrap a legacy launcher that acquires the
+same lock again. Contention refuses immediately; there is no queue, retry,
+takeover, unblock command or lock-keeper process. Omitting all three flags keeps
+the existing monitor CLI behavior. Supplying a subset is an error.
+
+The minimal local contract is `contract.json` (format `sparselab-runner-v1`,
+canonical lock path, device/inode and blocked path) plus one UUID directory per
+attempt. Its exclusive, fsynced `pending.json` records the command, policy,
+owner PID and absolute log directory **before** the native monitor spawns. Its
+exclusive `completion.json` binds that pending record's SHA-256 and run ID to
+the monitor and owned-completion receipt hashes and supervisor PID/creation
+time. Successful, nonzero-exit and guard-stopped commands can all certify clean
+shutdown; only success certifies workload success. Prior receipts and logs must
+remain available unchanged. Missing, partial, foreign or changed records refuse
+launch, even if the recorded owner PID no longer exists.
+
+The wrapper checks the blocked marker before and after acquiring its single
+non-inherited flock. Any marker, including a dangling symlink, is authoritative.
+It always uses the existing Linux subreaper, tree RSS sampling and storage
+guards. Detached descendants retain subreaper attribution. Shutdown sends TERM,
+then KILL after the policy grace, with at most two additional seconds of helper
+cleanup. The monitor also bounds its cleanup wait and refuses unverifiable
+owned receipts. These are userspace deadlines; kernel/filesystem stalls cannot
+be given a hard realtime guarantee. Workload time itself remains governed by
+optional `max_wall_seconds`; monitoring introduces no new workload budget.
+
+Uncertain cleanup, interruption or completion-write failure leaves a durable
+blocked marker before lock release. A storage failure can prevent even that
+write: the retained incomplete attempt still forbids a later launch. SIGKILL or
+power loss cannot write a new marker; pending state remains authoritative and
+is never automatically recovered. A human must establish that owned work is
+gone, preserve the failed evidence and reconcile the host before provisioning a
+new state contract. Removing the marker alone does not repair an incomplete
+attempt. The tool never deletes state, trusts a stale PID as clearance, acquires
+credentials or contacts Notion. Updating a remote task/blocker is best effort
+work for the external runner after enforcing local launch safety.
+
 ## Explicit campaign cleanup
 
 Choose the campaign workspace under the selected persistent root when preparing

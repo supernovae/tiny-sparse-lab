@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import json
+import math
 import os
 import signal
 import subprocess
@@ -29,7 +30,13 @@ def supervise(
     grace: float = 1.0,
     ready: Path | None = None,
 ) -> int:
-    if sys.platform != "linux" or not command or grace < 0:
+    if (
+        sys.platform != "linux"
+        or not command
+        or grace < 0
+        or not math.isfinite(grace)
+        or not math.isfinite(deadline)
+    ):
         raise ValueError("a nonempty Linux command and nonnegative grace are required")
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
@@ -49,6 +56,7 @@ def supervise(
     process: subprocess.Popen[bytes] | None = None
     reason = ""
     rc = 1
+    living = []
     try:
         if ready is not None:
             pending = ready.with_name(ready.name + ".pending")
@@ -88,6 +96,7 @@ def supervise(
     finally:
         if process is not None:
             grace_end = time.monotonic() + grace
+            cleanup_end = grace_end + 2.0
             term_sent = False
             while True:
                 process.poll()  # Reap the direct child before discovering adopted descendants.
@@ -100,16 +109,19 @@ def supervise(
                     term_sent = True
                 elif time.monotonic() >= grace_end:
                     _signal_owned(targets, signal.SIGKILL)
+                if time.monotonic() >= cleanup_end:
+                    reason = "owned cleanup deadline exhausted"
+                    rc = 1
+                    break
                 time.sleep(0.02)
-            while True:
+            while time.monotonic() < cleanup_end:
                 try:
                     pid, _ = os.waitpid(-1, os.WNOHANG)
                 except ChildProcessError:
                     break
                 if pid == 0:
                     break
-            if any(p.pid != root.pid for p in _owned(root, known)):
-                raise RuntimeError("owned descendants remain after shutdown")
+            living = [p for p in _owned(root, known) if p.pid != root.pid]
         for signum, handler in previous.items():
             signal.signal(signum, handler)
         record = {
@@ -117,7 +129,8 @@ def supervise(
             "reason": reason,
             "returncode": rc,
             "observed_descendants": sorted(pid for pid in known if pid != root.pid),
-            "living_descendants": 0,
+            "root": root.model_dump(),
+            "living_descendants": len(living),
         }
         with completion.open("x", encoding="utf-8") as stream:
             json.dump(record, stream, sort_keys=True)

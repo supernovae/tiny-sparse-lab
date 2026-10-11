@@ -17,6 +17,9 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("--policy", type=Path, required=True)
     parser.add_argument("--log-dir", type=Path, required=True)
     parser.add_argument("--workspace", type=Path, required=True)
+    parser.add_argument("--runner-lock", type=Path)
+    parser.add_argument("--runner-state", type=Path)
+    parser.add_argument("--runner-blocked", type=Path)
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--cwd", type=Path)
     parser.add_argument("--reserve-bytes", type=int, default=0)
@@ -43,7 +46,24 @@ def execute_monitor(args: argparse.Namespace) -> int:
         command.pop(0)
     if not command:
         raise ValueError("monitor requires -- COMMAND [ARG ...]")
-    result = monitor_command(
+    runner_paths = [
+        getattr(args, name, None)
+        for name in ("runner_lock", "runner_state", "runner_blocked")
+    ]
+    runner_options = {}
+    execute = monitor_command
+    if any(path is not None for path in runner_paths):
+        if any(path is None for path in runner_paths):
+            raise ValueError("all three --runner-* paths are required")
+        from sparselab.runner_control import run_controlled
+
+        execute = run_controlled
+        runner_options = {
+            "lock_path": runner_paths[0],
+            "state_dir": runner_paths[1],
+            "blocked_path": runner_paths[2],
+        }
+    result = execute(
         command,
         load_monitor_policy(args.policy),
         workspace=args.workspace,
@@ -53,6 +73,7 @@ def execute_monitor(args: argparse.Namespace) -> int:
         reserved_bytes=args.reserve_bytes,
         reserved_inodes=args.reserve_inodes,
         baseline_path=args.baseline,
+        **runner_options,
     )
     print(json.dumps(result.model_dump(mode="json"), sort_keys=True))
     return (
