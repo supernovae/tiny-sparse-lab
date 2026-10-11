@@ -148,10 +148,12 @@ Use a persistent work root outside Git: global `--work-dir` overrides
 `SPARSELAB_WORK_DIR`; otherwise use absolute nonempty `XDG_DATA_HOME/sparselab`
 or `~/.local/share/sparselab`. Lab tries live under `WORK_DIR/lab`. Respect
 explicit legacy locations. Only disposable fixture scratch belongs in `/tmp`.
-Check bytes, inodes and expected growth before expensive work; pass a
-`--resource-envelope` for anything large. Do not add arbitrary short wall-time
-limits to normal experiments; use `--max-wall-seconds` only when the user asks
-for one. Stop runs safely (Ctrl-C, SIGTERM or the printed `CANCEL` file), never
+Check bytes, inodes and expected growth before expensive work; select a native
+resource envelope for anything large (`try`/`probe`: declaration
+`resource_envelope`; other commands retain their direct `--resource-envelope`
+selector). Do not add arbitrary short wall-time limits to normal experiments;
+set a wall limit only when the user asks for one (`try`: envelope
+`lab_try.max_wall_seconds_per_arm`). Stop runs safely (Ctrl-C, SIGTERM or the printed `CANCEL` file), never
 by killing a process mid-checkpoint. Never mutate an active run, reset a spent
 ledger, prune unrelated data, or infer safe shutdown from a missing receipt.
 Check in only small durable declarations, summaries and evidence references.
