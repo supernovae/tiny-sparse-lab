@@ -1,5 +1,9 @@
 # Experiment workspaces and retained evidence
 
+For command-by-command storage and interpreter choices, see
+[location and runtime selection](location-runtime-controls.md), including why
+historical lab/run readers and controller stores retain separate selectors.
+
 One experiment has one local workspace. Seeds, architecture cells, budget
 coordinates, and resumed children are scientific coordinates identified by run
 IDs and immutable manifests; they are not peer repository-root directories.
