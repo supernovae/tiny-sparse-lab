@@ -24,8 +24,10 @@ uv run --locked --extra cpu sparselab dashboard
 and `compare` read sealed records only. The dashboard reads saved lab results
 and exposes on-demand explorer computation. A **run ID** identifies weights;
 a **try/probe ID** identifies a result record. `probe` and `explore` search
-`WORK_DIR/lab/runs` and accept `--runs-dir` for other saved runs. `report` and
-`compare` accept sealed result paths as well as record IDs.
+`WORK_DIR/lab/runs`. For other saved runs, `probe` accepts `--runs-dir`;
+`explore` takes the root from the `runs_dir` field of its
+[declaration](explore-config.md). Both also accept an explicit run path.
+`report` and `compare` accept sealed result paths as well as record IDs.
 
 `probe` and `explore` also accept try/probe record IDs or paths, selecting the
 record's exact candidate/target checkpoint rather than the run's current

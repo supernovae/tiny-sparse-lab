@@ -451,10 +451,19 @@ def test_record_cli_dispatch_preserves_explicit_backend_and_envelope(
         "[]",
         "text: 123",
         "text: ''",
+        "text: '   '",
+        'text: "\\t\\n\\r\\t"',
+        "false",
+        "5",
+        "text: [story]",
+        "lab_dir: 5",
+        "text: [",
         "refresh: 1",
         "refresh: 'false'",
         "explore_config_version: true",
         "explore_config_version: 2",
+        "explore_config_version: 1.0",
+        "text: null",
         "backend: cuda",
         "resource_envelope: bounds.yaml",
         "typo: true",
@@ -586,3 +595,70 @@ def test_explore_explicit_profile_selects_backend_before_native_authorization(
     monkeypatch.setattr(cli, "authorize_profile", unavailable)
     with pytest.raises(ValueError, match="device unavailable"):
         cli._prepare_runtime_command(args)
+
+
+@pytest.mark.parametrize("document", ["", "# use defaults\n", "null\n", "{}\n"])
+def test_explore_empty_declaration_uses_defaults(tmp_path: Path, document: str) -> None:
+    from sparselab.explore_config import ExploreConfig, load_explore_config
+
+    request = tmp_path / "explore.yaml"
+    request.write_text(document)
+    assert load_explore_config(request) == ExploreConfig()
+
+
+def test_explore_declaration_expands_home_and_preserves_exact_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sparselab.explore_config import load_explore_config
+
+    task_home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(task_home))
+    request = tmp_path / "explore.yaml"
+    prompt = " \tOnce upon a time\n "
+    request.write_text(
+        yaml.safe_dump({"text": prompt, "lab_dir": "~/lab", "runs_dir": "~/runs"})
+    )
+    config = load_explore_config(request)
+    assert config.text == prompt
+    assert config.lab_dir == task_home / "lab"
+    assert config.runs_dir == task_home / "runs"
+
+
+@pytest.mark.parametrize("command", ["explore", "probe"])
+@pytest.mark.parametrize("as_json", [False, True])
+@pytest.mark.parametrize(
+    "hint",
+    [
+        "check --work-dir/--lab-dir or pass a path",
+        "use --lab-dir for this unrelated diagnostic",
+        "pass an explicit checkpoint path",
+    ],
+)
+def test_lookup_hint_rewrites_only_exact_explorer_selector(
+    command: str, as_json: bool, hint: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import argparse
+
+    from sparselab.cli.main import _lab_lookup_failure
+
+    error = ResultLookupError("fixture", "missing_evidence", "fixture reason", hint)
+    expected = (
+        hint.replace("--work-dir/--lab-dir", "--work-dir or --config lab_dir")
+        if command == "explore"
+        else hint
+    )
+    with pytest.raises(SystemExit) as stopped:
+        _lab_lookup_failure(argparse.Namespace(command=command, json=as_json), error)
+    if as_json:
+        assert stopped.value.code == 1
+        assert json.loads(capsys.readouterr().out) == {
+            "status": "missing_evidence",
+            "result": "fixture",
+            "reason": "fixture reason",
+            "hint": expected,
+        }
+    else:
+        assert (
+            str(stopped.value)
+            == f"sparselab {command}: missing_evidence: fixture: fixture reason; {expected}"
+        )

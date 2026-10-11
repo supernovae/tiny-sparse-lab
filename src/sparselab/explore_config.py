@@ -4,9 +4,9 @@ import argparse
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+import yaml
+from pydantic import Field, ValidationError, field_validator
 
-from sparselab.config.loading import _load
 from sparselab.config.models import StrictModel
 from sparselab.explorer import DEFAULT_TEXT
 
@@ -17,6 +17,14 @@ class ExploreConfig(StrictModel):
     refresh: bool = Field(default=False, strict=True)
     lab_dir: Path | None = None
     runs_dir: Path | None = None
+
+    @field_validator("text")
+    @classmethod
+    def meaningful_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("text must contain at least one non-whitespace character")
+        # Whitespace affects tokenization; retain the declared prompt exactly.
+        return value
 
     @field_validator("explore_config_version", mode="before")
     @classmethod
@@ -29,13 +37,23 @@ class ExploreConfig(StrictModel):
 def load_explore_config(path: Path) -> ExploreConfig:
     """Resolve lookup locations relative to the declaration, never to cwd."""
     try:
-        config = _load(path, ExploreConfig)
-    except TypeError as error:
-        raise ValueError(str(error)) from error
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise ValueError(
+            f"cannot read config {path}: {error.strerror or error}"
+        ) from error
+    except yaml.YAMLError as error:
+        raise ValueError(f"invalid YAML in {path}: {error}") from error
+    if raw is None:
+        raw = {}
+    try:
+        config = ExploreConfig.model_validate(raw)
+    except ValidationError as error:
+        raise ValueError(f"invalid config {path}: {error}") from error
     base = path.resolve().parent
     return config.model_copy(
         update={
-            key: (base / value).resolve() if value is not None else None
+            key: (base / value.expanduser()).resolve()
             for key in ("lab_dir", "runs_dir")
             if (value := getattr(config, key)) is not None
         }

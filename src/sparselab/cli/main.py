@@ -2439,7 +2439,7 @@ def _lab_lookup_failure(args: argparse.Namespace, error: Exception) -> None:
     from sparselab.lab_results import ResultLookupError
 
     if isinstance(error, ResultLookupError):
-        if args.command == "explore" and "--lab-dir" in error.hint:
+        if args.command == "explore" and "--work-dir/--lab-dir" in error.hint:
             error = ResultLookupError(
                 error.spec,
                 error.status,
