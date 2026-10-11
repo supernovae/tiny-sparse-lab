@@ -399,6 +399,45 @@ def test_requested_missing_sensor_is_explicit_null_and_violation(
     )
 
 
+@pytest.mark.parametrize(
+    "error", [ImportError, OSError, RuntimeError, ValueError, AttributeError]
+)
+def test_unavailable_requested_device_reading_survives_receipt_roundtrip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: type[Exception]
+) -> None:
+    calls: list[str] = []
+
+    def unavailable(uuid: str) -> int:
+        calls.append(uuid)
+        raise error("deterministically unavailable")
+
+    monkeypatch.setattr(monitor, "read_device_memory_bytes", unavailable)
+    root = monitor.ProcessIdentity(
+        pid=os.getpid(), create_time=psutil.Process().create_time()
+    )
+    result = monitor.sample(
+        root,
+        {root.pid: root},
+        monitor.MonitorPolicy(
+            monitor_policy_version=1,
+            max_device_memory_bytes=100,
+            expected_device_uuid="requested-uuid",
+        ),
+        tmp_path,
+    )
+    assert calls == ["requested-uuid"]
+    assert result.violations == ["max_device_memory_bytes"]
+    wire = json.loads(result.model_dump_json())
+    assert "device_memory_bytes" in wire
+    assert wire["device_memory_bytes"] is None
+    assert "requested_device_memory" not in wire
+    assert "added_workspace_bytes" not in wire
+    restored = monitor.MonitorSample.model_validate(wire)
+    assert restored.requested_device_memory
+    assert restored.model_dump() == result.model_dump()
+    assert restored.model_dump_json() == result.model_dump_json()
+
+
 def _alive(pid: int) -> bool:
     try:
         return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
