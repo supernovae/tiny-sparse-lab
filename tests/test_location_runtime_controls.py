@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -219,3 +220,36 @@ def test_runtime_help_exposes_environment_management(tmp_path: Path) -> None:
     )
     assert "sparselab runtime env --help" in commands["runtime"].format_help()
     assert not (tmp_path / "work").exists()
+
+
+@pytest.mark.parametrize("work_prefix", ["split", "equals"])
+def test_environment_work_prefix_drives_native_runtime_root_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, work_prefix: str
+) -> None:
+    from sparselab.cli import entry
+
+    monkeypatch.chdir(tmp_path)
+    locations = {
+        "SPARSELAB_WORK_DIR": tmp_path / "original-work",
+        "SPARSELAB_RUNTIME_DIR": tmp_path / "selected-work",
+        "XDG_CONFIG_HOME": tmp_path / "config",
+        "XDG_DATA_HOME": tmp_path / "data",
+    }
+    for name, path in locations.items():
+        monkeypatch.setenv(name, str(path))
+    prefix = (
+        ["--work-dir", "selected-work"]
+        if work_prefix == "split"
+        else ["--work-dir=selected-work"]
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["sparselab", *prefix, "runtime", "env", "list", "--json"]
+    )
+    # Exercise the real manager and native root check, not a mocked handoff.
+    with pytest.raises(SystemExit) as error:
+        entry.main()
+    assert error.value.code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR"
+    assert payload["reason"] == "runtime root must differ from scientific work root"
+    assert all(not path.exists() for path in locations.values())
