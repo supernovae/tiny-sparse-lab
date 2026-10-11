@@ -27,6 +27,10 @@ _OUTPUT_LIMIT = 32768
 _IDENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
+class RuntimeAuthorizationRequired(ValueError):
+    """Execution needs an explicitly authorized interpreter and device."""
+
+
 class RuntimeRequirements(StrictModel):
     torch_hip: bool | None = None
     bf16: bool | None = None
@@ -404,7 +408,7 @@ def require_authorization(
         not isinstance(authorization, RuntimeAuthorization)
         or authorization._token is not _TOKEN
     ):
-        raise ValueError(
+        raise RuntimeAuthorizationRequired(
             f"{backend} requires --runtime ID or an explicit profile "
             "(try/probe: declaration runtime_profile; other commands: "
             "--runtime-profile PATH), or a registered compatible worker"
