@@ -57,6 +57,33 @@ def test_compare_missing_lm_eval_hint_pins_exported_record_after_latest_moves(
         resolve_checkpoint(command[2], lab_dir=lab)
 
 
+def test_needle_and_reference_curve_hints_use_record_targets(tmp_path: Path) -> None:
+    from sparselab.probes.compare import as_json, compare, render
+
+    lab = tmp_path / "lab"
+    run = _run(lab)
+    path = _record(lab, run, "probe")
+    exported = tmp_path / "exported record.json"
+    exported.write_bytes(path.read_bytes())
+    (run / "checkpoints/step-2").mkdir()
+    (run / "checkpoints/latest.json").write_text('{"relative_path":"step-2"}')
+    report = compare(str(exported), [], lab_dir=lab, references=True)
+    row = next(p for p in report["comparisons"][0]["pairs"] if p["metric"] == "needle")
+    assert row["status"] == "missing_evidence"
+    command = shlex.split(row["note"].split("`")[1])
+    assert command == ["sparselab", "probe", str(exported), "--tier", "standard"]
+    target = resolve_checkpoint(command[2], lab_dir=lab)
+    assert target.checkpoint == str(run / "checkpoints/step-1")
+    assert target.expected_sha256 == "a" * 64
+    assert row["note"] in render(report)
+    assert row in as_json(report)["comparisons"][0]["pairs"]
+    curve_hint = report["curve"]["note"]
+    assert "sparselab probe RECORD --tier full" in curve_hint
+    assert "probe RUN" not in render(report)
+    assert curve_hint in render(report)
+    assert as_json(report)["curve"]["note"] == curve_hint
+
+
 def _run(lab: Path, name: str = "candidate", backend: str = "cpu") -> Path:
     from sparselab.config.models import RunConfig
 

@@ -57,7 +57,7 @@ METRICS = {
         higher_is_better=True,
         not_comparable="different benchmark group (tasks, limit, few-shot or "
         "task versions differ)",
-        missing_hint="run `sparselab probe RUN --tier full` (needs the lmeval extra)",
+        missing_hint="run `sparselab probe RECORD --tier full` (needs the lmeval extra)",
     ),
     "fact_recall": Metric(
         id="fact_recall",
@@ -65,7 +65,7 @@ METRICS = {
         group_label="item group",
         higher_is_better=True,
         not_comparable="different items (prompts, answers or candidates differ)",
-        missing_hint="run `sparselab probe RUN --tier standard`",
+        missing_hint="run `sparselab probe RECORD --tier standard`",
     ),
     "needle": Metric(
         id="needle",
@@ -74,7 +74,7 @@ METRICS = {
         higher_is_better=True,
         not_comparable="different needle items (text, lengths or candidates "
         "differ; results before suite v4 were sized in model tokens)",
-        missing_hint="run `sparselab probe RUN --tier standard`",
+        missing_hint="run `sparselab probe RECORD --tier standard`",
     ),
 }
 # Probe rows whose ``details.items`` carry per-item credit (paired evidence).

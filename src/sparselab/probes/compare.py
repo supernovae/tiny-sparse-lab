@@ -171,7 +171,7 @@ def pair(
         )
         if metric_id == "lm_eval" and target:
             hint = f"run `sparselab probe {shlex.quote(str(target))} --tier full` (lmeval extra)"
-        elif metric_id == "fact_recall" and target:
+        elif metric_id in {"fact_recall", "needle"} and target:
             tier = "full" if who["kind"] == "reference" else "standard"
             hint = f"run `sparselab probe {shlex.quote(str(target))} --tier {tier}`"
         return {
