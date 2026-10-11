@@ -129,12 +129,16 @@ places it in the catalog and on the frontier.
   closed-book block shows why it was not scored instead. The
   closed-book block also shows the never-trained control facts, which should
   stay at chance. The demo above shows what this is for: every lab model picks
-  the same first candidate for every question (`red`, `panda`), which no
-  aggregate accuracy would tell you.
+  the same candidate for every question of a relation (`red`, `panda`), which
+  no aggregate accuracy would tell you. It is the near-uniform prior of an
+  untrained model, not candidate order (shuffling the candidates changes
+  nothing; see the constant-picks note in [probe-battery.md](probe-battery.md)); the page flags it
+  as a constant pick.
 - **Needle in a haystack.** Retrieval accuracy against context length, one line
   per checkpoint (its newest result) within one item group. Needle lengths are
-  in each model's own tokens, so results with other items, tokenizers or
-  lengths are another group: pick it in the selector (default: the newest
+  fixed character counts from suite v4 on, so lab runs and re-scored
+  references share a group; older results (sized in each model's own tokens)
+  and results with other items or lengths are another group: pick it in the selector (default: the newest
   result's group; the others are counted as hidden). The chance line comes from
   that group's own results and is omitted when it is unknown or they disagree.
 - **Calibration.** A reliability diagram (confidence of the top guess against

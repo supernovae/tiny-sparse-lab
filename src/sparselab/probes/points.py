@@ -67,9 +67,18 @@ METRICS = {
         not_comparable="different items (prompts, answers or candidates differ)",
         missing_hint="run `sparselab probe RUN --tier standard`",
     ),
+    "needle": Metric(
+        id="needle",
+        label="needle retrieval",
+        group_label="item group",
+        higher_is_better=True,
+        not_comparable="different needle items (text, lengths or candidates "
+        "differ; results before suite v4 were sized in model tokens)",
+        missing_hint="run `sparselab probe RUN --tier standard`",
+    ),
 }
 # Probe rows whose ``details.items`` carry per-item credit (paired evidence).
-RANKING_METRICS = ("fact_recall",)
+RANKING_METRICS = ("fact_recall", "needle")
 
 # Cost axes: resident counts every weight held in memory, active counts what
 # one token touches (one embedding row, the routed experts and memory rows).

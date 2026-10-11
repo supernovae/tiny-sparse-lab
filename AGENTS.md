@@ -41,7 +41,15 @@ improved: worth a larger budget, still in lab mode) or `compare` (add `--vs`).
 Probes are screening signals, not proof that an idea is useful. Selecting on
 the held-out probes again and again turns them into development data, so any
 claim that an idea is better needs a separate, untouched final evaluation
-(fresh split, longer run, more seeds). Verdicts use only the held-out item split. Do not edit probe
+(fresh split, longer run, more seeds). Iteration verdicts use only the held-out
+item split. The **held-back final split** is that untouched evaluation for
+probe items: never select on it. Only `sparselab probe CANDIDATE --vs BASE
+--tier standard --final` reads it (`try` and ordinary probes cannot; a test
+enforces this), once, for the final verdict on a candidate you have already
+chosen; never use it to compare or rank candidates, and never re-run it after
+changing the idea. A single-seed "beyond noise" loss gain is within-run eval
+noise only: confirm it with paired seeds before claiming a win. A try whose
+comparison is `NOT_COMPARABLE` is never promoted, whatever its probes say. Do not edit probe
 items, thresholds or prompts to make an idea pass, and do not iterate against
 the dev split: `guard.overfit_suspected` means you are fitting the probes; change
 the idea instead. Any suite change needs a `SUITE_VERSION` bump, and results are

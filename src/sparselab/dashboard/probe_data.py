@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sparselab.lab_records import iter_lab_records
+from sparselab.probes.verdict import respect_try_comparison
 
 LIVE_STATES = {"loading", "running"}
 STALE_SECONDS = 600
@@ -75,7 +76,14 @@ def load_history(
                     source="try",
                     created_at=str(record.get("created_at")),
                     path=path,
-                    result=probe,
+                    # Older records: a NOT_COMPARABLE try never shows a
+                    # promoting probe verdict.
+                    result={
+                        **probe,
+                        "verdict": respect_try_comparison(
+                            probe.get("verdict"), record.get("comparison")
+                        ),
+                    },
                     question=record.get("question"),
                     delta=record.get("delta") or {},
                     comparison=record.get("comparison"),

@@ -28,6 +28,7 @@ from sparselab.dashboard.probe_data import (
 from sparselab.explorer import cached_explorations
 from sparselab.lab_records import iter_lab_records
 from sparselab.probes.points import METRICS, collect_points
+from sparselab.probes.verdict import respect_try_comparison
 
 # Lab-try comparison verdicts in plain words (``comparison.verdict``).
 TRY_VERDICT_TEXT = {
@@ -82,7 +83,7 @@ def activity(snap: LabSnapshot, limit: int = 12) -> list[dict[str, Any]]:
     for _, record in snap.tries:
         comparison = record.get("comparison") or {}
         probe = record.get("probe") if isinstance(record.get("probe"), dict) else {}
-        verdict = (probe or {}).get("verdict") or {}
+        verdict = respect_try_comparison((probe or {}).get("verdict"), comparison) or {}
         rows.append(
             {
                 "when": str(record.get("created_at")),
@@ -390,8 +391,10 @@ def recall_items(entry: ProbeEntry, probe_id: str) -> list[dict[str, Any]]:
 def needle_curves(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
     """Needle accuracy by context length, one curve per (checkpoint, group).
 
-    Needle items are sized in each model's own tokens, so only results in one
-    ``item_group`` (same rendered items, tokenizer and lengths) share a scale;
+    Suite v4 needle items have fixed character lengths (``length`` in
+    characters, comparable across tokenizers); older results were sized in
+    each model's own tokens. Either way only results in one ``item_group``
+    (same rendered items and lengths) share a scale;
     ``group`` is that comparison identity (shared :func:`result_group`), None
     for older records without one. The newest result per (checkpoint, group)
     wins.
@@ -408,16 +411,18 @@ def needle_curves(entries: Iterable[ProbeEntry]) -> list[dict[str, Any]]:
         if not by_length or (sha, group) in seen:
             continue
         seen.add((sha, group))
-        for fraction, value in by_length.items():
+        for value in by_length.values():
             if value.get("accuracy") is None:
                 continue
+            chars = value.get("chars")
             rows.append(
                 {
                     "checkpoint": f"{entry.key} ({target.get('run_id')})",
                     "checkpoint_sha256": sha,
                     "group": group,
                     "when": entry.created_at,
-                    "fraction": float(fraction),
+                    "length": chars if chars is not None else value.get("tokens"),
+                    "unit": "characters" if chars is not None else "tokens",
                     "tokens": value.get("tokens"),
                     "accuracy": value["accuracy"],
                     "chance": details.get("chance"),

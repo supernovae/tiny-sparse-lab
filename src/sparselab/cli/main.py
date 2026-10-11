@@ -2535,6 +2535,7 @@ def _probe(args: argparse.Namespace) -> None:
             resource_envelope=args.resource_envelope_value,
             lm_eval_tasks=args.lm_eval_tasks.split(",") if args.lm_eval_tasks else None,
             lm_eval_limit=args.lm_eval_limit,
+            final=args.final,
         )
     except (ValueError, OSError, ReferenceUnavailable) as error:
         raise SystemExit(f"sparselab probe: {error}") from None
@@ -2842,6 +2843,12 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         type=int,
         metavar="N",
         help="Full tier: items per lm-eval task (default 50; a new benchmark group)",
+    )
+    probe.add_argument(
+        "--final",
+        action="store_true",
+        help="Final verdict on a chosen candidate: score the held-back final "
+        "split (standard/full tier). Never use it to choose between candidates.",
     )
     probe.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
     probe.add_argument("--runs-dir", help="Also look up run ids here")

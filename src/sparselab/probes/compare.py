@@ -53,21 +53,6 @@ def _merge(points: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return merged
 
 
-def _reference_point(spec: str, pool: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    reference = reference_for(spec)
-    found = [
-        p
-        for p in pool
-        if p["kind"] == "reference"
-        and (p.get("reference") or {}).get("name") == reference.name
-    ]
-    if not found:
-        raise ValueError(
-            f"no result for {spec}: run `sparselab probe {spec} --tier full`"
-        )
-    return _merge(found)
-
-
 def resolve_point(
     spec: str, lab_dir: Path, pool: Sequence[Mapping[str, Any]]
 ) -> dict[str, Any]:
@@ -77,15 +62,29 @@ def resolve_point(
     same checkpoint (e.g. a later ``probe --tier full``) add what it lacks.
     """
     if is_reference(spec):
-        return with_checkpoint_evidence(_reference_point(spec, pool), pool)
-    path = resolve_record(spec, lab_dir)
-    kind, record = read_lab_record(path)
-    points = points_from_record(kind, record, path)
-    candidate = [p for p in points if p["role"] == "candidate"]
-    if not candidate:
-        raise ValueError(f"{spec}: no scored candidate in this record")
-    sha = candidate[0]["checkpoint_sha256"]
-    own = _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
+        # The single reference resolver: every verified record of the pinned
+        # checkpoint, merged; `compare --references` resolves through here too.
+        name = reference_for(spec).name
+        found = [
+            p
+            for p in pool
+            if p["kind"] == "reference"
+            and (p.get("reference") or {}).get("name") == name
+        ]
+        if not found:
+            raise ValueError(
+                f"no result for {spec}: run `sparselab probe {spec} --tier full`"
+            )
+        own = _merge(found)
+    else:
+        path = resolve_record(spec, lab_dir)
+        kind, record = read_lab_record(path)
+        points = points_from_record(kind, record, path)
+        candidate = [p for p in points if p["role"] == "candidate"]
+        if not candidate:
+            raise ValueError(f"{spec}: no scored candidate in this record")
+        sha = candidate[0]["checkpoint_sha256"]
+        own = _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
     return with_checkpoint_evidence(own, pool)
 
 
@@ -385,7 +384,8 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
                 )
     lines.append(
         _paint(
-            f"\n  legend  Δ = subject − other ± paired SE · within noise = |Δ| ≤ "
+            f"\n  legend  Δ = subject − other ± paired SE (loss: within-run eval "
+            f"noise, not seed spread) · within noise = |Δ| ≤ "
             f"{NOISE_SE:g} SE · resident = all weights · active = touched per token",
             "2",
             color,

@@ -20,25 +20,19 @@ tasks as part of lab usability work; complete their caller audit before removal.
    ([#68](https://github.com/supernovae/tiny-sparse-lab/issues/68)), and
    overlayfs-sensitive reuse checks
    ([#69](https://github.com/supernovae/tiny-sparse-lab/issues/69)).
-2. **PR3 — Evaluation integrity.**
-   - A held-back final evaluation set that agents never select on.
-   - A text-level needle (fixed character lengths) so needle also runs on
-     references.
-   - Fact recall: every tiny lab model picks the first candidate for every
-     question (`red`, `panda`); find the bias and pin it with a test.
-   - Fold `_reference_point` into `resolve_point`.
-   - The probe verdict prints "Promising: escalate" on a try whose
-     comparison is `NOT_COMPARABLE`; a non-comparable try must not escalate.
-   - The per-try held-out-loss error bar (window-clustered SE) is about 10x
-     smaller than seed-to-seed spread at tiny budgets. Report a seed floor or
-     require paired seeds before a verdict claims a win.
-3. **PR4 — References expansion.** Time the references on one fixed device so
+2. **PR4 — References expansion.** Time the references on one fixed device so
    they appear on the latency axis; add more Pythia trajectory checkpoints;
    run all references at `--lm-eval-limit 500` plus winogrande and
-   arc_challenge (the mechanism exists, the expensive run does not).
-4. **PR5 — MLX and semantic packs in probe/explorer.** Both refuse MLX
+   arc_challenge (the mechanism exists, the expensive run does not). Re-seal
+   the packaged references under suite v4 so they carry the text-level needle
+   (`sparselab probe ref:NAME --tier full`); the v3 records still compare on
+   fact recall and lm-eval.
+   - Seed-spread interval: when several seeds of the same baseline/candidate
+     exist, report their spread next to the within-run eval-noise SE (today
+     verdicts only label the SE and recommend paired seeds).
+3. **PR5 — MLX and semantic packs in probe/explorer.** Both refuse MLX
    checkpoints and attached semantic packs with a reason today.
-5. **PR6 — Cleanups.**
+4. **PR6 — Cleanups.**
    - Matrix-ify configs: replace hand-expanded seed/budget variants (e.g.
      `context_study_*`) with one matrix declaration each.
    - Archive the kernel-memory-lab paper trail: move CARD proposals and

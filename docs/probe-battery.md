@@ -45,7 +45,7 @@ edited record is rejected everywhere. A try stores its result in `try.json`
 under `probe`.
 
 ```text
-PROBE BATTERY  sparselab-probe-battery v3 · suite bc974a71 · tier full (ran fast → standard → full) · 22.6s
+PROBE BATTERY  sparselab-probe-battery v4 · suite b24f01ec · tier full (ran fast → standard → full) · 22.6s
   candidate lab-try-20261010T191906Z-6a192ff3  step 60 · 7.7k tokens · 98.7k params (43.4k active)
   baseline  lab-base-43194de82c467490-try-20261010T191906Z-6a192ff3  step 60 · 7.7k tokens · 43.2k params
 
@@ -80,14 +80,29 @@ Probes run cheapest first: by tier, then declared cost.
 | Degeneration | fast · 2 | seq-rep-4 of greedy continuations (Welleck et al. 2019), distinct-1/2 (Li et al. 2016) | +0.05 / +0.20 | yes | loops: duplicated data, too-high LR, positional change |
 | Fact recall (from weights) | standard · 1 | closed-book: ranks the trained value of one of the run's own withheld-facts *training* facts (manifest of its `dataset.synthetic_seed`) among the values of the same relation, with no context; also reports never-trained control facts | −0.05 / −0.15 | no | the facts are not stored in the weights (runs trained on `withheld_facts` only; inapplicable elsewhere) |
 | Fact recall (reworded) | standard · 2 | ranks the stated answer among candidates from the same relation (mean token log-prob), asked in different words than the fact was stated; fractional tie credit | −0.05 / −0.15 | no | context handling or memory wiring |
-| Needle in context | standard · 3 | retrieve a code word stated at the start of a filler context at ~50/75/95% of `max_seq_len`; fractional tie credit | −0.05 / −0.15 | no | attention span, positions or sequence-length changes |
+| Needle in context | standard · 3 | retrieve a code word stated at the start of a filler context of exactly 96/192/384 characters (text-level: the same strings for every tokenizer, references included; a context beyond the model's window scores chance); fractional tie credit | −0.05 / −0.15 | no | attention span, positions or sequence-length changes |
 | Standard tasks (lm-eval) | full · 4 | mean `acc` over lambada_openai, hellaswag, arc_easy, piqa at `limit=50` | −0.02 / −0.05 | no | treat small moves as noise at tiny scale |
 
 **Credit.** Recall and needle rank candidates by mean token log-prob of
 `" " + candidate` after the prompt. When k candidates tie at the top score the
 item earns 1/k if the answer is among them, else 0, so a model that scores
 everything alike lands at chance, never at 100% (ties used to break toward the
-answer; a uniform-score regression test pins this).
+answer; a uniform-score regression test pins this). The per-item `picked`
+field shows a tie as `tie: a / b`, never as the first candidate.
+
+**Constant picks (the PR #63 demo finding).** In the demo lab every model
+chose the same candidate for every question of a relation (for example
+`red`/`panda`, `gold`/`falcon`). This is not a scorer artifact: no item tied,
+shuffling the candidate order left every pick unchanged, and each pick matched
+the model's context-free preference (its scores with the prompt replaced by
+"The"). Those models had seen about 1,500 tokens, so their output was close to
+uniform (candidates within 0.1–0.2 nats of each other) and the prompt did not
+move the ranking. Accuracy was then exactly chance, as the fractional-credit
+rule requires. Recall rows now record `details.constant_pick` (and
+`baseline_constant_pick`) when every question with the same candidate set got
+the same pick, and the Behaviors page warns about it. Mean token log-prob does
+favor multi-token candidates whose later tokens are predictable; that is a
+known property of length-normalized ranking, and the same for both arms.
 
 **Noise.** Each probe declares its `uncertainty`. Held-out loss is a ratio
 (sum of token NLL / tokens) over evaluation windows, so its delta SE is the
@@ -95,7 +110,12 @@ token-weighted, window-clustered delta-method SE of the difference
 (`window_clustered_ratio`). Recall and needle compare the same items on both
 arms, so their delta SE is the paired SE of the per-item credit differences
 (`paired_items`). A change within 2 SE counts as `pass` with a "within noise"
-note, never as a win or a regression.
+note, never as a win or a regression. The held-out loss SE is **within-run
+eval noise**: it says how precisely one checkpoint was scored, not how much a
+different seed would move it. At tiny budgets seed-to-seed spread is about
+5–10× larger, so the renderer labels the bar "eval noise, 1 seed" and every
+promoting verdict (`escalate`, `longer_run`) ends by recommending paired
+seeds before a win is claimed.
 
 **Tiny-model honesty.** The reworded fact recall probe is *in-context* (the
 fact is stated, then asked in other words), because a tiny model knows no
@@ -209,6 +229,7 @@ actions are:
 | Condition (first match) | status | action |
 |---|---|---|
 | numerical failure (NaN/inf held-out loss) | fail | `abandon` |
+| inside a try whose comparison is `NOT_COMPARABLE` | incomplete | `rerun` (names the failed held-out checks; never escalates) |
 | no baseline (a reference model only once every task and item is scored) | info | `compare` |
 | a hard probe failed | fail | `abandon` |
 | any probe failed | fail | `tweak` (that probe's hint) |
@@ -219,10 +240,25 @@ actions are:
 | held-out loss improved beyond noise, all tiers run | pass/warn | `longer_run` |
 | otherwise (no measurable gain) | pass/warn | `tweak` |
 
-## Held-out guard
+## Held-out guard and the held-back final split
 
-Every item set has a **dev** split and a **held-out** split (different facts,
-templates, needles, filler and prompts). Verdicts only use the held-out split.
+Every item set has three disjoint, deterministic splits (different facts,
+templates, needles, filler and prompts): **dev**, **held-out** and the
+held-back **final** split. Iteration verdicts (`try`, `probe`) use the held-out
+split. Because every try reads it, a long loop still selects on it, so the
+final split exists for the one verdict that must not be selected on:
+
+```sh
+# Once, for a candidate you have already chosen. Never to pick between candidates.
+uv run --locked --extra cpu sparselab probe CANDIDATE --vs BASELINE --backend cpu --tier standard --final
+```
+
+`--final` scores the text probes, agreement and generations on the final split
+(held-out loss stays on the run's validation split) and records `final: true`
+and `suite.verdict_split: "final"`. Reading the final split anywhere else raises
+`FinalSplitLocked`, and `tests/test_eval_integrity.py` checks that only the
+probe CLI's `--final` path can open it. Final items have their own item groups,
+so a final result never pairs with an iteration result.
 Agents may look at dev results while iterating; the guard flags
 `overfit_suspected` when the dev gain is beyond its paired noise and exceeds
 the held-out gain by more than `max(0.15, 2 SE)`. Never edit probe items to make

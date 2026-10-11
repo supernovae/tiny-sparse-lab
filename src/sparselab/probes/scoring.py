@@ -162,9 +162,33 @@ def ranking_scores(
     return out
 
 
-def top_candidate(scores: Mapping[str, float]) -> str:
-    """The model's pick (first of any tie, in candidate order)."""
-    return max(scores, key=lambda c: scores[c])
+def top_candidate(scores: Mapping[str, float], rtol: float = 1e-9) -> str:
+    """The model's pick, or ``"tie: a / b"`` when several share the top score.
+
+    Display only: credit comes from :func:`tie_credit`. A tie is never
+    reported as the first candidate, so candidate order cannot look like a
+    preference.
+    """
+    best = max(scores.values())
+    tolerance = rtol * max(1.0, abs(best))
+    tied = [c for c, v in scores.items() if v >= best - tolerance]
+    return tied[0] if len(tied) == 1 else "tie: " + " / ".join(tied)
+
+
+def constant_pick(items: Sequence[Mapping[str, Any]], picks: Sequence[str]) -> bool:
+    """Every question with the same candidate set got the same pick.
+
+    The signature of a context-free answer prior: the model ranks candidates
+    the same way whatever the prompt says, as near-uniform untrained models do
+    (their pick follows tiny prior differences, not candidate order). Accuracy
+    is then exactly the share of items whose answer is that pick: chance when
+    each candidate is the answer equally often. Needs a repeated candidate set.
+    """
+    by_set: dict[tuple[str, ...], set[str]] = {}
+    for item, pick in zip(items, picks, strict=True):
+        by_set.setdefault(tuple(item["candidates"]), set()).add(pick)
+    repeated = len(items) > len(by_set)
+    return repeated and all(len(found) == 1 for found in by_set.values())
 
 
 def ranking_credit(loaded: Any, items: Sequence[Mapping[str, Any]]) -> list[float]:
