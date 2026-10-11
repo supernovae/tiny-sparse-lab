@@ -261,7 +261,10 @@ def _sample_tree_once(root: Path, deadline: float) -> tuple[int, int]:
             raise TimeoutError("workspace sampling deadline exhausted")
         path = stack.pop()
         info = os.stat(path, follow_symlinks=False)
-        if info.st_dev != device:
+        # Mount boundaries are directories. Overlayfs without xino reports
+        # files under a different st_dev than their directories, so comparing
+        # every entry's device would silently drop all regular files.
+        if stat.S_ISDIR(info.st_mode) and info.st_dev != device:
             continue
         entries += 1
         identity = (info.st_dev, info.st_ino)

@@ -94,6 +94,9 @@ def test_composed_run_observes_reconnection_and_artifact_completion(
         def tick(self) -> None:
             raise AssertionError("another controller owns scheduling")
 
+        def _worker_for_attempt(self, _attempt: dict[str, str]) -> None:
+            return None  # local queue: no Colab UNKNOWN handoff
+
         def list_experiments(self) -> list[dict[str, str]]:
             status, ingestion = next(states)
             return [

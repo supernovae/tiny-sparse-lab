@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import psutil
 
@@ -35,6 +35,11 @@ class HostWorkPlan:
     worker_memory_bytes: int
     operator_cap: int | None
     workers: int
+
+
+def _measure_memory() -> Any:
+    """Single host-RAM observation point (the test suite pins it; see tests/conftest.py)."""
+    return psutil.virtual_memory()
 
 
 def _positive(value: object) -> int | None:
@@ -65,7 +70,7 @@ def plan_host_workers(
     except _OBSERVATION_ERRORS:
         affinity = None
     try:
-        memory = psutil.virtual_memory()
+        memory = _measure_memory()
         available, total = _positive(memory.available), _positive(memory.total)
         if memory.available == 0:
             available = 0
@@ -99,7 +104,7 @@ def plan_host_workers(
 def sha_work_plan(*, operator_cap: int = 1) -> HostWorkPlan:
     """Serial default: medium end-to-end cold SHA did not demonstrate parallel ROI."""
     try:
-        total = _positive(psutil.virtual_memory().total) or 0
+        total = _positive(_measure_memory().total) or 0
     except _OBSERVATION_ERRORS:
         total = 0
     return plan_host_workers(

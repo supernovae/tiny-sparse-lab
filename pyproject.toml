@@ -72,4 +72,5 @@ markers = [
     "xpu: requires actual Intel XPU hardware",
     "mlx: requires the optional Apple MLX runtime and Metal hardware",
     "network: requires external network access",
+    "slow: excluded from the fast suite (listed in tests/slow_tests.txt; see docs/testing.md)",
 ]
