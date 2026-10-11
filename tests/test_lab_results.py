@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,41 @@ from sparselab.lab_results import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("kind", ["try", "probe"])
+@pytest.mark.parametrize("missing_subject", [True, False])
+def test_compare_missing_lm_eval_hint_pins_exported_record_after_latest_moves(
+    tmp_path: Path, kind: str, missing_subject: bool
+) -> None:
+    from sparselab.probes.compare import as_json, compare, render
+
+    lab = tmp_path / "lab"
+    run = _run(lab)
+    path = _record(lab, run, kind)
+    record = json.loads(path.read_text())
+    if kind == "try":
+        record["arms"]["candidate"]["heldout"] = {"loss": 1.0}
+    exported = tmp_path / "exported record.json"
+    exported.write_text(json.dumps(seal(record)))
+    (run / "checkpoints/step-2").mkdir()
+    (run / "checkpoints/latest.json").write_text('{"relative_path":"step-2"}')
+    specs = [str(exported), "ref:SmolLM2-135M"]
+    if not missing_subject:
+        specs.reverse()
+    report = compare(specs[0], specs[1:], lab_dir=lab)
+    row = next(p for p in report["comparisons"][0]["pairs"] if p["metric"] == "lm_eval")
+    assert row["status"] == "missing_evidence"
+    command = shlex.split(row["note"].split("`")[1])
+    assert command == ["sparselab", "probe", str(exported), "--tier", "full"]
+    target = resolve_checkpoint(command[2], lab_dir=lab)
+    assert target.checkpoint == str(run / "checkpoints/step-1")
+    assert target.expected_sha256 == "a" * 64
+    assert row["note"] in render(report)
+    assert row in as_json(report)["comparisons"][0]["pairs"]
+    (run / "checkpoints/step-1").rmdir()
+    with pytest.raises(ResultLookupError, match="recorded checkpoint is unavailable"):
+        resolve_checkpoint(command[2], lab_dir=lab)
 
 
 def _run(lab: Path, name: str = "candidate", backend: str = "cpu") -> Path:

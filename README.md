@@ -73,6 +73,12 @@ explains verdicts and optional full-tier evaluation. Missing evidence and
 `NOT_COMPARABLE` are not wins. Keep a separate untouched evaluation and repeat
 promising changes with more seeds before making quality claims.
 
+In the probe example, `TRY_ID` pins the candidate, while `--vs BASELINE_RUN`
+loads that run's current `latest`. To pin both sides, use the baseline's recorded
+checkpoint path instead: `probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GENERATION
+--backend cpu --tier standard`. Copy the baseline run directory and generation
+from the try record; another record ID selects that record's candidate.
+
 `sparselab dashboard` opens the [lab dashboard](docs/dashboard.md): Home,
 Experiments, Models, Behaviors and Explorer, with detailed run telemetry below.
 

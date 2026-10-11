@@ -18,12 +18,28 @@ or the target checkpoint recorded by a probe. Supplying a record does not
 implicitly select its baseline, tier, final split, backend or resource envelope.
 `--vs OTHER_RECORD` selects the **other record's candidate**.
 
+The headline probe example pins only the candidate. `--vs BASELINE_RUN` loads
+the baseline run's current `latest`, which may have advanced since the try.
+To use the same baseline the try scored, copy its `arms.baseline.run_dir` and
+`arms.baseline.checkpoint` from `report TRY_ID --json` and combine them:
+
+```sh
+sparselab probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GENERATION --backend cpu --tier standard
+```
+
+This pins both sides; there is no record selector for a try's baseline arm.
+
 ## IDs, paths and missing evidence
 
 All four commands use the same lookup:
 
 - A record ID is looked up under `LAB/tries` and `LAB/probes`, where `LAB`
   defaults to `WORK_DIR/lab`. `--lab-dir` selects another lab.
+- Bare IDs also match existing entries in the current working directory,
+  preserving the previous local-path lookup. If that is the only match, it is
+  used; if a lab location also matches, lookup reports `ambiguous_result`.
+  This includes unrelated same-named local directories. Use an absolute path
+  to choose a location unambiguously; do not assume a bare ID is lab-only.
 - A record file or directory can be passed explicitly, including an exported
   sealed JSON file with a different filename. Its digest is verified.
 - `probe` and `explore` also accept run IDs under `LAB/runs` or `--runs-dir`,

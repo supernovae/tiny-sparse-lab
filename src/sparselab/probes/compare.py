@@ -10,6 +10,7 @@ Nothing is compared silently across groups.
 
 from __future__ import annotations
 
+import shlex
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -158,11 +159,21 @@ def pair(
     if a is None or b is None:
         who = subject if a is None else other
         hint = metric.missing_hint
-        if metric_id == "lm_eval" and who.get("run_id"):
-            hint = f"run `sparselab probe {who['run_id']} --tier full` (lmeval extra)"
-        elif metric_id == "fact_recall" and who.get("run_id"):
+        # A run may have advanced since this measurement. Native comparison
+        # subjects are record candidates; their record path pins the generation
+        # and digest, including exported records outside the default lab root.
+        target = (
+            who.get("run_id")
+            if who["kind"] == "reference"
+            else who.get("path")
+            if who.get("role") == "candidate"
+            else None
+        )
+        if metric_id == "lm_eval" and target:
+            hint = f"run `sparselab probe {shlex.quote(str(target))} --tier full` (lmeval extra)"
+        elif metric_id == "fact_recall" and target:
             tier = "full" if who["kind"] == "reference" else "standard"
-            hint = f"run `sparselab probe {who['run_id']} --tier {tier}`"
+            hint = f"run `sparselab probe {shlex.quote(str(target))} --tier {tier}`"
         return {
             **out,
             "status": "missing_evidence",
