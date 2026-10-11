@@ -46,7 +46,8 @@ train a model or establish scientific results.
 ## Remaining-contract assessment
 
 Assessed against main at `5eeeb7e98fb9e841562061e78db61005c603ced3`, after
-the everyday option reduction. **Retain all seven remaining paths.** Keep
+the everyday option reduction. **Retain all seven remaining launch paths
+(eight counting `try`).** Keep
 `try` as the ordinary comparison entry point and `experiment submit` as the
 generic queue entry point. The earlier removal of `run` eliminated two ways
 to request the same queue work. The remaining paths select different work or
@@ -86,11 +87,18 @@ reason by themselves to preserve a live command.
 
 Study queue submission and receipt publication are separate durable operations.
 `submit_study` rejects an existing receipt before dispatch and uses exclusive
-creation after `Controller.submit_many`. If publication then fails, it raises
-an error naming the already-submitted run IDs; it does not roll back the queue
-or provide a dedicated receipt reconstruction command. Collection still needs
-the original coordinate/config/study/card identities. Operators must preserve
-the failure output and queued identities rather than retry submission blindly.
+creation after `Controller.submit_many`. Only an `OSError` from
+`_write_json_exclusive` is wrapped in an error naming the already-submitted
+run IDs; other exception types are not wrapped with those IDs. Publication
+failure does not roll back the queue or provide a dedicated receipt
+reconstruction command. The exclusive `open("xb")` creates the file before
+writing: a failed write, flush or `fsync` can leave a partial receipt or one
+whose durability is unconfirmed. Later submission rejects that existing path,
+and collection cannot parse a truncated JSON receipt. Preserve and inspect any
+such receipt, quarantining it with its bytes intact if needed, along with the
+failure output and queued identities. Moving or deleting the receipt does not
+undo queued submissions or make resubmission safe. Collection still needs the
+original coordinate/config/study/card identities; do not retry submission blindly.
 This is a recovery limitation, not evidence that raw matrix submission can
 replace the study contract.
 
