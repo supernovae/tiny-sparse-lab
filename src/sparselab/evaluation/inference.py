@@ -221,11 +221,17 @@ def load_run(
     authorization: RuntimeAuthorization | None = None,
     proof_store: ProofStore | None = None,
     verification_mode: VerificationMode = "cold",
+    expected_checkpoint_sha256: str | None = None,
 ) -> InferenceRun:
     run = (runs_dir / run_id).resolve()
     config, manifest, selected, metadata, manager = _verified_checkpoint(
         run, checkpoint, proof_store=proof_store, verification_mode=verification_mode
     )
+    if (
+        expected_checkpoint_sha256 is not None
+        and metadata["sha256"] != expected_checkpoint_sha256
+    ):
+        raise ValueError("checkpoint digest differs from the sealed lab record")
     runtime_config = _ephemeral_config(config, backend)
     requested = runtime_config.runtime.backend
     require_authorization(runtime_config, authorization)

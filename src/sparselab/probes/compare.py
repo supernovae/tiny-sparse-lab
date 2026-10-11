@@ -14,7 +14,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from sparselab.lab_records import read_lab_record, resolve_record
+from sparselab.lab_records import read_lab_record
+from sparselab.lab_results import ResultLookupError, resolve_record
 from sparselab.probes import metrics
 from sparselab.probes.points import (
     METRICS,
@@ -99,7 +100,12 @@ def resolve_point(
                 "only `probe --final` results"
             )
         if not candidate:
-            raise ValueError(f"{spec}: no scored candidate in this record")
+            raise ResultLookupError(
+                spec,
+                "missing_evidence",
+                "no scored candidate in this record",
+                "use report to inspect the retained stop/missing evidence",
+            )
         sha = candidate[0]["checkpoint_sha256"]
         own = _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
     return with_checkpoint_evidence(own, pool)

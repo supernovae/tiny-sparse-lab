@@ -510,16 +510,17 @@ def explore(
     Returns ``(exploration, cache path)``. A too-big model returns only its
     architecture with ``unavailable`` set (nothing is loaded).
     """
-    from sparselab.probes.cli import load_target, resolve_target
+    from sparselab.lab_results import resolve_checkpoint
+    from sparselab.probes.cli import load_target
 
-    run, _ = resolve_target(target, lab_dir=lab_dir, runs_dir=runs_dir)
-    arch = architecture(run_config(run))
+    resolved = resolve_checkpoint(target, lab_dir=lab_dir, runs_dir=runs_dir)
+    arch = architecture(run_config(resolved.run))
     too_big = size_check(arch)
     if too_big is not None:
         return (
             {
                 "format": EXPLORER_FORMAT,
-                "target": {"run_id": run.name},
+                "target": {"run_id": resolved.run.name},
                 "architecture": arch,
                 "unavailable": too_big,
             },

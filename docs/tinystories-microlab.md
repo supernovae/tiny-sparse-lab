@@ -96,8 +96,9 @@ uv run --locked --extra cpu sparselab explore CANDIDATE_RUN --text "Once upon a 
 uv run --locked --extra cpu sparselab dashboard
 ```
 
-`probe` needs run IDs, not `TRY_ID`; it inherits the saved backend unless explicitly
-overridden. `--backend cpu` also makes this example usable for compatible
+`probe` accepts run IDs or `TRY_ID` (its recorded candidate checkpoint); it
+inherits the saved backend unless explicitly overridden. `--backend cpu` also
+makes this example usable for compatible
 checkpoints trained on a GPU. `explore` defaults to CPU. The dashboard runs in
 the foreground; stop it with Ctrl-C or use another terminal.
 

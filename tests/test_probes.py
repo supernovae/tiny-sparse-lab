@@ -1055,7 +1055,8 @@ def test_probe_cli_json_and_report(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     root, record = tried
-    candidate = record["arms"]["candidate"]["run_id"]
+    # The same sealed record handle used by report selects the exact candidate.
+    candidate = record["try_id"]
     baseline = record["arms"]["baseline"]["run_id"]
     out = _cli(
         monkeypatch,
@@ -1070,6 +1071,10 @@ def test_probe_cli_json_and_report(
         "--json",
     )
     result = json.loads(out)
+    assert (
+        result["target"]["checkpoint_sha256"]
+        == record["arms"]["candidate"]["checkpoint_sha256"]
+    )
     assert set(result) >= RESULT_KEYS | {"probe_id", "record_sha256", "record"}
     assert result["tiers_run"][0] == "fast"
     ids = [r["id"] for r in result["probes"]]
@@ -1400,7 +1405,9 @@ def test_explore_cli_reads_a_lab_run_through_the_verified_loader(
     root, record = tried
     run_id = record["arms"]["candidate"]["run_id"]
     lab = root / "work" / "lab"
-    out = _cli(monkeypatch, capsys, root, "explore", run_id, "--text", "Once upon a")
+    out = _cli(
+        monkeypatch, capsys, root, "explore", record["try_id"], "--text", "Once upon a"
+    )
     assert out.startswith(f"EXPLORE  {run_id}")
     assert "cache:" in out
     (cached,) = cached_explorations(lab)

@@ -93,6 +93,11 @@ Records live in `WORK_DIR/lab/tries/<try_id>/try.json` and runs in
 completed comparison, 3 for `NOT_COMPARABLE`, 130 for an interrupted try and
 1 for a failure (the record keeps the error).
 
+The same sealed record ID works with `report`, `compare`, `probe` and `explore`.
+The latter two load its recorded candidate checkpoint; they never substitute
+the run's newer `latest`. See [result lookup](result-lookup.md) for the distinction
+between a run, checkpoint and sealed result, and for backend selection.
+
 ## Limits
 
 One seed per arm and one held-out loss: a lab verdict is a direction to follow
