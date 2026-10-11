@@ -101,13 +101,13 @@ set:
   model.ffn_dim: 1536
 YAML
 uv run --locked --no-sync sparselab try wider-ffn.yaml \
-  --vs configs/first_model_20m_cuda.yaml "${GPU[@]}" --probe-tier standard
+  --vs configs/first_model_20m_cuda.yaml "${GPU[@]}" --config standard
 uv run --locked --no-sync sparselab report TRY_ID
 ```
 
 The first try trains the baseline (the config as-is) and the candidate, then
 scores both on the same held-out windows. Any single-variable `set:` works.
-The try's own probes (`--probe-tier`) run under the try's runtime
+The try's own probes (declaration `probe_tier`) run under the try's runtime
 authorization; standalone probes in step 3 need `--backend cpu`.
 
 ## 2. Seed-noise check: 3–5 paired seeds before believing a verdict
@@ -127,9 +127,10 @@ uv run --locked --no-sync sparselab config derive configs/first_model_20m_cuda.y
   --set training.max_steps=1000 --set training.max_tokens=8192000 \
   --output "$SPARSELAB_WORK_DIR/first_model_short.yaml"
 for seed in 1 2 3; do
+  printf 'seed: %s\nprobe_tier: none\n' "$seed" > "$SPARSELAB_WORK_DIR/paired-try.yaml"
   uv run --locked --no-sync sparselab try wider-ffn.yaml \
     --vs "$SPARSELAB_WORK_DIR/first_model_short.yaml" "${GPU[@]}" \
-    --seed "$seed" --probe-tier none
+    --config "$SPARSELAB_WORK_DIR/paired-try.yaml"
 done
 ```
 

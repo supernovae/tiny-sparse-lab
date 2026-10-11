@@ -252,7 +252,9 @@ def test_wall_limit_is_opt_in_and_stops_safely(lab: tuple[Path, Path]) -> None:
         _delta(root, "w.yaml", {"model.ffn_dim": 128}),
         baseline,
         work_dir=root / "work",
-        max_wall_seconds=1e-9,
+        resource_envelope=ResourceEnvelope(
+            resource_envelope_version=1, lab_try={"max_wall_seconds_per_arm": 1e-9}
+        ),
     )
     assert record["status"] == "interrupted"
     assert record["interruption"]["reason"] == "wall_time_limit"
@@ -338,7 +340,13 @@ def test_help_lists_fast_path_first_and_every_command_once() -> None:
 def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     """Loop-time guard: YAML delta -> scored report through the public CLI."""
     baseline = _write_inputs(tmp_path, train_tokenizer_now=False)
-    delta = _delta(tmp_path, "loop.yaml", {"model.ffn_dim": 128})
+    delta = _delta(tmp_path, "loop.yaml", {"model.ffn_dim": 128, "seed": 9})
+    (tmp_path / "bounds.yaml").write_text(
+        "resource_envelope_version: 1\nlab_try:\n"
+        "  tokenizer_batch_documents: 8\n  tokenizer_batch_source_bytes: 1024\n"
+    )
+    request = tmp_path / "try-policy.yaml"
+    request.write_text("seed: 7\nresource_envelope: bounds.yaml\n")
     environment = {**os.environ, "SPARSELAB_WORK_DIR": str(tmp_path / "work")}
 
     def cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -354,7 +362,9 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     started = time.monotonic()
     tokenizer = cli("tokenizer", "train", str(tmp_path / "tokenizer.yaml"))
     assert tokenizer.returncode == 0, tokenizer.stderr[-2000:]
-    tried = cli("try", str(delta), "--vs", str(baseline), "--json")
+    tried = cli(
+        "try", str(delta), "--vs", str(baseline), "--config", str(request), "--json"
+    )
     assert tried.returncode == 0, tried.stderr[-2000:]
     record = json.loads(tried.stdout)
     report = cli("report", record["try_id"])
@@ -362,6 +372,10 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     assert report.returncode == 0, report.stderr[-2000:]
     assert "verdict:" in report.stdout and record["try_id"] in report.stdout
     assert record["comparison"]["comparable"] is True
+    assert record["seed"]["baseline"] == record["seed"]["candidate"] == 7
+    assert record["request"]["seed"] == 7
+    assert record["resources"]["tokenizer_batch_documents"] == 8
+    assert record["resources"]["tokenizer_batch_source_bytes"] == 1024
     # The fast probe tier is part of every try and lands in the same record.
     assert record["probe"]["tiers_run"] == ["fast"]
     assert record["probe"]["verdict"]["action"]

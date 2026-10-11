@@ -52,7 +52,5 @@ runtime; cached diagnostics are not evidence of that device's execution.
 The native loader, cancellation sentinel, per-stage resource checks and OOM
 cleanup are unchanged.
 
-This is a scoped part of option reduction. `try` (13 options) still needs a validated declaration migration;
-[probe](probe-config.md) now has five options, while `compare` (5) and
-`report` (2) already meet the beginner-option bound. Full sealed reporting and
-read-only comparison boundaries remain unchanged.
+Everyday counts excluding help are try 5, probe 5, explore 5, compare 5,
+report 2. See [try declarations](try-config.md) and [probe declarations](probe-config.md).

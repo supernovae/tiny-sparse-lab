@@ -77,7 +77,9 @@ slice.
 
 To look inside a small checkpoint (≤ 60M parameters), run `sparselab explore
 RUN [--config explore.yaml] [--json]` (CPU by default; `--runtime-profile`/`--runtime`,
-`--resource-envelope` go through the same runtime preparation as `probe`). It
+`--resource-envelope` use the same native loaders and runtime preparation as
+`probe`, whose direct profile/envelope paths are selected through its validated
+declaration). It
 reports the architecture, per-token loss and top-k, attention maps, weight
 statistics, expert routing and memory lookups, cached under `LAB/explorer`. It is descriptive, not a verdict.
 `sparselab dashboard` shows the same data for people (Home, Experiments,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Literal
 
@@ -13,11 +14,30 @@ from sparselab import host_capacity
 from sparselab.workspace_preflight import check_storage
 
 
+class LabTryLimits(BaseModel):
+    """Operational limits for each try arm, including its data preparation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    max_wall_seconds_per_arm: float | None = Field(
+        default=None, strict=True, gt=0, allow_inf_nan=False
+    )
+    tokenizer_batch_documents: int | None = Field(
+        default=None, strict=True, ge=1, le=256
+    )
+    tokenizer_batch_source_bytes: int | None = Field(
+        default=None, strict=True, ge=1, le=8388608
+    )
+
+
 class ResourceEnvelope(BaseModel):
     """Versioned operational limits, separate from scientific run configuration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    lab_try: LabTryLimits | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     resource_envelope_version: Literal[1]
     max_rss_bytes: int | None = Field(default=None, strict=True, gt=0)
     max_host_memory_fraction: float | None = Field(
@@ -37,6 +57,61 @@ class ResourceEnvelope(BaseModel):
         if type(value) is not int:
             raise ValueError("resource_envelope_version must be integer 1")
         return value
+
+
+def resolve_lab_try_limits(
+    envelope: ResourceEnvelope | None,
+    *,
+    max_wall_seconds: float | None,
+    tokenizer_batch_documents: int | None,
+    tokenizer_batch_source_bytes: int | None,
+) -> tuple[float | None, int, int]:
+    """Use declared limits while preserving tighter explicit API limits."""
+    from sparselab.data.encoding import (
+        TOKENIZER_BATCH_DOCUMENTS,
+        TOKENIZER_BATCH_SOURCE_BYTES,
+        validate_tokenizer_batch_limits,
+    )
+
+    if max_wall_seconds is not None and (
+        isinstance(max_wall_seconds, bool)
+        or not isinstance(max_wall_seconds, (int, float))
+        or not math.isfinite(max_wall_seconds)
+        or max_wall_seconds <= 0
+    ):
+        raise ValueError("max_wall_seconds must be positive and finite")
+    validate_tokenizer_batch_limits(
+        TOKENIZER_BATCH_DOCUMENTS
+        if tokenizer_batch_documents is None
+        else tokenizer_batch_documents,
+        TOKENIZER_BATCH_SOURCE_BYTES
+        if tokenizer_batch_source_bytes is None
+        else tokenizer_batch_source_bytes,
+    )
+    limits = envelope.lab_try if envelope is not None else None
+
+    def tighter(explicit, declared, default=None):
+        if explicit is not None and declared is not None:
+            return min(explicit, declared)
+        return (
+            explicit
+            if explicit is not None
+            else (declared if declared is not None else default)
+        )
+
+    return (
+        tighter(max_wall_seconds, limits.max_wall_seconds_per_arm if limits else None),
+        tighter(
+            tokenizer_batch_documents,
+            limits.tokenizer_batch_documents if limits else None,
+            TOKENIZER_BATCH_DOCUMENTS,
+        ),
+        tighter(
+            tokenizer_batch_source_bytes,
+            limits.tokenizer_batch_source_bytes if limits else None,
+            TOKENIZER_BATCH_SOURCE_BYTES,
+        ),
+    )
 
 
 def load_resource_envelope(path: Path) -> ResourceEnvelope:

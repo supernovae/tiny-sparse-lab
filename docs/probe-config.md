@@ -76,6 +76,6 @@ checkpoint/digest binding, scoring, suite identity, resource checks, partial
 records and safe cancellation are preserved. Historical records remain readable
 without adding or rewriting fields. `report` returns the whole sealed record.
 
-This is a bounded continuation of option reduction. Counts excluding help are
-try 13, probe 5, explore 5, compare 5, report 2. Try's paired-seed and probe policy,
-per-arm wall stops and preparation batching remain the next migration scope.
+Counts excluding help are try 5, probe 5, explore 5, compare 5, report 2.
+See [try declarations](try-config.md) for paired seeds, optional probes and
+native envelope limits for per-arm wall stops and preparation batching.
