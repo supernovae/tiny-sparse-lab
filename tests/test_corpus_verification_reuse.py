@@ -203,7 +203,7 @@ def test_operation_memo_survives_reads_and_adjacent_export(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Consumer reads and sibling publication must preserve the complete seal."""
-    root, release, _, _ = corpus
+    root, release, fixture_export, _ = corpus
     manifests = [release / "manifest.json"] + [
         path / "manifest.json" for path in _snapshot_paths(release)
     ]
@@ -228,6 +228,7 @@ def test_operation_memo_survives_reads_and_adjacent_export(
         changed = tmp_path / "base.yaml"
         changed.write_text(CONFIG.read_text().replace("seed: 7", "seed: 11"))
         export = export_release(release, "lm", changed, 300, root)
+        assert export != fixture_export
         assert export.is_dir()
         with _verification_operation():
             assert verify_release(release) == manifest
