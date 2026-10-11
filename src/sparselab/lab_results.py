@@ -99,6 +99,15 @@ def resolve_result(
             )
         path = record_files[0] if record_files else path
         return _record_result(spec, path)
+    # An exported record can live inside a run. Only native pointer/manifest
+    # JSON names belong to checkpoint resolution; don't treat a renamed record
+    # as a checkpoint simply because one of its ancestors is a run directory.
+    if (
+        path.is_file()
+        and path.suffix == ".json"
+        and path.name not in {"latest.json", "best.json", "manifest.json"}
+    ):
+        return _record_result(spec, path)
     run = _run_root(path if path.is_dir() else path.parent)
     if run is not None:
         return LabResult(path=path, run=run)

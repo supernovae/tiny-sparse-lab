@@ -88,6 +88,20 @@ def test_direct_run_checkpoint_and_custom_runs_directory(tmp_path: Path) -> None
         resolve_record(str(run), tmp_path)
 
 
+@pytest.mark.parametrize("kind", ["try", "probe"])
+def test_exported_record_inside_run_is_still_a_record(
+    tmp_path: Path, kind: str
+) -> None:
+    run = _run(tmp_path)
+    source = _record(tmp_path, run, kind)
+    exported = run / "saved-result.json"
+    exported.write_bytes(source.read_bytes())
+    assert resolve_record(str(exported), tmp_path) == exported
+    target = resolve_checkpoint(str(exported), lab_dir=tmp_path)
+    assert target.checkpoint == str(run / "checkpoints/step-1")
+    assert target.expected_sha256 == "a" * 64
+
+
 def test_missing_recorded_checkpoint_never_falls_back_to_latest(tmp_path: Path) -> None:
     run = _run(tmp_path)
     path = _record(tmp_path, run)
