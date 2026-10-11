@@ -61,7 +61,9 @@ def run_probe(
     final verdict on a chosen candidate, never a selection signal.
     """
     from sparselab.reference_models import is_reference, reference_for
+    from sparselab.resource_envelope import require_envelope_applicability
 
+    require_envelope_applicability(resource_envelope, operation="probe")
     lm_spec = lm_eval_spec(lm_eval_tasks, lm_eval_limit)  # bad options fail first
     if baseline_spec is not None and is_reference(baseline_spec):
         raise ValueError(

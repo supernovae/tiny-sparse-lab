@@ -84,6 +84,7 @@ from sparselab.resource_envelope import (
     check_envelope,
     current_process_rss_bytes,
     load_resource_envelope,
+    require_envelope_applicability,
 )
 from sparselab.runtime_forecasting import runtime_forecast_planning
 from sparselab.runtime_profile import (
@@ -4326,6 +4327,9 @@ def main() -> None:
             args.resource_envelope_value = load_resource_envelope(
                 args.resource_envelope
             )
+            require_envelope_applicability(
+                args.resource_envelope_value, operation=args.command
+            )
         except (ValueError, OSError) as error:
             raise SystemExit(f"sparselab: {error}") from None
     else:
@@ -4389,7 +4393,11 @@ def main() -> None:
             workspace = args.work_dir or Path.cwd()
         try:
             check_envelope(
-                args.resource_envelope_value,
+                # Try resolves scoped limits at its controller boundary; this
+                # preflight only measures the common host/storage constraints.
+                args.resource_envelope_value.model_copy(update={"lab_try": None})
+                if args.command == "try"
+                else args.resource_envelope_value,
                 workspace=workspace,
                 rss_bytes=current_process_rss_bytes(),
             )

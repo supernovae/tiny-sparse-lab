@@ -691,6 +691,7 @@ def run_try(
 
     if train_fn is None:
         from sparselab.training.trainer import train as train_fn
+    declared_envelope = resource_envelope
     max_wall_seconds, tokenizer_batch_documents, tokenizer_batch_source_bytes = (
         resolve_lab_try_limits(
             resource_envelope,
@@ -699,6 +700,10 @@ def run_try(
             tokenizer_batch_source_bytes=tokenizer_batch_source_bytes,
         )
     )
+    # Scoped limits are now explicit native trainer arguments. Delegated
+    # consumers receive only common bounds and cannot silently ignore lab_try.
+    if resource_envelope is not None and resource_envelope.lab_try is not None:
+        resource_envelope = resource_envelope.model_copy(update={"lab_try": None})
     started_at = (now or (lambda: datetime.now(UTC)))()
     started = time.monotonic()
     root = lab_root(Path(work_dir), lab_dir)
@@ -877,8 +882,8 @@ def run_try(
         record["resources"].update(
             {
                 "resource_envelope": None
-                if resource_envelope is None
-                else resource_envelope.model_dump(mode="json"),
+                if declared_envelope is None
+                else declared_envelope.model_dump(mode="json"),
                 "envelope_reading": envelope_reading,
                 "max_wall_seconds_per_arm": max_wall_seconds,
                 "tokenizer_batch_documents": tokenizer_batch_documents,

@@ -47,8 +47,11 @@ finite; there is no implicit timeout. Batching uses strict integers: documents
 and 1048576); smaller batches bound transient preparation memory. Direct API
 limits remain supported and the tighter of explicit and declared limits wins.
 Native trainer preparation, checkpointed wall stops, resource preflight,
-cancellation and accounting retain their current behavior. Other envelope users
-retain their existing limits; absent `lab_try` preserves legacy serialization.
+cancellation and accounting retain their current behavior. Other envelope consumers reject a non-null `lab_try` section before execution,
+including an empty section. Remove it when using the envelope outside try. Try
+resolves these limits into native trainer arguments and delegates only the
+remaining common host/storage bounds; sealed records retain the full original
+envelope. Absent `lab_try` preserves legacy serialization.
 
 The removed `--seed`, `--probe-tier`, `--fresh-baseline`, `--lab-dir`,
 `--runtime-profile`, `--resource-envelope`, `--max-wall-seconds` and

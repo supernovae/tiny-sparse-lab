@@ -134,6 +134,17 @@ def load_resource_envelope(path: Path) -> ResourceEnvelope:
         raise ValueError(f"invalid resource envelope {path}: {error}") from error
 
 
+def require_envelope_applicability(
+    envelope: ResourceEnvelope | None, *, operation: str
+) -> None:
+    """Reject scoped limits before a consumer can silently ignore them."""
+    if envelope is not None and envelope.lab_try is not None and operation != "try":
+        raise ValueError(
+            f"resource envelope lab_try limits apply only to try, not {operation}; "
+            "remove lab_try for this operation or select sparselab try"
+        )
+
+
 def current_process_rss_bytes() -> int | None:
     """Return this process's resident set size, or None when unavailable."""
     try:
@@ -150,13 +161,14 @@ def check_envelope(
     pending_workers: int = 0,
     queue_depth: int = 0,
 ) -> dict[str, int | float | None]:
-    """Measure host/storage headroom and reject only violated requested limits.
+    """Reject unconsumed scoped limits, then measure common host/storage bounds.
 
     Missing observations remain ``None``; they fail closed only when a limit
     requires them. Storage is sampled at the existing workspace ancestor, not
     by creating the destination directory. Callers supply their process RSS
     (or ``None`` if it is unavailable) and current worker/queue occupancy.
     """
+    require_envelope_applicability(envelope, operation="native resource checks")
     if rss_bytes is not None and (type(rss_bytes) is not int or rss_bytes < 0):
         raise ValueError("rss_bytes must be a nonnegative integer or None")
     for name, count in (

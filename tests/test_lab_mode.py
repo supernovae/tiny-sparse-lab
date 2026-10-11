@@ -246,19 +246,28 @@ def test_sigint_from_the_cli_stops_safely_and_records_interruption(
     assert (progress_path.parent / "checkpoints/latest.json").is_file()
 
 
-def test_wall_limit_is_opt_in_and_stops_safely(lab: tuple[Path, Path]) -> None:
+@pytest.mark.parametrize("explicit_wall,declared_wall", [(None, 1e-9), (1e-9, 60)])
+def test_wall_limit_is_opt_in_and_stops_safely(
+    lab: tuple[Path, Path], explicit_wall: float | None, declared_wall: float
+) -> None:
     root, baseline = lab
     record, _ = run_try(
         _delta(root, "w.yaml", {"model.ffn_dim": 128}),
         baseline,
         work_dir=root / "work",
+        max_wall_seconds=explicit_wall,
         resource_envelope=ResourceEnvelope(
-            resource_envelope_version=1, lab_try={"max_wall_seconds_per_arm": 1e-9}
+            resource_envelope_version=1,
+            lab_try={"max_wall_seconds_per_arm": declared_wall},
         ),
     )
     assert record["status"] == "interrupted"
     assert record["interruption"]["reason"] == "wall_time_limit"
     assert record["resources"]["max_wall_seconds_per_arm"] == 1e-9
+    assert (
+        record["resources"]["resource_envelope"]["lab_try"]["max_wall_seconds_per_arm"]
+        == declared_wall
+    )
 
 
 def test_resource_envelope_is_enforced_before_training(
@@ -376,6 +385,14 @@ def test_cpu_smoke_loop_yaml_to_report_within_budget(tmp_path: Path) -> None:
     assert record["request"]["seed"] == 7
     assert record["resources"]["tokenizer_batch_documents"] == 8
     assert record["resources"]["tokenizer_batch_source_bytes"] == 1024
+    assert (
+        record["resources"]["resource_envelope"]
+        == record["request"]["resource_envelope"]
+    )
+    assert (
+        record["resources"]["resource_envelope"]["lab_try"]["tokenizer_batch_documents"]
+        == 8
+    )
     # The fast probe tier is part of every try and lands in the same record.
     assert record["probe"]["tiers_run"] == ["fast"]
     assert record["probe"]["verdict"]["action"]

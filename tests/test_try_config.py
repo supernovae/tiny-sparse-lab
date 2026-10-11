@@ -372,3 +372,94 @@ def test_invalid_envelope_precedes_native_runtime(tmp_path, monkeypatch):
             str(tmp_path / "try.yaml"),
         )
     assert not (tmp_path / "lab").exists()
+
+
+@pytest.mark.parametrize("command", ["probe", "explore", "train", "stage"])
+@pytest.mark.parametrize("limits", [{}, {"max_wall_seconds_per_arm": 60}])
+def test_cli_rejects_try_limits_before_runtime_or_outputs(
+    tmp_path, monkeypatch, command, limits
+):
+    import sparselab.cli.main as cli
+
+    bounds = tmp_path / "bounds.yaml"
+    bounds.write_text(
+        yaml.safe_dump({"resource_envelope_version": 1, "lab_try": limits})
+    )
+    if command == "probe":
+        policy = tmp_path / "probe.yaml"
+        policy.write_text(
+            "resource_envelope: bounds.yaml\nruntime_profile: missing.yaml"
+        )
+        args = ["probe", "missing", "--config", str(policy)]
+    else:
+        args = [
+            command,
+            "missing",
+            "--resource-envelope",
+            str(bounds),
+            "--runtime-profile",
+            "missing.yaml",
+        ]
+        if command == "stage":
+            args.extend(["--output", str(tmp_path / "stage")])
+    monkeypatch.setattr(
+        cli, "load_runtime_profile", lambda *_: pytest.fail("runtime reached")
+    )
+    with pytest.raises(
+        SystemExit, match=f"lab_try limits apply only to try, not {command}"
+    ):
+        _cli(monkeypatch, tmp_path, *args)
+    assert not (tmp_path / "lab").exists()
+    assert not (tmp_path / "stage").exists()
+
+
+@pytest.mark.parametrize("command", ["probe", "explore", "train", "stage"])
+def test_direct_native_consumers_reject_try_limits(tmp_path, monkeypatch, command):
+    from sparselab import explorer, staging
+    from sparselab.config.loading import load_config
+    from sparselab.probes.cli import run_probe
+    from sparselab.training import trainer
+
+    envelope = ResourceEnvelope(
+        resource_envelope_version=1, lab_try={"max_wall_seconds_per_arm": 60}
+    )
+    config = load_config(Path(__file__).resolve().parents[1] / "configs/smoke_cpu.yaml")
+    monkeypatch.setattr(trainer, "require_model_runtime_allowed", lambda: None)
+    monkeypatch.setattr(staging, "require_model_runtime_allowed", lambda: None)
+    monkeypatch.setattr(trainer, "require_authorization", lambda *_: None)
+    monkeypatch.setattr(
+        trainer, "_train_impl", lambda *_a, **_k: pytest.fail("training reached")
+    )
+    with pytest.raises(ValueError, match="lab_try limits apply only to try"):
+        if command == "probe":
+            run_probe(
+                "missing", None, lab_dir=tmp_path / "lab", resource_envelope=envelope
+            )
+        elif command == "explore":
+            explorer.explore(
+                "missing", lab_dir=tmp_path / "lab", resource_envelope=envelope
+            )
+        elif command == "train":
+            trainer.train(config, resource_envelope=envelope)
+        else:
+            staging.stage(
+                config,
+                tmp_path / "stage",
+                through="inspect",
+                resource_envelope=envelope,
+            )
+    assert not (tmp_path / "lab").exists()
+    assert not (tmp_path / "stage").exists()
+
+
+def test_shared_resource_boundary_rejects_unconsumed_try_limits(tmp_path, monkeypatch):
+    from sparselab import resource_envelope as resource
+
+    envelope = ResourceEnvelope(resource_envelope_version=1, lab_try={})
+    monkeypatch.setattr(
+        resource.host_capacity,
+        "measure_memory",
+        lambda: pytest.fail("measurement reached"),
+    )
+    with pytest.raises(ValueError, match="lab_try limits apply only to try"):
+        resource.check_envelope(envelope, workspace=tmp_path, rss_bytes=0)
