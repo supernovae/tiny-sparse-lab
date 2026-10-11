@@ -649,32 +649,45 @@ def test_file_receipt_kind_rechecks_changed_verifier(
     assert store.lookup(binding)
 
 
+# Basename matching below intentionally changes every cli.py, including corpus/cli.py.
+@pytest.mark.parametrize("module", ["trainer.py", "cli.py", "mixture.py", "sources.py"])
 def test_unrelated_module_change_keeps_prepared_receipt_warm(
-    trusted_prepared, monkeypatch
+    trusted_prepared, monkeypatch, module
 ):
     from sparselab import verifier_authority as authority_module
 
     root, _, prepared = trusted_prepared
     store = ProofStore(root)
     _load(prepared, store)
+    before = verifier_authority("prepared_array", 1)
     original = authority_module.Path.read_bytes
 
     def changed(self):
         raw = original(self)
         return (
-            raw + b"unrelated training/UI"
-            if self.name in {"trainer.py", "cli.py"}
+            raw + b"\n# unrelated preparation/execution/UI\n"
+            if self.name == module
             else raw
         )
 
+    def unexpected_payload_hash(path, *args, **kwargs):
+        if path.suffix == ".npy":
+            raise AssertionError(f"warm array payload was rehashed: {path}")
+        return original_hash(path, *args, **kwargs)
+
+    original_hash = manifests.sha256_file
     monkeypatch.setattr(authority_module.Path, "read_bytes", changed)
+    monkeypatch.setattr(manifests, "sha256_file", unexpected_payload_hash)
+    assert verifier_authority("prepared_array", 1) == before
     _load(prepared, store)
     assert store.hits == 2
     assert store.recorded == 2
+    assert store.diagnostics()["reasons"] == {"no_receipt": 2, "hit": 2}
 
 
+@pytest.mark.parametrize("module", ["trainer.py", "cli.py", "mixture.py", "sources.py"])
 def test_full_prepared_artifact_remains_warm_across_training_change(
-    trusted_prepared, monkeypatch
+    trusted_prepared, monkeypatch, module
 ):
     from sparselab import verifier_authority as authority_module
 
@@ -692,15 +705,25 @@ def test_full_prepared_artifact_remains_warm_across_training_change(
     first = verify_artifact(artifact, root / "plan.yaml", **options)
     assert verify_artifact(artifact, root / "plan.yaml", **options) == first
     recorded = store.recorded
+    before = verifier_authority("prepared_data", 1)
     original = authority_module.Path.read_bytes
 
     def unrelated(self):
         raw = original(self)
-        if self.name in {"trainer.py", "cli.py"}:
+        if self.name == module:
             return raw + b"\n# unrelated execution or UI\n"
         return raw
 
     monkeypatch.setattr(authority_module.Path, "read_bytes", unrelated)
+    assert verifier_authority("prepared_data", 1) == before
+    original_hash = manifests.sha256_file
+
+    def unexpected_payload_hash(path, *args, **kwargs):
+        if path.suffix == ".npy":
+            raise AssertionError(f"warm artifact payload was rehashed: {path}")
+        return original_hash(path, *args, **kwargs)
+
+    monkeypatch.setattr(manifests, "sha256_file", unexpected_payload_hash)
     assert verify_artifact(artifact, root / "plan.yaml", **options) == first
     assert store.diagnostics()["events"][-1]["kind"] == "prepared_data"
     assert store.diagnostics()["events"][-1]["reason"] == "hit"

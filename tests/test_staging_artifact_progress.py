@@ -8,12 +8,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from sparselab import owned_copy, staging
 from sparselab.data import verification
 from sparselab.training.manifest import sha256_file
+from sparselab.verification_proofs import ProofStore
 
 
 def test_copy_hashes_output_once_and_reuses_sealed_proof(
@@ -115,6 +117,83 @@ def test_same_inode_rewrite_with_restored_mtime_rejects_cached_sha(
             expected_sha256=proof.sha256,
             memo={(proof.path, proof.fingerprint): proof},
         )
+
+
+@pytest.mark.parametrize("reuse", ["memo", "signed"])
+def test_ctime_change_alone_forces_actual_byte_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reuse: str
+) -> None:
+    # Control only the reported ctime, independently of filesystem clock
+    # resolution. The inode, write, restored mtime and SHA reads remain real.
+    path = tmp_path / "data.npy"
+    path.write_bytes(b"original")
+    ctime = 10
+    lstat = Path.lstat
+
+    def observed_lstat(candidate: Path, *args, **kwargs):
+        info = lstat(candidate, *args, **kwargs)
+        if candidate != path:
+            return info
+        fields = {
+            name: getattr(info, name) for name in dir(info) if name.startswith("st_")
+        }
+        return SimpleNamespace(**{**fields, "st_ctime_ns": ctime})
+
+    monkeypatch.setattr(Path, "lstat", observed_lstat)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config-home"))
+    store = ProofStore(tmp_path)
+    options = (
+        {"memo": {}}
+        if reuse == "memo"
+        else {"proof_store": store, "verification_mode": "verified_reuse"}
+    )
+    digest = hashlib.sha256(b"original").hexdigest()
+    proof = verification.verify_file(path, expected_sha256=digest, **options)
+    hash_file = verification.manifest_module.sha256_file
+    reads: list[Path] = []
+
+    def counted(candidate: Path) -> str:
+        reads.append(candidate)
+        return hash_file(candidate)
+
+    monkeypatch.setattr(verification.manifest_module, "sha256_file", counted)
+    assert (
+        verification.verify_file(path, expected_sha256=digest, **options).sha256
+        == digest
+    )
+    assert reads == []
+    ctime += 1
+    refreshed = verification.verify_file(path, expected_sha256=digest, **options)
+    assert refreshed.sha256 == digest
+    assert refreshed.cold_verified
+    assert refreshed.fingerprint[:-1] == proof.fingerprint[:-1]
+    assert refreshed.fingerprint[-1] != proof.fingerprint[-1]
+    assert reads == [path]
+    if reuse == "signed":
+        assert store.hits == 1
+        assert store.recorded == 2
+        assert store.diagnostics()["events"][-1]["reason"] == "changed_fingerprint"
+    assert (
+        verification.verify_file(path, expected_sha256=digest, **options).sha256
+        == digest
+    )
+    assert reads == [path]
+    proof = refreshed
+    reads.clear()
+    before = path.stat()
+    path.write_bytes(b"modified")
+    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+    ctime += 1
+    after = verification._fingerprint(path)
+    assert after[:-1] == proof.fingerprint[:-1]
+    assert after[-1] != proof.fingerprint[-1]
+    with pytest.raises(ValueError, match="digest mismatch"):
+        verification.verify_file(path, expected_sha256=digest, **options)
+    assert reads == [path]
+    if reuse == "signed":
+        assert store.hits == 2
+        assert store.recorded == 2
+        assert store.diagnostics()["events"][-1]["reason"] == "changed_fingerprint"
 
 
 def test_reconstructed_copy_proof_cannot_skip_hashing(
