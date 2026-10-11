@@ -33,7 +33,10 @@ Then run `sparselab probe RESULT --vs BASE --config probe.yaml --json`.
 `--vs` always names the baseline explicitly; a record selects its candidate,
 never its baseline arm. Use an explicit checkpoint path to pin a baseline.
 Paths in a declaration expand `~` and anchor to that file. Bare preset names
-are reserved; use `./full` to load a file actually named `full`.
+always take precedence over files: `--config standard` selects the preset even
+if a file named `standard` exists. Use `--config ./standard` to load that file.
+Other existing extensionless files load normally; a missing bare name reports
+available presets, while an explicit path reports a file error.
 
 All fields are optional. Empty/comment-only files, YAML `null` and `{}` use the
 same defaults as `fast`. The version must be integer 1, booleans must be actual
@@ -65,7 +68,10 @@ These executable flags are removed. Named declarations replace the common
 `--tier standard|full` and `--final` journeys without an extra setup step.
 
 The sealed CLI record includes the validated effective `request`, baseline,
-explicit backend selection, loaded native profile and envelope values. Native
+explicit backend selection, loaded native profile and envelope values, and
+resolved `runtime_profile_path`/`resource_envelope_path` source locations (null
+when absent). Paths are locations; sealed loaded values preserve what was used,
+even if the source files later change. Native
 checkpoint/digest binding, scoring, suite identity, resource checks, partial
 records and safe cancellation are preserved. Historical records remain readable
 without adding or rewriting fields. `report` returns the whole sealed record.

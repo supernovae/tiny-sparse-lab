@@ -71,6 +71,15 @@ def load_probe_config(selection: str) -> ProbeConfig:
     path = Path(selection).expanduser()
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        if "/" not in selection and "\\" not in selection and not path.suffix:
+            raise ValueError(
+                f"unknown probe config {selection!r}; choose {', '.join(PRESETS)} "
+                "or a YAML path (use ./NAME for an extensionless file)"
+            ) from error
+        raise ValueError(
+            f"cannot read probe config {path}: {error.strerror or error}"
+        ) from error
     except OSError as error:
         raise ValueError(
             f"cannot read probe config {path}: {error.strerror or error}"

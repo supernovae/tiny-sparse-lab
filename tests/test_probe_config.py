@@ -196,6 +196,7 @@ def test_validated_policy_and_native_envelope_reach_public_probe(
         and policy["resource_envelope"].max_rss_bytes == 1 << 50
     )
     assert payload["request"]["resource_envelope"]["max_rss_bytes"] == 1 << 50
+    assert payload["request"]["resource_envelope_path"] == str(bounds)
     assert payload["request"]["baseline"] == "explicit-base"
     assert payload["request"]["backend_override"] == "cpu"
     assert not (lab / "probes").exists()
@@ -251,6 +252,9 @@ def test_profile_file_uses_native_loader_and_authorization_before_scoring(
 
     def score(_target: str, _baseline: str | None, **options: Any) -> tuple[dict, Path]:
         assert options["authorization"] is authorization
+        assert options["request"]["runtime_profile_path"] == str(
+            tmp_path / "profile.yaml"
+        )
         assert options["request"]["runtime_profile"]["id"] == "fixture"
         assert options["request"]["runtime_profile"]["backend"] == "cpu"
         return {"request": options["request"]}, tmp_path / "unused.json"
@@ -276,3 +280,94 @@ def test_profile_file_uses_native_loader_and_authorization_before_scoring(
         == 0
     )
     assert (run / "resolved_config.yaml").read_bytes() == original
+
+
+def test_named_preset_precedes_same_named_file_with_explicit_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "standard").write_text("tier: full")
+    assert load_probe_config("standard").tier == "standard"
+    assert load_probe_config("./standard").tier == "full"
+    (tmp_path / "my-policy").write_text("tier: standard")
+    assert load_probe_config("my-policy").tier == "standard"
+
+
+@pytest.mark.parametrize(
+    ("selection", "message"),
+    [
+        (
+            "finall",
+            "unknown probe config 'finall'; choose fast, standard, full, final, final-full",
+        ),
+        ("./finall", "cannot read probe config"),
+        ("finall.yaml", "cannot read probe config"),
+        ("finall.json", "cannot read probe config"),
+        ("configs/finall", "cannot read probe config"),
+    ],
+)
+def test_missing_config_diagnoses_bare_names_and_explicit_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, selection: str, message: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError) as failure:
+        load_probe_config(selection)
+    assert message in str(failure.value)
+
+
+def test_sealed_request_retains_paths_and_values_when_sources_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sys
+
+    import sparselab.cli.main as cli
+    from sparselab.lab_records import seal
+    from sparselab.probes import cli as probes
+
+    target = _record(tmp_path / "lab", _run(tmp_path / "lab"))
+    profile_path = tmp_path / "profile.yaml"
+    profile_path.write_text(
+        yaml.safe_dump(
+            {
+                "runtime_profile_version": 1,
+                "id": "fixture",
+                "python": str(Path(sys.executable).resolve()),
+                "engine": "pytorch",
+                "backend": "cpu",
+                "device_index": 0,
+            }
+        )
+    )
+    bounds_path = tmp_path / "bounds.yaml"
+    bounds_path.write_text(
+        "resource_envelope_version: 1\nmax_rss_bytes: 1125899906842624\n"
+    )
+    request = tmp_path / "probe.yaml"
+    request.write_text("runtime_profile: profile.yaml\nresource_envelope: bounds.yaml")
+    monkeypatch.setattr(cli, "_ensure_runtime_interpreter", lambda *_: None)
+    monkeypatch.setattr(cli, "authorize_profile", lambda *_: object())
+    monkeypatch.setattr(
+        probes,
+        "run_battery",
+        lambda *_a, **_k: {
+            "format": "sparselab-probe-v1",
+            "stop": {"kind": "resource_exceeded"},
+            "probes": [],
+            "verdict": {"action": "rerun"},
+        },
+    )
+    _cli(
+        monkeypatch, tmp_path, "probe", str(target), "--config", str(request), "--json"
+    )
+    result = json.loads(capsys.readouterr().out)
+    saved = result["request"]
+    assert saved["runtime_profile_path"] == str(profile_path)
+    assert saved["resource_envelope_path"] == str(bounds_path)
+    assert saved["runtime_profile"]["id"] == "fixture"
+    assert saved["resource_envelope"]["max_rss_bytes"] == 1 << 50
+    profile_path.write_text("changed")
+    bounds_path.write_text("changed")
+    _cli(monkeypatch, tmp_path, "report", result["probe_id"], "--json")
+    reread = json.loads(capsys.readouterr().out)
+    assert reread["request"] == saved
+    assert reread["record_sha256"] == seal(reread)["record_sha256"]

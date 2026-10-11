@@ -2568,6 +2568,14 @@ def _probe(args: argparse.Namespace) -> None:
                 "baseline": args.vs,
                 "backend_override": args.backend,
                 "runtime_id": args.runtime,
+                "runtime_profile_path": str(args.probe_config_loaded.runtime_profile)
+                if args.probe_config_loaded.runtime_profile is not None
+                else None,
+                "resource_envelope_path": str(
+                    args.probe_config_loaded.resource_envelope
+                )
+                if args.probe_config_loaded.resource_envelope is not None
+                else None,
                 "runtime_profile": args.runtime_profile_loaded.model_dump(mode="json")
                 if args.runtime_profile_loaded is not None
                 else None,

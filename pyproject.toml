@@ -34,7 +34,7 @@ mlx = [
 reference = [
     "transformers>=4.45,<5",
 ]
-# Optional standard-task backend for `sparselab probe --tier full`.
+# Optional standard-task backend for `sparselab probe --config full`.
 lmeval = [
     "lm-eval>=0.4.9,<0.5",
 ]
