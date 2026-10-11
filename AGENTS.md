@@ -23,7 +23,10 @@ comparison, not a release, promotion or scientific conclusion.
 For a new user, follow the [TinyStories lab walkthrough](docs/tinystories-microlab.md):
 prepare the three sample inputs, then use `try` and `report`. Keep advanced
 continuation, matrices and release instructions in their own guides. Run IDs
-belong to `probe`/`explore`; record IDs belong to `report`/`compare`. Standalone
+belong to `probe`/`explore`; sealed record IDs work across `report`/`compare` and
+`probe`/`explore` (the record's candidate checkpoint, never a newer `latest`).
+`report`/`compare` require a record rather than guessing one from a run.
+See [result lookup](docs/result-lookup.md). Standalone
 `probe` inherits the saved backend unless explicitly overridden; the CPU extra
 installs a framework but does not override a saved CUDA/ROCm backend.
 

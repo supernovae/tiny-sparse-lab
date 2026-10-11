@@ -61,15 +61,23 @@ and runs fast probes. It reuses only a verified matching completed baseline.
 | --- | --- | --- |
 | Does this change help? | `try DELTA.yaml --vs BASELINE.yaml` | Preparation, training, scoring and fast probes. |
 | What happened? | `report TRY_ID` | Reads the sealed record. |
-| What should I check next? | `probe CANDIDATE_RUN --vs BASELINE_RUN --backend cpu --tier standard` | Loads checkpoints and scores probes. |
+| What should I check next? | `probe TRY_ID --vs BASELINE_RUN --backend cpu --tier standard` | Loads checkpoints and scores probes. |
 | How do recorded results compare? | `compare TRY_ID --references` | Reads records; no download or scoring. |
-| What is inside this checkpoint? | `explore CANDIDATE_RUN` | Loads a small checkpoint and computes diagnostics on CPU. |
+| What is inside this checkpoint? | `explore TRY_ID` | Loads the recorded candidate checkpoint and computes diagnostics on CPU. |
 
-Use the **run IDs** in the report for `probe` and `explore`; use **try/probe
-record IDs** for `report` and `compare`. The [probe guide](docs/probe-battery.md)
+Use the same **try/probe record ID** across these commands. `probe` and `explore`
+select its recorded candidate checkpoint; they also accept run IDs and checkpoint
+paths. `report` and `compare` require sealed records. See [result lookup](docs/result-lookup.md)
+for missing evidence, ambiguous IDs and backend selection. The [probe guide](docs/probe-battery.md)
 explains verdicts and optional full-tier evaluation. Missing evidence and
 `NOT_COMPARABLE` are not wins. Keep a separate untouched evaluation and repeat
 promising changes with more seeds before making quality claims.
+
+In the probe example, `TRY_ID` pins the candidate, while `--vs BASELINE_RUN`
+loads that run's current `latest`. To pin both sides, use the baseline's recorded
+checkpoint path instead: `probe TRY_ID --vs /path/to/BASELINE_RUN/checkpoints/GENERATION
+--backend cpu --tier standard`. Copy the baseline run directory and generation
+from the try record; another record ID selects that record's candidate.
 
 `sparselab dashboard` opens the [lab dashboard](docs/dashboard.md): Home,
 Experiments, Models, Behaviors and Explorer, with detailed run telemetry below.

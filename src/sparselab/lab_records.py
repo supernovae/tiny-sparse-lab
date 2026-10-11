@@ -155,15 +155,6 @@ def read_lab_record(path: Path, kind: str | None = None) -> tuple[str, dict[str,
     return found_kind, record
 
 
-def resolve_record(spec: str, lab_dir: Path) -> Path:
-    """A record path, record folder, or a try/probe id under LAB_DIR."""
-    target = Path(spec)
-    if target.exists() or target.parent != Path():
-        return target
-    kind = "probe" if spec.startswith("probe-") else "try"
-    return lab_dir / KINDS[kind][1] / spec
-
-
 def iter_lab_records(
     lab_dir: Path, limit: int = 500
 ) -> tuple[list[tuple[str, Path, dict[str, Any]]], list[tuple[Path, str]]]:

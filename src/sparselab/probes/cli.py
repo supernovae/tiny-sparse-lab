@@ -10,38 +10,9 @@ from typing import Any
 
 from sparselab.lab_context import LabContext, LabSignal
 from sparselab.lab_records import read_lab_record, write_sealed
+from sparselab.lab_results import resolve_checkpoint
 from sparselab.probes.runner import Arm, lm_eval_spec, progress_writer, run_battery
 from sparselab.reference_models import load_reference, require_reference_extras
-
-
-def _run_root(path: Path) -> Path | None:
-    for candidate in (path, *path.parents):
-        if (candidate / "manifest.json").is_file() and (
-            candidate / "resolved_config.yaml"
-        ).is_file():
-            return candidate
-    return None
-
-
-def resolve_target(
-    spec: str, *, lab_dir: Path, runs_dir: Path | None = None
-) -> tuple[Path, str | None]:
-    """RUN-OR-CHECKPOINT -> (run directory, checkpoint path or None).
-
-    Accepts a run directory, a checkpoint file/folder or pointer inside a run,
-    or a run id under ``LAB/runs`` (then ``--runs-dir``).
-    """
-    path = Path(spec)
-    if path.exists():
-        path = path.absolute()
-        run = _run_root(path if path.is_dir() else path.parent)
-        if run is None:
-            raise ValueError(f"not inside a SparseLab run: {spec}")
-        return run, None if path == run else str(path)
-    for root in (lab_dir / "runs", runs_dir):
-        if root is not None and _run_root(root / spec) == (root / spec):
-            return (root / spec).absolute(), None
-    raise ValueError(f"unknown run or checkpoint: {spec}")
 
 
 def load_target(
@@ -54,13 +25,14 @@ def load_target(
 ) -> Any:
     from sparselab.evaluation.inference import load_run
 
-    run, checkpoint = resolve_target(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+    target = resolve_checkpoint(spec, lab_dir=lab_dir, runs_dir=runs_dir)
     return load_run(
-        run.name,
-        run.parent,
-        checkpoint,
+        target.run.name,
+        target.run.parent,
+        target.checkpoint,
         backend,
         authorization=authorization,
+        expected_checkpoint_sha256=target.expected_sha256,
     )
 
 
@@ -125,7 +97,7 @@ def run_probe(
         if is_reference(spec):
             return Arm(load=lambda: load_reference(spec), reference=True)
         # Resolve now (fail fast on a typo); load lazily, one arm at a time.
-        resolve_target(spec, lab_dir=lab_dir, runs_dir=runs_dir)
+        resolve_checkpoint(spec, lab_dir=lab_dir, runs_dir=runs_dir)
         return Arm(
             load=lambda: load_target(
                 spec,

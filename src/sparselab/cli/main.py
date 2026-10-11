@@ -2434,6 +2434,17 @@ def _tokenizer_batch_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _lab_lookup_failure(args: argparse.Namespace, error: Exception) -> None:
+    """Lookup errors have one payload, whether found in preflight or a reader."""
+    from sparselab.lab_results import ResultLookupError
+
+    if isinstance(error, ResultLookupError):
+        if args.json:
+            print(json.dumps(error.as_json(), indent=2, sort_keys=True))
+            raise SystemExit(1) from None
+        raise SystemExit(f"sparselab {args.command}: {error}") from None
+
+
 def _try(args: argparse.Namespace) -> None:
     """Lab mode: YAML delta (or config) vs baseline -> one scored comparison."""
     from sparselab.lab_mode import run_try, summarize
@@ -2469,14 +2480,16 @@ def _try(args: argparse.Namespace) -> None:
 def _report(args: argparse.Namespace) -> None:
     """Read one sealed lab try or probe record without rerunning anything."""
     from sparselab.lab_mode import lab_root, summarize
-    from sparselab.lab_records import read_lab_record, resolve_record
+    from sparselab.lab_records import read_lab_record
+    from sparselab.lab_results import resolve_record
     from sparselab.probes.render import render, use_color
 
     root = lab_root(resolve_work_dir(args.work_dir), args.lab_dir)
-    target = resolve_record(args.record, root)
     try:
+        target = resolve_record(args.record, root)
         kind, record = read_lab_record(target)
     except (ValueError, OSError) as error:
+        _lab_lookup_failure(args, error)
         raise SystemExit(f"sparselab report: {error}") from None
     if args.json:
         print(json.dumps(record, indent=2, sort_keys=True))
@@ -2509,6 +2522,7 @@ def _compare(args: argparse.Namespace) -> None:
             final=args.final,
         )
     except (ValueError, OSError, KeyError) as error:
+        _lab_lookup_failure(args, error)
         raise SystemExit(f"sparselab compare: {error}") from None
     if args.json:
         print(json.dumps(as_json(report), indent=2, sort_keys=True))
@@ -2539,6 +2553,7 @@ def _probe(args: argparse.Namespace) -> None:
             final=args.final,
         )
     except (ValueError, OSError, ReferenceUnavailable) as error:
+        _lab_lookup_failure(args, error)
         raise SystemExit(f"sparselab probe: {error}") from None
     except KeyboardInterrupt:
         raise SystemExit(130) from None
@@ -2570,6 +2585,7 @@ def _explore(args: argparse.Namespace) -> None:
             refresh=args.refresh,
         )
     except (ValueError, OSError, ExplorerUnavailable) as error:
+        _lab_lookup_failure(args, error)
         raise SystemExit(f"sparselab explore: {error}") from None
     except LabCancelled as error:
         raise SystemExit(f"sparselab explore: stopped: {error}") from None
@@ -2828,10 +2844,15 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
     )
     probe.add_argument(
         "target",
-        help="Run id, run directory, checkpoint path, or ref:NAME for a pinned "
+        help="Try/probe record (its candidate), run id/directory, checkpoint, "
+        "or ref:NAME for a pinned "
         "reference model (--tier full; see `sparselab compare --list-references`)",
     )
-    probe.add_argument("--vs", metavar="BASELINE", help="Baseline run or checkpoint")
+    probe.add_argument(
+        "--vs",
+        metavar="BASELINE",
+        help="Baseline run/checkpoint or another record's candidate",
+    )
     probe.add_argument("--tier", choices=("fast", "standard", "full"), default="fast")
     probe.add_argument(
         "--no-fast-fail",
@@ -2864,7 +2885,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
         help="ResourceEnvelope YAML checked before every probe",
     )
     probe.add_argument(
-        "--backend", choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu")
+        "--backend",
+        choices=("auto", "mps", "cuda", "rocm", "xpu", "cpu"),
+        help="Default: saved backend (CPU extra does not override it). "
+        "Use --backend cpu explicitly to inspect an accelerator run on CPU.",
     )
     probe_runtime = probe.add_mutually_exclusive_group()
     probe_runtime.add_argument("--runtime-profile", type=Path)
@@ -2881,7 +2905,10 @@ def build_parser(work_dir: Path | None = None) -> argparse.ArgumentParser:
             "text. Results are cached under LAB/explorer for the dashboard."
         ),
     )
-    explore.add_argument("target", help="Run id, run directory or checkpoint path")
+    explore.add_argument(
+        "target",
+        help="Try/probe record (its candidate), run id/directory or checkpoint",
+    )
     explore.add_argument("--text", help="Text to analyse (default: a short story)")
     explore.add_argument("--refresh", action="store_true", help="Ignore the cache")
     explore.add_argument("--lab-dir", type=Path, help="Default: WORK_DIR/lab")
@@ -4065,7 +4092,7 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
     elif args.command in {"probe", "explore"}:
         from sparselab.config.models import RunConfig
         from sparselab.lab_mode import lab_root
-        from sparselab.probes.cli import resolve_target
+        from sparselab.lab_results import resolve_checkpoint
         from sparselab.reference_models import is_reference
 
         if args.command == "probe" and is_reference(args.target):
@@ -4074,13 +4101,13 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
             if profile is not None or workers:
                 raise ValueError("runtime profiles do not apply to ref: models")
             return
-        run, _ = resolve_target(
+        target = resolve_checkpoint(
             args.target,
             lab_dir=lab_root(resolve_work_dir(args.work_dir), args.lab_dir),
             runs_dir=Path(args.runs_dir) if args.runs_dir else None,
         )
         config = RunConfig.model_validate_json(
-            (run / "resolved_config.yaml").read_text(encoding="utf-8")
+            (target.run / "resolved_config.yaml").read_text(encoding="utf-8")
         )
     else:
         from sparselab.config.models import RunConfig
@@ -4104,7 +4131,21 @@ def _prepare_runtime_command(args: argparse.Namespace) -> None:
             }
         )
     if profile is None:
-        require_authorization(config, None)
+        try:
+            require_authorization(config, None)
+        except ValueError as error:
+            if args.command == "probe" and args.backend is None:
+                from sparselab.lab_results import ResultLookupError
+
+                raise ResultLookupError(
+                    args.target,
+                    "runtime_required",
+                    f"saved backend {config.runtime.backend}: {error}",
+                    "the CPU extra installs a framework, not a backend override; "
+                    "select a compatible --runtime/--runtime-profile, or explicitly "
+                    "pass --backend cpu for a PyTorch run (no automatic fallback)",
+                ) from None
+            raise
     else:
         args.runtime_authorization = authorize_profile(profile, config)
 
@@ -4272,6 +4313,7 @@ def main() -> None:
             require_current_dataset(load_tokenizer_config(Path(args.config)).dataset)
         _prepare_runtime_command(args)
     except (ValueError, OSError) as error:
+        _lab_lookup_failure(args, error)
         raise SystemExit(f"sparselab: {error}") from None
     if args.resource_envelope_value is not None:
         if _is_config_submission(args):

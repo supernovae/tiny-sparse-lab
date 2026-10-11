@@ -27,6 +27,10 @@ a **try/probe ID** identifies a result record. `probe` and `explore` search
 `WORK_DIR/lab/runs` and accept `--runs-dir` for other saved runs. `report` and
 `compare` accept sealed result paths as well as record IDs.
 
+`probe` and `explore` also accept try/probe record IDs or paths, selecting the
+record's exact candidate/target checkpoint rather than the run's current
+`latest`; see [result lookup](result-lookup.md) for pinning, paths and missing evidence.
+
 Use `sparselab COMMAND --help` for exact arguments. Current help groups commands
 but does not remove them; the [feature roadmap](../ROADMAP.md#current-direction)
 summarizes the direction for a smaller CLI. There is no `advanced` or `release` command alias.

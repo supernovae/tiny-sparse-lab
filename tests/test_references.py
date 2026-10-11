@@ -472,7 +472,10 @@ def test_compare_never_crosses_groups_and_names_missing_evidence(
         assert loss["delta"] is None
         lm = by_other[name]["lm_eval"]
         assert lm["status"] == "missing_evidence"
-        assert "sparselab probe lab-try-1-b --tier full" in lm["note"]
+        assert (
+            f"sparselab probe {tmp_path / 'tries/try-1/try.json'} --tier full"
+            in lm["note"]
+        )
     text = compare_mod.render(report)
     assert "NOT COMPARABLE" in text and "MISSING EVIDENCE" in text
     assert "reference curve" in text and "--tier full" in text
@@ -587,9 +590,12 @@ def test_compare_picks_up_a_later_probe_of_the_same_checkpoint(tmp_path: Path) -
 
     report, lm = lm_pairs()
     assert {p["status"] for p in lm.values()} == {"missing_evidence"}
-    assert "sparselab probe lab-try-1-b --tier full" in lm["SmolLM2-135M"]["note"]
+    assert (
+        f"sparselab probe {tmp_path / 'tries/try-1/try.json'} --tier full"
+        in lm["SmolLM2-135M"]["note"]
+    )
 
-    # The suggested `probe RUN --tier full` measured the try's candidate
+    # The suggested `probe RECORD --tier full` measured the try's candidate
     # checkpoint: its sealed record lands in the shared pool.
     _probe_record(
         tmp_path,

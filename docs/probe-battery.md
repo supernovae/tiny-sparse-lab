@@ -36,8 +36,13 @@ examples explicitly score on CPU; use a registered compatible runtime for GPU
 scoring. `explore` defaults to CPU, while standalone `probe` inherits the saved
 backend when `--backend` is omitted.
 
-A target is a run directory, a checkpoint directory inside a run, or a run id
-under `WORK_DIR/lab/runs` (or `--runs-dir`). Results land in
+A target is a sealed try/probe record ID or path (its exact candidate checkpoint),
+a run directory, a checkpoint directory inside a run, or a run id
+under `WORK_DIR/lab/runs` (or `--runs-dir`). `--vs` accepts the same local inputs;
+a record supplied there selects that record's candidate, not its baseline.
+Records never silently select a newer checkpoint; missing generations must be
+restored or a different input explicitly chosen. See [result lookup](result-lookup.md).
+Results land in
 `WORK_DIR/lab/probes/<probe-id>/probe.json`, sealed with `record_sha256` by
 the same lab-record writer as `try.json`. `report`, `probe` and the dashboard
 read every record through one verified reader (`sparselab.lab_records`), so an
