@@ -50,6 +50,9 @@ PINNED_SUITE = {
     # v3: closed-book fact recall from the run's own withheld-facts manifest
     # (bound to dataset.synthetic_seed; unreleased before PR #63 merged).
     3: "bc974a71841375e8788b612186f67a69d7d26598cd1325499b64ffbb5b484a50",
+    # v4: held-back final split, text-level needle (fixed character lengths),
+    # within-run eval-noise wording on held-out loss.
+    4: "b24f01ec34293994ad0df3a3e45f1e602c54cef21a769f17c24ddcf084c58289",
 }
 
 RESULT_KEYS = {
@@ -258,7 +261,7 @@ def test_uniform_scores_give_chance_accuracy(
     if probe == "fact_recall":
         items = runner.recall_items("heldout")
     else:
-        items = runner.needle_items(loaded, "heldout", [0.5])
+        items = runner.needle_items("heldout", [192])
     credits = scoring.ranking_credit(loaded, items)
     chance = 1 / len(items[0]["candidates"])
     assert credits == pytest.approx([chance] * len(items))
@@ -275,7 +278,7 @@ def test_suite_identity_is_pinned_and_versioned() -> None:
         "probe declarations or items changed: bump SUITE_VERSION and the pin"
     )
     assert identity["verdict_split"] == "heldout"
-    assert set(identity["splits"]) == {"dev", "heldout"}
+    assert set(identity["splits"]) == {"dev", "heldout", "final"}
 
 
 def test_heldout_items_are_disjoint_from_dev_items() -> None:

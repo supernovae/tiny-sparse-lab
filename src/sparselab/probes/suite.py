@@ -5,25 +5,39 @@ Every probe declares its cost tier, how it is judged against a baseline
 fast-fail) and what a failure suggests. Prompt items come in two disjoint splits:
 
 * ``dev``: free to read and iterate against;
-* ``heldout``: the only split verdicts use. Agents must not tune against its
-  items; the battery also scores ``dev`` and flags a dev gain that the held-out
-  split does not share (``guard.overfit_suspected``).
+* ``heldout``: the split every ``try``/``probe`` verdict uses while
+  iterating. Agents must not tune against its items; the battery also scores
+  ``dev`` and flags a dev gain that the held-out split does not share
+  (``guard.overfit_suspected``). Because every try reads it, a long iteration
+  loop still selects on it indirectly.
+* ``final``: the held-back final evaluation set. Deterministic, disjoint items
+  that no selection loop reads: :func:`require_split` refuses ``final`` unless
+  the caller is inside :func:`final_verdict_access`, which only
+  ``sparselab probe --final`` enters. Use it once, for the final verdict on a
+  chosen candidate, never to pick between candidates.
 
-The suite digest covers declarations, thresholds and both splits, so two
-results are comparable exactly when their ``suite.sha256`` matches.
+The suite digest covers declarations, thresholds and all three splits (a
+digest reveals nothing about the items), so two results are comparable exactly
+when their ``suite.sha256`` matches.
 """
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import json
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from sparselab.data.withheld_facts import _FACTS, diagnostic_manifest, split_facts
 
 SUITE_NAME = "sparselab-probe-battery"
-SUITE_VERSION = 3
+SUITE_VERSION = 4
+SPLITS = ("dev", "heldout", "final")
+# Splits a selection loop (``try``, ``probe`` without ``--final``) may read.
+SELECTION_SPLITS = ("dev", "heldout")
 TIERS = ("fast", "standard", "full")
 Mode = Literal["delta_rel", "delta_abs", "value_min"]
 
@@ -66,7 +80,10 @@ PROBES: tuple[ProbeSpec, ...] = (
         "scored under one shared window/batch protocol for both arms. Lower is "
         "better; perplexity = exp(loss). Judged on the relative change; the "
         "standard error is clustered by evaluation window and weighted by "
-        "scored tokens, matching the token-weighted loss.",
+        "scored tokens, matching the token-weighted loss. That SE is "
+        "within-run eval noise only: at tiny budgets seed-to-seed spread is "
+        "about 5-10x larger, so a single-seed gain needs paired seeds before "
+        "it counts as a win.",
         reference="token-level cross-entropy; window-clustered ratio SE",
         uncertainty="window_clustered_ratio",
     ),
@@ -191,12 +208,16 @@ PROBES: tuple[ProbeSpec, ...] = (
         hard=False,
         suggests="Retrieval from earlier context degraded: suspect attention "
         "span, positional encoding or sequence-length changes.",
-        explains="A code word is hidden early in filler text of a few lengths "
-        "up to the model's context; at the end the model must recall it. "
-        "Scored by candidate ranking at each length (ties share credit).",
-        reference="needle-in-a-haystack, candidate ranking",
+        explains="A code word opens a context of filler text of a few fixed "
+        "character lengths; at the end the model must recall it. Lengths are "
+        "in characters, not tokens, so every tokenizer (lab runs and "
+        "references) is asked the same strings; a context longer than the "
+        "model's window pushes the code word out of view, which scores as "
+        "chance. Scored by candidate ranking at each length (ties share "
+        "credit).",
+        reference="needle-in-a-haystack (text-level), candidate ranking",
         uncertainty="paired_items",
-        params={"length_fractions": [0.5, 0.75, 0.95], "credit": "fractional_ties"},
+        params={"char_lengths": [96, 192, 384], "credit": "fractional_ties"},
     ),
     ProbeSpec(
         id="lm_eval",
@@ -269,6 +290,80 @@ _HELDOUT_TEMPLATES = (
     "If you ask {s} for their {r}, they say",
 )
 
+# Held-back final split: new subjects, relations, templates, needles, filler
+# and prompts, disjoint from dev and heldout. Never tune against these.
+_FINAL_PROMPTS = (
+    "The rabbit hopped to the fence and looked at the farm.",
+    "Anna found a shiny stone near the lake after lunch.",
+    "The baker made a round loaf and gave it to his neighbor.",
+    "A tired horse rested under the bridge until the rain stopped.",
+    "Max drew a picture of a ship with three white sails.",
+    "The kitten chased a leaf all the way down the hill.",
+    "Grandma knitted a warm hat for the cold winter morning.",
+    "Two friends built a small house out of sticks and mud.",
+)
+_FINAL_FACTS = (
+    ("Ines", "lucky number", "seven"),
+    ("Joel", "lucky number", "nine"),
+    ("Kira", "lucky number", "four"),
+    ("Luca", "lucky number", "six"),
+    ("Mona", "home town", "Paris"),
+    ("Nico", "home town", "Lima"),
+    ("Opal", "home town", "Oslo"),
+    ("Pete", "home town", "Cairo"),
+)
+_FINAL_TEMPLATES = (
+    "When asked about the {r} of {s}, the answer was",
+    "Here is {s}'s {r}:",
+)
+_FINAL_PARAMETRIC_TEMPLATE = "As everyone knows, the {r} of {s} is"
+_FINAL_NEEDLES = ("rope", "bell", "leaf", "nest", "coin", "fork")
+_FINAL_FILLER = (
+    "The wind was soft.",
+    "A frog sat on a log.",
+    "Clouds moved across the hill.",
+    "The bus was late again.",
+)
+_FINAL_OPEN: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "sparselab_final_split_open", default=False
+)
+
+
+class FinalSplitLocked(PermissionError):
+    """The held-back ``final`` split was read outside a final verdict."""
+
+
+@contextlib.contextmanager
+def final_verdict_access() -> Iterator[None]:
+    """Open the held-back split for one final verdict (``probe --final``)."""
+    token = _FINAL_OPEN.set(True)
+    try:
+        yield
+    finally:
+        _FINAL_OPEN.reset(token)
+
+
+def require_split(split: str) -> str:
+    """Validate SPLIT; ``final`` only inside :func:`final_verdict_access`."""
+    if split not in SPLITS:
+        raise ValueError(f"unknown probe split {split!r}; choose {', '.join(SPLITS)}")
+    if split == "final" and not _FINAL_OPEN.get():
+        raise FinalSplitLocked(
+            "the held-back final split is only read by `sparselab probe --final` "
+            "(final verdicts); selection loops (try, probe) use dev/heldout"
+        )
+    return split
+
+
+def verdict_split() -> str:
+    """The split verdicts read now: ``final`` inside a final verdict."""
+    return "final" if _FINAL_OPEN.get() else "heldout"
+
+
+def _pick(split: str, dev: Any, heldout: Any, final: Any) -> Any:
+    return {"dev": dev, "heldout": heldout, "final": final}[require_split(split)]
+
+
 _DEV_NEEDLES = ("lamp", "door", "cup", "shoe")
 _HELDOUT_NEEDLES = ("moon", "star", "boat", "cake", "drum", "kite")
 _DEV_FILLER = (
@@ -285,8 +380,8 @@ _HELDOUT_FILLER = (
 
 
 def fact_items(split: str) -> list[dict[str, Any]]:
-    facts = _HELDOUT_FACTS if split == "heldout" else _DEV_FACTS
-    templates = _HELDOUT_TEMPLATES if split == "heldout" else _DEV_TEMPLATES
+    facts = _pick(split, _DEV_FACTS, _HELDOUT_FACTS, _FINAL_FACTS)
+    templates = _pick(split, _DEV_TEMPLATES, _HELDOUT_TEMPLATES, _FINAL_TEMPLATES)
     items = []
     for subject, relation, value in facts:
         candidates = sorted({v for s, r, v in facts if r == relation})
@@ -310,19 +405,22 @@ def parametric_items(
     ``seed`` is the run's ``dataset.synthetic_seed`` (the seed its
     ``withheld_facts`` training documents were built with; see
     :func:`sparselab.probes.runner.parametric_binding`). ``heldout`` asks the
-    manifest's training facts with its canonical prompt, ``dev`` rewords them;
-    ``control`` asks the never-trained facts instead.
+    manifest's training facts with its canonical prompt, ``dev`` rewords them,
+    ``final`` uses a held-back wording; ``control`` asks the never-trained
+    facts instead.
     """
+    require_split(split)
     trained, never = split_facts(seed)
     facts = never if control else trained
     return [_parametric_item(fact, split) for fact in facts]
 
 
 def _parametric_item(fact: Any, split: str) -> dict[str, Any]:
-    prompt = (
-        _DEV_TEMPLATES[0].format(s=fact.subject, r=fact.relation)
-        if split == "dev"
-        else fact.prompt()
+    prompt = _pick(
+        split,
+        _DEV_TEMPLATES[0].format(s=fact.subject, r=fact.relation),
+        fact.prompt(),
+        _FINAL_PARAMETRIC_TEMPLATE.format(s=fact.subject, r=fact.relation),
     )
     return {
         "question": prompt,
@@ -337,15 +435,15 @@ def parametric_manifest_sha256(seed: int) -> str:
 
 def needle_split(split: str) -> dict[str, Any]:
     return {
-        "needles": list(_HELDOUT_NEEDLES if split == "heldout" else _DEV_NEEDLES),
-        "filler": list(_HELDOUT_FILLER if split == "heldout" else _DEV_FILLER),
+        "needles": list(_pick(split, _DEV_NEEDLES, _HELDOUT_NEEDLES, _FINAL_NEEDLES)),
+        "filler": list(_pick(split, _DEV_FILLER, _HELDOUT_FILLER, _FINAL_FILLER)),
         "statement": "Code: {w}.",
         "question": "Code:",
     }
 
 
 def prompts(split: str) -> list[str]:
-    return list(_HELDOUT_PROMPTS if split == "heldout" else _DEV_PROMPTS)
+    return list(_pick(split, _DEV_PROMPTS, _HELDOUT_PROMPTS, _FINAL_PROMPTS))
 
 
 def split_payload(split: str) -> dict[str, Any]:
@@ -366,8 +464,13 @@ def _sha(value: Any) -> str:
 
 
 def suite_identity() -> dict[str, Any]:
-    """Name, version and digests of declarations and both item splits."""
-    splits = {name: _sha(split_payload(name)) for name in ("dev", "heldout")}
+    """Name, version and digests of declarations and all item splits.
+
+    Digesting ``final`` opens it only to hash it; nothing about its items
+    leaves this function.
+    """
+    with final_verdict_access():
+        splits = {name: _sha(split_payload(name)) for name in SPLITS}
     declarations = [asdict(spec) for spec in PROBES]
     return {
         "name": SUITE_NAME,
@@ -381,7 +484,7 @@ def suite_identity() -> dict[str, Any]:
             }
         ),
         "splits": splits,
-        "verdict_split": "heldout",
+        "verdict_split": verdict_split(),
     }
 
 

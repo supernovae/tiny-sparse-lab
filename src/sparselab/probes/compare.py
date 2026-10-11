@@ -53,39 +53,55 @@ def _merge(points: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return merged
 
 
-def _reference_point(spec: str, pool: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    reference = reference_for(spec)
-    found = [
-        p
-        for p in pool
-        if p["kind"] == "reference"
-        and (p.get("reference") or {}).get("name") == reference.name
-    ]
-    if not found:
-        raise ValueError(
-            f"no result for {spec}: run `sparselab probe {spec} --tier full`"
-        )
-    return _merge(found)
-
-
 def resolve_point(
-    spec: str, lab_dir: Path, pool: Sequence[Mapping[str, Any]]
+    spec: str,
+    lab_dir: Path,
+    pool: Sequence[Mapping[str, Any]],
+    *,
+    final: bool = False,
 ) -> dict[str, Any]:
     """A try/probe id or record path (its candidate), or ``ref:NAME``.
 
     The record's own measurements come first; other verified records of the
     same checkpoint (e.g. a later ``probe --tier full``) add what it lacks.
     """
+    if is_reference(spec) and final:
+        raise ValueError(
+            f"{spec}: reference models have no final-split results; final "
+            "reports compare final verdicts only"
+        )
     if is_reference(spec):
-        return with_checkpoint_evidence(_reference_point(spec, pool), pool)
-    path = resolve_record(spec, lab_dir)
-    kind, record = read_lab_record(path)
-    points = points_from_record(kind, record, path)
-    candidate = [p for p in points if p["role"] == "candidate"]
-    if not candidate:
-        raise ValueError(f"{spec}: no scored candidate in this record")
-    sha = candidate[0]["checkpoint_sha256"]
-    own = _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
+        # The single reference resolver: every verified record of the pinned
+        # checkpoint, merged; `compare --references` resolves through here too.
+        name = reference_for(spec).name
+        found = [
+            p
+            for p in pool
+            if p["kind"] == "reference"
+            and (p.get("reference") or {}).get("name") == name
+        ]
+        if not found:
+            raise ValueError(
+                f"no result for {spec}: run `sparselab probe {spec} --tier full`"
+            )
+        own = _merge(found)
+    else:
+        path = resolve_record(spec, lab_dir)
+        kind, record = read_lab_record(path)
+        points = points_from_record(kind, record, path)
+        candidate = [p for p in points if p["role"] == "candidate"]
+        if candidate and all(bool(p.get("final")) != final for p in candidate):
+            raise ValueError(
+                f"{spec} is a final verdict (held-back split): it never enters "
+                "ordinary comparisons; report it with `sparselab compare --final`"
+                if not final
+                else f"{spec} is not a final verdict: `compare --final` reports "
+                "only `probe --final` results"
+            )
+        if not candidate:
+            raise ValueError(f"{spec}: no scored candidate in this record")
+        sha = candidate[0]["checkpoint_sha256"]
+        own = _merge([p for p in candidate if p["checkpoint_sha256"] == sha])
     return with_checkpoint_evidence(own, pool)
 
 
@@ -192,10 +208,19 @@ def compare(
     *,
     lab_dir: Path,
     references: bool = False,
+    final: bool = False,
 ) -> dict[str, Any]:
-    pool = collect_points(lab_dir)
-    subject = resolve_point(subject_spec, lab_dir, pool)
-    others = [resolve_point(spec, lab_dir, pool) for spec in other_specs]
+    """Compare results; FINAL reports ``probe --final`` results only.
+
+    Ordinary comparisons never see final-split evidence (not as a subject,
+    not as enrichment from other records of the same checkpoint); a final
+    report never mixes in ordinary or reference evidence.
+    """
+    if final and references:
+        raise ValueError("--final reports final verdicts only; drop --references")
+    pool = collect_points(lab_dir, final=final)
+    subject = resolve_point(subject_spec, lab_dir, pool, final=final)
+    others = [resolve_point(spec, lab_dir, pool, final=final) for spec in other_specs]
     if references:
         named = {o["checkpoint_sha256"] for o in others}
         for name in REFERENCES:
@@ -213,6 +238,7 @@ def compare(
         "points": [subject, *others],
         "comparisons": comparisons,
         "curve": reference_curve(subject, pool) if references else None,
+        "final": final,
     }
 
 
@@ -294,6 +320,11 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
     width = max(len(p["label"]) for p in points) + 2
     lines = [
         _paint("COMPARE", "1", color)
+        + (
+            _paint("  FINAL (held-back split: report only, never select)", "1", color)
+            if report.get("final")
+            else ""
+        )
         + f"  {subject['label']} vs {len(points) - 1} point(s) · comparisons only "
         "within one eval/benchmark/item group",
         "",
@@ -385,7 +416,8 @@ def render(report: Mapping[str, Any], *, color: bool = False) -> str:
                 )
     lines.append(
         _paint(
-            f"\n  legend  Δ = subject − other ± paired SE · within noise = |Δ| ≤ "
+            f"\n  legend  Δ = subject − other ± paired SE (loss: within-run eval "
+            f"noise, not seed spread) · within noise = |Δ| ≤ "
             f"{NOISE_SE:g} SE · resident = all weights · active = touched per token",
             "2",
             color,
@@ -435,6 +467,7 @@ def as_json(report: Mapping[str, Any]) -> dict[str, Any]:
 
     curve = report.get("curve")
     return {
+        "final": bool(report.get("final")),
         "subject": slim(report["subject"]),
         "points": [slim(p) for p in report["points"]],
         "comparisons": report["comparisons"],

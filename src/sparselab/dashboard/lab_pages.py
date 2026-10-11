@@ -573,8 +573,9 @@ def _references(snap: lab_data.LabSnapshot) -> None:
         "fact-recall paths as lab runs and shipped as sealed records, so a lab "
         "result sits on a known curve without downloading anything. They were "
         "trained on 10⁵–10⁶× more tokens with their own tokenizers, so they "
-        "never appear on our held-out loss, and the needle probe (sized in each "
-        "model's own tokens) is not comparable either. Re-score one yourself "
+        "never appear on our held-out loss. The needle probe is text-level "
+        "(fixed character lengths) from suite v4 on, so a re-scored reference "
+        "is comparable on needle too. Re-score one yourself "
         "with `sparselab probe ref:NAME --tier full` (reference + lmeval extras).",
         expanded=False,
     )
@@ -741,6 +742,13 @@ def _recall(entry: ProbeEntry) -> None:
             )
         else:
             cols[3].metric("Items", details.get("n", "–"))
+        if details.get("constant_pick") or details.get("baseline_constant_pick"):
+            st.caption(
+                "▲ Same pick for every question in each candidate set: the "
+                "model ranks answers by a context-free prior, not by the "
+                "prompt (typical of untrained models). Accuracy is chance by "
+                "construction; candidate order plays no part."
+            )
         items = lab_data.recall_items(entry, probe_id)
         if items:
             misses = [i for i in items if (i.get("credit") or 0) < 1]
@@ -773,8 +781,7 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
             ["sparselab probe RUN --tier standard"],
         )
         return
-    # Needle lengths are in each model's own tokens: only one item group
-    # (same items, tokenizer and lengths) is drawn at a time.
+    # Only one item group (same items and lengths) is drawn at a time.
     ungrouped = int(frame["group"].isna().sum())
     frame = frame.dropna(subset=["group"])
     if frame.empty:
@@ -792,8 +799,9 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
         index=0,
         key="behaviors_needle_group",
         format_func=lambda g: f"{g[:12]} · {int(counts[g])} checkpoint(s)",
-        help="Needle items are sized in each model's own tokens; only results "
-        "with the same items, tokenizer and lengths share a scale.",
+        help="Needle items have fixed character lengths (older results: each "
+        "model's own tokens); only results with the same items and lengths "
+        "share a scale.",
     )
     notes = []
     if len(groups) > 1:
@@ -805,10 +813,11 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
         "result of each) within one item group."
         + (" " + " · ".join(notes) if notes else "")
     )
-    frame = frame[frame["group"] == group].sort_values(["checkpoint", "tokens"])
+    frame = frame[frame["group"] == group].sort_values(["checkpoint", "length"])
+    unit = str(frame["unit"].iloc[0]) if len(frame) else "characters"
     figure = px.line(
         frame,
-        x="tokens",
+        x="length",
         y="accuracy",
         color="checkpoint",
         markers=True,
@@ -825,7 +834,7 @@ def _needle(entries: Sequence[ProbeEntry]) -> None:
             height=380,
             title="Needle retrieval vs context length",
             yaxis_range=[0, 1.05],
-            xaxis_title="context tokens",
+            xaxis_title=f"context {unit}",
         ),
         use_container_width=True,
     )

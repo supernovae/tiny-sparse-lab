@@ -41,6 +41,7 @@ ACTION_TEXT = {
     "escalate": "ESCALATE",
     "longer_run": "LONGER RUN",
     "compare": "COMPARE",
+    "report": "REPORT (final verdict)",
 }
 SPARK = "▁▂▃▄▅▆▇█"
 
@@ -135,6 +136,8 @@ def _delta(row: Mapping[str, Any]) -> str:
         text += f" ({delta / abs(row['baseline_value']):+.1%})"
     if row.get("delta_se") is not None:
         text += f" ±{row['delta_se']:.3f}"
+        if row["id"] == "heldout_loss":
+            text += " (eval noise, 1 seed)"
     return text
 
 
@@ -152,6 +155,9 @@ def _extra(row: Mapping[str, Any]) -> str:
     if row["id"] == "needle" and details.get("by_length"):
         lengths = details["by_length"]
         accs = [lengths[k]["accuracy"] for k in lengths]
+        if all(lengths[k].get("chars") is not None for k in lengths):
+            chars = "/".join(str(lengths[k]["chars"]) for k in lengths)
+            return f"by length {sparkline(accs)} ({chars} chars)"
         tokens = "/".join(str(lengths[k]["tokens"]) for k in lengths)
         return f"by length {sparkline(accs)} ({tokens} tok)"
     if row["id"] == "fact_recall" and details.get("chance") is not None:
@@ -174,8 +180,10 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
     target = result["target"]
     baseline = result.get("baseline")
     tiers = " → ".join(result.get("tiers_run") or []) or "none"
+    final = bool(result.get("final")) or suite.get("verdict_split") == "final"
     lines = [
         _paint("PROBE BATTERY", "1", color)
+        + (_paint("  FINAL (held-back split)", "1", color) if final else "")
         + f"  {suite['name']} v{suite['version']} · suite {suite['sha256'][:8]}"
         + f" · tier {result['tier']} (ran {tiers}) · {result['seconds']:.1f}s",
     ]
@@ -263,7 +271,12 @@ def render(result: Mapping[str, Any], *, color: bool = False) -> str:
         )
         lines.append(
             _paint("  guard   ", "2", color)
-            + f"verdicts use the held-out split · {mark} · "
+            + (
+                "FINAL verdict on the held-back final split"
+                if guard.get("verdict_split") == "final"
+                else "verdicts use the held-out split"
+            )
+            + f" · {mark} · "
             + "; ".join(parts)
         )
     lines.append(
